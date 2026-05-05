@@ -67,3 +67,37 @@ Comfortable:
 - The image is prepared for production use on a simple VPS.
 - `.env` is not committed to Git.
 - The bot runs as a non-root user inside Docker.
+
+## Railway
+
+The repository includes `railway.json`, so Railway can deploy it directly from the root.
+
+Recommended setup:
+
+1. Create a Railway service from this repo.
+2. Attach a Volume to the service.
+3. Mount the Volume to `/app/data`.
+4. Add service variables:
+
+```env
+TELEGRAM_TOKEN=...
+ANTHROPIC_API_KEY=...
+FEEDBACK_USERNAME=@your_username
+RAILWAY_RUN_UID=0
+```
+
+Optional variables:
+
+```env
+FREE_DAILY_LIMIT=3
+CACHE_TTL_DAYS=7
+APP_DATA_DIR=/app/data
+USERS_DB_PATH=users.db
+CACHE_DB_PATH=analysis_cache.db
+ORG_CACHE_PATH=org_cache.json
+OUTPUT_PATH=report.html
+```
+
+Notes:
+- the app is a Telegram polling worker, so no public domain or HTTP healthcheck is required
+- without a Volume, SQLite files and caches will not persist between deployments

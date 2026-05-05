@@ -5,7 +5,11 @@ from pathlib import Path
 
 DATABASE_BACKEND = os.getenv("DATABASE_BACKEND", "sqlite").strip().lower()
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-APP_DATA_DIR = Path(os.getenv("APP_DATA_DIR", "data")).expanduser()
+APP_DATA_DIR = Path(
+    os.getenv("APP_DATA_DIR")
+    or os.getenv("RAILWAY_VOLUME_MOUNT_PATH")
+    or "data"
+).expanduser()
 
 
 def _resolve_path(raw_path: str, default_name: str) -> Path:
