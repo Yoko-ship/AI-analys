@@ -14,3 +14,4 @@ analysis_cache.db
 users.db
 org_cache.json
 trades_*.csv
+.env.example
