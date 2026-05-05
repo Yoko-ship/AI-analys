@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite
+*.sqlite3
+*.log
+.env
+data/
+report.html
+analysis_cache.db
+users.db
+org_cache.json
+trades_*.csv

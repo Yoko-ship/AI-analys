@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  syntax-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install server dependencies
+        run: pip install -r requirements-server.txt
+
+      - name: Compile Python files
+        run: python -m compileall bot.py main.py analyzer.py cache.py db.py users.py uzse_parser.py
+
+      - name: Build Docker image
+        run: docker build -t uz-stock-bot .
