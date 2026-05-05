@@ -26,6 +26,7 @@ Create `.env` from `.env.example`:
 TELEGRAM_TOKEN=your_telegram_bot_token
 ANTHROPIC_API_KEY=your_anthropic_api_key
 FEEDBACK_USERNAME=@your_username
+ADMIN_TELEGRAM_ID=123456789
 FREE_DAILY_LIMIT=3
 CACHE_TTL_DAYS=7
 APP_DATA_DIR=./data
@@ -84,6 +85,7 @@ RAILWAY_RUN_UID=0
 Optional variables:
 
 ```env
+ADMIN_TELEGRAM_ID=123456789
 APP_DATA_DIR=/app/data
 USERS_DB_PATH=users.db
 CACHE_DB_PATH=analysis_cache.db
@@ -95,6 +97,7 @@ Important:
 - this bot uses Telegram polling, so a public HTTP domain is not required
 - without a Volume, SQLite and cache files will be ephemeral
 - `RAILWAY_RUN_UID=0` is recommended because Railway mounts Volumes as `root`
+- `ADMIN_TELEGRAM_ID` grants admin access automatically after restart
 
 ## Server Notes
 

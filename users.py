@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 DB_PATH = get_users_db_path()
 
 FREE_DAILY_LIMIT = int(os.getenv("FREE_DAILY_LIMIT", "3"))
+ADMIN_TELEGRAM_IDS = {
+    int(raw.strip())
+    for raw in os.getenv("ADMIN_TELEGRAM_ID", "").split(",")
+    if raw.strip().isdigit()
+}
 
 TIER_FREE = "free"
 TIER_PRO = "pro"
@@ -131,6 +136,19 @@ class UserDB:
                 """
             )
 
+    def _sync_admin_tier(self, user_id: int) -> None:
+        if user_id not in ADMIN_TELEGRAM_IDS:
+            return
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE users
+                SET tier=?, subscription_until=NULL
+                WHERE user_id=? AND tier!=?
+                """,
+                (TIER_ADMIN, user_id, TIER_ADMIN),
+            )
+
     def upsert(self, tg_user) -> User:
         now = time.time()
         with self._conn() as conn:
@@ -158,6 +176,7 @@ class UserDB:
                     tg_user.language_code,
                 ),
             )
+        self._sync_admin_tier(tg_user.id)
         return self.get(tg_user.id)
 
     def _analyses_today(self, user_id: int) -> int:
@@ -194,6 +213,7 @@ class UserDB:
         )
 
     def get(self, user_id: int) -> Optional[User]:
+        self._sync_admin_tier(user_id)
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT * FROM users WHERE user_id = ?",
