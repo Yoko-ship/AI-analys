@@ -1,0 +1,18 @@
+services:
+  stock-bot:
+    build: .
+    container_name: uz-stock-bot
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Tashkent
+      APP_DATA_DIR: /app/data
+      CACHE_DB_PATH: analysis_cache.db
+      USERS_DB_PATH: users.db
+      ORG_CACHE_PATH: org_cache.json
+      OUTPUT_PATH: report.html
+    volumes:
+      - ./data:/app/data
+    command: ["python", "bot.py"]
