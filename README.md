@@ -35,6 +35,10 @@ ORG_CACHE_PATH=org_cache.json
 OUTPUT_PATH=report.html
 ```
 
+Notes:
+- `APP_DATA_DIR` defaults to `./data` locally
+- on Railway, if a Volume is attached, the app can use `RAILWAY_VOLUME_MOUNT_PATH` automatically
+
 ## Local Run
 
 ```bash
@@ -58,6 +62,39 @@ docker compose logs -f
 docker compose restart
 docker compose up -d --build
 ```
+
+## Railway
+
+This project is ready to run on Railway as a persistent worker service.
+
+1. Create a Railway service from this repository.
+2. Railway will build it from the root `Dockerfile` and apply `railway.json`.
+3. Attach a Volume and mount it to `/app/data`.
+4. Add service variables:
+
+```env
+TELEGRAM_TOKEN=...
+ANTHROPIC_API_KEY=...
+FEEDBACK_USERNAME=@your_username
+FREE_DAILY_LIMIT=3
+CACHE_TTL_DAYS=7
+RAILWAY_RUN_UID=0
+```
+
+Optional variables:
+
+```env
+APP_DATA_DIR=/app/data
+USERS_DB_PATH=users.db
+CACHE_DB_PATH=analysis_cache.db
+ORG_CACHE_PATH=org_cache.json
+OUTPUT_PATH=report.html
+```
+
+Important:
+- this bot uses Telegram polling, so a public HTTP domain is not required
+- without a Volume, SQLite and cache files will be ephemeral
+- `RAILWAY_RUN_UID=0` is recommended because Railway mounts Volumes as `root`
 
 ## Server Notes
 
