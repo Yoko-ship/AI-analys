@@ -76,6 +76,60 @@ logger = logging.getLogger(__name__)
 
 WAITING_COMPANY = 1
 
+COMPANY_CATALOG = {
+    '"Hamkorbank" ATB': "HMKB",
+    '"Hamkorbank" ATB (привилегированные)': "HMKBP",
+    '"Ipak Yuli" ATIB': "IPKY",
+    '"Ipoteka-bank" ATIB': "IPTB",
+    '"Ipoteka-bank" ATIB (привилегированные)': "IPTBP",
+    '"Agrobank" ATB': "AGBA",
+    '"Agrobank" ATB (привилегированные)': "AGBAP",
+    '"O\'zsanoatqurilishbank" ATB': "SQBN",
+    '"O\'zsanoatqurilishbank" ATB (привилегированные)': "SQBNP",
+    '"Trastbank" CHAKB': "TRSB",
+    '"Trastbank" CHAKB (привилегированные)': "TRSBP",
+    '"Turonbank" ATB': "TNBN",
+    '"Turonbank" ATB (привилегированные)': "TNBNP",
+    '"Aloqabank" ATB': "ALKB",
+    '"Aloqabank" ATB (привилегированные)': "ALKBP",
+    '"Garant Bank" AJ': "GRBK",
+    '"Mikrokreditbank" ATB': "MCBA",
+    '"Mikrokreditbank" ATB (привилегированные)': "MCBAP",
+    '"Universal Bank" CHAKB': "UNVB",
+    '"Oktobank" AJ': "OCBK",
+    '"Biznesni rivojlantirish banki" ATB': "BRBN",
+    '"Biznesni rivojlantirish banki" ATB (привилегированные)': "BRNBP",
+    '"Kapitalbank" AJ': "KPBA",
+    '"Tenge Bank" ATB': "TNGB",
+    '"O\'zRTXB" AJ': "URTS",
+    '"O\'zmetkombinat" AJ': "UZMK",
+    '"O\'zmetkombinat" AJ (привилегированные)': "UZMKP",
+    '"Kvarts" AJ': "KVTS",
+    '"Qizilqumsement" AJ': "QZSM",
+    '"Bekobodsement" AJ': "BECM",
+    '"Bekobodsement" AJ (привилегированные)': "BECMP",
+    '"Olmaliq KMK" AJ (привилегированные)': "AGMKP",
+    '"UzAuto Motors" AJ': "UZMT",
+    '"DORI-DARMON" AJ': "DORI",
+    '"Buxoroneftgazparmalash" AJ': "BNGP",
+    '"Buxoroneftgazparmalash" AJ (привилегированные)': "BNGPP",
+    '"O\'zbekiston neftgaz" AJ (привилегированные)': "UZNGP",
+    '"Mubarekneftgazmontaj" AJ': "MNGM",
+    '"O\'zbekgeofizika" AJ (привилегированные)': "UZGFP",
+    '"O\'ztransgaz" AJ (привилегированные)': "UTGAP",
+    '"Neft va gaz quduqlarini sinash" AJ': "NGQS",
+    '"O\'zbektelekom" AJ': "UZTL",
+    '"Boshtransloyiha" AJ': "BTRL",
+    '"O\'zbekko\'mir" AJ': "UZIR",
+    '"O\'zbekinvest EISK" AJ (привилегированные)': "UZINP",
+    '"ALSKOM sug\'urta" AJ': "ALSM",
+    '"Kapital sug\'urta" AJ (привилегированные)': "KASUP",
+    '"Chilonzor buyum savdo kompleksi" AJ': "CBSK",
+    '"JSM" AJ': "JASM",
+    '"ORGRES" AJ': "ORGS",
+    '"TDM" AJ (привилегированные)': "TKDMP",
+}
+
 STAGES = [
     ("🌐", "Собираю финансовые данные..."),
     ("🔍", "Ищу информацию в интернете..."),
@@ -520,8 +574,9 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "📖 *Как пользоваться:*\n\n"
         "1️⃣ Напиши тикер или название компании\n"
         "   Например: `ALKB`, `HMKB`, `QATT`\n\n"
-        "2️⃣ Подожди 1–3 минуты\n\n"
-        "3️⃣ Выбери формат результата:\n"
+        "2️⃣ Посмотри список компаний: `/companies`\n\n"
+        "3️⃣ Подожди 1–3 минуты\n\n"
+        "4️⃣ Выбери формат результата:\n"
         "   📋 *Кратко* — вердикт + главное за 10 сек\n"
         "   📊 *Подробно* — полный разбор с цифрами\n"
         "   📄 *HTML файл* — красивый отчёт для браузера\n\n"
@@ -530,6 +585,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "   • ♾️ Безлимитно из кэша — повторные запросы бесплатны\n\n"
         "*Команды:*\n"
         "/analyze  — новый анализ\n"
+        "/companies — список компаний\n"
         "/me       — мой профиль и лимиты\n"
         "/feedback — написать отзыв\n"
         "/cancel   — отменить\n"
@@ -905,6 +961,26 @@ async def cmd_cache(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
 
 
+async def cmd_companies(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/companies — список доступных компаний и тикеров."""
+    lines = [
+        "🏢 *Доступные компании*",
+        "",
+        "Можешь отправить боту тикер или название компании.",
+        "Например: `HMKB`, `ALKB`, `UzAuto Motors`",
+        "",
+    ]
+
+    for company_name, ticker in COMPANY_CATALOG.items():
+        lines.append(f"`{ticker}` — {company_name}")
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode=ParseMode.MARKDOWN,
+        disable_web_page_preview=True,
+    )
+
+
 async def cmd_me(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/me — профиль пользователя и история запросов."""
     tg_user = update.effective_user
@@ -1013,6 +1089,7 @@ def main():
         await application.bot.set_my_commands([
             BotCommand("start",    "Начало работы"),
             BotCommand("analyze",  "Анализировать компанию"),
+            BotCommand("companies", "Список компаний"),
             BotCommand("me",       "Мой профиль и лимиты"),
             BotCommand("feedback", "Написать отзыв / связаться"),
             BotCommand("help",     "Справка"),
@@ -1050,6 +1127,7 @@ def main():
     app.add_handler(conv)
     app.add_handler(CommandHandler("help",  cmd_help))
     app.add_handler(CommandHandler("cache", cmd_cache))
+    app.add_handler(CommandHandler("companies", cmd_companies))
     app.add_handler(CommandHandler("me",       cmd_me))
     app.add_handler(CommandHandler("admin",    cmd_admin))
     app.add_handler(CommandHandler("feedback", cmd_feedback))
