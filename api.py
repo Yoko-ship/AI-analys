@@ -90,6 +90,7 @@ async def api_analyze(payload: AnalyzeRequest) -> dict[str, Any]:
         "ok": True,
         "input": payload.company,
         "company_name": result.get("company_name"),
+        "model": result.get("model"),
         "annual_period": result.get("annual_period"),
         "quarterly_period": result.get("quarterly_period"),
         "cost": result.get("cost"),

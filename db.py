@@ -1,15 +1,43 @@
 import os
 import sqlite3
+import tempfile
 from pathlib import Path
 
 
 DATABASE_BACKEND = os.getenv("DATABASE_BACKEND", "sqlite").strip().lower()
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-APP_DATA_DIR = Path(
+_PREFERRED_DATA_DIR = Path(
     os.getenv("APP_DATA_DIR")
     or os.getenv("RAILWAY_VOLUME_MOUNT_PATH")
     or "data"
 ).expanduser()
+
+
+def _is_writable_dir(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".write_test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return True
+    except Exception:
+        return False
+
+
+def _pick_app_data_dir() -> Path:
+    candidates = [_PREFERRED_DATA_DIR]
+    candidates.append(Path(tempfile.gettempdir()) / "uz-stock-analyzer")
+
+    for candidate in candidates:
+        if _is_writable_dir(candidate):
+            return candidate
+
+    raise RuntimeError(
+        "Не удалось найти доступную для записи папку для runtime-файлов."
+    )
+
+
+APP_DATA_DIR = _pick_app_data_dir()
 
 
 def _resolve_path(raw_path: str, default_name: str) -> Path:
@@ -50,6 +78,7 @@ def sqlite_connect(db_path: str) -> sqlite3.Connection:
             "Пока оставь DATABASE_URL пустым и используй sqlite."
         )
 
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
