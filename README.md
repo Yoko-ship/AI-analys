@@ -13,6 +13,7 @@ The bot:
 - Python 3.12
 - `python-telegram-bot`
 - Anthropic API
+- OpenAI API for the website API
 - SQLite for local runtime storage
 - Docker / Docker Compose for deployment
 
@@ -25,6 +26,9 @@ Create `.env` from `.env.example`:
 ```env
 TELEGRAM_TOKEN=your_telegram_bot_token
 ANTHROPIC_API_KEY=your_anthropic_api_key
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-5.4-mini
+OPENAI_REASONING_EFFORT=low
 FEEDBACK_USERNAME=@your_username
 ADMIN_TELEGRAM_ID=123456789
 FREE_DAILY_LIMIT=3
@@ -41,6 +45,7 @@ Notes:
 - `APP_DATA_DIR` defaults to `./data` locally
 - on Railway, if a Volume is attached, the app can use `RAILWAY_VOLUME_MOUNT_PATH` automatically
 - API endpoints can be opened for your website with `CORS_ORIGINS=*` or a comma-separated list of domains
+- the Telegram bot still uses Anthropic, while the website API uses `OPENAI_API_KEY`
 
 ## Local Run
 

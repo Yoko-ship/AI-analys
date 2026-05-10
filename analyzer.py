@@ -23,7 +23,10 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
-import anthropic
+try:
+    import anthropic
+except ImportError:  # pragma: no cover - dependency is available in production
+    anthropic = None
 from main import get_data
 from db import get_output_path
 
@@ -40,9 +43,9 @@ MODEL_CHEAP = "claude-haiku-4-5-20251001"
 MODEL_MAIN  = "claude-sonnet-4-6"
 
 if not API_KEY:
-    raise ValueError("❌ API ключ не найден. Добавь ANTHROPIC_API_KEY в .env")
-
-client = anthropic.Anthropic(api_key=API_KEY)
+    client = None
+else:
+    client = anthropic.Anthropic(api_key=API_KEY)
 
 
 # ─────────────────────────────────────────────────────────
@@ -1999,7 +2002,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
 
 </div>
-<footer>Сгенерировано автоматически · Haiku 4.5 + Sonnet 4.6 · Fibonacci · Piotroski · Graham · Altman · Не является инвестиционной рекомендацией</footer>
+<footer>Сгенерировано автоматически · Fibonacci · Piotroski · Graham · Altman · Не является инвестиционной рекомендацией</footer>
 </body>
 </html>
 """
