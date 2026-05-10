@@ -34,11 +34,13 @@ USERS_DB_PATH=users.db
 CACHE_DB_PATH=analysis_cache.db
 ORG_CACHE_PATH=org_cache.json
 OUTPUT_PATH=report.html
+CORS_ORIGINS=*
 ```
 
 Notes:
 - `APP_DATA_DIR` defaults to `./data` locally
 - on Railway, if a Volume is attached, the app can use `RAILWAY_VOLUME_MOUNT_PATH` automatically
+- API endpoints can be opened for your website with `CORS_ORIGINS=*` or a comma-separated list of domains
 
 ## Local Run
 
@@ -80,6 +82,7 @@ FEEDBACK_USERNAME=@your_username
 FREE_DAILY_LIMIT=3
 CACHE_TTL_DAYS=7
 RAILWAY_RUN_UID=0
+APP_MODE=bot
 ```
 
 Optional variables:
@@ -98,6 +101,38 @@ Important:
 - without a Volume, SQLite and cache files will be ephemeral
 - `RAILWAY_RUN_UID=0` is recommended because Railway mounts Volumes as `root`
 - `ADMIN_TELEGRAM_ID` grants admin access automatically after restart
+
+To run the API from the same repo, create a second Railway service and set:
+
+```env
+APP_MODE=api
+```
+
+Then the service starts `uvicorn api:app --host 0.0.0.0 --port $PORT` automatically.
+
+## API
+
+Run the HTTP API for a website with:
+
+```bash
+uvicorn api:app --host 0.0.0.0 --port 8000
+```
+
+Main endpoints:
+
+```http
+GET  /health
+GET  /api/companies
+POST /api/analyze
+```
+
+Example request:
+
+```bash
+curl -X POST http://localhost:8000/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"company":"HMKB","include_html":true}'
+```
 
 ## Server Notes
 

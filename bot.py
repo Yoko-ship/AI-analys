@@ -49,6 +49,7 @@ from analyzer import (
 )
 from main import get_data
 from cache import cache as analysis_cache
+from company_catalog import COMPANY_CATALOG
 from users import (
     user_db,
     TIER_ADMIN,
@@ -75,60 +76,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 WAITING_COMPANY = 1
-
-COMPANY_CATALOG = {
-    '"Hamkorbank" ATB': "HMKB",
-    '"Hamkorbank" ATB (привилегированные)': "HMKBP",
-    '"Ipak Yuli" ATIB': "IPKY",
-    '"Ipoteka-bank" ATIB': "IPTB",
-    '"Ipoteka-bank" ATIB (привилегированные)': "IPTBP",
-    '"Agrobank" ATB': "AGBA",
-    '"Agrobank" ATB (привилегированные)': "AGBAP",
-    '"O\'zsanoatqurilishbank" ATB': "SQBN",
-    '"O\'zsanoatqurilishbank" ATB (привилегированные)': "SQBNP",
-    '"Trastbank" CHAKB': "TRSB",
-    '"Trastbank" CHAKB (привилегированные)': "TRSBP",
-    '"Turonbank" ATB': "TNBN",
-    '"Turonbank" ATB (привилегированные)': "TNBNP",
-    '"Aloqabank" ATB': "ALKB",
-    '"Aloqabank" ATB (привилегированные)': "ALKBP",
-    '"Garant Bank" AJ': "GRBK",
-    '"Mikrokreditbank" ATB': "MCBA",
-    '"Mikrokreditbank" ATB (привилегированные)': "MCBAP",
-    '"Universal Bank" CHAKB': "UNVB",
-    '"Oktobank" AJ': "OCBK",
-    '"Biznesni rivojlantirish banki" ATB': "BRBN",
-    '"Biznesni rivojlantirish banki" ATB (привилегированные)': "BRNBP",
-    '"Kapitalbank" AJ': "KPBA",
-    '"Tenge Bank" ATB': "TNGB",
-    '"O\'zRTXB" AJ': "URTS",
-    '"O\'zmetkombinat" AJ': "UZMK",
-    '"O\'zmetkombinat" AJ (привилегированные)': "UZMKP",
-    '"Kvarts" AJ': "KVTS",
-    '"Qizilqumsement" AJ': "QZSM",
-    '"Bekobodsement" AJ': "BECM",
-    '"Bekobodsement" AJ (привилегированные)': "BECMP",
-    '"Olmaliq KMK" AJ (привилегированные)': "AGMKP",
-    '"UzAuto Motors" AJ': "UZMT",
-    '"DORI-DARMON" AJ': "DORI",
-    '"Buxoroneftgazparmalash" AJ': "BNGP",
-    '"Buxoroneftgazparmalash" AJ (привилегированные)': "BNGPP",
-    '"O\'zbekiston neftgaz" AJ (привилегированные)': "UZNGP",
-    '"Mubarekneftgazmontaj" AJ': "MNGM",
-    '"O\'zbekgeofizika" AJ (привилегированные)': "UZGFP",
-    '"O\'ztransgaz" AJ (привилегированные)': "UTGAP",
-    '"Neft va gaz quduqlarini sinash" AJ': "NGQS",
-    '"O\'zbektelekom" AJ': "UZTL",
-    '"Boshtransloyiha" AJ': "BTRL",
-    '"O\'zbekko\'mir" AJ': "UZIR",
-    '"O\'zbekinvest EISK" AJ (привилегированные)': "UZINP",
-    '"ALSKOM sug\'urta" AJ': "ALSM",
-    '"Kapital sug\'urta" AJ (привилегированные)': "KASUP",
-    '"Chilonzor buyum savdo kompleksi" AJ': "CBSK",
-    '"JSM" AJ': "JASM",
-    '"ORGRES" AJ': "ORGS",
-    '"TDM" AJ (привилегированные)': "TKDMP",
-}
 
 STAGES = [
     ("🌐", "Собираю финансовые данные..."),
