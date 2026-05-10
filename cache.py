@@ -43,6 +43,20 @@ DEFAULT_TTL_DAYS = int(os.getenv("CACHE_TTL_DAYS", "7"))
 DB_PATH = get_cache_db_path()
 
 
+def _json_default(value):
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            pass
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    return str(value)
+
+
 def _normalize(company: str) -> str:
     """Нормализует название компании для использования как ключ."""
     s = company.lower().strip()
@@ -70,6 +84,7 @@ class AnalysisCache:
                     raw_analysis    TEXT NOT NULL,
                     html_report     TEXT NOT NULL,
                     sections_json   TEXT NOT NULL,
+                    result_json     TEXT,
                     annual_period   TEXT,
                     quarterly_period TEXT,
                     cost            REAL,
@@ -82,6 +97,14 @@ class AnalysisCache:
                 CREATE INDEX IF NOT EXISTS idx_created_at
                 ON analysis_cache(created_at)
             """)
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(analysis_cache)").fetchall()
+            }
+            if "result_json" not in columns:
+                conn.execute(
+                    "ALTER TABLE analysis_cache ADD COLUMN result_json TEXT"
+                )
         logger.info(f"Кэш инициализирован: {self.db_path}")
 
     def _conn(self) -> sqlite3.Connection:
@@ -142,7 +165,14 @@ class AnalysisCache:
         except Exception:
             sections = {}
 
-        return {
+        result_data = {}
+        if "result_json" in row.keys() and row["result_json"]:
+            try:
+                result_data = json.loads(row["result_json"])
+            except Exception:
+                result_data = {}
+
+        payload = {
             "company_name":      row["company_name"],
             "raw_analysis":      row["raw_analysis"],
             "html_report":       row["html_report"],
@@ -157,6 +187,10 @@ class AnalysisCache:
             "age_str":           age_str,
             "expires_in_days":   expires_in,
         }
+        payload.update(result_data)
+        payload["from_cache"] = True
+        payload["source"] = "cache"
+        return payload
 
     def set(self, company: str, result: dict):
         """
@@ -169,18 +203,24 @@ class AnalysisCache:
         sections_json = json.dumps(
             result.get("sections", {}), ensure_ascii=False
         )
+        result_json = json.dumps(
+            result,
+            ensure_ascii=False,
+            default=_json_default,
+        )
 
         with self._conn() as conn:
             conn.execute("""
                 INSERT INTO analysis_cache
                     (cache_key, company_name, raw_analysis, html_report,
-                     sections_json, annual_period, quarterly_period, cost, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     sections_json, result_json, annual_period, quarterly_period, cost, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(cache_key) DO UPDATE SET
                     company_name     = excluded.company_name,
                     raw_analysis     = excluded.raw_analysis,
                     html_report      = excluded.html_report,
                     sections_json    = excluded.sections_json,
+                    result_json      = excluded.result_json,
                     annual_period    = excluded.annual_period,
                     quarterly_period = excluded.quarterly_period,
                     cost             = excluded.cost,
@@ -192,6 +232,7 @@ class AnalysisCache:
                 result["raw_analysis"],
                 result["html_report"],
                 sections_json,
+                result_json,
                 result.get("annual_period",    ""),
                 result.get("quarterly_period", ""),
                 result.get("cost", 0.0),

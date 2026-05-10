@@ -85,6 +85,7 @@ ANTHROPIC_API_KEY=...
 FEEDBACK_USERNAME=@your_username
 ADMIN_TELEGRAM_ID=123456789
 RAILWAY_RUN_UID=0
+APP_MODE=bot
 ```
 
 Optional variables:
@@ -102,3 +103,12 @@ OUTPUT_PATH=report.html
 Notes:
 - the app is a Telegram polling worker, so no public domain or HTTP healthcheck is required
 - without a Volume, SQLite files and caches will not persist between deployments
+
+## API
+
+If you want to run the website API as a separate Railway service:
+
+1. Create a second service from the same repo.
+2. Set `APP_MODE=api`.
+3. Add the same environment variables plus `CORS_ORIGINS`.
+4. Attach the same kind of Volume if you want cache persistence.
