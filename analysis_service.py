@@ -41,6 +41,19 @@ WEB_RESEARCH_NOTE = (
     "Если каких-то данных не хватает, прямо скажи об этом и не выдумывай факты."
 )
 
+PROFILE_STYLE_NOTE = (
+    "Пиши кратко, фактически и без воды. "
+    "Никаких вступлений, повторов и рекламных формулировок. "
+    "Если факт не подтверждён данными, не придумывай его."
+)
+
+ANALYSIS_STYLE_NOTE = (
+    "Ответ должен быть плотным по смыслу и коротким. "
+    "Ставь цифры, выводы и риски, а не общие рассуждения. "
+    "Убирай канцелярит, маркетинг и длинные вступления. "
+    "Каждая секция должна содержать только то, что реально помогает принять решение."
+)
+
 
 def _sanitize_reasoning_effort(value: str) -> str:
     allowed = {"none", "minimal", "low", "medium", "high", "xhigh"}
@@ -143,10 +156,11 @@ def build_company_profile(company_name: str, annual_data: list, quarterly_data: 
 
     instructions = (
         "Ты пишешь краткий профиль компании для инвестиционного отчета. "
-        "Пиши по-русски, без markdown-заголовков и без лишних пояснений. "
-        "Не выдумывай веб-факты: веб-поиск отключен."
+        "Пиши по-русски, коротко и по фактам, примерно 120-180 слов. "
+        "Без markdown-заголовков, вступлений и лишних пояснений. "
+        "Опирайся только на финансовые данные и заметку о веб-поиске; не выдумывай факты."
     )
-    profile, response = _responses_text(prompt, instructions, max_output_tokens=1500)
+    profile, response = _responses_text(f"{PROFILE_STYLE_NOTE}\n\n{prompt}", instructions, max_output_tokens=1200)
 
     usage = getattr(response, "usage", None)
     if usage is not None:
@@ -208,7 +222,7 @@ def _analysis_prompt(
         quarterly_period=quarterly_period,
         quarterly_json=json.dumps(slim["quarterly"], ensure_ascii=False),
     )
-    return prompt, metrics, ind_compare, annual_period, quarterly_period
+    return f"{ANALYSIS_STYLE_NOTE}\n\n{prompt}", metrics, ind_compare, annual_period, quarterly_period
 
 
 def run_analysis(company_name: str, company_profile: str, annual_data: list,
@@ -233,6 +247,7 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
         "Ты строго следуешь формату ответа. "
         "КАЖДАЯ секция ОБЯЗАТЕЛЬНО начинается с метки в квадратных скобках: [СКОРИНГ], [ДОСЬЕ], [ТРЕНД] и т. д. "
         "Не используй markdown заголовки (##). Не пропускай ни одну секцию. "
+        "Пиши сухо, по цифрам и фактам, без воды, повторов и длинных вступлений. "
         "Если данных недостаточно — напиши 'Недостаточно данных' внутри секции, но секцию не пропускай."
     )
     raw, response = _responses_text(prompt, instructions, max_output_tokens=8000)
