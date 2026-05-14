@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from analysis_service import build_summary, run_company_analysis
@@ -49,6 +52,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+WEB_DIR = Path(__file__).with_name("web")
+if WEB_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=WEB_DIR), name="assets")
 
 
 class AnalyzeRequest(BaseModel):
@@ -110,6 +117,14 @@ def _extract_bearer_token(authorization: str | None) -> str:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/")
+async def index() -> FileResponse:
+    index_path = WEB_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="Frontend is not built yet")
+    return FileResponse(index_path)
 
 
 @app.get("/api/companies")
