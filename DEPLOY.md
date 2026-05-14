@@ -43,7 +43,7 @@ docker compose up -d --build
 
 ## Storage
 
-No separate DB server is required.
+No separate DB server is required for the bot runtime.
 
 The bot stores runtime files in `./data`:
 - `users.db`
@@ -101,7 +101,7 @@ OUTPUT_PATH=report.html
 ```
 
 Notes:
-- the app is a Telegram polling worker, so no public domain or HTTP healthcheck is required
+- the app is a Telegram polling worker, so no public domain or HTTP healthcheck is required for the bot service
 - without a Volume, SQLite files and caches will not persist between deployments
 
 ## API
@@ -120,3 +120,5 @@ API auth flow:
 1. `POST /api/auth/register` or `POST /api/auth/login`
 2. Save the returned `token`
 3. Send `Authorization: Bearer <token>` on `POST /api/analyze`
+
+Open the same Railway API URL in a browser to use the frontend at `/`.

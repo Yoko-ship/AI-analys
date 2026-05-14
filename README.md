@@ -18,7 +18,7 @@ The bot:
 - SQLite for local runtime storage
 - Docker / Docker Compose for deployment
 
-No external database server is required. Runtime files are stored in `./data`.
+The bot runtime stores local files in `./data`; website users and sessions live in Railway Postgres.
 
 ## Environment
 
@@ -153,9 +153,11 @@ curl -X POST http://localhost:8000/api/analyze \
 Authorization: Bearer <token>
 ```
 
+The frontend is served from `/` on the API service, so you can open the same Railway URL in a browser to use the web app.
+
 ## Server Notes
 
-- external DB is not needed
+- external DB is only needed for website users/sessions
 - all SQLite files and caches live in `./data`
 - the Docker image does not install Chrome or Selenium
 - the main path uses HTTP APIs; Selenium is only optional fallback in local environments
