@@ -110,7 +110,13 @@ If you want to run the website API as a separate Railway service:
 
 1. Create a second service from the same repo.
 2. Set `APP_MODE=api`.
-3. Add `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5.4-mini` and `CORS_ORIGINS`.
+3. Add `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5.4-mini`, `DATABASE_URL` and `CORS_ORIGINS`.
 4. Attach the same kind of Volume if you want cache persistence.
 
-Note: keep `ANTHROPIC_API_KEY` for the Telegram bot service; the API service uses OpenAI only.
+Note: keep `ANTHROPIC_API_KEY` for the Telegram bot service; the API service uses OpenAI and Railway Postgres for website users.
+
+API auth flow:
+
+1. `POST /api/auth/register` or `POST /api/auth/login`
+2. Save the returned `token`
+3. Send `Authorization: Bearer <token>` on `POST /api/analyze`

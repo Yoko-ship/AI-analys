@@ -14,6 +14,7 @@ The bot:
 - `python-telegram-bot`
 - Anthropic API
 - OpenAI API for the website API
+- Railway Postgres for website users/auth
 - SQLite for local runtime storage
 - Docker / Docker Compose for deployment
 
@@ -31,6 +32,8 @@ OPENAI_MODEL=gpt-5.4-mini
 OPENAI_REASONING_EFFORT=low
 FEEDBACK_USERNAME=@your_username
 ADMIN_TELEGRAM_ID=123456789
+DATABASE_URL=postgresql://user:password@host:5432/database
+WEB_SESSION_TTL_DAYS=30
 FREE_DAILY_LIMIT=3
 CACHE_TTL_DAYS=7
 APP_DATA_DIR=./data
@@ -46,6 +49,7 @@ Notes:
 - on Railway, if a Volume is attached, the app can use `RAILWAY_VOLUME_MOUNT_PATH` automatically
 - API endpoints can be opened for your website with `CORS_ORIGINS=*` or a comma-separated list of domains
 - the Telegram bot still uses Anthropic, while the website API uses `OPENAI_API_KEY`
+- website registration/login use `DATABASE_URL` from Railway Postgres
 
 ## Local Run
 
@@ -127,6 +131,10 @@ Main endpoints:
 
 ```http
 GET  /health
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/me
+POST /api/auth/logout
 GET  /api/companies
 POST /api/analyze
 ```
@@ -137,6 +145,12 @@ Example request:
 curl -X POST http://localhost:8000/api/analyze \
   -H "Content-Type: application/json" \
   -d '{"company":"HMKB","include_html":true}'
+```
+
+`POST /api/analyze` requires:
+
+```http
+Authorization: Bearer <token>
 ```
 
 ## Server Notes
