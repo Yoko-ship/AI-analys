@@ -3,12 +3,13 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from analysis_service import build_summary, run_company_analysis
 from company_catalog import COMPANY_CATALOG
+from web_auth import WebUser, web_auth_store
 
 
 def _json_safe(value):
@@ -57,6 +58,55 @@ class AnalyzeRequest(BaseModel):
     include_raw: bool = False
 
 
+class RegisterRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=320)
+    password: str = Field(..., min_length=8, max_length=128)
+    full_name: str = Field("", max_length=120)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=320)
+    password: str = Field(..., min_length=1, max_length=128)
+
+
+def _auth_payload(user: WebUser, token: str) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "user": user.to_public_dict(),
+        "token": token,
+        "token_type": "bearer",
+    }
+
+
+def _require_user(authorization: str | None = Header(default=None)) -> WebUser:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header is required")
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="Use Bearer token authentication")
+
+    try:
+        user = web_auth_store.get_user_by_token(token.strip())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user
+
+
+def _extract_bearer_token(authorization: str | None) -> str:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header is required")
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="Use Bearer token authentication")
+
+    return token.strip()
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -74,8 +124,57 @@ async def api_companies() -> dict[str, Any]:
     }
 
 
+@app.post("/api/auth/register")
+async def api_register(payload: RegisterRequest) -> dict[str, Any]:
+    try:
+        user, token = web_auth_store.register_user(
+            payload.email,
+            payload.password,
+            payload.full_name,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status = 409 if "already registered" in message.lower() else 400
+        raise HTTPException(status_code=status, detail=message) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return _auth_payload(user, token)
+
+
+@app.post("/api/auth/login")
+async def api_login(payload: LoginRequest) -> dict[str, Any]:
+    try:
+        user, token = web_auth_store.login_user(payload.email, payload.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return _auth_payload(user, token)
+
+
+@app.get("/api/auth/me")
+async def api_me(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
+    return {"ok": True, "user": current_user.to_public_dict()}
+
+
+@app.post("/api/auth/logout")
+async def api_logout(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    try:
+        token = _extract_bearer_token(authorization)
+        revoked = web_auth_store.revoke_token(token)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {"ok": True, "revoked": revoked}
+
+
 @app.post("/api/analyze")
-async def api_analyze(payload: AnalyzeRequest) -> dict[str, Any]:
+async def api_analyze(
+    payload: AnalyzeRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> dict[str, Any]:
     try:
         result = await run_company_analysis(
             payload.company,
@@ -100,6 +199,7 @@ async def api_analyze(payload: AnalyzeRequest) -> dict[str, Any]:
         "sections": result.get("sections", {}),
         "metrics": result.get("metrics"),
         "liquidity": result.get("liquidity"),
+        "requested_by": current_user.to_public_dict(),
     }
 
     if payload.include_raw:

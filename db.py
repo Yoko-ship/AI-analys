@@ -5,7 +5,6 @@ from pathlib import Path
 
 
 DATABASE_BACKEND = os.getenv("DATABASE_BACKEND", "sqlite").strip().lower()
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 _PREFERRED_DATA_DIR = Path(
     os.getenv("APP_DATA_DIR")
     or os.getenv("RAILWAY_VOLUME_MOUNT_PATH")
@@ -70,12 +69,6 @@ def sqlite_connect(db_path: str) -> sqlite3.Connection:
         raise RuntimeError(
             f"DATABASE_BACKEND={DATABASE_BACKEND!r} пока не поддерживается. "
             "Сейчас проект подготовлен к миграции, но работает только с sqlite."
-        )
-
-    if DATABASE_URL:
-        raise RuntimeError(
-            "DATABASE_URL задан, но backend-слой для PostgreSQL ещё не подключён. "
-            "Пока оставь DATABASE_URL пустым и используй sqlite."
         )
 
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
