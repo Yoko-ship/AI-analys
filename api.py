@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import quote, urlencode
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+import requests
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -114,6 +116,74 @@ def _extract_bearer_token(authorization: str | None) -> str:
     return token.strip()
 
 
+def _oauth_failure(message: str) -> RedirectResponse:
+    return RedirectResponse(url=f"/#oauth_error={quote(message)}", status_code=302)
+
+
+def _oauth_success(provider: str, token: str) -> RedirectResponse:
+    return RedirectResponse(
+        url=f"/#provider={quote(provider)}&token={quote(token)}",
+        status_code=302,
+    )
+
+
+def _env_required(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise HTTPException(status_code=503, detail=f"{name} is not configured")
+    return value
+
+
+def _build_google_auth_url(request: Request) -> str:
+    client_id = _env_required("GOOGLE_CLIENT_ID")
+    redirect_uri = str(request.url_for("api_oauth_google_callback"))
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "online",
+        "prompt": "select_account",
+    }
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+
+
+def _exchange_google_code(code: str, request: Request) -> dict[str, Any]:
+    client_id = _env_required("GOOGLE_CLIENT_ID")
+    client_secret = _env_required("GOOGLE_CLIENT_SECRET")
+    redirect_uri = str(request.url_for("api_oauth_google_callback"))
+    response = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
+        },
+        headers={"Accept": "application/json"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    access_token = payload.get("access_token")
+    if not access_token:
+        raise ValueError(payload.get("error_description") or payload.get("error") or "Google login failed")
+
+    profile_response = requests.get(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=20,
+    )
+    profile_response.raise_for_status()
+    profile = profile_response.json()
+    return {
+        "provider_user_id": str(profile.get("id") or profile.get("sub") or ""),
+        "email": profile.get("email"),
+        "full_name": profile.get("name") or "",
+    }
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -183,6 +253,41 @@ async def api_logout(authorization: str | None = Header(default=None)) -> dict[s
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return {"ok": True, "revoked": revoked}
+
+
+@app.get("/api/auth/oauth/google/start")
+async def api_oauth_google_start(request: Request) -> RedirectResponse:
+    try:
+        return RedirectResponse(_build_google_auth_url(request), status_code=302)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/auth/oauth/google/callback", name="api_oauth_google_callback")
+async def api_oauth_google_callback(request: Request, code: str | None = None, error: str | None = None) -> RedirectResponse:
+    if error:
+        return _oauth_failure(error)
+    if not code:
+        return _oauth_failure("Google login was cancelled or did not return a code")
+
+    try:
+        profile = _exchange_google_code(code, request)
+        user, token = web_auth_store.oauth_login(
+            "google",
+            profile["provider_user_id"],
+            profile.get("email"),
+            profile.get("full_name") or "",
+        )
+    except HTTPException:
+        raise
+    except requests.RequestException as exc:
+        return _oauth_failure(f"Google auth failed: {exc}")
+    except Exception as exc:
+        return _oauth_failure(str(exc))
+
+    return _oauth_success("google", token)
 
 
 @app.post("/api/analyze")
