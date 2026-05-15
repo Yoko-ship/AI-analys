@@ -111,7 +111,7 @@ If you want to run the website API as a separate Railway service:
 1. Create a second service from the same repo.
 2. Set `APP_MODE=api`.
 3. Add `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5.4-mini`, `DATABASE_URL` and `CORS_ORIGINS`.
-4. If you want Google login, also add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+4. If you want Google login, also add `PUBLIC_BASE_URL`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 5. Attach the same kind of Volume if you want cache persistence.
 
 Note: keep `ANTHROPIC_API_KEY` for the Telegram bot service; the API service uses OpenAI and Railway Postgres for website users.
@@ -119,6 +119,10 @@ Note: keep `ANTHROPIC_API_KEY` for the Telegram bot service; the API service use
 OAuth redirect URI to register in Google:
 
 - `https://YOUR-RAILWAY-API-URL/api/auth/oauth/google/callback`
+
+Important:
+- `PUBLIC_BASE_URL` must match the same Railway URL exactly, without a trailing slash.
+- In Google Console, use the exact callback URL above as an authorized redirect URI.
 
 API auth flow:
 

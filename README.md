@@ -36,6 +36,7 @@ DATABASE_URL=postgresql://user:password@host:5432/database
 WEB_SESSION_TTL_DAYS=30
 WEB_PASSWORD_ITERATIONS=210000
 WEB_OAUTH_FALLBACK_DOMAIN=oauth.local
+PUBLIC_BASE_URL=https://your-railway-api-url.up.railway.app
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 FREE_DAILY_LIMIT=3
@@ -55,6 +56,7 @@ Notes:
 - the Telegram bot still uses Anthropic, while the website API uses `OPENAI_API_KEY`
 - website registration/login use `DATABASE_URL` from Railway Postgres
 - Google OAuth is available on the website API if you set the provider client ID/secret env vars
+- `PUBLIC_BASE_URL` should be the exact public Railway URL without a trailing slash
 - OAuth callback URL:
   - `https://YOUR-RAILWAY-API-URL/api/auth/oauth/google/callback`
 

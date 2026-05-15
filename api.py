@@ -134,9 +134,25 @@ def _env_required(name: str) -> str:
     return value
 
 
+def _public_base_url() -> str:
+    raw = os.getenv("PUBLIC_BASE_URL", "").strip()
+    if not raw:
+        return ""
+    return raw.rstrip("/")
+
+
+def _oauth_callback_url(path: str, endpoint_name: str, request: Request | None = None) -> str:
+    base_url = _public_base_url()
+    if base_url:
+        return f"{base_url}{path}"
+    if request is not None:
+        return str(request.url_for(endpoint_name))
+    raise HTTPException(status_code=503, detail="PUBLIC_BASE_URL is not configured")
+
+
 def _build_google_auth_url(request: Request) -> str:
     client_id = _env_required("GOOGLE_CLIENT_ID")
-    redirect_uri = str(request.url_for("api_oauth_google_callback"))
+    redirect_uri = _oauth_callback_url("/api/auth/oauth/google/callback", "api_oauth_google_callback", request)
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
@@ -151,7 +167,7 @@ def _build_google_auth_url(request: Request) -> str:
 def _exchange_google_code(code: str, request: Request) -> dict[str, Any]:
     client_id = _env_required("GOOGLE_CLIENT_ID")
     client_secret = _env_required("GOOGLE_CLIENT_SECRET")
-    redirect_uri = str(request.url_for("api_oauth_google_callback"))
+    redirect_uri = _oauth_callback_url("/api/auth/oauth/google/callback", "api_oauth_google_callback", request)
     response = requests.post(
         "https://oauth2.googleapis.com/token",
         data={
