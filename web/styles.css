@@ -140,6 +140,38 @@ button {
   gap: 10px;
 }
 
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.nav-btn {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.nav-btn.active {
+  color: var(--text);
+  background: linear-gradient(135deg, rgba(245, 184, 77, 0.18), rgba(110, 240, 193, 0.12));
+}
+
+.page-view {
+  display: none;
+}
+
+.page-view.active {
+  display: block;
+}
+
 .hero-pills span,
 .status-badge,
 .grade-pill {
@@ -172,6 +204,10 @@ button {
   grid-template-columns: 1.2fr 0.9fr;
 }
 
+.analysis-layout {
+  grid-template-columns: 1.05fr 1.35fr;
+}
+
 .panel {
   padding: 22px;
   border: 1px solid var(--border);
@@ -191,6 +227,50 @@ button {
 
 .panel-head h2 {
   font-size: 1.2rem;
+}
+
+.feature-copy {
+  margin: 0 0 18px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.feature-grid-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.feature-card,
+.note-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.feature-card strong,
+.note-card strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.feature-card span,
+.note-card p {
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.stacked-notes {
+  display: grid;
+  gap: 12px;
 }
 
 .auth-tabs {
@@ -570,7 +650,16 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .analysis-layout {
+    grid-template-columns: 1fr;
+  }
+
   .analysis-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .feature-grid,
+  .feature-grid-compact {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -590,6 +679,11 @@ button {
   .meta-grid,
   .metrics-grid,
   .score-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-grid,
+  .feature-grid-compact {
     grid-template-columns: 1fr;
   }
 
