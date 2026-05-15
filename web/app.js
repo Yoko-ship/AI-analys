@@ -9,6 +9,8 @@ const state = {
 };
 
 const els = {
+  navButtons: Array.from(document.querySelectorAll(".nav-btn")),
+  views: Array.from(document.querySelectorAll(".page-view")),
   authStatus: document.getElementById("authStatus"),
   apiState: document.getElementById("apiState"),
   loginForm: document.getElementById("loginForm"),
@@ -69,6 +71,15 @@ function setAuthState(user) {
     els.userName.textContent = "-";
     els.userEmail.textContent = "-";
   }
+}
+
+function setView(viewName) {
+  els.navButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.view === viewName);
+  });
+  els.views.forEach((view) => {
+    view.classList.toggle("active", view.id === `view-${viewName}`);
+  });
 }
 
 function apiFetch(path, options = {}) {
@@ -340,6 +351,12 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   });
 });
 
+els.navButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setView(btn.dataset.view);
+  });
+});
+
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   setMessage("Signing in...");
@@ -355,6 +372,7 @@ els.loginForm.addEventListener("submit", async (event) => {
     });
     const data = await handleAuthResponse(res);
     setMessage(`Welcome back, ${data.user.full_name || data.user.email}`);
+    setView("analysis");
   } catch (error) {
     setMessage(error.message, "error");
   }
@@ -377,6 +395,7 @@ els.registerForm.addEventListener("submit", async (event) => {
     const data = await handleAuthResponse(res);
     setMessage(`Account created for ${data.user.email}`);
     document.querySelector('.tab-btn[data-tab="login"]').click();
+    setView("auth");
   } catch (error) {
     setMessage(error.message, "error");
   }
@@ -392,6 +411,7 @@ els.logoutBtn.addEventListener("click", async () => {
   state.token = "";
   setAuthState(null);
   setMessage("Signed out");
+  setView("auth");
 });
 
 els.analysisForm.addEventListener("submit", async (event) => {
@@ -434,6 +454,7 @@ els.analysisForm.addEventListener("submit", async (event) => {
 });
 
 window.addEventListener("DOMContentLoaded", async () => {
+  setView("main");
   try {
     await loadCompanies();
   } catch (error) {

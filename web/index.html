@@ -21,8 +21,7 @@
           </div>
         </div>
         <p class="hero-copy">
-          Получай анализ компании в один запрос: регистрация, вход, выбор компании и
-          готовый итог с оценкой, метриками и выводом.
+          Анализ компаний Узбекистана в одном веб-интерфейсе. Сначала читаешь, что делает сайт, потом входишь в аккаунт и запускаешь анализ по тикеру или названию компании.
         </p>
         <div class="hero-pills">
           <span>Auth protected</span>
@@ -32,185 +31,305 @@
         </div>
       </header>
 
-      <section class="dashboard">
-        <aside class="panel auth-panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-label">Account</p>
-              <h2>Авторизация</h2>
+      <nav class="site-nav" aria-label="Site sections">
+        <button class="nav-btn active" type="button" data-view="main">Main</button>
+        <button class="nav-btn" type="button" data-view="about">About</button>
+        <button class="nav-btn" type="button" data-view="auth">Auth</button>
+        <button class="nav-btn" type="button" data-view="analysis">Analysis</button>
+      </nav>
+
+      <section id="view-main" class="page-view active">
+        <section class="dashboard">
+          <article class="panel feature-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Main</p>
+                <h2>What this site does</h2>
+              </div>
             </div>
-            <span id="authStatus" class="status-badge muted">Not signed in</span>
-          </div>
-
-          <div class="auth-tabs" role="tablist">
-            <button class="tab-btn active" data-tab="login" type="button">Login</button>
-            <button class="tab-btn" data-tab="register" type="button">Register</button>
-          </div>
-
-          <form id="loginForm" class="auth-form active">
-            <label>
-              <span>Email</span>
-              <input type="email" name="email" placeholder="you@example.com" required />
-            </label>
-            <label>
-              <span>Password</span>
-              <input type="password" name="password" placeholder="••••••••" required />
-            </label>
-            <button class="primary-btn" type="submit">Sign in</button>
-          </form>
-
-          <form id="registerForm" class="auth-form">
-            <label>
-              <span>Full name</span>
-              <input type="text" name="full_name" placeholder="Your name" />
-            </label>
-            <label>
-              <span>Email</span>
-              <input type="email" name="email" placeholder="you@example.com" required />
-            </label>
-            <label>
-              <span>Password</span>
-              <input type="password" name="password" placeholder="At least 8 characters" required />
-            </label>
-            <button class="primary-btn" type="submit">Create account</button>
-          </form>
-
-          <div id="userCard" class="user-card hidden">
-            <div class="user-line">
-              <span class="muted">Signed in as</span>
-              <strong id="userName">-</strong>
+            <p class="feature-copy">
+              A minimal front end for stock analysis in Uzbekistan. The site lets users register, sign in, pick a company, and get a structured analysis with score, grade, verdict, and report sections.
+            </p>
+            <div class="feature-grid">
+              <div class="feature-card">
+                <strong>1. Register</strong>
+                <span>Create an account with email and password.</span>
+              </div>
+              <div class="feature-card">
+                <strong>2. Choose company</strong>
+                <span>Pick from the available list or type a ticker.</span>
+              </div>
+              <div class="feature-card">
+                <strong>3. Get analysis</strong>
+                <span>See score, verdict, metrics, and report sections.</span>
+              </div>
             </div>
-            <div class="user-line">
-              <span class="muted">Email</span>
-              <strong id="userEmail">-</strong>
+          </article>
+
+          <article class="panel feature-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Main</p>
+                <h2>Why it exists</h2>
+              </div>
             </div>
-            <button id="logoutBtn" class="ghost-btn" type="button">Logout</button>
-          </div>
-
-          <p id="authMessage" class="helper-text"></p>
-        </aside>
-
-        <section class="panel analysis-panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-label">Analysis</p>
-              <h2>Company analysis</h2>
+            <div class="stacked-notes">
+              <div class="note-card">
+                <strong>Fast first pass</strong>
+                <p>Designed to give a quick read on a company before deeper research.</p>
+              </div>
+              <div class="note-card">
+                <strong>Protected access</strong>
+                <p>Analysis requires login, so only authenticated users can run it.</p>
+              </div>
+              <div class="note-card">
+                <strong>Clean output</strong>
+                <p>The UI shows score, grade, metrics, and structured report sections.</p>
+              </div>
             </div>
-            <span id="apiState" class="status-badge muted">API ready</span>
-          </div>
-
-          <form id="analysisForm" class="analysis-form">
-            <label class="wide">
-              <span>Company</span>
-              <input
-                id="companyInput"
-                name="company"
-                list="companiesList"
-                placeholder="Start typing a company name or ticker"
-                autocomplete="off"
-                required
-              />
-              <datalist id="companiesList"></datalist>
-            </label>
-            <label>
-              <span>Mode</span>
-              <select name="analysis_mode">
-                <option value="quick">Quick</option>
-                <option value="full" selected>Full</option>
-              </select>
-            </label>
-            <label class="toggle-row">
-              <input id="includeHtml" type="checkbox" checked />
-              <span>Return HTML report</span>
-            </label>
-            <button class="primary-btn analyze-btn" type="submit">Analyze</button>
-          </form>
-
-          <div class="quick-list-wrap">
-            <div class="section-title-row">
-              <h3>Available companies</h3>
-              <span id="companyCount" class="muted"></span>
-            </div>
-            <div id="quickCompanies" class="quick-list"></div>
-          </div>
+          </article>
         </section>
       </section>
 
-      <section class="results-grid">
-        <article class="panel result-hero">
-          <div class="panel-head">
-            <div>
-              <p class="panel-label">Result</p>
-              <h2 id="resultCompany">No analysis yet</h2>
+      <section id="view-about" class="page-view">
+        <section class="dashboard">
+          <article class="panel feature-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">About</p>
+                <h2>About the project</h2>
+              </div>
             </div>
-            <span id="resultCache" class="status-badge muted">Waiting</span>
-          </div>
+            <div class="stacked-notes">
+              <div class="note-card">
+                <strong>Data source</strong>
+                <p>The backend collects and structures the company data before building the analysis response.</p>
+              </div>
+              <div class="note-card">
+                <strong>Backend</strong>
+                <p>API, auth, and Postgres-backed sessions are already in place on Railway.</p>
+              </div>
+              <div class="note-card">
+                <strong>Frontend</strong>
+                <p>This interface is a minimal dashboard with auth, company selection, and analysis result blocks.</p>
+              </div>
+            </div>
+          </article>
 
-          <div class="score-strip">
-            <div class="score-card">
-              <div class="score-value" id="scoreValue">--</div>
-              <div class="score-caption">Score / 100</div>
+          <article class="panel feature-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">About</p>
+                <h2>What users get</h2>
+              </div>
             </div>
-            <div class="score-meta">
-              <div class="grade-pill" id="gradeValue">-</div>
-              <p id="verdictValue" class="verdict-text">Run an analysis to see the verdict.</p>
-              <p id="summaryValue" class="summary-text"></p>
+            <div class="feature-grid feature-grid-compact">
+              <div class="feature-card">
+                <strong>Score</strong>
+                <span>One number to orient the first decision.</span>
+              </div>
+              <div class="feature-card">
+                <strong>Verdict</strong>
+                <span>A short recommendation, not a wall of text.</span>
+              </div>
+              <div class="feature-card">
+                <strong>Metrics</strong>
+                <span>Key indicators in cards for easy scanning.</span>
+              </div>
+              <div class="feature-card">
+                <strong>Report</strong>
+                <span>Expandable sections for deeper reading.</span>
+              </div>
             </div>
-          </div>
-
-          <div class="meta-grid">
-            <div class="meta-item">
-              <span class="muted">Annual</span>
-              <strong id="annualPeriod">-</strong>
-            </div>
-            <div class="meta-item">
-              <span class="muted">Quarterly</span>
-              <strong id="quarterlyPeriod">-</strong>
-            </div>
-            <div class="meta-item">
-              <span class="muted">Model</span>
-              <strong id="modelName">-</strong>
-            </div>
-            <div class="meta-item">
-              <span class="muted">Cost</span>
-              <strong id="costValue">-</strong>
-            </div>
-          </div>
-        </article>
-
-        <article class="panel metrics-panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-label">Metrics</p>
-              <h2>Key numbers</h2>
-            </div>
-          </div>
-          <div id="metricsGrid" class="metrics-grid empty-state">
-            <p class="empty-copy">Metrics will appear here after the first request.</p>
-          </div>
-        </article>
+          </article>
+        </section>
       </section>
 
-      <section class="panel sections-panel">
-        <div class="panel-head">
-          <div>
-            <p class="panel-label">Report</p>
-            <h2>Sections</h2>
-          </div>
-        </div>
-        <div id="sectionsWrap" class="sections-wrap empty-state">
-          <p class="empty-copy">The report sections will render here after analysis.</p>
-        </div>
+      <section id="view-auth" class="page-view">
+        <section class="dashboard">
+          <aside class="panel auth-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Account</p>
+                <h2>Authorization</h2>
+              </div>
+              <span id="authStatus" class="status-badge muted">Not signed in</span>
+            </div>
+
+            <div class="auth-tabs" role="tablist">
+              <button class="tab-btn active" data-tab="login" type="button">Login</button>
+              <button class="tab-btn" data-tab="register" type="button">Register</button>
+            </div>
+
+            <form id="loginForm" class="auth-form active">
+              <label>
+                <span>Email</span>
+                <input type="email" name="email" placeholder="you@example.com" required />
+              </label>
+              <label>
+                <span>Password</span>
+                <input type="password" name="password" placeholder="••••••••" required />
+              </label>
+              <button class="primary-btn" type="submit">Sign in</button>
+            </form>
+
+            <form id="registerForm" class="auth-form">
+              <label>
+                <span>Full name</span>
+                <input type="text" name="full_name" placeholder="Your name" />
+              </label>
+              <label>
+                <span>Email</span>
+                <input type="email" name="email" placeholder="you@example.com" required />
+              </label>
+              <label>
+                <span>Password</span>
+                <input type="password" name="password" placeholder="At least 8 characters" required />
+              </label>
+              <button class="primary-btn" type="submit">Create account</button>
+            </form>
+
+            <div id="userCard" class="user-card hidden">
+              <div class="user-line">
+                <span class="muted">Signed in as</span>
+                <strong id="userName">-</strong>
+              </div>
+              <div class="user-line">
+                <span class="muted">Email</span>
+                <strong id="userEmail">-</strong>
+              </div>
+              <button id="logoutBtn" class="ghost-btn" type="button">Logout</button>
+            </div>
+
+            <p id="authMessage" class="helper-text"></p>
+          </aside>
+        </section>
       </section>
 
-      <section class="panel debug-panel">
-        <div class="panel-head">
-          <div>
-            <p class="panel-label">Raw</p>
-            <h2>Summary JSON</h2>
+      <section id="view-analysis" class="page-view">
+        <section class="dashboard analysis-layout">
+          <article class="panel analysis-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Analysis</p>
+                <h2>Company analysis</h2>
+              </div>
+              <span id="apiState" class="status-badge muted">API ready</span>
+            </div>
+
+            <form id="analysisForm" class="analysis-form">
+              <label class="wide">
+                <span>Company</span>
+                <input
+                  id="companyInput"
+                  name="company"
+                  list="companiesList"
+                  placeholder="Start typing a company name or ticker"
+                  autocomplete="off"
+                  required
+                />
+                <datalist id="companiesList"></datalist>
+              </label>
+              <label>
+                <span>Mode</span>
+                <select name="analysis_mode">
+                  <option value="quick">Quick</option>
+                  <option value="full" selected>Full</option>
+                </select>
+              </label>
+              <label class="toggle-row">
+                <input id="includeHtml" type="checkbox" checked />
+                <span>Return HTML report</span>
+              </label>
+              <button class="primary-btn analyze-btn" type="submit">Analyze</button>
+            </form>
+
+            <div class="quick-list-wrap">
+              <div class="section-title-row">
+                <h3>Available companies</h3>
+                <span id="companyCount" class="muted"></span>
+              </div>
+              <div id="quickCompanies" class="quick-list"></div>
+            </div>
+          </article>
+
+          <article class="panel result-hero">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Result</p>
+                <h2 id="resultCompany">No analysis yet</h2>
+              </div>
+              <span id="resultCache" class="status-badge muted">Waiting</span>
+            </div>
+
+            <div class="score-strip">
+              <div class="score-card">
+                <div class="score-value" id="scoreValue">--</div>
+                <div class="score-caption">Score / 100</div>
+              </div>
+              <div class="score-meta">
+                <div class="grade-pill" id="gradeValue">-</div>
+                <p id="verdictValue" class="verdict-text">Run an analysis to see the verdict.</p>
+                <p id="summaryValue" class="summary-text"></p>
+              </div>
+            </div>
+
+            <div class="meta-grid">
+              <div class="meta-item">
+                <span class="muted">Annual</span>
+                <strong id="annualPeriod">-</strong>
+              </div>
+              <div class="meta-item">
+                <span class="muted">Quarterly</span>
+                <strong id="quarterlyPeriod">-</strong>
+              </div>
+              <div class="meta-item">
+                <span class="muted">Model</span>
+                <strong id="modelName">-</strong>
+              </div>
+              <div class="meta-item">
+                <span class="muted">Cost</span>
+                <strong id="costValue">-</strong>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="results-grid">
+          <article class="panel metrics-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Metrics</p>
+                <h2>Key numbers</h2>
+              </div>
+            </div>
+            <div id="metricsGrid" class="metrics-grid empty-state">
+              <p class="empty-copy">Metrics will appear here after the first request.</p>
+            </div>
+          </article>
+
+          <article class="panel sections-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Report</p>
+                <h2>Sections</h2>
+              </div>
+            </div>
+            <div id="sectionsWrap" class="sections-wrap empty-state">
+              <p class="empty-copy">The report sections will render here after analysis.</p>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel debug-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-label">Raw</p>
+              <h2>Summary JSON</h2>
+            </div>
           </div>
-        </div>
-        <pre id="debugJson" class="debug-json">{}</pre>
+          <pre id="debugJson" class="debug-json">{}</pre>
+        </section>
       </section>
     </main>
   </body>
