@@ -6,6 +6,7 @@ const state = {
   user: null,
   companies: [],
   lastResult: null,
+  oauthMessage: "",
 };
 
 const els = {
@@ -16,6 +17,7 @@ const els = {
   loginForm: document.getElementById("loginForm"),
   registerForm: document.getElementById("registerForm"),
   authMessage: document.getElementById("authMessage"),
+  googleLoginBtn: document.getElementById("googleLoginBtn"),
   userCard: document.getElementById("userCard"),
   userName: document.getElementById("userName"),
   userEmail: document.getElementById("userEmail"),
@@ -53,6 +55,34 @@ function escapeHtml(value) {
 function setMessage(text, tone = "muted") {
   els.authMessage.textContent = text;
   els.authMessage.style.color = tone === "error" ? "var(--danger)" : "var(--muted)";
+}
+
+function clearHash() {
+  window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+}
+
+function consumeOAuthHash() {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const token = hash.get("token");
+  const provider = hash.get("provider") || hash.get("oauth");
+  const error = hash.get("oauth_error") || hash.get("error");
+
+  if (error) {
+    state.oauthMessage = decodeURIComponent(error.replace(/\+/g, " "));
+    setMessage(state.oauthMessage, "error");
+    clearHash();
+    return false;
+  }
+
+  if (!token) {
+    return false;
+  }
+
+  state.token = token;
+  localStorage.setItem(STORAGE_KEY, token);
+  state.oauthMessage = provider ? `Signed in with ${provider}` : "OAuth login complete";
+  clearHash();
+  return true;
 }
 
 function setAuthState(user) {
@@ -357,6 +387,10 @@ els.navButtons.forEach((btn) => {
   });
 });
 
+els.googleLoginBtn.addEventListener("click", () => {
+  window.location.href = `${API_BASE}/api/auth/oauth/google/start`;
+});
+
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   setMessage("Signing in...");
@@ -454,6 +488,7 @@ els.analysisForm.addEventListener("submit", async (event) => {
 });
 
 window.addEventListener("DOMContentLoaded", async () => {
+  const oauthReturned = consumeOAuthHash();
   setView("main");
   try {
     await loadCompanies();
@@ -463,5 +498,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   await refreshSession();
+  if (oauthReturned) {
+    setMessage(state.oauthMessage || "OAuth login complete");
+    setView("analysis");
+  }
+  state.oauthMessage = "";
   clearResults();
 });
