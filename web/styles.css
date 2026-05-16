@@ -134,12 +134,6 @@ button {
   line-height: 1.7;
 }
 
-.hero-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
 .site-nav {
   display: flex;
   flex-wrap: wrap;
@@ -172,7 +166,6 @@ button {
   display: block;
 }
 
-.hero-pills span,
 .status-badge,
 .grade-pill {
   display: inline-flex;
@@ -481,8 +474,7 @@ button {
 }
 
 .results-grid .panel,
-.sections-panel,
-.debug-panel {
+.sections-panel {
   min-height: 100%;
 }
 
@@ -635,20 +627,6 @@ button {
   color: var(--muted);
   line-height: 1.8;
   white-space: pre-wrap;
-}
-
-.debug-json {
-  margin: 0;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(0, 0, 0, 0.26);
-  color: #d4def6;
-  overflow: auto;
-  max-height: 420px;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
-  line-height: 1.7;
 }
 
 .empty-state {
