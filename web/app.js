@@ -80,7 +80,8 @@ function consumeOAuthHash() {
 
   state.token = token;
   localStorage.setItem(STORAGE_KEY, token);
-  state.oauthMessage = provider ? `Signed in with ${provider}` : "OAuth login complete";
+  const providerLabel = provider ? (provider === "google" ? "Google" : provider) : "";
+  state.oauthMessage = providerLabel ? `Вход через ${providerLabel} выполнен` : "OAuth-вход выполнен";
   clearHash();
   return true;
 }
@@ -90,13 +91,13 @@ function setAuthState(user) {
   const signedIn = Boolean(user);
 
   els.userCard.classList.toggle("hidden", !signedIn);
-  els.authStatus.textContent = signedIn ? "Signed in" : "Not signed in";
+  els.authStatus.textContent = signedIn ? "Вход выполнен" : "Вход не выполнен";
   els.authStatus.className = signedIn ? "status-badge" : "status-badge muted";
 
   if (signedIn) {
     els.userName.textContent = user.full_name || user.email;
     els.userEmail.textContent = user.email;
-    setMessage(`Signed in as ${user.email}`);
+    setMessage(`В системе: ${user.email}`);
   } else {
     els.userName.textContent = "-";
     els.userEmail.textContent = "-";
@@ -126,7 +127,7 @@ function apiFetch(path, options = {}) {
 async function handleAuthResponse(res) {
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.detail || "Request failed");
+    throw new Error(data.detail || "Запрос не выполнен");
   }
   if (data.token) {
     state.token = data.token;
@@ -140,19 +141,21 @@ async function handleAuthResponse(res) {
 
 function clearResults() {
   els.metricsGrid.classList.add("empty-state");
-  els.metricsGrid.innerHTML = '<p class="empty-copy">Metrics will appear here after the first request.</p>';
+  els.metricsGrid.innerHTML = '<p class="empty-copy">После первого запроса здесь появятся метрики.</p>';
   els.sectionsWrap.classList.add("empty-state");
-  els.sectionsWrap.innerHTML = '<p class="empty-copy">The report sections will render here after analysis.</p>';
+  els.sectionsWrap.innerHTML = '<p class="empty-copy">После анализа здесь появятся разделы отчета.</p>';
   els.debugJson.textContent = "{}";
 }
 
 function renderMetrics(metrics = {}) {
   const cards = [];
+
   const toneClass = (tone) => {
     if (tone === "good") return "metric-good";
     if (tone === "danger") return "metric-danger";
     return "metric-warning";
   };
+
   const pushCard = ({ label, value, sub = "", tone = "warning" }) => {
     if (value === undefined || value === null || value === "") return;
     cards.push(`
@@ -166,7 +169,7 @@ function renderMetrics(metrics = {}) {
 
   const total = metrics.total_score || {};
   pushCard({
-    label: "Total score",
+    label: "Итоговая оценка",
     value: total.score ?? "—",
     sub: total.summary || total.grade || "",
     tone: total.score >= 70 ? "good" : total.score >= 45 ? "warning" : "danger",
@@ -190,7 +193,7 @@ function renderMetrics(metrics = {}) {
 
   const buffett = metrics.buffett_criteria || {};
   pushCard({
-    label: "Buffett",
+    label: "Критерии Баффета",
     value: `${buffett.passed ?? "—"}/${buffett.total ?? "—"}`,
     sub: buffett.verdict || "",
     tone: buffett.passed >= 4 ? "good" : buffett.passed >= 2 ? "warning" : "danger",
@@ -198,9 +201,9 @@ function renderMetrics(metrics = {}) {
 
   const graham = metrics.graham_number || {};
   pushCard({
-    label: "Graham",
+    label: "Число Грэма",
     value: graham.graham_number ?? graham.value ?? "—",
-    sub: [graham.verdict, graham.upside_pct != null ? `${graham.upside_pct}% upside` : ""]
+    sub: [graham.verdict, graham.upside_pct != null ? `${graham.upside_pct}% потенциал` : ""]
       .filter(Boolean)
       .join(" · "),
     tone: graham.upside_pct > 0 ? "good" : "warning",
@@ -208,7 +211,7 @@ function renderMetrics(metrics = {}) {
 
   const dcf = metrics.dcf || {};
   pushCard({
-    label: "DCF",
+    label: "DCF-оценка",
     value: dcf.intrinsic_value_bn ?? "—",
     sub: dcf.verdict || dcf.signal || "",
     tone: dcf.signal === "bullish" ? "good" : dcf.signal === "bearish" ? "danger" : "warning",
@@ -216,9 +219,9 @@ function renderMetrics(metrics = {}) {
 
   const industry = metrics.industry || {};
   pushCard({
-    label: "Industry",
+    label: "Отрасль",
     value: industry.sector_name ?? "—",
-    sub: [industry.verdict || "", `${industry.good_count ?? 0} good / ${industry.weak_count ?? 0} weak`]
+    sub: [industry.verdict || "", `${industry.good_count ?? 0} сильных / ${industry.weak_count ?? 0} слабых`]
       .filter(Boolean)
       .join(" · "),
     tone: industry.good_count > industry.weak_count ? "good" : "warning",
@@ -226,11 +229,11 @@ function renderMetrics(metrics = {}) {
 
   const liquidity = metrics.market_liquidity || {};
   pushCard({
-    label: "Liquidity",
+    label: "Ликвидность",
     value: liquidity.liquidity_label ?? "—",
     sub: [
-      `Trades: ${liquidity.trade_days ?? "—"}/30`,
-      liquidity.avg_trade_value ? `Avg trade: ${Number(liquidity.avg_trade_value).toLocaleString()}` : "",
+      `Сделки: ${liquidity.trade_days ?? "—"}/30`,
+      liquidity.avg_trade_value ? `Средний оборот: ${Number(liquidity.avg_trade_value).toLocaleString()}` : "",
     ]
       .filter(Boolean)
       .join(" · "),
@@ -239,7 +242,7 @@ function renderMetrics(metrics = {}) {
 
   const momentum = metrics.momentum || {};
   pushCard({
-    label: "Momentum",
+    label: "Импульс",
     value: momentum.overall || "—",
     sub: momentum.acceleration || "",
     tone: momentum.css === "bullish" ? "good" : momentum.css === "bearish" ? "danger" : "warning",
@@ -247,7 +250,7 @@ function renderMetrics(metrics = {}) {
 
   if (!cards.length) {
     els.metricsGrid.classList.add("empty-state");
-    els.metricsGrid.innerHTML = '<p class="empty-copy">Metrics will appear here after the first request.</p>';
+    els.metricsGrid.innerHTML = '<p class="empty-copy">После первого запроса здесь появятся метрики.</p>';
     return;
   }
 
@@ -259,7 +262,7 @@ function renderSections(sections = {}) {
   const entries = Object.entries(sections);
   if (!entries.length) {
     els.sectionsWrap.classList.add("empty-state");
-    els.sectionsWrap.innerHTML = '<p class="empty-copy">The report sections will render here after analysis.</p>';
+    els.sectionsWrap.innerHTML = '<p class="empty-copy">После анализа здесь появятся разделы отчета.</p>';
     return;
   }
 
@@ -272,7 +275,7 @@ function renderSections(sections = {}) {
             <span>${escapeHtml(key.replaceAll("_", " "))}</span>
             <span class="muted">#${String(index + 1).padStart(2, "0")}</span>
           </summary>
-          <div class="section-content">${escapeHtml(value || "No content")}</div>
+          <div class="section-content">${escapeHtml(value || "Нет содержимого")}</div>
         </details>
       `
     )
@@ -281,8 +284,8 @@ function renderSections(sections = {}) {
 
 function renderResult(data) {
   state.lastResult = data;
-  els.resultCompany.textContent = data.company_name || data.input || "Analysis result";
-  els.resultCache.textContent = data.from_cache ? "Cached" : "Fresh";
+  els.resultCompany.textContent = data.company_name || data.input || "Результат анализа";
+  els.resultCache.textContent = data.from_cache ? "Из кэша" : "Свежий расчет";
 
   const score = data.summary?.score ?? data.metrics?.total_score?.score ?? null;
   const grade = data.summary?.grade ?? data.metrics?.total_score?.grade ?? "-";
@@ -292,7 +295,7 @@ function renderResult(data) {
   els.scoreValue.textContent = score ?? "--";
   els.scoreValue.className = `score-value ${score != null ? renderScoreTone(score) : ""}`;
   els.gradeValue.textContent = grade || "-";
-  els.verdictValue.textContent = verdict || "No verdict returned";
+  els.verdictValue.textContent = verdict || "Итоговое заключение не сформировано";
   els.summaryValue.textContent = itog || "";
   els.annualPeriod.textContent = data.annual_period || "-";
   els.quarterlyPeriod.textContent = data.quarterly_period || "-";
@@ -325,10 +328,10 @@ function renderScoreTone(score) {
 async function loadCompanies() {
   const res = await apiFetch("/api/companies");
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "Failed to load companies");
+  if (!res.ok) throw new Error(data.detail || "Не удалось загрузить список компаний");
 
   state.companies = data.companies || [];
-  els.companyCount.textContent = `${data.count || state.companies.length} companies`;
+  els.companyCount.textContent = `${data.count || state.companies.length} компаний`;
 
   els.companiesList.innerHTML = state.companies
     .map((company) => `<option value="${company.ticker}">${company.company_name}</option>`)
@@ -362,7 +365,7 @@ async function refreshSession() {
   try {
     const res = await apiFetch("/api/auth/me");
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Session invalid");
+    if (!res.ok) throw new Error(data.detail || "Сессия недействительна");
     setAuthState(data.user);
   } catch {
     localStorage.removeItem(STORAGE_KEY);
@@ -393,7 +396,7 @@ els.googleLoginBtn.addEventListener("click", () => {
 
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setMessage("Signing in...");
+  setMessage("Выполняется вход...");
   const form = new FormData(els.loginForm);
   try {
     const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -405,7 +408,7 @@ els.loginForm.addEventListener("submit", async (event) => {
       }),
     });
     const data = await handleAuthResponse(res);
-    setMessage(`Welcome back, ${data.user.full_name || data.user.email}`);
+    setMessage(`Добро пожаловать, ${data.user.full_name || data.user.email}`);
     setView("analysis");
   } catch (error) {
     setMessage(error.message, "error");
@@ -414,7 +417,7 @@ els.loginForm.addEventListener("submit", async (event) => {
 
 els.registerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setMessage("Creating account...");
+  setMessage("Создание учетной записи...");
   const form = new FormData(els.registerForm);
   try {
     const res = await fetch(`${API_BASE}/api/auth/register`, {
@@ -427,7 +430,7 @@ els.registerForm.addEventListener("submit", async (event) => {
       }),
     });
     const data = await handleAuthResponse(res);
-    setMessage(`Account created for ${data.user.email}`);
+    setMessage(`Учетная запись создана: ${data.user.email}`);
     document.querySelector('.tab-btn[data-tab="login"]').click();
     setView("auth");
   } catch (error) {
@@ -444,7 +447,7 @@ els.logoutBtn.addEventListener("click", async () => {
   localStorage.removeItem(STORAGE_KEY);
   state.token = "";
   setAuthState(null);
-  setMessage("Signed out");
+  setMessage("Выход выполнен");
   setView("auth");
 });
 
@@ -452,19 +455,19 @@ els.analysisForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   if (!state.token) {
-    setMessage("Please sign in first to run an analysis.", "error");
+    setMessage("Чтобы запустить анализ, сначала выполните вход.", "error");
     return;
   }
 
   const form = new FormData(els.analysisForm);
   const company = String(form.get("company") || "").trim();
   if (!company) {
-    setMessage("Choose a company first.", "error");
+    setMessage("Сначала выберите компанию.", "error");
     return;
   }
 
-  els.apiState.textContent = "Analyzing...";
-  setMessage("Running analysis...");
+  els.apiState.textContent = "Выполняется анализ...";
+  setMessage("Анализ выполняется...");
   clearResults();
 
   try {
@@ -477,12 +480,12 @@ els.analysisForm.addEventListener("submit", async (event) => {
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Analysis failed");
+    if (!res.ok) throw new Error(data.detail || "Не удалось выполнить анализ");
     renderResult(data);
-    els.apiState.textContent = "Ready";
-    setMessage(`Analysis complete for ${data.company_name || company}`);
+    els.apiState.textContent = "Готово";
+    setMessage(`Анализ завершен: ${data.company_name || company}`);
   } catch (error) {
-    els.apiState.textContent = "API ready";
+    els.apiState.textContent = "API готов";
     setMessage(error.message, "error");
   }
 });
@@ -493,13 +496,13 @@ window.addEventListener("DOMContentLoaded", async () => {
   try {
     await loadCompanies();
   } catch (error) {
-    els.companyCount.textContent = "Unavailable";
+    els.companyCount.textContent = "Недоступно";
     setMessage(error.message, "error");
   }
 
   await refreshSession();
   if (oauthReturned) {
-    setMessage(state.oauthMessage || "OAuth login complete");
+    setMessage(state.oauthMessage || "Вход через OAuth выполнен");
     setView("analysis");
   }
   state.oauthMessage = "";
