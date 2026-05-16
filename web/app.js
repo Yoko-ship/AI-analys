@@ -36,11 +36,8 @@ const els = {
   summaryValue: document.getElementById("summaryValue"),
   annualPeriod: document.getElementById("annualPeriod"),
   quarterlyPeriod: document.getElementById("quarterlyPeriod"),
-  modelName: document.getElementById("modelName"),
-  costValue: document.getElementById("costValue"),
   metricsGrid: document.getElementById("metricsGrid"),
   sectionsWrap: document.getElementById("sectionsWrap"),
-  debugJson: document.getElementById("debugJson"),
 };
 
 function escapeHtml(value) {
@@ -144,7 +141,6 @@ function clearResults() {
   els.metricsGrid.innerHTML = '<p class="empty-copy">После первого запроса здесь появятся метрики.</p>';
   els.sectionsWrap.classList.add("empty-state");
   els.sectionsWrap.innerHTML = '<p class="empty-copy">После анализа здесь появятся разделы отчета.</p>';
-  els.debugJson.textContent = "{}";
 }
 
 function renderMetrics(metrics = {}) {
@@ -299,24 +295,9 @@ function renderResult(data) {
   els.summaryValue.textContent = itog || "";
   els.annualPeriod.textContent = data.annual_period || "-";
   els.quarterlyPeriod.textContent = data.quarterly_period || "-";
-  els.modelName.textContent = data.model || "-";
-  els.costValue.textContent = data.cost != null ? `$${Number(data.cost).toFixed(4)}` : "-";
 
   renderMetrics(data.metrics || {});
   renderSections(data.sections || {});
-  els.debugJson.textContent = JSON.stringify(
-    {
-      input: data.input,
-      company_name: data.company_name,
-      summary: data.summary,
-      metrics: data.metrics,
-      liquidity: data.liquidity,
-      from_cache: data.from_cache,
-      source: data.source,
-    },
-    null,
-    2
-  );
 }
 
 function renderScoreTone(score) {
