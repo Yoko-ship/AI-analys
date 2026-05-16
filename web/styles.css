@@ -75,6 +75,61 @@ button {
   padding: 32px 0 44px;
 }
 
+.toast-stack {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 50;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 40px));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(9, 18, 32, 0.96);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
+  transition: opacity 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.toast-label {
+  margin-bottom: 4px;
+  color: var(--accent-2);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.toast-message {
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.toast-success {
+  border-color: rgba(110, 240, 193, 0.28);
+}
+
+.toast-error {
+  border-color: rgba(255, 122, 122, 0.3);
+}
+
+.toast-info {
+  border-color: rgba(245, 184, 77, 0.22);
+}
+
 .hero {
   display: grid;
   gap: 18px;
@@ -495,6 +550,60 @@ button {
   background: radial-gradient(circle at top, rgba(245, 184, 77, 0.2), rgba(255, 255, 255, 0.02));
 }
 
+.result-hero.is-loading .score-card,
+.result-hero.is-loading .score-meta {
+  position: relative;
+  overflow: hidden;
+}
+
+.result-hero.is-loading .score-card::after,
+.result-hero.is-loading .score-meta::after,
+.skeleton-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-100%);
+  animation: skeleton-shine 1.4s infinite;
+  pointer-events: none;
+}
+
+.result-hero.is-loading .score-value,
+.result-hero.is-loading .grade-pill,
+.result-hero.is-loading .verdict-text,
+.result-hero.is-loading .summary-text {
+  color: transparent !important;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.result-hero.is-loading .score-value {
+  min-width: 110px;
+  min-height: 54px;
+  border-radius: 18px;
+}
+
+.result-hero.is-loading .grade-pill {
+  min-width: 52px;
+  min-height: 30px;
+}
+
+.result-hero.is-loading .verdict-text {
+  min-height: 24px;
+  width: 88%;
+  border-radius: 999px;
+}
+
+.result-hero.is-loading .summary-text {
+  min-height: 18px;
+  width: 70%;
+  border-radius: 999px;
+}
+
 .score-value {
   font-family: "Space Grotesk", sans-serif;
   font-size: 3.2rem;
@@ -553,6 +662,48 @@ button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.skeleton-grid,
+.skeleton-sections {
+  display: contents;
+}
+
+.skeleton-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 120px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.skeleton-line {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  height: 14px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.skeleton-line:first-child {
+  margin-top: 0;
+}
+
+.skeleton-line-sm {
+  width: 42%;
+}
+
+.skeleton-line-md {
+  width: 68%;
+  height: 16px;
+}
+
+.skeleton-line-lg {
+  width: 85%;
+  height: 18px;
 }
 
 .metric-card {
@@ -645,6 +796,15 @@ button {
   animation: fade-in 0.35s ease both;
 }
 
+@keyframes skeleton-shine {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -680,6 +840,12 @@ button {
   .shell {
     width: min(100% - 20px, 100%);
     padding-top: 18px;
+  }
+
+  .toast-stack {
+    top: 12px;
+    right: 12px;
+    width: min(100vw - 24px, 360px);
   }
 
   .hero,

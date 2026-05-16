@@ -18,6 +18,7 @@ const els = {
   registerForm: document.getElementById("registerForm"),
   authMessage: document.getElementById("authMessage"),
   googleLoginBtn: document.getElementById("googleLoginBtn"),
+  toastStack: document.getElementById("toastStack"),
   userCard: document.getElementById("userCard"),
   userName: document.getElementById("userName"),
   userEmail: document.getElementById("userEmail"),
@@ -30,12 +31,11 @@ const els = {
   includeHtml: document.getElementById("includeHtml"),
   resultCompany: document.getElementById("resultCompany"),
   resultCache: document.getElementById("resultCache"),
+  resultHero: document.getElementById("resultHero"),
   scoreValue: document.getElementById("scoreValue"),
   gradeValue: document.getElementById("gradeValue"),
   verdictValue: document.getElementById("verdictValue"),
   summaryValue: document.getElementById("summaryValue"),
-  annualPeriod: document.getElementById("annualPeriod"),
-  quarterlyPeriod: document.getElementById("quarterlyPeriod"),
   metricsGrid: document.getElementById("metricsGrid"),
   sectionsWrap: document.getElementById("sectionsWrap"),
 };
@@ -54,6 +54,27 @@ function setMessage(text, tone = "muted") {
   els.authMessage.style.color = tone === "error" ? "var(--danger)" : "var(--muted)";
 }
 
+function showToast(message, tone = "info", timeoutMs = 3800) {
+  if (!els.toastStack) return;
+
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${tone}`;
+
+  const label = tone === "error" ? "Ошибка" : tone === "success" ? "Готово" : "Инфо";
+  toast.innerHTML = `
+    <div class="toast-label">${label}</div>
+    <div class="toast-message">${escapeHtml(message)}</div>
+  `;
+
+  els.toastStack.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+
+  window.setTimeout(() => {
+    toast.classList.remove("show");
+    window.setTimeout(() => toast.remove(), 220);
+  }, timeoutMs);
+}
+
 function clearHash() {
   window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
 }
@@ -67,6 +88,7 @@ function consumeOAuthHash() {
   if (error) {
     state.oauthMessage = decodeURIComponent(error.replace(/\+/g, " "));
     setMessage(state.oauthMessage, "error");
+    showToast(state.oauthMessage, "error");
     clearHash();
     return false;
   }
@@ -79,6 +101,7 @@ function consumeOAuthHash() {
   localStorage.setItem(STORAGE_KEY, token);
   const providerLabel = provider ? (provider === "google" ? "Google" : provider) : "";
   state.oauthMessage = providerLabel ? `Вход через ${providerLabel} выполнен` : "OAuth-вход выполнен";
+  showToast(state.oauthMessage, "success");
   clearHash();
   return true;
 }
@@ -137,10 +160,55 @@ async function handleAuthResponse(res) {
 }
 
 function clearResults() {
+  els.resultHero.classList.remove("is-loading");
   els.metricsGrid.classList.add("empty-state");
   els.metricsGrid.innerHTML = '<p class="empty-copy">После первого запроса здесь появятся метрики.</p>';
   els.sectionsWrap.classList.add("empty-state");
   els.sectionsWrap.innerHTML = '<p class="empty-copy">После анализа здесь появятся разделы отчета.</p>';
+}
+
+function setLoadingSkeleton(company) {
+  els.resultHero.classList.add("is-loading");
+  els.resultCompany.textContent = company ? `Анализ: ${company}` : "Анализ выполняется...";
+  els.resultCache.textContent = "Загрузка";
+  els.scoreValue.textContent = "--";
+  els.gradeValue.textContent = "—";
+  els.verdictValue.textContent = "Расчет выполняется. Пожалуйста, подождите.";
+  els.summaryValue.textContent = "";
+
+  els.metricsGrid.classList.remove("empty-state");
+  els.metricsGrid.innerHTML = `
+    <div class="skeleton-grid">
+      ${Array.from({ length: 8 })
+        .map(
+          () => `
+            <article class="metric-card skeleton-card">
+              <div class="skeleton-line skeleton-line-sm"></div>
+              <div class="skeleton-line skeleton-line-lg"></div>
+              <div class="skeleton-line skeleton-line-md"></div>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+
+  els.sectionsWrap.classList.remove("empty-state");
+  els.sectionsWrap.innerHTML = `
+    <div class="skeleton-sections">
+      ${Array.from({ length: 3 })
+        .map(
+          () => `
+            <article class="section-card skeleton-card">
+              <div class="skeleton-line skeleton-line-lg"></div>
+              <div class="skeleton-line skeleton-line-md"></div>
+              <div class="skeleton-line skeleton-line-sm"></div>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function renderMetrics(metrics = {}) {
@@ -293,8 +361,6 @@ function renderResult(data) {
   els.gradeValue.textContent = grade || "-";
   els.verdictValue.textContent = verdict || "Итоговое заключение не сформировано";
   els.summaryValue.textContent = itog || "";
-  els.annualPeriod.textContent = data.annual_period || "-";
-  els.quarterlyPeriod.textContent = data.quarterly_period || "-";
 
   renderMetrics(data.metrics || {});
   renderSections(data.sections || {});
@@ -390,9 +456,11 @@ els.loginForm.addEventListener("submit", async (event) => {
     });
     const data = await handleAuthResponse(res);
     setMessage(`Добро пожаловать, ${data.user.full_name || data.user.email}`);
+    showToast(`Вход выполнен: ${data.user.email}`, "success");
     setView("analysis");
   } catch (error) {
     setMessage(error.message, "error");
+    showToast(error.message, "error");
   }
 });
 
@@ -412,10 +480,12 @@ els.registerForm.addEventListener("submit", async (event) => {
     });
     const data = await handleAuthResponse(res);
     setMessage(`Учетная запись создана: ${data.user.email}`);
+    showToast(`Учетная запись создана: ${data.user.email}`, "success");
     document.querySelector('.tab-btn[data-tab="login"]').click();
     setView("auth");
   } catch (error) {
     setMessage(error.message, "error");
+    showToast(error.message, "error");
   }
 });
 
@@ -429,6 +499,7 @@ els.logoutBtn.addEventListener("click", async () => {
   state.token = "";
   setAuthState(null);
   setMessage("Выход выполнен");
+  showToast("Выход выполнен", "info");
   setView("auth");
 });
 
@@ -437,6 +508,7 @@ els.analysisForm.addEventListener("submit", async (event) => {
 
   if (!state.token) {
     setMessage("Чтобы запустить анализ, сначала выполните вход.", "error");
+    showToast("Сначала выполните вход", "error");
     return;
   }
 
@@ -444,12 +516,13 @@ els.analysisForm.addEventListener("submit", async (event) => {
   const company = String(form.get("company") || "").trim();
   if (!company) {
     setMessage("Сначала выберите компанию.", "error");
+    showToast("Сначала выберите компанию", "error");
     return;
   }
 
   els.apiState.textContent = "Выполняется анализ...";
   setMessage("Анализ выполняется...");
-  clearResults();
+  setLoadingSkeleton(company);
 
   try {
     const res = await apiFetch("/api/analyze", {
@@ -465,9 +538,12 @@ els.analysisForm.addEventListener("submit", async (event) => {
     renderResult(data);
     els.apiState.textContent = "Готово";
     setMessage(`Анализ завершен: ${data.company_name || company}`);
+    showToast(`Анализ завершен: ${data.company_name || company}`, "success");
   } catch (error) {
     els.apiState.textContent = "API готов";
     setMessage(error.message, "error");
+    showToast(error.message, "error");
+    clearResults();
   }
 });
 
