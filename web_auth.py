@@ -7,7 +7,7 @@ import os
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from psycopg import connect
 from psycopg.rows import dict_row
@@ -68,6 +68,7 @@ class WebUser:
     id: int
     email: str
     full_name: str
+    avatar_data_url: Optional[str]
     created_at: datetime
     last_login_at: Optional[datetime]
     is_active: bool
@@ -77,6 +78,7 @@ class WebUser:
             "id": self.id,
             "email": self.email,
             "full_name": self.full_name,
+            "avatar_data_url": self.avatar_data_url,
             "created_at": self.created_at.isoformat(),
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "is_active": self.is_active,
@@ -109,11 +111,18 @@ class WebAuthStore:
                     id              BIGSERIAL PRIMARY KEY,
                     email           TEXT NOT NULL UNIQUE,
                     full_name       TEXT NOT NULL DEFAULT '',
+                    avatar_data_url TEXT,
                     password_hash   TEXT NOT NULL,
                     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
                     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     last_login_at   TIMESTAMPTZ
                 )
+                """
+            )
+            conn.execute(
+                """
+                ALTER TABLE web_users
+                ADD COLUMN IF NOT EXISTS avatar_data_url TEXT
                 """
             )
             conn.execute(
@@ -144,6 +153,37 @@ class WebAuthStore:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS web_analysis_history (
+                    id              BIGSERIAL PRIMARY KEY,
+                    user_id         BIGINT NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
+                    company_input   TEXT NOT NULL,
+                    company_name    TEXT,
+                    ticker          TEXT,
+                    score           NUMERIC,
+                    grade           TEXT,
+                    verdict         TEXT,
+                    summary_text    TEXT,
+                    from_cache      BOOLEAN NOT NULL DEFAULT FALSE,
+                    model           TEXT,
+                    cost            NUMERIC,
+                    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS web_favorite_companies (
+                    id              BIGSERIAL PRIMARY KEY,
+                    user_id         BIGINT NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
+                    ticker          TEXT NOT NULL,
+                    company_name    TEXT,
+                    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE(user_id, ticker)
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_web_sessions_user_id
                 ON web_sessions(user_id)
                 """
@@ -160,16 +200,53 @@ class WebAuthStore:
                 ON web_oauth_accounts(user_id)
                 """
             )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_web_analysis_history_user_created_at
+                ON web_analysis_history(user_id, created_at DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_web_analysis_history_user_company
+                ON web_analysis_history(user_id, company_input)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_web_favorites_user_created_at
+                ON web_favorite_companies(user_id, created_at DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_web_favorites_user_ticker
+                ON web_favorite_companies(user_id, ticker)
+                """
+            )
 
     def _row_to_user(self, row) -> WebUser:
         return WebUser(
             id=row["id"],
             email=row["email"],
             full_name=row["full_name"],
+            avatar_data_url=row.get("avatar_data_url"),
             created_at=row["created_at"],
             last_login_at=row["last_login_at"],
             is_active=bool(row["is_active"]),
         )
+
+    def _normalize_avatar_data_url(self, avatar_data_url: str | None) -> str | None:
+        if avatar_data_url is None:
+            return None
+        value = str(avatar_data_url).strip()
+        if not value:
+            return None
+        if len(value) > 750_000:
+            raise ValueError("Avatar image is too large")
+        if not value.startswith("data:image/"):
+            raise ValueError("Avatar must be a data URL")
+        return value
 
     def _issue_session(self, conn, user_id: int) -> str:
         token = secrets.token_urlsafe(32)
@@ -199,9 +276,9 @@ class WebAuthStore:
         now = _utcnow()
         row = conn.execute(
             """
-            INSERT INTO web_users (email, full_name, password_hash, created_at, last_login_at, is_active)
-            VALUES (%s, %s, %s, %s, NULL, TRUE)
-            RETURNING id, email, full_name, created_at, last_login_at, is_active
+            INSERT INTO web_users (email, full_name, avatar_data_url, password_hash, created_at, last_login_at, is_active)
+            VALUES (%s, %s, NULL, %s, %s, NULL, TRUE)
+            RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active
             """,
             (
                 _normalize_email(email),
@@ -237,7 +314,7 @@ class WebAuthStore:
         with self._conn() as conn:
             row = conn.execute(
                 """
-                SELECT u.id, u.email, u.full_name, u.created_at, u.last_login_at, u.is_active
+                SELECT u.id, u.email, u.full_name, u.avatar_data_url, u.created_at, u.last_login_at, u.is_active
                 FROM web_oauth_accounts a
                 JOIN web_users u ON u.id = a.user_id
                 WHERE a.provider = %s
@@ -269,7 +346,7 @@ class WebAuthStore:
         with self._conn() as conn:
             existing = conn.execute(
                 """
-                SELECT u.id, u.email, u.full_name, u.created_at, u.last_login_at, u.is_active
+                SELECT u.id, u.email, u.full_name, u.avatar_data_url, u.created_at, u.last_login_at, u.is_active
                 FROM web_oauth_accounts a
                 JOIN web_users u ON u.id = a.user_id
                 WHERE a.provider = %s
@@ -289,7 +366,7 @@ class WebAuthStore:
                 return self._row_to_user(existing), token
 
             row = conn.execute(
-                "SELECT id, email, full_name, created_at, last_login_at, is_active FROM web_users WHERE email = %s",
+                "SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active FROM web_users WHERE email = %s",
                 (normalized_email,),
             ).fetchone()
 
@@ -316,6 +393,7 @@ class WebAuthStore:
             "id": row["id"] if row else user_id,
             "email": row["email"] if row else normalized_email,
             "full_name": full_name or (row["full_name"] if row else ""),
+            "avatar_data_url": row["avatar_data_url"] if row else None,
             "created_at": row["created_at"] if row else now,
             "last_login_at": now,
             "is_active": True,
@@ -329,7 +407,7 @@ class WebAuthStore:
         with self._conn() as conn:
             row = conn.execute(
                 """
-                SELECT id, email, full_name, created_at, last_login_at, is_active
+                SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active
                 FROM web_users
                 WHERE email = %s
                 """,
@@ -345,7 +423,7 @@ class WebAuthStore:
         with self._conn() as conn:
             row = conn.execute(
                 """
-                SELECT u.id, u.email, u.full_name, u.created_at, u.last_login_at, u.is_active
+                SELECT u.id, u.email, u.full_name, u.avatar_data_url, u.created_at, u.last_login_at, u.is_active
                 FROM web_sessions s
                 JOIN web_users u ON u.id = s.user_id
                 WHERE s.token_hash = %s
@@ -378,9 +456,9 @@ class WebAuthStore:
 
             row = conn.execute(
                 """
-                INSERT INTO web_users (email, full_name, password_hash, created_at, last_login_at, is_active)
-                VALUES (%s, %s, %s, %s, NULL, TRUE)
-                RETURNING id, email, full_name, created_at, last_login_at, is_active
+            INSERT INTO web_users (email, full_name, avatar_data_url, password_hash, created_at, last_login_at, is_active)
+            VALUES (%s, %s, NULL, %s, %s, NULL, TRUE)
+            RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active
                 """,
                 (normalized, full_name, password_encoded, now),
             ).fetchone()
@@ -395,6 +473,7 @@ class WebAuthStore:
             "id": row["id"],
             "email": row["email"],
             "full_name": row["full_name"],
+            "avatar_data_url": row["avatar_data_url"],
             "created_at": row["created_at"],
             "last_login_at": now,
             "is_active": row["is_active"],
@@ -431,11 +510,121 @@ class WebAuthStore:
             "id": row["id"],
             "email": row["email"],
             "full_name": row["full_name"],
+            "avatar_data_url": row["avatar_data_url"] if "avatar_data_url" in row else None,
             "created_at": row["created_at"],
             "last_login_at": _utcnow(),
             "is_active": row["is_active"],
         }
         return self._row_to_user(public_row), token
+
+    def update_profile(
+        self,
+        user_id: int,
+        full_name: str | None = None,
+        avatar_data_url: str | None = None,
+        *,
+        set_full_name: bool = False,
+        set_avatar: bool = False,
+    ) -> WebUser:
+        updates: list[str] = []
+        params: list[Any] = []
+
+        if set_full_name:
+            normalized_name = (full_name or "").strip()
+            if not normalized_name:
+                raise ValueError("Full name cannot be empty")
+            updates.append("full_name = %s")
+            params.append(normalized_name)
+
+        if set_avatar:
+            normalized_avatar = self._normalize_avatar_data_url(avatar_data_url)
+            updates.append("avatar_data_url = %s")
+            params.append(normalized_avatar)
+
+        if not updates:
+            with self._conn() as conn:
+                row = conn.execute(
+                    """
+                    SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active
+                    FROM web_users
+                    WHERE id = %s
+                    """,
+                    (user_id,),
+                ).fetchone()
+            if not row:
+                raise ValueError("User not found")
+            return self._row_to_user(row)
+
+        params.append(user_id)
+        with self._conn() as conn:
+            row = conn.execute(
+                f"""
+                UPDATE web_users
+                SET {", ".join(updates)}
+                WHERE id = %s
+                RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active
+                """,
+                params,
+            ).fetchone()
+        if not row:
+            raise ValueError("User not found")
+        return self._row_to_user(row)
+
+    def list_favorites(self, user_id: int) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT ticker, company_name, created_at
+                FROM web_favorite_companies
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                """,
+                (user_id,),
+            ).fetchall()
+        return [
+            {
+                "ticker": row["ticker"],
+                "company_name": row["company_name"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            }
+            for row in rows
+        ]
+
+    def toggle_favorite(self, user_id: int, ticker: str, company_name: str | None = None) -> dict[str, Any]:
+        ticker_value = (ticker or "").strip().upper()
+        if not ticker_value:
+            raise ValueError("Ticker is required")
+        company_value = (company_name or "").strip() or None
+
+        with self._conn() as conn:
+            existing = conn.execute(
+                """
+                SELECT id
+                FROM web_favorite_companies
+                WHERE user_id = %s AND ticker = %s
+                """,
+                (user_id, ticker_value),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    """
+                    DELETE FROM web_favorite_companies
+                    WHERE user_id = %s AND ticker = %s
+                    """,
+                    (user_id, ticker_value),
+                )
+                return {"favorited": False, "ticker": ticker_value, "company_name": company_value}
+
+            conn.execute(
+                """
+                INSERT INTO web_favorite_companies (user_id, ticker, company_name)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, ticker)
+                DO UPDATE SET company_name = COALESCE(EXCLUDED.company_name, web_favorite_companies.company_name)
+                """,
+                (user_id, ticker_value, company_value),
+            )
+        return {"favorited": True, "ticker": ticker_value, "company_name": company_value}
 
     def revoke_token(self, token: str) -> bool:
         token_hash = _token_hash(token)
@@ -449,6 +638,176 @@ class WebAuthStore:
                 (_utcnow(), token_hash),
             )
         return cursor.rowcount > 0
+
+    def record_analysis(self, user_id: int, payload: dict[str, Any], result: dict[str, Any]) -> None:
+        company_input = (payload.get("company") or "").strip()
+        summary = result.get("summary") or {}
+        metrics = result.get("metrics") or {}
+        total_score = metrics.get("total_score") or {}
+        score = summary.get("score", total_score.get("score"))
+        grade = summary.get("grade", total_score.get("grade"))
+        verdict = summary.get("verdict") or summary.get("itog") or ""
+        summary_text = summary.get("itog") or summary.get("score_summary") or verdict or ""
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO web_analysis_history (
+                    user_id,
+                    company_input,
+                    company_name,
+                    ticker,
+                    score,
+                    grade,
+                    verdict,
+                    summary_text,
+                    from_cache,
+                    model,
+                    cost,
+                    created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    user_id,
+                    company_input,
+                    result.get("company_name"),
+                    result.get("ticker"),
+                    score,
+                    grade,
+                    verdict,
+                    summary_text,
+                    bool(result.get("from_cache", False)),
+                    result.get("model"),
+                    result.get("cost"),
+                    _utcnow(),
+                ),
+            )
+
+    def get_profile(self, user_id: int, recent_limit: int = 8) -> dict[str, Any]:
+        limit = max(1, min(int(recent_limit or 8), 20))
+        with self._conn() as conn:
+            user_row = conn.execute(
+                """
+                SELECT id, email, full_name, created_at, last_login_at, is_active
+                FROM web_users
+                WHERE id = %s
+                """,
+                (user_id,),
+            ).fetchone()
+            if not user_row:
+                raise ValueError("User not found")
+
+            stats_row = conn.execute(
+                """
+                SELECT
+                    COUNT(*)::BIGINT AS total_analyses,
+                    COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::BIGINT AS analyses_7d,
+                    COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::BIGINT AS analyses_30d,
+                    COUNT(*) FILTER (WHERE from_cache)::BIGINT AS cached_analyses,
+                    COUNT(DISTINCT ticker) FILTER (WHERE ticker IS NOT NULL AND ticker <> '')::BIGINT AS analyzed_companies,
+                    AVG(score)::NUMERIC(10, 2) AS avg_score,
+                    MAX(score)::NUMERIC(10, 2) AS best_score,
+                    MIN(created_at) AS first_analysis_at,
+                    MAX(created_at) AS last_analysis_at
+                FROM web_analysis_history
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            ).fetchone()
+
+            favorites_rows = conn.execute(
+                """
+                SELECT ticker, company_name, created_at
+                FROM web_favorite_companies
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                """,
+                (user_id,),
+            ).fetchall()
+
+            top_row = conn.execute(
+                """
+                SELECT
+                    COALESCE(NULLIF(company_name, ''), company_input) AS company_label,
+                    COUNT(*)::BIGINT AS analysis_count
+                FROM web_analysis_history
+                WHERE user_id = %s
+                GROUP BY 1
+                ORDER BY analysis_count DESC, MAX(created_at) DESC
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+
+            recent_rows = conn.execute(
+                """
+                SELECT
+                    company_input,
+                    company_name,
+                    ticker,
+                    score,
+                    grade,
+                    verdict,
+                    summary_text,
+                    from_cache,
+                    model,
+                    cost,
+                    created_at
+                FROM web_analysis_history
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (user_id, limit),
+            ).fetchall()
+
+        stats = {
+            "total_analyses": int(stats_row["total_analyses"] or 0),
+            "analyses_7d": int(stats_row["analyses_7d"] or 0),
+            "analyses_30d": int(stats_row["analyses_30d"] or 0),
+            "cached_analyses": int(stats_row["cached_analyses"] or 0),
+            "analyzed_companies": int(stats_row["analyzed_companies"] or 0),
+            "avg_score": float(stats_row["avg_score"]) if stats_row["avg_score"] is not None else None,
+            "best_score": float(stats_row["best_score"]) if stats_row["best_score"] is not None else None,
+            "first_analysis_at": stats_row["first_analysis_at"].isoformat() if stats_row["first_analysis_at"] else None,
+            "last_analysis_at": stats_row["last_analysis_at"].isoformat() if stats_row["last_analysis_at"] else None,
+            "top_company": top_row["company_label"] if top_row else None,
+            "top_company_count": int(top_row["analysis_count"] or 0) if top_row else 0,
+        }
+
+        favorites = [
+            {
+                "ticker": row["ticker"],
+                "company_name": row["company_name"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            }
+            for row in favorites_rows
+        ]
+
+        recent_analyses = []
+        for row in recent_rows:
+            recent_analyses.append(
+                {
+                    "company_input": row["company_input"],
+                    "company_name": row["company_name"],
+                    "ticker": row["ticker"],
+                    "score": float(row["score"]) if row["score"] is not None else None,
+                    "grade": row["grade"],
+                    "verdict": row["verdict"],
+                    "summary_text": row["summary_text"],
+                    "from_cache": bool(row["from_cache"]),
+                    "model": row["model"],
+                    "cost": float(row["cost"]) if row["cost"] is not None else None,
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                }
+            )
+
+        return {
+            "user": self._row_to_user(user_row).to_public_dict(),
+            "stats": stats,
+            "favorites": favorites,
+            "recent_analyses": recent_analyses,
+        }
 
 
 web_auth_store = WebAuthStore()
