@@ -408,8 +408,10 @@ async def api_analyze(
             force_refresh=payload.force_refresh,
         )
     except ValueError as exc:
+        logger.exception("Analysis failed with value error for %s", payload.company)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        logger.exception("Analysis failed for %s", payload.company)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     response: dict[str, Any] = {
