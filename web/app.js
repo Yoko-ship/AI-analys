@@ -4,10 +4,14 @@ const STORAGE_KEY = "uz_stock_analyzer_token";
 const state = {
   token: localStorage.getItem(STORAGE_KEY) || "",
   user: null,
+  profile: null,
   companies: [],
   lastResult: null,
   oauthMessage: "",
+  profileAvatarCleared: false,
 };
+
+let loadingSkeletonTimer = null;
 
 const els = {
   navButtons: Array.from(document.querySelectorAll(".nav-btn")),
@@ -23,6 +27,25 @@ const els = {
   userName: document.getElementById("userName"),
   userEmail: document.getElementById("userEmail"),
   logoutBtn: document.getElementById("logoutBtn"),
+  profileStatus: document.getElementById("profileStatus"),
+  profileAvatar: document.getElementById("profileAvatar"),
+  profileName: document.getElementById("profileName"),
+  profileEmail: document.getElementById("profileEmail"),
+  profileMemberSince: document.getElementById("profileMemberSince"),
+  profileStats: document.getElementById("profileStats"),
+  profileRecent: document.getElementById("profileRecent"),
+  profileFavorites: document.getElementById("profileFavorites"),
+  profileHistorySearch: document.getElementById("profileHistorySearch"),
+  profileHistoryMode: document.getElementById("profileHistoryMode"),
+  profileHistorySummary: document.getElementById("profileHistorySummary"),
+  profileEditForm: document.getElementById("profileEditForm"),
+  profileFullName: document.getElementById("profileFullName"),
+  profileAvatarInput: document.getElementById("profileAvatarInput"),
+  profileEditHint: document.getElementById("profileEditHint"),
+  profileSaveBtn: document.getElementById("profileSaveBtn"),
+  profileClearAvatarBtn: document.getElementById("profileClearAvatarBtn"),
+  profileAnalyzeBtn: document.getElementById("profileAnalyzeBtn"),
+  profileRefreshBtn: document.getElementById("profileRefreshBtn"),
   analysisForm: document.getElementById("analysisForm"),
   companyInput: document.getElementById("companyInput"),
   companiesList: document.getElementById("companiesList"),
@@ -36,6 +59,7 @@ const els = {
   gradeValue: document.getElementById("gradeValue"),
   verdictValue: document.getElementById("verdictValue"),
   summaryValue: document.getElementById("summaryValue"),
+  resultFavoriteBtn: document.getElementById("resultFavoriteBtn"),
   metricsGrid: document.getElementById("metricsGrid"),
   sectionsWrap: document.getElementById("sectionsWrap"),
 };
@@ -124,6 +148,321 @@ function setAuthState(user) {
   }
 }
 
+function getProfileInitials(user) {
+  const source = (user?.full_name || user?.email || "?").trim();
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  const first = parts[0][0] || "";
+  const second = parts.length > 1 ? parts[1][0] : (parts[0][1] || "");
+  return (first + second).toUpperCase();
+}
+
+function hashToHue(source) {
+  const value = String(source || "").split("").reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 360, 47);
+  return value;
+}
+
+function formatDateLabel(value) {
+  if (!value) return "Нет данных";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Нет данных";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function getFavoriteTickers(profile = state.profile) {
+  const favorites = Array.isArray(profile?.favorites) ? profile.favorites : [];
+  return new Set(
+    favorites
+      .map((item) => String(item?.ticker || "").trim().toUpperCase())
+      .filter(Boolean)
+  );
+}
+
+function isTickerFavorite(ticker, profile = state.profile) {
+  if (!ticker) return false;
+  return getFavoriteTickers(profile).has(String(ticker).trim().toUpperCase());
+}
+
+function renderAvatarInto(el, user) {
+  if (!el) return;
+  const avatar = user?.avatar_data_url;
+  const initials = getProfileInitials(user);
+  if (avatar) {
+    el.classList.add("has-image");
+    el.innerHTML = `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(user?.full_name || user?.email || "Аватар")}" />`;
+    return;
+  }
+  el.classList.remove("has-image");
+  el.innerHTML = "";
+  el.textContent = initials;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Не удалось прочитать изображение"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function setProfileEditorEnabled(enabled) {
+  if (!els.profileEditForm) return;
+  els.profileEditForm.querySelectorAll("input, button").forEach((control) => {
+    control.disabled = !enabled;
+  });
+}
+
+function renderProfile(profile = null) {
+  state.profile = profile;
+
+  if (
+    !els.profileStatus ||
+    !els.profileAvatar ||
+    !els.profileName ||
+    !els.profileEmail ||
+    !els.profileMemberSince ||
+    !els.profileStats ||
+    !els.profileRecent ||
+    !els.profileFavorites
+  ) {
+    return;
+  }
+
+  if (!profile || !state.user) {
+    els.profileStatus.textContent = "Профиль не загружен";
+    els.profileStatus.className = "status-badge muted";
+    renderAvatarInto(els.profileAvatar, null);
+    els.profileAvatar.style.background = "linear-gradient(135deg, rgba(245, 184, 77, 0.18), rgba(110, 240, 193, 0.16))";
+    els.profileName.textContent = "Профиль недоступен";
+    els.profileEmail.textContent = "Войдите в учетную запись, чтобы увидеть персональные данные.";
+    els.profileMemberSince.textContent = "Дата регистрации будет отображаться здесь.";
+    els.profileStats.classList.add("empty-state");
+    els.profileStats.innerHTML = '<p class="empty-copy">Статистика появится после первого анализа.</p>';
+    els.profileRecent.classList.add("empty-state");
+    els.profileRecent.innerHTML = '<p class="empty-copy">После первого анализа здесь появится история действий.</p>';
+    els.profileFavorites.classList.add("empty-state");
+    els.profileFavorites.innerHTML = '<p class="empty-copy">Добавляйте компании в избранное из анализа или из истории.</p>';
+    if (els.profileHistorySummary) {
+      els.profileHistorySummary.textContent = "";
+    }
+    if (els.profileEditForm) {
+      els.profileEditForm.reset();
+    }
+    state.profileAvatarCleared = false;
+    setProfileEditorEnabled(false);
+    renderResultFavoriteButton();
+    return;
+  }
+
+  const user = profile.user || state.user;
+  const stats = profile.stats || {};
+  const recent = Array.isArray(profile.recent_analyses) ? profile.recent_analyses : [];
+  const favorites = Array.isArray(profile.favorites) ? profile.favorites : [];
+  const favoritesByTicker = getFavoriteTickers(profile);
+  const initials = getProfileInitials(user);
+  const hue = hashToHue(user.email || user.full_name || user.id);
+  const accent = `hsl(${hue} 78% 62%)`;
+  const accentSoft = `hsla(${hue}, 78%, 62%, 0.18)`;
+
+  els.profileStatus.textContent = "Профиль обновлен";
+  els.profileStatus.className = "status-badge";
+  renderAvatarInto(els.profileAvatar, user);
+  if (!user.avatar_data_url) {
+    els.profileAvatar.style.background = `linear-gradient(135deg, ${accent}, ${accentSoft})`;
+  } else {
+    els.profileAvatar.style.background = "#09111d";
+  }
+  els.profileName.textContent = user.full_name || user.email;
+  els.profileEmail.textContent = user.email;
+  els.profileMemberSince.textContent = `В системе с ${formatDateLabel(user.created_at)}`;
+
+  if (els.profileEditForm) {
+    if (els.profileFullName && document.activeElement !== els.profileFullName) {
+      els.profileFullName.value = user.full_name || "";
+    }
+    if (els.profileEditHint) {
+      els.profileEditHint.textContent = "Можно обновить имя, загрузить аватар или очистить текущее изображение.";
+    }
+  }
+  state.profileAvatarCleared = false;
+  setProfileEditorEnabled(true);
+
+  const statsCards = [
+    { label: "Всего анализов", value: stats.total_analyses ?? 0, sub: "Все выполненные запросы" },
+    { label: "За 7 дней", value: stats.analyses_7d ?? 0, sub: "Активность за неделю" },
+    { label: "За 30 дней", value: stats.analyses_30d ?? 0, sub: "Активность за месяц" },
+    { label: "Компаний в истории", value: stats.analyzed_companies ?? 0, sub: "Уникальные тикеры" },
+    { label: "Средний скор", value: stats.avg_score != null ? Number(stats.avg_score).toFixed(1) : "—", sub: "Средний итог по анализам" },
+    { label: "Лучшая оценка", value: stats.best_score != null ? Number(stats.best_score).toFixed(1) : "—", sub: "Максимальный скор" },
+    {
+      label: "Чаще всего смотрит",
+      value: stats.top_company || "—",
+      sub: stats.top_company_count ? `${stats.top_company_count} анализов` : "Пока нет данных",
+    },
+    {
+      label: "Кэшированных",
+      value: stats.cached_analyses ?? 0,
+      sub: "Сколько ответов пришло из кэша",
+    },
+    {
+      label: "Последний анализ",
+      value: stats.last_analysis_at ? formatDateLabel(stats.last_analysis_at) : "—",
+      sub: "Время последнего запроса",
+    },
+  ];
+
+  els.profileStats.classList.remove("empty-state");
+  els.profileStats.innerHTML = statsCards
+    .map(
+      (item) => `
+        <article class="profile-stat-card">
+          <div class="metric-label">${escapeHtml(item.label)}</div>
+          <div class="profile-stat-value">${escapeHtml(item.value)}</div>
+          <div class="metric-sub">${escapeHtml(item.sub)}</div>
+        </article>
+      `
+    )
+    .join("");
+
+  if (!recent.length) {
+    els.profileRecent.classList.add("empty-state");
+    els.profileRecent.innerHTML = '<p class="empty-copy">После первого анализа здесь появится история действий.</p>';
+  } else {
+    const searchValue = String(els.profileHistorySearch?.value || "").trim().toLowerCase();
+    const mode = String(els.profileHistoryMode?.value || "all");
+    const filteredRecent = recent.filter((item) => {
+      const haystack = [
+        item.company_name,
+        item.company_input,
+        item.ticker,
+        item.verdict,
+        item.summary_text,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (searchValue && !haystack.includes(searchValue)) {
+        return false;
+      }
+      if (mode === "favorites") {
+        return isTickerFavorite(item.ticker, profile);
+      }
+      return true;
+    });
+
+    if (els.profileHistorySummary) {
+      const totalLabel = `${filteredRecent.length} из ${recent.length}`;
+      const favoriteLabel = favorites.length ? ` · ${favorites.length} в избранном` : "";
+      els.profileHistorySummary.textContent = `Показано ${totalLabel}${favoriteLabel}`;
+    }
+
+    if (!filteredRecent.length) {
+      els.profileRecent.classList.add("empty-state");
+      els.profileRecent.innerHTML = '<p class="empty-copy">По выбранному фильтру ничего не найдено.</p>';
+    } else {
+      els.profileRecent.classList.remove("empty-state");
+      els.profileRecent.innerHTML = filteredRecent
+        .map((item) => {
+          const title = item.company_name || item.company_input || "Без названия";
+          const subtitle = [item.ticker ? item.ticker : "", item.from_cache ? "из кэша" : "свежий расчет", item.model ? `модель ${item.model}` : ""]
+            .filter(Boolean)
+            .join(" · ");
+          const favorite = item.ticker && favoritesByTicker.has(String(item.ticker).trim().toUpperCase());
+          return `
+            <article class="profile-history-item fade-in">
+              <div class="profile-history-main">
+                <div>
+                  <div class="profile-history-title">${escapeHtml(title)}</div>
+                  <div class="profile-history-sub">${escapeHtml(item.verdict || item.summary_text || "Анализ выполнен")}</div>
+                </div>
+                <div class="profile-history-score">${escapeHtml(item.score != null ? String(item.score) : "—")}</div>
+              </div>
+              <div class="profile-history-meta">
+                <span>${escapeHtml(subtitle)}</span>
+                <span>${escapeHtml(formatDateLabel(item.created_at))}</span>
+              </div>
+              <div class="profile-history-actions">
+                <button
+                  class="ghost-btn history-favorite-btn"
+                  type="button"
+                  data-ticker="${escapeHtml(item.ticker || "")}"
+                  data-company-name="${escapeHtml(item.company_name || item.company_input || "")}"
+                >${favorite ? "Убрать из избранного" : "В избранное"}</button>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+    }
+  }
+
+  if (!favorites.length) {
+    els.profileFavorites.classList.add("empty-state");
+    els.profileFavorites.innerHTML = '<p class="empty-copy">Добавляйте компании в избранное из анализа или из истории.</p>';
+  } else {
+    els.profileFavorites.classList.remove("empty-state");
+    els.profileFavorites.innerHTML = favorites
+      .map((item) => {
+        const label = item.company_name || item.ticker;
+        return `
+          <article class="favorite-item fade-in">
+            <div class="favorite-item-main">
+              <div class="favorite-item-title">${escapeHtml(label || "Без названия")}</div>
+              <div class="favorite-item-sub">${escapeHtml(item.ticker || "—")} · ${escapeHtml(formatDateLabel(item.created_at))}</div>
+            </div>
+            <button
+              class="ghost-btn favorite-toggle-btn"
+              type="button"
+              data-ticker="${escapeHtml(item.ticker || "")}"
+              data-company-name="${escapeHtml(item.company_name || "")}"
+            >Убрать</button>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  if (els.profileHistorySearch || els.profileHistoryMode) {
+    document.querySelectorAll(".history-favorite-btn, .favorite-toggle-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        toggleFavoriteFromButton(btn.dataset.ticker, btn.dataset.companyName);
+      });
+    });
+  }
+
+  renderResultFavoriteButton();
+}
+
+async function loadProfile() {
+  if (!state.token) {
+    renderProfile(null);
+    return;
+  }
+
+  if (!els.profileStatus) return;
+
+  els.profileStatus.textContent = "Загрузка профиля...";
+  els.profileStatus.className = "status-badge muted";
+
+  try {
+    const res = await apiFetch("/api/profile");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Не удалось загрузить профиль");
+    renderProfile(data);
+  } catch (error) {
+    renderProfile(null);
+    els.profileStatus.textContent = "Профиль недоступен";
+    setMessage(error.message, "error");
+  }
+}
+
 function setView(viewName) {
   els.navButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.view === viewName);
@@ -160,6 +499,11 @@ async function handleAuthResponse(res) {
 }
 
 function clearResults() {
+  if (loadingSkeletonTimer) {
+    window.clearTimeout(loadingSkeletonTimer);
+    loadingSkeletonTimer = null;
+  }
+  state.lastResult = null;
   if (els.resultHero) {
     els.resultHero.classList.remove("is-loading");
   }
@@ -171,6 +515,7 @@ function clearResults() {
     els.sectionsWrap.classList.add("empty-state");
     els.sectionsWrap.innerHTML = '<p class="empty-copy">После анализа здесь появятся разделы отчета.</p>';
   }
+  renderResultFavoriteButton();
 }
 
 function setLoadingSkeleton(company) {
@@ -391,12 +736,109 @@ function renderResult(data) {
 
   renderMetrics(data.metrics || {});
   renderSections(data.sections || {});
+  renderResultFavoriteButton();
 }
 
 function renderScoreTone(score) {
   if (score >= 70) return "metric-good";
   if (score >= 45) return "metric-warning";
   return "metric-danger";
+}
+
+function renderResultFavoriteButton() {
+  if (!els.resultFavoriteBtn) return;
+
+  const ticker = state.lastResult?.ticker;
+  if (!state.token || !ticker) {
+    els.resultFavoriteBtn.disabled = true;
+    els.resultFavoriteBtn.textContent = "Добавить в избранное";
+    els.resultFavoriteBtn.classList.remove("is-active");
+    return;
+  }
+
+  const favorite = isTickerFavorite(ticker);
+  els.resultFavoriteBtn.disabled = false;
+  els.resultFavoriteBtn.textContent = favorite ? "Убрать из избранного" : "Добавить в избранное";
+  els.resultFavoriteBtn.classList.toggle("is-active", favorite);
+}
+
+async function toggleFavoriteFromButton(ticker, companyName = "") {
+  const normalizedTicker = String(ticker || "").trim();
+  if (!state.token) {
+    showToast("Сначала выполните вход", "error");
+    setView("auth");
+    return;
+  }
+  if (!normalizedTicker) return;
+
+  try {
+    const res = await apiFetch("/api/favorites/toggle", {
+      method: "POST",
+      body: JSON.stringify({
+        ticker: normalizedTicker,
+        company_name: companyName || undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Не удалось обновить избранное");
+    showToast(data.favorited ? `${normalizedTicker} добавлен в избранное` : `${normalizedTicker} удалён из избранного`, "success");
+    await loadProfile();
+    renderResultFavoriteButton();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function saveProfileChanges(event) {
+  event.preventDefault();
+  if (!state.token) {
+    showToast("Сначала выполните вход", "error");
+    return;
+  }
+  if (!els.profileEditForm) return;
+
+  const form = new FormData(els.profileEditForm);
+  const nextFullName = String(form.get("full_name") || "").trim();
+  const currentFullName = String(state.user?.full_name || "").trim();
+  const payload = {};
+
+  if (nextFullName && nextFullName !== currentFullName) {
+    payload.full_name = nextFullName;
+  }
+
+  const file = els.profileAvatarInput?.files?.[0];
+  if (file) {
+    payload.avatar_data_url = await readFileAsDataUrl(file);
+  } else if (state.profileAvatarCleared) {
+    payload.avatar_data_url = null;
+  }
+
+  if (!Object.keys(payload).length) {
+    showToast("Изменений нет", "info");
+    return;
+  }
+
+  try {
+    const res = await apiFetch("/api/profile", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Не удалось сохранить профиль");
+    state.user = data.user;
+    setAuthState(data.user);
+    state.profileAvatarCleared = false;
+    if (els.profileAvatarInput) {
+      els.profileAvatarInput.value = "";
+    }
+    if (els.profileEditHint) {
+      els.profileEditHint.textContent = "Профиль обновлен.";
+    }
+    showToast("Профиль обновлен", "success");
+    await loadProfile();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
 }
 
 async function loadCompanies() {
@@ -464,6 +906,61 @@ els.navButtons.forEach((btn) => {
   });
 });
 
+if (els.profileAnalyzeBtn) {
+  els.profileAnalyzeBtn.addEventListener("click", () => setView("analysis"));
+}
+
+if (els.profileRefreshBtn) {
+  els.profileRefreshBtn.addEventListener("click", async () => {
+    if (!state.token) {
+      showToast("Сначала выполните вход", "error");
+      return;
+    }
+    await loadProfile();
+    showToast("Профиль обновлен", "success");
+  });
+}
+
+if (els.profileEditForm) {
+  els.profileEditForm.addEventListener("submit", saveProfileChanges);
+}
+
+if (els.profileClearAvatarBtn) {
+  els.profileClearAvatarBtn.addEventListener("click", () => {
+    state.profileAvatarCleared = true;
+    if (els.profileAvatarInput) {
+      els.profileAvatarInput.value = "";
+    }
+    if (els.profileEditHint) {
+      els.profileEditHint.textContent = "После сохранения текущий аватар будет удалён.";
+    }
+    showToast("Аватар будет удалён после сохранения", "info");
+  });
+}
+
+if (els.profileHistorySearch) {
+  els.profileHistorySearch.addEventListener("input", () => {
+    if (state.profile) {
+      renderProfile(state.profile);
+    }
+  });
+}
+
+if (els.profileHistoryMode) {
+  els.profileHistoryMode.addEventListener("change", () => {
+    if (state.profile) {
+      renderProfile(state.profile);
+    }
+  });
+}
+
+if (els.resultFavoriteBtn) {
+  els.resultFavoriteBtn.addEventListener("click", () => {
+    if (!state.lastResult) return;
+    toggleFavoriteFromButton(state.lastResult.ticker, state.lastResult.company_name || state.lastResult.input || "");
+  });
+}
+
 els.googleLoginBtn.addEventListener("click", () => {
   window.location.href = `${API_BASE}/api/auth/oauth/google/start`;
 });
@@ -484,7 +981,8 @@ els.loginForm.addEventListener("submit", async (event) => {
     const data = await handleAuthResponse(res);
     setMessage(`Добро пожаловать, ${data.user.full_name || data.user.email}`);
     showToast(`Вход выполнен: ${data.user.email}`, "success");
-    setView("analysis");
+    setView("profile");
+    await loadProfile();
   } catch (error) {
     setMessage(error.message, "error");
     showToast(error.message, "error");
@@ -509,7 +1007,8 @@ els.registerForm.addEventListener("submit", async (event) => {
     setMessage(`Учетная запись создана: ${data.user.email}`);
     showToast(`Учетная запись создана: ${data.user.email}`, "success");
     document.querySelector('.tab-btn[data-tab="login"]').click();
-    setView("auth");
+    setView("profile");
+    await loadProfile();
   } catch (error) {
     setMessage(error.message, "error");
     showToast(error.message, "error");
@@ -525,6 +1024,7 @@ els.logoutBtn.addEventListener("click", async () => {
   localStorage.removeItem(STORAGE_KEY);
   state.token = "";
   setAuthState(null);
+  renderProfile(null);
   setMessage("Выход выполнен");
   showToast("Выход выполнен", "info");
   setView("auth");
@@ -549,7 +1049,13 @@ els.analysisForm.addEventListener("submit", async (event) => {
 
   els.apiState.textContent = "Выполняется анализ...";
   setMessage("Анализ выполняется...");
-  setLoadingSkeleton(company);
+  if (loadingSkeletonTimer) {
+    window.clearTimeout(loadingSkeletonTimer);
+  }
+  loadingSkeletonTimer = window.setTimeout(() => {
+    setLoadingSkeleton(company);
+    loadingSkeletonTimer = null;
+  }, 220);
 
   try {
     const res = await apiFetch("/api/analyze", {
@@ -562,11 +1068,20 @@ els.analysisForm.addEventListener("submit", async (event) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Не удалось выполнить анализ");
+    if (loadingSkeletonTimer) {
+      window.clearTimeout(loadingSkeletonTimer);
+      loadingSkeletonTimer = null;
+    }
     renderResult(data);
     els.apiState.textContent = "Готово";
     setMessage(`Анализ завершен: ${data.company_name || company}`);
     showToast(`Анализ завершен: ${data.company_name || company}`, "success");
+    loadProfile().catch(() => {});
   } catch (error) {
+    if (loadingSkeletonTimer) {
+      window.clearTimeout(loadingSkeletonTimer);
+      loadingSkeletonTimer = null;
+    }
     els.apiState.textContent = "API готов";
     setMessage(error.message, "error");
     showToast(error.message, "error");
@@ -585,9 +1100,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   await refreshSession();
+  await loadProfile();
   if (oauthReturned) {
     setMessage(state.oauthMessage || "Вход через OAuth выполнен");
-    setView("analysis");
+    setView("profile");
+  } else if (state.user) {
+    setView("profile");
   }
   state.oauthMessage = "";
   clearResults();

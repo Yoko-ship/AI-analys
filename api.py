@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from urllib.parse import quote, urlencode
 from pathlib import Path
@@ -15,6 +16,8 @@ from pydantic import BaseModel, Field
 from analysis_service import build_summary, run_company_analysis
 from company_catalog import COMPANY_CATALOG
 from web_auth import WebUser, web_auth_store
+
+logger = logging.getLogger(__name__)
 
 
 def _json_safe(value):
@@ -76,6 +79,16 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=320)
     password: str = Field(..., min_length=1, max_length=128)
+
+
+class ProfileUpdateRequest(BaseModel):
+    full_name: str | None = Field(default=None, max_length=120)
+    avatar_data_url: str | None = Field(default=None)
+
+
+class FavoriteToggleRequest(BaseModel):
+    ticker: str = Field(..., min_length=1, max_length=40)
+    company_name: str | None = Field(default=None, max_length=240)
 
 
 def _auth_payload(user: WebUser, token: str) -> dict[str, Any]:
@@ -283,6 +296,66 @@ async def api_logout(authorization: str | None = Header(default=None)) -> dict[s
     return {"ok": True, "revoked": revoked}
 
 
+@app.get("/api/profile")
+async def api_profile(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
+    try:
+        profile = web_auth_store.get_profile(current_user.id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"ok": True, **_json_safe(profile)}
+
+
+@app.patch("/api/profile")
+async def api_profile_update(
+    payload: ProfileUpdateRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> dict[str, Any]:
+    try:
+        updated_user = web_auth_store.update_profile(
+            current_user.id,
+            full_name=payload.full_name,
+            avatar_data_url=payload.avatar_data_url,
+            set_full_name="full_name" in payload.model_fields_set,
+            set_avatar="avatar_data_url" in payload.model_fields_set,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {"ok": True, "user": _json_safe(updated_user.to_public_dict())}
+
+
+@app.get("/api/favorites")
+async def api_favorites(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
+    try:
+        favorites = web_auth_store.list_favorites(current_user.id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "count": len(favorites), "favorites": _json_safe(favorites)}
+
+
+@app.post("/api/favorites/toggle")
+async def api_favorites_toggle(
+    payload: FavoriteToggleRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> dict[str, Any]:
+    try:
+        result = web_auth_store.toggle_favorite(
+            current_user.id,
+            payload.ticker,
+            payload.company_name,
+        )
+        favorites = web_auth_store.list_favorites(current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, **_json_safe(result), "favorites": _json_safe(favorites)}
+
+
 @app.get("/api/auth/oauth/google/start")
 async def api_oauth_google_start(request: Request) -> RedirectResponse:
     try:
@@ -336,6 +409,7 @@ async def api_analyze(
     response: dict[str, Any] = {
         "ok": True,
         "input": payload.company,
+        "ticker": result.get("ticker"),
         "company_name": result.get("company_name"),
         "model": result.get("model"),
         "annual_period": result.get("annual_period"),
@@ -354,5 +428,10 @@ async def api_analyze(
         response["raw_analysis"] = result.get("raw_analysis")
     if payload.include_html:
         response["html_report"] = result.get("html_report")
+
+    try:
+        web_auth_store.record_analysis(current_user.id, payload.model_dump(), result)
+    except Exception as exc:
+        logger.warning("Failed to record analysis history for user %s: %s", current_user.id, exc)
 
     return _json_safe(response)

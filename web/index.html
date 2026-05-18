@@ -28,8 +28,9 @@
       <nav class="site-nav" aria-label="Разделы сайта">
         <button class="nav-btn active" type="button" data-view="main">Главная</button>
         <button class="nav-btn" type="button" data-view="about">О проекте</button>
-        <button class="nav-btn" type="button" data-view="auth">Авторизация</button>
-        <button class="nav-btn" type="button" data-view="analysis">Анализ</button>
+        <button class="nav-btn" type="button" data-view="auth">РђРІС‚РѕСЂРёР·Р°С†РёСЏ</button>
+        <button class="nav-btn" type="button" data-view="profile">Профиль</button>
+<button class="nav-btn" type="button" data-view="analysis">Анализ</button>
       </nav>
 
       <section id="view-main" class="page-view active">
@@ -207,6 +208,102 @@
         </section>
       </section>
 
+      
+      <section id="view-profile" class="page-view">
+        <section class="dashboard profile-layout">
+          <article class="panel profile-hero-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Профиль</p>
+                <h2>Личный кабинет</h2>
+              </div>
+              <span id="profileStatus" class="status-badge muted">Профиль не загружен</span>
+            </div>
+
+            <div class="profile-identity">
+              <div id="profileAvatar" class="profile-avatar">--</div>
+              <div class="profile-identity-copy">
+                <h3 id="profileName">Профиль недоступен</h3>
+                <p id="profileEmail" class="profile-email">Войдите в учетную запись, чтобы увидеть персональные данные.</p>
+                <p id="profileMemberSince" class="muted">Дата регистрации будет отображена здесь.</p>
+              </div>
+            </div>
+
+            <div class="profile-actions">
+              <button id="profileAnalyzeBtn" class="primary-btn" type="button">Перейти к анализу</button>
+              <button id="profileRefreshBtn" class="ghost-btn" type="button">Обновить профиль</button>
+            </div>
+
+            <form id="profileEditForm" class="profile-edit-form">
+              <div class="section-title-row">
+                <h3>Редактирование профиля</h3>
+                <span class="muted">Имя и аватар</span>
+              </div>
+              <label>
+                <span>Отображаемое имя</span>
+                <input id="profileFullName" name="full_name" type="text" maxlength="120" placeholder="Ваше имя" />
+              </label>
+              <label>
+                <span>Аватар</span>
+                <input id="profileAvatarInput" name="avatar" type="file" accept="image/*" />
+              </label>
+              <div class="profile-edit-actions">
+                <button id="profileSaveBtn" class="primary-btn" type="submit">Сохранить изменения</button>
+                <button id="profileClearAvatarBtn" class="ghost-btn" type="button">Удалить аватар</button>
+              </div>
+              <p id="profileEditHint" class="helper-text"></p>
+            </form>
+          </article>
+
+          <article class="panel profile-stats-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Статистика</p>
+                <h2>Показатели активности</h2>
+              </div>
+            </div>
+            <div id="profileStats" class="profile-stats-grid empty-state">
+              <p class="empty-copy">Статистика появится после первого анализа.</p>
+            </div>
+          </article>
+
+          <article class="panel profile-favorites-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">Избранное</p>
+                <h2>Сохраненные компании</h2>
+              </div>
+            </div>
+            <div id="profileFavorites" class="profile-favorites-list empty-state">
+              <p class="empty-copy">Добавляйте компании в избранное из анализа или из истории.</p>
+            </div>
+          </article>
+        </section>
+
+        <section class="dashboard">
+          <article class="panel profile-history-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-label">История</p>
+                <h2>Последние анализы</h2>
+              </div>
+              <div class="history-filters">
+                <input id="profileHistorySearch" type="search" placeholder="Поиск по компании или тикеру" />
+                <select id="profileHistoryMode">
+                  <option value="all">Все анализы</option>
+                  <option value="favorites">Только избранное</option>
+                </select>
+              </div>
+            </div>
+            <p id="profileHistorySummary" class="profile-history-summary muted"></p>
+            <div id="profileRecent" class="profile-history-list empty-state">
+              <p class="empty-copy">После первого анализа здесь появится история действий.</p>
+            </div>
+          </article>
+        </section>
+      </section>
+
+      
       <section id="view-analysis" class="page-view">
         <section class="dashboard analysis-layout">
           <article class="panel analysis-panel">
@@ -276,6 +373,7 @@
             </div>
 
             <div class="meta-grid">
+              <button id="resultFavoriteBtn" class="ghost-btn result-favorite-btn" type="button">Добавить в избранное</button>
             </div>
           </article>
         </section>
