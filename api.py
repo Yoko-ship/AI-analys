@@ -4,7 +4,7 @@ import logging
 import os
 from urllib.parse import quote, urlencode
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import requests
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -65,6 +65,7 @@ if WEB_DIR.exists():
 
 class AnalyzeRequest(BaseModel):
     company: str = Field(..., min_length=1, max_length=200)
+    language: Literal["ru", "en", "uz"] = "ru"
     force_refresh: bool = False
     include_html: bool = False
     include_raw: bool = False
@@ -403,6 +404,7 @@ async def api_analyze(
     try:
         result = await run_company_analysis(
             payload.company,
+            language=payload.language,
             force_refresh=payload.force_refresh,
         )
     except ValueError as exc:
@@ -413,6 +415,7 @@ async def api_analyze(
     response: dict[str, Any] = {
         "ok": True,
         "input": payload.company,
+        "language": result.get("language", payload.language),
         "ticker": result.get("ticker"),
         "company_name": result.get("company_name"),
         "model": result.get("model"),

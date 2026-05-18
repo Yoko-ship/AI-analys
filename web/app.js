@@ -1,8 +1,10 @@
 const API_BASE = window.location.origin;
 const STORAGE_KEY = "uz_stock_analyzer_token";
+const LANGUAGE_KEY = "uz_stock_analyzer_language";
 
 const state = {
   token: localStorage.getItem(STORAGE_KEY) || "",
+  language: localStorage.getItem(LANGUAGE_KEY) || "ru",
   user: null,
   profile: null,
   companies: [],
@@ -18,6 +20,7 @@ const els = {
   views: Array.from(document.querySelectorAll(".page-view")),
   authStatus: document.getElementById("authStatus"),
   apiState: document.getElementById("apiState"),
+  languageSelect: document.getElementById("languageSelect"),
   loginForm: document.getElementById("loginForm"),
   registerForm: document.getElementById("registerForm"),
   authMessage: document.getElementById("authMessage"),
@@ -64,6 +67,871 @@ const els = {
   sectionsWrap: document.getElementById("sectionsWrap"),
 };
 
+const UI_TEXT = {
+  ru: {
+    pageTitle: "UZ Stock Analyzer",
+    languageLabel: "Язык",
+    languageOptions: { ru: "Русский", en: "English", uz: "O'zbek" },
+    hero: {
+      eyebrow: "Аналитика публичных компаний Узбекистана",
+      copy:
+        "Веб-сервис для быстрого и структурированного анализа компаний. Сервис позволяет зарегистрироваться, войти в аккаунт, выбрать компанию и получить итог с оценкой, ключевыми метриками и развернутым отчетом.",
+    },
+    nav: { main: "Главная", about: "О проекте", auth: "Авторизация", profile: "Профиль", analysis: "Анализ" },
+    main: {
+      panelLabel: "Главная",
+      title: "Что делает сервис",
+      copy:
+        "Минимальный веб-интерфейс для анализа компаний Узбекистана. Пользователь может создать учетную запись, войти в систему, выбрать компанию и получить структурированный результат с итоговой оценкой, вердиктом и набором ключевых блоков.",
+      features: [
+        { title: "1. Регистрация", copy: "Создание учетной записи по email и паролю." },
+        { title: "2. Выбор компании", copy: "Поиск по тикеру или выбор из списка доступных компаний." },
+        { title: "3. Получение анализа", copy: "Итоговая оценка, вердикт, метрики и разделы отчета." },
+      ],
+      sideTitle: "Зачем это нужно",
+      notes: [
+        { title: "Быстрая первичная оценка", copy: "Сервис помогает быстро понять, стоит ли углубляться в исследование компании." },
+        { title: "Контроль доступа", copy: "Запуск анализа доступен только авторизованным пользователям." },
+        { title: "Понятный результат", copy: "Интерфейс показывает итоговую оценку, ключевые метрики и структурированный отчет." },
+      ],
+    },
+    about: {
+      panelLabel: "О проекте",
+      title: "Описание решения",
+      leftNotes: [
+        { title: "Источник данных", copy: "Бэкенд собирает и структурирует данные по компании перед формированием ответа анализа." },
+        { title: "Бэкенд", copy: "API, авторизация и сессии на Railway Postgres уже настроены и работают как единый слой." },
+        { title: "Фронтенд", copy: "Интерфейс построен как компактная аналитическая панель с регистрацией, входом и результатами анализа." },
+      ],
+      rightTitle: "Что получает пользователь",
+      rightCards: [
+        { title: "Оценка", copy: "Единый показатель для первичной ориентации." },
+        { title: "Вердикт", copy: "Краткое, профессиональное заключение по компании." },
+        { title: "Метрики", copy: "Ключевые показатели в карточках для быстрого чтения." },
+        { title: "Отчет", copy: "Развернутые секции для детального изучения." },
+      ],
+    },
+    auth: {
+      panelLabel: "Аккаунт",
+      title: "Авторизация",
+      statusSignedOut: "Не выполнен вход",
+      statusSignedIn: "Вход выполнен",
+      loginTab: "Вход",
+      registerTab: "Регистрация",
+      login: {
+        email: "Email",
+        emailPlaceholder: "you@example.com",
+        password: "Пароль",
+        passwordPlaceholder: "Введите пароль",
+        submit: "Войти",
+      },
+      register: {
+        fullName: "Имя и фамилия",
+        fullNamePlaceholder: "Ваше имя",
+        email: "Email",
+        emailPlaceholder: "you@example.com",
+        password: "Пароль",
+        passwordPlaceholder: "Не менее 8 символов",
+        submit: "Создать аккаунт",
+      },
+      oauthLabel: "Или продолжить через",
+      signedInAs: "Вошли как",
+      emailLabel: "Email",
+      logout: "Выйти",
+      messages: {
+        loggingIn: "Выполняется вход...",
+        registering: "Создание аккаунта...",
+        loginSuccess: "Вход выполнен, {name}",
+        registerSuccess: "Аккаунт создан: {email}",
+        signOut: "Выход выполнен",
+        oauthSuccess: "Вход через {provider} выполнен",
+        oauthReady: "OAuth-вход выполнен",
+        authRequired: "Сначала выполните вход",
+        signedIn: "В системе: {email}",
+      },
+    },
+    profile: {
+      panelLabel: "Профиль",
+      title: "Личный кабинет",
+      statusNotLoaded: "Профиль не загружен",
+      statusLoaded: "Профиль обновлен",
+      unavailable: "Профиль недоступен",
+      emailHint: "Войдите в учетную запись, чтобы увидеть персональные данные.",
+      memberSince: "Дата регистрации будет отображаться здесь.",
+      memberSinceWithDate: "В системе с {date}",
+      analyzeBtn: "Перейти к анализу",
+      refreshBtn: "Обновить профиль",
+      editTitle: "Редактирование профиля",
+      editSub: "Имя и аватар",
+      nameLabel: "Отображаемое имя",
+      namePlaceholder: "Ваше имя",
+      avatarLabel: "Аватар",
+      saveBtn: "Сохранить изменения",
+      clearAvatarBtn: "Удалить аватар",
+      editHint: "Можно обновить имя, загрузить аватар или очистить текущее изображение.",
+      savedHint: "Профиль обновлен.",
+      clearHint: "После сохранения текущий аватар будет удалён.",
+      readImageError: "Не удалось прочитать изображение",
+      statsLabel: "Статистика",
+      statsTitle: "Показатели активности",
+      statsEmpty: "Статистика появится после первого анализа.",
+      favoritesLabel: "Избранное",
+      favoritesTitle: "Сохраненные компании",
+      favoritesEmpty: "Добавляйте компании в избранное из анализа или из истории.",
+      historyLabel: "История",
+      historyTitle: "Последние анализы",
+      historySearchPlaceholder: "Поиск по компании или тикеру",
+      historyAll: "Все анализы",
+      historyFavorites: "Только избранное",
+      historySummaryPrefix: "Показано",
+      historyEmpty: "После первого анализа здесь появится история действий.",
+      historyFilteredEmpty: "По выбранному фильтру ничего не найдено.",
+      historyFromCache: "из кэша",
+      historyFresh: "свежий расчет",
+      historyModelPrefix: "модель",
+      historyFavoriteAdd: "В избранное",
+      historyFavoriteRemove: "Убрать из избранного",
+      historyAnalysisDone: "Анализ выполнен",
+      favoritesRemove: "Убрать",
+      noTitle: "Без названия",
+      stats: {
+        totalAnalyses: "Всего анализов",
+        totalAnalysesSub: "Все выполненные запросы",
+        analyses7d: "За 7 дней",
+        analyses7dSub: "Активность за неделю",
+        analyses30d: "За 30 дней",
+        analyses30dSub: "Активность за месяц",
+        analyzedCompanies: "Компаний в истории",
+        analyzedCompaniesSub: "Уникальные тикеры",
+        avgScore: "Средний скор",
+        avgScoreSub: "Средний итог по анализам",
+        bestScore: "Лучшая оценка",
+        bestScoreSub: "Максимальный скор",
+        topCompany: "Чаще всего смотрит",
+        topCompanySub: "{count} анализов",
+        topCompanySubEmpty: "Пока нет данных",
+        cachedAnalyses: "Кэшированных",
+        cachedAnalysesSub: "Сколько ответов пришло из кэша",
+        lastAnalysis: "Последний анализ",
+        lastAnalysisSub: "Время последнего запроса",
+      },
+    },
+    analysis: {
+      panelLabel: "Анализ",
+      title: "Анализ компании",
+      apiReady: "API готов",
+      apiLoading: "Получение данных...",
+      apiError: "API недоступен",
+      companyLabel: "Компания",
+      companyPlaceholder: "Начните вводить название или тикер",
+      modeLabel: "Режим",
+      modeQuick: "Быстрый",
+      modeFull: "Полный",
+      includeHtml: "Возвращать HTML-отчет",
+      submit: "Анализировать",
+      availableTitle: "Доступные компании",
+      companyCount: "{count} компаний",
+      resultLabel: "Результат",
+      resultEmpty: "Анализ еще не выполнялся",
+      resultCacheWaiting: "Ожидание",
+      resultCacheHit: "Из кэша",
+      resultFresh: "Свежий расчет",
+      resultRunning: "Анализ выполняется...",
+      scoreCaption: "Оценка / 100",
+      verdictPlaceholder: "Выполните анализ, чтобы увидеть итоговое заключение.",
+      favoriteAdd: "Добавить в избранное",
+      favoriteRemove: "Убрать из избранного",
+      metricsLabel: "Метрики",
+      metricsTitle: "Ключевые показатели",
+      metricsEmpty: "Метрики появятся после первого запроса.",
+      sectionsLabel: "Отчет",
+      sectionsTitle: "Разделы отчета",
+      sectionsEmpty: "После анализа здесь появятся разделы отчета.",
+      loadingTitle: "Анализ: {company}",
+      loadingRunning: "Анализ выполняется...",
+      loadingCache: "Загрузка",
+      loadingVerdict: "Анализ выполняется. Пожалуйста, подождите.",
+      loadingMetrics: "Загрузка",
+      completed: "Анализ завершен: {company}",
+    },
+    toasts: { error: "Ошибка", success: "Готово", info: "Инфо" },
+    sections: {
+      "СКОРИНГ": "Скоринг",
+      "ДОСЬЕ": "Досье",
+      "ЧТО_С_ДЕНЬГАМИ": "Что с деньгами",
+      "ТРЕНД": "Тренд",
+      "ФИБОНАЧЧИ": "Фибоначчи",
+      "ОЦЕНКА_ЦЕНЫ": "Оценка цены",
+      "КАТАЛИЗАТОРЫ": "Катализаторы",
+      "СИЛЬНЫЕ_СТОРОНЫ": "Сильные стороны",
+      "СЛАБЫЕ_СТОРОНЫ": "Слабые стороны",
+      "ВОЗМОЖНОСТИ": "Возможности",
+      "УГРОЗЫ": "Угрозы",
+      "ПРОГНОЗ": "Прогноз",
+      "ВЕРДИКТ": "Вердикт",
+      "СОВЕТЫ": "Советы",
+      "ИТОГ": "Итог",
+      "ЗЕЛЕНЫЕ_ФЛАГИ": "Зеленые флаги",
+      "КРАСНЫЕ_ФЛАГИ": "Красные флаги",
+    },
+    metrics: {
+      total_score: "Итоговый скор",
+      piotroski_f_score: "Piotroski F-Score",
+      altman_z_score: "Altman Z-Score",
+      buffett_criteria: "Критерии Баффетта",
+      graham_number: "Стоимость Грэма",
+      dcf: "DCF-оценка",
+      industry: "Отрасль",
+      market_liquidity: "Ликвидность",
+      momentum: "Тренд",
+      noData: "Метрики появятся после первого запроса.",
+    },
+  },
+};
+
+UI_TEXT.en = {
+  pageTitle: "UZ Stock Analyzer",
+  languageLabel: "Language",
+  languageOptions: { ru: "Russian", en: "English", uz: "Uzbek" },
+  hero: {
+    eyebrow: "Analytics for public companies in Uzbekistan",
+    copy:
+      "A web service for fast and structured company analysis. Create an account, sign in, choose a company, and receive a score, key metrics, and a structured report.",
+  },
+  nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis" },
+  main: {
+    panelLabel: "Main",
+    title: "What the service does",
+    copy:
+      "A compact web interface for analyzing companies in Uzbekistan. The user can create an account, sign in, choose a company, and receive a structured result with a score, verdict, and key blocks.",
+    features: [
+      { title: "1. Registration", copy: "Create an account with email and password." },
+      { title: "2. Company selection", copy: "Search by ticker or choose from the available list." },
+      { title: "3. Analysis", copy: "Final score, verdict, metrics, and report sections." },
+    ],
+    sideTitle: "Why it matters",
+    notes: [
+      { title: "Fast first pass", copy: "The service helps you quickly decide whether to dig deeper into a company." },
+      { title: "Access control", copy: "Analysis is available only to authenticated users." },
+      { title: "Readable output", copy: "The interface shows the final score, key metrics, and a structured report." },
+    ],
+  },
+  about: {
+    panelLabel: "About",
+    title: "Solution overview",
+    leftNotes: [
+      { title: "Data source", copy: "The backend collects and structures company data before the analysis is generated." },
+      { title: "Backend", copy: "API, auth, and sessions on Railway Postgres are configured and operate as one layer." },
+      { title: "Frontend", copy: "The interface is a compact analytics dashboard with sign in, account creation, and analysis results." },
+    ],
+    rightTitle: "What the user gets",
+    rightCards: [
+      { title: "Score", copy: "A single indicator for a quick starting point." },
+      { title: "Verdict", copy: "A short professional conclusion about the company." },
+      { title: "Metrics", copy: "Key indicators in cards for quick reading." },
+      { title: "Report", copy: "Detailed sections for deeper review." },
+    ],
+  },
+  auth: {
+    panelLabel: "Account",
+    title: "Sign in",
+    statusSignedOut: "Not signed in",
+    statusSignedIn: "Signed in",
+    loginTab: "Sign in",
+    registerTab: "Register",
+    login: { email: "Email", emailPlaceholder: "you@example.com", password: "Password", passwordPlaceholder: "Enter your password", submit: "Sign in" },
+    register: { fullName: "Full name", fullNamePlaceholder: "Your name", email: "Email", emailPlaceholder: "you@example.com", password: "Password", passwordPlaceholder: "At least 8 characters", submit: "Create account" },
+    oauthLabel: "Or continue with",
+    signedInAs: "Signed in as",
+    emailLabel: "Email",
+    logout: "Log out",
+    messages: {
+      loggingIn: "Signing in...",
+      registering: "Creating account...",
+      loginSuccess: "Signed in, {name}",
+      registerSuccess: "Account created: {email}",
+      signOut: "Signed out",
+      oauthSuccess: "Signed in with {provider}",
+      oauthReady: "OAuth sign in complete",
+      authRequired: "Please sign in first",
+      signedIn: "In the system: {email}",
+    },
+  },
+  profile: {
+    panelLabel: "Profile",
+    title: "Dashboard",
+    statusNotLoaded: "Profile not loaded",
+    statusLoaded: "Profile updated",
+    unavailable: "Profile unavailable",
+    emailHint: "Sign in to view personal data.",
+    memberSince: "Registration date will appear here.",
+    memberSinceWithDate: "In the system since {date}",
+    analyzeBtn: "Go to analysis",
+    refreshBtn: "Refresh profile",
+    editTitle: "Edit profile",
+    editSub: "Name and avatar",
+    nameLabel: "Display name",
+    namePlaceholder: "Your name",
+    avatarLabel: "Avatar",
+    saveBtn: "Save changes",
+    clearAvatarBtn: "Remove avatar",
+    editHint: "You can update the name, upload an avatar, or clear the current image.",
+    savedHint: "Profile updated.",
+    clearHint: "The current avatar will be removed after saving.",
+    readImageError: "Could not read the image",
+    statsLabel: "Statistics",
+    statsTitle: "Activity metrics",
+    statsEmpty: "Statistics will appear after the first analysis.",
+    favoritesLabel: "Favorites",
+    favoritesTitle: "Saved companies",
+    favoritesEmpty: "Add companies to favorites from analysis or history.",
+    historyLabel: "History",
+    historyTitle: "Recent analyses",
+    historySearchPlaceholder: "Search by company or ticker",
+    historyAll: "All analyses",
+    historyFavorites: "Favorites only",
+    historySummaryPrefix: "Shown",
+    historyEmpty: "After the first analysis, your activity history will appear here.",
+    historyFilteredEmpty: "Nothing matched the selected filter.",
+    historyFromCache: "from cache",
+    historyFresh: "fresh result",
+    historyModelPrefix: "model",
+    historyFavoriteAdd: "Add to favorites",
+    historyFavoriteRemove: "Remove from favorites",
+    historyAnalysisDone: "Analysis completed",
+    favoritesRemove: "Remove",
+    noTitle: "Untitled",
+    stats: {
+      totalAnalyses: "Total analyses",
+      totalAnalysesSub: "All completed requests",
+      analyses7d: "Last 7 days",
+      analyses7dSub: "Weekly activity",
+      analyses30d: "Last 30 days",
+      analyses30dSub: "Monthly activity",
+      analyzedCompanies: "Companies in history",
+      analyzedCompaniesSub: "Unique tickers",
+      avgScore: "Average score",
+      avgScoreSub: "Average result across analyses",
+      bestScore: "Best score",
+      bestScoreSub: "Highest recorded score",
+      topCompany: "Most viewed",
+      topCompanySub: "{count} analyses",
+      topCompanySubEmpty: "No data yet",
+      cachedAnalyses: "Cached",
+      cachedAnalysesSub: "How many responses came from cache",
+      lastAnalysis: "Last analysis",
+      lastAnalysisSub: "Time of the last request",
+    },
+  },
+  analysis: {
+    panelLabel: "Analysis",
+    title: "Company analysis",
+    apiReady: "API ready",
+    apiLoading: "Loading data...",
+    apiError: "API unavailable",
+    companyLabel: "Company",
+    companyPlaceholder: "Start typing the company name or ticker",
+    modeLabel: "Mode",
+    modeQuick: "Quick",
+    modeFull: "Full",
+    includeHtml: "Return HTML report",
+    submit: "Analyze",
+    availableTitle: "Available companies",
+    companyCount: "{count} companies",
+    resultLabel: "Result",
+    resultEmpty: "Analysis has not been run yet",
+    resultCacheWaiting: "Waiting",
+    resultCacheHit: "From cache",
+    resultFresh: "Fresh result",
+    resultRunning: "Analysis running...",
+    scoreCaption: "Score / 100",
+    verdictPlaceholder: "Run an analysis to see the final verdict.",
+    favoriteAdd: "Add to favorites",
+    favoriteRemove: "Remove from favorites",
+    metricsLabel: "Metrics",
+    metricsTitle: "Key metrics",
+    metricsEmpty: "Metrics will appear after the first request.",
+    sectionsLabel: "Report",
+    sectionsTitle: "Report sections",
+    sectionsEmpty: "After analysis, report sections will appear here.",
+    loadingTitle: "Analysis: {company}",
+    loadingRunning: "Analysis running...",
+    loadingCache: "Loading",
+    loadingVerdict: "The analysis is running. Please wait.",
+    loadingMetrics: "Loading",
+    completed: "Analysis completed: {company}",
+  },
+  toasts: { error: "Error", success: "Done", info: "Info" },
+  sections: {
+    "СКОРИНГ": "Scoring",
+    "ДОСЬЕ": "Dossier",
+    "ЧТО_С_ДЕНЬГАМИ": "Finances",
+    "ТРЕНД": "Trend",
+    "ФИБОНАЧЧИ": "Fibonacci",
+    "ОЦЕНКА_ЦЕНЫ": "Price check",
+    "КАТАЛИЗАТОРЫ": "Catalysts",
+    "СИЛЬНЫЕ_СТОРОНЫ": "Strengths",
+    "СЛАБЫЕ_СТОРОНЫ": "Weaknesses",
+    "ВОЗМОЖНОСТИ": "Opportunities",
+    "УГРОЗЫ": "Threats",
+    "ПРОГНОЗ": "Forecast",
+    "ВЕРДИКТ": "Verdict",
+    "СОВЕТЫ": "Recommendations",
+    "ИТОГ": "Summary",
+    "ЗЕЛЕНЫЕ_ФЛАГИ": "Green flags",
+    "КРАСНЫЕ_ФЛАГИ": "Red flags",
+  },
+  metrics: {
+    total_score: "Total score",
+    piotroski_f_score: "Piotroski F-Score",
+    altman_z_score: "Altman Z-Score",
+    buffett_criteria: "Buffett criteria",
+    graham_number: "Graham value",
+    dcf: "DCF valuation",
+    industry: "Industry",
+    market_liquidity: "Liquidity",
+    momentum: "Trend",
+    noData: "Metrics will appear after the first request.",
+  },
+};
+
+UI_TEXT.uz = {
+  pageTitle: "UZ Stock Analyzer",
+  languageLabel: "Til",
+  languageOptions: { ru: "Ruscha", en: "English", uz: "O'zbek" },
+  hero: {
+    eyebrow: "O'zbekistondagi ochiq kompaniyalar tahlili",
+    copy:
+      "Kompaniyalarni tez va tizimli tahlil qilish uchun veb-xizmat. Ro'yxatdan o'ting, kiring, kompaniyani tanlang va baho, asosiy ko'rsatkichlar hamda tuzilgan hisobot oling.",
+  },
+  nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil" },
+  main: {
+    panelLabel: "Bosh sahifa",
+    title: "Xizmat nima qiladi",
+    copy:
+      "O'zbekiston kompaniyalarini tahlil qilish uchun ixcham veb-interfeys. Foydalanuvchi akkaunt yaratadi, tizimga kiradi, kompaniyani tanlaydi va yakuniy baho, xulosa hamda asosiy bloklar bilan tuzilgan natijani oladi.",
+    features: [
+      { title: "1. Ro'yxatdan o'tish", copy: "Email va parol orqali akkaunt yarating." },
+      { title: "2. Kompaniyani tanlash", copy: "Ticker bo'yicha qidirish yoki ro'yxatdan tanlash." },
+      { title: "3. Tahlil olish", copy: "Yakuniy baho, xulosa, metrikalar va hisobot bo'limlari." },
+    ],
+    sideTitle: "Nima uchun kerak",
+    notes: [
+      { title: "Tezkor dastlabki baho", copy: "Xizmat kompaniyani chuqur o'rganish kerakmi yoki yo'qmi, tez tushunishga yordam beradi." },
+      { title: "Kirish nazorati", copy: "Tahlil faqat avtorizatsiyadan o'tgan foydalanuvchilar uchun mavjud." },
+      { title: "O'qilishi oson natija", copy: "Interfeys yakuniy baho, asosiy ko'rsatkichlar va tuzilgan hisobotni ko'rsatadi." },
+    ],
+  },
+  about: {
+    panelLabel: "Loyiha haqida",
+    title: "Yechim tavsifi",
+    leftNotes: [
+      { title: "Ma'lumot manbai", copy: "Backend tahlil yaratilishidan oldin kompaniya ma'lumotlarini yig'adi va tuzadi." },
+      { title: "Backend", copy: "Railway Postgres ustidagi API, avtorizatsiya va sessiyalar bir qatlam sifatida ishlaydi." },
+      { title: "Frontend", copy: "Interfeys ro'yxatdan o'tish, kirish va tahlil natijalari bilan ixcham analitik panelga aylantirilgan." },
+    ],
+    rightTitle: "Foydalanuvchi nimani oladi",
+    rightCards: [
+      { title: "Baho", copy: "Tezkor yo'nalish uchun yagona ko'rsatkich." },
+      { title: "Xulosa", copy: "Kompaniya bo'yicha qisqa va professional xulosa." },
+      { title: "Metrikalar", copy: "Tez o'qish uchun kartalardagi asosiy ko'rsatkichlar." },
+      { title: "Hisobot", copy: "Chuqurroq ko'rib chiqish uchun batafsil bo'limlar." },
+    ],
+  },
+  auth: {
+    panelLabel: "Hisob",
+    title: "Kirish",
+    statusSignedOut: "Kirish yo'q",
+    statusSignedIn: "Kirish amalga oshirildi",
+    loginTab: "Kirish",
+    registerTab: "Ro'yxatdan o'tish",
+    login: { email: "Email", emailPlaceholder: "you@example.com", password: "Parol", passwordPlaceholder: "Parolingizni kiriting", submit: "Kirish" },
+    register: { fullName: "Ism va familiya", fullNamePlaceholder: "Sizning ismingiz", email: "Email", emailPlaceholder: "you@example.com", password: "Parol", passwordPlaceholder: "Kamida 8 ta belgi", submit: "Akkaunt yaratish" },
+    oauthLabel: "Yoki davom eting",
+    signedInAs: "Kirish amalga oshirildi",
+    emailLabel: "Email",
+    logout: "Chiqish",
+    messages: {
+      loggingIn: "Kirish amalga oshirilmoqda...",
+      registering: "Akkaunt yaratilmoqda...",
+      loginSuccess: "Kirish amalga oshirildi, {name}",
+      registerSuccess: "Akkaunt yaratildi: {email}",
+      signOut: "Chiqish amalga oshirildi",
+      oauthSuccess: "{provider} orqali kirish amalga oshirildi",
+      oauthReady: "OAuth orqali kirish yakunlandi",
+      authRequired: "Avval tizimga kiring",
+      signedIn: "Tizimda: {email}",
+    },
+  },
+  profile: {
+    panelLabel: "Profil",
+    title: "Shaxsiy kabinet",
+    statusNotLoaded: "Profil yuklanmadi",
+    statusLoaded: "Profil yangilandi",
+    unavailable: "Profil mavjud emas",
+    emailHint: "Shaxsiy ma'lumotlarni ko'rish uchun tizimga kiring.",
+    memberSince: "Ro'yxatdan o'tish sanasi shu yerda ko'rsatiladi.",
+    memberSinceWithDate: "Tizimda {date} dan beri",
+    analyzeBtn: "Tahlilga o'tish",
+    refreshBtn: "Profilni yangilash",
+    editTitle: "Profilni tahrirlash",
+    editSub: "Ism va avatar",
+    nameLabel: "Ko'rinadigan ism",
+    namePlaceholder: "Sizning ismingiz",
+    avatarLabel: "Avatar",
+    saveBtn: "O'zgarishlarni saqlash",
+    clearAvatarBtn: "Avatarni o'chirish",
+    editHint: "Ismni yangilash, avatar yuklash yoki joriy rasmni tozalash mumkin.",
+    savedHint: "Profil yangilandi.",
+    clearHint: "Saqlagandan so'ng joriy avatar o'chiriladi.",
+    readImageError: "Rasmni o'qib bo'lmadi",
+    statsLabel: "Statistika",
+    statsTitle: "Faollik ko'rsatkichlari",
+    statsEmpty: "Statistika birinchi tahlildan keyin ko'rinadi.",
+    favoritesLabel: "Tanlanganlar",
+    favoritesTitle: "Saqlangan kompaniyalar",
+    favoritesEmpty: "Tahlil yoki tarixdan kompaniyalarni tanlanganlarga qo'shing.",
+    historyLabel: "Tarix",
+    historyTitle: "Oxirgi tahlillar",
+    historySearchPlaceholder: "Kompaniya yoki ticker bo'yicha qidirish",
+    historyAll: "Barcha tahlillar",
+    historyFavorites: "Faqat tanlanganlar",
+    historySummaryPrefix: "Ko'rsatilgan",
+    historyEmpty: "Birinchi tahlildan keyin bu yerda faoliyat tarixi ko'rinadi.",
+    historyFilteredEmpty: "Tanlangan filtr bo'yicha hech narsa topilmadi.",
+    historyFromCache: "keshdan",
+    historyFresh: "yangi natija",
+    historyModelPrefix: "model",
+    historyFavoriteAdd: "Tanlanganlarga qo'shish",
+    historyFavoriteRemove: "Tanlanganlardan olib tashlash",
+    historyAnalysisDone: "Tahlil yakunlandi",
+    favoritesRemove: "O'chirish",
+    noTitle: "Nomsiz",
+    stats: {
+      totalAnalyses: "Jami tahlillar",
+      totalAnalysesSub: "Barcha bajarilgan so'rovlar",
+      analyses7d: "7 kun ichida",
+      analyses7dSub: "Haftalik faollik",
+      analyses30d: "30 kun ichida",
+      analyses30dSub: "Oylik faollik",
+      analyzedCompanies: "Tarixdagi kompaniyalar",
+      analyzedCompaniesSub: "Noyob tickerlar",
+      avgScore: "O'rtacha baho",
+      avgScoreSub: "Tahlillar bo'yicha o'rtacha natija",
+      bestScore: "Eng yaxshi baho",
+      bestScoreSub: "Eng yuqori natija",
+      topCompany: "Eng ko'p ko'rilgan",
+      topCompanySub: "{count} ta tahlil",
+      topCompanySubEmpty: "Hozircha ma'lumot yo'q",
+      cachedAnalyses: "Keshlangan",
+      cachedAnalysesSub: "Qancha javob keshdan kelgan",
+      lastAnalysis: "Oxirgi tahlil",
+      lastAnalysisSub: "Oxirgi so'rov vaqti",
+    },
+  },
+  analysis: {
+    panelLabel: "Tahlil",
+    title: "Kompaniya tahlili",
+    apiReady: "API tayyor",
+    apiLoading: "Ma'lumotlar olinmoqda...",
+    apiError: "API mavjud emas",
+    companyLabel: "Kompaniya",
+    companyPlaceholder: "Kompaniya nomi yoki ticker ni kiriting",
+    modeLabel: "Rejim",
+    modeQuick: "Tez",
+    modeFull: "To'liq",
+    includeHtml: "HTML hisobotni qaytarish",
+    submit: "Tahlil qilish",
+    availableTitle: "Mavjud kompaniyalar",
+    companyCount: "{count} ta kompaniya",
+    resultLabel: "Natija",
+    resultEmpty: "Tahlil hali bajarilmagan",
+    resultCacheWaiting: "Kutilmoqda",
+    resultCacheHit: "Keshdan",
+    resultFresh: "Yangi natija",
+    resultRunning: "Tahlil bajarilmoqda...",
+    scoreCaption: "Baho / 100",
+    verdictPlaceholder: "Yakuniy xulosani ko'rish uchun tahlilni ishga tushiring.",
+    favoriteAdd: "Tanlanganlarga qo'shish",
+    favoriteRemove: "Tanlanganlardan olib tashlash",
+    metricsLabel: "Metrikalar",
+    metricsTitle: "Asosiy ko'rsatkichlar",
+    metricsEmpty: "Metrikalar birinchi so'rovdan keyin ko'rinadi.",
+    sectionsLabel: "Hisobot",
+    sectionsTitle: "Hisobot bo'limlari",
+    sectionsEmpty: "Tahlildan keyin bu yerda hisobot bo'limlari paydo bo'ladi.",
+    loadingTitle: "Tahlil: {company}",
+    loadingRunning: "Tahlil bajarilmoqda...",
+    loadingCache: "Yuklanmoqda",
+    loadingVerdict: "Tahlil bajarilmoqda. Iltimos kuting.",
+    loadingMetrics: "Yuklanmoqda",
+    completed: "Tahlil yakunlandi: {company}",
+  },
+  toasts: { error: "Xato", success: "Tayyor", info: "Ma'lumot" },
+  sections: {
+    "СКОРИНГ": "Baho",
+    "ДОСЬЕ": "Dossier",
+    "ЧТО_С_ДЕНЬГАМИ": "Moliyaviy holat",
+    "ТРЕНД": "Trend",
+    "ФИБОНАЧЧИ": "Fibonachchi",
+    "ОЦЕНКА_ЦЕНЫ": "Narx bahosi",
+    "КАТАЛИЗАТОРЫ": "Katalizatorlar",
+    "СИЛЬНЫЕ_СТОРОНЫ": "Kuchli tomonlar",
+    "СЛАБЫЕ_СТОРОНЫ": "Zaif tomonlar",
+    "ВОЗМОЖНОСТИ": "Imkoniyatlar",
+    "УГРОЗЫ": "Tahdidlar",
+    "ПРОГНОЗ": "Prognoz",
+    "ВЕРДИКТ": "Xulosa",
+    "СОВЕТЫ": "Tavsiyalar",
+    "ИТОГ": "Yakun",
+    "ЗЕЛЕНЫЕ_ФЛАГИ": "Yashil belgilar",
+    "КРАСНЫЕ_ФЛАГИ": "Qizil belgilar",
+  },
+  metrics: {
+    total_score: "Jami ball",
+    piotroski_f_score: "Piotroski F-Score",
+    altman_z_score: "Altman Z-Score",
+    buffett_criteria: "Buffett mezonlari",
+    graham_number: "Graham qiymati",
+    dcf: "DCF baholash",
+    industry: "Sektor",
+    market_liquidity: "Likvidlik",
+    momentum: "Trend",
+    noData: "Metrikalar birinchi so'rovdan keyin ko'rinadi.",
+  },
+};
+
+function normalizeLanguage(language) {
+  return ["ru", "en", "uz"].includes(String(language || "").trim().toLowerCase())
+    ? String(language).trim().toLowerCase()
+    : "ru";
+}
+
+function t(path, params = {}, language = state.language) {
+  const lang = normalizeLanguage(language);
+  const parts = String(path).split(".");
+  const getValue = (source) => {
+    let value = source;
+    for (const part of parts) {
+      value = value?.[part];
+    }
+    return value;
+  };
+  let value = getValue(UI_TEXT[lang]);
+  if (value === undefined || value === null || value === "") {
+    value = getValue(UI_TEXT.ru);
+  }
+  if (typeof value !== "string") return "";
+  return value.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ""));
+}
+
+function setText(selector, value) {
+  const el = document.querySelector(selector);
+  if (el) el.textContent = value;
+}
+
+function setPlaceholder(selector, value) {
+  const el = document.querySelector(selector);
+  if (el) el.placeholder = value;
+}
+
+function applyLanguage(language = state.language) {
+  const lang = normalizeLanguage(language);
+  state.language = lang;
+  localStorage.setItem(LANGUAGE_KEY, lang);
+  document.documentElement.lang = lang;
+  document.title = t("pageTitle");
+  const siteNav = document.querySelector(".site-nav");
+  if (siteNav) {
+    siteNav.setAttribute(
+      "aria-label",
+      lang === "en" ? "Site sections" : lang === "uz" ? "Sahifa bo'limlari" : "Разделы сайта"
+    );
+  }
+
+  if (els.languageSelect && els.languageSelect.value !== lang) {
+    els.languageSelect.value = lang;
+  }
+  setText(".language-switch label", t("languageLabel"));
+  if (els.languageSelect?.options?.length >= 3) {
+    els.languageSelect.options[0].textContent = t("languageOptions.ru");
+    els.languageSelect.options[1].textContent = t("languageOptions.en");
+    els.languageSelect.options[2].textContent = t("languageOptions.uz");
+  }
+
+  setText('.nav-btn[data-view="main"]', t("nav.main"));
+  setText('.nav-btn[data-view="about"]', t("nav.about"));
+  setText('.nav-btn[data-view="auth"]', t("nav.auth"));
+  setText('.nav-btn[data-view="profile"]', t("nav.profile"));
+  setText('.nav-btn[data-view="analysis"]', t("nav.analysis"));
+
+  setText(".hero .eyebrow", t("hero.eyebrow"));
+  setText(".hero h1", t("pageTitle"));
+  setText(".hero-copy", t("hero.copy"));
+
+  setText('#view-main .feature-panel:nth-of-type(1) .panel-label', t("main.panelLabel"));
+  setText('#view-main .feature-panel:nth-of-type(1) h2', t("main.title"));
+  setText('#view-main .feature-panel:nth-of-type(1) .feature-copy', t("main.copy"));
+  const mainFeatures = Array.from(document.querySelectorAll('#view-main .feature-panel:nth-of-type(1) .feature-card'));
+  mainFeatures.forEach((card, index) => {
+    const item = t(`main.features.${index}.title`) || UI_TEXT[lang].main.features[index]?.title || "";
+    const copy = t(`main.features.${index}.copy`) || UI_TEXT[lang].main.features[index]?.copy || "";
+    const strong = card.querySelector("strong");
+    const span = card.querySelector("span");
+    if (strong) strong.textContent = item;
+    if (span) span.textContent = copy;
+  });
+  setText('#view-main .feature-panel:nth-of-type(2) .panel-label', t("main.panelLabel"));
+  setText('#view-main .feature-panel:nth-of-type(2) h2', t("main.sideTitle"));
+  const mainNotes = Array.from(document.querySelectorAll('#view-main .feature-panel:nth-of-type(2) .note-card'));
+  mainNotes.forEach((card, index) => {
+    const item = UI_TEXT[lang].main.notes[index];
+    if (!item) return;
+    const strong = card.querySelector("strong");
+    const p = card.querySelector("p");
+    if (strong) strong.textContent = item.title;
+    if (p) p.textContent = item.copy;
+  });
+
+  setText('#view-about .feature-panel:nth-of-type(1) .panel-label', t("about.panelLabel"));
+  setText('#view-about .feature-panel:nth-of-type(1) h2', t("about.title"));
+  const aboutNotes = Array.from(document.querySelectorAll('#view-about .feature-panel:nth-of-type(1) .note-card'));
+  aboutNotes.forEach((card, index) => {
+    const item = UI_TEXT[lang].about.leftNotes[index];
+    if (!item) return;
+    const strong = card.querySelector("strong");
+    const p = card.querySelector("p");
+    if (strong) strong.textContent = item.title;
+    if (p) p.textContent = item.copy;
+  });
+  setText('#view-about .feature-panel:nth-of-type(2) .panel-label', t("about.panelLabel"));
+  setText('#view-about .feature-panel:nth-of-type(2) h2', t("about.rightTitle"));
+  const aboutCards = Array.from(document.querySelectorAll('#view-about .feature-panel:nth-of-type(2) .feature-card'));
+  aboutCards.forEach((card, index) => {
+    const item = UI_TEXT[lang].about.rightCards[index];
+    if (!item) return;
+    const strong = card.querySelector("strong");
+    const span = card.querySelector("span");
+    if (strong) strong.textContent = item.title;
+    if (span) span.textContent = item.copy;
+  });
+
+  setText("#view-auth .panel-label", t("auth.panelLabel"));
+  setText("#view-auth h2", t("auth.title"));
+  setText("#authStatus", state.user ? t("auth.statusSignedIn") : t("auth.statusSignedOut"));
+  setText('#view-auth .tab-btn[data-tab="login"]', t("auth.loginTab"));
+  setText('#view-auth .tab-btn[data-tab="register"]', t("auth.registerTab"));
+  const loginForm = els.loginForm;
+  if (loginForm) {
+    const labels = loginForm.querySelectorAll("label");
+    if (labels[0]) {
+      labels[0].querySelector("span").textContent = t("auth.login.email");
+      labels[0].querySelector("input").placeholder = t("auth.login.emailPlaceholder");
+    }
+    if (labels[1]) {
+      labels[1].querySelector("span").textContent = t("auth.login.password");
+      labels[1].querySelector("input").placeholder = t("auth.login.passwordPlaceholder");
+    }
+    loginForm.querySelector('button[type="submit"]').textContent = t("auth.login.submit");
+  }
+  const registerForm = els.registerForm;
+  if (registerForm) {
+    const labels = registerForm.querySelectorAll("label");
+    if (labels[0]) {
+      labels[0].querySelector("span").textContent = t("auth.register.fullName");
+      labels[0].querySelector("input").placeholder = t("auth.register.fullNamePlaceholder");
+    }
+    if (labels[1]) {
+      labels[1].querySelector("span").textContent = t("auth.register.email");
+      labels[1].querySelector("input").placeholder = t("auth.register.emailPlaceholder");
+    }
+    if (labels[2]) {
+      labels[2].querySelector("span").textContent = t("auth.register.password");
+      labels[2].querySelector("input").placeholder = t("auth.register.passwordPlaceholder");
+    }
+    registerForm.querySelector('button[type="submit"]').textContent = t("auth.register.submit");
+  }
+  setText(".oauth-label", t("auth.oauthLabel"));
+  setText(".user-line .muted", t("auth.signedInAs"));
+  const userLines = document.querySelectorAll("#userCard .user-line .muted");
+  if (userLines[1]) userLines[1].textContent = t("auth.emailLabel");
+  if (els.logoutBtn) els.logoutBtn.textContent = t("auth.logout");
+
+  setText('#view-profile .panel-label', t("profile.panelLabel"));
+  setText('#view-profile .profile-hero-panel h2', t("profile.title"));
+  setText("#profileStatus", state.user ? t("profile.statusLoaded") : t("profile.statusNotLoaded"));
+  setText("#profileEmail", state.user ? (state.user.email || "") : t("profile.emailHint"));
+  setText("#profileMemberSince", t("profile.memberSince"));
+  setText("#profileAnalyzeBtn", t("profile.analyzeBtn"));
+  setText("#profileRefreshBtn", t("profile.refreshBtn"));
+  setText('#view-profile .profile-edit-form .section-title-row h3', t("profile.editTitle"));
+  setText('#view-profile .profile-edit-form .section-title-row .muted', t("profile.editSub"));
+  const profileLabels = document.querySelectorAll("#profileEditForm label");
+  if (profileLabels[0]) {
+    profileLabels[0].querySelector("span").textContent = t("profile.nameLabel");
+    profileLabels[0].querySelector("input").placeholder = t("profile.namePlaceholder");
+  }
+  if (profileLabels[1]) {
+    profileLabels[1].querySelector("span").textContent = t("profile.avatarLabel");
+  }
+  setText("#profileSaveBtn", t("profile.saveBtn"));
+  setText("#profileClearAvatarBtn", t("profile.clearAvatarBtn"));
+  setText("#profileEditHint", t("profile.editHint"));
+  setText('#view-profile .profile-stats-panel .panel-label', t("profile.statsLabel"));
+  setText('#view-profile .profile-stats-panel h2', t("profile.statsTitle"));
+  setText('#view-profile .profile-favorites-panel .panel-label', t("profile.favoritesLabel"));
+  setText('#view-profile .profile-favorites-panel h2', t("profile.favoritesTitle"));
+  setText('#view-profile .profile-history-panel .panel-label', t("profile.historyLabel"));
+  setText('#view-profile .profile-history-panel h2', t("profile.historyTitle"));
+  setPlaceholder("#profileHistorySearch", t("profile.historySearchPlaceholder"));
+  const historyMode = els.profileHistoryMode;
+  if (historyMode?.options?.length >= 2) {
+    historyMode.options[0].textContent = t("profile.historyAll");
+    historyMode.options[1].textContent = t("profile.historyFavorites");
+  }
+
+  setText('#view-analysis .analysis-panel .panel-label', t("analysis.panelLabel"));
+  setText('#view-analysis .analysis-panel h2', t("analysis.title"));
+  setText("#apiState", t("analysis.apiReady"));
+  const companyLabel = document.querySelector('#analysisForm label.wide span');
+  if (companyLabel) companyLabel.textContent = t("analysis.companyLabel");
+  setPlaceholder("#companyInput", t("analysis.companyPlaceholder"));
+  const modeLabel = document.querySelector('#analysisForm label:not(.wide) span');
+  if (modeLabel) modeLabel.textContent = t("analysis.modeLabel");
+  const modeSelect = document.querySelector('#analysisForm select[name="analysis_mode"]');
+  if (modeSelect?.options?.length >= 2) {
+    modeSelect.options[0].textContent = t("analysis.modeQuick");
+    modeSelect.options[1].textContent = t("analysis.modeFull");
+  }
+  const htmlToggle = document.querySelector('#analysisForm .toggle-row span');
+  if (htmlToggle) htmlToggle.textContent = t("analysis.includeHtml");
+  const analyzeBtn = document.querySelector('#analysisForm .analyze-btn');
+  if (analyzeBtn) analyzeBtn.textContent = t("analysis.submit");
+  setText(".quick-list-wrap .section-title-row h3", t("analysis.availableTitle"));
+  if (els.companyCount) {
+    els.companyCount.textContent = t("analysis.companyCount", { count: state.companies.length });
+  }
+  setText("#resultHero .panel-label", t("analysis.resultLabel"));
+  setText("#resultCompany", t("analysis.resultEmpty"));
+  setText("#resultCache", t("analysis.resultCacheWaiting"));
+  setText(".score-caption", t("analysis.scoreCaption"));
+  setText("#verdictValue", t("analysis.verdictPlaceholder"));
+  setText("#resultFavoriteBtn", t("analysis.favoriteAdd"));
+  setText('#view-analysis .metrics-panel .panel-label', t("analysis.metricsLabel"));
+  setText('#view-analysis .metrics-panel h2', t("analysis.metricsTitle"));
+  setText('#view-analysis .sections-panel .panel-label', t("analysis.sectionsLabel"));
+  setText('#view-analysis .sections-panel h2', t("analysis.sectionsTitle"));
+
+  if (state.profile) {
+    renderProfile(state.profile);
+  }
+  if (state.lastResult) {
+    renderResult(state.lastResult);
+  } else {
+    clearResults();
+  }
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -84,7 +952,7 @@ function showToast(message, tone = "info", timeoutMs = 3800) {
   const toast = document.createElement("div");
   toast.className = `toast toast-${tone}`;
 
-  const label = tone === "error" ? "Ошибка" : tone === "success" ? "Готово" : "Инфо";
+  const label = tone === "error" ? t("toasts.error") : tone === "success" ? t("toasts.success") : t("toasts.info");
   toast.innerHTML = `
     <div class="toast-label">${label}</div>
     <div class="toast-message">${escapeHtml(message)}</div>
@@ -124,7 +992,9 @@ function consumeOAuthHash() {
   state.token = token;
   localStorage.setItem(STORAGE_KEY, token);
   const providerLabel = provider ? (provider === "google" ? "Google" : provider) : "";
-  state.oauthMessage = providerLabel ? `Вход через ${providerLabel} выполнен` : "OAuth-вход выполнен";
+  state.oauthMessage = providerLabel
+    ? t("auth.messages.oauthSuccess", { provider: providerLabel })
+    : t("auth.messages.oauthReady");
   showToast(state.oauthMessage, "success");
   clearHash();
   return true;
@@ -135,13 +1005,13 @@ function setAuthState(user) {
   const signedIn = Boolean(user);
 
   els.userCard.classList.toggle("hidden", !signedIn);
-  els.authStatus.textContent = signedIn ? "Вход выполнен" : "Вход не выполнен";
+  els.authStatus.textContent = signedIn ? t("auth.statusSignedIn") : t("auth.statusSignedOut");
   els.authStatus.className = signedIn ? "status-badge" : "status-badge muted";
 
   if (signedIn) {
     els.userName.textContent = user.full_name || user.email;
     els.userEmail.textContent = user.email;
-    setMessage(`В системе: ${user.email}`);
+    setMessage(t("auth.messages.signedIn", { email: user.email }));
   } else {
     els.userName.textContent = "-";
     els.userEmail.textContent = "-";
@@ -163,10 +1033,11 @@ function hashToHue(source) {
 }
 
 function formatDateLabel(value) {
-  if (!value) return "Нет данных";
+  if (!value) return state.language === "en" ? "No data" : state.language === "uz" ? "Ma'lumot yo'q" : "Нет данных";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Нет данных";
-  return new Intl.DateTimeFormat("ru-RU", {
+  if (Number.isNaN(date.getTime())) return state.language === "en" ? "No data" : state.language === "uz" ? "Ma'lumot yo'q" : "Нет данных";
+  const locale = state.language === "en" ? "en-US" : state.language === "uz" ? "uz-Latn-UZ" : "ru-RU";
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -195,7 +1066,7 @@ function renderAvatarInto(el, user) {
   const initials = getProfileInitials(user);
   if (avatar) {
     el.classList.add("has-image");
-    el.innerHTML = `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(user?.full_name || user?.email || "Аватар")}" />`;
+    el.innerHTML = `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(user?.full_name || user?.email || t("profile.noTitle"))}" />`;
     return;
   }
   el.classList.remove("has-image");
@@ -207,7 +1078,7 @@ function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Не удалось прочитать изображение"));
+    reader.onerror = () => reject(new Error(t("profile.readImageError")));
     reader.readAsDataURL(file);
   });
 }
@@ -236,19 +1107,19 @@ function renderProfile(profile = null) {
   }
 
   if (!profile || !state.user) {
-    els.profileStatus.textContent = "Профиль не загружен";
+    els.profileStatus.textContent = t("profile.statusNotLoaded");
     els.profileStatus.className = "status-badge muted";
     renderAvatarInto(els.profileAvatar, null);
     els.profileAvatar.style.background = "linear-gradient(135deg, rgba(245, 184, 77, 0.18), rgba(110, 240, 193, 0.16))";
-    els.profileName.textContent = "Профиль недоступен";
-    els.profileEmail.textContent = "Войдите в учетную запись, чтобы увидеть персональные данные.";
-    els.profileMemberSince.textContent = "Дата регистрации будет отображаться здесь.";
+    els.profileName.textContent = t("profile.unavailable");
+    els.profileEmail.textContent = t("profile.emailHint");
+    els.profileMemberSince.textContent = t("profile.memberSince");
     els.profileStats.classList.add("empty-state");
-    els.profileStats.innerHTML = '<p class="empty-copy">Статистика появится после первого анализа.</p>';
+    els.profileStats.innerHTML = `<p class="empty-copy">${escapeHtml(t("profile.statsEmpty"))}</p>`;
     els.profileRecent.classList.add("empty-state");
-    els.profileRecent.innerHTML = '<p class="empty-copy">После первого анализа здесь появится история действий.</p>';
+    els.profileRecent.innerHTML = `<p class="empty-copy">${escapeHtml(t("profile.historyEmpty"))}</p>`;
     els.profileFavorites.classList.add("empty-state");
-    els.profileFavorites.innerHTML = '<p class="empty-copy">Добавляйте компании в избранное из анализа или из истории.</p>';
+    els.profileFavorites.innerHTML = `<p class="empty-copy">${escapeHtml(t("profile.favoritesEmpty"))}</p>`;
     if (els.profileHistorySummary) {
       els.profileHistorySummary.textContent = "";
     }
@@ -271,7 +1142,7 @@ function renderProfile(profile = null) {
   const accent = `hsl(${hue} 78% 62%)`;
   const accentSoft = `hsla(${hue}, 78%, 62%, 0.18)`;
 
-  els.profileStatus.textContent = "Профиль обновлен";
+  els.profileStatus.textContent = t("profile.statusLoaded");
   els.profileStatus.className = "status-badge";
   renderAvatarInto(els.profileAvatar, user);
   if (!user.avatar_data_url) {
@@ -281,40 +1152,40 @@ function renderProfile(profile = null) {
   }
   els.profileName.textContent = user.full_name || user.email;
   els.profileEmail.textContent = user.email;
-  els.profileMemberSince.textContent = `В системе с ${formatDateLabel(user.created_at)}`;
+  els.profileMemberSince.textContent = t("profile.memberSinceWithDate", { date: formatDateLabel(user.created_at) });
 
   if (els.profileEditForm) {
     if (els.profileFullName && document.activeElement !== els.profileFullName) {
       els.profileFullName.value = user.full_name || "";
     }
     if (els.profileEditHint) {
-      els.profileEditHint.textContent = "Можно обновить имя, загрузить аватар или очистить текущее изображение.";
+      els.profileEditHint.textContent = t("profile.editHint");
     }
   }
   state.profileAvatarCleared = false;
   setProfileEditorEnabled(true);
 
   const statsCards = [
-    { label: "Всего анализов", value: stats.total_analyses ?? 0, sub: "Все выполненные запросы" },
-    { label: "За 7 дней", value: stats.analyses_7d ?? 0, sub: "Активность за неделю" },
-    { label: "За 30 дней", value: stats.analyses_30d ?? 0, sub: "Активность за месяц" },
-    { label: "Компаний в истории", value: stats.analyzed_companies ?? 0, sub: "Уникальные тикеры" },
-    { label: "Средний скор", value: stats.avg_score != null ? Number(stats.avg_score).toFixed(1) : "—", sub: "Средний итог по анализам" },
-    { label: "Лучшая оценка", value: stats.best_score != null ? Number(stats.best_score).toFixed(1) : "—", sub: "Максимальный скор" },
+    { label: t("profile.stats.totalAnalyses"), value: stats.total_analyses ?? 0, sub: t("profile.stats.totalAnalysesSub") },
+    { label: t("profile.stats.analyses7d"), value: stats.analyses_7d ?? 0, sub: t("profile.stats.analyses7dSub") },
+    { label: t("profile.stats.analyses30d"), value: stats.analyses_30d ?? 0, sub: t("profile.stats.analyses30dSub") },
+    { label: t("profile.stats.analyzedCompanies"), value: stats.analyzed_companies ?? 0, sub: t("profile.stats.analyzedCompaniesSub") },
+    { label: t("profile.stats.avgScore"), value: stats.avg_score != null ? Number(stats.avg_score).toFixed(1) : "—", sub: t("profile.stats.avgScoreSub") },
+    { label: t("profile.stats.bestScore"), value: stats.best_score != null ? Number(stats.best_score).toFixed(1) : "—", sub: t("profile.stats.bestScoreSub") },
     {
-      label: "Чаще всего смотрит",
+      label: t("profile.stats.topCompany"),
       value: stats.top_company || "—",
-      sub: stats.top_company_count ? `${stats.top_company_count} анализов` : "Пока нет данных",
+      sub: stats.top_company_count ? t("profile.stats.topCompanySub", { count: stats.top_company_count }) : t("profile.stats.topCompanySubEmpty"),
     },
     {
-      label: "Кэшированных",
+      label: t("profile.stats.cachedAnalyses"),
       value: stats.cached_analyses ?? 0,
-      sub: "Сколько ответов пришло из кэша",
+      sub: t("profile.stats.cachedAnalysesSub"),
     },
     {
-      label: "Последний анализ",
+      label: t("profile.stats.lastAnalysis"),
       value: stats.last_analysis_at ? formatDateLabel(stats.last_analysis_at) : "—",
-      sub: "Время последнего запроса",
+      sub: t("profile.stats.lastAnalysisSub"),
     },
   ];
 
@@ -333,7 +1204,7 @@ function renderProfile(profile = null) {
 
   if (!recent.length) {
     els.profileRecent.classList.add("empty-state");
-    els.profileRecent.innerHTML = '<p class="empty-copy">После первого анализа здесь появится история действий.</p>';
+    els.profileRecent.innerHTML = `<p class="empty-copy">${escapeHtml(t("profile.historyEmpty"))}</p>`;
   } else {
     const searchValue = String(els.profileHistorySearch?.value || "").trim().toLowerCase();
     const mode = String(els.profileHistoryMode?.value || "all");
@@ -358,20 +1229,31 @@ function renderProfile(profile = null) {
     });
 
     if (els.profileHistorySummary) {
-      const totalLabel = `${filteredRecent.length} из ${recent.length}`;
-      const favoriteLabel = favorites.length ? ` · ${favorites.length} в избранном` : "";
-      els.profileHistorySummary.textContent = `Показано ${totalLabel}${favoriteLabel}`;
+      const totalLabel = state.language === "en"
+        ? `${filteredRecent.length} of ${recent.length}`
+        : state.language === "uz"
+          ? `${filteredRecent.length} / ${recent.length}`
+          : `${filteredRecent.length} из ${recent.length}`;
+      const favoriteLabel = favorites.length
+        ? state.language === "en"
+          ? ` · ${favorites.length} in favorites`
+          : state.language === "uz"
+            ? ` · ${favorites.length} tanlangan`
+            : ` · ${favorites.length} в избранном`
+        : "";
+      els.profileHistorySummary.textContent = `${t("profile.historySummaryPrefix")} ${totalLabel}${favoriteLabel}`;
     }
 
     if (!filteredRecent.length) {
       els.profileRecent.classList.add("empty-state");
-      els.profileRecent.innerHTML = '<p class="empty-copy">По выбранному фильтру ничего не найдено.</p>';
+      els.profileRecent.innerHTML = `<p class="empty-copy">${escapeHtml(t("profile.historyFilteredEmpty"))}</p>`;
     } else {
       els.profileRecent.classList.remove("empty-state");
       els.profileRecent.innerHTML = filteredRecent
         .map((item) => {
-          const title = item.company_name || item.company_input || "Без названия";
-          const subtitle = [item.ticker ? item.ticker : "", item.from_cache ? "из кэша" : "свежий расчет", item.model ? `модель ${item.model}` : ""]
+          const title = item.company_name || item.company_input || t("profile.noTitle");
+          const modelPrefix = state.language === "en" ? "model" : state.language === "uz" ? "model" : "модель";
+          const subtitle = [item.ticker ? item.ticker : "", item.from_cache ? t("profile.historyFromCache") : t("profile.historyFresh"), item.model ? `${modelPrefix} ${item.model}` : ""]
             .filter(Boolean)
             .join(" · ");
           const favorite = item.ticker && favoritesByTicker.has(String(item.ticker).trim().toUpperCase());
@@ -380,7 +1262,7 @@ function renderProfile(profile = null) {
               <div class="profile-history-main">
                 <div>
                   <div class="profile-history-title">${escapeHtml(title)}</div>
-                  <div class="profile-history-sub">${escapeHtml(item.verdict || item.summary_text || "Анализ выполнен")}</div>
+                  <div class="profile-history-sub">${escapeHtml(item.verdict || item.summary_text || t("profile.historyAnalysisDone"))}</div>
                 </div>
                 <div class="profile-history-score">${escapeHtml(item.score != null ? String(item.score) : "—")}</div>
               </div>
@@ -394,7 +1276,7 @@ function renderProfile(profile = null) {
                   type="button"
                   data-ticker="${escapeHtml(item.ticker || "")}"
                   data-company-name="${escapeHtml(item.company_name || item.company_input || "")}"
-                >${favorite ? "Убрать из избранного" : "В избранное"}</button>
+                >${favorite ? t("profile.historyFavoriteRemove") : t("profile.historyFavoriteAdd")}</button>
               </div>
             </article>
           `;
@@ -405,7 +1287,7 @@ function renderProfile(profile = null) {
 
   if (!favorites.length) {
     els.profileFavorites.classList.add("empty-state");
-    els.profileFavorites.innerHTML = '<p class="empty-copy">Добавляйте компании в избранное из анализа или из истории.</p>';
+    els.profileFavorites.innerHTML = `<p class="empty-copy">${escapeHtml(t("profile.favoritesEmpty"))}</p>`;
   } else {
     els.profileFavorites.classList.remove("empty-state");
     els.profileFavorites.innerHTML = favorites
@@ -414,7 +1296,7 @@ function renderProfile(profile = null) {
         return `
           <article class="favorite-item fade-in">
             <div class="favorite-item-main">
-              <div class="favorite-item-title">${escapeHtml(label || "Без названия")}</div>
+              <div class="favorite-item-title">${escapeHtml(label || t("profile.noTitle"))}</div>
               <div class="favorite-item-sub">${escapeHtml(item.ticker || "—")} · ${escapeHtml(formatDateLabel(item.created_at))}</div>
             </div>
             <button
@@ -422,7 +1304,7 @@ function renderProfile(profile = null) {
               type="button"
               data-ticker="${escapeHtml(item.ticker || "")}"
               data-company-name="${escapeHtml(item.company_name || "")}"
-            >Убрать</button>
+            >${t("profile.favoritesRemove")}</button>
           </article>
         `;
       })
@@ -448,17 +1330,17 @@ async function loadProfile() {
 
   if (!els.profileStatus) return;
 
-  els.profileStatus.textContent = "Загрузка профиля...";
+  els.profileStatus.textContent = state.language === "en" ? "Loading profile..." : state.language === "uz" ? "Profil yuklanmoqda..." : "Загрузка профиля...";
   els.profileStatus.className = "status-badge muted";
 
   try {
     const res = await apiFetch("/api/profile");
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Не удалось загрузить профиль");
+    if (!res.ok) throw new Error(data.detail || (state.language === "en" ? "Could not load profile" : state.language === "uz" ? "Profil yuklanmadi" : "Не удалось загрузить профиль"));
     renderProfile(data);
   } catch (error) {
     renderProfile(null);
-    els.profileStatus.textContent = "Профиль недоступен";
+    els.profileStatus.textContent = t("profile.unavailable");
     setMessage(error.message, "error");
   }
 }
@@ -486,7 +1368,7 @@ function apiFetch(path, options = {}) {
 async function handleAuthResponse(res) {
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.detail || "Запрос не выполнен");
+    throw new Error(data.detail || (state.language === "en" ? "Request failed" : state.language === "uz" ? "So'rov bajarilmadi" : "Запрос не выполнен"));
   }
   if (data.token) {
     state.token = data.token;
@@ -509,11 +1391,11 @@ function clearResults() {
   }
   if (els.metricsGrid) {
     els.metricsGrid.classList.add("empty-state");
-    els.metricsGrid.innerHTML = '<p class="empty-copy">После первого запроса здесь появятся метрики.</p>';
+    els.metricsGrid.innerHTML = `<p class="empty-copy">${escapeHtml(t("analysis.metricsEmpty"))}</p>`;
   }
   if (els.sectionsWrap) {
     els.sectionsWrap.classList.add("empty-state");
-    els.sectionsWrap.innerHTML = '<p class="empty-copy">После анализа здесь появятся разделы отчета.</p>';
+    els.sectionsWrap.innerHTML = `<p class="empty-copy">${escapeHtml(t("analysis.sectionsEmpty"))}</p>`;
   }
   renderResultFavoriteButton();
 }
@@ -523,10 +1405,10 @@ function setLoadingSkeleton(company) {
     els.resultHero.classList.add("is-loading");
   }
   if (els.resultCompany) {
-    els.resultCompany.textContent = company ? `Анализ: ${company}` : "Анализ выполняется...";
+    els.resultCompany.textContent = company ? t("analysis.loadingTitle", { company }) : t("analysis.resultRunning");
   }
   if (els.resultCache) {
-    els.resultCache.textContent = "Загрузка";
+    els.resultCache.textContent = t("analysis.loadingCache");
   }
   if (els.scoreValue) {
     els.scoreValue.textContent = "--";
@@ -535,7 +1417,7 @@ function setLoadingSkeleton(company) {
     els.gradeValue.textContent = "—";
   }
   if (els.verdictValue) {
-    els.verdictValue.textContent = "Расчет выполняется. Пожалуйста, подождите.";
+    els.verdictValue.textContent = t("analysis.loadingVerdict");
   }
   if (els.summaryValue) {
     els.summaryValue.textContent = "";
@@ -602,7 +1484,7 @@ function renderMetrics(metrics = {}) {
 
   const total = metrics.total_score || {};
   pushCard({
-    label: "Итоговая оценка",
+    label: t("metrics.total_score"),
     value: total.score ?? "—",
     sub: total.summary || total.grade || "",
     tone: total.score >= 70 ? "good" : total.score >= 45 ? "warning" : "danger",
@@ -610,7 +1492,7 @@ function renderMetrics(metrics = {}) {
 
   const piotroski = metrics.piotroski_f_score || {};
   pushCard({
-    label: "Piotroski",
+    label: t("metrics.piotroski_f_score"),
     value: `${piotroski.score ?? "—"}/9`,
     sub: piotroski.verdict || "",
     tone: piotroski.score >= 7 ? "good" : piotroski.score >= 4 ? "warning" : "danger",
@@ -618,7 +1500,7 @@ function renderMetrics(metrics = {}) {
 
   const altman = metrics.altman_z_score || {};
   pushCard({
-    label: "Altman Z",
+    label: t("metrics.altman_z_score"),
     value: altman.score ?? "—",
     sub: altman.verdict || "",
     tone: altman.score > 2.99 ? "good" : altman.score > 1.81 ? "warning" : "danger",
@@ -626,7 +1508,7 @@ function renderMetrics(metrics = {}) {
 
   const buffett = metrics.buffett_criteria || {};
   pushCard({
-    label: "Критерии Баффета",
+    label: t("metrics.buffett_criteria"),
     value: `${buffett.passed ?? "—"}/${buffett.total ?? "—"}`,
     sub: buffett.verdict || "",
     tone: buffett.passed >= 4 ? "good" : buffett.passed >= 2 ? "warning" : "danger",
@@ -634,9 +1516,9 @@ function renderMetrics(metrics = {}) {
 
   const graham = metrics.graham_number || {};
   pushCard({
-    label: "Число Грэма",
+    label: t("metrics.graham_number"),
     value: graham.graham_number ?? graham.value ?? "—",
-    sub: [graham.verdict, graham.upside_pct != null ? `${graham.upside_pct}% потенциал` : ""]
+    sub: [graham.verdict, graham.upside_pct != null ? `${graham.upside_pct}% ${state.language === "en" ? "upside" : state.language === "uz" ? "o'sish potentsiali" : "потенциал"}` : ""]
       .filter(Boolean)
       .join(" · "),
     tone: graham.upside_pct > 0 ? "good" : "warning",
@@ -644,7 +1526,7 @@ function renderMetrics(metrics = {}) {
 
   const dcf = metrics.dcf || {};
   pushCard({
-    label: "DCF-оценка",
+    label: t("metrics.dcf"),
     value: dcf.intrinsic_value_bn ?? "—",
     sub: dcf.verdict || dcf.signal || "",
     tone: dcf.signal === "bullish" ? "good" : dcf.signal === "bearish" ? "danger" : "warning",
@@ -652,9 +1534,9 @@ function renderMetrics(metrics = {}) {
 
   const industry = metrics.industry || {};
   pushCard({
-    label: "Отрасль",
+    label: t("metrics.industry"),
     value: industry.sector_name ?? "—",
-    sub: [industry.verdict || "", `${industry.good_count ?? 0} сильных / ${industry.weak_count ?? 0} слабых`]
+    sub: [industry.verdict || "", `${industry.good_count ?? 0} ${state.language === "en" ? "strong" : state.language === "uz" ? "yaxshi" : "сильных"} / ${industry.weak_count ?? 0} ${state.language === "en" ? "weak" : state.language === "uz" ? "zaif" : "слабых"}`]
       .filter(Boolean)
       .join(" · "),
     tone: industry.good_count > industry.weak_count ? "good" : "warning",
@@ -662,11 +1544,11 @@ function renderMetrics(metrics = {}) {
 
   const liquidity = metrics.market_liquidity || {};
   pushCard({
-    label: "Ликвидность",
+    label: t("metrics.market_liquidity"),
     value: liquidity.liquidity_label ?? "—",
     sub: [
-      `Сделки: ${liquidity.trade_days ?? "—"}/30`,
-      liquidity.avg_trade_value ? `Средний оборот: ${Number(liquidity.avg_trade_value).toLocaleString()}` : "",
+      `${state.language === "en" ? "Trades" : state.language === "uz" ? "Bitimlar" : "Сделки"}: ${liquidity.trade_days ?? "—"}/30`,
+      liquidity.avg_trade_value ? `${state.language === "en" ? "Average turnover" : state.language === "uz" ? "O'rtacha aylanma" : "Средний оборот"}: ${Number(liquidity.avg_trade_value).toLocaleString()}` : "",
     ]
       .filter(Boolean)
       .join(" · "),
@@ -675,7 +1557,7 @@ function renderMetrics(metrics = {}) {
 
   const momentum = metrics.momentum || {};
   pushCard({
-    label: "Импульс",
+    label: t("metrics.momentum"),
     value: momentum.overall || "—",
     sub: momentum.acceleration || "",
     tone: momentum.css === "bullish" ? "good" : momentum.css === "bearish" ? "danger" : "warning",
@@ -683,7 +1565,7 @@ function renderMetrics(metrics = {}) {
 
   if (!cards.length) {
     els.metricsGrid.classList.add("empty-state");
-    els.metricsGrid.innerHTML = '<p class="empty-copy">После первого запроса здесь появятся метрики.</p>';
+    els.metricsGrid.innerHTML = `<p class="empty-copy">${escapeHtml(t("analysis.metricsEmpty"))}</p>`;
     return;
   }
 
@@ -695,7 +1577,7 @@ function renderSections(sections = {}) {
   const entries = Object.entries(sections);
   if (!entries.length) {
     els.sectionsWrap.classList.add("empty-state");
-    els.sectionsWrap.innerHTML = '<p class="empty-copy">После анализа здесь появятся разделы отчета.</p>';
+    els.sectionsWrap.innerHTML = `<p class="empty-copy">${escapeHtml(t("analysis.sectionsEmpty"))}</p>`;
     return;
   }
 
@@ -705,10 +1587,10 @@ function renderSections(sections = {}) {
       ([key, value], index) => `
         <details class="section-card fade-in" ${index === 0 ? "open" : ""}>
           <summary>
-            <span>${escapeHtml(key.replaceAll("_", " "))}</span>
+            <span>${escapeHtml(t(`sections.${key}`) || key.replaceAll("_", " "))}</span>
             <span class="muted">#${String(index + 1).padStart(2, "0")}</span>
           </summary>
-          <div class="section-content">${escapeHtml(value || "Нет содержимого")}</div>
+          <div class="section-content">${escapeHtml(value || (state.language === "en" ? "No content" : state.language === "uz" ? "Mazmun yo'q" : "Нет содержимого"))}</div>
         </details>
       `
     )
@@ -720,8 +1602,8 @@ function renderResult(data) {
   if (els.resultHero) {
     els.resultHero.classList.remove("is-loading");
   }
-  els.resultCompany.textContent = data.company_name || data.input || "Результат анализа";
-  els.resultCache.textContent = data.from_cache ? "Из кэша" : "Свежий расчет";
+  els.resultCompany.textContent = data.company_name || data.input || t("analysis.resultEmpty");
+  els.resultCache.textContent = data.from_cache ? t("analysis.resultCacheHit") : t("analysis.resultFresh");
 
   const score = data.summary?.score ?? data.metrics?.total_score?.score ?? null;
   const grade = data.summary?.grade ?? data.metrics?.total_score?.grade ?? "-";
@@ -731,7 +1613,7 @@ function renderResult(data) {
   els.scoreValue.textContent = score ?? "--";
   els.scoreValue.className = `score-value ${score != null ? renderScoreTone(score) : ""}`;
   els.gradeValue.textContent = grade || "-";
-  els.verdictValue.textContent = verdict || "Итоговое заключение не сформировано";
+  els.verdictValue.textContent = verdict || t("analysis.verdictPlaceholder");
   els.summaryValue.textContent = itog || "";
 
   renderMetrics(data.metrics || {});
@@ -751,21 +1633,21 @@ function renderResultFavoriteButton() {
   const ticker = state.lastResult?.ticker;
   if (!state.token || !ticker) {
     els.resultFavoriteBtn.disabled = true;
-    els.resultFavoriteBtn.textContent = "Добавить в избранное";
+    els.resultFavoriteBtn.textContent = t("analysis.favoriteAdd");
     els.resultFavoriteBtn.classList.remove("is-active");
     return;
   }
 
   const favorite = isTickerFavorite(ticker);
   els.resultFavoriteBtn.disabled = false;
-  els.resultFavoriteBtn.textContent = favorite ? "Убрать из избранного" : "Добавить в избранное";
+  els.resultFavoriteBtn.textContent = favorite ? t("analysis.favoriteRemove") : t("analysis.favoriteAdd");
   els.resultFavoriteBtn.classList.toggle("is-active", favorite);
 }
 
 async function toggleFavoriteFromButton(ticker, companyName = "") {
   const normalizedTicker = String(ticker || "").trim();
   if (!state.token) {
-    showToast("Сначала выполните вход", "error");
+    showToast(t("auth.messages.authRequired"), "error");
     setView("auth");
     return;
   }
@@ -780,8 +1662,18 @@ async function toggleFavoriteFromButton(ticker, companyName = "") {
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Не удалось обновить избранное");
-    showToast(data.favorited ? `${normalizedTicker} добавлен в избранное` : `${normalizedTicker} удалён из избранного`, "success");
+    if (!res.ok) throw new Error(data.detail || (state.language === "en" ? "Could not update favorites" : state.language === "uz" ? "Tanlanganlar yangilanmadi" : "Не удалось обновить избранное"));
+    const addedText = state.language === "en"
+      ? "added to favorites"
+      : state.language === "uz"
+        ? "tanlanganlarga qo'shildi"
+        : "добавлен в избранное";
+    const removedText = state.language === "en"
+      ? "removed from favorites"
+      : state.language === "uz"
+        ? "tanlanganlardan olib tashlandi"
+        : "удалён из избранного";
+    showToast(data.favorited ? `${normalizedTicker} ${addedText}` : `${normalizedTicker} ${removedText}`, "success");
     await loadProfile();
     renderResultFavoriteButton();
   } catch (error) {
@@ -792,7 +1684,7 @@ async function toggleFavoriteFromButton(ticker, companyName = "") {
 async function saveProfileChanges(event) {
   event.preventDefault();
   if (!state.token) {
-    showToast("Сначала выполните вход", "error");
+    showToast(t("auth.messages.authRequired"), "error");
     return;
   }
   if (!els.profileEditForm) return;
@@ -814,7 +1706,7 @@ async function saveProfileChanges(event) {
   }
 
   if (!Object.keys(payload).length) {
-    showToast("Изменений нет", "info");
+    showToast(state.language === "en" ? "No changes" : state.language === "uz" ? "O'zgarish yo'q" : "Изменений нет", "info");
     return;
   }
 
@@ -824,7 +1716,7 @@ async function saveProfileChanges(event) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Не удалось сохранить профиль");
+    if (!res.ok) throw new Error(data.detail || (state.language === "en" ? "Could not save profile" : state.language === "uz" ? "Profil saqlanmadi" : "Не удалось сохранить профиль"));
     state.user = data.user;
     setAuthState(data.user);
     state.profileAvatarCleared = false;
@@ -832,9 +1724,9 @@ async function saveProfileChanges(event) {
       els.profileAvatarInput.value = "";
     }
     if (els.profileEditHint) {
-      els.profileEditHint.textContent = "Профиль обновлен.";
+      els.profileEditHint.textContent = t("profile.savedHint");
     }
-    showToast("Профиль обновлен", "success");
+    showToast(t("profile.savedHint"), "success");
     await loadProfile();
   } catch (error) {
     showToast(error.message, "error");
@@ -844,10 +1736,10 @@ async function saveProfileChanges(event) {
 async function loadCompanies() {
   const res = await apiFetch("/api/companies");
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "Не удалось загрузить список компаний");
+  if (!res.ok) throw new Error(data.detail || (state.language === "en" ? "Could not load company list" : state.language === "uz" ? "Kompaniyalar ro'yxati yuklanmadi" : "Не удалось загрузить список компаний"));
 
   state.companies = data.companies || [];
-  els.companyCount.textContent = `${data.count || state.companies.length} компаний`;
+  els.companyCount.textContent = t("analysis.companyCount", { count: data.count || state.companies.length });
 
   els.companiesList.innerHTML = state.companies
     .map((company) => `<option value="${company.ticker}">${company.company_name}</option>`)
@@ -881,7 +1773,7 @@ async function refreshSession() {
   try {
     const res = await apiFetch("/api/auth/me");
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Сессия недействительна");
+    if (!res.ok) throw new Error(data.detail || (state.language === "en" ? "Session is invalid" : state.language === "uz" ? "Sessiya yaroqsiz" : "Сессия недействительна"));
     setAuthState(data.user);
   } catch {
     localStorage.removeItem(STORAGE_KEY);
@@ -906,6 +1798,12 @@ els.navButtons.forEach((btn) => {
   });
 });
 
+if (els.languageSelect) {
+  els.languageSelect.addEventListener("change", () => {
+    applyLanguage(els.languageSelect.value);
+  });
+}
+
 if (els.profileAnalyzeBtn) {
   els.profileAnalyzeBtn.addEventListener("click", () => setView("analysis"));
 }
@@ -913,11 +1811,11 @@ if (els.profileAnalyzeBtn) {
 if (els.profileRefreshBtn) {
   els.profileRefreshBtn.addEventListener("click", async () => {
     if (!state.token) {
-      showToast("Сначала выполните вход", "error");
+      showToast(t("auth.messages.authRequired"), "error");
       return;
     }
     await loadProfile();
-    showToast("Профиль обновлен", "success");
+    showToast(t("profile.savedHint"), "success");
   });
 }
 
@@ -932,9 +1830,9 @@ if (els.profileClearAvatarBtn) {
       els.profileAvatarInput.value = "";
     }
     if (els.profileEditHint) {
-      els.profileEditHint.textContent = "После сохранения текущий аватар будет удалён.";
+      els.profileEditHint.textContent = t("profile.clearHint");
     }
-    showToast("Аватар будет удалён после сохранения", "info");
+    showToast(t("profile.clearHint"), "info");
   });
 }
 
@@ -967,7 +1865,7 @@ els.googleLoginBtn.addEventListener("click", () => {
 
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setMessage("Выполняется вход...");
+  setMessage(t("auth.messages.loggingIn"));
   const form = new FormData(els.loginForm);
   try {
     const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -979,8 +1877,8 @@ els.loginForm.addEventListener("submit", async (event) => {
       }),
     });
     const data = await handleAuthResponse(res);
-    setMessage(`Добро пожаловать, ${data.user.full_name || data.user.email}`);
-    showToast(`Вход выполнен: ${data.user.email}`, "success");
+    setMessage(t("auth.messages.loginSuccess", { name: data.user.full_name || data.user.email }));
+    showToast(t("auth.messages.loginSuccess", { name: data.user.email }), "success");
     setView("profile");
     await loadProfile();
   } catch (error) {
@@ -991,7 +1889,7 @@ els.loginForm.addEventListener("submit", async (event) => {
 
 els.registerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setMessage("Создание учетной записи...");
+  setMessage(t("auth.messages.registering"));
   const form = new FormData(els.registerForm);
   try {
     const res = await fetch(`${API_BASE}/api/auth/register`, {
@@ -1004,8 +1902,8 @@ els.registerForm.addEventListener("submit", async (event) => {
       }),
     });
     const data = await handleAuthResponse(res);
-    setMessage(`Учетная запись создана: ${data.user.email}`);
-    showToast(`Учетная запись создана: ${data.user.email}`, "success");
+    setMessage(t("auth.messages.registerSuccess", { email: data.user.email }));
+    showToast(t("auth.messages.registerSuccess", { email: data.user.email }), "success");
     document.querySelector('.tab-btn[data-tab="login"]').click();
     setView("profile");
     await loadProfile();
@@ -1025,8 +1923,8 @@ els.logoutBtn.addEventListener("click", async () => {
   state.token = "";
   setAuthState(null);
   renderProfile(null);
-  setMessage("Выход выполнен");
-  showToast("Выход выполнен", "info");
+  setMessage(t("auth.messages.signOut"));
+  showToast(t("auth.messages.signOut"), "info");
   setView("auth");
 });
 
@@ -1034,21 +1932,21 @@ els.analysisForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   if (!state.token) {
-    setMessage("Чтобы запустить анализ, сначала выполните вход.", "error");
-    showToast("Сначала выполните вход", "error");
+    setMessage(t("auth.messages.authRequired"), "error");
+    showToast(t("auth.messages.authRequired"), "error");
     return;
   }
 
   const form = new FormData(els.analysisForm);
   const company = String(form.get("company") || "").trim();
   if (!company) {
-    setMessage("Сначала выберите компанию.", "error");
-    showToast("Сначала выберите компанию", "error");
+    setMessage(state.language === "en" ? "Select a company first." : state.language === "uz" ? "Avval kompaniyani tanlang." : "Сначала выберите компанию.", "error");
+    showToast(state.language === "en" ? "Select a company first." : state.language === "uz" ? "Avval kompaniyani tanlang." : "Сначала выберите компанию.", "error");
     return;
   }
 
-  els.apiState.textContent = "Выполняется анализ...";
-  setMessage("Анализ выполняется...");
+  els.apiState.textContent = t("analysis.apiLoading");
+  setMessage(t("analysis.resultRunning"));
   if (loadingSkeletonTimer) {
     window.clearTimeout(loadingSkeletonTimer);
   }
@@ -1062,27 +1960,28 @@ els.analysisForm.addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify({
         company,
+        language: state.language,
         include_html: els.includeHtml.checked,
         include_raw: false,
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Не удалось выполнить анализ");
+    if (!res.ok) throw new Error(data.detail || (state.language === "en" ? "Could not complete the analysis" : state.language === "uz" ? "Tahlil bajarilmadi" : "Не удалось выполнить анализ"));
     if (loadingSkeletonTimer) {
       window.clearTimeout(loadingSkeletonTimer);
       loadingSkeletonTimer = null;
     }
     renderResult(data);
-    els.apiState.textContent = "Готово";
-    setMessage(`Анализ завершен: ${data.company_name || company}`);
-    showToast(`Анализ завершен: ${data.company_name || company}`, "success");
+    els.apiState.textContent = t("analysis.apiReady");
+    setMessage(t("analysis.completed", { company: data.company_name || company }));
+    showToast(t("analysis.completed", { company: data.company_name || company }), "success");
     loadProfile().catch(() => {});
   } catch (error) {
     if (loadingSkeletonTimer) {
       window.clearTimeout(loadingSkeletonTimer);
       loadingSkeletonTimer = null;
     }
-    els.apiState.textContent = "API готов";
+    els.apiState.textContent = t("analysis.apiReady");
     setMessage(error.message, "error");
     showToast(error.message, "error");
     clearResults();
@@ -1090,19 +1989,20 @@ els.analysisForm.addEventListener("submit", async (event) => {
 });
 
 window.addEventListener("DOMContentLoaded", async () => {
+  applyLanguage(state.language);
   const oauthReturned = consumeOAuthHash();
   setView("main");
   try {
     await loadCompanies();
   } catch (error) {
-    els.companyCount.textContent = "Недоступно";
+    els.companyCount.textContent = state.language === "en" ? "Unavailable" : state.language === "uz" ? "Mavjud emas" : "Недоступно";
     setMessage(error.message, "error");
   }
 
   await refreshSession();
   await loadProfile();
   if (oauthReturned) {
-    setMessage(state.oauthMessage || "Вход через OAuth выполнен");
+    setMessage(state.oauthMessage || t("auth.messages.oauthReady"));
     setView("profile");
   } else if (state.user) {
     setView("profile");
