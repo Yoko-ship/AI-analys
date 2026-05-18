@@ -54,6 +54,58 @@ ANALYSIS_STYLE_NOTE = (
     "Каждая секция должна содержать только то, что реально помогает принять решение."
 )
 
+LANGUAGE_HINTS = {
+    "ru": {
+        "profile": (
+            "Пиши весь содержательный текст по-русски. "
+            "Сохраняй деловой, фактический тон. "
+            "Не добавляй англоязычных вставок без необходимости."
+        ),
+        "analysis": (
+            "Пиши весь содержательный текст по-русски. "
+            "Метки секций оставляй ровно в том виде, как в шаблоне. "
+            "Не переводи названия секций."
+        ),
+        "label": "Русский",
+    },
+    "en": {
+        "profile": (
+            "Write all substantive text in English. "
+            "Keep the tone professional, factual, and concise. "
+            "Do not add Russian phrases."
+        ),
+        "analysis": (
+            "Write all substantive text in English. "
+            "Keep the section tags exactly as written in the template. "
+            "Do not translate the tag names."
+        ),
+        "label": "English",
+    },
+    "uz": {
+        "profile": (
+            "Barcha mazmunli matnni o'zbek tilida, lotin yozuvida yozing. "
+            "Uslub professional, faktlarga asoslangan va qisqa bo'lsin. "
+            "Ruscha yoki inglizcha iboralarni faqat zarur bo'lsa ishlating."
+        ),
+        "analysis": (
+            "Barcha mazmunli matnni o'zbek tilida, lotin yozuvida yozing. "
+            "Bo'lim teglari shablondagi ko'rinishda aynan qolishi kerak. "
+            "Teg nomlarini tarjima qilmang."
+        ),
+        "label": "O'zbek",
+    },
+}
+
+
+def _normalize_language(language: str | None) -> str:
+    value = (language or "ru").strip().lower()
+    return value if value in LANGUAGE_HINTS else "ru"
+
+
+def _language_hint(language: str | None, mode: str) -> str:
+    lang = _normalize_language(language)
+    return LANGUAGE_HINTS[lang][mode]
+
 
 def _sanitize_reasoning_effort(value: str) -> str:
     allowed = {"none", "minimal", "low", "medium", "high", "xhigh"}
@@ -128,7 +180,7 @@ def build_summary(result: dict) -> dict:
     }
 
 
-def _company_profile_prompt(company_name: str, annual_data: list, quarterly_data: list, liquidity_data: dict | None) -> str:
+def _company_profile_prompt(company_name: str, annual_data: list, quarterly_data: list, liquidity_data: dict | None, language: str = "ru") -> str:
     slim = slim_for_prompt(annual_data, quarterly_data)
     fin_short = {
         "annual": [
@@ -142,23 +194,27 @@ def _company_profile_prompt(company_name: str, annual_data: list, quarterly_data
         "latest_q": slim["quarterly"][-1] if slim["quarterly"] else {},
         "liquidity": liquidity_data or {},
     }
-    return PROFILE_PROMPT.format(
+    prompt = PROFILE_PROMPT.format(
         company=company_name,
         web_research=WEB_RESEARCH_NOTE,
         financials_json=json.dumps(fin_short, ensure_ascii=False),
     )
+    lang = _normalize_language(language)
+    return f"Язык ответа: {LANGUAGE_HINTS[lang]['label']}.\n\n{prompt}"
 
 
 def build_company_profile(company_name: str, annual_data: list, quarterly_data: list,
-                          liquidity_data: dict | None = None) -> str:
-    prompt = _company_profile_prompt(company_name, annual_data, quarterly_data, liquidity_data)
-    print("   📋 Generating profile with OpenAI...")
+                          liquidity_data: dict | None = None,
+                          language: str | None = "ru") -> str:
+    lang = _normalize_language(language)
+    prompt = _company_profile_prompt(company_name, annual_data, quarterly_data, liquidity_data, lang)
+    print(f"   📋 Generating profile ({LANGUAGE_HINTS[lang]['label']})...")
 
     instructions = (
         "Ты пишешь краткий профиль компании для инвестиционного отчета. "
-        "Пиши по-русски, коротко и по фактам, примерно 120-180 слов. "
         "Без markdown-заголовков, вступлений и лишних пояснений. "
-        "Опирайся только на финансовые данные и заметку о веб-поиске; не выдумывай факты."
+        "Опирайся только на финансовые данные и заметку о веб-поиске; не выдумывай факты. "
+        f"{_language_hint(lang, 'profile')}"
     )
     profile, response = _responses_text(f"{PROFILE_STYLE_NOTE}\n\n{prompt}", instructions, max_output_tokens=1200)
 
@@ -176,6 +232,7 @@ def _analysis_prompt(
     annual_data: list,
     quarterly_data: list,
     liquidity_data: dict | None,
+    language: str = "ru",
 ) -> tuple[str, dict, dict, str, str]:
     slim = slim_for_prompt(annual_data, quarterly_data)
 
@@ -222,17 +279,21 @@ def _analysis_prompt(
         quarterly_period=quarterly_period,
         quarterly_json=json.dumps(slim["quarterly"], ensure_ascii=False),
     )
-    return f"{ANALYSIS_STYLE_NOTE}\n\n{prompt}", metrics, ind_compare, annual_period, quarterly_period
+    lang = _normalize_language(language)
+    return f"Язык ответа: {LANGUAGE_HINTS[lang]['label']}.\n\n{ANALYSIS_STYLE_NOTE}\n\n{prompt}", metrics, ind_compare, annual_period, quarterly_period
 
 
 def run_analysis(company_name: str, company_profile: str, annual_data: list,
-                 quarterly_data: list, liquidity_data: dict | None = None) -> tuple:
+                 quarterly_data: list, liquidity_data: dict | None = None,
+                 language: str | None = "ru") -> tuple:
+    lang = _normalize_language(language)
     prompt, metrics, ind_compare, annual_period, quarterly_period = _analysis_prompt(
         company_name,
         company_profile,
         annual_data,
         quarterly_data,
         liquidity_data,
+        lang,
     )
 
     print(
@@ -241,14 +302,15 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
         f"Industry={ind_compare.get('sector_name', '?')}, "
         f"Score={metrics.get('total_score', {}).get('score', '?')}/100"
     )
-    print("   📤 Running analysis with OpenAI...")
+    print(f"   📤 Running analysis ({LANGUAGE_HINTS[lang]['label']})...")
 
     instructions = (
         "Ты строго следуешь формату ответа. "
         "КАЖДАЯ секция ОБЯЗАТЕЛЬНО начинается с метки в квадратных скобках: [СКОРИНГ], [ДОСЬЕ], [ТРЕНД] и т. д. "
         "Не используй markdown заголовки (##). Не пропускай ни одну секцию. "
         "Пиши сухо, по цифрам и фактам, без воды, повторов и длинных вступлений. "
-        "Если данных недостаточно — напиши 'Недостаточно данных' внутри секции, но секцию не пропускай."
+        "Если данных недостаточно — напиши 'Недостаточно данных' внутри секции, но секцию не пропускай. "
+        f"{_language_hint(lang, 'analysis')}"
     )
     raw, response = _responses_text(prompt, instructions, max_output_tokens=8000)
 
@@ -261,17 +323,20 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
     return raw, annual_period, quarterly_period, cost, metrics
 
 
-async def run_company_analysis(company_name: str, force_refresh: bool = False) -> dict:
+async def run_company_analysis(company_name: str, force_refresh: bool = False, language: str = "ru") -> dict:
     company_name = (company_name or "").strip()
     if not company_name:
         raise ValueError("company_name cannot be empty")
+    language = _normalize_language(language)
 
     if not force_refresh:
-        cached = analysis_cache.get(company_name)
+        cached = analysis_cache.get(company_name, language=language)
         if cached:
             cached["from_cache"] = True
             cached["source"] = "cache"
             cached.setdefault("model", OPENAI_MODEL)
+            cached.setdefault("language", language)
+            cached.setdefault("language_label", LANGUAGE_HINTS[language]["label"])
             return cached
 
     loop = asyncio.get_running_loop()
@@ -291,10 +356,10 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False) -
     resolved_name = fetched_name or company_name
 
     company_profile = await loop.run_in_executor(
-        None, partial(build_company_profile, resolved_name, annual_data, quarterly_data, liquidity_data)
+        None, partial(build_company_profile, resolved_name, annual_data, quarterly_data, liquidity_data, language)
     )
     raw_analysis, annual_period, quarterly_period, cost, metrics = await loop.run_in_executor(
-        None, partial(run_analysis, resolved_name, company_profile, annual_data, quarterly_data, liquidity_data)
+        None, partial(run_analysis, resolved_name, company_profile, annual_data, quarterly_data, liquidity_data, language)
     )
     web_research = WEB_RESEARCH_NOTE
     html_report = await loop.run_in_executor(
@@ -326,6 +391,8 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False) -
         "from_cache": False,
         "source": "fresh",
         "model": OPENAI_MODEL,
+        "language": language,
+        "language_label": LANGUAGE_HINTS[language]["label"],
     }
-    analysis_cache.set(company_name, result)
+    analysis_cache.set(company_name, result, language=language)
     return result

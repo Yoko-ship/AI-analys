@@ -2,7 +2,7 @@
 cache.py — кэш результатов анализа на SQLite.
 
 Логика:
-  - Ключ кэша: нормализованное имя компании (нижний регистр, без пробелов)
+  - Ключ кэша: нормализованное имя компании + язык ответа
   - TTL по умолчанию: 7 дней
   - Хранит: raw_analysis, html_report, периоды, стоимость, timestamp
   - Никаких внешних зависимостей — только стандартная библиотека
@@ -65,6 +65,19 @@ def _normalize(company: str) -> str:
     return s
 
 
+def _normalize_language(language: str | None) -> str:
+    value = (language or "ru").strip().lower()
+    return value if value in {"ru", "en", "uz"} else "ru"
+
+
+def _cache_key(company: str, language: str | None = "ru") -> str:
+    base = _normalize(company)
+    lang = _normalize_language(language)
+    if lang == "ru":
+        return base
+    return f"{base}::{lang}"
+
+
 class AnalysisCache:
     def __init__(self, db_path: str = DB_PATH, ttl_days: int = DEFAULT_TTL_DAYS):
         self.db_path  = db_path
@@ -114,7 +127,7 @@ class AnalysisCache:
     # ОСНОВНЫЕ ОПЕРАЦИИ
     # ─────────────────────────────────────────────────────
 
-    def get(self, company: str) -> dict | None:
+    def get(self, company: str, language: str | None = "ru") -> dict | None:
         """
         Возвращает кэшированный результат или None если нет/устарел.
         
@@ -125,13 +138,20 @@ class AnalysisCache:
           - age_str: str — "3 дня назад" / "сегодня" / "вчера"
           - expires_in_days: int — через сколько дней истечёт
         """
-        key = _normalize(company)
+        key = _cache_key(company, language)
         now = time.time()
 
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT * FROM analysis_cache WHERE cache_key = ?", (key,)
             ).fetchone()
+
+            if row is None and _normalize_language(language) == "ru":
+                # Backward compatibility for very old rows if they ever used the suffixed key.
+                legacy_row = conn.execute(
+                    "SELECT * FROM analysis_cache WHERE cache_key = ?", (_normalize(company),)
+                ).fetchone()
+                row = legacy_row
 
         if row is None:
             return None
@@ -192,12 +212,12 @@ class AnalysisCache:
         payload["source"] = "cache"
         return payload
 
-    def set(self, company: str, result: dict):
+    def set(self, company: str, result: dict, language: str | None = "ru"):
         """
         Сохраняет результат анализа в кэш.
         result — словарь который возвращает run_full_analysis().
         """
-        key = _normalize(company)
+        key = _cache_key(company, language)
         now = time.time()
 
         sections_json = json.dumps(
@@ -241,9 +261,9 @@ class AnalysisCache:
 
         logger.info(f"Кэш сохранён: '{result['company_name']}' (ключ: '{key}')")
 
-    def invalidate(self, company: str) -> bool:
+    def invalidate(self, company: str, language: str | None = "ru") -> bool:
         """Удаляет запись из кэша. Возвращает True если запись была."""
-        key = _normalize(company)
+        key = _cache_key(company, language)
         with self._conn() as conn:
             cursor = conn.execute(
                 "DELETE FROM analysis_cache WHERE cache_key = ?", (key,)

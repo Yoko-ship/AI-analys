@@ -147,6 +147,33 @@ button {
   gap: 16px;
 }
 
+.language-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: end;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.language-switch label {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.language-switch select {
+  min-width: 120px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(8, 16, 28, 0.95);
+  color: var(--text);
+}
+
 .brand-mark {
   display: grid;
   place-items: center;
