@@ -427,6 +427,7 @@ async def api_analyze(
         "summary": build_summary(result),
         "sections": result.get("sections", {}),
         "metrics": result.get("metrics"),
+        "ifrs_snapshot": result.get("ifrs_snapshot"),
         "liquidity": result.get("liquidity"),
         "requested_by": current_user.to_public_dict(),
     }
