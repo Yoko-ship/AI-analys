@@ -235,7 +235,11 @@ async def index() -> FileResponse:
     index_path = WEB_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Frontend is not built yet")
-    return FileResponse(index_path)
+    return FileResponse(
+        index_path,
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/api/companies")
