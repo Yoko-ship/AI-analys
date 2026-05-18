@@ -1,4 +1,4 @@
-﻿const API_BASE = window.location.origin;
+const API_BASE = window.location.origin;
 const STORAGE_KEY = "uz_stock_analyzer_token";
 
 const state = {
@@ -60,7 +60,7 @@ function showToast(message, tone = "info", timeoutMs = 3800) {
   const toast = document.createElement("div");
   toast.className = `toast toast-${tone}`;
 
-  const label = tone === "error" ? "РћС€РёР±РєР°" : tone === "success" ? "Р“РѕС‚РѕРІРѕ" : "РРЅС„Рѕ";
+  const label = tone === "error" ? "Ошибка" : tone === "success" ? "Готово" : "Инфо";
   toast.innerHTML = `
     <div class="toast-label">${label}</div>
     <div class="toast-message">${escapeHtml(message)}</div>
@@ -100,7 +100,7 @@ function consumeOAuthHash() {
   state.token = token;
   localStorage.setItem(STORAGE_KEY, token);
   const providerLabel = provider ? (provider === "google" ? "Google" : provider) : "";
-  state.oauthMessage = providerLabel ? `Р’С…РѕРґ С‡РµСЂРµР· ${providerLabel} РІС‹РїРѕР»РЅРµРЅ` : "OAuth-РІС…РѕРґ РІС‹РїРѕР»РЅРµРЅ";
+  state.oauthMessage = providerLabel ? `Вход через ${providerLabel} выполнен` : "OAuth-вход выполнен";
   showToast(state.oauthMessage, "success");
   clearHash();
   return true;
@@ -111,13 +111,13 @@ function setAuthState(user) {
   const signedIn = Boolean(user);
 
   els.userCard.classList.toggle("hidden", !signedIn);
-  els.authStatus.textContent = signedIn ? "Р’С…РѕРґ РІС‹РїРѕР»РЅРµРЅ" : "Р’С…РѕРґ РЅРµ РІС‹РїРѕР»РЅРµРЅ";
+  els.authStatus.textContent = signedIn ? "Вход выполнен" : "Вход не выполнен";
   els.authStatus.className = signedIn ? "status-badge" : "status-badge muted";
 
   if (signedIn) {
     els.userName.textContent = user.full_name || user.email;
     els.userEmail.textContent = user.email;
-    setMessage(`Р’ СЃРёСЃС‚РµРјРµ: ${user.email}`);
+    setMessage(`В системе: ${user.email}`);
   } else {
     els.userName.textContent = "-";
     els.userEmail.textContent = "-";
@@ -147,7 +147,7 @@ function apiFetch(path, options = {}) {
 async function handleAuthResponse(res) {
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.detail || "Р—Р°РїСЂРѕСЃ РЅРµ РІС‹РїРѕР»РЅРµРЅ");
+    throw new Error(data.detail || "Запрос не выполнен");
   }
   if (data.token) {
     state.token = data.token;
@@ -257,8 +257,8 @@ function renderMetrics(metrics = {}) {
 
   const total = metrics.total_score || {};
   pushCard({
-    label: "РС‚РѕРіРѕРІР°СЏ РѕС†РµРЅРєР°",
-    value: total.score ?? "вЂ”",
+    label: "Итоговая оценка",
+    value: total.score ?? "—",
     sub: total.summary || total.grade || "",
     tone: total.score >= 70 ? "good" : total.score >= 45 ? "warning" : "danger",
   });
@@ -266,7 +266,7 @@ function renderMetrics(metrics = {}) {
   const piotroski = metrics.piotroski_f_score || {};
   pushCard({
     label: "Piotroski",
-    value: `${piotroski.score ?? "вЂ”"}/9`,
+    value: `${piotroski.score ?? "—"}/9`,
     sub: piotroski.verdict || "",
     tone: piotroski.score >= 7 ? "good" : piotroski.score >= 4 ? "warning" : "danger",
   });
@@ -274,71 +274,71 @@ function renderMetrics(metrics = {}) {
   const altman = metrics.altman_z_score || {};
   pushCard({
     label: "Altman Z",
-    value: altman.score ?? "вЂ”",
+    value: altman.score ?? "—",
     sub: altman.verdict || "",
     tone: altman.score > 2.99 ? "good" : altman.score > 1.81 ? "warning" : "danger",
   });
 
   const buffett = metrics.buffett_criteria || {};
   pushCard({
-    label: "РљСЂРёС‚РµСЂРёРё Р‘Р°С„С„РµС‚Р°",
-    value: `${buffett.passed ?? "вЂ”"}/${buffett.total ?? "вЂ”"}`,
+    label: "Критерии Баффета",
+    value: `${buffett.passed ?? "—"}/${buffett.total ?? "—"}`,
     sub: buffett.verdict || "",
     tone: buffett.passed >= 4 ? "good" : buffett.passed >= 2 ? "warning" : "danger",
   });
 
   const graham = metrics.graham_number || {};
   pushCard({
-    label: "Р§РёСЃР»Рѕ Р“СЂСЌРјР°",
-    value: graham.graham_number ?? graham.value ?? "вЂ”",
-    sub: [graham.verdict, graham.upside_pct != null ? `${graham.upside_pct}% РїРѕС‚РµРЅС†РёР°Р»` : ""]
+    label: "Число Грэма",
+    value: graham.graham_number ?? graham.value ?? "—",
+    sub: [graham.verdict, graham.upside_pct != null ? `${graham.upside_pct}% потенциал` : ""]
       .filter(Boolean)
-      .join(" В· "),
+      .join(" · "),
     tone: graham.upside_pct > 0 ? "good" : "warning",
   });
 
   const dcf = metrics.dcf || {};
   pushCard({
-    label: "DCF-РѕС†РµРЅРєР°",
-    value: dcf.intrinsic_value_bn ?? "вЂ”",
+    label: "DCF-оценка",
+    value: dcf.intrinsic_value_bn ?? "—",
     sub: dcf.verdict || dcf.signal || "",
     tone: dcf.signal === "bullish" ? "good" : dcf.signal === "bearish" ? "danger" : "warning",
   });
 
   const industry = metrics.industry || {};
   pushCard({
-    label: "РћС‚СЂР°СЃР»СЊ",
-    value: industry.sector_name ?? "вЂ”",
-    sub: [industry.verdict || "", `${industry.good_count ?? 0} СЃРёР»СЊРЅС‹С… / ${industry.weak_count ?? 0} СЃР»Р°Р±С‹С…`]
+    label: "Отрасль",
+    value: industry.sector_name ?? "—",
+    sub: [industry.verdict || "", `${industry.good_count ?? 0} сильных / ${industry.weak_count ?? 0} слабых`]
       .filter(Boolean)
-      .join(" В· "),
+      .join(" · "),
     tone: industry.good_count > industry.weak_count ? "good" : "warning",
   });
 
   const liquidity = metrics.market_liquidity || {};
   pushCard({
-    label: "Р›РёРєРІРёРґРЅРѕСЃС‚СЊ",
-    value: liquidity.liquidity_label ?? "вЂ”",
+    label: "Ликвидность",
+    value: liquidity.liquidity_label ?? "—",
     sub: [
-      `РЎРґРµР»РєРё: ${liquidity.trade_days ?? "вЂ”"}/30`,
-      liquidity.avg_trade_value ? `РЎСЂРµРґРЅРёР№ РѕР±РѕСЂРѕС‚: ${Number(liquidity.avg_trade_value).toLocaleString()}` : "",
+      `Сделки: ${liquidity.trade_days ?? "—"}/30`,
+      liquidity.avg_trade_value ? `Средний оборот: ${Number(liquidity.avg_trade_value).toLocaleString()}` : "",
     ]
       .filter(Boolean)
-      .join(" В· "),
+      .join(" · "),
     tone: liquidity.liquidity_label === "high" ? "good" : "warning",
   });
 
   const momentum = metrics.momentum || {};
   pushCard({
-    label: "РРјРїСѓР»СЊСЃ",
-    value: momentum.overall || "вЂ”",
+    label: "Импульс",
+    value: momentum.overall || "—",
     sub: momentum.acceleration || "",
     tone: momentum.css === "bullish" ? "good" : momentum.css === "bearish" ? "danger" : "warning",
   });
 
   if (!cards.length) {
     els.metricsGrid.classList.add("empty-state");
-    els.metricsGrid.innerHTML = '<p class="empty-copy">РџРѕСЃР»Рµ РїРµСЂРІРѕРіРѕ Р·Р°РїСЂРѕСЃР° Р·РґРµСЃСЊ РїРѕСЏРІСЏС‚СЃСЏ РјРµС‚СЂРёРєРё.</p>';
+    els.metricsGrid.innerHTML = '<p class="empty-copy">После первого запроса здесь появятся метрики.</p>';
     return;
   }
 
@@ -350,7 +350,7 @@ function renderSections(sections = {}) {
   const entries = Object.entries(sections);
   if (!entries.length) {
     els.sectionsWrap.classList.add("empty-state");
-    els.sectionsWrap.innerHTML = '<p class="empty-copy">РџРѕСЃР»Рµ Р°РЅР°Р»РёР·Р° Р·РґРµСЃСЊ РїРѕСЏРІСЏС‚СЃСЏ СЂР°Р·РґРµР»С‹ РѕС‚С‡РµС‚Р°.</p>';
+    els.sectionsWrap.innerHTML = '<p class="empty-copy">После анализа здесь появятся разделы отчета.</p>';
     return;
   }
 
@@ -363,7 +363,7 @@ function renderSections(sections = {}) {
             <span>${escapeHtml(key.replaceAll("_", " "))}</span>
             <span class="muted">#${String(index + 1).padStart(2, "0")}</span>
           </summary>
-          <div class="section-content">${escapeHtml(value || "РќРµС‚ СЃРѕРґРµСЂР¶РёРјРѕРіРѕ")}</div>
+          <div class="section-content">${escapeHtml(value || "Нет содержимого")}</div>
         </details>
       `
     )
@@ -372,8 +372,8 @@ function renderSections(sections = {}) {
 
 function renderResult(data) {
   state.lastResult = data;
-  els.resultCompany.textContent = data.company_name || data.input || "Р РµР·СѓР»СЊС‚Р°С‚ Р°РЅР°Р»РёР·Р°";
-  els.resultCache.textContent = data.from_cache ? "РР· РєСЌС€Р°" : "РЎРІРµР¶РёР№ СЂР°СЃС‡РµС‚";
+  els.resultCompany.textContent = data.company_name || data.input || "Результат анализа";
+  els.resultCache.textContent = data.from_cache ? "Из кэша" : "Свежий расчет";
 
   const score = data.summary?.score ?? data.metrics?.total_score?.score ?? null;
   const grade = data.summary?.grade ?? data.metrics?.total_score?.grade ?? "-";
@@ -383,7 +383,7 @@ function renderResult(data) {
   els.scoreValue.textContent = score ?? "--";
   els.scoreValue.className = `score-value ${score != null ? renderScoreTone(score) : ""}`;
   els.gradeValue.textContent = grade || "-";
-  els.verdictValue.textContent = verdict || "РС‚РѕРіРѕРІРѕРµ Р·Р°РєР»СЋС‡РµРЅРёРµ РЅРµ СЃС„РѕСЂРјРёСЂРѕРІР°РЅРѕ";
+  els.verdictValue.textContent = verdict || "Итоговое заключение не сформировано";
   els.summaryValue.textContent = itog || "";
 
   renderMetrics(data.metrics || {});
@@ -399,10 +399,10 @@ function renderScoreTone(score) {
 async function loadCompanies() {
   const res = await apiFetch("/api/companies");
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРїРёСЃРѕРє РєРѕРјРїР°РЅРёР№");
+  if (!res.ok) throw new Error(data.detail || "Не удалось загрузить список компаний");
 
   state.companies = data.companies || [];
-  els.companyCount.textContent = `${data.count || state.companies.length} РєРѕРјРїР°РЅРёР№`;
+  els.companyCount.textContent = `${data.count || state.companies.length} компаний`;
 
   els.companiesList.innerHTML = state.companies
     .map((company) => `<option value="${company.ticker}">${company.company_name}</option>`)
@@ -436,7 +436,7 @@ async function refreshSession() {
   try {
     const res = await apiFetch("/api/auth/me");
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "РЎРµСЃСЃРёСЏ РЅРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅР°");
+    if (!res.ok) throw new Error(data.detail || "Сессия недействительна");
     setAuthState(data.user);
   } catch {
     localStorage.removeItem(STORAGE_KEY);
@@ -467,7 +467,7 @@ els.googleLoginBtn.addEventListener("click", () => {
 
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setMessage("Р’С‹РїРѕР»РЅСЏРµС‚СЃСЏ РІС…РѕРґ...");
+  setMessage("Выполняется вход...");
   const form = new FormData(els.loginForm);
   try {
     const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -479,8 +479,8 @@ els.loginForm.addEventListener("submit", async (event) => {
       }),
     });
     const data = await handleAuthResponse(res);
-    setMessage(`Р”РѕР±СЂРѕ РїРѕР¶Р°Р»РѕРІР°С‚СЊ, ${data.user.full_name || data.user.email}`);
-    showToast(`Р’С…РѕРґ РІС‹РїРѕР»РЅРµРЅ: ${data.user.email}`, "success");
+    setMessage(`Добро пожаловать, ${data.user.full_name || data.user.email}`);
+    showToast(`Вход выполнен: ${data.user.email}`, "success");
     setView("analysis");
   } catch (error) {
     setMessage(error.message, "error");
@@ -490,7 +490,7 @@ els.loginForm.addEventListener("submit", async (event) => {
 
 els.registerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setMessage("РЎРѕР·РґР°РЅРёРµ СѓС‡РµС‚РЅРѕР№ Р·Р°РїРёСЃРё...");
+  setMessage("Создание учетной записи...");
   const form = new FormData(els.registerForm);
   try {
     const res = await fetch(`${API_BASE}/api/auth/register`, {
@@ -503,8 +503,8 @@ els.registerForm.addEventListener("submit", async (event) => {
       }),
     });
     const data = await handleAuthResponse(res);
-    setMessage(`РЈС‡РµС‚РЅР°СЏ Р·Р°РїРёСЃСЊ СЃРѕР·РґР°РЅР°: ${data.user.email}`);
-    showToast(`РЈС‡РµС‚РЅР°СЏ Р·Р°РїРёСЃСЊ СЃРѕР·РґР°РЅР°: ${data.user.email}`, "success");
+    setMessage(`Учетная запись создана: ${data.user.email}`);
+    showToast(`Учетная запись создана: ${data.user.email}`, "success");
     document.querySelector('.tab-btn[data-tab="login"]').click();
     setView("auth");
   } catch (error) {
@@ -522,8 +522,8 @@ els.logoutBtn.addEventListener("click", async () => {
   localStorage.removeItem(STORAGE_KEY);
   state.token = "";
   setAuthState(null);
-  setMessage("Р’С‹С…РѕРґ РІС‹РїРѕР»РЅРµРЅ");
-  showToast("Р’С‹С…РѕРґ РІС‹РїРѕР»РЅРµРЅ", "info");
+  setMessage("Выход выполнен");
+  showToast("Выход выполнен", "info");
   setView("auth");
 });
 
@@ -531,21 +531,21 @@ els.analysisForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   if (!state.token) {
-    setMessage("Р§С‚РѕР±С‹ Р·Р°РїСѓСЃС‚РёС‚СЊ Р°РЅР°Р»РёР·, СЃРЅР°С‡Р°Р»Р° РІС‹РїРѕР»РЅРёС‚Рµ РІС…РѕРґ.", "error");
-    showToast("РЎРЅР°С‡Р°Р»Р° РІС‹РїРѕР»РЅРёС‚Рµ РІС…РѕРґ", "error");
+    setMessage("Чтобы запустить анализ, сначала выполните вход.", "error");
+    showToast("Сначала выполните вход", "error");
     return;
   }
 
   const form = new FormData(els.analysisForm);
   const company = String(form.get("company") || "").trim();
   if (!company) {
-    setMessage("РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ РєРѕРјРїР°РЅРёСЋ.", "error");
-    showToast("РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ РєРѕРјРїР°РЅРёСЋ", "error");
+    setMessage("Сначала выберите компанию.", "error");
+    showToast("Сначала выберите компанию", "error");
     return;
   }
 
-  els.apiState.textContent = "Р’С‹РїРѕР»РЅСЏРµС‚СЃСЏ Р°РЅР°Р»РёР·...";
-  setMessage("РђРЅР°Р»РёР· РІС‹РїРѕР»РЅСЏРµС‚СЃСЏ...");
+  els.apiState.textContent = "Выполняется анализ...";
+  setMessage("Анализ выполняется...");
   setLoadingSkeleton(company);
 
   try {
@@ -558,13 +558,13 @@ els.analysisForm.addEventListener("submit", async (event) => {
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ Р°РЅР°Р»РёР·");
+    if (!res.ok) throw new Error(data.detail || "Не удалось выполнить анализ");
     renderResult(data);
-    els.apiState.textContent = "Р“РѕС‚РѕРІРѕ";
-    setMessage(`РђРЅР°Р»РёР· Р·Р°РІРµСЂС€РµРЅ: ${data.company_name || company}`);
-    showToast(`РђРЅР°Р»РёР· Р·Р°РІРµСЂС€РµРЅ: ${data.company_name || company}`, "success");
+    els.apiState.textContent = "Готово";
+    setMessage(`Анализ завершен: ${data.company_name || company}`);
+    showToast(`Анализ завершен: ${data.company_name || company}`, "success");
   } catch (error) {
-    els.apiState.textContent = "API РіРѕС‚РѕРІ";
+    els.apiState.textContent = "API готов";
     setMessage(error.message, "error");
     showToast(error.message, "error");
     clearResults();
@@ -577,13 +577,13 @@ window.addEventListener("DOMContentLoaded", async () => {
   try {
     await loadCompanies();
   } catch (error) {
-    els.companyCount.textContent = "РќРµРґРѕСЃС‚СѓРїРЅРѕ";
+    els.companyCount.textContent = "Недоступно";
     setMessage(error.message, "error");
   }
 
   await refreshSession();
   if (oauthReturned) {
-    setMessage(state.oauthMessage || "Р’С…РѕРґ С‡РµСЂРµР· OAuth РІС‹РїРѕР»РЅРµРЅ");
+    setMessage(state.oauthMessage || "Вход через OAuth выполнен");
     setView("analysis");
   }
   state.oauthMessage = "";
