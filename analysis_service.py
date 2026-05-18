@@ -825,5 +825,8 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False, l
         "language": language,
         "language_label": LANGUAGE_HINTS[language]["label"],
     }
-    analysis_cache.set(company_name, result, language=language)
+    try:
+        analysis_cache.set(company_name, result, language=language)
+    except Exception as exc:  # noqa: BLE001
+        print(f"   ⚠️ Cache write failed for '{resolved_name}': {exc}")
     return result
