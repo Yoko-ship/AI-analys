@@ -372,6 +372,9 @@ function renderSections(sections = {}) {
 
 function renderResult(data) {
   state.lastResult = data;
+  if (els.resultHero) {
+    els.resultHero.classList.remove("is-loading");
+  }
   els.resultCompany.textContent = data.company_name || data.input || "Результат анализа";
   els.resultCache.textContent = data.from_cache ? "Из кэша" : "Свежий расчет";
 
