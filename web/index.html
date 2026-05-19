@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UZ Stock Analyzer</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260518" />
-    <script defer src="/assets/app.js?v=20260518"></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=20260519" />
+    <script defer src="/assets/app.js?v=20260519"></script>
   </head>
   <body>
     <div class="bg-glow bg-glow-a"></div>
@@ -378,6 +378,37 @@
                 <p id="verdictValue" class="verdict-text">Выполните анализ, чтобы увидеть итоговое заключение.</p>
                 <p id="summaryValue" class="summary-text"></p>
               </div>
+            </div>
+
+            <div class="chart-card">
+              <div class="chart-head">
+                <div>
+                  <p class="panel-label">График</p>
+                  <h3 id="chartTitle">Динамика выручки и прибыли</h3>
+                </div>
+                <span id="chartMeta" class="status-badge muted">—</span>
+              </div>
+              <div id="analysisChart" class="analysis-chart empty-state">
+                <p class="empty-copy">График появится после первого анализа.</p>
+              </div>
+            </div>
+
+            <div class="market-strip">
+              <article class="mini-market-card">
+                <span class="mini-market-label">Выручка</span>
+                <strong id="revenueSignal">—</strong>
+                <p id="revenueSignalSub" class="muted">—</p>
+              </article>
+              <article class="mini-market-card">
+                <span class="mini-market-label">Маржа</span>
+                <strong id="marginSignal">—</strong>
+                <p id="marginSignalSub" class="muted">—</p>
+              </article>
+              <article class="mini-market-card">
+                <span class="mini-market-label">Риск</span>
+                <strong id="riskSignal">—</strong>
+                <p id="riskSignalSub" class="muted">—</p>
+              </article>
             </div>
 
             <div class="meta-grid">

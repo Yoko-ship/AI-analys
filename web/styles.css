@@ -788,6 +788,11 @@ button {
   min-height: 100%;
 }
 
+.result-hero {
+  display: grid;
+  gap: 16px;
+}
+
 .score-strip {
   display: grid;
   grid-template-columns: 150px 1fr;
@@ -807,6 +812,12 @@ button {
 
 .result-hero.is-loading .score-card,
 .result-hero.is-loading .score-meta {
+  position: relative;
+  overflow: hidden;
+}
+
+.result-hero.is-loading .analysis-chart,
+.result-hero.is-loading .mini-market-card {
   position: relative;
   overflow: hidden;
 }
@@ -874,6 +885,289 @@ button {
 .score-meta {
   display: grid;
   gap: 10px;
+}
+
+.chart-card {
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015));
+}
+
+.chart-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.chart-head h3 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.analysis-chart {
+  position: relative;
+  min-height: 290px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(110, 240, 193, 0.08), transparent 36%),
+    linear-gradient(180deg, rgba(6, 12, 23, 0.96), rgba(9, 18, 32, 0.98));
+}
+
+.analysis-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-grid-line {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-axis-label {
+  fill: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.chart-axis-label-y {
+  opacity: 0.85;
+}
+
+.chart-axis-label-x {
+  opacity: 0.9;
+}
+
+.chart-area {
+  fill: url(#revenueAreaGradient);
+}
+
+.chart-line {
+  fill: none;
+  stroke-width: 3.5;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-line-revenue {
+  stroke: var(--accent-2);
+}
+
+.chart-line-profit {
+  stroke: var(--accent);
+  stroke-dasharray: 6 5;
+}
+
+.chart-dot {
+  stroke: rgba(7, 17, 31, 0.95);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-dot-revenue {
+  fill: var(--accent-2);
+}
+
+.chart-dot-profit {
+  fill: var(--accent);
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.legend-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.legend-value {
+  color: var(--text);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1rem;
+}
+
+.legend-delta {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.legend-delta.is-up {
+  color: var(--accent-2);
+}
+
+.legend-delta.is-down {
+  color: var(--danger);
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.legend-swatch-revenue {
+  background: var(--accent-2);
+  box-shadow: 0 0 0 4px rgba(110, 240, 193, 0.12);
+}
+
+.legend-swatch-profit {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(245, 184, 77, 0.12);
+}
+
+.chart-axis-note {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 0 2px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.market-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mini-market-card {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mini-market-card::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: var(--signal-line, rgba(255, 255, 255, 0.2));
+}
+
+.mini-market-card[data-tone="good"] {
+  --signal-line: var(--accent-2);
+  border-color: rgba(110, 240, 193, 0.24);
+}
+
+.mini-market-card[data-tone="warning"] {
+  --signal-line: var(--accent);
+  border-color: rgba(245, 184, 77, 0.22);
+}
+
+.mini-market-card[data-tone="danger"] {
+  --signal-line: var(--danger);
+  border-color: rgba(255, 122, 122, 0.24);
+}
+
+.mini-market-card[data-tone="neutral"] {
+  --signal-line: rgba(152, 166, 195, 0.35);
+}
+
+.mini-market-label {
+  display: block;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.mini-market-card strong {
+  display: block;
+  margin-top: 8px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.mini-market-card p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+.chart-skeleton {
+  min-height: 290px;
+  padding: 16px;
+}
+
+.chart-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  height: 180px;
+  align-items: end;
+}
+
+.chart-skeleton-grid span {
+  border-radius: 14px 14px 4px 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  position: relative;
+  overflow: hidden;
+}
+
+.chart-skeleton-grid span::after,
+.chart-skeleton-wave span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transform: translateX(-100%);
+  animation: skeleton-shine 1.4s infinite;
+}
+
+.chart-skeleton-grid span:nth-child(1) { height: 44%; }
+.chart-skeleton-grid span:nth-child(2) { height: 72%; }
+.chart-skeleton-grid span:nth-child(3) { height: 58%; }
+.chart-skeleton-grid span:nth-child(4) { height: 84%; }
+
+.chart-skeleton-wave {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.chart-skeleton-wave span {
+  height: 52px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  position: relative;
+  overflow: hidden;
 }
 
 .grade-pill {
