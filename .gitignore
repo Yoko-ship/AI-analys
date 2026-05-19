@@ -14,3 +14,7 @@ analysis_cache.db
 users.db
 org_cache.json
 trades_*.csv
+node_modules/
+frontend/node_modules/
+frontend/.vite/
+web/dist/

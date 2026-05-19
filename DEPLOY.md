@@ -104,6 +104,8 @@ Notes:
 - the app is a Telegram polling worker, so no public domain or HTTP healthcheck is required for the bot service
 - without a Volume, SQLite files and caches will not persist between deployments
 
+The web frontend is built with React + Vite during the Docker build and is served from the API service root.
+
 ## API
 
 If you want to run the website API as a separate Railway service:
