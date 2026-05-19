@@ -543,6 +543,66 @@ const TEXTS = {
   },
 };
 
+const VISUAL_TEXTS = {
+  ru: {
+    dashboardPeriod: "14 дней",
+    sparklineEmpty: "пока нет истории",
+    financialStructure: "Финансовая структура",
+    financialStructureCopy: "Последние доступные данные МСФО",
+    scoreAndRisk: "Скоринг и устойчивость",
+    scoreAndRiskCopy: "Ключевые индикаторы качества и риска",
+    revenue: "Выручка",
+    netIncome: "Чистая прибыль",
+    assets: "Активы",
+    equity: "Капитал",
+    debt: "Обязательства",
+    totalScore: "Итоговый скоринг",
+    piotroski: "Piotroski",
+    altman: "Altman Z",
+    leverage: "Долговая нагрузка",
+    noVisualData: "Недостаточно данных для визуализации",
+    latestPeriod: "последний период",
+  },
+  en: {
+    dashboardPeriod: "14 days",
+    sparklineEmpty: "no history yet",
+    financialStructure: "Financial structure",
+    financialStructureCopy: "Latest available IFRS data",
+    scoreAndRisk: "Score and resilience",
+    scoreAndRiskCopy: "Core quality and risk indicators",
+    revenue: "Revenue",
+    netIncome: "Net income",
+    assets: "Assets",
+    equity: "Equity",
+    debt: "Liabilities",
+    totalScore: "Total score",
+    piotroski: "Piotroski",
+    altman: "Altman Z",
+    leverage: "Leverage",
+    noVisualData: "Not enough data to visualize",
+    latestPeriod: "latest period",
+  },
+  uz: {
+    dashboardPeriod: "14 kun",
+    sparklineEmpty: "hozircha tarix yo'q",
+    financialStructure: "Moliyaviy tuzilma",
+    financialStructureCopy: "So'nggi mavjud IFRS ma'lumotlari",
+    scoreAndRisk: "Skoring va barqarorlik",
+    scoreAndRiskCopy: "Sifat va risk bo'yicha asosiy indikatorlar",
+    revenue: "Daromad",
+    netIncome: "Sof foyda",
+    assets: "Aktivlar",
+    equity: "Kapital",
+    debt: "Majburiyatlar",
+    totalScore: "Yakuniy skoring",
+    piotroski: "Piotroski",
+    altman: "Altman Z",
+    leverage: "Qarz yuki",
+    noVisualData: "Vizualizatsiya uchun ma'lumot yetarli emas",
+    latestPeriod: "so'nggi davr",
+  },
+};
+
 function normalizeLanguage(value) {
   return ["ru", "en", "uz"].includes(value) ? value : "ru";
 }
@@ -561,6 +621,11 @@ function t(language, path, params = {}) {
   if (value === undefined || value === null) return "";
   const stringValue = String(value);
   return stringValue.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ""));
+}
+
+function vt(language, key) {
+  const lang = normalizeLanguage(language);
+  return VISUAL_TEXTS[lang]?.[key] ?? VISUAL_TEXTS.ru[key] ?? key;
 }
 
 function safeNumber(value) {
@@ -720,6 +785,10 @@ function buildActivitySeries(entries, language) {
       label: new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(date),
       shortLabel: new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date),
       count: 0,
+      cached: 0,
+      scoreTotal: 0,
+      scoreCount: 0,
+      avgScore: null,
     });
   }
 
@@ -733,14 +802,71 @@ function buildActivitySeries(entries, language) {
     const bucket = dayMap.get(key);
     if (!bucket) continue;
     bucket.count += 1;
+    if (item?.from_cache) bucket.cached += 1;
+    const score = safeNumber(item?.score ?? item?.summary?.score ?? item?.result?.summary?.score);
+    if (score !== null) {
+      bucket.scoreTotal += score;
+      bucket.scoreCount += 1;
+    }
   }
 
-  const days = Array.from(dayMap.values());
+  const days = Array.from(dayMap.values()).map((day) => ({
+    ...day,
+    avgScore: day.scoreCount ? day.scoreTotal / day.scoreCount : null,
+  }));
   const maxCount = Math.max(1, ...days.map((day) => day.count || 0));
+  const maxCached = Math.max(1, ...days.map((day) => day.cached || 0));
   const total = days.reduce((sum, day) => sum + (day.count || 0), 0);
+  const cachedTotal = days.reduce((sum, day) => sum + (day.cached || 0), 0);
+  const scoreDays = days.filter((day) => day.avgScore !== null);
+  const avgScore = scoreDays.length ? scoreDays.reduce((sum, day) => sum + day.avgScore, 0) / scoreDays.length : null;
   const peak = days.reduce((best, day) => (day.count > (best?.count || 0) ? day : best), days[0] || null);
 
-  return { days, maxCount, total, peak };
+  return { days, maxCount, maxCached, total, cachedTotal, avgScore, peak };
+}
+
+function buildSparkline(values, width = 220, height = 74) {
+  const points = (Array.isArray(values) ? values : []).map((value) => safeNumber(value)).filter((value) => value !== null);
+  if (!points.length) return null;
+
+  let min = Math.min(...points);
+  let max = Math.max(...points);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+
+  const padding = { left: 8, right: 8, top: 10, bottom: 12 };
+  const innerWidth = width - padding.left - padding.right;
+  const innerHeight = height - padding.top - padding.bottom;
+  const range = max - min || 1;
+  const x = (index) => padding.left + (points.length <= 1 ? innerWidth / 2 : (index / (points.length - 1)) * innerWidth);
+  const y = (value) => padding.top + ((max - value) / range) * innerHeight;
+  const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${x(index).toFixed(2)} ${y(point).toFixed(2)}`).join(" ");
+  const areaPath = `${path} L ${x(points.length - 1).toFixed(2)} ${height - padding.bottom} L ${x(0).toFixed(2)} ${height - padding.bottom} Z`;
+
+  return { width, height, points, path, areaPath, latest: points.at(-1), min, max };
+}
+
+function scorePercent(score) {
+  if (score === null || score === undefined || score === "") return null;
+  const value = Number(score);
+  if (!Number.isFinite(value)) return null;
+  return clampPercent(value <= 10 ? value * 10 : value);
+}
+
+function scoreTone(score) {
+  const value = scorePercent(score);
+  if (value === null) return "neutral";
+  if (value >= 70) return "good";
+  if (value >= 45) return "warning";
+  return "danger";
+}
+
+function clampPercent(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return Math.max(0, Math.min(100, num));
 }
 
 function ToastStack({ toasts, onDismiss, language }) {
@@ -766,6 +892,71 @@ function StatCard({ label, value, sub }) {
       <div className="profile-stat-value">{value}</div>
       <div className="profile-stat-sub">{sub}</div>
     </article>
+  );
+}
+
+function MiniSparkline({ values, tone = "neutral", language }) {
+  const data = buildSparkline(values);
+
+  if (!data) {
+    return <div className="mini-sparkline-empty">{vt(language, "sparklineEmpty")}</div>;
+  }
+
+  return (
+    <svg className={`mini-sparkline tone-${tone}`} viewBox={`0 0 ${data.width} ${data.height}`} role="img" aria-label={vt(language, "dashboardPeriod")}>
+      <path d={data.areaPath} className="mini-sparkline-area" />
+      <path d={data.path} className="mini-sparkline-line" />
+      {data.points.map((point, index) => {
+        if (index !== data.points.length - 1) return null;
+        const x = data.points.length <= 1 ? data.width / 2 : 8 + (index / (data.points.length - 1)) * (data.width - 16);
+        const y = 10 + ((data.max - point) / (data.max - data.min || 1)) * (data.height - 22);
+        return <circle key={index} cx={x} cy={y} r="4" className="mini-sparkline-dot" />;
+      })}
+    </svg>
+  );
+}
+
+function DashboardMetricCard({ label, value, sub, tone = "neutral", sparkline, language }) {
+  return (
+    <article className={`dashboard-metric-card tone-${tone}`}>
+      <div className="dashboard-metric-top">
+        <div>
+          <div className="profile-stat-label">{label}</div>
+          <div className="profile-stat-value">{value}</div>
+        </div>
+        <span className="metric-pulse" />
+      </div>
+      <MiniSparkline values={sparkline} tone={tone} language={language} />
+      <div className="profile-stat-sub">{sub}</div>
+    </article>
+  );
+}
+
+function ScoreGauge({ score, language }) {
+  const numeric = safeNumber(score);
+  const value = scorePercent(numeric) ?? 0;
+  const radius = 48;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - (value / 100) * circumference;
+  const tone = scoreTone(numeric);
+
+  return (
+    <div className={`score-gauge tone-${tone}`}>
+      <svg viewBox="0 0 128 128" role="img" aria-label={t(language, "analysis.score")}>
+        <circle className="score-gauge-track" cx="64" cy="64" r={radius} />
+        <circle
+          className="score-gauge-progress"
+          cx="64"
+          cy="64"
+          r={radius}
+          style={{ strokeDasharray: circumference, strokeDashoffset: dashOffset }}
+        />
+      </svg>
+      <div className="score-gauge-center">
+        <strong>{numeric === null ? "--" : Math.round(numeric)}</strong>
+        <span>{t(language, "analysis.score")}</span>
+      </div>
+    </div>
   );
 }
 
@@ -1216,30 +1407,38 @@ function App() {
   const profileAvatar = profileUser?.avatar_data_url;
   const profileCreated = profileUser?.created_at;
   const activitySeries = buildActivitySeries(profile?.recent_analyses || [], language);
+  const activitySparkline = activitySeries.days.map((day) => day.count);
+  const cachedSparkline = activitySeries.days.map((day) => day.cached);
+  const scoreSparkline = activitySeries.days.map((day) => day.avgScore).filter((value) => value !== null);
+  const companySparkline = companies.length ? activitySeries.days.map(() => companies.length) : [];
   const dashboardCards = [
     {
       label: t(language, "dashboard.cards.companies"),
       value: companies.length || 0,
       sub: t(language, "analysis.availableTitle"),
       tone: "good",
+      sparkline: companySparkline,
     },
     {
       label: t(language, "dashboard.cards.analyses"),
       value: profileStats.total_analyses ?? 0,
-      sub: profile ? t(language, "profile.statsTitle") : t(language, "profile.empty"),
+      sub: profile ? vt(language, "dashboardPeriod") : t(language, "profile.empty"),
       tone: "warning",
+      sparkline: activitySparkline,
     },
     {
       label: t(language, "dashboard.cards.avgScore"),
       value: profile ? profileStats.avg_score ?? "—" : "—",
       sub: profile ? t(language, "profile.stats.avgScore") : t(language, "analysis.resultEmpty"),
       tone: "good",
+      sparkline: scoreSparkline,
     },
     {
       label: t(language, "dashboard.cards.cached"),
       value: profileStats.cached_analyses ?? 0,
       sub: profile ? t(language, "analysis.resultCacheHit") : t(language, "dashboard.trend"),
       tone: "neutral",
+      sparkline: cachedSparkline,
     },
   ];
 
@@ -1364,7 +1563,7 @@ function App() {
               </div>
               <div className="overview-grid">
                 {dashboardCards.map((card) => (
-                  <StatCard key={card.label} {...card} />
+                  <DashboardMetricCard key={card.label} {...card} language={language} />
                 ))}
               </div>
             </article>
@@ -1832,10 +2031,7 @@ function App() {
                   <>
                     <div className="score-strip">
                       <div className="score-card">
-                        <div className={`score-value ${resultScore != null && resultScore >= 70 ? "metric-good" : resultScore != null && resultScore >= 45 ? "metric-warning" : "metric-danger"}`}>
-                          {resultScore ?? "--"}
-                        </div>
-                        <div className="score-caption">{t(language, "analysis.score")}</div>
+                        <ScoreGauge score={resultScore} language={language} />
                       </div>
                       <div className="score-meta">
                         <div className="grade-pill">{resultGrade || "—"}</div>
@@ -1913,6 +2109,8 @@ function App() {
                       />
                     </div>
 
+                    <FinancialVisuals result={analysisResult} language={language} score={resultScore} />
+
                     <div className="meta-grid">
                       <button
                         id="resultFavoriteBtn"
@@ -1987,6 +2185,148 @@ function SignalCard({ label, value, sub, tone = "neutral" }) {
       <strong>{value}</strong>
       <p>{sub}</p>
     </article>
+  );
+}
+
+function MetricRing({ label, percent, display, tone = "neutral" }) {
+  const value = clampPercent(percent);
+  const radius = 38;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - ((value ?? 0) / 100) * circumference;
+
+  return (
+    <div className={`metric-ring tone-${tone}`}>
+      <svg viewBox="0 0 104 104" role="img" aria-label={label}>
+        <circle className="metric-ring-track" cx="52" cy="52" r={radius} />
+        <circle
+          className="metric-ring-progress"
+          cx="52"
+          cy="52"
+          r={radius}
+          style={{ strokeDasharray: circumference, strokeDashoffset: dashOffset }}
+        />
+      </svg>
+      <div className="metric-ring-center">
+        <strong>{display}</strong>
+      </div>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function FinancialVisuals({ result, language, score }) {
+  if (!result) return null;
+
+  const snapshot = result?.ifrs_snapshot || {};
+  const metrics = result?.metrics || {};
+  const annualSeries = Array.isArray(snapshot?.series?.annual) ? snapshot.series.annual : [];
+  const latestAnnual = annualSeries.at(-1) || {};
+  const income = snapshot?.income_statement || {};
+  const balance = snapshot?.balance_sheet || {};
+  const pickNumber = (...values) => {
+    for (const value of values) {
+      const number = safeNumber(value);
+      if (number !== null) return number;
+    }
+    return null;
+  };
+  const makeRow = (key, value, tone = "neutral") => ({
+    key,
+    label: vt(language, key),
+    value,
+    tone,
+  });
+
+  const revenue = pickNumber(latestAnnual.revenue, income.revenue, income.sales);
+  const netIncome = pickNumber(latestAnnual.net_income, income.net_income, income.profit);
+  const assets = pickNumber(latestAnnual.assets, latestAnnual.total_assets, balance.assets, balance.total_assets);
+  const equity = pickNumber(latestAnnual.equity, latestAnnual.total_equity, balance.equity, balance.total_equity);
+  const debt = pickNumber(latestAnnual.debt, latestAnnual.total_debt, latestAnnual.total_liabilities, balance.debt, balance.total_debt, balance.total_liabilities);
+  const rows = [
+    makeRow("revenue", revenue, "good"),
+    makeRow("netIncome", netIncome, netIncome === null ? "neutral" : netIncome >= 0 ? "good" : "danger"),
+    makeRow("assets", assets, "neutral"),
+    makeRow("equity", equity, "good"),
+    makeRow("debt", debt, "warning"),
+  ].filter((row) => row.value !== null);
+  const maxAbs = Math.max(1, ...rows.map((row) => Math.abs(row.value)));
+
+  const scoreValue = safeNumber(score);
+  const scoreValuePercent = scorePercent(scoreValue);
+  const piotroski = pickNumber(metrics?.piotroski_f_score?.score, metrics?.piotroski?.score);
+  const altman = pickNumber(metrics?.altman_z_score?.score, metrics?.altman?.score);
+  const debtToEquity = pickNumber(balance?.debt_to_equity, latestAnnual?.debt_to_equity);
+  const rings = [
+    {
+      label: vt(language, "totalScore"),
+      percent: scoreValuePercent,
+      display: scoreValue === null ? "—" : Math.round(scoreValue),
+      tone: scoreTone(scoreValue),
+    },
+    {
+      label: vt(language, "piotroski"),
+      percent: piotroski === null ? null : (piotroski / 9) * 100,
+      display: piotroski === null ? "—" : `${formatRatio(piotroski, 0, language)}/9`,
+      tone: piotroski === null ? "neutral" : piotroski >= 7 ? "good" : piotroski >= 4 ? "warning" : "danger",
+    },
+    {
+      label: vt(language, "altman"),
+      percent: altman === null ? null : (altman / 3.5) * 100,
+      display: altman === null ? "—" : formatRatio(altman, 2, language),
+      tone: altman === null ? "neutral" : altman > 2.99 ? "good" : altman > 1.81 ? "warning" : "danger",
+    },
+    {
+      label: vt(language, "leverage"),
+      percent: debtToEquity === null ? null : 100 / (1 + Math.max(0, debtToEquity)),
+      display: debtToEquity === null ? "—" : `D/E ${formatRatio(debtToEquity, 2, language)}`,
+      tone: debtToEquity === null ? "neutral" : debtToEquity <= 1 ? "good" : debtToEquity <= 2 ? "warning" : "danger",
+    },
+  ];
+
+  return (
+    <div className="financial-visual-grid">
+      <article className="visual-panel financial-bars-panel">
+        <div className="visual-panel-head">
+          <div>
+            <div className="panel-label">{vt(language, "latestPeriod")}</div>
+            <h3>{vt(language, "financialStructure")}</h3>
+          </div>
+          <span>{vt(language, "financialStructureCopy")}</span>
+        </div>
+        {rows.length ? (
+          <div className="financial-bars">
+            {rows.map((row) => (
+              <div key={row.key} className={`financial-bar-row tone-${row.tone}`}>
+                <div className="financial-bar-label">
+                  <span>{row.label}</span>
+                  <strong>{formatCompactNumber(row.value, language)}</strong>
+                </div>
+                <div className="financial-bar-track">
+                  <span className={row.value < 0 ? "is-negative" : ""} style={{ width: `${Math.max(4, (Math.abs(row.value) / maxAbs) * 100)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="visual-empty">{vt(language, "noVisualData")}</div>
+        )}
+      </article>
+
+      <article className="visual-panel metric-rings-panel">
+        <div className="visual-panel-head">
+          <div>
+            <div className="panel-label">{vt(language, "latestPeriod")}</div>
+            <h3>{vt(language, "scoreAndRisk")}</h3>
+          </div>
+          <span>{vt(language, "scoreAndRiskCopy")}</span>
+        </div>
+        <div className="metric-rings-grid">
+          {rings.map((ring) => (
+            <MetricRing key={ring.label} {...ring} />
+          ))}
+        </div>
+      </article>
+    </div>
   );
 }
 
