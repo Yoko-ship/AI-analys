@@ -4,10 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UZ Stock Analyzer</title>
-    <meta name="theme-color" content="#07111f" />
+    <meta name="theme-color" content="#f4f7fb" />
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("uz_stock_analyzer_theme");
+          var theme = saved === "light" || saved === "dark"
+            ? saved
+            : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          document.body.dataset.theme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", theme === "dark" ? "#07111f" : "#f4f7fb");
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
  </html>

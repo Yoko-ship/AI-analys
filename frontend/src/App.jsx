@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 
 const STORAGE_KEY = "uz_stock_analyzer_token";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
+const THEME_KEY = "uz_stock_analyzer_theme";
 
 const TEXTS = {
   ru: {
@@ -11,6 +12,7 @@ const TEXTS = {
     nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ" },
     languageLabel: "Язык",
     languageOptions: { ru: "Русский", en: "English", uz: "O'zbek" },
+    theme: { label: "Тема", light: "Светлая", dark: "Тёмная" },
     hero: {
       title: "Современный анализ компаний в одном интерфейсе",
       copy:
@@ -190,6 +192,7 @@ const TEXTS = {
     nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis" },
     languageLabel: "Language",
     languageOptions: { ru: "Russian", en: "English", uz: "Uzbek" },
+    theme: { label: "Theme", light: "Light", dark: "Dark" },
     hero: {
       title: "Modern company analysis in one dashboard",
       copy: "A web platform for fast company analysis, authentication, profile management, favorites, history, and financial reporting with charts.",
@@ -367,6 +370,7 @@ const TEXTS = {
     nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil" },
     languageLabel: "Til",
     languageOptions: { ru: "Ruscha", en: "English", uz: "O'zbek" },
+    theme: { label: "Mavzu", light: "Yorug'", dark: "Qorong'i" },
     hero: {
       title: "Bitta panelda zamonaviy kompaniya tahlili",
       copy: "Kompaniyalarni tez tahlil qilish uchun veb-platforma: ro'yxatdan o'tish, kirish, profil, tanlanganlar, tarix va grafiklar bilan moliyaviy hisobot.",
@@ -789,6 +793,11 @@ function SectionCard({ title, body, index, open = false }) {
 
 function App() {
   const [language, setLanguage] = useState(() => normalizeLanguage(localStorage.getItem(LANGUAGE_KEY) || "ru"));
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -817,6 +826,17 @@ function App() {
     document.documentElement.lang = lang;
     document.title = t(lang, "pageTitle");
   }, [language]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) {
+      themeMeta.setAttribute("content", theme === "dark" ? "#07111f" : "#f4f7fb");
+    }
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
 
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -1249,6 +1269,10 @@ function App() {
     addToast(language === "ru" ? "Текущий аватар будет удален после сохранения" : language === "uz" ? "Joriy avatar saqlangandan so'ng o'chiriladi" : "Current avatar will be removed after saving", "info");
   };
 
+  const toggleTheme = () => {
+    setTheme((current) => (current === "dark" ? "light" : "dark"));
+  };
+
   return (
     <div className="app-shell-wrap">
       <div className="bg-glow bg-glow-a" />
@@ -1279,6 +1303,11 @@ function App() {
             </div>
 
             <div className="topbar-controls">
+              <button className="theme-toggle" type="button" onClick={toggleTheme}>
+                <span className="field-label">{t(language, "theme.label")}</span>
+                <strong>{theme === "dark" ? t(language, "theme.light") : t(language, "theme.dark")}</strong>
+              </button>
+
               <label className="topbar-language">
                 <span className="field-label">{t(language, "languageLabel")}</span>
                 <select
