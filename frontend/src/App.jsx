@@ -899,7 +899,7 @@ function MiniSparkline({ values, tone = "neutral", language }) {
   const data = buildSparkline(values);
 
   if (!data) {
-    return <div className="mini-sparkline-empty">{vt(language, "sparklineEmpty")}</div>;
+    return <div className="mini-sparkline-empty" aria-label={vt(language, "sparklineEmpty")} />;
   }
 
   return (
@@ -1559,8 +1559,8 @@ function App() {
                   <div className="panel-label">{t(language, "dashboard.title")}</div>
                   <h2>{t(language, "dashboard.title")}</h2>
                 </div>
-                <span className="status-badge muted">{t(language, "dashboard.copy")}</span>
               </div>
+              <p className="panel-intro">{t(language, "dashboard.copy")}</p>
               <div className="overview-grid">
                 {dashboardCards.map((card) => (
                   <DashboardMetricCard key={card.label} {...card} language={language} />
@@ -1574,10 +1574,10 @@ function App() {
                   <div className="panel-label">{t(language, "dashboard.activityTitle")}</div>
                   <h2>{t(language, "dashboard.activityTitle")}</h2>
                 </div>
-                <span className="status-badge muted">
-                  {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}` : t(language, "dashboard.activityEmpty")}
-                </span>
               </div>
+              <p className="panel-intro">
+                {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"} · ${vt(language, "dashboardPeriod")}` : vt(language, "dashboardPeriod")}
+              </p>
               <ActivityChart series={activitySeries} language={language} />
             </article>
           </section>
@@ -1789,8 +1789,8 @@ function App() {
                     <div className="panel-label">{t(language, "nav.profile")}</div>
                     <h2>{t(language, "profile.title")}</h2>
                   </div>
-                  <span className="status-badge muted">{profile ? t(language, "profile.subtitle") : t(language, "profile.empty")}</span>
                 </div>
+                <p className="panel-intro">{profile ? t(language, "profile.subtitle") : t(language, "profile.empty")}</p>
 
                 {profileUser ? (
                   <>
@@ -1908,18 +1908,18 @@ function App() {
                     <div className="panel-label">{t(language, "profile.historyTitle")}</div>
                     <h2>{t(language, "profile.historyTitle")}</h2>
                   </div>
-                  <div className="history-filters">
-                    <input
-                      type="search"
-                      value={historySearch}
-                      onChange={(event) => setHistorySearch(event.target.value)}
-                      placeholder={t(language, "profile.filters.search")}
-                    />
-                    <select value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
-                      <option value="all">{t(language, "profile.filters.all")}</option>
-                      <option value="favorites">{t(language, "profile.filters.favorites")}</option>
-                    </select>
-                  </div>
+                </div>
+                <div className="panel-toolbar history-filters">
+                  <input
+                    type="search"
+                    value={historySearch}
+                    onChange={(event) => setHistorySearch(event.target.value)}
+                    placeholder={t(language, "profile.filters.search")}
+                  />
+                  <select value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
+                    <option value="all">{t(language, "profile.filters.all")}</option>
+                    <option value="favorites">{t(language, "profile.filters.favorites")}</option>
+                  </select>
                 </div>
                 {recentAnalyses.length ? (
                   <div className="history-list">
@@ -1958,7 +1958,7 @@ function App() {
                     <div className="panel-label">{t(language, "nav.analysis")}</div>
                     <h2>{t(language, "analysis.title")}</h2>
                   </div>
-                  <span className={`status-badge ${analysisLoading ? "" : "muted"}`}>{analysisLoading ? t(language, "analysis.loadingChart") : t(language, "analysis.chartMetaEmpty")}</span>
+                  {analysisLoading ? <span className="status-badge">{t(language, "analysis.loadingChart")}</span> : null}
                 </div>
 
                 <form className="analysis-form" onSubmit={handleAnalysisSubmit}>
@@ -2022,7 +2022,7 @@ function App() {
                     <div className="panel-label">{t(language, "analysis.resultTitle")}</div>
                     <h2>{analysisLabel}</h2>
                   </div>
-                  <span className="status-badge muted">{resultCacheText}</span>
+                  {analysisResult ? <span className="status-badge muted">{resultCacheText}</span> : null}
                 </div>
 
                 {analysisLoading ? (
