@@ -1,3 +1,13 @@
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /app
+
+COPY package.json vite.config.js /app/
+COPY frontend /app/frontend
+
+RUN npm install \
+    && npm run build
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -18,6 +28,7 @@ RUN pip install --upgrade pip \
     && pip install -r requirements-server.txt
 
 COPY . /app
+COPY --from=frontend-builder /app/web/dist /app/web/dist
 
 RUN mkdir -p /app/data \
     && chown -R appuser:appuser /app /home/appuser

@@ -12,6 +12,7 @@ The bot:
 
 - Python 3.12
 - `python-telegram-bot`
+- React + Vite for the website frontend
 - Anthropic API
 - OpenAI API for the website API
 - Railway Postgres for website users/auth
@@ -138,6 +139,13 @@ Run the HTTP API for a website with:
 uvicorn api:app --host 0.0.0.0 --port 8000
 ```
 
+For local frontend development:
+
+```bash
+npm install
+npm run dev
+```
+
 Main endpoints:
 
 ```http
@@ -166,7 +174,7 @@ curl -X POST http://localhost:8000/api/analyze \
 Authorization: Bearer <token>
 ```
 
-The frontend is served from `/` on the API service, so you can open the same Railway URL in a browser to use the web app.
+The frontend is served from `/` on the API service after the Vite build runs. In development, Vite serves the UI and proxies `/api` to the backend.
 
 ## Server Notes
 

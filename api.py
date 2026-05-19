@@ -58,9 +58,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-WEB_DIR = Path(__file__).with_name("web")
-if WEB_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=WEB_DIR), name="assets")
+WEB_SOURCE_DIR = Path(__file__).with_name("web")
+WEB_DIST_DIR = WEB_SOURCE_DIR / "dist"
+WEB_DIR = WEB_DIST_DIR if (WEB_DIST_DIR / "index.html").exists() else WEB_SOURCE_DIR
+ASSET_DIR = WEB_DIR / "assets" if WEB_DIR == WEB_DIST_DIR else WEB_DIR
+if ASSET_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=ASSET_DIR), name="assets")
 
 
 class AnalyzeRequest(BaseModel):
