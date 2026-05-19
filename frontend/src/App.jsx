@@ -16,6 +16,22 @@ const TEXTS = {
       copy:
         "Веб-платформа для быстрого анализа компаний: регистрация, вход, профиль, избранное, история и структурированный финансовый отчет с графиками.",
       badges: ["Финансовые отчеты", "Личный кабинет", "Графики и метрики"],
+      ctas: { analysis: "Перейти к анализу", profile: "Открыть профиль" },
+    },
+    dashboard: {
+      title: "Панель показателей",
+      copy: "Ключевые ориентиры по проекту и вашей активности",
+      cards: {
+        companies: "Компаний в каталоге",
+        analyses: "Всего анализов",
+        avgScore: "Средний скор",
+        cached: "Из кэша",
+      },
+      activityTitle: "Активность анализов",
+      activityCopy: "Количество анализов за последние 14 дней",
+      activityEmpty: "Активность появится после нескольких анализов",
+      peak: "Пик",
+      trend: "Тренд",
     },
     main: {
       title: "Что делает сервис",
@@ -178,6 +194,22 @@ const TEXTS = {
       title: "Modern company analysis in one dashboard",
       copy: "A web platform for fast company analysis, authentication, profile management, favorites, history, and financial reporting with charts.",
       badges: ["Financial reports", "Personal dashboard", "Charts and metrics"],
+      ctas: { analysis: "Go to analysis", profile: "Open profile" },
+    },
+    dashboard: {
+      title: "Dashboard",
+      copy: "Project-wide metrics and your recent activity",
+      cards: {
+        companies: "Companies in catalog",
+        analyses: "Total analyses",
+        avgScore: "Average score",
+        cached: "From cache",
+      },
+      activityTitle: "Analysis activity",
+      activityCopy: "Analyses completed over the last 14 days",
+      activityEmpty: "Activity will appear after a few analyses",
+      peak: "Peak",
+      trend: "Trend",
     },
     main: {
       title: "What the service does",
@@ -339,6 +371,22 @@ const TEXTS = {
       title: "Bitta panelda zamonaviy kompaniya tahlili",
       copy: "Kompaniyalarni tez tahlil qilish uchun veb-platforma: ro'yxatdan o'tish, kirish, profil, tanlanganlar, tarix va grafiklar bilan moliyaviy hisobot.",
       badges: ["Moliyaviy hisobotlar", "Shaxsiy kabinet", "Grafiklar va metrikalar"],
+      ctas: { analysis: "Tahlilga o'tish", profile: "Profilni ochish" },
+    },
+    dashboard: {
+      title: "Ko'rsatkichlar paneli",
+      copy: "Loyiha bo'yicha asosiy ko'rsatkichlar va faollik",
+      cards: {
+        companies: "Katalogdagi kompaniyalar",
+        analyses: "Jami tahlillar",
+        avgScore: "O'rtacha baho",
+        cached: "Keshdan",
+      },
+      activityTitle: "Tahlil faolligi",
+      activityCopy: "So'nggi 14 kun ichidagi tahlillar soni",
+      activityEmpty: "Bir nechta tahlildan keyin faollik ko'rinadi",
+      peak: "Cho'qqi",
+      trend: "Trend",
     },
     main: {
       title: "Xizmat nima qiladi",
@@ -644,6 +692,51 @@ function buildSeriesChart(series, language) {
     x,
     y,
   };
+}
+
+function buildActivitySeries(entries, language) {
+  const items = Array.isArray(entries) ? entries : [];
+  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
+  const dayMap = new Map();
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const keyFor = (date) =>
+    [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+
+  for (let offset = 13; offset >= 0; offset -= 1) {
+    const date = new Date(now);
+    date.setDate(now.getDate() - offset);
+    const key = keyFor(date);
+    dayMap.set(key, {
+      key,
+      label: new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(date),
+      shortLabel: new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date),
+      count: 0,
+    });
+  }
+
+  for (const item of items) {
+    const createdAt = item?.created_at;
+    if (!createdAt) continue;
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) continue;
+    date.setHours(0, 0, 0, 0);
+    const key = keyFor(date);
+    const bucket = dayMap.get(key);
+    if (!bucket) continue;
+    bucket.count += 1;
+  }
+
+  const days = Array.from(dayMap.values());
+  const maxCount = Math.max(1, ...days.map((day) => day.count || 0));
+  const total = days.reduce((sum, day) => sum + (day.count || 0), 0);
+  const peak = days.reduce((best, day) => (day.count > (best?.count || 0) ? day : best), days[0] || null);
+
+  return { days, maxCount, total, peak };
 }
 
 function ToastStack({ toasts, onDismiss, language }) {
@@ -1102,6 +1195,33 @@ function App() {
   const profileUser = profile?.user || user;
   const profileAvatar = profileUser?.avatar_data_url;
   const profileCreated = profileUser?.created_at;
+  const activitySeries = buildActivitySeries(profile?.recent_analyses || [], language);
+  const dashboardCards = [
+    {
+      label: t(language, "dashboard.cards.companies"),
+      value: companies.length || 0,
+      sub: t(language, "analysis.availableTitle"),
+      tone: "good",
+    },
+    {
+      label: t(language, "dashboard.cards.analyses"),
+      value: profileStats.total_analyses ?? 0,
+      sub: profile ? t(language, "profile.statsTitle") : t(language, "profile.empty"),
+      tone: "warning",
+    },
+    {
+      label: t(language, "dashboard.cards.avgScore"),
+      value: profile ? profileStats.avg_score ?? "—" : "—",
+      sub: profile ? t(language, "profile.stats.avgScore") : t(language, "analysis.resultEmpty"),
+      tone: "good",
+    },
+    {
+      label: t(language, "dashboard.cards.cached"),
+      value: profileStats.cached_analyses ?? 0,
+      sub: profile ? t(language, "analysis.resultCacheHit") : t(language, "dashboard.trend"),
+      tone: "neutral",
+    },
+  ];
 
   const navItems = ["main", "about", "auth", "profile", "analysis"];
 
@@ -1135,45 +1255,52 @@ function App() {
       <div className="bg-glow bg-glow-b" />
 
       <div className="app-shell">
-        <aside className="sidebar">
-          <div className="brand-block">
+        <header className="topbar">
+          <div className="topbar-brand">
             <div className="brand-mark">UZ</div>
-            <div>
+            <div className="brand-copy">
               <div className="brand-title">{t(language, "brand")}</div>
               <div className="brand-subtitle">{t(language, "subtitle")}</div>
             </div>
           </div>
 
-          <nav className="side-nav">
+          <nav className="topbar-nav">
             {navItems.map((key) => (
-              <button key={key} className={`side-nav-btn ${activeView === key ? "active" : ""}`} type="button" onClick={() => setActiveView(key)}>
+              <button key={key} className={`topbar-nav-btn ${activeView === key ? "active" : ""}`} type="button" onClick={() => setActiveView(key)}>
                 {t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
 
-          <div className="side-card">
-            <label className="field-label" htmlFor="languageSelect">
-              {t(language, "languageLabel")}
-            </label>
-            <select
-              id="languageSelect"
-              className="select-field"
-              value={language}
-              onChange={(event) => setLanguage(normalizeLanguage(event.target.value))}
-            >
-              <option value="ru">{t(language, "languageOptions.ru")}</option>
-              <option value="en">{t(language, "languageOptions.en")}</option>
-              <option value="uz">{t(language, "languageOptions.uz")}</option>
-            </select>
-          </div>
+          <div className="topbar-meta">
+            <div className="topbar-status">
+              <span className="auth-chip-label">{activeView ? t(language, `nav.${activeView}`) : t(language, "nav.main")}</span>
+              <span className={`status-badge ${token ? "" : "muted"}`}>{token ? t(language, "auth.signedIn") : t(language, "auth.signedOut")}</span>
+            </div>
 
-          <div className="side-card auth-chip">
-            <div className="auth-chip-label">{token ? t(language, "auth.signedIn") : t(language, "auth.signedOut")}</div>
-            <div className="auth-chip-name">{profileUser?.full_name || profileUser?.email || "—"}</div>
-            <div className="auth-chip-email">{profileUser?.email || ""}</div>
+            <div className="topbar-controls">
+              <label className="topbar-language">
+                <span className="field-label">{t(language, "languageLabel")}</span>
+                <select
+                  id="languageSelect"
+                  className="select-field"
+                  value={language}
+                  onChange={(event) => setLanguage(normalizeLanguage(event.target.value))}
+                >
+                  <option value="ru">{t(language, "languageOptions.ru")}</option>
+                  <option value="en">{t(language, "languageOptions.en")}</option>
+                  <option value="uz">{t(language, "languageOptions.uz")}</option>
+                </select>
+              </label>
+
+              <div className="auth-chip topbar-auth-chip">
+                <div className="auth-chip-label">{token ? t(language, "auth.signedIn") : t(language, "auth.signedOut")}</div>
+                <div className="auth-chip-name">{profileUser?.full_name || profileUser?.email || "—"}</div>
+                <div className="auth-chip-email">{profileUser?.email || ""}</div>
+              </div>
+            </div>
           </div>
-        </aside>
+        </header>
 
         <main className="content">
           <section className="hero-panel">
@@ -1181,12 +1308,50 @@ function App() {
               <div className="eyebrow">{t(language, "subtitle")}</div>
               <h1>{t(language, "hero.title")}</h1>
               <p>{t(language, "hero.copy")}</p>
+              <div className="hero-actions">
+                <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
+                  {TEXTS[language].hero.ctas.analysis}
+                </button>
+                <button className="ghost-btn" type="button" onClick={() => setActiveView("profile")}>
+                  {TEXTS[language].hero.ctas.profile}
+                </button>
+              </div>
             </div>
             <div className="hero-badges">
               {TEXTS[language].hero.badges.map((badge) => (
                 <span key={badge}>{badge}</span>
               ))}
             </div>
+          </section>
+
+          <section className="dashboard-overview">
+            <article className="panel overview-panel">
+              <div className="panel-head">
+                <div>
+                  <div className="panel-label">{t(language, "dashboard.title")}</div>
+                  <h2>{t(language, "dashboard.title")}</h2>
+                </div>
+                <span className="status-badge muted">{t(language, "dashboard.copy")}</span>
+              </div>
+              <div className="overview-grid">
+                {dashboardCards.map((card) => (
+                  <StatCard key={card.label} {...card} />
+                ))}
+              </div>
+            </article>
+
+            <article className="panel activity-panel">
+              <div className="panel-head">
+                <div>
+                  <div className="panel-label">{t(language, "dashboard.activityTitle")}</div>
+                  <h2>{t(language, "dashboard.activityTitle")}</h2>
+                </div>
+                <span className="status-badge muted">
+                  {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}` : t(language, "dashboard.activityEmpty")}
+                </span>
+              </div>
+              <ActivityChart series={activitySeries} language={language} />
+            </article>
           </section>
 
           {activeView === "main" && (
@@ -1862,6 +2027,67 @@ function AnalysisChart({ chartData, language }) {
       <div className="chart-axis-note">
         <span>{filtered[0]?.year || ""}</span>
         <span>{filtered.at(-1)?.year || ""}</span>
+      </div>
+    </div>
+  );
+}
+
+function ActivityChart({ series, language }) {
+  const hasData = Boolean(series?.days?.some((day) => day.count > 0));
+
+  if (!hasData) {
+    return (
+      <div className="activity-chart empty-state">
+        <p className="empty-copy">{t(language, "dashboard.activityEmpty")}</p>
+      </div>
+    );
+  }
+
+  const width = 1000;
+  const height = 280;
+  const padding = { left: 20, right: 20, top: 20, bottom: 44 };
+  const innerWidth = width - padding.left - padding.right;
+  const innerHeight = height - padding.top - padding.bottom;
+  const barGap = 12;
+  const barWidth = (innerWidth - barGap * (series.days.length - 1)) / series.days.length;
+
+  return (
+    <div className="activity-chart">
+      <svg className="activity-chart-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t(language, "dashboard.activityTitle")}>
+        <defs>
+          <linearGradient id="activityBarGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.92" />
+            <stop offset="100%" stopColor="#10b981" stopOpacity="0.34" />
+          </linearGradient>
+        </defs>
+        {series.days.map((day, index) => {
+          const barHeight = ((day.count || 0) / series.maxCount) * innerHeight;
+          const x = padding.left + index * (barWidth + barGap);
+          const y = padding.top + innerHeight - barHeight;
+          return (
+            <g key={day.key}>
+              <rect x={x} y={padding.top} width={barWidth} height={innerHeight} rx="16" className="activity-bar-track" />
+              <rect x={x} y={y} width={barWidth} height={barHeight} rx="16" className="activity-bar" />
+              <text x={x + barWidth / 2} y={height - 16} textAnchor="middle" className="activity-axis-label">
+                {day.shortLabel}
+              </text>
+              <text x={x + barWidth / 2} y={Math.max(y - 10, 16)} textAnchor="middle" className="activity-value">
+                {day.count}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="activity-footer">
+        <div>
+          <span className="activity-footer-label">{t(language, "dashboard.activityCopy")}</span>
+          <strong>{series.total}</strong>
+        </div>
+        <div>
+          <span className="activity-footer-label">{t(language, "dashboard.peak")}</span>
+          <strong>{series.peak ? series.peak.label : "—"}</strong>
+        </div>
       </div>
     </div>
   );
