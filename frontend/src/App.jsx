@@ -15,6 +15,7 @@ const TEXTS = {
       title: "Современный анализ компаний в одном интерфейсе",
       copy:
         "Веб-платформа для быстрого анализа компаний: регистрация, вход, профиль, избранное, история и структурированный финансовый отчет с графиками.",
+      badges: ["Финансовые отчеты", "Личный кабинет", "Графики и метрики"],
     },
     main: {
       title: "Что делает сервис",
@@ -176,6 +177,7 @@ const TEXTS = {
     hero: {
       title: "Modern company analysis in one dashboard",
       copy: "A web platform for fast company analysis, authentication, profile management, favorites, history, and financial reporting with charts.",
+      badges: ["Financial reports", "Personal dashboard", "Charts and metrics"],
     },
     main: {
       title: "What the service does",
@@ -336,6 +338,7 @@ const TEXTS = {
     hero: {
       title: "Bitta panelda zamonaviy kompaniya tahlili",
       copy: "Kompaniyalarni tez tahlil qilish uchun veb-platforma: ro'yxatdan o'tish, kirish, profil, tanlanganlar, tarix va grafiklar bilan moliyaviy hisobot.",
+      badges: ["Moliyaviy hisobotlar", "Shaxsiy kabinet", "Grafiklar va metrikalar"],
     },
     main: {
       title: "Xizmat nima qiladi",
@@ -1180,9 +1183,9 @@ function App() {
               <p>{t(language, "hero.copy")}</p>
             </div>
             <div className="hero-badges">
-              <span>OpenAI GPT-5.4 mini</span>
-              <span>Railway Postgres</span>
-              <span>React + Vite</span>
+              {TEXTS[language].hero.badges.map((badge) => (
+                <span key={badge}>{badge}</span>
+              ))}
             </div>
           </section>
 
