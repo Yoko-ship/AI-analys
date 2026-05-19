@@ -62,6 +62,15 @@ const els = {
   gradeValue: document.getElementById("gradeValue"),
   verdictValue: document.getElementById("verdictValue"),
   summaryValue: document.getElementById("summaryValue"),
+  chartTitle: document.getElementById("chartTitle"),
+  chartMeta: document.getElementById("chartMeta"),
+  analysisChart: document.getElementById("analysisChart"),
+  revenueSignal: document.getElementById("revenueSignal"),
+  revenueSignalSub: document.getElementById("revenueSignalSub"),
+  marginSignal: document.getElementById("marginSignal"),
+  marginSignalSub: document.getElementById("marginSignalSub"),
+  riskSignal: document.getElementById("riskSignal"),
+  riskSignalSub: document.getElementById("riskSignalSub"),
   resultFavoriteBtn: document.getElementById("resultFavoriteBtn"),
   metricsGrid: document.getElementById("metricsGrid"),
   sectionsWrap: document.getElementById("sectionsWrap"),
@@ -917,6 +926,16 @@ function applyLanguage(language = state.language) {
   setText(".score-caption", t("analysis.scoreCaption"));
   setText("#verdictValue", t("analysis.verdictPlaceholder"));
   setText("#resultFavoriteBtn", t("analysis.favoriteAdd"));
+  const analysisText = getAnalysisLocaleText();
+  setText("#chartTitle", analysisText.chartTitle);
+  setText("#chartMeta", analysisText.chartMetaEmpty);
+  const miniLabels = document.querySelectorAll(".mini-market-label");
+  if (miniLabels[0]) miniLabels[0].textContent = analysisText.signalRevenue;
+  if (miniLabels[1]) miniLabels[1].textContent = analysisText.signalMargin;
+  if (miniLabels[2]) miniLabels[2].textContent = analysisText.signalRisk;
+  if (els.analysisChart && !state.lastResult) {
+    setAnalysisChartEmpty(analysisText.chartEmpty);
+  }
   setText('#view-analysis .metrics-panel .panel-label', t("analysis.metricsLabel"));
   setText('#view-analysis .metrics-panel h2', t("analysis.metricsTitle"));
   setText('#view-analysis .sections-panel .panel-label', t("analysis.sectionsLabel"));
@@ -1044,6 +1063,351 @@ function formatDateLabel(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatCompactNumber(value, digits = 1) {
+  if (value === undefined || value === null || value === "") return "—";
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+  const locale = state.language === "en" ? "en-US" : state.language === "uz" ? "uz-Latn-UZ" : "ru-RU";
+  const formatter = new Intl.NumberFormat(locale, {
+    notation: Math.abs(num) >= 1000 ? "compact" : "standard",
+    maximumFractionDigits: digits,
+  });
+  return formatter.format(num);
+}
+
+function formatSignedPercent(value, digits = 1) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+  const fixed = Number(num.toFixed(digits));
+  const sign = fixed > 0 ? "+" : "";
+  return `${sign}${fixed}%`;
+}
+
+function formatRatio(value, digits = 2) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+  const locale = state.language === "en" ? "en-US" : state.language === "uz" ? "uz-Latn-UZ" : "ru-RU";
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  }).format(num);
+}
+
+function getAnalysisLocaleText() {
+  if (state.language === "en") {
+    return {
+      chartTitle: "Revenue and profit trend",
+      chartEmpty: "The chart will appear after the first analysis.",
+      chartMetaEmpty: "No data",
+      chartMetaYears: "{count} annual periods",
+      chartLegendRevenue: "Revenue",
+      chartLegendProfit: "Net income",
+      signalTrend: "Trend",
+      signalLatest: "Latest",
+      signalUp: "Positive",
+      signalFlat: "Stable",
+      signalDown: "Under pressure",
+      signalNoData: "No data",
+    };
+  }
+  if (state.language === "uz") {
+    return {
+      chartTitle: "Tushum va foyda dinamikasi",
+      chartEmpty: "Grafik birinchi tahlildan so'ng paydo bo'ladi.",
+      chartMetaEmpty: "Ma'lumot yo'q",
+      chartMetaYears: "{count} yillik davr",
+      chartLegendRevenue: "Tushum",
+      chartLegendProfit: "Sof foyda",
+      signalTrend: "Trend",
+      signalLatest: "So'nggi",
+      signalUp: "Ijobiy",
+      signalFlat: "Barqaror",
+      signalDown: "Bosim ostida",
+      signalNoData: "Ma'lumot yo'q",
+    };
+  }
+  return {
+    chartTitle: "Динамика выручки и прибыли",
+    chartEmpty: "График появится после первого анализа.",
+    chartMetaEmpty: "Нет данных",
+    chartMetaYears: "{count} годовых периодов",
+    chartLegendRevenue: "Выручка",
+    chartLegendProfit: "Чистая прибыль",
+    signalTrend: "Тренд",
+    signalLatest: "Последнее",
+    signalUp: "Позитивный",
+    signalFlat: "Стабильно",
+    signalDown: "Под давлением",
+    signalNoData: "Недостаточно данных",
+  };
+}
+
+function scaleSeries(values, width, height, padding) {
+  const finite = values.filter((value) => Number.isFinite(value));
+  if (!finite.length) return null;
+
+  let min = Math.min(...finite);
+  let max = Math.max(...finite);
+  if (min > 0) min = 0;
+  if (max < 0) max = 0;
+
+  let range = max - min;
+  if (range === 0) {
+    const base = Math.max(Math.abs(max), 1);
+    min -= base * 0.5;
+    max += base * 0.5;
+    range = max - min;
+  } else {
+    const pad = range * 0.12;
+    min -= pad;
+    max += pad;
+    range = max - min;
+  }
+
+  const innerWidth = Math.max(1, width - padding.left - padding.right);
+  const innerHeight = Math.max(1, height - padding.top - padding.bottom);
+
+  const x = (index, total) => padding.left + (total <= 1 ? innerWidth / 2 : (index / (total - 1)) * innerWidth);
+  const y = (value) => padding.top + ((max - value) / range) * innerHeight;
+
+  return { min, max, range, x, y, innerWidth, innerHeight };
+}
+
+function buildPath(points) {
+  if (!points.length) return "";
+  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+}
+
+function setAnalysisChartEmpty(message = "") {
+  const text = message || getAnalysisLocaleText().chartEmpty;
+  if (els.analysisChart) {
+    els.analysisChart.classList.add("empty-state");
+    els.analysisChart.innerHTML = `<p class="empty-copy">${escapeHtml(text)}</p>`;
+  }
+  if (els.chartTitle) els.chartTitle.textContent = getAnalysisLocaleText().chartTitle;
+  if (els.chartMeta) els.chartMeta.textContent = getAnalysisLocaleText().chartMetaEmpty;
+  if (els.revenueSignal) els.revenueSignal.textContent = "—";
+  if (els.revenueSignalSub) els.revenueSignalSub.textContent = getAnalysisLocaleText().signalNoData;
+  if (els.marginSignal) els.marginSignal.textContent = "—";
+  if (els.marginSignalSub) els.marginSignalSub.textContent = getAnalysisLocaleText().signalNoData;
+  if (els.riskSignal) els.riskSignal.textContent = "—";
+  if (els.riskSignalSub) els.riskSignalSub.textContent = getAnalysisLocaleText().signalNoData;
+  [els.revenueSignal, els.marginSignal, els.riskSignal].forEach((el) => {
+    el?.closest(".mini-market-card")?.setAttribute("data-tone", "neutral");
+  });
+}
+
+function renderMiniSignal(cardEl, valueEl, subEl, { value, sub, tone = "neutral" }) {
+  if (!cardEl || !valueEl || !subEl) return;
+  cardEl.dataset.tone = tone;
+  valueEl.textContent = value ?? "—";
+  subEl.textContent = sub ?? getAnalysisLocaleText().signalNoData;
+}
+
+function renderAnalysisChart(data = {}) {
+  if (!els.analysisChart) return;
+
+  const langText = getAnalysisLocaleText();
+  const series = Array.isArray(data.ifrs_snapshot?.series?.annual) ? data.ifrs_snapshot.series.annual : [];
+  const points = series
+    .map((row) => ({
+      year: row?.year,
+      revenue: Number(row?.revenue),
+      profit: Number(row?.net_income),
+    }))
+    .filter((row) => row.year !== undefined && row.year !== null && (Number.isFinite(row.revenue) || Number.isFinite(row.profit)));
+
+  if (points.length < 2) {
+    setAnalysisChartEmpty(langText.chartEmpty);
+    return;
+  }
+
+  const width = 1000;
+  const height = 340;
+  const padding = { left: 74, right: 24, top: 28, bottom: 44 };
+  const scale = scaleSeries(points.flatMap((point) => [point.revenue, point.profit]), width, height, padding);
+
+  if (!scale) {
+    setAnalysisChartEmpty(langText.chartEmpty);
+    return;
+  }
+
+  const revenuePathPoints = points.map((point, index) => ({
+    x: scale.x(index, points.length),
+    y: scale.y(Number.isFinite(point.revenue) ? point.revenue : scale.min),
+  }));
+  const profitPathPoints = points.map((point, index) => ({
+    x: scale.x(index, points.length),
+    y: scale.y(Number.isFinite(point.profit) ? point.profit : scale.min),
+  }));
+
+  const zeroY = scale.y(0);
+  const revenuePath = buildPath(revenuePathPoints);
+  const profitPath = buildPath(profitPathPoints);
+  const areaPath =
+    revenuePathPoints.length >= 2
+      ? `${revenuePath} L ${revenuePathPoints.at(-1).x.toFixed(2)} ${zeroY.toFixed(2)} L ${revenuePathPoints[0].x.toFixed(2)} ${zeroY.toFixed(2)} Z`
+      : "";
+
+  const ticks = 4;
+  const yTicks = Array.from({ length: ticks + 1 }, (_, index) => {
+    const ratio = index / ticks;
+    const value = scale.max - ratio * scale.range;
+    const y = padding.top + ratio * scale.innerHeight;
+    return { value, y };
+  });
+
+  const xLabels = points.map((point, index) => ({
+    x: scale.x(index, points.length),
+    label: String(point.year ?? ""),
+  }));
+
+  const latest = points.at(-1);
+  const previous = points.at(-2) || {};
+  const revenueChange = Number.isFinite(latest.revenue) && Number.isFinite(previous.revenue)
+    ? ((latest.revenue - previous.revenue) / Math.abs(previous.revenue || 1)) * 100
+    : null;
+  const profitChange = Number.isFinite(latest.profit) && Number.isFinite(previous.profit)
+    ? ((latest.profit - previous.profit) / Math.abs(previous.profit || 1)) * 100
+    : null;
+
+  const chartMeta = `${points[0].year}–${latest.year} · ${langText.chartMetaYears.replace("{count}", String(points.length))}`;
+  els.chartTitle.textContent = langText.chartTitle;
+  els.chartMeta.textContent = chartMeta;
+  els.analysisChart.classList.remove("empty-state");
+  els.analysisChart.innerHTML = `
+    <svg class="result-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(langText.chartTitle)}">
+      <defs>
+        <linearGradient id="revenueAreaGradient" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="#6ef0c1" stop-opacity="0.42" />
+          <stop offset="100%" stop-color="#6ef0c1" stop-opacity="0.02" />
+        </linearGradient>
+      </defs>
+      ${yTicks
+        .map(
+          (tick) => `
+            <line x1="${padding.left}" y1="${tick.y.toFixed(2)}" x2="${width - padding.right}" y2="${tick.y.toFixed(2)}" class="chart-grid-line"></line>
+            <text x="${padding.left - 10}" y="${(tick.y + 4).toFixed(2)}" class="chart-axis-label chart-axis-label-y" text-anchor="end">${escapeHtml(formatCompactNumber(tick.value))}</text>
+          `
+        )
+        .join("")}
+      ${areaPath ? `<path d="${areaPath}" class="chart-area"></path>` : ""}
+      <path d="${revenuePath}" class="chart-line chart-line-revenue"></path>
+      <path d="${profitPath}" class="chart-line chart-line-profit"></path>
+      ${points
+        .map(
+          (point, index) => `
+            <circle cx="${scale.x(index, points.length).toFixed(2)}" cy="${scale.y(Number.isFinite(point.revenue) ? point.revenue : scale.min).toFixed(2)}" r="4.8" class="chart-dot chart-dot-revenue"></circle>
+            <circle cx="${scale.x(index, points.length).toFixed(2)}" cy="${scale.y(Number.isFinite(point.profit) ? point.profit : scale.min).toFixed(2)}" r="4.8" class="chart-dot chart-dot-profit"></circle>
+          `
+        )
+        .join("")}
+      ${xLabels
+        .map(
+          (item) => `
+            <text x="${item.x.toFixed(2)}" y="${height - 16}" class="chart-axis-label chart-axis-label-x" text-anchor="middle">${escapeHtml(item.label)}</text>
+          `
+        )
+        .join("")}
+    </svg>
+    <div class="chart-legend">
+      <div class="legend-chip">
+        <span class="legend-swatch legend-swatch-revenue"></span>
+        <span class="legend-label">${escapeHtml(langText.chartLegendRevenue)}</span>
+        <strong class="legend-value">${escapeHtml(formatCompactNumber(latest.revenue))}</strong>
+        <span class="legend-delta ${revenueChange === null ? "" : revenueChange >= 0 ? "is-up" : "is-down"}">${escapeHtml(revenueChange === null ? "—" : formatSignedPercent(revenueChange))}</span>
+      </div>
+      <div class="legend-chip">
+        <span class="legend-swatch legend-swatch-profit"></span>
+        <span class="legend-label">${escapeHtml(langText.chartLegendProfit)}</span>
+        <strong class="legend-value">${escapeHtml(formatCompactNumber(latest.profit))}</strong>
+        <span class="legend-delta ${profitChange === null ? "" : profitChange >= 0 ? "is-up" : "is-down"}">${escapeHtml(profitChange === null ? "—" : formatSignedPercent(profitChange))}</span>
+      </div>
+    </div>
+    <div class="chart-axis-note">
+      <span>${escapeHtml(xLabels[0]?.label || "")}</span>
+      <span>${escapeHtml(xLabels.at(-1)?.label || "")}</span>
+    </div>
+  `;
+
+  const revenueTone = revenueChange === null ? "neutral" : revenueChange >= 10 ? "good" : revenueChange >= 0 ? "warning" : "danger";
+  const netMargin = Number(data.ifrs_snapshot?.income_statement?.net_margin_pct);
+  const roe = Number(data.ifrs_snapshot?.quality?.roe_pct);
+  const roa = Number(data.ifrs_snapshot?.quality?.roa_pct);
+  const marginTone = Number.isFinite(netMargin)
+    ? netMargin >= 15
+      ? "good"
+      : netMargin >= 5
+        ? "warning"
+        : "danger"
+    : Number.isFinite(roe)
+      ? roe >= 15
+        ? "good"
+        : roe >= 5
+          ? "warning"
+          : "danger"
+      : "neutral";
+  const marginValue = Number.isFinite(netMargin) ? `${formatSignedPercent(netMargin)}` : Number.isFinite(roe) ? `${formatSignedPercent(roe)}` : langText.signalNoData;
+  const marginSub = [
+    Number.isFinite(roe) ? `ROE ${formatSignedPercent(roe)}` : "",
+    Number.isFinite(roa) ? `ROA ${formatSignedPercent(roa)}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const balanceSheet = data.ifrs_snapshot?.balance_sheet || {};
+  const riskScore = Number(data.metrics?.altman_z_score?.score ?? data.ifrs_snapshot?.quality?.altman?.score);
+  const debtToEquity = Number(balanceSheet.debt_to_equity);
+  const currentRatio = Number(balanceSheet.current_ratio);
+  let riskTone = "neutral";
+  let riskValue = langText.signalNoData;
+  if (Number.isFinite(riskScore)) {
+    if (riskScore > 2.99) {
+      riskTone = "good";
+      riskValue = langText.signalUp;
+    } else if (riskScore > 1.81) {
+      riskTone = "warning";
+      riskValue = langText.signalFlat;
+    } else {
+      riskTone = "danger";
+      riskValue = langText.signalDown;
+    }
+  } else if (Number.isFinite(debtToEquity) || Number.isFinite(currentRatio)) {
+    if (Number.isFinite(debtToEquity) && debtToEquity <= 0.8 && Number.isFinite(currentRatio) && currentRatio >= 1.3) {
+      riskTone = "good";
+      riskValue = langText.signalUp;
+    } else if (Number.isFinite(debtToEquity) && debtToEquity >= 2) {
+      riskTone = "danger";
+      riskValue = langText.signalDown;
+    } else {
+      riskTone = "warning";
+      riskValue = langText.signalFlat;
+    }
+  }
+
+  renderMiniSignal(els.revenueSignal?.closest(".mini-market-card"), els.revenueSignal, els.revenueSignalSub, {
+    value: formatCompactNumber(latest.revenue),
+    sub: revenueChange === null ? langText.signalNoData : `${langText.signalTrend} ${formatSignedPercent(revenueChange)} · ${langText.signalLatest} ${latest.year}`,
+    tone: revenueTone,
+  });
+  renderMiniSignal(els.marginSignal?.closest(".mini-market-card"), els.marginSignal, els.marginSignalSub, {
+    value: marginValue,
+    sub: marginSub || langText.signalNoData,
+    tone: marginTone,
+  });
+  renderMiniSignal(els.riskSignal?.closest(".mini-market-card"), els.riskSignal, els.riskSignalSub, {
+    value: riskValue,
+    sub: [
+      Number.isFinite(riskScore) ? `Altman ${formatRatio(riskScore, 2)}` : "",
+      Number.isFinite(debtToEquity) ? `D/E ${formatRatio(debtToEquity, 2)}` : "",
+      Number.isFinite(currentRatio) ? `CR ${formatRatio(currentRatio, 2)}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") || langText.signalNoData,
+    tone: riskTone,
+  });
 }
 
 function getFavoriteTickers(profile = state.profile) {
@@ -1389,6 +1753,7 @@ function clearResults() {
   if (els.resultHero) {
     els.resultHero.classList.remove("is-loading");
   }
+  setAnalysisChartEmpty();
   if (els.metricsGrid) {
     els.metricsGrid.classList.add("empty-state");
     els.metricsGrid.innerHTML = `<p class="empty-copy">${escapeHtml(t("analysis.metricsEmpty"))}</p>`;
@@ -1422,6 +1787,35 @@ function setLoadingSkeleton(company) {
   if (els.summaryValue) {
     els.summaryValue.textContent = "";
   }
+  if (els.chartTitle) {
+    els.chartTitle.textContent = getAnalysisLocaleText().chartTitle;
+  }
+  if (els.chartMeta) {
+    els.chartMeta.textContent = t("analysis.loadingCache");
+  }
+  if (els.analysisChart) {
+    els.analysisChart.classList.remove("empty-state");
+    els.analysisChart.innerHTML = `
+      <div class="chart-skeleton">
+        <div class="chart-skeleton-grid">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="chart-skeleton-wave">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    `;
+  }
+  const analysisText = getAnalysisLocaleText();
+  if (els.revenueSignal) els.revenueSignal.textContent = "—";
+  if (els.revenueSignalSub) els.revenueSignalSub.textContent = analysisText.signalNoData;
+  if (els.marginSignal) els.marginSignal.textContent = "—";
+  if (els.marginSignalSub) els.marginSignalSub.textContent = analysisText.signalNoData;
+  if (els.riskSignal) els.riskSignal.textContent = "—";
+  if (els.riskSignalSub) els.riskSignalSub.textContent = analysisText.signalNoData;
+  [els.revenueSignal, els.marginSignal, els.riskSignal].forEach((el) => {
+    el?.closest(".mini-market-card")?.setAttribute("data-tone", "neutral");
+  });
 
   if (els.metricsGrid) {
     els.metricsGrid.classList.remove("empty-state");
@@ -1616,6 +2010,7 @@ function renderResult(data) {
   els.verdictValue.textContent = verdict || t("analysis.verdictPlaceholder");
   els.summaryValue.textContent = itog || "";
 
+  renderAnalysisChart(data);
   renderMetrics(data.metrics || {});
   renderSections(data.sections || {});
   renderResultFavoriteButton();

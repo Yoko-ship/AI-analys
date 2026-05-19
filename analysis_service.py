@@ -354,6 +354,35 @@ def _build_ifrs_snapshot(
             "grade": metrics.get("total_score", {}).get("grade") if isinstance(metrics, dict) else None,
             "summary": metrics.get("total_score", {}).get("summary") if isinstance(metrics, dict) else None,
         },
+        "series": {
+            "annual": [
+                {
+                    "year": row.get("year"),
+                    "revenue": _safe_float(row.get("revenue")),
+                    "gross_profit": _safe_float(row.get("gross_profit")),
+                    "ebit": _safe_float(row.get("ebit")),
+                    "net_income": _safe_float(row.get("net_income")),
+                    "equity": _safe_float(row.get("equity")),
+                    "total_assets": _safe_float(row.get("total_assets")),
+                    "current_ratio": _safe_float(row.get("current_ratio")),
+                    "debt_to_equity_ratio": _safe_float(row.get("debt_to_equity_ratio")),
+                    "net_profit_margin": _safe_float(row.get("net_profit_margin")),
+                }
+                for row in annual_data
+                if isinstance(row, dict)
+            ],
+            "quarterly": [
+                {
+                    "period": row.get("period"),
+                    "revenue": _safe_float(row.get("revenue")),
+                    "gross_profit": _safe_float(row.get("gross_profit")),
+                    "ebit": _safe_float(row.get("ebit")),
+                    "net_income": _safe_float(row.get("net_income")),
+                }
+                for row in quarterly_data
+                if isinstance(row, dict)
+            ],
+        },
         "flags": {
             "green": green_flags,
             "red": red_flags,
