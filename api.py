@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+from functools import partial
 from urllib.parse import quote, urlencode
 from pathlib import Path
 from typing import Any, Literal
@@ -15,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from analysis_service import build_summary, run_company_analysis
 from company_catalog import COMPANY_CATALOG
+from openinfo_collector import collect_company_data
 from web_auth import WebUser, web_auth_store
 
 logger = logging.getLogger(__name__)
@@ -72,6 +75,14 @@ class AnalyzeRequest(BaseModel):
     force_refresh: bool = False
     include_html: bool = False
     include_raw: bool = False
+
+
+class CompanyDataRequest(BaseModel):
+    company: str = Field(..., min_length=1, max_length=200)
+    history_months: int = Field(default=6, ge=1, le=60)
+    include_raw_reports: bool = False
+    include_document_previews: bool = False
+    validate_documents: bool = False
 
 
 class RegisterRequest(BaseModel):
@@ -399,6 +410,38 @@ async def api_oauth_google_callback(request: Request, code: str | None = None, e
     return _oauth_success("google", token)
 
 
+@app.post("/api/company-data")
+async def api_company_data(
+    payload: CompanyDataRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> dict[str, Any]:
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(
+                collect_company_data,
+                payload.company,
+                history_months=payload.history_months,
+                include_raw_reports=payload.include_raw_reports,
+                include_document_previews=payload.include_document_previews,
+                validate_documents=payload.validate_documents,
+            ),
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"OpenInfo request failed: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Company data collection failed for %s", payload.company)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    result["requested_by"] = current_user.to_public_dict()
+    return _json_safe(result)
+
+
 @app.post("/api/analyze")
 async def api_analyze(
     payload: AnalyzeRequest,
@@ -434,6 +477,10 @@ async def api_analyze(
         "metrics": result.get("metrics"),
         "ifrs_snapshot": result.get("ifrs_snapshot"),
         "liquidity": result.get("liquidity"),
+        "market_data": result.get("market_data"),
+        "market_context": result.get("market_context"),
+        "analysis_policy_version": result.get("analysis_policy_version"),
+        "analysis_policy": result.get("analysis_policy"),
         "requested_by": current_user.to_public_dict(),
     }
 
