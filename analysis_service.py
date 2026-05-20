@@ -25,11 +25,13 @@ from analyzer import (
 )
 from cache import cache as analysis_cache
 from main import get_data
+from openinfo_collector import collect_company_data
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("api_key")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip() or "gpt-5.4-mini"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low").strip().lower() or "low"
+ANALYSIS_POLICY_VERSION = "public-information-v2-market-data"
 
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY is required for the API service")
@@ -54,6 +56,44 @@ ANALYSIS_STYLE_NOTE = (
     "Убирай канцелярит, маркетинг и длинные вступления. "
     "Каждая секция должна содержать только то, что реально помогает принять решение."
 )
+
+PUBLIC_ANALYSIS_POLICY = """
+Публичный информационный контур анализа:
+- Разрешено: фактический разбор отчетности, расчетных метрик, ликвидности бумаги, котировок, графиков цен, объемов торгов, эмитентов, облигаций, новостей, листинга/делистинга, режимов торгов, тарифов, терминов фондового рынка и общерыночной статистики, если эти данные явно переданы в текущем наборе.
+- Если котировки, графики цен, объемы торгов, облигации, новости, листинг/делистинг, режимы торгов, тарифы, термины или общерыночная статистика не переданы, прямо напиши: "Нет данных в текущем наборе"; не придумывай их.
+- Запрещено: персональные данные, прогнозная аналитика, инвестиционные рекомендации, индивидуальные аналитические выводы и юридические заключения.
+- Не используй формулировки "покупать", "продавать", "держать", "набирать позицию", "размер позиции", "целевая цена", "ожидаемая доходность".
+- Вердикт должен быть информационным статусом качества отчетности и риска, а не рекомендацией к сделке.
+""".strip()
+
+PUBLIC_ANALYSIS_POLICY_META = {
+    "version": ANALYSIS_POLICY_VERSION,
+    "scope": "public_information",
+    "allowed": [
+        "quotes",
+        "price_charts",
+        "trading_volumes",
+        "dividends",
+        "report_documents",
+        "issuers",
+        "bonds",
+        "news",
+        "listing_delisting",
+        "trading_modes",
+        "tariffs",
+        "market_terms",
+        "market_statistics",
+        "financial_statements",
+        "calculated_metrics",
+    ],
+    "excluded": [
+        "personal_data",
+        "forecast_analytics",
+        "investment_recommendations",
+        "individual_analytical_conclusions",
+        "legal_opinions",
+    ],
+}
 
 LANGUAGE_HINTS = {
     "ru": {
@@ -138,6 +178,132 @@ def _growth_pct(current, previous):
     if curr is None or prev in (None, 0):
         return None
     return round((curr - prev) / abs(prev) * 100, 2)
+
+
+def _build_fibonacci_levels(points: list[dict]) -> dict:
+    cleaned = []
+    for point in points or []:
+        high = _safe_float(point.get("high"))
+        low = _safe_float(point.get("low"))
+        close = _safe_float(point.get("close"))
+        date_value = point.get("date")
+        if high is None or low is None:
+            continue
+        cleaned.append({"date": date_value, "high": high, "low": low, "close": close})
+
+    if len(cleaned) < 2:
+        return {"status": "not_enough_price_history"}
+
+    swing_high = max(cleaned, key=lambda item: item["high"])
+    swing_low = min(cleaned, key=lambda item: item["low"])
+    high = swing_high["high"]
+    low = swing_low["low"]
+    if high <= low:
+        return {"status": "flat_price_range"}
+
+    price_range = high - low
+    latest_close = next(
+        (item["close"] for item in reversed(cleaned) if item.get("close") is not None),
+        None,
+    )
+    levels = {
+        "0.0": round(high, 4),
+        "23.6": round(high - price_range * 0.236, 4),
+        "38.2": round(high - price_range * 0.382, 4),
+        "50.0": round(high - price_range * 0.5, 4),
+        "61.8": round(high - price_range * 0.618, 4),
+        "78.6": round(high - price_range * 0.786, 4),
+        "100.0": round(low, 4),
+    }
+    return {
+        "status": "ok",
+        "swing_high": {"date": swing_high.get("date"), "price": round(high, 4)},
+        "swing_low": {"date": swing_low.get("date"), "price": round(low, 4)},
+        "latest_close": round(latest_close, 4) if latest_close is not None else None,
+        "levels": levels,
+    }
+
+
+def _compact_market_context(company_data: dict | None) -> dict:
+    if not company_data or not company_data.get("ok"):
+        return {
+            "status": "not_available",
+            "error": (company_data or {}).get("error"),
+        }
+
+    security = company_data.get("security") or {}
+    market = company_data.get("market") or {}
+    price_history = market.get("price_history") or {}
+    points = price_history.get("points") or []
+    sorted_points = sorted(points, key=lambda item: str(item.get("date") or ""))
+    recent_points = [
+        {
+            "date": point.get("date"),
+            "open": _safe_float(point.get("open")),
+            "close": _safe_float(point.get("close")),
+            "high": _safe_float(point.get("high")),
+            "low": _safe_float(point.get("low")),
+            "trading_volume": _safe_float(point.get("trading_volume")),
+            "trading_value": _safe_float(point.get("trading_value")),
+        }
+        for point in sorted_points[-30:]
+    ]
+
+    reports = (company_data.get("reports") or {}).get("items") or []
+    report_documents = [
+        {
+            "published_at": item.get("published_at"),
+            "report_form": item.get("report_form"),
+            "period_type": item.get("period_type"),
+            "title": item.get("title"),
+            "pdf_available": bool(item.get("pdf_url")),
+            "excel_available": bool(item.get("excel_url")),
+            "pdf_url": item.get("pdf_url"),
+            "excel_url": item.get("excel_url"),
+        }
+        for item in reports[:10]
+    ]
+
+    dividends = (company_data.get("dividends") or {}).get("items") or []
+    dividend_items = [
+        {
+            "decision_date": item.get("decision_date"),
+            "pub_date": item.get("pub_date"),
+            "ticker": item.get("ticker"),
+            "common_share_amount": _safe_float(item.get("common_share_amount")),
+            "common_share_percent": _safe_float(item.get("common_share_percent")),
+            "privileged_share_amount": _safe_float(item.get("priviliged_share_amount")),
+            "privileged_share_percent": _safe_float(item.get("priviliged_share_percent")),
+            "link": item.get("link"),
+        }
+        for item in dividends[:5]
+    ]
+
+    return {
+        "status": "ok",
+        "company": company_data.get("company") or {},
+        "security": {
+            "ticker": security.get("ticker"),
+            "isin_code": security.get("isin_code"),
+            "issuer_short_name": security.get("issuer_short_name"),
+            "stock_type": security.get("stock_type"),
+            "market_id": security.get("market_id"),
+            "board_id": security.get("board_id"),
+        },
+        "market_summary": market.get("summary") or {},
+        "price_history_source": price_history.get("source_url"),
+        "recent_price_history": recent_points,
+        "fibonacci_levels": _build_fibonacci_levels(sorted_points),
+        "dividends": {
+            "count": (company_data.get("dividends") or {}).get("count", 0),
+            "items": dividend_items,
+        },
+        "report_documents": {
+            "count": (company_data.get("reports") or {}).get("count", 0),
+            "items": report_documents,
+        },
+        "accounting_api_summary": (company_data.get("accounting") or {}).get("summary") or {},
+    }
 
 
 def _build_ifrs_snapshot(
@@ -590,7 +756,8 @@ def _analysis_prompt_v2(
     quarterly_data: list,
     liquidity_data: dict | None,
     language: str = "ru",
-) -> tuple[str, dict, dict, str, str, dict]:
+    company_data: dict | None = None,
+) -> tuple[str, dict, dict, str, str, dict, dict]:
     slim = slim_for_prompt(annual_data, quarterly_data)
 
     annual_period = (
@@ -631,6 +798,15 @@ def _analysis_prompt_v2(
         liquidity_data=liquidity_data,
         language=lang,
     )
+    market_context = _compact_market_context(company_data)
+    if market_context.get("status") == "ok":
+        metrics["market_context"] = {
+            "security": market_context.get("security"),
+            "market_summary": market_context.get("market_summary"),
+            "fibonacci_levels": market_context.get("fibonacci_levels"),
+            "dividend_count": (market_context.get("dividends") or {}).get("count"),
+            "report_document_count": (market_context.get("report_documents") or {}).get("count"),
+        }
 
     prompt = f"""
 Ты — инвестиционный аналитик, который пишет короткую и строгую записку по отчётности.
@@ -639,7 +815,11 @@ def _analysis_prompt_v2(
 Язык ответа: {LANGUAGE_HINTS[lang]['label']}
 
 Жёсткие правила:
-- Используй только данные из отчётности, расчётных метрик и IFRS snapshot ниже.
+{PUBLIC_ANALYSIS_POLICY}
+
+- Use PUBLIC MARKET DATA for quotes, price history, trading volumes, dividends, report documents and Fibonacci levels. If it is not available, say the market data is missing.
+
+- Используй только данные из отчётности, расчётных метрик, IFRS snapshot и PUBLIC MARKET DATA ниже.
 - Если чего-то не хватает, прямо скажи "Недостаточно данных".
 - Никаких общих фраз, маркетинга, воды, литературных сравнений и лишних вступлений.
 - Каждое важное утверждение должно опираться на цифру, динамику или явно названный показатель.
@@ -666,6 +846,9 @@ def _analysis_prompt_v2(
 
 IFRS SNAPSHOT:
 {json.dumps(ifrs_snapshot, ensure_ascii=False, indent=2)}
+
+PUBLIC MARKET DATA:
+{json.dumps(market_context, ensure_ascii=False, indent=2)}
 
 Промежуточная отрасль и бенчмарк:
 {industry_context_str}
@@ -709,7 +892,8 @@ IFRS SNAPSHOT:
 Никакой абстракции без цифр.
 
 [КАТАЛИЗАТОРЫ]
-Назови 2-4 фактора, которые реально могут сдвинуть оценку.
+Назови 2-4 фактических фактора, которые уже видны в данных и влияют на текущую оценку риска или качества отчетности.
+Не прогнозируй будущие события и не обещай изменение цены.
 
 [СИЛЬНЫЕ_СТОРОНЫ]
 Только сильные стороны с числами и кратким смыслом.
@@ -717,19 +901,22 @@ IFRS SNAPSHOT:
 [СЛАБЫЕ_СТОРОНЫ]
 Только слабые стороны с числами и кратким смыслом.
 
-[ПРОГНОЗ]
-Сценарий на 12 месяцев: что должно случиться, чтобы оценка улучшилась или ухудшилась.
+[РЫНОЧНЫЕ_ДАННЫЕ]
+Проверь публичный контур: котировки, графики цен, объемы торгов, облигации, новости, листинг/делистинг, режимы торгов, тарифы, термины и общерыночная статистика.
+По каждому типу данных коротко укажи: "есть в текущем наборе" или "нет данных в текущем наборе".
+Не добавляй прогнозную аналитику.
 
 [ВЕРДИКТ]
-Выбери один вариант: ПОКУПАТЬ / ДЕРЖАТЬ / НАБЛЮДАТЬ / ОСТОРОЖНО / ВОЗДЕРЖАТЬСЯ.
-Кратко объясни почему.
+Выбери один информационный статус: СИЛЬНАЯ ОТЧЕТНОСТЬ / УМЕРЕННАЯ ОТЧЕТНОСТЬ / СЛАБАЯ ОТЧЕТНОСТЬ / ПОВЫШЕННЫЙ РИСК / НЕДОСТАТОЧНО ДАННЫХ.
+Кратко объясни статус через цифры. Не давай рекомендацию к покупке, продаже или удержанию.
 
-[СОВЕТЫ]
-Дай короткие практические советы по размеру позиции и ожиданиям по риску.
+[ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА]
+Коротко укажи, что анализ не содержит персональных данных, прогнозной аналитики, инвестиционных рекомендаций, индивидуальных аналитических выводов и юридических заключений.
+Если каких-то публичных рыночных данных не хватает, перечисли это как ограничение данных.
 
 [ИТОГ]
 4-6 предложений простым и профессиональным языком.
-Без воды. Без терминов без объяснения.
+Без воды. Без терминов без объяснения. Не превращай итог в инвестиционную рекомендацию.
 """.strip()
 
     return (
@@ -739,20 +926,23 @@ IFRS SNAPSHOT:
         annual_period,
         quarterly_period,
         ifrs_snapshot,
+        market_context,
     )
 
 
 def run_analysis(company_name: str, company_profile: str, annual_data: list,
                  quarterly_data: list, liquidity_data: dict | None = None,
-                 language: str | None = "ru") -> tuple:
+                 language: str | None = "ru",
+                 company_data: dict | None = None) -> tuple:
     lang = _normalize_language(language)
-    prompt, metrics, ind_compare, annual_period, quarterly_period, ifrs_snapshot = _analysis_prompt_v2(
+    prompt, metrics, ind_compare, annual_period, quarterly_period, ifrs_snapshot, market_context = _analysis_prompt_v2(
         company_name,
         company_profile,
         annual_data,
         quarterly_data,
         liquidity_data,
         lang,
+        company_data,
     )
 
     print(
@@ -779,7 +969,7 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
     cost = (input_tokens / 1_000_000 * 0.25) + (output_tokens / 1_000_000 * 2.0)
     print(f"   ✅ in={input_tokens} out={output_tokens} | ~${cost:.4f}")
 
-    return raw, annual_period, quarterly_period, cost, metrics, ifrs_snapshot
+    return raw, annual_period, quarterly_period, cost, metrics, ifrs_snapshot, market_context
 
 
 async def run_company_analysis(company_name: str, force_refresh: bool = False, language: str = "ru") -> dict:
@@ -790,19 +980,39 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False, l
 
     if not force_refresh:
         cached = analysis_cache.get(company_name, language=language)
-        if cached:
+        if cached and cached.get("analysis_policy_version") == ANALYSIS_POLICY_VERSION:
             cached["from_cache"] = True
             cached["source"] = "cache"
             cached.setdefault("model", OPENAI_MODEL)
             cached.setdefault("language", language)
             cached.setdefault("language_label", LANGUAGE_HINTS[language]["label"])
             cached.setdefault("ifrs_snapshot", {})
+            cached.setdefault("market_data", {})
+            cached.setdefault("market_context", {})
+            cached.setdefault("analysis_policy", PUBLIC_ANALYSIS_POLICY_META)
             return cached
 
     loop = asyncio.get_running_loop()
-    annual_df, quarter_df, liquidity_df, fetched_name = await loop.run_in_executor(
+    financials_future = loop.run_in_executor(
         None, partial(get_data, company_name)
     )
+    company_data_future = loop.run_in_executor(
+        None,
+        partial(
+            collect_company_data,
+            company_name,
+            history_months=6,
+            include_raw_reports=False,
+            include_document_previews=False,
+            validate_documents=False,
+        ),
+    )
+    annual_df, quarter_df, liquidity_df, fetched_name = await financials_future
+    try:
+        company_data = await company_data_future
+    except Exception as exc:  # noqa: BLE001
+        print(f"   Market data collection failed for '{company_name}': {exc}")
+        company_data = {"ok": False, "error": str(exc)}
     if annual_df is None or quarter_df is None:
         raise ValueError(f"Данные не найдены для «{company_name}»")
 
@@ -818,8 +1028,18 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False, l
     company_profile = await loop.run_in_executor(
         None, partial(build_company_profile, resolved_name, annual_data, quarterly_data, liquidity_data, language)
     )
-    raw_analysis, annual_period, quarterly_period, cost, metrics, ifrs_snapshot = await loop.run_in_executor(
-        None, partial(run_analysis, resolved_name, company_profile, annual_data, quarterly_data, liquidity_data, language)
+    raw_analysis, annual_period, quarterly_period, cost, metrics, ifrs_snapshot, market_context = await loop.run_in_executor(
+        None,
+        partial(
+            run_analysis,
+            resolved_name,
+            company_profile,
+            annual_data,
+            quarterly_data,
+            liquidity_data,
+            language,
+            company_data,
+        ),
     )
     web_research = WEB_RESEARCH_NOTE
     html_report = await loop.run_in_executor(
@@ -840,6 +1060,7 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False, l
     result = {
         "company_input": company_name,
         "company_name": resolved_name,
+        "ticker": ((company_data.get("security") or {}).get("ticker") if isinstance(company_data, dict) else None),
         "html_report": html_report,
         "raw_analysis": raw_analysis,
         "sections": parse_response(raw_analysis),
@@ -849,11 +1070,15 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False, l
         "metrics": metrics,
         "ifrs_snapshot": ifrs_snapshot,
         "liquidity": liquidity_data,
+        "market_data": company_data,
+        "market_context": market_context,
         "from_cache": False,
         "source": "fresh",
         "model": OPENAI_MODEL,
         "language": language,
         "language_label": LANGUAGE_HINTS[language]["label"],
+        "analysis_policy_version": ANALYSIS_POLICY_VERSION,
+        "analysis_policy": PUBLIC_ANALYSIS_POLICY_META,
     }
     try:
         analysis_cache.set(company_name, result, language=language)

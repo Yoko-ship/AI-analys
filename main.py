@@ -159,24 +159,49 @@ def _lookup_org_id_via_api(user_input: str) -> tuple[str, str] | None:
 # ─────────────────────────────────────────────────────────
 
 def _make_driver() -> webdriver.Chrome:
-    """Создаёт Chrome в headless-режиме. Работает везде — Windows, Linux, сервер."""
+    """Create a more stable headless Chrome/Selenium Wire driver."""
     options = webdriver.ChromeOptions()
+    options.page_load_strategy = "eager"
 
-    options.add_argument("--headless=new")           # без GUI (новый headless)
-    options.add_argument("--no-sandbox")             # нужно на сервере под root
-    options.add_argument("--disable-dev-shm-usage")  # /dev/shm мал на VPS
+    if os.getenv("SELENIUM_HEADLESS", "1").strip().lower() not in {"0", "false", "no"}:
+        options.add_argument("--headless=new")
+    chrome_binary = os.getenv("CHROME_BINARY") or os.getenv("GOOGLE_CHROME_BIN")
+    if chrome_binary:
+        options.binary_location = chrome_binary
+
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-extensions")
+    options.add_argument("--disable-notifications")
+    options.add_argument("--disable-popup-blocking")
+    options.add_argument("--ignore-certificate-errors")
+    options.add_argument("--lang=ru-RU")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option(
+        "prefs",
+        {"profile.default_content_setting_values.notifications": 2},
+    )
     options.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
     )
 
-    return webdriver.Chrome(options=options)
+    seleniumwire_options = {
+        "connection_timeout": REQUEST_TIMEOUT,
+        "request_storage": "memory",
+        "request_storage_max_size": 150,
+        "verify_ssl": False,
+    }
+    driver = webdriver.Chrome(options=options, seleniumwire_options=seleniumwire_options)
+    driver.scopes = [
+        r".*new-api\.openinfo\.uz.*accounting-report.*",
+        r".*new\.openinfo\.uz.*",
+    ]
+    return driver
 
 
 # ─────────────────────────────────────────────────────────
