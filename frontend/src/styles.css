@@ -424,6 +424,69 @@ img {
   gap: 12px;
 }
 
+.public-contour-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 18px;
+}
+
+.disclosure-card {
+  overflow: hidden;
+}
+
+.disclosure-card.tone-positive {
+  background:
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.1), transparent 34%),
+    var(--panel);
+}
+
+.disclosure-card.tone-limit {
+  background:
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 34%),
+    var(--panel);
+}
+
+.disclosure-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.disclosure-card.tone-limit .disclosure-list {
+  grid-template-columns: 1fr;
+}
+
+.disclosure-list li {
+  position: relative;
+  min-height: 46px;
+  padding: 12px 14px 12px 38px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.66);
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.disclosure-list li::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: 16px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #10b981;
+  box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.12);
+}
+
+.disclosure-card.tone-limit .disclosure-list li::before {
+  background: #f59e0b;
+  box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.13);
+}
+
 .segmented-control {
   display: inline-flex;
   padding: 4px;
@@ -2892,6 +2955,19 @@ body[data-theme="dark"] .metric-ring {
   border-color: rgba(148, 163, 184, 0.12);
 }
 
+body[data-theme="dark"] .disclosure-card.tone-positive,
+body[data-theme="dark"] .disclosure-card.tone-limit {
+  background:
+    radial-gradient(circle at top right, rgba(96, 165, 250, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(10, 17, 30, 0.92), rgba(8, 13, 24, 0.9));
+}
+
+body[data-theme="dark"] .disclosure-list li {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(148, 163, 184, 0.12);
+  color: #edf2ff;
+}
+
 body[data-theme="dark"] .score-card {
   background:
     radial-gradient(circle at 50% 18%, rgba(96, 165, 250, 0.18), transparent 48%),
@@ -2925,6 +3001,7 @@ body[data-theme="dark"] .visual-panel::before {
 }
 
 @media (max-width: 1180px) {
+  .public-contour-grid,
   .financial-visual-grid {
     grid-template-columns: 1fr;
   }
@@ -2958,5 +3035,9 @@ body[data-theme="dark"] .visual-panel::before {
 
   .metric-rings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .disclosure-list {
+    grid-template-columns: 1fr;
   }
 }

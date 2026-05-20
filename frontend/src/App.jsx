@@ -603,6 +603,93 @@ const VISUAL_TEXTS = {
   },
 };
 
+const DISCLOSURE_TEXTS = {
+  ru: {
+    capabilitiesLabel: "Информационный контур",
+    capabilitiesTitle: "Система должна обеспечивать",
+    capabilitiesIntro: "Система проектируется как справочный слой для просмотра рыночной информации и базовых данных фондового рынка.",
+    capabilities: [
+      "Просмотр котировок",
+      "Просмотр графиков цен",
+      "Просмотр объемов торгов",
+      "Просмотр списка эмитентов",
+      "Просмотр облигаций",
+      "Просмотр новостей",
+      "Просмотр листинга и делистинга",
+      "Просмотр режимов торгов",
+      "Просмотр тарифов",
+      "Просмотр терминов фондового рынка",
+      "Просмотр общерыночной статистики",
+    ],
+    restrictionsLabel: "Публичные ограничения",
+    restrictionsTitle: "Ограничения публичного контура",
+    restrictionsIntro: "Публичная часть сервиса должна оставаться информационной и не подменять профессиональную консультацию.",
+    restrictions: [
+      "Персональные данные",
+      "Прогнозная аналитика",
+      "Инвестиционные рекомендации",
+      "Индивидуальные аналитические выводы",
+      "Юридические заключения",
+    ],
+  },
+  en: {
+    capabilitiesLabel: "Information scope",
+    capabilitiesTitle: "The system should provide",
+    capabilitiesIntro: "The system is designed as a reference layer for market data and basic stock market information.",
+    capabilities: [
+      "Quotes",
+      "Price charts",
+      "Trading volumes",
+      "Issuer list",
+      "Bonds",
+      "News",
+      "Listings and delistings",
+      "Trading modes",
+      "Tariffs",
+      "Stock market terms",
+      "Market-wide statistics",
+    ],
+    restrictionsLabel: "Public restrictions",
+    restrictionsTitle: "Public scope restrictions",
+    restrictionsIntro: "The public part of the service must remain informational and must not replace professional advice.",
+    restrictions: [
+      "Personal data",
+      "Forecast analytics",
+      "Investment recommendations",
+      "Individual analytical conclusions",
+      "Legal opinions",
+    ],
+  },
+  uz: {
+    capabilitiesLabel: "Axborot konturi",
+    capabilitiesTitle: "Tizim ta'minlashi kerak",
+    capabilitiesIntro: "Tizim bozor ma'lumotlari va fond bozori bo'yicha asosiy ma'lumotlarni ko'rish uchun axborot qatlami sifatida loyihalanadi.",
+    capabilities: [
+      "Kotirovkalarni ko'rish",
+      "Narx grafiklarini ko'rish",
+      "Savdo hajmlarini ko'rish",
+      "Emitentlar ro'yxatini ko'rish",
+      "Obligatsiyalarni ko'rish",
+      "Yangiliklarni ko'rish",
+      "Listing va delistingni ko'rish",
+      "Savdo rejimlarini ko'rish",
+      "Tariflarni ko'rish",
+      "Fond bozori terminlarini ko'rish",
+      "Umumbozor statistikasini ko'rish",
+    ],
+    restrictionsLabel: "Ommaviy cheklovlar",
+    restrictionsTitle: "Ommaviy kontur cheklovlari",
+    restrictionsIntro: "Servisning ommaviy qismi axborot xarakterida bo'lishi va professional maslahat o'rnini bosmasligi kerak.",
+    restrictions: [
+      "Shaxsiy ma'lumotlar",
+      "Prognoz analitikasi",
+      "Investitsion tavsiyalar",
+      "Individual analitik xulosalar",
+      "Huquqiy xulosalar",
+    ],
+  },
+};
+
 function normalizeLanguage(value) {
   return ["ru", "en", "uz"].includes(value) ? value : "ru";
 }
@@ -626,6 +713,10 @@ function t(language, path, params = {}) {
 function vt(language, key) {
   const lang = normalizeLanguage(language);
   return VISUAL_TEXTS[lang]?.[key] ?? VISUAL_TEXTS.ru[key] ?? key;
+}
+
+function disclosureText(language) {
+  return DISCLOSURE_TEXTS[normalizeLanguage(language)] ?? DISCLOSURE_TEXTS.ru;
 }
 
 function safeNumber(value) {
@@ -891,6 +982,25 @@ function StatCard({ label, value, sub }) {
       <div className="profile-stat-label">{label}</div>
       <div className="profile-stat-value">{value}</div>
       <div className="profile-stat-sub">{sub}</div>
+    </article>
+  );
+}
+
+function DisclosureCard({ label, title, intro, items, tone = "neutral" }) {
+  return (
+    <article className={`panel disclosure-card tone-${tone}`}>
+      <div className="panel-head">
+        <div>
+          <div className="panel-label">{label}</div>
+          <h2>{title}</h2>
+        </div>
+      </div>
+      <p className="panel-intro">{intro}</p>
+      <ul className="disclosure-list">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
     </article>
   );
 }
@@ -1441,6 +1551,7 @@ function App() {
       sparkline: cachedSparkline,
     },
   ];
+  const disclosure = disclosureText(language);
 
   const navItems = ["main", "about", "auth", "profile", "analysis"];
 
@@ -1622,40 +1733,59 @@ function App() {
           )}
 
           {activeView === "about" && (
-            <section className="view-grid">
-              <article className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "nav.about")}</div>
-                    <h2>{t(language, "about.title")}</h2>
-                  </div>
-                </div>
-                <div className="stacked-list">
-                  {TEXTS[language].about.leftCards.map((item) => (
-                    <div className="note-card" key={item.title}>
-                      <strong>{item.title}</strong>
-                      <p>{item.copy}</p>
+            <>
+              <section className="view-grid">
+                <article className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{t(language, "nav.about")}</div>
+                      <h2>{t(language, "about.title")}</h2>
                     </div>
-                  ))}
-                </div>
-              </article>
-              <article className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "nav.about")}</div>
-                    <h2>{TEXTS[language].about.rightTitle}</h2>
                   </div>
-                </div>
-                <div className="tile-grid tile-grid-2">
-                  {TEXTS[language].about.rightCards.map((item) => (
-                    <div className="tile-card" key={item.title}>
-                      <strong>{item.title}</strong>
-                      <span>{item.copy}</span>
+                  <div className="stacked-list">
+                    {TEXTS[language].about.leftCards.map((item) => (
+                      <div className="note-card" key={item.title}>
+                        <strong>{item.title}</strong>
+                        <p>{item.copy}</p>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+                <article className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{t(language, "nav.about")}</div>
+                      <h2>{TEXTS[language].about.rightTitle}</h2>
                     </div>
-                  ))}
-                </div>
-              </article>
-            </section>
+                  </div>
+                  <div className="tile-grid tile-grid-2">
+                    {TEXTS[language].about.rightCards.map((item) => (
+                      <div className="tile-card" key={item.title}>
+                        <strong>{item.title}</strong>
+                        <span>{item.copy}</span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              </section>
+
+              <section className="public-contour-grid">
+                <DisclosureCard
+                  label={disclosure.capabilitiesLabel}
+                  title={disclosure.capabilitiesTitle}
+                  intro={disclosure.capabilitiesIntro}
+                  items={disclosure.capabilities}
+                  tone="positive"
+                />
+                <DisclosureCard
+                  label={disclosure.restrictionsLabel}
+                  title={disclosure.restrictionsTitle}
+                  intro={disclosure.restrictionsIntro}
+                  items={disclosure.restrictions}
+                  tone="limit"
+                />
+              </section>
+            </>
           )}
 
           {activeView === "auth" && (
