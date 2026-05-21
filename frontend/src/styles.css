@@ -399,16 +399,58 @@ img {
   background: rgba(255, 255, 255, 0.03);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TILE & NOTE CARDS - Feature Display Cards
+   ═══════════════════════════════════════════════════════════════════════════ */
 .tile-card,
 .note-card {
-  padding: 16px;
+  position: relative;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out);
+  overflow: hidden;
+}
+
+.tile-card::before,
+.note-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--accent), var(--success));
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.tile-card:hover,
+.note-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-hover);
+}
+
+.tile-card:hover::before,
+.note-card:hover::before {
+  opacity: 1;
 }
 
 .tile-card strong,
 .note-card strong {
   display: block;
-  margin-bottom: 8px;
-  font-size: 0.98rem;
+  margin-bottom: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .tile-card span,
@@ -416,7 +458,8 @@ img {
   display: block;
   margin: 0;
   color: var(--muted);
-  line-height: 1.55;
+  line-height: 1.6;
+  font-size: 0.9rem;
 }
 
 .stacked-list {
@@ -2303,14 +2346,49 @@ body {
   min-height: 132px;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   STAT & METRIC CARDS - Dashboard Data Display
+   ═══════════════════════════════════════════════════════════════════════════ */
 .profile-stat-card,
 .metric-card,
 .user-card {
-  padding: 18px;
-  border-radius: 22px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+  position: relative;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition:
+    transform var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out);
+}
+
+.profile-stat-card::before,
+.user-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--success));
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.profile-stat-card:hover,
+.user-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-hover);
+}
+
+.profile-stat-card:hover::before,
+.user-card:hover::before {
+  opacity: 1;
 }
 
 .metric-card {
@@ -2415,22 +2493,39 @@ body {
   line-height: 1.55;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACTIVITY CHART - Enhanced Timeline Visualization
+   ═══════════════════════════════════════════════════════════════════════════ */
 .activity-chart {
   display: grid;
-  gap: 14px;
+  gap: 16px;
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.5), transparent),
+    radial-gradient(ellipse at 50% 0%, var(--accent-light), transparent 60%);
 }
 
 .activity-chart-svg {
   width: 100%;
   height: auto;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.05));
 }
 
 .activity-bar-track {
-  fill: rgba(148, 163, 184, 0.12);
+  fill: rgba(148, 163, 184, 0.1);
+  rx: 4;
 }
 
 .activity-bar {
   fill: url(#activityBarGradient);
+  rx: 4;
+  transition: opacity 0.2s ease;
+}
+
+.activity-bar:hover {
+  opacity: 0.85;
+  filter: brightness(1.1);
 }
 
 .activity-axis-label {
@@ -2438,37 +2533,53 @@ body {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .activity-value {
-  fill: #0f172a;
+  fill: var(--text);
   font-size: 11px;
   font-weight: 700;
 }
 
 .activity-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(248, 250, 252, 0.96);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.activity-footer > div {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(248, 250, 252, 0.8);
+  transition: background 0.2s ease;
+}
+
+.activity-footer > div:hover {
+  background: rgba(37, 99, 235, 0.05);
 }
 
 .activity-footer-label {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   color: var(--muted);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 10px;
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
 }
 
 .activity-footer strong {
   font-family: "Space Grotesk", Inter, sans-serif;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  color: var(--text);
+  letter-spacing: -0.02em;
 }
 
 @media (max-width: 1180px) {
