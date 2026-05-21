@@ -3041,3 +3041,480 @@ body[data-theme="dark"] .visual-panel::before {
     grid-template-columns: 1fr;
   }
 }
+
+.compare-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
+  gap: 18px;
+}
+
+.compare-form-panel,
+.compare-overview-panel,
+.compare-ai-panel,
+.compare-charts-panel,
+.compare-tables-panel,
+.compare-chart-main {
+  padding: 22px;
+}
+
+.compare-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.compare-form label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.compare-form label > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.compare-form label > span em {
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+
+.compare-form input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.compare-form input:focus {
+  border-color: rgba(245, 184, 77, 0.45);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.compare-toggle {
+  grid-column: span 2;
+}
+
+.compare-submit-btn {
+  min-height: 48px;
+}
+
+.compare-results-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  gap: 18px;
+}
+
+.compare-chart-main,
+.compare-charts-panel,
+.compare-tables-panel {
+  grid-column: 1 / -1;
+}
+
+.compare-summary-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid rgba(110, 240, 193, 0.18);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(110, 240, 193, 0.12), transparent 32%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.compare-summary-card p {
+  margin: 0;
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.compare-summary-card span {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.compare-leader-grid,
+.compare-ranking-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.compare-leader-card,
+.compare-ranking-card {
+  position: relative;
+  overflow: hidden;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.compare-leader-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--series-color, var(--accent-2));
+}
+
+.compare-leader-card span,
+.compare-ranking-card h3 {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.compare-leader-card strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--text);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.3rem;
+}
+
+.compare-leader-card p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.compare-ranking-card h3 {
+  margin: 0 0 12px;
+}
+
+.compare-ranking-list {
+  display: grid;
+  gap: 10px;
+}
+
+.compare-ranking-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.compare-rank {
+  color: var(--accent-2);
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+}
+
+.compare-company {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-loading-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.compare-loading-grid div {
+  min-height: 84px;
+  overflow: hidden;
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent) -120px 0 / 120px 100% no-repeat,
+    rgba(255, 255, 255, 0.04);
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  to {
+    background-position: calc(100% + 120px) 0, 0 0;
+  }
+}
+
+.compare-chart-grid,
+.compare-tables-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.compare-chart-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compare-chart-card {
+  min-width: 0;
+  box-shadow: none;
+}
+
+.compare-radar-wrap {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.compare-radar {
+  width: min(100%, 420px);
+  height: auto;
+  overflow: visible;
+}
+
+.compare-radar-ring,
+.compare-radar-axis {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.22);
+  stroke-width: 1;
+}
+
+.compare-radar-area {
+  fill: var(--series-color);
+  fill-opacity: 0.14;
+}
+
+.compare-radar-line {
+  fill: none;
+  stroke: var(--series-color);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.compare-radar-label {
+  fill: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.compare-bars {
+  display: grid;
+  gap: 16px;
+}
+
+.compare-bar-company {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.compare-bar-company-name {
+  color: var(--text);
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+}
+
+.compare-bar-series {
+  display: grid;
+  gap: 9px;
+}
+
+.compare-bar-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(120px, 1.5fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.compare-bar-row span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-bar-row strong {
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.compare-bar-track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.compare-bar-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.compare-bar-track i.is-negative {
+  opacity: 0.72;
+  filter: saturate(0.8);
+}
+
+.compare-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.compare-chart-empty {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  color: var(--muted);
+}
+
+.compare-ai-text {
+  display: grid;
+  gap: 10px;
+}
+
+.compare-ai-text p,
+.compare-methodology p,
+.compare-errors p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.compare-methodology,
+.compare-errors {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.compare-methodology strong,
+.compare-errors strong {
+  color: var(--text);
+}
+
+.compare-table-card {
+  display: grid;
+  gap: 12px;
+}
+
+.compare-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.compare-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.compare-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel-strong);
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.compare-table td {
+  color: var(--text);
+}
+
+.compare-table td strong,
+.compare-table td span,
+.compare-table td em {
+  display: block;
+}
+
+.compare-table td span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.compare-table td em {
+  margin-top: 2px;
+  color: var(--accent-2);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.compare-table tr:last-child td {
+  border-bottom: 0;
+}
+
+body[data-theme="dark"] .compare-form input,
+body[data-theme="dark"] .compare-leader-card,
+body[data-theme="dark"] .compare-ranking-card,
+body[data-theme="dark"] .compare-bar-company,
+body[data-theme="dark"] .compare-summary-card {
+  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+body[data-theme="dark"] .compare-table th {
+  background: rgba(8, 13, 24, 0.98);
+}
+
+@media (max-width: 1180px) {
+  .compare-layout,
+  .compare-results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-chart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .compare-form {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-toggle {
+    grid-column: auto;
+  }
+
+  .compare-leader-grid,
+  .compare-ranking-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-bar-row {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-bar-row strong {
+    justify-self: start;
+  }
+}
