@@ -1165,7 +1165,7 @@ function ScoreGauge({ score, language }) {
     good: ["#10b981", "#059669"],
     warning: ["#f59e0b", "#d97706"],
     danger: ["#ef4444", "#dc2626"],
-    neutral: ["#2563eb", "#1d4ed8"],
+    neutral: ["#ff9d00", "#e68a00"],
   };
   const [startColor, endColor] = gradientColors[tone] || gradientColors.neutral;
 
@@ -1586,7 +1586,7 @@ function App() {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem(THEME_KEY);
     if (saved === "light" || saved === "dark") return saved;
-    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    return "dark"; // Default to dark theme (Finam AI style)
   });
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [user, setUser] = useState(null);
@@ -1628,7 +1628,7 @@ function App() {
     document.documentElement.style.colorScheme = theme;
     const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (themeMeta) {
-      themeMeta.setAttribute("content", theme === "dark" ? "#07111f" : "#f4f7fb");
+      themeMeta.setAttribute("content", theme === "dark" ? "#0a0f1a" : "#f8fafc");
     }
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
