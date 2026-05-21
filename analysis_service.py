@@ -5,6 +5,7 @@ import json
 import math
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 
 from openai import OpenAI
@@ -643,6 +644,624 @@ def build_summary(result: dict) -> dict:
         "company_name": result.get("company_name", ""),
         "from_cache": bool(result.get("from_cache")),
         "model": result.get("model", OPENAI_MODEL),
+    }
+
+
+COMPARISON_FIELDS = [
+    {"key": "score", "label": "Общий score", "unit": "/100", "better": "higher"},
+    {"key": "grade", "label": "Класс", "unit": "", "better": "higher"},
+    {"key": "revenue", "label": "Выручка", "unit": "UZS млн", "better": "higher"},
+    {"key": "revenue_growth_pct", "label": "Рост выручки", "unit": "%", "better": "higher"},
+    {"key": "net_income", "label": "Чистая прибыль", "unit": "UZS млн", "better": "higher"},
+    {"key": "net_income_growth_pct", "label": "Рост чистой прибыли", "unit": "%", "better": "higher"},
+    {"key": "net_profit_margin_pct", "label": "Чистая маржа", "unit": "%", "better": "higher"},
+    {"key": "roe_pct", "label": "ROE", "unit": "%", "better": "higher"},
+    {"key": "roa_pct", "label": "ROA", "unit": "%", "better": "higher"},
+    {"key": "debt_ratio_pct", "label": "Долг/активы", "unit": "%", "better": "lower"},
+    {"key": "debt_to_equity_ratio", "label": "Debt/Equity", "unit": "x", "better": "lower"},
+    {"key": "current_ratio", "label": "Current ratio", "unit": "x", "better": "higher"},
+    {"key": "piotroski_score", "label": "Piotroski", "unit": "/9", "better": "higher"},
+    {"key": "altman_score", "label": "Altman Z", "unit": "", "better": "higher"},
+    {"key": "latest_price", "label": "Последняя цена", "unit": "UZS", "better": "neutral"},
+    {"key": "day_change_percent", "label": "Изменение за день", "unit": "%", "better": "neutral"},
+    {"key": "period_change_percent", "label": "Изменение за период", "unit": "%", "better": "neutral"},
+    {"key": "avg_daily_trading_value", "label": "Средний дневной оборот", "unit": "UZS", "better": "higher"},
+    {"key": "dividend_count", "label": "Дивидендные события", "unit": "шт.", "better": "higher"},
+    {"key": "report_document_count", "label": "Отчеты PDF/Excel", "unit": "шт.", "better": "higher"},
+]
+
+COMPARISON_CATEGORY_METRICS = {
+    "overall": ["score", "piotroski_score", "altman_score"],
+    "profitability": ["net_profit_margin_pct", "roe_pct", "roa_pct"],
+    "growth": ["revenue_growth_pct", "net_income_growth_pct"],
+    "balance": ["current_ratio", "debt_ratio_pct", "debt_to_equity_ratio", "altman_score"],
+    "market": ["avg_daily_trading_value", "period_change_percent"],
+    "reporting": ["report_document_count", "dividend_count"],
+}
+
+COMPARISON_TABLES = {
+    "overview": ["score", "grade", "latest_year", "ticker"],
+    "profitability": ["revenue", "net_income", "net_profit_margin_pct", "roe_pct", "roa_pct"],
+    "growth": ["revenue_growth_pct", "net_income_growth_pct", "period_change_percent"],
+    "balance": ["debt_ratio_pct", "debt_to_equity_ratio", "current_ratio", "quick_ratio", "altman_score"],
+    "market": ["latest_price", "day_change_percent", "avg_daily_trading_value", "total_trading_value"],
+    "documents": ["dividend_count", "report_document_count", "pdf_report_count", "excel_report_count"],
+}
+
+
+def _round_metric(value, digits: int = 2):
+    parsed = _safe_float(value)
+    if parsed is None:
+        return None
+    return round(parsed, digits)
+
+
+def _best_by(rows: list[dict], key: str, reverse: bool = True) -> dict | None:
+    candidates = [row for row in rows if _safe_float(row.get(key)) is not None]
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda row: _safe_float(row.get(key)), reverse=reverse)[0]
+
+
+def _leader_payload(row: dict | None, key: str) -> dict | None:
+    if not row:
+        return None
+    return {
+        "company": row.get("company_name"),
+        "ticker": row.get("ticker"),
+        "metric": key,
+        "value": row.get(key),
+    }
+
+
+def _field_by_key() -> dict[str, dict]:
+    return {field["key"]: field for field in COMPARISON_FIELDS}
+
+
+def _normalize_value(value, min_value: float, max_value: float, better: str) -> float | None:
+    parsed = _safe_float(value)
+    if parsed is None:
+        return None
+    if max_value == min_value:
+        return 50.0
+    if better == "lower":
+        normalized = (max_value - parsed) / (max_value - min_value) * 100
+    else:
+        normalized = (parsed - min_value) / (max_value - min_value) * 100
+    return round(max(0, min(100, normalized)), 2)
+
+
+def _rank_metric(rows: list[dict], key: str, better: str) -> dict[str, int]:
+    ranked = [
+        row for row in rows
+        if _safe_float(row.get(key)) is not None
+    ]
+    if not ranked:
+        return {}
+    reverse = better != "lower"
+    ranked.sort(key=lambda row: _safe_float(row.get(key)), reverse=reverse)
+    ranks = {}
+    previous_value = None
+    previous_rank = 0
+    for index, row in enumerate(ranked, start=1):
+        current_value = _safe_float(row.get(key))
+        rank = previous_rank if current_value == previous_value else index
+        ranks[row.get("input") or row.get("company_name")] = rank
+        previous_value = current_value
+        previous_rank = rank
+    return ranks
+
+
+def _build_normalized_comparison(rows: list[dict]) -> dict:
+    normalized_fields = []
+    row_map = {
+        row.get("input") or row.get("company_name"): {
+            "company_name": row.get("company_name"),
+            "ticker": row.get("ticker"),
+            "metrics": {},
+        }
+        for row in rows
+    }
+
+    for field in COMPARISON_FIELDS:
+        key = field["key"]
+        if field.get("better") == "neutral":
+            continue
+        values = [_safe_float(row.get(key)) for row in rows]
+        values = [value for value in values if value is not None]
+        if not values:
+            continue
+        min_value = min(values)
+        max_value = max(values)
+        ranks = _rank_metric(rows, key, field.get("better", "higher"))
+        normalized_fields.append({
+            **field,
+            "min": round(min_value, 4),
+            "max": round(max_value, 4),
+        })
+        for row in rows:
+            row_key = row.get("input") or row.get("company_name")
+            row_map[row_key]["metrics"][key] = {
+                "raw": row.get(key),
+                "normalized": _normalize_value(
+                    row.get(key),
+                    min_value,
+                    max_value,
+                    field.get("better", "higher"),
+                ),
+                "rank": ranks.get(row_key),
+            }
+
+    return {
+        "method": "min_max_0_100",
+        "description": (
+            "Все числовые показатели приведены к шкале 0-100. "
+            "Для метрик higher большее значение лучше; для lower меньшее значение лучше."
+        ),
+        "fields": normalized_fields,
+        "rows": list(row_map.values()),
+    }
+
+
+def _category_score(row_metrics: dict, keys: list[str]) -> float | None:
+    values = []
+    for key in keys:
+        metric = row_metrics.get(key) or {}
+        normalized = _safe_float(metric.get("normalized"))
+        if normalized is not None:
+            values.append(normalized)
+    if not values:
+        return None
+    return round(sum(values) / len(values), 2)
+
+
+def _build_category_scores(normalized: dict) -> list[dict]:
+    score_rows = []
+    for row in normalized.get("rows", []):
+        metrics = row.get("metrics") or {}
+        categories = {
+            category: _category_score(metrics, keys)
+            for category, keys in COMPARISON_CATEGORY_METRICS.items()
+        }
+        available = [value for value in categories.values() if value is not None]
+        composite = round(sum(available) / len(available), 2) if available else None
+        score_rows.append({
+            "company_name": row.get("company_name"),
+            "ticker": row.get("ticker"),
+            "composite_score": composite,
+            **categories,
+        })
+    return score_rows
+
+
+def _build_comparison_tables(rows: list[dict], normalized: dict, category_scores: list[dict]) -> dict:
+    fields = _field_by_key()
+    normalized_by_company = {
+        row.get("company_name"): row.get("metrics") or {}
+        for row in normalized.get("rows", [])
+    }
+    tables = {}
+    for table_name, keys in COMPARISON_TABLES.items():
+        columns = [
+            {"key": "company_name", "label": "Компания"},
+            {"key": "ticker", "label": "Тикер"},
+        ]
+        columns.extend(
+            fields.get(key, {"key": key, "label": key, "unit": "", "better": "neutral"})
+            for key in keys
+            if key not in {"ticker"}
+        )
+        table_rows = []
+        for row in rows:
+            metrics = normalized_by_company.get(row.get("company_name"), {})
+            table_row = {
+                "company_name": row.get("company_name"),
+                "ticker": row.get("ticker"),
+            }
+            for key in keys:
+                if key == "ticker":
+                    continue
+                table_row[key] = {
+                    "raw": row.get(key),
+                    "normalized": (metrics.get(key) or {}).get("normalized"),
+                    "rank": (metrics.get(key) or {}).get("rank"),
+                }
+            table_rows.append(table_row)
+        tables[table_name] = {"columns": columns, "rows": table_rows}
+
+    tables["category_scores"] = {
+        "columns": [
+            {"key": "company_name", "label": "Компания"},
+            {"key": "ticker", "label": "Тикер"},
+            {"key": "composite_score", "label": "Сводный балл", "unit": "/100"},
+            {"key": "profitability", "label": "Прибыльность", "unit": "/100"},
+            {"key": "growth", "label": "Рост", "unit": "/100"},
+            {"key": "balance", "label": "Баланс", "unit": "/100"},
+            {"key": "market", "label": "Рынок", "unit": "/100"},
+            {"key": "reporting", "label": "Раскрытие", "unit": "/100"},
+        ],
+        "rows": category_scores,
+    }
+    return tables
+
+
+def _build_comparison_charts(rows: list[dict], category_scores: list[dict]) -> list[dict]:
+    labels = [
+        {"key": "overall", "label": "Общая оценка"},
+        {"key": "profitability", "label": "Прибыльность"},
+        {"key": "growth", "label": "Рост"},
+        {"key": "balance", "label": "Баланс"},
+        {"key": "market", "label": "Рынок"},
+        {"key": "reporting", "label": "Отчеты"},
+    ]
+    radar_datasets = [
+        {
+            "label": row.get("ticker") or row.get("company_name"),
+            "company_name": row.get("company_name"),
+            "data": [
+                row.get("overall"),
+                row.get("profitability"),
+                row.get("growth"),
+                row.get("balance"),
+                row.get("market"),
+                row.get("reporting"),
+            ],
+        }
+        for row in category_scores
+    ]
+    company_axis = [
+        {"company_name": row.get("company_name"), "ticker": row.get("ticker")}
+        for row in rows
+    ]
+    return [
+        {
+            "id": "normalized_radar",
+            "type": "radar",
+            "title": "Сопоставимый профиль 0-100",
+            "labels": labels,
+            "datasets": radar_datasets,
+        },
+        {
+            "id": "score_bar",
+            "type": "bar",
+            "title": "Общий score и сводный нормализованный балл",
+            "x": company_axis,
+            "series": [
+                {"key": "score", "label": "Score", "data": [row.get("score") for row in rows]},
+                {"key": "composite_score", "label": "Сводный 0-100", "data": [row.get("composite_score") for row in category_scores]},
+            ],
+        },
+        {
+            "id": "profitability_grouped_bar",
+            "type": "grouped_bar",
+            "title": "Прибыльность",
+            "x": company_axis,
+            "series": [
+                {"key": "net_profit_margin_pct", "label": "Чистая маржа, %", "data": [row.get("net_profit_margin_pct") for row in rows]},
+                {"key": "roe_pct", "label": "ROE, %", "data": [row.get("roe_pct") for row in rows]},
+                {"key": "roa_pct", "label": "ROA, %", "data": [row.get("roa_pct") for row in rows]},
+            ],
+        },
+        {
+            "id": "balance_grouped_bar",
+            "type": "grouped_bar",
+            "title": "Баланс и риск",
+            "x": company_axis,
+            "series": [
+                {"key": "debt_ratio_pct", "label": "Долг/активы, %", "data": [row.get("debt_ratio_pct") for row in rows]},
+                {"key": "current_ratio", "label": "Current ratio", "data": [row.get("current_ratio") for row in rows]},
+                {"key": "altman_score", "label": "Altman Z", "data": [row.get("altman_score") for row in rows]},
+            ],
+        },
+        {
+            "id": "market_bar",
+            "type": "bar",
+            "title": "Рыночная ликвидность",
+            "x": company_axis,
+            "series": [
+                {"key": "avg_daily_trading_value", "label": "Средний дневной оборот", "data": [row.get("avg_daily_trading_value") for row in rows]},
+                {"key": "period_change_percent", "label": "Изменение за период, %", "data": [row.get("period_change_percent") for row in rows]},
+            ],
+        },
+        {
+            "id": "documents_bar",
+            "type": "stacked_bar",
+            "title": "Доступность отчетов",
+            "x": company_axis,
+            "series": [
+                {"key": "pdf_report_count", "label": "PDF", "data": [row.get("pdf_report_count") for row in rows]},
+                {"key": "excel_report_count", "label": "Excel", "data": [row.get("excel_report_count") for row in rows]},
+            ],
+        },
+    ]
+
+
+def _build_comparative_ai_summary(
+    rows: list[dict],
+    leaders: dict,
+    category_scores: list[dict],
+    language: str,
+) -> dict:
+    prompt_payload = {
+        "rows": [
+            {
+                key: row.get(key)
+                for key in [
+                    "company_name", "ticker", "score", "grade", "revenue", "revenue_growth_pct",
+                    "net_income", "net_income_growth_pct", "net_profit_margin_pct", "roe_pct",
+                    "roa_pct", "debt_ratio_pct", "debt_to_equity_ratio", "current_ratio",
+                    "piotroski_score", "altman_score", "avg_daily_trading_value",
+                    "period_change_percent", "dividend_count", "report_document_count",
+                    "risk_flags",
+                ]
+            }
+            for row in rows
+        ],
+        "leaders": leaders,
+        "category_scores": category_scores,
+    }
+    prompt = (
+        f"Language: {LANGUAGE_HINTS[language]['label']}.\n"
+        "Write a compact comparative AI summary for 2-3 public issuers. "
+        "Use only the JSON data below. Do not give investment recommendations, price targets or forecasts. "
+        "Explain differences by facts and numbers. Return plain text with 4-7 short bullet-like lines.\n\n"
+        f"{json.dumps(prompt_payload, ensure_ascii=False, indent=2)}"
+    )
+    instructions = (
+        "You compare issuers using only provided metrics. "
+        "Be factual, concise, professional, and do not invent missing data. "
+        "No buy/sell/hold recommendations."
+    )
+    try:
+        text, response = _responses_text(prompt, instructions, max_output_tokens=1200)
+        usage = getattr(response, "usage", None)
+        return {
+            "ok": True,
+            "text": text,
+            "model": OPENAI_MODEL,
+            "input_tokens": getattr(usage, "input_tokens", 0) if usage is not None else None,
+            "output_tokens": getattr(usage, "output_tokens", 0) if usage is not None else None,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "text": None,
+            "error": str(exc),
+        }
+
+
+def _comparison_summary(rows: list[dict], leaders: dict, language: str) -> dict:
+    leader = leaders.get("overall_leader") or {}
+    profitability = leaders.get("profitability_leader") or {}
+    balance = leaders.get("balance_quality_leader") or {}
+    liquidity = leaders.get("market_liquidity_leader") or {}
+    if language == "en":
+        short = (
+            f"Overall leader: {leader.get('company') or 'n/a'}. "
+            f"Best profitability: {profitability.get('company') or 'n/a'}. "
+            f"Best balance quality: {balance.get('company') or 'n/a'}. "
+            f"Best market liquidity: {liquidity.get('company') or 'n/a'}."
+        )
+    elif language == "uz":
+        short = (
+            f"Umumiy lider: {leader.get('company') or 'n/a'}. "
+            f"Rentabellik bo'yicha: {profitability.get('company') or 'n/a'}. "
+            f"Balans sifati bo'yicha: {balance.get('company') or 'n/a'}. "
+            f"Bozor likvidligi bo'yicha: {liquidity.get('company') or 'n/a'}."
+        )
+    else:
+        short = (
+            f"По общей оценке лидирует: {leader.get('company') or 'нет данных'}. "
+            f"По прибыльности сильнее выглядит: {profitability.get('company') or 'нет данных'}. "
+            f"По качеству баланса: {balance.get('company') or 'нет данных'}. "
+            f"По рыночной ликвидности: {liquidity.get('company') or 'нет данных'}."
+        )
+    return {
+        "short": short,
+        "methodology": (
+            "Сравнение детерминированное: финансовые метрики считаются из отчетности, "
+            "рыночные данные берутся из OpenInfo, лидеры выбираются только по доступным числам."
+        ),
+        "compared_count": len(rows),
+    }
+
+
+def _compare_one_company(query: str) -> dict:
+    annual_df, quarter_df, liquidity_df, fetched_name = get_data(query)
+    annual_data = df_to_annual(annual_df)
+    quarterly_data = df_to_quarterly(quarter_df)
+    metrics = compute_metrics(annual_data, quarterly_data)
+    liquidity_data = (
+        liquidity_df.iloc[0].to_dict()
+        if liquidity_df is not None and not liquidity_df.empty
+        else None
+    )
+    if liquidity_data:
+        metrics["market_liquidity"] = liquidity_data
+
+    resolved_name = fetched_name or query
+    latest = _latest_item(annual_data)
+    previous = annual_data[-2] if len(annual_data) >= 2 else {}
+    market_data = None
+    try:
+        market_data = collect_company_data(
+            query,
+            history_months=6,
+            include_raw_reports=False,
+            include_document_previews=False,
+            validate_documents=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        market_data = {"ok": False, "error": str(exc)}
+
+    market_context = _compact_market_context(market_data)
+    market_summary = market_context.get("market_summary") or {}
+    security = market_context.get("security") or {}
+    total_score = metrics.get("total_score") or {}
+    piotroski = metrics.get("piotroski_f_score") or {}
+    altman = metrics.get("altman_z_score") or {}
+    report_docs = market_context.get("report_documents") or {}
+    report_items = report_docs.get("items") or []
+
+    debt_ratio = _round_metric(latest.get("debt_ratio"))
+    current_ratio = _round_metric(latest.get("current_ratio"))
+    quick_ratio = _round_metric(latest.get("quick_ratio"))
+    debt_to_equity = _round_metric(latest.get("debt_to_equity_ratio"))
+    balance_quality_score = 0.0
+    if current_ratio is not None:
+        balance_quality_score += min(current_ratio, 3) * 10
+    if quick_ratio is not None:
+        balance_quality_score += min(quick_ratio, 3) * 8
+    if debt_ratio is not None:
+        balance_quality_score -= debt_ratio / 2
+    if debt_to_equity is not None:
+        balance_quality_score -= debt_to_equity * 5
+
+    risk_flags = []
+    if _safe_float(altman.get("score")) is not None and _safe_float(altman.get("score")) < 1.8:
+        risk_flags.append("low_altman_z")
+    if debt_ratio is not None and debt_ratio > 60:
+        risk_flags.append("high_debt_ratio")
+    if _safe_float(market_summary.get("avg_daily_trading_value")) in (None, 0):
+        risk_flags.append("low_or_missing_market_liquidity")
+    if _safe_float(market_summary.get("period_change_percent")) is not None and _safe_float(market_summary.get("period_change_percent")) < -20:
+        risk_flags.append("large_price_drawdown")
+
+    return {
+        "input": query,
+        "company_name": resolved_name,
+        "ticker": security.get("ticker"),
+        "isin_code": security.get("isin_code"),
+        "latest_year": latest.get("year"),
+        "score": _round_metric(total_score.get("score")),
+        "grade": total_score.get("grade"),
+        "score_summary": total_score.get("summary"),
+        "revenue": _round_metric(latest.get("revenue")),
+        "revenue_growth_pct": _growth_pct(latest.get("revenue"), previous.get("revenue")),
+        "net_income": _round_metric(latest.get("net_income")),
+        "net_income_growth_pct": _growth_pct(latest.get("net_income"), previous.get("net_income")),
+        "net_profit_margin_pct": _round_metric(latest.get("net_profit_margin")),
+        "gross_profit_margin_pct": _round_metric(latest.get("gross_profit_margin")),
+        "roe_pct": _round_metric(latest.get("return_on_equity")),
+        "roa_pct": _round_metric(latest.get("return_on_assets")),
+        "debt_ratio_pct": debt_ratio,
+        "debt_to_equity_ratio": debt_to_equity,
+        "current_ratio": current_ratio,
+        "quick_ratio": quick_ratio,
+        "balance_quality_score": round(balance_quality_score, 2),
+        "piotroski_score": _round_metric(piotroski.get("score")),
+        "altman_score": _round_metric(altman.get("score")),
+        "altman_zone": altman.get("zone") or altman.get("verdict"),
+        "latest_price": _round_metric(market_summary.get("latest_price")),
+        "latest_trade_datetime": market_summary.get("latest_trade_datetime"),
+        "day_change_percent": _round_metric(market_summary.get("day_change_percent")),
+        "period_change_percent": _round_metric(market_summary.get("period_change_percent")),
+        "avg_daily_trading_value": _round_metric(market_summary.get("avg_daily_trading_value")),
+        "total_trading_value": _round_metric(market_summary.get("total_trading_value")),
+        "dividend_count": (market_context.get("dividends") or {}).get("count"),
+        "report_document_count": report_docs.get("count"),
+        "pdf_report_count": sum(1 for item in report_items if item.get("pdf_available")),
+        "excel_report_count": sum(1 for item in report_items if item.get("excel_available")),
+        "risk_flags": risk_flags,
+        "market_context": market_context,
+    }
+
+
+def build_company_comparison(
+    companies: list[str],
+    language: str = "ru",
+    include_ai_summary: bool = True,
+) -> dict:
+    language = _normalize_language(language)
+    cleaned = []
+    seen = set()
+    for company in companies:
+        value = (company or "").strip()
+        key = value.lower()
+        if value and key not in seen:
+            cleaned.append(value)
+            seen.add(key)
+    if not 2 <= len(cleaned) <= 3:
+        raise ValueError("Compare requires 2 or 3 unique companies")
+
+    rows = []
+    errors = []
+    with ThreadPoolExecutor(max_workers=len(cleaned)) as executor:
+        futures = {executor.submit(_compare_one_company, company): company for company in cleaned}
+        for future in as_completed(futures):
+            company = futures[future]
+            try:
+                rows.append(future.result())
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"company": company, "error": str(exc)})
+
+    rows.sort(key=lambda row: cleaned.index(row.get("input")) if row.get("input") in cleaned else 999)
+    if len(rows) < 2:
+        raise ValueError(f"Not enough comparable companies. Errors: {errors}")
+
+    overall_ranking = sorted(
+        rows,
+        key=lambda row: _safe_float(row.get("score")) if _safe_float(row.get("score")) is not None else -1,
+        reverse=True,
+    )
+    leaders = {
+        "overall_leader": _leader_payload(_best_by(rows, "score"), "score"),
+        "profitability_leader": _leader_payload(_best_by(rows, "net_profit_margin_pct"), "net_profit_margin_pct"),
+        "roe_leader": _leader_payload(_best_by(rows, "roe_pct"), "roe_pct"),
+        "balance_quality_leader": _leader_payload(_best_by(rows, "balance_quality_score"), "balance_quality_score"),
+        "market_liquidity_leader": _leader_payload(_best_by(rows, "avg_daily_trading_value"), "avg_daily_trading_value"),
+        "lowest_debt_ratio": _leader_payload(_best_by(rows, "debt_ratio_pct", reverse=False), "debt_ratio_pct"),
+    }
+    normalized_metrics = _build_normalized_comparison(rows)
+    category_scores = _build_category_scores(normalized_metrics)
+    normalized_ranking = sorted(
+        category_scores,
+        key=lambda row: _safe_float(row.get("composite_score")) if _safe_float(row.get("composite_score")) is not None else -1,
+        reverse=True,
+    )
+    tables = _build_comparison_tables(rows, normalized_metrics, category_scores)
+    charts = _build_comparison_charts(rows, category_scores)
+    comparative_ai_summary = (
+        _build_comparative_ai_summary(rows, leaders, category_scores, language)
+        if include_ai_summary
+        else {"ok": False, "text": None, "skipped": True}
+    )
+
+    return {
+        "ok": True,
+        "language": language,
+        "input_companies": cleaned,
+        "comparison": {
+            "fields": COMPARISON_FIELDS,
+            "rows": rows,
+            "normalized_metrics": normalized_metrics,
+            "category_scores": category_scores,
+            "tables": tables,
+            "charts": charts,
+            "leaders": leaders,
+            "ranking": [
+                {
+                    "rank": index + 1,
+                    "company": row.get("company_name"),
+                    "ticker": row.get("ticker"),
+                    "score": row.get("score"),
+                    "grade": row.get("grade"),
+                }
+                for index, row in enumerate(overall_ranking)
+            ],
+            "normalized_ranking": [
+                {
+                    "rank": index + 1,
+                    "company": row.get("company_name"),
+                    "ticker": row.get("ticker"),
+                    "composite_score": row.get("composite_score"),
+                }
+                for index, row in enumerate(normalized_ranking)
+            ],
+            "summary": _comparison_summary(rows, leaders, language),
+            "comparative_ai_summary": comparative_ai_summary,
+            "errors": errors,
+        },
     }
 
 

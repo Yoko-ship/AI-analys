@@ -725,6 +725,110 @@ function disclosureText(language) {
   return DISCLOSURE_TEXTS[normalizeLanguage(language)] ?? DISCLOSURE_TEXTS.ru;
 }
 
+const COMPARE_TEXTS = {
+  ru: {
+    nav: "Сравнение",
+    title: "Сравнение эмитентов",
+    subtitle: "Сравните 2-3 компании по МСФО, рыночной ликвидности, отчетам и нормализованным показателям 0-100.",
+    company1: "Компания 1",
+    company2: "Компания 2",
+    company3: "Компания 3",
+    placeholder: "Тикер или название компании",
+    optional: "необязательно",
+    includeAi: "Сформировать comparative AI summary",
+    submit: "Сравнить",
+    loading: "Сравнение выполняется...",
+    ready: "Сравнение готово",
+    authRequired: "Сначала выполните вход",
+    minRequired: "Выберите минимум две разные компании",
+    overview: "Итог сравнения",
+    leaders: "Лидеры по ключевым блокам",
+    charts: "Сравнительные графики",
+    tables: "Сравнительные таблицы",
+    aiSummary: "Comparative AI summary",
+    methodology: "Методика",
+    ranking: "Рейтинг",
+    normalizedRanking: "Нормализованный рейтинг",
+    normalizedNote: "Все разнородные метрики приведены к шкале 0-100: чем выше, тем сильнее позиция компании.",
+    noData: "Нет данных",
+    empty: "Добавьте 2-3 компании и запустите сравнение.",
+    quick: "Быстрый выбор",
+    errors: "Предупреждения",
+    raw: "значение",
+    normalized: "норм.",
+    rank: "место",
+  },
+  en: {
+    nav: "Compare",
+    title: "Issuer comparison",
+    subtitle: "Compare 2-3 companies by IFRS metrics, market liquidity, reports, and normalized 0-100 indicators.",
+    company1: "Company 1",
+    company2: "Company 2",
+    company3: "Company 3",
+    placeholder: "Ticker or company name",
+    optional: "optional",
+    includeAi: "Generate comparative AI summary",
+    submit: "Compare",
+    loading: "Comparison is running...",
+    ready: "Comparison is ready",
+    authRequired: "Please sign in first",
+    minRequired: "Select at least two different companies",
+    overview: "Comparison result",
+    leaders: "Leaders by key blocks",
+    charts: "Comparative charts",
+    tables: "Comparative tables",
+    aiSummary: "Comparative AI summary",
+    methodology: "Methodology",
+    ranking: "Ranking",
+    normalizedRanking: "Normalized ranking",
+    normalizedNote: "Different metrics are normalized to a 0-100 scale: higher means a stronger relative position.",
+    noData: "No data",
+    empty: "Add 2-3 companies and run comparison.",
+    quick: "Quick pick",
+    errors: "Warnings",
+    raw: "value",
+    normalized: "norm.",
+    rank: "rank",
+  },
+  uz: {
+    nav: "Taqqoslash",
+    title: "Emitentlarni taqqoslash",
+    subtitle: "2-3 kompaniyani IFRS ko'rsatkichlari, bozor likvidligi, hisobotlar va 0-100 normalizatsiya bo'yicha solishtiring.",
+    company1: "Kompaniya 1",
+    company2: "Kompaniya 2",
+    company3: "Kompaniya 3",
+    placeholder: "Ticker yoki kompaniya nomi",
+    optional: "ixtiyoriy",
+    includeAi: "Comparative AI summary yaratish",
+    submit: "Taqqoslash",
+    loading: "Taqqoslash bajarilmoqda...",
+    ready: "Taqqoslash tayyor",
+    authRequired: "Avval tizimga kiring",
+    minRequired: "Kamida ikki xil kompaniyani tanlang",
+    overview: "Taqqoslash natijasi",
+    leaders: "Asosiy bloklar bo'yicha liderlar",
+    charts: "Taqqoslash grafiklari",
+    tables: "Taqqoslash jadvallari",
+    aiSummary: "Comparative AI summary",
+    methodology: "Metodika",
+    ranking: "Reyting",
+    normalizedRanking: "Normalizatsiya reytingi",
+    normalizedNote: "Turli metrikalar 0-100 shkalasiga keltiriladi: yuqori qiymat nisbatan kuchliroq pozitsiyani bildiradi.",
+    noData: "Ma'lumot yo'q",
+    empty: "2-3 kompaniya qo'shing va taqqoslashni boshlang.",
+    quick: "Tez tanlash",
+    errors: "Ogohlantirishlar",
+    raw: "qiymat",
+    normalized: "norm.",
+    rank: "o'rin",
+  },
+};
+
+function ct(language, key) {
+  const lang = normalizeLanguage(language);
+  return COMPARE_TEXTS[lang]?.[key] ?? COMPARE_TEXTS.ru[key] ?? key;
+}
+
 function safeNumber(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
@@ -1098,6 +1202,346 @@ function SectionCard({ title, body, index, open = false }) {
   );
 }
 
+const COMPARE_COLORS = ["#6ef0c1", "#f5b84d", "#7dd3fc"];
+
+const COMPARE_TABLE_TITLES = {
+  ru: {
+    overview: "Обзор",
+    profitability: "Прибыльность",
+    growth: "Рост",
+    balance: "Баланс и риск",
+    market: "Рынок",
+    documents: "Отчеты",
+    category_scores: "Сводные категории",
+  },
+  en: {
+    overview: "Overview",
+    profitability: "Profitability",
+    growth: "Growth",
+    balance: "Balance and risk",
+    market: "Market",
+    documents: "Reports",
+    category_scores: "Category scores",
+  },
+  uz: {
+    overview: "Umumiy",
+    profitability: "Rentabellik",
+    growth: "O'sish",
+    balance: "Balans va risk",
+    market: "Bozor",
+    documents: "Hisobotlar",
+    category_scores: "Kategoriya ballari",
+  },
+};
+
+const COMPARE_LEADER_LABELS = {
+  ru: {
+    overall_leader: "Общий лидер",
+    profitability_leader: "Прибыльность",
+    roe_leader: "ROE",
+    balance_quality_leader: "Качество баланса",
+    market_liquidity_leader: "Ликвидность",
+    lowest_debt_ratio: "Минимальная долговая нагрузка",
+  },
+  en: {
+    overall_leader: "Overall leader",
+    profitability_leader: "Profitability",
+    roe_leader: "ROE",
+    balance_quality_leader: "Balance quality",
+    market_liquidity_leader: "Liquidity",
+    lowest_debt_ratio: "Lowest debt load",
+  },
+  uz: {
+    overall_leader: "Umumiy lider",
+    profitability_leader: "Rentabellik",
+    roe_leader: "ROE",
+    balance_quality_leader: "Balans sifati",
+    market_liquidity_leader: "Likvidlik",
+    lowest_debt_ratio: "Eng past qarz yuki",
+  },
+};
+
+function compareTableTitle(language, key) {
+  const lang = normalizeLanguage(language);
+  return COMPARE_TABLE_TITLES[lang]?.[key] ?? key.replaceAll("_", " ");
+}
+
+function compareLeaderLabel(language, key) {
+  const lang = normalizeLanguage(language);
+  return COMPARE_LEADER_LABELS[lang]?.[key] ?? key.replaceAll("_", " ");
+}
+
+function formatCompareValue(value, language, unit = "") {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "string") return value;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return String(value);
+  const normalizedUnit = String(unit || "").trim();
+  const formatted = Math.abs(num) >= 1000 ? formatCompactNumber(num, language, 2) : formatRatio(num, 2, language);
+  if (normalizedUnit === "%") return `${formatted}%`;
+  if (normalizedUnit === "x") return `${formatted}x`;
+  if (normalizedUnit.startsWith("/")) return `${formatted}${normalizedUnit}`;
+  if (!normalizedUnit) return formatted;
+  return `${formatted} ${normalizedUnit}`;
+}
+
+function formatCompareCell(cell, column, language) {
+  if (cell && typeof cell === "object" && !Array.isArray(cell)) {
+    return {
+      value: formatCompareValue(cell.raw, language, column?.unit),
+      normalized: cell.normalized,
+      rank: cell.rank,
+    };
+  }
+  return {
+    value: formatCompareValue(cell, language, column?.unit),
+    normalized: null,
+    rank: null,
+  };
+}
+
+function getCompareSeriesData(series) {
+  return Array.isArray(series?.data) ? series.data : Array.isArray(series?.values) ? series.values : [];
+}
+
+function getCompareAxisLabel(item) {
+  if (!item || typeof item !== "object") return String(item || "");
+  return item.ticker || item.company_name || item.label || "";
+}
+
+function CompareLeaderCards({ leaders, language }) {
+  const entries = Object.entries(leaders || {}).filter(([, value]) => value);
+  if (!entries.length) {
+    return <div className="empty-state"><p className="empty-copy">{ct(language, "noData")}</p></div>;
+  }
+
+  return (
+    <div className="compare-leader-grid">
+      {entries.map(([key, value], index) => (
+        <article key={key} className="compare-leader-card" style={{ "--series-color": COMPARE_COLORS[index % COMPARE_COLORS.length] }}>
+          <span>{compareLeaderLabel(language, key)}</span>
+          <strong>{value.ticker || value.company || "—"}</strong>
+          <p>{formatCompareValue(value.value, language)}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function CompareRanking({ title, rows, scoreKey, language }) {
+  const items = Array.isArray(rows) ? rows : [];
+  if (!items.length) return null;
+  return (
+    <article className="compare-ranking-card">
+      <h3>{title}</h3>
+      <div className="compare-ranking-list">
+        {items.map((item) => (
+          <div key={`${title}-${item.rank}-${item.ticker || item.company}`} className="compare-ranking-row">
+            <span className="compare-rank">#{item.rank}</span>
+            <span className="compare-company">{item.ticker || item.company || "—"}</span>
+            <strong>{formatCompareValue(item[scoreKey], language, scoreKey.endsWith("score") ? "/100" : "")}</strong>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function CompareRadarChart({ chart, language }) {
+  const labels = Array.isArray(chart?.labels) ? chart.labels : [];
+  const datasets = Array.isArray(chart?.datasets) ? chart.datasets : [];
+  const size = 360;
+  const center = size / 2;
+  const radius = 116;
+  const labelRadius = 150;
+
+  if (labels.length < 3 || !datasets.length) {
+    return <div className="compare-chart-empty">{ct(language, "noData")}</div>;
+  }
+
+  const point = (index, value, customRadius = radius) => {
+    const angle = -Math.PI / 2 + (index / labels.length) * Math.PI * 2;
+    const bounded = Math.max(0, Math.min(100, Number(value) || 0)) / 100;
+    const r = customRadius * bounded;
+    return {
+      x: center + Math.cos(angle) * r,
+      y: center + Math.sin(angle) * r,
+    };
+  };
+
+  const ringPath = (level) =>
+    labels
+      .map((_, index) => {
+        const p = point(index, 100, radius * level);
+        return `${index === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+      })
+      .join(" ") + " Z";
+
+  return (
+    <div className="compare-radar-wrap">
+      <svg className="compare-radar" viewBox={`0 0 ${size} ${size}`} role="img" aria-label={chart.title || ct(language, "charts")}>
+        {[0.25, 0.5, 0.75, 1].map((level) => (
+          <path key={level} className="compare-radar-ring" d={ringPath(level)} />
+        ))}
+        {labels.map((label, index) => {
+          const edge = point(index, 100);
+          const textPoint = point(index, 100, labelRadius);
+          return (
+            <g key={label.key || label.label || index}>
+              <line className="compare-radar-axis" x1={center} y1={center} x2={edge.x} y2={edge.y} />
+              <text className="compare-radar-label" x={textPoint.x} y={textPoint.y} textAnchor="middle">
+                {label.label || label.key || index + 1}
+              </text>
+            </g>
+          );
+        })}
+        {datasets.map((dataset, datasetIndex) => {
+          const data = getCompareSeriesData(dataset);
+          const path = labels
+            .map((_, index) => {
+              const p = point(index, data[index]);
+              return `${index === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+            })
+            .join(" ") + " Z";
+          return (
+            <g key={dataset.label || dataset.company_name || datasetIndex} style={{ "--series-color": COMPARE_COLORS[datasetIndex % COMPARE_COLORS.length] }}>
+              <path className="compare-radar-area" d={path} />
+              <path className="compare-radar-line" d={path} />
+            </g>
+          );
+        })}
+      </svg>
+      <div className="compare-chart-legend">
+        {datasets.map((dataset, index) => (
+          <span key={dataset.label || dataset.company_name || index} className="legend-chip">
+            <i className="legend-swatch" style={{ background: COMPARE_COLORS[index % COMPARE_COLORS.length] }} />
+            {dataset.label || dataset.company_name || `#${index + 1}`}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CompareBarChart({ chart, language }) {
+  const axis = Array.isArray(chart?.x) ? chart.x : [];
+  const series = Array.isArray(chart?.series) ? chart.series : [];
+  const values = series.flatMap((item) => getCompareSeriesData(item).map((value) => Math.abs(Number(value))).filter(Number.isFinite));
+  const max = Math.max(1, ...values);
+
+  if (!axis.length || !series.length) {
+    return <div className="compare-chart-empty">{ct(language, "noData")}</div>;
+  }
+
+  return (
+    <div className="compare-bars">
+      {axis.map((item, rowIndex) => (
+        <div key={`${getCompareAxisLabel(item)}-${rowIndex}`} className="compare-bar-company">
+          <div className="compare-bar-company-name">{getCompareAxisLabel(item)}</div>
+          <div className="compare-bar-series">
+            {series.map((serie, serieIndex) => {
+              const raw = getCompareSeriesData(serie)[rowIndex];
+              const num = Number(raw);
+              const isFiniteValue = Number.isFinite(num);
+              const width = isFiniteValue ? Math.max(4, (Math.abs(num) / max) * 100) : 0;
+              return (
+                <div key={`${serie.key || serie.label}-${rowIndex}`} className="compare-bar-row">
+                  <span>{serie.label || serie.key}</span>
+                  <div className="compare-bar-track">
+                    <i
+                      className={isFiniteValue && num < 0 ? "is-negative" : ""}
+                      style={{ width: `${width}%`, background: COMPARE_COLORS[serieIndex % COMPARE_COLORS.length] }}
+                    />
+                  </div>
+                  <strong>{formatCompareValue(raw, language)}</strong>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CompareChartCard({ chart, language }) {
+  if (!chart) return null;
+  const isRadar = chart.type === "radar";
+  return (
+    <article className={`chart-card compare-chart-card compare-chart-${chart.type || "bar"}`}>
+      <div className="chart-head">
+        <div>
+          <div className="panel-label">{ct(language, "charts")}</div>
+          <h3>{chart.title || ct(language, "charts")}</h3>
+        </div>
+        <span className="status-badge muted">{isRadar ? "0-100" : chart.type || "chart"}</span>
+      </div>
+      {isRadar ? <CompareRadarChart chart={chart} language={language} /> : <CompareBarChart chart={chart} language={language} />}
+    </article>
+  );
+}
+
+function CompareTable({ table, title, language }) {
+  const columns = Array.isArray(table?.columns) ? table.columns : [];
+  const rows = Array.isArray(table?.rows) ? table.rows : [];
+  if (!columns.length || !rows.length) return null;
+
+  return (
+    <article className="compare-table-card">
+      <div className="section-title-row">
+        <h3>{title}</h3>
+        <span className="muted">{rows.length}</span>
+      </div>
+      <div className="compare-table-scroll">
+        <table className="compare-table">
+          <thead>
+            <tr>
+              {columns.map((column) => (
+                <th key={column.key}>{column.label || column.key}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={`${title}-${row.company_name || row.ticker || rowIndex}`}>
+                {columns.map((column) => {
+                  const cell = formatCompareCell(row[column.key], column, language);
+                  return (
+                    <td key={column.key}>
+                      <strong>{cell.value}</strong>
+                      {cell.normalized !== null && cell.normalized !== undefined ? (
+                        <span>{ct(language, "normalized")}: {formatCompareValue(cell.normalized, language, "/100")}</span>
+                      ) : null}
+                      {cell.rank ? <em>#{cell.rank}</em> : null}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  );
+}
+
+function CompareSummaryText({ summary, language }) {
+  const text = summary?.text || summary?.summary || "";
+  if (!text) {
+    return <p className="empty-copy">{summary?.error || ct(language, "noData")}</p>;
+  }
+  return (
+    <div className="compare-ai-text">
+      {String(text)
+        .split(/\n+/)
+        .filter(Boolean)
+        .map((line, index) => (
+          <p key={index}>{line}</p>
+        ))}
+    </div>
+  );
+}
+
 function App() {
   const [language, setLanguage] = useState(() => normalizeLanguage(localStorage.getItem(LANGUAGE_KEY) || "ru"));
   const [theme, setTheme] = useState(() => {
@@ -1119,6 +1563,11 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
+  const [compareCompanies, setCompareCompanies] = useState(["", "", ""]);
+  const [compareResult, setCompareResult] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareMessage, setCompareMessage] = useState("");
+  const [compareAiSummary, setCompareAiSummary] = useState(true);
   const [profileForm, setProfileForm] = useState({ full_name: "" });
   const [profileAvatarFile, setProfileAvatarFile] = useState(null);
   const [profileAvatarPreview, setProfileAvatarPreview] = useState("");
@@ -1177,6 +1626,7 @@ function App() {
       setUser(null);
       setProfile(null);
       setAnalysisResult(null);
+      setCompareResult(null);
       return;
     }
     refreshSession().catch(() => {
@@ -1329,6 +1779,7 @@ function App() {
     setUser(null);
     setProfile(null);
     setAnalysisResult(null);
+    setCompareResult(null);
     setActiveView("auth");
     addToast(t(language, "auth.messages.logoutOk"), "info");
   };
@@ -1371,6 +1822,78 @@ function App() {
       setAnalysisResult(null);
     } finally {
       setAnalysisLoading(false);
+    }
+  };
+
+  const updateCompareCompany = (index, value) => {
+    setCompareCompanies((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)));
+  };
+
+  const addQuickCompareCompany = (ticker) => {
+    setCompareCompanies((current) => {
+      const normalized = String(ticker || "").trim();
+      if (!normalized) return current;
+      if (current.some((item) => item.trim().toLowerCase() === normalized.toLowerCase())) return current;
+      const next = [...current];
+      const emptyIndex = next.findIndex((item) => !item.trim());
+      if (emptyIndex >= 0) {
+        next[emptyIndex] = normalized;
+      } else {
+        next[2] = normalized;
+      }
+      return next;
+    });
+  };
+
+  const handleCompareSubmit = async (event) => {
+    event.preventDefault();
+    if (!token) {
+      addToast(ct(language, "authRequired"), "error");
+      setActiveView("auth");
+      return;
+    }
+
+    const cleaned = [];
+    const seen = new Set();
+    for (const item of compareCompanies) {
+      const value = String(item || "").trim();
+      const key = value.toLowerCase();
+      if (value && !seen.has(key)) {
+        cleaned.push(value);
+        seen.add(key);
+      }
+    }
+
+    if (cleaned.length < 2) {
+      addToast(ct(language, "minRequired"), "error");
+      return;
+    }
+
+    setCompareLoading(true);
+    setCompareMessage(ct(language, "loading"));
+    try {
+      const res = await apiFetch("/api/compare", {
+        method: "POST",
+        body: JSON.stringify({
+          companies: cleaned.slice(0, 3),
+          language,
+          include_market_context: false,
+          include_ai_summary: compareAiSummary,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Could not complete the comparison");
+      setCompareResult(data);
+      setCompareMessage(ct(language, "ready"));
+      addToast(`${ct(language, "ready")}: ${cleaned.join(" / ")}`, "success");
+      setActiveView("compare");
+      await loadProfile();
+    } catch (error) {
+      addToast(error.message, "error");
+      setCompareMessage(error.message);
+      setCompareResult(null);
+    } finally {
+      setCompareLoading(false);
     }
   };
 
@@ -1558,8 +2081,17 @@ function App() {
     },
   ];
   const disclosure = disclosureText(language);
+  const comparison = compareResult?.comparison || null;
+  const compareCharts = Array.isArray(comparison?.charts) ? comparison.charts : [];
+  const compareTables = comparison?.tables || {};
+  const compareSummary = comparison?.summary || {};
+  const compareAi = comparison?.comparative_ai_summary || {};
+  const compareErrors = Array.isArray(comparison?.errors) ? comparison.errors : [];
+  const comparePrimaryChart = compareCharts.find((chart) => chart.id === "normalized_radar") || compareCharts[0];
+  const compareSecondaryCharts = compareCharts.filter((chart) => chart !== comparePrimaryChart);
+  const compareQuickCompanies = companies.slice(0, 18);
 
-  const navItems = ["main", "about", "auth", "profile", "analysis"];
+  const navItems = ["main", "about", "auth", "profile", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -1607,14 +2139,14 @@ function App() {
           <nav className="topbar-nav">
             {navItems.map((key) => (
               <button key={key} className={`topbar-nav-btn ${activeView === key ? "active" : ""}`} type="button" onClick={() => setActiveView(key)}>
-                {t(language, `nav.${key}`)}
+                {key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
 
           <div className="topbar-meta">
             <div className="topbar-status">
-              <span className="auth-chip-label">{activeView ? t(language, `nav.${activeView}`) : t(language, "nav.main")}</span>
+              <span className="auth-chip-label">{activeView === "compare" ? ct(language, "nav") : activeView ? t(language, `nav.${activeView}`) : t(language, "nav.main")}</span>
               <span className={`status-badge ${token ? "" : "muted"}`}>{token ? t(language, "auth.signedIn") : t(language, "auth.signedOut")}</span>
             </div>
 
@@ -2304,6 +2836,176 @@ function App() {
                   </div>
                 )}
               </article>
+            </section>
+          )}
+
+          {activeView === "compare" && (
+            <section className="compare-layout">
+              <article className="panel compare-form-panel">
+                <div className="panel-head">
+                  <div>
+                    <div className="panel-label">{ct(language, "nav")}</div>
+                    <h2>{ct(language, "title")}</h2>
+                  </div>
+                  {compareLoading ? <span className="status-badge">{ct(language, "loading")}</span> : null}
+                </div>
+                <p className="panel-intro">{ct(language, "subtitle")}</p>
+
+                <form className="compare-form" onSubmit={handleCompareSubmit}>
+                  {compareCompanies.map((value, index) => (
+                    <label key={index}>
+                      <span>
+                        {ct(language, `company${index + 1}`)}
+                        {index === 2 ? <em>{ct(language, "optional")}</em> : null}
+                      </span>
+                      <input
+                        list="compareCompaniesList"
+                        value={value}
+                        onChange={(event) => updateCompareCompany(index, event.target.value)}
+                        placeholder={ct(language, "placeholder")}
+                        autoComplete="off"
+                        required={index < 2}
+                      />
+                    </label>
+                  ))}
+                  <datalist id="compareCompaniesList">
+                    {companies.map((company) => (
+                      <option key={company.ticker} value={company.ticker}>
+                        {company.company_name}
+                      </option>
+                    ))}
+                  </datalist>
+                  <label className="toggle-row compare-toggle">
+                    <input type="checkbox" checked={compareAiSummary} onChange={(event) => setCompareAiSummary(event.target.checked)} />
+                    <span>{ct(language, "includeAi")}</span>
+                  </label>
+                  <button className="primary-btn compare-submit-btn" type="submit" disabled={compareLoading}>
+                    {compareLoading ? ct(language, "loading") : ct(language, "submit")}
+                  </button>
+                </form>
+
+                <div className="quick-list-wrap">
+                  <div className="section-title-row">
+                    <h3>{ct(language, "quick")}</h3>
+                    <span className="muted">{companies.length}</span>
+                  </div>
+                  <div className="quick-list">
+                    {compareQuickCompanies.map((company) => (
+                      <button
+                        key={company.ticker}
+                        className="quick-chip"
+                        type="button"
+                        onClick={() => addQuickCompareCompany(company.ticker)}
+                      >
+                        {company.ticker}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </article>
+
+              <article className={`panel compare-overview-panel ${compareLoading ? "is-loading" : ""}`}>
+                <div className="panel-head">
+                  <div>
+                    <div className="panel-label">{ct(language, "overview")}</div>
+                    <h2>{compareResult ? ct(language, "ready") : ct(language, "empty")}</h2>
+                  </div>
+                  {compareMessage ? <span className="status-badge muted">{compareMessage}</span> : null}
+                </div>
+
+                {compareLoading ? (
+                  <div className="compare-loading-grid">
+                    <div />
+                    <div />
+                    <div />
+                  </div>
+                ) : comparison ? (
+                  <>
+                    <div className="compare-summary-card">
+                      <p>{compareSummary.short || ct(language, "noData")}</p>
+                      <span>{ct(language, "normalizedNote")}</span>
+                    </div>
+                    <CompareLeaderCards leaders={comparison.leaders} language={language} />
+                    <div className="compare-ranking-grid">
+                      <CompareRanking title={ct(language, "ranking")} rows={comparison.ranking} scoreKey="score" language={language} />
+                      <CompareRanking title={ct(language, "normalizedRanking")} rows={comparison.normalized_ranking} scoreKey="composite_score" language={language} />
+                    </div>
+                  </>
+                ) : (
+                  <div className="empty-state">
+                    <p className="empty-copy">{ct(language, "empty")}</p>
+                  </div>
+                )}
+              </article>
+            </section>
+          )}
+
+          {activeView === "compare" && (
+            <section className="compare-results-grid">
+              <article className="panel compare-chart-main">
+                {comparePrimaryChart ? <CompareChartCard chart={comparePrimaryChart} language={language} /> : (
+                  <div className="empty-state">
+                    <p className="empty-copy">{compareLoading ? ct(language, "loading") : ct(language, "noData")}</p>
+                  </div>
+                )}
+              </article>
+
+              <article className="panel compare-ai-panel">
+                <div className="panel-head">
+                  <div>
+                    <div className="panel-label">{ct(language, "aiSummary")}</div>
+                    <h2>{ct(language, "aiSummary")}</h2>
+                  </div>
+                  {compareAi?.model ? <span className="status-badge muted">{compareAi.model}</span> : null}
+                </div>
+                <CompareSummaryText summary={compareAi} language={language} />
+                {compareSummary.methodology ? (
+                  <div className="compare-methodology">
+                    <strong>{ct(language, "methodology")}</strong>
+                    <p>{compareSummary.methodology}</p>
+                  </div>
+                ) : null}
+                {compareErrors.length ? (
+                  <div className="compare-errors">
+                    <strong>{ct(language, "errors")}</strong>
+                    {compareErrors.map((error) => (
+                      <p key={`${error.company}-${error.error}`}>{error.company}: {error.error}</p>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+
+              {compareSecondaryCharts.length ? (
+                <article className="panel compare-charts-panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{ct(language, "charts")}</div>
+                      <h2>{ct(language, "charts")}</h2>
+                    </div>
+                  </div>
+                  <div className="compare-chart-grid">
+                    {compareSecondaryCharts.map((chart) => (
+                      <CompareChartCard key={chart.id || chart.title} chart={chart} language={language} />
+                    ))}
+                  </div>
+                </article>
+              ) : null}
+
+              {Object.keys(compareTables).length ? (
+                <article className="panel compare-tables-panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{ct(language, "tables")}</div>
+                      <h2>{ct(language, "tables")}</h2>
+                    </div>
+                  </div>
+                  <div className="compare-tables-grid">
+                    {Object.entries(compareTables).map(([key, table]) => (
+                      <CompareTable key={key} table={table} title={compareTableTitle(language, key)} language={language} />
+                    ))}
+                  </div>
+                </article>
+              ) : null}
             </section>
           )}
         </main>

@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from analysis_service import build_summary, run_company_analysis
+from analysis_service import build_company_comparison, build_summary, run_company_analysis
 from company_catalog import COMPANY_CATALOG
 from openinfo_collector import collect_company_data
 from web_auth import WebUser, web_auth_store
@@ -83,6 +83,13 @@ class CompanyDataRequest(BaseModel):
     include_raw_reports: bool = False
     include_document_previews: bool = False
     validate_documents: bool = False
+
+
+class CompareRequest(BaseModel):
+    companies: list[str] = Field(..., min_length=2, max_length=3)
+    language: Literal["ru", "en", "uz"] = "ru"
+    include_market_context: bool = False
+    include_ai_summary: bool = True
 
 
 class RegisterRequest(BaseModel):
@@ -437,6 +444,36 @@ async def api_company_data(
     except Exception as exc:
         logger.exception("Company data collection failed for %s", payload.company)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    result["requested_by"] = current_user.to_public_dict()
+    return _json_safe(result)
+
+
+@app.post("/api/compare")
+async def api_compare(
+    payload: CompareRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> dict[str, Any]:
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(
+                build_company_comparison,
+                payload.companies,
+                payload.language,
+                payload.include_ai_summary,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Company comparison failed for %s", payload.companies)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    if not payload.include_market_context:
+        for row in (result.get("comparison") or {}).get("rows", []):
+            row.pop("market_context", None)
 
     result["requested_by"] = current_user.to_public_dict()
     return _json_safe(result)
