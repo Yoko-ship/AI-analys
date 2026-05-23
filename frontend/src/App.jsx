@@ -2184,36 +2184,23 @@ function App() {
           </nav>
 
           <div className="topbar-meta">
-            <div className="topbar-status">
-              <span className="auth-chip-label">{activeView === "compare" ? ct(language, "nav") : activeView ? t(language, `nav.${activeView}`) : t(language, "nav.main")}</span>
-              <span className={`status-badge ${token ? "" : "muted"}`}>{token ? t(language, "auth.signedIn") : t(language, "auth.signedOut")}</span>
-            </div>
-
             <div className="topbar-controls">
-              <button className="theme-toggle" type="button" onClick={toggleTheme}>
-                <span className="field-label">{t(language, "theme.label")}</span>
-                <strong>{theme === "dark" ? t(language, "theme.light") : t(language, "theme.dark")}</strong>
-              </button>
-
               <label className="topbar-language">
-                <span className="field-label">{t(language, "languageLabel")}</span>
                 <select
                   id="languageSelect"
                   className="select-field"
                   value={language}
                   onChange={(event) => setLanguage(normalizeLanguage(event.target.value))}
                 >
-                  <option value="ru">{t(language, "languageOptions.ru")}</option>
-                  <option value="en">{t(language, "languageOptions.en")}</option>
-                  <option value="uz">{t(language, "languageOptions.uz")}</option>
+                  <option value="ru">RU</option>
+                  <option value="en">EN</option>
+                  <option value="uz">UZ</option>
                 </select>
               </label>
 
-              <div className="auth-chip topbar-auth-chip">
-                <div className="auth-chip-label">{token ? t(language, "auth.signedIn") : t(language, "auth.signedOut")}</div>
-                <div className="auth-chip-name">{profileUser?.full_name || profileUser?.email || "—"}</div>
-                <div className="auth-chip-email">{profileUser?.email || ""}</div>
-              </div>
+              <button className="theme-toggle" type="button" onClick={toggleTheme} title={theme === "dark" ? t(language, "theme.light") : t(language, "theme.dark")}>
+                <strong>{theme === "dark" ? "☀" : "☾"}</strong>
+              </button>
             </div>
           </div>
         </header>
