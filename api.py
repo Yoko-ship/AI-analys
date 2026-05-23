@@ -519,6 +519,7 @@ async def api_analyze(
         "cost": result.get("cost"),
         "from_cache": result.get("from_cache", False),
         "source": result.get("source", "fresh"),
+        "cache_mode": result.get("cache_mode"),
         "summary": build_summary(result),
         "sections": result.get("sections", {}),
         "metrics": result.get("metrics"),

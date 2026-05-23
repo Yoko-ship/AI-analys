@@ -1964,7 +1964,6 @@ function App() {
         body: JSON.stringify({
           company,
           language,
-          force_refresh: includeAllExcelReports,
           include_html: includeHtml,
           include_raw: false,
           include_all_excel_reports: includeAllExcelReports,
