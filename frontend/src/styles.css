@@ -114,12 +114,12 @@ img {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   color: #0a0f1a;
   font-family: "Space Grotesk", sans-serif;
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   background: linear-gradient(135deg, #ff9d00, #ffb340);
@@ -1632,15 +1632,15 @@ body {
   margin: 0;
   max-width: 100%;
   color: var(--text);
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  line-height: 1.1;
+  font-size: clamp(3rem, 6vw, 5rem);
+  line-height: 1.05;
 }
 
 .hero-copy-block p {
-  max-width: 600px;
-  margin: 16px 0 0;
+  max-width: 700px;
+  margin: 20px 0 0;
   color: var(--muted);
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   line-height: 1.6;
 }
 
@@ -2160,9 +2160,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 0 32px;
-  height: 64px;
+  gap: 32px;
+  padding: 0 48px;
+  height: 80px;
   border: none;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
@@ -2190,13 +2190,13 @@ body {
 }
 
 .brand-title {
-  font-size: 1.1rem;
+  font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .brand-subtitle {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   opacity: 0.6;
   display: none;
 }
@@ -2210,13 +2210,13 @@ body {
 /* Navigation Tabs - Clean Minimal Style */
 .topbar-nav-btn {
   position: relative;
-  padding: 8px 16px;
+  padding: 12px 20px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 1rem;
   cursor: pointer;
   transition: all 0.15s ease;
 }
