@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import heroImage from "./assets/hero-image.png";
 
 const STORAGE_KEY = "uz_stock_analyzer_token";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
@@ -2346,7 +2347,7 @@ function App() {
                   </div>
                 </div>
                 <div className="hero-image">
-                  <img src="/hero-image.png" alt="Stock Analysis Dashboard" />
+                  <img src={heroImage} alt="Stock Analysis Dashboard" />
                 </div>
               </section>
 
