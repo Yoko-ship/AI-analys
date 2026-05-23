@@ -1682,15 +1682,15 @@ body {
 .metrics-panel,
 .sections-panel,
 .result-hero,
-.chart-card,
-.mini-market-card,
-.stat-card,
-.info-card,
-.history-item,
-.favorite-item,
-.quick-chip,
-.tile-card,
-.section-card {
+body[data-theme="light"] .chart-card,
+body[data-theme="light"] .mini-market-card,
+body[data-theme="light"] .stat-card,
+body[data-theme="light"] .info-card,
+body[data-theme="light"] .history-item,
+body[data-theme="light"] .favorite-item,
+body[data-theme="light"] .quick-chip,
+body[data-theme="light"] .tile-card,
+body[data-theme="light"] .section-card {
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
@@ -4890,6 +4890,55 @@ body[data-theme="dark"] .profile-avatar-btn {
 body[data-theme="dark"] .profile-avatar-btn:hover {
   background: var(--accent);
   color: #0a0f1a;
+}
+
+/* Dark theme history/favorite items */
+body[data-theme="dark"] .history-item,
+body[data-theme="dark"] .favorite-item {
+  background: rgba(20, 26, 42, 0.8);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+body[data-theme="dark"] .history-item:hover,
+body[data-theme="dark"] .favorite-item:hover {
+  background: rgba(25, 32, 50, 0.9);
+  border-color: rgba(255, 157, 0, 0.3);
+}
+
+body[data-theme="dark"] .history-title,
+body[data-theme="dark"] .favorite-main strong {
+  color: #f1f5f9;
+}
+
+body[data-theme="dark"] .history-sub,
+body[data-theme="dark"] .history-meta,
+body[data-theme="dark"] .favorite-main span {
+  color: #8b95a5;
+}
+
+body[data-theme="dark"] .history-score {
+  color: var(--accent);
+}
+
+/* Dark theme all inputs and selects */
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+  background: rgba(10, 17, 30, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] input:focus,
+body[data-theme="dark"] select:focus,
+body[data-theme="dark"] textarea:focus {
+  border-color: var(--accent) !important;
+  background: rgba(15, 22, 35, 0.95) !important;
+}
+
+body[data-theme="dark"] input::placeholder {
+  color: #5a6577;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
