@@ -126,6 +126,14 @@ img {
   flex-shrink: 0;
 }
 
+.brand-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .brand-title {
   font-family: "Space Grotesk", sans-serif;
   font-size: 1.1rem;
