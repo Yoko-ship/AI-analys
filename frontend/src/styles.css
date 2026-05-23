@@ -337,18 +337,8 @@ img {
   grid-template-columns: 1fr;
 }
 
-.analysis-layout:has(.result-hero) {
-  grid-template-columns: 1fr 1.25fr;
-}
-
-.analysis-hero {
-  max-width: 900px;
-  margin: 0 auto;
-  width: 100%;
-}
-
 .results-grid {
-  grid-template-columns: 1.2fr 0.95fr;
+  grid-template-columns: 1fr 1fr;
 }
 
 .panel {
