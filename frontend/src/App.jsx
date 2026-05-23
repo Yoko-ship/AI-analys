@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import heroImage from "./assets/hero-image.png";
+import logoIcon from "./assets/icon.png";
 
 const STORAGE_KEY = "uz_stock_analyzer_token";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
@@ -2287,7 +2288,7 @@ function App() {
       <div className="app-shell">
         <header className="topbar">
           <div className="topbar-brand">
-            <div className="brand-mark">UZ</div>
+            <img src={logoIcon} alt="UZ Stock Analyzer" className="brand-icon" />
             <div className="brand-copy">
               <div className="brand-title">{t(language, "brand")}</div>
               <div className="brand-subtitle">{t(language, "subtitle")}</div>
