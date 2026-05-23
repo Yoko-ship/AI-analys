@@ -1,0 +1,12 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "sh -c \"if [ \\\"${APP_MODE:-bot}\\\" = api ]; then exec uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}; else exec python bot.py; fi\"",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
