@@ -2345,30 +2345,6 @@ function App() {
                     ))}
                   </div>
                 </div>
-                <div className="hero-visual">
-                  <div className="hero-mockup">
-                    <div className="hero-mockup-header">
-                      <div className="hero-mockup-dot" />
-                      <div className="hero-mockup-dot" />
-                      <div className="hero-mockup-dot" />
-                    </div>
-                    <div className="hero-mockup-content">
-                      <div className="hero-mockup-row">
-                        <div className="hero-mockup-label" />
-                        <div className="hero-mockup-bar" />
-                      </div>
-                      <div className="hero-mockup-row">
-                        <div className="hero-mockup-label" />
-                        <div className="hero-mockup-bar secondary" />
-                      </div>
-                      <div className="hero-mockup-row">
-                        <div className="hero-mockup-label" />
-                        <div className="hero-mockup-bar tertiary" />
-                      </div>
-                    </div>
-                    <div className="hero-mockup-score">78</div>
-                  </div>
-                </div>
               </section>
 
               {/* Features Section */}
