@@ -70,12 +70,26 @@ def _normalize_language(language: str | None) -> str:
     return value if value in {"ru", "en", "uz"} else "ru"
 
 
-def _cache_key(company: str, language: str | None = "ru") -> str:
+def _normalize_cache_mode(mode: str | None = "default") -> str:
+    value = (mode or "default").strip().lower()
+    value = re.sub(r"[^a-z0-9_-]+", "_", value)
+    value = re.sub(r"_+", "_", value).strip("_")
+    return value or "default"
+
+
+def _cache_key(
+    company: str,
+    language: str | None = "ru",
+    mode: str | None = "default",
+) -> str:
     base = _normalize(company)
     lang = _normalize_language(language)
-    if lang == "ru":
+    cache_mode = _normalize_cache_mode(mode)
+    if lang == "ru" and cache_mode == "default":
         return base
-    return f"{base}::{lang}"
+    if cache_mode == "default":
+        return f"{base}::{lang}"
+    return f"{base}::{lang}::{cache_mode}"
 
 
 class AnalysisCache:
@@ -127,7 +141,12 @@ class AnalysisCache:
     # ОСНОВНЫЕ ОПЕРАЦИИ
     # ─────────────────────────────────────────────────────
 
-    def get(self, company: str, language: str | None = "ru") -> dict | None:
+    def get(
+        self,
+        company: str,
+        language: str | None = "ru",
+        mode: str | None = "default",
+    ) -> dict | None:
         """
         Возвращает кэшированный результат или None если нет/устарел.
         
@@ -138,7 +157,8 @@ class AnalysisCache:
           - age_str: str — "3 дня назад" / "сегодня" / "вчера"
           - expires_in_days: int — через сколько дней истечёт
         """
-        key = _cache_key(company, language)
+        cache_mode = _normalize_cache_mode(mode)
+        key = _cache_key(company, language, cache_mode)
         now = time.time()
 
         with self._conn() as conn:
@@ -146,7 +166,11 @@ class AnalysisCache:
                 "SELECT * FROM analysis_cache WHERE cache_key = ?", (key,)
             ).fetchone()
 
-            if row is None and _normalize_language(language) == "ru":
+            if (
+                row is None
+                and cache_mode == "default"
+                and _normalize_language(language) == "ru"
+            ):
                 # Backward compatibility for very old rows if they ever used the suffixed key.
                 legacy_row = conn.execute(
                     "SELECT * FROM analysis_cache WHERE cache_key = ?", (_normalize(company),)
@@ -210,14 +234,22 @@ class AnalysisCache:
         payload.update(result_data)
         payload["from_cache"] = True
         payload["source"] = "cache"
+        payload["cache_mode"] = cache_mode
         return payload
 
-    def set(self, company: str, result: dict, language: str | None = "ru"):
+    def set(
+        self,
+        company: str,
+        result: dict,
+        language: str | None = "ru",
+        mode: str | None = "default",
+    ):
         """
         Сохраняет результат анализа в кэш.
         result — словарь который возвращает run_full_analysis().
         """
-        key = _cache_key(company, language)
+        cache_mode = _normalize_cache_mode(mode)
+        key = _cache_key(company, language, cache_mode)
         now = time.time()
 
         sections_json = json.dumps(
@@ -259,11 +291,16 @@ class AnalysisCache:
                 now,
             ))
 
-        logger.info(f"Кэш сохранён: '{result['company_name']}' (ключ: '{key}')")
+        logger.info(f"Кэш сохранён: '{result['company_name']}' (ключ: '{key}', mode: '{cache_mode}')")
 
-    def invalidate(self, company: str, language: str | None = "ru") -> bool:
+    def invalidate(
+        self,
+        company: str,
+        language: str | None = "ru",
+        mode: str | None = "default",
+    ) -> bool:
         """Удаляет запись из кэша. Возвращает True если запись была."""
-        key = _cache_key(company, language)
+        key = _cache_key(company, language, mode)
         with self._conn() as conn:
             cursor = conn.execute(
                 "DELETE FROM analysis_cache WHERE cache_key = ?", (key,)

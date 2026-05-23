@@ -35,6 +35,10 @@ OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low").strip().lo
 ANALYSIS_POLICY_VERSION = "public-information-v3-excel-snapshots"
 DEFAULT_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
 ABSOLUTE_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
+REPORT_DOCUMENTS_PROMPT_LIMIT = int(os.getenv("OPENINFO_REPORT_DOCUMENTS_PROMPT_LIMIT", "100"))
+EXCEL_PROMPT_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_PROMPT_MAX_REPORTS", "100"))
+EXCEL_PROMPT_MAX_SHEETS_PER_REPORT = int(os.getenv("OPENINFO_EXCEL_PROMPT_MAX_SHEETS_PER_REPORT", "3"))
+EXCEL_PROMPT_MAX_ROWS_PER_SHEET = int(os.getenv("OPENINFO_EXCEL_PROMPT_MAX_ROWS_PER_SHEET", "8"))
 
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY is required for the API service")
@@ -169,6 +173,15 @@ def _normalize_excel_report_limit(value: int | None, include_all: bool = False) 
     return max(0, min(ABSOLUTE_EXCEL_REPORT_LIMIT, parsed))
 
 
+def _analysis_cache_mode(include_all_excel_reports: bool, excel_report_limit: int) -> str:
+    default_limit = _normalize_excel_report_limit(None, include_all=False)
+    if include_all_excel_reports:
+        return f"deep_excel_all_{excel_report_limit}"
+    if excel_report_limit != default_limit:
+        return f"excel_limit_{excel_report_limit}"
+    return "default"
+
+
 def _as_pct(value, digits: int = 2):
     parsed = _safe_float(value)
     if parsed is None:
@@ -263,6 +276,7 @@ def _compact_market_context(company_data: dict | None) -> dict:
     ]
 
     reports = (company_data.get("reports") or {}).get("items") or []
+    report_documents_limit = max(0, min(REPORT_DOCUMENTS_PROMPT_LIMIT, 300))
     report_documents = [
         {
             "published_at": item.get("published_at"),
@@ -274,7 +288,7 @@ def _compact_market_context(company_data: dict | None) -> dict:
             "pdf_url": item.get("pdf_url"),
             "excel_url": item.get("excel_url"),
         }
-        for item in reports[:10]
+        for item in reports[:report_documents_limit]
     ]
 
     dividends = (company_data.get("dividends") or {}).get("items") or []
@@ -293,9 +307,12 @@ def _compact_market_context(company_data: dict | None) -> dict:
     ]
     excel_reports = company_data.get("excel_reports") or {}
     excel_items = []
-    for report in (excel_reports.get("items") or [])[:3]:
+    excel_prompt_limit = max(0, min(EXCEL_PROMPT_MAX_REPORTS, ABSOLUTE_EXCEL_REPORT_LIMIT))
+    sheet_limit = max(1, min(EXCEL_PROMPT_MAX_SHEETS_PER_REPORT, 10))
+    row_limit = max(1, min(EXCEL_PROMPT_MAX_ROWS_PER_SHEET, 30))
+    for report in (excel_reports.get("items") or [])[:excel_prompt_limit]:
         compact_sheets = []
-        for sheet in (report.get("sheets") or [])[:4]:
+        for sheet in (report.get("sheets") or [])[:sheet_limit]:
             compact_sheets.append({
                 "sheet": sheet.get("sheet"),
                 "matched_rows": [
@@ -305,7 +322,7 @@ def _compact_market_context(company_data: dict | None) -> dict:
                         "numeric_values": row.get("numeric_values"),
                         "values": (row.get("values") or [])[:8],
                     }
-                    for row in (sheet.get("matched_rows") or [])[:12]
+                    for row in (sheet.get("matched_rows") or [])[:row_limit]
                 ],
             })
         excel_items.append({
@@ -349,6 +366,7 @@ def _compact_market_context(company_data: dict | None) -> dict:
             "enabled": excel_reports.get("enabled", False),
             "count": excel_reports.get("count", 0),
             "selected_count": excel_reports.get("selected_count", 0),
+            "included_in_prompt": len(excel_items),
             "items": excel_items,
             "errors": (excel_reports.get("errors") or [])[:5],
         },
@@ -1661,17 +1679,15 @@ async def run_company_analysis(
         "include_all": include_all_excel_reports,
         "limit": excel_report_limit,
     }
-    cache_mode_allowed = (
-        not include_all_excel_reports
-        and excel_report_limit == _normalize_excel_report_limit(None, include_all=False)
-    )
-    allow_cache = not force_refresh and cache_mode_allowed
+    cache_mode = _analysis_cache_mode(include_all_excel_reports, excel_report_limit)
+    allow_cache = not force_refresh
 
     if allow_cache:
-        cached = analysis_cache.get(company_name, language=language)
+        cached = analysis_cache.get(company_name, language=language, mode=cache_mode)
         if cached and cached.get("analysis_policy_version") == ANALYSIS_POLICY_VERSION:
             cached["from_cache"] = True
             cached["source"] = "cache"
+            cached["cache_mode"] = cache_mode
             cached.setdefault("model", OPENAI_MODEL)
             cached.setdefault("language", language)
             cached.setdefault("language_label", LANGUAGE_HINTS[language]["label"])
@@ -1766,6 +1782,7 @@ async def run_company_analysis(
         "market_data": company_data,
         "market_context": market_context,
         "excel_report_mode": excel_report_mode,
+        "cache_mode": cache_mode,
         "from_cache": False,
         "source": "fresh",
         "model": OPENAI_MODEL,
@@ -1774,9 +1791,8 @@ async def run_company_analysis(
         "analysis_policy_version": ANALYSIS_POLICY_VERSION,
         "analysis_policy": PUBLIC_ANALYSIS_POLICY_META,
     }
-    if cache_mode_allowed:
-        try:
-            analysis_cache.set(company_name, result, language=language)
-        except Exception as exc:  # noqa: BLE001
-            print(f"   ⚠️ Cache write failed for '{resolved_name}': {exc}")
+    try:
+        analysis_cache.set(company_name, result, language=language, mode=cache_mode)
+    except Exception as exc:  # noqa: BLE001
+        print(f"   ⚠️ Cache write failed for '{resolved_name}': {exc}")
     return result
