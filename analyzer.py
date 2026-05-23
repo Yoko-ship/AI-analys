@@ -83,6 +83,7 @@ def api_call_with_retry(fn, max_retries=6):
 # МАППИНГ ПОЛЕЙ
 # ─────────────────────────────────────────────────────────
 
+# Standard industrial company field mappings
 KEEP_TITLES = {
     "Чистая выручка от реализации продукции (товаров, работ и услуг)":                                   "revenue",
     "Себестоимость реализованной продукции (товаров, работ и услуг)":                                    "cogs",
@@ -108,6 +109,65 @@ KEEP_TITLES = {
     "Задолженность поставщикам и подрядчикам (6000)":                                                    "accounts_payable",
 }
 
+# Bank-specific field mappings (banks use different report format in Uzbekistan)
+BANK_TITLES = {
+    # Income Statement (Form 2 for banks)
+    "Процентные доходы":                                                    "revenue",
+    "Процентные доходы, всего":                                             "revenue",
+    "Итого процентных доходов":                                             "revenue",
+    "Процентные расходы":                                                   "interest_expense",
+    "Процентные расходы, всего":                                            "interest_expense",
+    "Чистые процентные доходы":                                             "gross_profit",
+    "Чистый процентный доход":                                              "gross_profit",
+    "Комиссионные доходы":                                                  "commission_income",
+    "Комиссионные расходы":                                                 "commission_expense",
+    "Чистые комиссионные доходы":                                           "net_commission_income",
+    "Операционные расходы":                                                 "operating_expenses",
+    "Операционные расходы, всего":                                          "operating_expenses",
+    "Административные и прочие операционные расходы":                       "admin_expenses",
+    "Прибыль до налогообложения":                                           "ebt",
+    "Прибыль (убыток) до налогообложения":                                  "ebt",
+    "Налог на прибыль":                                                     "income_tax",
+    "Расходы по налогу на прибыль":                                         "income_tax",
+    "Чистая прибыль":                                                       "net_income",
+    "Чистая прибыль (убыток)":                                              "net_income",
+    "Чистая прибыль за период":                                             "net_income",
+    "Итого совокупный доход за период":                                     "net_income",
+
+    # Balance Sheet (Form 1 for banks)
+    "Всего активов":                                                        "total_assets",
+    "ИТОГО АКТИВОВ":                                                        "total_assets",
+    "Итого активы":                                                         "total_assets",
+    "Денежные средства и их эквиваленты":                                   "cash",
+    "Денежные средства":                                                    "cash",
+    "Средства в Центральном банке":                                         "central_bank_deposits",
+    "Кредиты и авансы клиентам":                                            "loans_to_customers",
+    "Кредиты клиентам":                                                     "loans_to_customers",
+    "Чистые кредиты клиентам":                                              "loans_to_customers",
+    "Средства клиентов":                                                    "customer_deposits",
+    "Депозиты клиентов":                                                    "customer_deposits",
+    "Вклады клиентов":                                                      "customer_deposits",
+    "Средства других банков":                                               "interbank_deposits",
+    "Всего обязательств":                                                   "total_liabilities",
+    "ИТОГО ОБЯЗАТЕЛЬСТВ":                                                   "total_liabilities",
+    "Итого обязательства":                                                  "total_liabilities",
+    "Всего капитала":                                                       "equity",
+    "ИТОГО КАПИТАЛ":                                                        "equity",
+    "Итого капитал":                                                        "equity",
+    "Итого собственный капитал":                                            "equity",
+    "Собственный капитал":                                                  "equity",
+    "Уставный капитал":                                                     "share_capital",
+    "Нераспределенная прибыль":                                             "retained_earnings",
+    "Резервный капитал":                                                    "reserves",
+    "Резервы":                                                              "reserves",
+
+    # Alternative field names that may appear
+    "Доходы от процентов":                                                  "revenue",
+    "Расходы по процентам":                                                 "interest_expense",
+    "Прибыль от операционной деятельности":                                 "ebit",
+    "Операционная прибыль":                                                 "ebit",
+}
+
 ANNUAL_RATIOS = [
     "net_profit_margin", "return_on_equity", "return_on_assets",
     "debt_ratio", "debt_to_equity_ratio", "current_ratio",
@@ -119,6 +179,15 @@ ANNUAL_RATIOS = [
 # DataFrame → структурированные списки
 # ─────────────────────────────────────────────────────────
 
+def _get_field_mapping(title: str) -> str | None:
+    """Get the field mapping from title, checking both standard and bank formats."""
+    if title in KEEP_TITLES:
+        return KEEP_TITLES[title]
+    if title in BANK_TITLES:
+        return BANK_TITLES[title]
+    return None
+
+
 def df_to_annual(annual_df: pd.DataFrame) -> list:
     data = defaultdict(lambda: {"financials": {}, "ratios": {}})
     for _, row in annual_df.iterrows():
@@ -128,8 +197,11 @@ def df_to_annual(annual_df: pd.DataFrame) -> list:
         if pd.isna(year):
             continue
         year = int(year)
-        if title in KEEP_TITLES:
-            data[year]["financials"][KEEP_TITLES[title]] = value
+        field_name = _get_field_mapping(title)
+        if field_name:
+            # Don't overwrite if already set (prefer first match)
+            if field_name not in data[year]["financials"]:
+                data[year]["financials"][field_name] = value
         if not data[year]["ratios"]:
             for ratio in ANNUAL_RATIOS:
                 if ratio in row.index and pd.notna(row[ratio]):
@@ -168,8 +240,11 @@ def df_to_quarterly(quarter_df: pd.DataFrame) -> list:
         if pd.isna(year) or pd.isna(quarter):
             continue
         year, quarter = int(year), int(quarter)
-        if title in KEEP_TITLES:
-            data[(year, quarter)][KEEP_TITLES[title]] = value
+        field_name = _get_field_mapping(title)
+        if field_name:
+            # Don't overwrite if already set
+            if field_name not in data[(year, quarter)]:
+                data[(year, quarter)][field_name] = value
 
     keys = sorted(data.keys())
     result = []
