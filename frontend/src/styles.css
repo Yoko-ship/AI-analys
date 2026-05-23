@@ -4611,37 +4611,31 @@ select:focus-visible {
 }
 
 .profile-header-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100px;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
-  opacity: 0.15;
+  display: none;
 }
 
 .profile-header-content {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 32px;
+  gap: 32px;
+  padding: 48px 40px;
 }
 
 .profile-header-avatar {
-  width: 90px;
-  height: 90px;
+  width: 110px;
+  height: 110px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
+  font-size: 2.5rem;
   font-weight: 700;
   color: #fff;
   text-transform: uppercase;
   flex-shrink: 0;
-  border: 3px solid var(--bg);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  border: 4px solid var(--border);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }
 
 .profile-header-avatar img {
@@ -4656,16 +4650,16 @@ select:focus-visible {
 }
 
 .profile-header-info h1 {
-  font-size: 1.75rem;
+  font-size: 2rem;
   font-weight: 700;
-  margin: 0 0 4px;
+  margin: 0 0 6px;
   color: var(--text);
 }
 
 .profile-header-email {
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: var(--muted);
-  margin: 0 0 12px;
+  margin: 0 0 16px;
 }
 
 .profile-header-meta {
