@@ -9,7 +9,18 @@
       "Read(//d/projects/$APPDATA/**)",
       "WebFetch(domain:ai-analys-production.up.railway.app)",
       "Bash(chromium-cli *)",
-      "PowerShell(Get-Command *)"
+      "PowerShell(Get-Command *)",
+      "WebFetch(domain:ai.finam.ru)",
+      "Bash(git add *)",
+      "Bash(git commit -m '@ *)",
+      "Bash(git push *)",
+      "Bash(timeout *)",
+      "Bash(python *)",
+      "Bash(curl -s \"https://ai-analys-production.up.railway.app/\")",
+      "Bash(curl -s \"https://ai-analys-production.up.railway.app/assets/index-B1Xx0LH8.css\")",
+      "Bash(npm run *)",
+      "PowerShell(npm run *)",
+      "Bash(git commit *)"
     ]
   }
 }
