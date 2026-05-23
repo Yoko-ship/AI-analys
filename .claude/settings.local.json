@@ -21,7 +21,10 @@
       "Bash(npm run *)",
       "PowerShell(npm run *)",
       "Bash(git commit *)",
-      "PowerShell($env:Path)"
+      "PowerShell($env:Path)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git stash *)"
     ]
   }
 }
