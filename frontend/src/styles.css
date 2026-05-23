@@ -334,7 +334,17 @@ img {
 }
 
 .analysis-layout {
+  grid-template-columns: 1fr;
+}
+
+.analysis-layout:has(.result-hero) {
   grid-template-columns: 1fr 1.25fr;
+}
+
+.analysis-hero {
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .results-grid {
