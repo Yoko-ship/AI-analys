@@ -2774,18 +2774,19 @@ function App() {
                 </div>
               </article>
 
-              <article className={`panel result-hero ${analysisLoading ? "is-loading" : ""}`}>
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "analysis.resultTitle")}</div>
-                    <h2>{analysisLabel}</h2>
+              {(analysisResult || analysisLoading) && (
+                <article className={`panel result-hero ${analysisLoading ? "is-loading" : ""}`}>
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{t(language, "analysis.resultTitle")}</div>
+                      <h2>{analysisLabel}</h2>
+                    </div>
+                    {analysisResult ? <span className="status-badge muted">{resultCacheText}</span> : null}
                   </div>
-                  {analysisResult ? <span className="status-badge muted">{resultCacheText}</span> : null}
-                </div>
 
-                {analysisLoading ? (
-                  <ResultSkeleton language={language} />
-                ) : (
+                  {analysisLoading ? (
+                    <ResultSkeleton language={language} />
+                  ) : (
                   <>
                     <div className="score-strip">
                       <div className="score-card">
@@ -2881,11 +2882,12 @@ function App() {
                     </div>
                   </>
                 )}
-              </article>
+                </article>
+              )}
             </section>
           )}
 
-          {activeView === "analysis" && (
+          {activeView === "analysis" && (analysisResult || analysisLoading) && (
             <section className="results-grid">
               <article className="panel metrics-panel">
                 <div className="panel-head">
