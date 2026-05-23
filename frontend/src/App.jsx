@@ -1726,6 +1726,7 @@ function App() {
   const [profileForm, setProfileForm] = useState({ full_name: "" });
   const [profileAvatarFile, setProfileAvatarFile] = useState(null);
   const [profileAvatarPreview, setProfileAvatarPreview] = useState("");
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [profileAvatarCleared, setProfileAvatarCleared] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [historyMode, setHistoryMode] = useState("all");
@@ -2556,8 +2557,8 @@ function App() {
                       <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
                         {t(language, "profile.analyze")}
                       </button>
-                      <button className="ghost-btn" type="button" onClick={async () => { await loadProfile(); addToast(t(language, "profile.refresh"), "success"); }}>
-                        {t(language, "profile.refresh")}
+                      <button className="ghost-btn" type="button" onClick={() => setShowProfileEdit(!showProfileEdit)}>
+                        {showProfileEdit ? (language === "en" ? "Cancel" : language === "uz" ? "Bekor qilish" : "Отмена") : (language === "en" ? "Edit Profile" : language === "uz" ? "Tahrirlash" : "Редактировать")}
                       </button>
                     </div>
                   </div>
@@ -2589,53 +2590,55 @@ function App() {
                 </article>
               </section>
 
-              {/* Profile Settings */}
-              <section className="profile-settings-section">
-                <article className="panel">
-                  <div className="panel-head">
-                    <div>
-                      <div className="panel-label">{t(language, "profile.editTitle")}</div>
-                      <h2>{t(language, "profile.editTitle")}</h2>
-                    </div>
-                  </div>
-                  {profileUser ? (
-                    <form className="profile-settings-form" onSubmit={handleProfileSave}>
-                      <div className="profile-form-group">
-                        <label>{t(language, "profile.name")}</label>
-                        <input
-                          type="text"
-                          value={profileForm.full_name}
-                          onChange={(event) => setProfileForm({ full_name: event.target.value })}
-                          placeholder={t(language, "profile.name")}
-                        />
+              {/* Profile Settings - shown only when edit mode is active */}
+              {showProfileEdit && (
+                <section className="profile-settings-section">
+                  <article className="panel">
+                    <div className="panel-head">
+                      <div>
+                        <div className="panel-label">{t(language, "profile.editTitle")}</div>
+                        <h2>{t(language, "profile.editTitle")}</h2>
                       </div>
-                      <div className="profile-form-group">
-                        <label>{t(language, "profile.avatar")}</label>
-                        <div className="profile-avatar-upload">
-                          <input type="file" accept="image/*" onChange={onAvatarChange} id="avatar-input" />
-                          <label htmlFor="avatar-input" className="profile-avatar-btn">
-                            {language === "en" ? "Choose file" : language === "uz" ? "Fayl tanlash" : "Выбрать файл"}
-                          </label>
-                          {(profileAvatarPreview || profileAvatar) && (
-                            <button type="button" className="profile-avatar-remove" onClick={removeAvatar}>
-                              {t(language, "profile.clearAvatar")}
-                            </button>
-                          )}
+                    </div>
+                    {profileUser ? (
+                      <form className="profile-settings-form" onSubmit={handleProfileSave}>
+                        <div className="profile-form-group">
+                          <label>{t(language, "profile.name")}</label>
+                          <input
+                            type="text"
+                            value={profileForm.full_name}
+                            onChange={(event) => setProfileForm({ full_name: event.target.value })}
+                            placeholder={t(language, "profile.name")}
+                          />
                         </div>
+                        <div className="profile-form-group">
+                          <label>{t(language, "profile.avatar")}</label>
+                          <div className="profile-avatar-upload">
+                            <input type="file" accept="image/*" onChange={onAvatarChange} id="avatar-input" />
+                            <label htmlFor="avatar-input" className="profile-avatar-btn">
+                              {language === "en" ? "Choose file" : language === "uz" ? "Fayl tanlash" : "Выбрать файл"}
+                            </label>
+                            {(profileAvatarPreview || profileAvatar) && (
+                              <button type="button" className="profile-avatar-remove" onClick={removeAvatar}>
+                                {t(language, "profile.clearAvatar")}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="profile-form-actions">
+                          <button className="primary-btn" type="submit">
+                            {t(language, "profile.save")}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="empty-state">
+                        <p className="empty-copy">{t(language, "profile.empty")}</p>
                       </div>
-                      <div className="profile-form-actions">
-                        <button className="primary-btn" type="submit">
-                          {t(language, "profile.save")}
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <div className="empty-state">
-                      <p className="empty-copy">{t(language, "profile.empty")}</p>
-                    </div>
-                  )}
-                </article>
-              </section>
+                    )}
+                  </article>
+                </section>
+              )}
 
               {/* Favorites */}
               <section className="profile-favorites-section">
