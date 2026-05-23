@@ -4691,6 +4691,29 @@ select:focus-visible {
   min-width: 160px;
 }
 
+/* Inline Edit Form inside Header Card */
+.profile-edit-inline {
+  border-top: 1px solid var(--border);
+  padding: 24px 40px 32px;
+  background: var(--bg-2);
+}
+
+.profile-edit-inline .profile-settings-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-end;
+}
+
+.profile-edit-inline .profile-form-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.profile-edit-inline .profile-form-actions {
+  padding-top: 0;
+}
+
 /* Profile Section Layout */
 .profile-stats-section,
 .profile-activity-section,
