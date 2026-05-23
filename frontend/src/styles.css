@@ -2554,8 +2554,12 @@ body[data-theme="dark"] .activity-chart {
   rx: 4;
 }
 
+.activity-bar-track.has-activity {
+  fill: rgba(255, 157, 0, 0.15);
+}
+
 .activity-bar {
-  fill: url(#activityBarGradient);
+  fill: var(--accent, #ff9d00);
   rx: 4;
   transition: opacity 0.2s ease;
 }
@@ -2567,16 +2571,24 @@ body[data-theme="dark"] .activity-chart {
 
 .activity-axis-label {
   fill: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
+.activity-axis-label.has-activity {
+  fill: var(--accent, #ff9d00);
+}
+
 .activity-value {
-  fill: var(--text);
-  font-size: 11px;
+  fill: var(--muted);
+  font-size: 13px;
   font-weight: 700;
+}
+
+.activity-value.has-activity {
+  fill: var(--accent, #ff9d00);
 }
 
 .activity-footer {
@@ -2903,8 +2915,12 @@ body[data-theme="dark"] .activity-bar-track {
   fill: rgba(255, 255, 255, 0.04);
 }
 
+body[data-theme="dark"] .activity-bar-track.has-activity {
+  fill: rgba(255, 157, 0, 0.12);
+}
+
 body[data-theme="dark"] .activity-bar {
-  fill: url(#activityBarGradientDark);
+  fill: var(--accent, #ff9d00);
 }
 
 body[data-theme="dark"] .chart-grid-line {

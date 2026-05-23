@@ -3361,14 +3361,15 @@ function ActivityChart({ series, language }) {
           const barHeight = ((day.count || 0) / series.maxCount) * innerHeight;
           const x = padding.left + index * (barWidth + barGap);
           const y = padding.top + innerHeight - barHeight;
+          const hasActivity = day.count > 0;
           return (
             <g key={day.key}>
-              <rect x={x} y={padding.top} width={barWidth} height={innerHeight} rx="16" className="activity-bar-track" />
-              <rect x={x} y={y} width={barWidth} height={barHeight} rx="16" className="activity-bar" />
-              <text x={x + barWidth / 2} y={height - 16} textAnchor="middle" className="activity-axis-label">
+              <rect x={x} y={padding.top} width={barWidth} height={innerHeight} rx="16" className={`activity-bar-track ${hasActivity ? "has-activity" : ""}`} />
+              {hasActivity && <rect x={x} y={y} width={barWidth} height={barHeight} rx="16" className="activity-bar" />}
+              <text x={x + barWidth / 2} y={height - 16} textAnchor="middle" className={`activity-axis-label ${hasActivity ? "has-activity" : ""}`}>
                 {day.shortLabel}
               </text>
-              <text x={x + barWidth / 2} y={Math.max(y - 10, 16)} textAnchor="middle" className="activity-value">
+              <text x={x + barWidth / 2} y={Math.max(y - 10, 16)} textAnchor="middle" className={`activity-value ${hasActivity ? "has-activity" : ""}`}>
                 {day.count}
               </text>
             </g>
