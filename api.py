@@ -75,6 +75,8 @@ class AnalyzeRequest(BaseModel):
     force_refresh: bool = False
     include_html: bool = False
     include_raw: bool = False
+    include_all_excel_reports: bool = False
+    excel_report_limit: int | None = Field(default=None, ge=0, le=100)
 
 
 class CompanyDataRequest(BaseModel):
@@ -82,6 +84,9 @@ class CompanyDataRequest(BaseModel):
     history_months: int = Field(default=6, ge=1, le=60)
     include_raw_reports: bool = False
     include_document_previews: bool = False
+    include_excel_reports: bool = False
+    include_all_excel_reports: bool = False
+    excel_report_limit: int | None = Field(default=None, ge=0, le=100)
     validate_documents: bool = False
 
 
@@ -432,6 +437,9 @@ async def api_company_data(
                 history_months=payload.history_months,
                 include_raw_reports=payload.include_raw_reports,
                 include_document_previews=payload.include_document_previews,
+                include_excel_reports=payload.include_excel_reports,
+                include_all_excel_reports=payload.include_all_excel_reports,
+                excel_report_limit=payload.excel_report_limit,
                 validate_documents=payload.validate_documents,
             ),
         )
@@ -489,6 +497,8 @@ async def api_analyze(
             payload.company,
             language=payload.language,
             force_refresh=payload.force_refresh,
+            include_all_excel_reports=payload.include_all_excel_reports,
+            excel_report_limit=payload.excel_report_limit,
         )
     except ValueError as exc:
         logger.exception("Analysis failed with value error for %s", payload.company)
@@ -516,6 +526,7 @@ async def api_analyze(
         "liquidity": result.get("liquidity"),
         "market_data": result.get("market_data"),
         "market_context": result.get("market_context"),
+        "excel_report_mode": result.get("excel_report_mode"),
         "analysis_policy_version": result.get("analysis_policy_version"),
         "analysis_policy": result.get("analysis_policy"),
         "requested_by": current_user.to_public_dict(),

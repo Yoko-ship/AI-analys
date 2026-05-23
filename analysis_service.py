@@ -32,7 +32,9 @@ from openinfo_collector import collect_company_data
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("api_key")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip() or "gpt-5.4-mini"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low").strip().lower() or "low"
-ANALYSIS_POLICY_VERSION = "public-information-v2-market-data"
+ANALYSIS_POLICY_VERSION = "public-information-v3-excel-snapshots"
+DEFAULT_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
+ABSOLUTE_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
 
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY is required for the API service")
@@ -157,6 +159,16 @@ def _safe_float(value):
     return parsed
 
 
+def _normalize_excel_report_limit(value: int | None, include_all: bool = False) -> int:
+    default = ABSOLUTE_EXCEL_REPORT_LIMIT if include_all else DEFAULT_EXCEL_REPORT_LIMIT
+    raw = default if value is None else value
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(0, min(ABSOLUTE_EXCEL_REPORT_LIMIT, parsed))
+
+
 def _as_pct(value, digits: int = 2):
     parsed = _safe_float(value)
     if parsed is None:
@@ -279,6 +291,36 @@ def _compact_market_context(company_data: dict | None) -> dict:
         }
         for item in dividends[:5]
     ]
+    excel_reports = company_data.get("excel_reports") or {}
+    excel_items = []
+    for report in (excel_reports.get("items") or [])[:3]:
+        compact_sheets = []
+        for sheet in (report.get("sheets") or [])[:4]:
+            compact_sheets.append({
+                "sheet": sheet.get("sheet"),
+                "matched_rows": [
+                    {
+                        "row": row.get("row"),
+                        "label": row.get("label"),
+                        "numeric_values": row.get("numeric_values"),
+                        "values": (row.get("values") or [])[:8],
+                    }
+                    for row in (sheet.get("matched_rows") or [])[:12]
+                ],
+            })
+        excel_items.append({
+            "report_id": report.get("report_id"),
+            "object_id": report.get("object_id"),
+            "published_at": report.get("published_at"),
+            "period_type": report.get("period_type"),
+            "report_form": report.get("report_form"),
+            "title": report.get("title"),
+            "from_cache": report.get("from_cache", False),
+            "content_length": report.get("content_length"),
+            "sheet_count": report.get("sheet_count"),
+            "facts_count": report.get("facts_count"),
+            "sheets": compact_sheets,
+        })
 
     return {
         "status": "ok",
@@ -302,6 +344,13 @@ def _compact_market_context(company_data: dict | None) -> dict:
         "report_documents": {
             "count": (company_data.get("reports") or {}).get("count", 0),
             "items": report_documents,
+        },
+        "excel_report_snapshots": {
+            "enabled": excel_reports.get("enabled", False),
+            "count": excel_reports.get("count", 0),
+            "selected_count": excel_reports.get("selected_count", 0),
+            "items": excel_items,
+            "errors": (excel_reports.get("errors") or [])[:5],
         },
         "accounting_api_summary": (company_data.get("accounting") or {}).get("summary") or {},
     }
@@ -1425,6 +1474,7 @@ def _analysis_prompt_v2(
             "fibonacci_levels": market_context.get("fibonacci_levels"),
             "dividend_count": (market_context.get("dividends") or {}).get("count"),
             "report_document_count": (market_context.get("report_documents") or {}).get("count"),
+            "excel_report_snapshot_count": (market_context.get("excel_report_snapshots") or {}).get("count"),
         }
 
     prompt = f"""
@@ -1437,6 +1487,7 @@ def _analysis_prompt_v2(
 {PUBLIC_ANALYSIS_POLICY}
 
 - Use PUBLIC MARKET DATA for quotes, price history, trading volumes, dividends, report documents and Fibonacci levels. If it is not available, say the market data is missing.
+- Use EXCEL REPORT SNAPSHOTS when available as direct public report extracts. If Excel rows conflict with API-derived figures, mention the discrepancy instead of hiding it.
 
 - Используй только данные из отчётности, расчётных метрик, IFRS snapshot и PUBLIC MARKET DATA ниже.
 - Если чего-то не хватает, прямо скажи "Недостаточно данных".
@@ -1591,13 +1642,32 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
     return raw, annual_period, quarterly_period, cost, metrics, ifrs_snapshot, market_context
 
 
-async def run_company_analysis(company_name: str, force_refresh: bool = False, language: str = "ru") -> dict:
+async def run_company_analysis(
+    company_name: str,
+    force_refresh: bool = False,
+    language: str = "ru",
+    include_all_excel_reports: bool = False,
+    excel_report_limit: int | None = None,
+) -> dict:
     company_name = (company_name or "").strip()
     if not company_name:
         raise ValueError("company_name cannot be empty")
     language = _normalize_language(language)
+    excel_report_limit = _normalize_excel_report_limit(
+        excel_report_limit,
+        include_all=include_all_excel_reports,
+    )
+    excel_report_mode = {
+        "include_all": include_all_excel_reports,
+        "limit": excel_report_limit,
+    }
+    cache_mode_allowed = (
+        not include_all_excel_reports
+        and excel_report_limit == _normalize_excel_report_limit(None, include_all=False)
+    )
+    allow_cache = not force_refresh and cache_mode_allowed
 
-    if not force_refresh:
+    if allow_cache:
         cached = analysis_cache.get(company_name, language=language)
         if cached and cached.get("analysis_policy_version") == ANALYSIS_POLICY_VERSION:
             cached["from_cache"] = True
@@ -1609,6 +1679,7 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False, l
             cached.setdefault("market_data", {})
             cached.setdefault("market_context", {})
             cached.setdefault("analysis_policy", PUBLIC_ANALYSIS_POLICY_META)
+            cached.setdefault("excel_report_mode", excel_report_mode)
             return cached
 
     loop = asyncio.get_running_loop()
@@ -1623,6 +1694,9 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False, l
             history_months=6,
             include_raw_reports=False,
             include_document_previews=False,
+            include_excel_reports=excel_report_limit > 0,
+            include_all_excel_reports=include_all_excel_reports,
+            excel_report_limit=excel_report_limit,
             validate_documents=False,
         ),
     )
@@ -1691,6 +1765,7 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False, l
         "liquidity": liquidity_data,
         "market_data": company_data,
         "market_context": market_context,
+        "excel_report_mode": excel_report_mode,
         "from_cache": False,
         "source": "fresh",
         "model": OPENAI_MODEL,
@@ -1699,8 +1774,9 @@ async def run_company_analysis(company_name: str, force_refresh: bool = False, l
         "analysis_policy_version": ANALYSIS_POLICY_VERSION,
         "analysis_policy": PUBLIC_ANALYSIS_POLICY_META,
     }
-    try:
-        analysis_cache.set(company_name, result, language=language)
-    except Exception as exc:  # noqa: BLE001
-        print(f"   ⚠️ Cache write failed for '{resolved_name}': {exc}")
+    if cache_mode_allowed:
+        try:
+            analysis_cache.set(company_name, result, language=language)
+        except Exception as exc:  # noqa: BLE001
+            print(f"   ⚠️ Cache write failed for '{resolved_name}': {exc}")
     return result
