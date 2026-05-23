@@ -5724,3 +5724,27 @@ body[data-theme="dark"] .analysis-company-chip {
 body[data-theme="dark"] .analysis-company-chip:hover {
   background: rgba(255, 157, 0, 0.15);
 }
+
+/* Compare Page - Uses Analysis Hero Styles */
+.compare-layout {
+  grid-template-columns: 1fr;
+}
+
+.compare-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.optional-tag {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 8px;
+}
+
+@media (max-width: 900px) {
+  .compare-inputs-grid {
+    grid-template-columns: 1fr;
+  }
+}

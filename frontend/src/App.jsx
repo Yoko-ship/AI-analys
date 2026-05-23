@@ -2976,33 +2976,40 @@ function App() {
 
           {activeView === "compare" && (
             <section className="compare-layout">
-              <article className="panel compare-form-panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{ct(language, "nav")}</div>
-                    <h2>{ct(language, "title")}</h2>
+              <article className="panel analysis-panel analysis-hero">
+                <div className="analysis-hero-header">
+                  <div className="analysis-hero-icon">
+                    {Icons.users}
                   </div>
-                  {compareLoading ? <span className="status-badge">{ct(language, "loading")}</span> : null}
+                  <div className="analysis-hero-text">
+                    <h1>{ct(language, "title")}</h1>
+                    <p>{ct(language, "subtitle")}</p>
+                  </div>
+                  {compareLoading && <span className="status-badge analysis-loading-badge">{ct(language, "loading")}</span>}
                 </div>
-                <p className="panel-intro">{ct(language, "subtitle")}</p>
 
-                <form className="compare-form" onSubmit={handleCompareSubmit}>
-                  {compareCompanies.map((value, index) => (
-                    <label key={index}>
-                      <span>
-                        {ct(language, `company${index + 1}`)}
-                        {index === 2 ? <em>{ct(language, "optional")}</em> : null}
-                      </span>
-                      <input
-                        list="compareCompaniesList"
-                        value={value}
-                        onChange={(event) => updateCompareCompany(index, event.target.value)}
-                        placeholder={ct(language, "placeholder")}
-                        autoComplete="off"
-                        required={index < 2}
-                      />
-                    </label>
-                  ))}
+                <form className="analysis-form-modern" onSubmit={handleCompareSubmit}>
+                  <div className="compare-inputs-grid">
+                    {compareCompanies.map((value, index) => (
+                      <div className="analysis-input-group" key={index}>
+                        <label>
+                          {ct(language, `company${index + 1}`)}
+                          {index === 2 && <span className="optional-tag">{ct(language, "optional")}</span>}
+                        </label>
+                        <div className="analysis-input-wrapper">
+                          <span className="analysis-input-icon">{Icons.target}</span>
+                          <input
+                            list="compareCompaniesList"
+                            value={value}
+                            onChange={(event) => updateCompareCompany(index, event.target.value)}
+                            placeholder={ct(language, "placeholder")}
+                            autoComplete="off"
+                            required={index < 2}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                   <datalist id="compareCompaniesList">
                     {companies.map((company) => (
                       <option key={company.ticker} value={company.ticker}>
@@ -3010,29 +3017,35 @@ function App() {
                       </option>
                     ))}
                   </datalist>
-                  <label className="toggle-row compare-toggle">
-                    <input type="checkbox" checked={compareAiSummary} onChange={(event) => setCompareAiSummary(event.target.checked)} />
-                    <span>{ct(language, "includeAi")}</span>
-                  </label>
-                  <button className="primary-btn compare-submit-btn" type="submit" disabled={compareLoading}>
-                    {compareLoading ? ct(language, "loading") : ct(language, "submit")}
+
+                  <div className="analysis-options-row">
+                    <label className="analysis-checkbox">
+                      <input type="checkbox" checked={compareAiSummary} onChange={(event) => setCompareAiSummary(event.target.checked)} />
+                      <span>{ct(language, "includeAi")}</span>
+                    </label>
+                  </div>
+
+                  <button className="primary-btn analysis-submit-btn" type="submit" disabled={compareLoading}>
+                    {Icons.zap}
+                    <span>{compareLoading ? ct(language, "loading") : ct(language, "submit")}</span>
                   </button>
                 </form>
 
-                <div className="quick-list-wrap">
-                  <div className="section-title-row">
+                <div className="analysis-companies-section">
+                  <div className="analysis-companies-header">
                     <h3>{ct(language, "quick")}</h3>
-                    <span className="muted">{companies.length}</span>
+                    <span className="analysis-companies-count">{companies.length} {language === "en" ? "companies" : language === "uz" ? "kompaniya" : "компаний"}</span>
                   </div>
-                  <div className="quick-list">
+                  <div className="analysis-companies-grid">
                     {compareQuickCompanies.map((company) => (
                       <button
                         key={company.ticker}
-                        className="quick-chip"
+                        className="analysis-company-chip"
                         type="button"
                         onClick={() => addQuickCompareCompany(company.ticker)}
                       >
-                        {company.ticker}
+                        <span className="chip-ticker">{company.ticker}</span>
+                        <span className="chip-name">{company.company_name}</span>
                       </button>
                     ))}
                   </div>
