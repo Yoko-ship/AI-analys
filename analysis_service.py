@@ -263,6 +263,7 @@ def _compact_market_context(company_data: dict | None) -> dict:
     price_history = market.get("price_history") or {}
     points = price_history.get("points") or []
     sorted_points = sorted(points, key=lambda item: str(item.get("date") or ""))
+    # Keep last 30 for technical indicators computation
     recent_points = [
         {
             "date": point.get("date"),
@@ -373,6 +374,99 @@ def _compact_market_context(company_data: dict | None) -> dict:
         },
         "accounting_api_summary": (company_data.get("accounting") or {}).get("summary") or {},
     }
+
+
+def _slim_market_context_for_prompt(market_context: dict) -> dict:
+    """Create a slimmed version of market context for the AI prompt to reduce input tokens."""
+    if not market_context or market_context.get("status") != "ok":
+        return market_context
+
+    # Only include last 10 price points instead of 30 for prompt
+    recent_prices = market_context.get("recent_price_history") or []
+    slim_prices = [
+        {"date": p.get("date"), "close": p.get("close"), "volume": p.get("trading_volume")}
+        for p in recent_prices[-10:]
+    ]
+
+    # Only include last 3 reports instead of all
+    reports = market_context.get("report_documents") or {}
+    slim_reports = {
+        "count": reports.get("count", 0),
+        "items": (reports.get("items") or [])[:3],
+    }
+
+    # Only include last 2 dividends
+    dividends = market_context.get("dividends") or {}
+    slim_dividends = {
+        "count": dividends.get("count", 0),
+        "items": (dividends.get("items") or [])[:2],
+    }
+
+    # Skip excel_report_snapshots for prompt (already processed into metrics)
+    return {
+        "status": "ok",
+        "security": market_context.get("security"),
+        "market_summary": market_context.get("market_summary"),
+        "fibonacci_levels": market_context.get("fibonacci_levels"),
+        "recent_price_history": slim_prices,
+        "dividends": slim_dividends,
+        "report_documents": slim_reports,
+    }
+
+
+def _slim_technical_indicators_for_prompt(indicators: dict) -> dict:
+    """Create a slimmed version of technical indicators for the AI prompt."""
+    if not indicators or indicators.get("status") != "ok":
+        return indicators
+
+    slim = {"status": "ok"}
+
+    # RSI - keep essential
+    if "rsi" in indicators:
+        rsi = indicators["rsi"]
+        slim["rsi"] = {
+            "value": rsi.get("value"),
+            "signal": rsi.get("signal"),
+        }
+
+    # Fibonacci - keep key levels only
+    if "fibonacci_price" in indicators:
+        fib = indicators["fibonacci_price"]
+        slim["fibonacci"] = {
+            "current_price": fib.get("current_price"),
+            "current_zone": fib.get("current_zone"),
+            "nearest_support": fib.get("nearest_support"),
+            "nearest_resistance": fib.get("nearest_resistance"),
+        }
+
+    # Price momentum - keep summary
+    if "price_momentum" in indicators:
+        mom = indicators["price_momentum"]
+        slim["momentum"] = {
+            "trend": mom.get("trend"),
+            "total_change_pct": mom.get("changes", {}).get("total"),
+        }
+
+    # Volume - keep signal
+    if "volume_analysis" in indicators:
+        vol = indicators["volume_analysis"]
+        slim["volume"] = {
+            "signal": vol.get("signal"),
+            "divergence": vol.get("divergence"),
+        }
+
+    # Volatility - keep level
+    if "volatility" in indicators:
+        slim["volatility"] = {
+            "annual_pct": indicators["volatility"].get("annual_pct"),
+            "level": indicators["volatility"].get("level"),
+        }
+
+    # Overall summary
+    if "summary" in indicators:
+        slim["summary"] = indicators["summary"].get("overall")
+
+    return slim
 
 
 def _build_ifrs_snapshot(
@@ -1369,7 +1463,8 @@ def build_company_profile(company_name: str, annual_data: list, quarterly_data: 
         "Опирайся только на финансовые данные и заметку о веб-поиске; не выдумывай факты. "
         f"{_language_hint(lang, 'profile')}"
     )
-    profile, response = _responses_text(f"{PROFILE_STYLE_NOTE}\n\n{prompt}", instructions, max_output_tokens=1200)
+    # Reduced max_output_tokens from 1200 to 600 for faster response
+    profile, response = _responses_text(f"{PROFILE_STYLE_NOTE}\n\n{prompt}", instructions, max_output_tokens=600)
 
     usage = getattr(response, "usage", None)
     if usage is not None:
@@ -1544,11 +1639,11 @@ def _analysis_prompt_v2(
 IFRS SNAPSHOT:
 {json.dumps(ifrs_snapshot, ensure_ascii=False, indent=2)}
 
-PUBLIC MARKET DATA:
-{json.dumps(market_context, ensure_ascii=False, indent=2)}
+PUBLIC MARKET DATA (slimmed for prompt):
+{json.dumps(_slim_market_context_for_prompt(market_context), ensure_ascii=False, indent=2)}
 
-TECHNICAL INDICATORS (RSI, Fibonacci, Volume, Volatility):
-{json.dumps(technical_indicators, ensure_ascii=False, indent=2) if technical_indicators else '{"status": "нет данных о ценах"}'}
+TECHNICAL INDICATORS (slimmed for prompt):
+{json.dumps(_slim_technical_indicators_for_prompt(technical_indicators), ensure_ascii=False, indent=2) if technical_indicators else '{"status": "нет данных о ценах"}'}
 
 Промежуточная отрасль и бенчмарк:
 {industry_context_str}
@@ -1671,7 +1766,8 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
         "Если данных недостаточно — напиши 'Недостаточно данных' внутри секции, но секцию не пропускай. "
         f"{_language_hint(lang, 'analysis')}"
     )
-    raw, response = _responses_text(prompt, instructions, max_output_tokens=8000)
+    # Reduced from 8000 to 5000 - typical analysis is 2000-3500 tokens
+    raw, response = _responses_text(prompt, instructions, max_output_tokens=5000)
 
     usage = getattr(response, "usage", None)
     input_tokens = getattr(usage, "input_tokens", 0) or 0
@@ -1747,8 +1843,11 @@ async def run_company_analysis(
     if annual_df is None or quarter_df is None:
         raise ValueError(f"Данные не найдены для «{company_name}»")
 
-    annual_data = await loop.run_in_executor(None, df_to_annual, annual_df)
-    quarterly_data = await loop.run_in_executor(None, df_to_quarterly, quarter_df)
+    # Parallelize data transformations
+    annual_future = loop.run_in_executor(None, df_to_annual, annual_df)
+    quarterly_future = loop.run_in_executor(None, df_to_quarterly, quarter_df)
+    annual_data, quarterly_data = await asyncio.gather(annual_future, quarterly_future)
+
     liquidity_data = (
         liquidity_df.iloc[0].to_dict()
         if liquidity_df is not None and not liquidity_df.empty
