@@ -2247,8 +2247,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "about", "profile", "analysis", "compare"]
-    : ["main", "about", "auth", "analysis", "compare"];
+    ? ["main", "profile", "analysis", "compare"]
+    : ["main", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -2408,62 +2408,6 @@ function App() {
                     {TEXTS[language].main.cta.button}
                   </button>
                 </div>
-              </section>
-            </>
-          )}
-
-          {activeView === "about" && (
-            <>
-              <section className="view-grid">
-                <article className="panel">
-                  <div className="panel-head">
-                    <div>
-                      <div className="panel-label">{t(language, "nav.about")}</div>
-                      <h2>{t(language, "about.title")}</h2>
-                    </div>
-                  </div>
-                  <div className="stacked-list">
-                    {TEXTS[language].about.leftCards.map((item) => (
-                      <div className="note-card" key={item.title}>
-                        <strong>{item.title}</strong>
-                        <p>{item.copy}</p>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-                <article className="panel">
-                  <div className="panel-head">
-                    <div>
-                      <div className="panel-label">{t(language, "nav.about")}</div>
-                      <h2>{TEXTS[language].about.rightTitle}</h2>
-                    </div>
-                  </div>
-                  <div className="tile-grid tile-grid-2">
-                    {TEXTS[language].about.rightCards.map((item) => (
-                      <div className="tile-card" key={item.title}>
-                        <strong>{item.title}</strong>
-                        <span>{item.copy}</span>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              </section>
-
-              <section className="public-contour-grid">
-                <DisclosureCard
-                  label={disclosure.capabilitiesLabel}
-                  title={disclosure.capabilitiesTitle}
-                  intro={disclosure.capabilitiesIntro}
-                  items={disclosure.capabilities}
-                  tone="positive"
-                />
-                <DisclosureCard
-                  label={disclosure.restrictionsLabel}
-                  title={disclosure.restrictionsTitle}
-                  intro={disclosure.restrictionsIntro}
-                  items={disclosure.restrictions}
-                  tone="limit"
-                />
               </section>
             </>
           )}
