@@ -5355,3 +5355,318 @@ html body[data-theme="dark"] select {
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   color: #f1f5f9 !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANALYSIS PAGE - Modern Hero Design
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.analysis-hero {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.analysis-hero-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 48px 48px 32px;
+  background: linear-gradient(135deg, var(--accent-light) 0%, transparent 60%);
+  border-bottom: 1px solid var(--border);
+}
+
+.analysis-hero-icon {
+  width: 72px;
+  height: 72px;
+  padding: 18px;
+  background: var(--accent);
+  border-radius: 20px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.analysis-hero-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.analysis-hero-text {
+  flex: 1;
+}
+
+.analysis-hero-text h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.analysis-hero-text p {
+  font-size: 1.1rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.analysis-loading-badge {
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.analysis-form-modern {
+  padding: 32px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.analysis-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analysis-input-group label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.analysis-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.analysis-input-icon {
+  position: absolute;
+  left: 18px;
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.analysis-input-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.analysis-input-wrapper input {
+  width: 100%;
+  padding: 18px 18px 18px 56px;
+  font-size: 1.15rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  color: var(--text);
+  transition: all 0.2s;
+}
+
+.analysis-input-wrapper input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-light);
+}
+
+.analysis-options-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.analysis-options-row .analysis-input-group {
+  flex: 1;
+  min-width: 180px;
+}
+
+.analysis-options-row select {
+  width: 100%;
+  padding: 16px 18px;
+  font-size: 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.analysis-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--bg-2);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.analysis-checkbox:hover {
+  border-color: var(--accent);
+}
+
+.analysis-checkbox input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+.analysis-checkbox span {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.analysis-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 32px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  border: none;
+  border-radius: var(--radius-lg);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 20px var(--accent-glow);
+}
+
+.analysis-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px var(--accent-glow);
+}
+
+.analysis-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.analysis-submit-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.analysis-companies-section {
+  padding: 32px 48px 48px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.analysis-companies-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.analysis-companies-header h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text);
+}
+
+.analysis-companies-count {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 6px 14px;
+  background: var(--accent-light);
+  border-radius: var(--radius-full);
+}
+
+.analysis-companies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.analysis-company-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 16px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.analysis-company-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  transform: translateY(-2px);
+}
+
+.analysis-company-chip .chip-ticker {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.analysis-company-chip .chip-name {
+  font-size: 0.9rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .analysis-hero-header {
+    flex-direction: column;
+    text-align: center;
+    padding: 32px 24px;
+  }
+
+  .analysis-hero-text h1 {
+    font-size: 1.75rem;
+  }
+
+  .analysis-form-modern {
+    padding: 24px;
+  }
+
+  .analysis-options-row {
+    flex-direction: column;
+  }
+
+  .analysis-companies-section {
+    padding: 24px;
+  }
+
+  .analysis-companies-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dark theme adjustments */
+body[data-theme="dark"] .analysis-hero-header {
+  background: linear-gradient(135deg, rgba(255, 157, 0, 0.1) 0%, transparent 60%);
+}
+
+body[data-theme="dark"] .analysis-company-chip {
+  background: rgba(20, 26, 42, 0.8);
+}
+
+body[data-theme="dark"] .analysis-company-chip:hover {
+  background: rgba(255, 157, 0, 0.15);
+}

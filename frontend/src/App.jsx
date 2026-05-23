@@ -2710,26 +2710,32 @@ function App() {
 
           {activeView === "analysis" && (
             <section className="analysis-layout">
-              <article className="panel analysis-panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "nav.analysis")}</div>
-                    <h2>{t(language, "analysis.title")}</h2>
+              <article className="panel analysis-panel analysis-hero">
+                <div className="analysis-hero-header">
+                  <div className="analysis-hero-icon">
+                    {Icons.chart}
                   </div>
-                  {analysisLoading ? <span className="status-badge">{t(language, "analysis.loadingChart")}</span> : null}
+                  <div className="analysis-hero-text">
+                    <h1>{t(language, "analysis.title")}</h1>
+                    <p>{language === "en" ? "Get comprehensive financial analysis powered by AI" : language === "uz" ? "AI yordamida moliyaviy tahlil oling" : "Получите комплексный финансовый анализ на основе ИИ"}</p>
+                  </div>
+                  {analysisLoading && <span className="status-badge analysis-loading-badge">{t(language, "analysis.loadingChart")}</span>}
                 </div>
 
-                <form className="analysis-form" onSubmit={handleAnalysisSubmit}>
-                  <label className="wide">
-                    <span>{t(language, "analysis.company")}</span>
-                    <input
-                      list="companiesList"
-                      value={analysisCompany}
-                      onChange={(event) => setAnalysisCompany(event.target.value)}
-                      placeholder={language === "en" ? "Type a company name or ticker" : language === "uz" ? "Kompaniya nomi yoki ticker" : "Начните вводить название или тикер"}
-                      autoComplete="off"
-                      required
-                    />
+                <form className="analysis-form-modern" onSubmit={handleAnalysisSubmit}>
+                  <div className="analysis-input-group">
+                    <label>{t(language, "analysis.company")}</label>
+                    <div className="analysis-input-wrapper">
+                      <span className="analysis-input-icon">{Icons.target}</span>
+                      <input
+                        list="companiesList"
+                        value={analysisCompany}
+                        onChange={(event) => setAnalysisCompany(event.target.value)}
+                        placeholder={language === "en" ? "Enter company name or ticker..." : language === "uz" ? "Kompaniya nomi yoki ticker kiriting..." : "Введите название компании или тикер..."}
+                        autoComplete="off"
+                        required
+                      />
+                    </div>
                     <datalist id="companiesList">
                       {companies.map((company) => (
                         <option key={company.ticker} value={company.ticker}>
@@ -2737,37 +2743,43 @@ function App() {
                         </option>
                       ))}
                     </datalist>
-                  </label>
-                  <label>
-                    <span>{t(language, "analysis.mode")}</span>
-                    <select defaultValue="full">
-                      <option value="quick">{t(language, "analysis.quick")}</option>
-                      <option value="full">{t(language, "analysis.full")}</option>
-                    </select>
-                  </label>
-                  <label className="toggle-row">
-                    <input type="checkbox" checked={includeHtml} onChange={(event) => setIncludeHtml(event.target.checked)} />
-                    <span>{t(language, "analysis.includeHtml")}</span>
-                  </label>
-                  <button className="primary-btn analyze-btn" type="submit">
-                    {t(language, "analysis.submit")}
+                  </div>
+
+                  <div className="analysis-options-row">
+                    <div className="analysis-input-group">
+                      <label>{t(language, "analysis.mode")}</label>
+                      <select defaultValue="full">
+                        <option value="quick">{t(language, "analysis.quick")}</option>
+                        <option value="full">{t(language, "analysis.full")}</option>
+                      </select>
+                    </div>
+                    <label className="analysis-checkbox">
+                      <input type="checkbox" checked={includeHtml} onChange={(event) => setIncludeHtml(event.target.checked)} />
+                      <span>{t(language, "analysis.includeHtml")}</span>
+                    </label>
+                  </div>
+
+                  <button className="primary-btn analysis-submit-btn" type="submit" disabled={analysisLoading}>
+                    {Icons.zap}
+                    <span>{analysisLoading ? (language === "en" ? "Analyzing..." : language === "uz" ? "Tahlil qilinmoqda..." : "Анализируем...") : t(language, "analysis.submit")}</span>
                   </button>
                 </form>
 
-                <div className="quick-list-wrap">
-                  <div className="section-title-row">
+                <div className="analysis-companies-section">
+                  <div className="analysis-companies-header">
                     <h3>{t(language, "analysis.availableTitle")}</h3>
-                    <span className="muted">{companies.length}</span>
+                    <span className="analysis-companies-count">{companies.length} {language === "en" ? "companies" : language === "uz" ? "kompaniya" : "компаний"}</span>
                   </div>
-                  <div className="quick-list">
+                  <div className="analysis-companies-grid">
                     {filteredCompanies.map((company) => (
                       <button
                         key={company.ticker}
-                        className="quick-chip"
+                        className="analysis-company-chip"
                         type="button"
                         onClick={() => setAnalysisCompany(company.ticker)}
                       >
-                        {company.ticker}
+                        <span className="chip-ticker">{company.ticker}</span>
+                        <span className="chip-name">{company.company_name}</span>
                       </button>
                     ))}
                   </div>
