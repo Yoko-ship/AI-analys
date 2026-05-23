@@ -688,7 +688,7 @@ class WebAuthStore:
         with self._conn() as conn:
             user_row = conn.execute(
                 """
-                SELECT id, email, full_name, created_at, last_login_at, is_active
+                SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active
                 FROM web_users
                 WHERE id = %s
                 """,
