@@ -25,7 +25,9 @@
       "Bash(git checkout *)",
       "Bash(git merge *)",
       "Bash(git stash *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(Get-ChildItem -Path C:\\\\,D:\\\\ -Recurse -Filter \"node.exe\" -ErrorAction SilentlyContinue -Depth 5 2>$null | Select-Object -First 3 | ForEach-Object { $_.FullName })"
     ]
   }
 }

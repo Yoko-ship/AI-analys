@@ -1716,6 +1716,8 @@ function App() {
   const [authMessage, setAuthMessage] = useState("");
   const [analysisCompany, setAnalysisCompany] = useState("");
   const [includeHtml, setIncludeHtml] = useState(true);
+  const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
+  const [excelReportLimit, setExcelReportLimit] = useState("");
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
@@ -1962,8 +1964,11 @@ function App() {
         body: JSON.stringify({
           company,
           language,
+          force_refresh: includeAllExcelReports,
           include_html: includeHtml,
           include_raw: false,
+          include_all_excel_reports: includeAllExcelReports,
+          ...(includeAllExcelReports && excelReportLimit.trim() ? { excel_report_limit: Number(excelReportLimit) } : {}),
         }),
       });
       const data = await res.json();
@@ -2757,6 +2762,33 @@ function App() {
                       <input type="checkbox" checked={includeHtml} onChange={(event) => setIncludeHtml(event.target.checked)} />
                       <span>{t(language, "analysis.includeHtml")}</span>
                     </label>
+                  </div>
+
+                  <div className={`analysis-deep-excel ${includeAllExcelReports ? "is-active" : ""}`}>
+                    <label className="analysis-checkbox analysis-deep-checkbox">
+                      <input type="checkbox" checked={includeAllExcelReports} onChange={(event) => setIncludeAllExcelReports(event.target.checked)} />
+                      <span>{language === "en" ? "Deep Excel analysis: use all available XLSX reports" : language === "uz" ? "Deep Excel tahlil: barcha mavjud XLSX hisobotlardan foydalanish" : "Глубокий Excel-анализ: использовать все доступные XLSX-отчеты"}</span>
+                    </label>
+                    {includeAllExcelReports ? (
+                      <div className="analysis-input-group analysis-excel-limit">
+                        <label>{language === "en" ? "Optional XLSX limit" : language === "uz" ? "Ixtiyoriy XLSX limiti" : "Лимит XLSX, необязательно"}</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={excelReportLimit}
+                          onChange={(event) => setExcelReportLimit(event.target.value)}
+                          placeholder={language === "en" ? "All found, max 100" : language === "uz" ? "Topilgan hammasi, max 100" : "Все найденные, максимум 100"}
+                        />
+                      </div>
+                    ) : null}
+                    <p>
+                      {language === "en"
+                        ? "This mode is slower on first run, but snapshots are cached after parsing."
+                        : language === "uz"
+                          ? "Bu rejim birinchi ishga tushishda sekinroq, keyin snapshot keshdan olinadi."
+                          : "Этот режим медленнее при первом запуске, после парсинга snapshot берется из кэша."}
+                    </p>
                   </div>
 
                   <button className="primary-btn analysis-submit-btn" type="submit" disabled={analysisLoading}>

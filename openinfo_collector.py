@@ -3,8 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import threading
+import time
 from datetime import date, timedelta
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
@@ -20,6 +24,15 @@ OPENINFO_API_BASE = "https://new-api.openinfo.uz/api/v2"
 OPENINFO_WEB_BASE = "https://openinfo.uz"
 REQUEST_TIMEOUT = int(os.getenv("OPENINFO_TIMEOUT", "30"))
 VERIFY_SSL = os.getenv("OPENINFO_VERIFY_SSL", "0").strip().lower() not in {"0", "false", "no"}
+EXCEL_PARSE_ENABLED = os.getenv("OPENINFO_EXCEL_PARSE_ENABLED", "1").strip().lower() not in {"0", "false", "no"}
+EXCEL_MAX_BYTES = int(os.getenv("OPENINFO_EXCEL_MAX_BYTES", "3000000"))
+EXCEL_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
+EXCEL_MAX_ANNUAL_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_ANNUAL_REPORTS", "1"))
+EXCEL_MAX_QUARTER_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_QUARTER_REPORTS", "2"))
+EXCEL_ABSOLUTE_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
+EXCEL_CACHE_TTL_SECONDS = int(os.getenv("OPENINFO_EXCEL_CACHE_TTL_DAYS", "30")) * 24 * 60 * 60
+EXCEL_CACHE_PATH = Path(os.getenv("OPENINFO_EXCEL_CACHE_PATH", "data/openinfo_excel_cache.json")).expanduser()
+_EXCEL_CACHE_LOCK = threading.Lock()
 
 if not VERIFY_SSL and InsecureRequestWarning is not None:
     requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
@@ -70,6 +83,102 @@ def _safe_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _safe_report_number(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        parsed = float(value)
+        return parsed if abs(parsed) < 1e30 else None
+
+    text = str(value).strip()
+    if not text or text in {"-", "—", "–"}:
+        return None
+    text = text.replace("\xa0", " ").replace(" ", "")
+    is_negative = text.startswith("(") and text.endswith(")")
+    text = text.strip("()")
+    text = text.replace("%", "").replace(",", ".")
+    if text.count(".") > 1:
+        parts = text.split(".")
+        text = "".join(parts[:-1]) + "." + parts[-1]
+    try:
+        parsed = float(text)
+    except ValueError:
+        return None
+    return -parsed if is_negative else parsed
+
+
+def _compact_cell(value: Any) -> Any:
+    if value is None:
+        return ""
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    parsed = _safe_report_number(value)
+    if parsed is not None:
+        return round(parsed, 4)
+    text = str(value).strip()
+    return re.sub(r"\s+", " ", text)[:180]
+
+
+def _excel_cache_file() -> Path:
+    path = EXCEL_CACHE_PATH
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _load_excel_cache() -> dict[str, Any]:
+    path = _excel_cache_file()
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_excel_cache(cache: dict[str, Any]) -> None:
+    path = _excel_cache_file()
+    path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+
+
+def _get_excel_cache(url: str) -> dict[str, Any] | None:
+    if not url or EXCEL_CACHE_TTL_SECONDS <= 0:
+        return None
+    with _EXCEL_CACHE_LOCK:
+        cache = _load_excel_cache()
+        item = cache.get(url)
+    if not item:
+        return None
+    if time.time() - float(item.get("cached_at") or 0) > EXCEL_CACHE_TTL_SECONDS:
+        return None
+    payload = item.get("payload")
+    if isinstance(payload, dict):
+        payload = dict(payload)
+        payload["from_cache"] = True
+        return payload
+    return None
+
+
+def _set_excel_cache(url: str, payload: dict[str, Any]) -> None:
+    if not url or EXCEL_CACHE_TTL_SECONDS <= 0:
+        return
+    cached_payload = dict(payload)
+    cached_payload["from_cache"] = False
+    with _EXCEL_CACHE_LOCK:
+        cache = _load_excel_cache()
+        cache[url] = {"cached_at": time.time(), "payload": cached_payload}
+        # Keep the cache small; parsed snapshots are enough for analysis.
+        if len(cache) > 500:
+            cache = dict(sorted(cache.items(), key=lambda pair: pair[1].get("cached_at", 0))[-500:])
+        _save_excel_cache(cache)
 
 
 def resolve_company(query: str, session: requests.Session | None = None) -> dict[str, Any]:
@@ -334,6 +443,15 @@ def fetch_accounting_bundle(
     return result
 
 
+EXCEL_FINANCIAL_KEYWORDS = (
+    "выруч", "реализац", "себесто", "валов", "прибыл", "убыт", "доход", "расход",
+    "актив", "капитал", "обязательств", "долг", "заем", "денеж", "дебитор", "кредитор",
+    "запас", "налог", "процент", "амортиза", "дивиденд", "revenue", "sales", "profit",
+    "loss", "income", "expense", "asset", "liabil", "equity", "cash", "debt", "tax",
+    "daromad", "foyda", "xarajat", "aktiv", "kapital", "majburiyat", "qarz", "pul",
+)
+
+
 def preview_excel_url(session: requests.Session, url: str, max_rows: int = 5) -> dict[str, Any]:
     import pandas as pd
 
@@ -349,6 +467,234 @@ def preview_excel_url(session: requests.Session, url: str, max_rows: int = 5) ->
             "rows": frame.fillna("").astype(str).to_dict("records"),
         })
     return {"content_type": response.headers.get("content-type"), "sheets": sheets}
+
+
+def _row_matches_financial_context(values: list[Any]) -> bool:
+    text = " ".join(str(value).lower() for value in values if value not in (None, ""))
+    if any(keyword in text for keyword in EXCEL_FINANCIAL_KEYWORDS):
+        return True
+    numeric_count = sum(1 for value in values if _safe_report_number(value) is not None)
+    string_count = sum(1 for value in values if isinstance(value, str) and value.strip())
+    return numeric_count >= 2 and string_count >= 1
+
+
+def _parse_excel_workbook(
+    content: bytes,
+    *,
+    max_sheets: int = 6,
+    max_rows_per_sheet: int = 180,
+    max_matched_rows_per_sheet: int = 24,
+) -> dict[str, Any]:
+    import pandas as pd
+
+    workbook = pd.ExcelFile(BytesIO(content))
+    sheets: list[dict[str, Any]] = []
+    facts_count = 0
+    warnings: list[str] = []
+
+    for sheet_name in workbook.sheet_names[:max_sheets]:
+        try:
+            frame = workbook.parse(sheet_name, header=None, nrows=max_rows_per_sheet)
+        except Exception as exc:  # noqa: BLE001
+            warnings.append(f"{sheet_name}: {exc}")
+            continue
+
+        frame = frame.dropna(how="all").dropna(axis=1, how="all")
+        matched_rows: list[dict[str, Any]] = []
+
+        for index, row in frame.iterrows():
+            raw_values = [_compact_cell(value) for value in row.tolist()]
+            values = [value for value in raw_values if value not in ("", None)]
+            if not values:
+                continue
+            if not _row_matches_financial_context(values):
+                continue
+
+            label_parts = [
+                str(value)
+                for value in values[:4]
+                if isinstance(value, str) and not str(value).replace(".", "", 1).isdigit()
+            ]
+            numeric_values = [
+                round(number, 4)
+                for number in (_safe_report_number(value) for value in values)
+                if number is not None
+            ][:10]
+
+            matched_rows.append({
+                "row": int(index) + 1,
+                "label": " | ".join(label_parts)[:220] if label_parts else str(values[0])[:220],
+                "values": values[:12],
+                "numeric_values": numeric_values,
+            })
+            facts_count += 1
+
+            if len(matched_rows) >= max_matched_rows_per_sheet:
+                break
+
+        if matched_rows:
+            sheets.append({
+                "sheet": str(sheet_name),
+                "rows_scanned": int(len(frame)),
+                "matched_rows": matched_rows,
+            })
+
+    return {
+        "sheet_count": len(workbook.sheet_names),
+        "sheets_read": len(sheets),
+        "facts_count": facts_count,
+        "sheets": sheets,
+        "warnings": warnings[:5],
+    }
+
+
+def parse_excel_report_document(
+    session: requests.Session,
+    document: dict[str, Any],
+) -> dict[str, Any]:
+    url = document.get("excel_url")
+    if not url:
+        return {"ok": False, "error": "excel_url is missing"}
+
+    cached = _get_excel_cache(url)
+    if cached:
+        return cached
+
+    response = session.get(url, timeout=REQUEST_TIMEOUT)
+    response.raise_for_status()
+    content_length = response.headers.get("content-length")
+    size = int(content_length) if content_length and content_length.isdigit() else len(response.content)
+    if size > EXCEL_MAX_BYTES:
+        return {
+            "ok": False,
+            "error": f"Excel file is too large: {size} bytes",
+            "content_length": size,
+            "max_bytes": EXCEL_MAX_BYTES,
+        }
+
+    parsed = _parse_excel_workbook(response.content)
+    payload = {
+        "ok": True,
+        "source": "openinfo_excel",
+        "from_cache": False,
+        "report_id": document.get("id"),
+        "object_id": document.get("object_id"),
+        "published_at": document.get("published_at"),
+        "period_type": document.get("period_type"),
+        "report_form": document.get("report_form"),
+        "title": document.get("title"),
+        "content_type": response.headers.get("content-type"),
+        "content_length": size,
+        **parsed,
+    }
+    _set_excel_cache(url, payload)
+    return payload
+
+
+def _bounded_report_limit(value: int | None, default: int) -> int:
+    raw = default if value is None else value
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(0, min(EXCEL_ABSOLUTE_MAX_REPORTS, parsed))
+
+
+def _select_excel_documents(
+    documents: list[dict[str, Any]],
+    *,
+    include_all: bool = False,
+    max_reports: int | None = None,
+    max_annual_reports: int | None = None,
+    max_quarter_reports: int | None = None,
+) -> list[dict[str, Any]]:
+    annual: list[dict[str, Any]] = []
+    quarter: list[dict[str, Any]] = []
+    other: list[dict[str, Any]] = []
+    for document in documents:
+        if not document.get("excel_url"):
+            continue
+        period_type = str(document.get("period_type") or "").lower()
+        if period_type == "annual":
+            annual.append(document)
+        elif period_type == "quarter":
+            quarter.append(document)
+        else:
+            other.append(document)
+
+    if include_all:
+        selected = annual + quarter + other
+        return selected[:_bounded_report_limit(max_reports, EXCEL_ABSOLUTE_MAX_REPORTS)]
+
+    report_limit = _bounded_report_limit(max_reports, EXCEL_MAX_REPORTS)
+    annual_limit = _bounded_report_limit(max_annual_reports, EXCEL_MAX_ANNUAL_REPORTS)
+    quarter_limit = _bounded_report_limit(max_quarter_reports, EXCEL_MAX_QUARTER_REPORTS)
+    selected = annual[:annual_limit]
+    selected.extend(quarter[:quarter_limit])
+    selected.extend(other)
+    return selected[:report_limit]
+
+
+def fetch_excel_report_snapshots(
+    reports: dict[str, Any],
+    session: requests.Session,
+    *,
+    include_all: bool = False,
+    max_reports: int | None = None,
+    max_annual_reports: int | None = None,
+    max_quarter_reports: int | None = None,
+) -> dict[str, Any]:
+    if not EXCEL_PARSE_ENABLED:
+        return {"enabled": False, "count": 0, "items": [], "errors": []}
+
+    documents = list((reports or {}).get("items") or [])
+    selected = _select_excel_documents(
+        documents,
+        include_all=include_all,
+        max_reports=max_reports,
+        max_annual_reports=max_annual_reports,
+        max_quarter_reports=max_quarter_reports,
+    )
+    items: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+
+    for document in selected:
+        try:
+            snapshot = parse_excel_report_document(session, document)
+            if snapshot.get("ok"):
+                items.append(snapshot)
+            else:
+                errors.append({
+                    "report_id": document.get("id"),
+                    "object_id": document.get("object_id"),
+                    "error": snapshot.get("error"),
+                })
+        except Exception as exc:  # noqa: BLE001
+            errors.append({
+                "report_id": document.get("id"),
+                "object_id": document.get("object_id"),
+                "error": str(exc),
+            })
+
+    return {
+        "enabled": True,
+        "count": len(items),
+        "selected_count": len(selected),
+        "items": items,
+        "errors": errors[:10],
+        "limits": {
+            "include_all": include_all,
+            "max_reports": _bounded_report_limit(
+                max_reports,
+                EXCEL_ABSOLUTE_MAX_REPORTS if include_all else EXCEL_MAX_REPORTS,
+            ),
+            "max_annual_reports": None if include_all else _bounded_report_limit(max_annual_reports, EXCEL_MAX_ANNUAL_REPORTS),
+            "max_quarter_reports": None if include_all else _bounded_report_limit(max_quarter_reports, EXCEL_MAX_QUARTER_REPORTS),
+            "absolute_max_reports": EXCEL_ABSOLUTE_MAX_REPORTS,
+            "max_bytes": EXCEL_MAX_BYTES,
+            "cache_ttl_days": round(EXCEL_CACHE_TTL_SECONDS / 86400, 2),
+        },
+    }
 
 
 def preview_pdf_url(session: requests.Session, url: str, max_pages: int = 2, max_chars: int = 3000) -> dict[str, Any]:
@@ -372,6 +718,11 @@ def collect_company_data(
     history_months: int = 6,
     include_raw_reports: bool = False,
     include_document_previews: bool = False,
+    include_excel_reports: bool = False,
+    include_all_excel_reports: bool = False,
+    excel_report_limit: int | None = None,
+    excel_annual_report_limit: int | None = None,
+    excel_quarter_report_limit: int | None = None,
     validate_documents: bool = False,
 ) -> dict[str, Any]:
     session = _make_session()
@@ -427,6 +778,18 @@ def collect_company_data(
         session=session,
         include_raw=include_raw_reports,
     )
+    excel_reports = (
+        fetch_excel_report_snapshots(
+            reports,
+            session=session,
+            include_all=include_all_excel_reports,
+            max_reports=excel_report_limit,
+            max_annual_reports=excel_annual_report_limit,
+            max_quarter_reports=excel_quarter_report_limit,
+        )
+        if include_excel_reports
+        else {"enabled": False, "count": 0, "items": [], "errors": []}
+    )
 
     return {
         "ok": True,
@@ -439,6 +802,7 @@ def collect_company_data(
         },
         "dividends": dividends,
         "reports": reports,
+        "excel_reports": excel_reports,
         "accounting": accounting,
     }
 
@@ -448,6 +812,9 @@ def main() -> None:
     parser.add_argument("company", nargs="?", default="QATT")
     parser.add_argument("--history-months", type=int, default=6)
     parser.add_argument("--raw-reports", action="store_true")
+    parser.add_argument("--excel-reports", action="store_true")
+    parser.add_argument("--all-excel-reports", action="store_true")
+    parser.add_argument("--excel-report-limit", type=int, default=None)
     parser.add_argument("--validate-documents", action="store_true")
     parser.add_argument("--preview-documents", action="store_true")
     args = parser.parse_args()
@@ -457,6 +824,9 @@ def main() -> None:
         history_months=args.history_months,
         include_raw_reports=args.raw_reports,
         include_document_previews=args.preview_documents,
+        include_excel_reports=args.excel_reports,
+        include_all_excel_reports=args.all_excel_reports,
+        excel_report_limit=args.excel_report_limit,
         validate_documents=args.validate_documents,
     )
     print(json.dumps(payload, ensure_ascii=False, indent=2))
