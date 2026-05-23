@@ -5725,6 +5725,28 @@ body[data-theme="dark"] .analysis-company-chip:hover {
   background: rgba(255, 157, 0, 0.15);
 }
 
+/* Dark theme for analysis page inputs */
+body[data-theme="dark"] .analysis-input-wrapper input,
+body[data-theme="dark"] .analysis-options-row select,
+body[data-theme="dark"] .analysis-form-modern input,
+body[data-theme="dark"] .analysis-form-modern select {
+  background: rgba(10, 15, 26, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .analysis-input-wrapper input::placeholder {
+  color: #8b95a5 !important;
+}
+
+body[data-theme="dark"] .analysis-input-wrapper input:focus,
+body[data-theme="dark"] .analysis-options-row select:focus,
+body[data-theme="dark"] .analysis-form-modern input:focus,
+body[data-theme="dark"] .analysis-form-modern select:focus {
+  border-color: #ff9d00 !important;
+  box-shadow: 0 0 0 4px rgba(255, 157, 0, 0.15) !important;
+}
+
 /* Compare Page - Uses Analysis Hero Styles */
 .compare-layout {
   grid-template-columns: 1fr;
