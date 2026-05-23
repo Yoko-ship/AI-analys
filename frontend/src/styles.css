@@ -590,9 +590,10 @@ img {
 .primary-btn,
 .ghost-btn {
   border: 0;
-  border-radius: 14px;
-  padding: 13px 16px;
-  font-weight: 700;
+  border-radius: 12px;
+  padding: 16px 28px;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .oauth-btn {
@@ -1606,16 +1607,16 @@ body {
 .eyebrow {
   display: inline-flex;
   align-items: center;
-  padding: 7px 12px;
-  margin-bottom: 16px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.08);
-  border: 1px solid rgba(37, 99, 235, 0.14);
+  background: rgba(255, 157, 0, 0.1);
+  border: 1px solid rgba(255, 157, 0, 0.2);
   color: var(--accent);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -1631,16 +1632,16 @@ body {
   margin: 0;
   max-width: 100%;
   color: var(--text);
-  font-size: clamp(2rem, 3.5vw, 3rem);
-  line-height: 1.15;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  line-height: 1.1;
 }
 
 .hero-copy-block p {
-  max-width: 500px;
-  margin: 8px 0 0;
+  max-width: 600px;
+  margin: 16px 0 0;
   color: var(--muted);
-  font-size: 1.05rem;
-  line-height: 1.7;
+  font-size: 1.25rem;
+  line-height: 1.6;
 }
 
 .hero-badges {
@@ -2290,10 +2291,10 @@ body {
 }
 
 .hero-copy-block {
-  max-width: 700px;
+  max-width: 800px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .hero-panel::before {
@@ -4420,12 +4421,12 @@ body[data-theme="dark"] .compare-table th {
 /* Hero Badges Enhanced */
 .hero-badges span {
   position: relative;
-  padding: 10px 18px;
+  padding: 12px 20px;
   border-radius: var(--radius-full);
   background: var(--panel-elevated);
   border: 1px solid var(--border);
-  font-weight: 600;
-  font-size: 0.9rem;
+  font-weight: 500;
+  font-size: 0.95rem;
   box-shadow: var(--shadow-sm);
   transition:
     all var(--duration-normal) var(--ease-out),
