@@ -2535,6 +2535,12 @@ body {
     radial-gradient(ellipse at 50% 0%, var(--accent-light), transparent 60%);
 }
 
+body[data-theme="dark"] .activity-chart {
+  background:
+    linear-gradient(180deg, rgba(20, 26, 42, 0.5), transparent),
+    radial-gradient(ellipse at 50% 0%, var(--accent-light), transparent 60%);
+}
+
 .activity-chart-svg {
   width: 100%;
   height: auto;
