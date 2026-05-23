@@ -3052,43 +3052,45 @@ function App() {
                 </div>
               </article>
 
-              <article className={`panel compare-overview-panel ${compareLoading ? "is-loading" : ""}`}>
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{ct(language, "overview")}</div>
-                    <h2>{compareResult ? ct(language, "ready") : ct(language, "empty")}</h2>
+              {(compareResult || compareLoading) && (
+                <article className={`panel compare-overview-panel ${compareLoading ? "is-loading" : ""}`}>
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{ct(language, "overview")}</div>
+                      <h2>{compareResult ? ct(language, "ready") : ct(language, "empty")}</h2>
+                    </div>
+                    {compareMessage ? <span className="status-badge muted">{compareMessage}</span> : null}
                   </div>
-                  {compareMessage ? <span className="status-badge muted">{compareMessage}</span> : null}
-                </div>
 
-                {compareLoading ? (
-                  <div className="compare-loading-grid">
-                    <div />
-                    <div />
-                    <div />
-                  </div>
-                ) : comparison ? (
-                  <>
-                    <div className="compare-summary-card">
-                      <p>{compareSummary.short || ct(language, "noData")}</p>
-                      <span>{ct(language, "normalizedNote")}</span>
+                  {compareLoading ? (
+                    <div className="compare-loading-grid">
+                      <div />
+                      <div />
+                      <div />
                     </div>
-                    <CompareLeaderCards leaders={comparison.leaders} language={language} />
-                    <div className="compare-ranking-grid">
-                      <CompareRanking title={ct(language, "ranking")} rows={comparison.ranking} scoreKey="score" language={language} />
-                      <CompareRanking title={ct(language, "normalizedRanking")} rows={comparison.normalized_ranking} scoreKey="composite_score" language={language} />
+                  ) : comparison ? (
+                    <>
+                      <div className="compare-summary-card">
+                        <p>{compareSummary.short || ct(language, "noData")}</p>
+                        <span>{ct(language, "normalizedNote")}</span>
+                      </div>
+                      <CompareLeaderCards leaders={comparison.leaders} language={language} />
+                      <div className="compare-ranking-grid">
+                        <CompareRanking title={ct(language, "ranking")} rows={comparison.ranking} scoreKey="score" language={language} />
+                        <CompareRanking title={ct(language, "normalizedRanking")} rows={comparison.normalized_ranking} scoreKey="composite_score" language={language} />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="empty-state">
+                      <p className="empty-copy">{ct(language, "empty")}</p>
                     </div>
-                  </>
-                ) : (
-                  <div className="empty-state">
-                    <p className="empty-copy">{ct(language, "empty")}</p>
-                  </div>
-                )}
-              </article>
+                  )}
+                </article>
+              )}
             </section>
           )}
 
-          {activeView === "compare" && (
+          {activeView === "compare" && (compareResult || compareLoading) && (
             <section className="compare-results-grid">
               <article className="panel compare-chart-main">
                 {comparePrimaryChart ? <CompareChartCard chart={comparePrimaryChart} language={language} /> : (
