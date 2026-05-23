@@ -5394,14 +5394,14 @@ html body[data-theme="dark"] select {
 }
 
 .analysis-hero-text h1 {
-  font-size: 2.25rem;
+  font-size: 2.75rem;
   font-weight: 700;
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   color: var(--text);
 }
 
 .analysis-hero-text p {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   color: var(--muted);
   margin: 0;
 }
@@ -5434,7 +5434,7 @@ html body[data-theme="dark"] select {
 }
 
 .analysis-input-group label {
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 600;
   color: var(--text);
 }
@@ -5461,8 +5461,8 @@ html body[data-theme="dark"] select {
 
 .analysis-input-wrapper input {
   width: 100%;
-  padding: 18px 18px 18px 56px;
-  font-size: 1.15rem;
+  padding: 20px 20px 20px 60px;
+  font-size: 1.25rem;
   border: 2px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg-2);
@@ -5490,8 +5490,8 @@ html body[data-theme="dark"] select {
 
 .analysis-options-row select {
   width: 100%;
-  padding: 16px 18px;
-  font-size: 1rem;
+  padding: 18px 20px;
+  font-size: 1.1rem;
   border: 2px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg-2);
@@ -5522,7 +5522,7 @@ html body[data-theme="dark"] select {
 }
 
 .analysis-checkbox span {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 500;
   color: var(--text);
 }
@@ -5585,9 +5585,9 @@ html body[data-theme="dark"] select {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 20px 32px;
-  font-size: 1.2rem;
+  gap: 14px;
+  padding: 22px 36px;
+  font-size: 1.35rem;
   font-weight: 700;
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
   border: none;
@@ -5627,17 +5627,17 @@ html body[data-theme="dark"] select {
 }
 
 .analysis-companies-header h3 {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 700;
   margin: 0;
   color: var(--text);
 }
 
 .analysis-companies-count {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--accent);
-  padding: 6px 14px;
+  padding: 8px 16px;
   background: var(--accent-light);
   border-radius: var(--radius-full);
 }
@@ -5669,13 +5669,13 @@ html body[data-theme="dark"] select {
 }
 
 .analysis-company-chip .chip-ticker {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--accent);
 }
 
 .analysis-company-chip .chip-name {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
