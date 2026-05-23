@@ -1736,13 +1736,13 @@ body {
   transform: translateY(-1px);
 }
 
-.select-field,
-.form-grid input,
-.history-filters input,
-.history-filters select,
-.analysis-form input,
-.analysis-form select,
-.profile-edit-form input {
+body[data-theme="light"] .select-field,
+body[data-theme="light"] .form-grid input,
+body[data-theme="light"] .history-filters input,
+body[data-theme="light"] .history-filters select,
+body[data-theme="light"] .analysis-form input,
+body[data-theme="light"] .analysis-form select,
+body[data-theme="light"] .profile-edit-form input {
   background: #fff;
   border-color: rgba(148, 163, 184, 0.24);
   color: #0f172a;
@@ -4854,6 +4854,34 @@ select:focus-visible {
   .profile-header-actions .ghost-btn {
     width: 100%;
   }
+}
+
+/* Dark theme profile form inputs */
+body[data-theme="dark"] .profile-edit-inline {
+  background: rgba(10, 15, 26, 0.6);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] .profile-form-group input {
+  background: rgba(10, 17, 30, 0.9);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+body[data-theme="dark"] .profile-form-group input:focus {
+  border-color: var(--accent);
+  background: rgba(15, 22, 35, 0.95);
+}
+
+body[data-theme="dark"] .profile-avatar-btn {
+  background: rgba(255, 157, 0, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+body[data-theme="dark"] .profile-avatar-btn:hover {
+  background: var(--accent);
+  color: #0a0f1a;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
