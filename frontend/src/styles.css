@@ -291,7 +291,7 @@ img {
   margin: 0 0 8px;
   color: var(--accent-2);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
+  font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
@@ -765,6 +765,7 @@ img {
 
 .favorite-main strong,
 .history-title {
+  font-size: 1.1rem;
   font-weight: 700;
 }
 
@@ -773,7 +774,7 @@ img {
 .history-meta {
   color: var(--muted);
   line-height: 1.5;
-  font-size: 13px;
+  font-size: 0.95rem;
 }
 
 .history-score {
@@ -4694,8 +4695,8 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  font-size: 0.85rem;
+  padding: 8px 16px;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--accent);
   background: var(--accent-light);
@@ -4761,10 +4762,10 @@ select:focus-visible {
 }
 
 .profile-activity-total {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--accent);
-  padding: 6px 14px;
+  padding: 8px 16px;
   background: var(--accent-light);
   border-radius: var(--radius-full);
 }
