@@ -352,7 +352,7 @@ img {
 .panel-head h2 {
   margin: 0;
   font-family: "Space Grotesk", sans-serif;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   letter-spacing: -0.03em;
   overflow-wrap: anywhere;
 }
@@ -1702,9 +1702,9 @@ body {
 .panel-label {
   color: var(--accent);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
@@ -4699,16 +4699,16 @@ body[data-theme="dark"] ::-webkit-scrollbar-thumb {
 }
 
 .section-header h2 {
-  font-size: 2rem;
+  font-size: 2.5rem;
   font-weight: 700;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   color: var(--text);
 }
 
 .section-header p {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   color: var(--muted);
-  max-width: 600px;
+  max-width: 700px;
   margin: 0 auto;
 }
 
@@ -4750,14 +4750,14 @@ body[data-theme="dark"] ::-webkit-scrollbar-thumb {
 }
 
 .feature-card h3 {
-  font-size: 1.15rem;
+  font-size: 1.35rem;
   font-weight: 600;
   margin-bottom: 12px;
   color: var(--text);
 }
 
 .feature-card p {
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   color: var(--muted);
   line-height: 1.6;
 }
@@ -4797,14 +4797,14 @@ body[data-theme="dark"] ::-webkit-scrollbar-thumb {
 }
 
 .step-card h3 {
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   font-weight: 600;
   margin-bottom: 12px;
   color: var(--text);
 }
 
 .step-card p {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   color: var(--muted);
   line-height: 1.6;
 }
@@ -4829,14 +4829,14 @@ body[data-theme="dark"] ::-webkit-scrollbar-thumb {
 }
 
 .stat-value {
-  font-size: 2.5rem;
+  font-size: 3rem;
   font-weight: 700;
   color: var(--accent);
   margin-bottom: 8px;
 }
 
 .stat-label {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   color: var(--muted);
 }
 
@@ -4857,16 +4857,16 @@ body[data-theme="dark"] ::-webkit-scrollbar-thumb {
 }
 
 .cta-content h2 {
-  font-size: 1.75rem;
+  font-size: 2.25rem;
   font-weight: 700;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   color: var(--text);
 }
 
 .cta-content p {
-  font-size: 1rem;
+  font-size: 1.2rem;
   color: var(--muted);
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .cta-btn {
