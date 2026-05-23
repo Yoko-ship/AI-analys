@@ -2245,7 +2245,9 @@ function App() {
   const compareSecondaryCharts = compareCharts.filter((chart) => chart !== comparePrimaryChart);
   const compareQuickCompanies = companies.slice(0, 18);
 
-  const navItems = ["main", "about", "auth", "profile", "analysis", "compare"];
+  const navItems = token
+    ? ["main", "about", "profile", "analysis", "compare"]
+    : ["main", "about", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -2340,36 +2342,6 @@ function App() {
                 <span key={badge}>{badge}</span>
               ))}
             </div>
-          </section>
-
-          <section className="dashboard-overview">
-            <article className="panel overview-panel">
-              <div className="panel-head">
-                <div>
-                  <div className="panel-label">{t(language, "dashboard.title")}</div>
-                  <h2>{t(language, "dashboard.title")}</h2>
-                </div>
-              </div>
-              <p className="panel-intro">{t(language, "dashboard.copy")}</p>
-              <div className="overview-grid">
-                {dashboardCards.map((card) => (
-                  <DashboardMetricCard key={card.label} {...card} language={language} />
-                ))}
-              </div>
-            </article>
-
-            <article className="panel activity-panel">
-              <div className="panel-head">
-                <div>
-                  <div className="panel-label">{t(language, "dashboard.activityTitle")}</div>
-                  <h2>{t(language, "dashboard.activityTitle")}</h2>
-                </div>
-              </div>
-              <p className="panel-intro">
-                {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"} · ${vt(language, "dashboardPeriod")}` : vt(language, "dashboardPeriod")}
-              </p>
-              <ActivityChart series={activitySeries} language={language} />
-            </article>
           </section>
 
           {activeView === "main" && (
@@ -2615,8 +2587,39 @@ function App() {
           )}
 
           {activeView === "profile" && (
-            <section className="profile-layout">
-              <article className="panel profile-hero">
+            <>
+              <section className="dashboard-overview">
+                <article className="panel overview-panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{t(language, "dashboard.title")}</div>
+                      <h2>{t(language, "dashboard.title")}</h2>
+                    </div>
+                  </div>
+                  <p className="panel-intro">{t(language, "dashboard.copy")}</p>
+                  <div className="overview-grid">
+                    {dashboardCards.map((card) => (
+                      <DashboardMetricCard key={card.label} {...card} language={language} />
+                    ))}
+                  </div>
+                </article>
+
+                <article className="panel activity-panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{t(language, "dashboard.activityTitle")}</div>
+                      <h2>{t(language, "dashboard.activityTitle")}</h2>
+                    </div>
+                  </div>
+                  <p className="panel-intro">
+                    {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"} · ${vt(language, "dashboardPeriod")}` : vt(language, "dashboardPeriod")}
+                  </p>
+                  <ActivityChart series={activitySeries} language={language} />
+                </article>
+              </section>
+
+              <section className="profile-layout">
+                <article className="panel profile-hero">
                 <div className="panel-head">
                   <div>
                     <div className="panel-label">{t(language, "nav.profile")}</div>
@@ -2781,6 +2784,7 @@ function App() {
                 )}
               </article>
             </section>
+            </>
           )}
 
           {activeView === "analysis" && (
