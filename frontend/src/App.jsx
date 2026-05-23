@@ -2562,45 +2562,9 @@ function App() {
                       </button>
                     </div>
                   </div>
-                </section>
-              )}
-
-              {/* Stats Overview */}
-              <section className="profile-stats-section">
-                <div className="profile-stats-grid">
-                  {dashboardCards.map((card) => (
-                    <DashboardMetricCard key={card.label} {...card} language={language} />
-                  ))}
-                </div>
-              </section>
-
-              {/* Activity Chart */}
-              <section className="profile-activity-section">
-                <article className="panel">
-                  <div className="panel-head">
-                    <div>
-                      <div className="panel-label">{t(language, "dashboard.activityTitle")}</div>
-                      <h2>{t(language, "dashboard.activityTitle")}</h2>
-                    </div>
-                    <span className="profile-activity-total">
-                      {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}` : ""}
-                    </span>
-                  </div>
-                  <ActivityChart series={activitySeries} language={language} />
-                </article>
-              </section>
-
-              {/* Profile Settings - shown only when edit mode is active */}
-              {showProfileEdit && (
-                <section className="profile-settings-section">
-                  <article className="panel">
-                    <div className="panel-head">
-                      <div>
-                        <div className="panel-label">{t(language, "profile.editTitle")}</div>
-                        <h2>{t(language, "profile.editTitle")}</h2>
-                      </div>
-                    </div>
-                    {profileUser ? (
+                  {/* Inline Edit Form */}
+                  {showProfileEdit && (
+                    <div className="profile-edit-inline">
                       <form className="profile-settings-form" onSubmit={handleProfileSave}>
                         <div className="profile-form-group">
                           <label>{t(language, "profile.name")}</label>
@@ -2631,14 +2595,35 @@ function App() {
                           </button>
                         </div>
                       </form>
-                    ) : (
-                      <div className="empty-state">
-                        <p className="empty-copy">{t(language, "profile.empty")}</p>
-                      </div>
-                    )}
-                  </article>
+                    </div>
+                  )}
                 </section>
               )}
+
+              {/* Stats Overview */}
+              <section className="profile-stats-section">
+                <div className="profile-stats-grid">
+                  {dashboardCards.map((card) => (
+                    <DashboardMetricCard key={card.label} {...card} language={language} />
+                  ))}
+                </div>
+              </section>
+
+              {/* Activity Chart */}
+              <section className="profile-activity-section">
+                <article className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{t(language, "dashboard.activityTitle")}</div>
+                      <h2>{t(language, "dashboard.activityTitle")}</h2>
+                    </div>
+                    <span className="profile-activity-total">
+                      {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}` : ""}
+                    </span>
+                  </div>
+                  <ActivityChart series={activitySeries} language={language} />
+                </article>
+              </section>
 
               {/* Favorites */}
               <section className="profile-favorites-section">
