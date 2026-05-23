@@ -2537,129 +2537,109 @@ function App() {
 
           {activeView === "profile" && (
             <>
-              <section className="dashboard-overview">
-                <article className="panel overview-panel">
-                  <div className="panel-head">
-                    <div>
-                      <div className="panel-label">{t(language, "dashboard.title")}</div>
-                      <h2>{t(language, "dashboard.title")}</h2>
+              {/* Profile Header Card */}
+              {profileUser && (
+                <section className="profile-header-card">
+                  <div className="profile-header-bg" />
+                  <div className="profile-header-content">
+                    <div className="profile-header-avatar" style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 70% 60%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 70% 50%))` }}>
+                      {profileAvatarPreview ? <img src={profileAvatarPreview} alt="" /> : profileAvatar ? <img src={profileAvatar} alt="" /> : getProfileInitials(profileUser)}
+                    </div>
+                    <div className="profile-header-info">
+                      <h1>{profileUser.full_name || profileUser.email.split('@')[0]}</h1>
+                      <p className="profile-header-email">{profileUser.email}</p>
+                      <div className="profile-header-meta">
+                        <span className="profile-header-badge">{t(language, "auth.signedIn")}</span>
+                      </div>
+                    </div>
+                    <div className="profile-header-actions">
+                      <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
+                        {t(language, "profile.analyze")}
+                      </button>
+                      <button className="ghost-btn" type="button" onClick={async () => { await loadProfile(); addToast(t(language, "profile.refresh"), "success"); }}>
+                        {t(language, "profile.refresh")}
+                      </button>
                     </div>
                   </div>
-                  <p className="panel-intro">{t(language, "dashboard.copy")}</p>
-                  <div className="overview-grid">
-                    {dashboardCards.map((card) => (
-                      <DashboardMetricCard key={card.label} {...card} language={language} />
-                    ))}
-                  </div>
-                </article>
+                </section>
+              )}
 
-                <article className="panel activity-panel">
+              {/* Stats Overview */}
+              <section className="profile-stats-section">
+                <div className="profile-stats-grid">
+                  {dashboardCards.map((card) => (
+                    <DashboardMetricCard key={card.label} {...card} language={language} />
+                  ))}
+                </div>
+              </section>
+
+              {/* Activity Chart */}
+              <section className="profile-activity-section">
+                <article className="panel">
                   <div className="panel-head">
                     <div>
                       <div className="panel-label">{t(language, "dashboard.activityTitle")}</div>
                       <h2>{t(language, "dashboard.activityTitle")}</h2>
                     </div>
+                    <span className="profile-activity-total">
+                      {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}` : ""}
+                    </span>
                   </div>
-                  <p className="panel-intro">
-                    {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"} · ${vt(language, "dashboardPeriod")}` : vt(language, "dashboardPeriod")}
-                  </p>
                   <ActivityChart series={activitySeries} language={language} />
                 </article>
               </section>
 
-              <section className="profile-layout">
-                <article className="panel profile-hero">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "nav.profile")}</div>
-                    <h2>{t(language, "profile.title")}</h2>
+              {/* Profile Settings */}
+              <section className="profile-settings-section">
+                <article className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{t(language, "profile.editTitle")}</div>
+                      <h2>{t(language, "profile.editTitle")}</h2>
+                    </div>
                   </div>
-                </div>
-                <p className="panel-intro">{profile ? t(language, "profile.subtitle") : t(language, "profile.empty")}</p>
-
-                {profileUser ? (
-                  <>
-                    <div className="profile-identity">
-                      <div className="profile-avatar" style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 80% 66%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 80% 55%))` }}>
-                        {profileAvatarPreview ? <img src={profileAvatarPreview} alt="" /> : profileAvatar ? <img src={profileAvatar} alt="" /> : getProfileInitials(profileUser)}
-                      </div>
-                      <div className="profile-copy">
-                        <h3>{profileUser.full_name || profileUser.email}</h3>
-                        <p>{profileUser.email}</p>
-                        <p className="muted">{profileCreated ? t(language, "profile.subtitle") : t(language, "profile.empty")}</p>
-                      </div>
-                    </div>
-
-                    <div className="profile-actions">
-                      <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
-                        {t(language, "profile.analyze")}
-                      </button>
-                      <button className="ghost-btn" type="button" onClick={() => loadProfile().then(() => addToast(t(language, "profile.refresh"), "success")).catch((error) => addToast(error.message, "error"))}>
-                        {t(language, "profile.refresh")}
-                      </button>
-                    </div>
-
-                    <form className="profile-edit-form" onSubmit={handleProfileSave}>
-                      <div className="section-title-row">
-                        <h3>{t(language, "profile.editTitle")}</h3>
-                        <span className="muted">{t(language, "profile.subtitle")}</span>
-                      </div>
-                      <label>
-                        <span>{t(language, "profile.name")}</span>
+                  {profileUser ? (
+                    <form className="profile-settings-form" onSubmit={handleProfileSave}>
+                      <div className="profile-form-group">
+                        <label>{t(language, "profile.name")}</label>
                         <input
                           type="text"
                           value={profileForm.full_name}
                           onChange={(event) => setProfileForm({ full_name: event.target.value })}
                           placeholder={t(language, "profile.name")}
                         />
-                      </label>
-                      <label>
-                        <span>{t(language, "profile.avatar")}</span>
-                        <input type="file" accept="image/*" onChange={onAvatarChange} />
-                      </label>
-                      <div className="profile-edit-actions">
+                      </div>
+                      <div className="profile-form-group">
+                        <label>{t(language, "profile.avatar")}</label>
+                        <div className="profile-avatar-upload">
+                          <input type="file" accept="image/*" onChange={onAvatarChange} id="avatar-input" />
+                          <label htmlFor="avatar-input" className="profile-avatar-btn">
+                            {language === "en" ? "Choose file" : language === "uz" ? "Fayl tanlash" : "Выбрать файл"}
+                          </label>
+                          {(profileAvatarPreview || profileAvatar) && (
+                            <button type="button" className="profile-avatar-remove" onClick={removeAvatar}>
+                              {t(language, "profile.clearAvatar")}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="profile-form-actions">
                         <button className="primary-btn" type="submit">
                           {t(language, "profile.save")}
                         </button>
-                        <button className="ghost-btn" type="button" onClick={removeAvatar}>
-                          {t(language, "profile.clearAvatar")}
-                        </button>
                       </div>
                     </form>
-                  </>
-                ) : (
-                  <div className="empty-state">
-                    <p className="empty-copy">{t(language, "profile.empty")}</p>
-                  </div>
-                )}
-              </article>
+                  ) : (
+                    <div className="empty-state">
+                      <p className="empty-copy">{t(language, "profile.empty")}</p>
+                    </div>
+                  )}
+                </article>
+              </section>
 
-              <article className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "profile.statsTitle")}</div>
-                    <h2>{t(language, "profile.statsTitle")}</h2>
-                  </div>
-                </div>
-                {profile ? (
-                  <div className="profile-stats-grid">
-                    <StatCard label={t(language, "profile.stats.totalAnalyses")} value={profileStats.total_analyses ?? 0} sub={t(language, "profile.stats.totalAnalyses")} />
-                    <StatCard label={t(language, "profile.stats.analyses7d")} value={profileStats.analyses_7d ?? 0} sub={t(language, "profile.stats.analyses7d")} />
-                    <StatCard label={t(language, "profile.stats.analyses30d")} value={profileStats.analyses_30d ?? 0} sub={t(language, "profile.stats.analyses30d")} />
-                    <StatCard label={t(language, "profile.stats.analyzedCompanies")} value={profileStats.analyzed_companies ?? 0} sub={t(language, "profile.stats.analyzedCompanies")} />
-                    <StatCard label={t(language, "profile.stats.avgScore")} value={profileStats.avg_score ?? "—"} sub={t(language, "profile.stats.avgScore")} />
-                    <StatCard label={t(language, "profile.stats.bestScore")} value={profileStats.best_score ?? "—"} sub={t(language, "profile.stats.bestScore")} />
-                    <StatCard label={t(language, "profile.stats.cachedAnalyses")} value={profileStats.cached_analyses ?? 0} sub={t(language, "profile.stats.cachedAnalyses")} />
-                    <StatCard label={t(language, "profile.stats.topCompany")} value={profileStats.top_company || "—"} sub={profileStats.top_company_count ? `${profileStats.top_company_count} ${language === "ru" ? "анализов" : language === "uz" ? "tahlil" : "analyses"}` : ""} />
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <p className="empty-copy">{t(language, "profile.empty")}</p>
-                  </div>
-                )}
-              </article>
-
-              <article className="panel favorites-panel">
+              {/* Favorites */}
+              <section className="profile-favorites-section">
+                <article className="panel favorites-panel">
                 <div className="panel-head">
                   <div>
                     <div className="panel-label">{t(language, "profile.favoritesTitle")}</div>
@@ -2685,54 +2665,57 @@ function App() {
                     <p className="empty-copy">{t(language, "profile.favoritesEmpty")}</p>
                   </div>
                 )}
-              </article>
+                </article>
+              </section>
 
-              <article className="panel history-panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "profile.historyTitle")}</div>
-                    <h2>{t(language, "profile.historyTitle")}</h2>
+              {/* History */}
+              <section className="profile-history-section">
+                <article className="panel history-panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{t(language, "profile.historyTitle")}</div>
+                      <h2>{t(language, "profile.historyTitle")}</h2>
+                    </div>
                   </div>
-                </div>
-                <div className="panel-toolbar history-filters">
-                  <input
-                    type="search"
-                    value={historySearch}
-                    onChange={(event) => setHistorySearch(event.target.value)}
-                    placeholder={t(language, "profile.filters.search")}
-                  />
-                  <select value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
-                    <option value="all">{t(language, "profile.filters.all")}</option>
-                    <option value="favorites">{t(language, "profile.filters.favorites")}</option>
-                  </select>
-                </div>
-                {recentAnalyses.length ? (
-                  <div className="history-list">
-                    {recentAnalyses.map((item) => (
-                      <article className="history-item" key={`${item.created_at}-${item.company_input}`}>
-                        <div className="history-main">
-                          <div>
-                            <div className="history-title">{item.company_name || item.company_input || t(language, "profile.empty")}</div>
-                            <div className="history-sub">
-                              {item.ticker || "—"} · {item.from_cache ? t(language, "analysis.resultCacheHit") : t(language, "analysis.resultFresh")} · {item.model || ""}
+                  <div className="panel-toolbar history-filters">
+                    <input
+                      type="search"
+                      value={historySearch}
+                      onChange={(event) => setHistorySearch(event.target.value)}
+                      placeholder={t(language, "profile.filters.search")}
+                    />
+                    <select value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
+                      <option value="all">{t(language, "profile.filters.all")}</option>
+                      <option value="favorites">{t(language, "profile.filters.favorites")}</option>
+                    </select>
+                  </div>
+                  {recentAnalyses.length ? (
+                    <div className="history-list">
+                      {recentAnalyses.map((item) => (
+                        <article className="history-item" key={`${item.created_at}-${item.company_input}`}>
+                          <div className="history-main">
+                            <div>
+                              <div className="history-title">{item.company_name || item.company_input || t(language, "profile.empty")}</div>
+                              <div className="history-sub">
+                                {item.ticker || "—"} · {item.from_cache ? t(language, "analysis.resultCacheHit") : t(language, "analysis.resultFresh")} · {item.model || ""}
+                              </div>
                             </div>
+                            <div className="history-score">{item.score ?? "—"}</div>
                           </div>
-                          <div className="history-score">{item.score ?? "—"}</div>
-                        </div>
-                        <div className="history-meta">
-                          <span>{formatDateLabel(item.created_at, language)}</span>
-                          <span>{item.verdict || ""}</span>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <p className="empty-copy">{profile ? t(language, "profile.historyEmpty") : t(language, "profile.empty")}</p>
-                  </div>
-                )}
-              </article>
-            </section>
+                          <div className="history-meta">
+                            <span>{formatDateLabel(item.created_at, language)}</span>
+                            <span>{item.verdict || ""}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state">
+                      <p className="empty-copy">{profile ? t(language, "profile.historyEmpty") : t(language, "profile.empty")}</p>
+                    </div>
+                  )}
+                </article>
+              </section>
             </>
           )}
 
