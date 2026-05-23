@@ -2345,6 +2345,9 @@ function App() {
                     ))}
                   </div>
                 </div>
+                <div className="hero-image">
+                  <img src="/hero-image.png" alt="Stock Analysis Dashboard" />
+                </div>
               </section>
 
               {/* Features Section */}
