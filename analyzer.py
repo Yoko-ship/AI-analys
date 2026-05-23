@@ -714,6 +714,158 @@ def compute_metrics(annual_data: list, quarterly_data: list = None) -> dict:
             ),
         }
 
+    # ── EFFICIENCY METRICS (NEW) ─────────────────────────
+    # Оборачиваемость и эффективность использования активов
+    cogs = get(latest, "cogs", 0) or 0
+    accounts_pay = get(latest, "accounts_payable", 0) or 0
+    prev_inventory = get(prev, "inventory", 0) or 0
+    prev_accounts_rec = get(prev, "accounts_receivable", 0) or 0
+    prev_accounts_pay = get(prev, "accounts_payable", 0) or 0
+
+    efficiency = {}
+
+    # Inventory Turnover (оборачиваемость запасов)
+    avg_inventory = (inventory + prev_inventory) / 2 if prev_inventory else inventory
+    if avg_inventory and cogs:
+        inv_turnover = cogs / avg_inventory
+        inv_days = 365 / inv_turnover if inv_turnover > 0 else 0
+        efficiency["inventory_turnover"] = {
+            "ratio": round(inv_turnover, 2),
+            "days": round(inv_days, 0),
+            "verdict": (
+                "Отлично — быстрая оборачиваемость" if inv_days < 60
+                else "Нормально" if inv_days < 120
+                else "Медленно — деньги заморожены в запасах"
+            ),
+        }
+
+    # Receivable Days (дни дебиторской задолженности)
+    avg_receivables = (accounts_rec + prev_accounts_rec) / 2 if prev_accounts_rec else accounts_rec
+    if avg_receivables and revenue:
+        rec_turnover = revenue / avg_receivables
+        rec_days = 365 / rec_turnover if rec_turnover > 0 else 0
+        efficiency["receivable_days"] = {
+            "ratio": round(rec_turnover, 2),
+            "days": round(rec_days, 0),
+            "verdict": (
+                "Отлично — быстро собирают деньги" if rec_days < 30
+                else "Нормально" if rec_days < 60
+                else "Медленно — деньги застряли у клиентов"
+            ),
+        }
+
+    # Payable Days (дни кредиторской задолженности)
+    avg_payables = (accounts_pay + prev_accounts_pay) / 2 if prev_accounts_pay else accounts_pay
+    if avg_payables and cogs:
+        pay_turnover = cogs / avg_payables
+        pay_days = 365 / pay_turnover if pay_turnover > 0 else 0
+        efficiency["payable_days"] = {
+            "ratio": round(pay_turnover, 2),
+            "days": round(pay_days, 0),
+            "verdict": (
+                "Хорошо — используют деньги поставщиков" if pay_days > 45
+                else "Нормально" if pay_days > 20
+                else "Платят слишком быстро"
+            ),
+        }
+
+    # Cash Conversion Cycle (цикл конвертации денег)
+    inv_days_val = efficiency.get("inventory_turnover", {}).get("days", 0) or 0
+    rec_days_val = efficiency.get("receivable_days", {}).get("days", 0) or 0
+    pay_days_val = efficiency.get("payable_days", {}).get("days", 0) or 0
+    if inv_days_val or rec_days_val:
+        ccc = inv_days_val + rec_days_val - pay_days_val
+        efficiency["cash_conversion_cycle"] = {
+            "days": round(ccc, 0),
+            "verdict": (
+                "Отрицательный CCC — бизнес генерирует кеш" if ccc < 0
+                else "Отлично" if ccc < 30
+                else "Нормально" if ccc < 60
+                else "Долгий цикл — много денег заморожено"
+            ),
+            "interpretation": (
+                f"От покупки товара до получения денег: {round(ccc, 0)} дней"
+            ),
+        }
+
+    if efficiency:
+        metrics["efficiency"] = efficiency
+
+    # ── DUPONT ANALYSIS (ROE Decomposition) ──────────────
+    # ROE = Net Margin × Asset Turnover × Equity Multiplier
+    if revenue and total_assets and equity and equity > 0:
+        net_margin_pct = (net_income / revenue) * 100 if revenue else 0
+        asset_turnover = revenue / total_assets
+        equity_multiplier = total_assets / equity
+        roe_dupont = (net_income / revenue) * (revenue / total_assets) * (total_assets / equity) * 100
+
+        # Определяем драйверы ROE
+        drivers = []
+        if net_margin_pct > 10:
+            drivers.append("высокая маржа")
+        elif net_margin_pct < 3:
+            drivers.append("низкая маржа тянет вниз")
+
+        if asset_turnover > 1.5:
+            drivers.append("эффективное использование активов")
+        elif asset_turnover < 0.5:
+            drivers.append("активы работают неэффективно")
+
+        if equity_multiplier > 3:
+            drivers.append("высокий leverage (риск)")
+        elif equity_multiplier < 1.5:
+            drivers.append("консервативная структура капитала")
+
+        metrics["dupont_analysis"] = {
+            "roe_pct": round(roe_dupont, 2),
+            "components": {
+                "net_margin_pct": round(net_margin_pct, 2),
+                "asset_turnover": round(asset_turnover, 3),
+                "equity_multiplier": round(equity_multiplier, 2),
+            },
+            "drivers": drivers if drivers else ["сбалансированный профиль"],
+            "interpretation": (
+                f"ROE {round(roe_dupont, 1)}% = "
+                f"маржа {round(net_margin_pct, 1)}% × "
+                f"оборачиваемость {round(asset_turnover, 2)}x × "
+                f"leverage {round(equity_multiplier, 1)}x"
+            ),
+        }
+
+    # ── WORKING CAPITAL ANALYSIS ─────────────────────────
+    working_capital = current_assets - current_liab
+    prev_working_cap = get(prev, "current_assets", 0) - get(prev, "current_liabilities", 0)
+
+    wc_change = working_capital - prev_working_cap if prev_working_cap else 0
+    wc_to_revenue = (working_capital / revenue * 100) if revenue else 0
+
+    # Quick Ratio (без запасов)
+    quick_assets = current_assets - inventory
+    quick_ratio = quick_assets / current_liab if current_liab else 0
+
+    # Cash Ratio (только деньги)
+    cash_ratio = cash / current_liab if current_liab else 0
+
+    metrics["working_capital"] = {
+        "amount": round(working_capital, 0),
+        "change_yoy": round(wc_change, 0),
+        "pct_of_revenue": round(wc_to_revenue, 1),
+        "current_ratio": round(curr_ratio, 2),
+        "quick_ratio": round(quick_ratio, 2),
+        "cash_ratio": round(cash_ratio, 2),
+        "verdict": (
+            "Отлично — избыток ликвидности" if curr_ratio > 2.5 and quick_ratio > 1.5
+            else "Хорошо — здоровая ликвидность" if curr_ratio > 1.5 and quick_ratio > 1.0
+            else "Нормально — достаточная ликвидность" if curr_ratio > 1.0
+            else "Риск — может не хватить на текущие платежи"
+        ),
+        "change_verdict": (
+            "Рабочий капитал растёт" if wc_change > 0
+            else "Рабочий капитал снижается" if wc_change < 0
+            else "Без изменений"
+        ),
+    }
+
     # ── TREND ANALYSIS: SLOPE / ACCELERATION / CONSISTENCY ─
     # Все три метода считаются из временного ряда без внешних библиотек.
 
@@ -1201,6 +1353,324 @@ def compute_metrics(annual_data: list, quarterly_data: list = None) -> dict:
     return metrics
 
 
+def compute_technical_indicators(price_history: list) -> dict:
+    """
+    Вычисляет технические индикаторы из истории цен.
+    Использует реальные рыночные данные из OpenInfo.
+
+    Args:
+        price_history: список dict с ключами date, open, high, low, close, trading_volume
+
+    Returns:
+        dict с RSI, MACD, уровнями Фибоначчи, объёмным анализом
+    """
+    if not price_history or len(price_history) < 5:
+        return {"status": "insufficient_data", "message": "Нужно минимум 5 точек данных"}
+
+    def safe_float(v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            return val if not math.isnan(val) else None
+        except (TypeError, ValueError):
+            return None
+
+    # Очищаем данные
+    points = []
+    for p in price_history:
+        close = safe_float(p.get("close"))
+        if close is not None and close > 0:
+            points.append({
+                "date": p.get("date"),
+                "open": safe_float(p.get("open")),
+                "high": safe_float(p.get("high")),
+                "low": safe_float(p.get("low")),
+                "close": close,
+                "volume": safe_float(p.get("trading_volume")) or 0,
+            })
+
+    if len(points) < 5:
+        return {"status": "insufficient_data", "message": "Недостаточно валидных данных"}
+
+    # Сортируем по дате
+    points = sorted(points, key=lambda x: str(x.get("date") or ""))
+    closes = [p["close"] for p in points]
+    volumes = [p["volume"] for p in points]
+
+    indicators = {"status": "ok", "data_points": len(points)}
+
+    # ── RSI (Relative Strength Index) ────────────────────
+    # RSI = 100 - (100 / (1 + RS))
+    # RS = Average Gain / Average Loss за период (обычно 14 дней)
+    period = min(14, len(closes) - 1)
+    if period >= 5:
+        gains = []
+        losses = []
+        for i in range(1, len(closes)):
+            change = closes[i] - closes[i - 1]
+            if change > 0:
+                gains.append(change)
+                losses.append(0)
+            else:
+                gains.append(0)
+                losses.append(abs(change))
+
+        # Используем последние N периодов
+        recent_gains = gains[-period:]
+        recent_losses = losses[-period:]
+
+        avg_gain = sum(recent_gains) / len(recent_gains) if recent_gains else 0
+        avg_loss = sum(recent_losses) / len(recent_losses) if recent_losses else 0
+
+        if avg_loss == 0:
+            rsi = 100 if avg_gain > 0 else 50
+        else:
+            rs = avg_gain / avg_loss
+            rsi = 100 - (100 / (1 + rs))
+
+        if rsi >= 70:
+            rsi_signal = "ПЕРЕКУПЛЕННОСТЬ — возможна коррекция вниз"
+            rsi_css = "bearish"
+        elif rsi <= 30:
+            rsi_signal = "ПЕРЕПРОДАННОСТЬ — возможен отскок вверх"
+            rsi_css = "bullish"
+        elif rsi >= 60:
+            rsi_signal = "Бычий тренд, но приближается к перекупленности"
+            rsi_css = "neutral"
+        elif rsi <= 40:
+            rsi_signal = "Медвежий тренд, но приближается к перепроданности"
+            rsi_css = "neutral"
+        else:
+            rsi_signal = "Нейтральная зона"
+            rsi_css = "neutral"
+
+        indicators["rsi"] = {
+            "value": round(rsi, 1),
+            "period": period,
+            "signal": rsi_signal,
+            "css": rsi_css,
+        }
+
+    # ── PRICE FIBONACCI LEVELS (на основе реальных цен) ──
+    highs = [p["high"] for p in points if p["high"]]
+    lows = [p["low"] for p in points if p["low"]]
+
+    if highs and lows:
+        swing_high = max(highs)
+        swing_low = min(lows)
+        price_range = swing_high - swing_low
+
+        if price_range > 0:
+            current_price = closes[-1]
+
+            fib_levels = {
+                "0.0": round(swing_high, 2),
+                "23.6": round(swing_high - price_range * 0.236, 2),
+                "38.2": round(swing_high - price_range * 0.382, 2),
+                "50.0": round(swing_high - price_range * 0.5, 2),
+                "61.8": round(swing_high - price_range * 0.618, 2),
+                "78.6": round(swing_high - price_range * 0.786, 2),
+                "100.0": round(swing_low, 2),
+            }
+
+            # Определяем текущую зону
+            if current_price >= fib_levels["23.6"]:
+                zone = "выше 23.6% — сильный бычий тренд"
+                zone_css = "bullish"
+            elif current_price >= fib_levels["38.2"]:
+                zone = "23.6–38.2% — здоровая коррекция"
+                zone_css = "neutral"
+            elif current_price >= fib_levels["50.0"]:
+                zone = "38.2–50% — умеренная коррекция"
+                zone_css = "neutral"
+            elif current_price >= fib_levels["61.8"]:
+                zone = "50–61.8% — глубокая коррекция (золотое сечение)"
+                zone_css = "bearish"
+            else:
+                zone = "ниже 61.8% — сильный медвежий тренд"
+                zone_css = "bearish"
+
+            # Ближайшие уровни
+            support_levels = [
+                (level, price) for level, price in fib_levels.items()
+                if price < current_price
+            ]
+            resistance_levels = [
+                (level, price) for level, price in fib_levels.items()
+                if price > current_price
+            ]
+
+            nearest_support = max(support_levels, key=lambda x: x[1]) if support_levels else None
+            nearest_resistance = min(resistance_levels, key=lambda x: x[1]) if resistance_levels else None
+
+            indicators["fibonacci_price"] = {
+                "swing_high": round(swing_high, 2),
+                "swing_low": round(swing_low, 2),
+                "current_price": round(current_price, 2),
+                "levels": fib_levels,
+                "current_zone": zone,
+                "css": zone_css,
+                "nearest_support": {
+                    "level": nearest_support[0],
+                    "price": nearest_support[1],
+                } if nearest_support else None,
+                "nearest_resistance": {
+                    "level": nearest_resistance[0],
+                    "price": nearest_resistance[1],
+                } if nearest_resistance else None,
+            }
+
+    # ── PRICE MOMENTUM ───────────────────────────────────
+    # Изменение цены за разные периоды
+    if len(closes) >= 2:
+        price_changes = {}
+
+        # 1 день
+        price_changes["1d"] = round((closes[-1] / closes[-2] - 1) * 100, 2)
+
+        # 1 неделя (5 торговых дней)
+        if len(closes) >= 6:
+            price_changes["1w"] = round((closes[-1] / closes[-6] - 1) * 100, 2)
+
+        # 1 месяц (20 торговых дней)
+        if len(closes) >= 21:
+            price_changes["1m"] = round((closes[-1] / closes[-21] - 1) * 100, 2)
+
+        # За весь период
+        price_changes["total"] = round((closes[-1] / closes[0] - 1) * 100, 2)
+
+        # Определяем тренд
+        total_change = price_changes["total"]
+        if total_change > 15:
+            trend = "Сильный рост"
+            trend_css = "bullish"
+        elif total_change > 5:
+            trend = "Умеренный рост"
+            trend_css = "bullish"
+        elif total_change > -5:
+            trend = "Боковик"
+            trend_css = "neutral"
+        elif total_change > -15:
+            trend = "Умеренное падение"
+            trend_css = "bearish"
+        else:
+            trend = "Сильное падение"
+            trend_css = "bearish"
+
+        indicators["price_momentum"] = {
+            "changes": price_changes,
+            "trend": trend,
+            "css": trend_css,
+            "start_price": round(closes[0], 2),
+            "end_price": round(closes[-1], 2),
+        }
+
+    # ── VOLUME ANALYSIS ──────────────────────────────────
+    valid_volumes = [v for v in volumes if v and v > 0]
+    if len(valid_volumes) >= 5:
+        avg_volume = sum(valid_volumes) / len(valid_volumes)
+        recent_avg = sum(valid_volumes[-5:]) / min(5, len(valid_volumes))
+        latest_volume = valid_volumes[-1] if valid_volumes else 0
+
+        # Volume trend
+        if recent_avg > avg_volume * 1.5:
+            vol_signal = "Объёмы растут — повышенный интерес"
+            vol_css = "bullish"
+        elif recent_avg < avg_volume * 0.5:
+            vol_signal = "Объёмы падают — снижение интереса"
+            vol_css = "bearish"
+        else:
+            vol_signal = "Объёмы стабильны"
+            vol_css = "neutral"
+
+        # Volume-price divergence
+        price_up = closes[-1] > closes[0] if len(closes) >= 2 else False
+        vol_up = recent_avg > avg_volume
+
+        if price_up and not vol_up:
+            divergence = "Цена растёт на низких объёмах — слабый рост"
+        elif not price_up and vol_up:
+            divergence = "Цена падает на высоких объёмах — сильное давление продавцов"
+        elif price_up and vol_up:
+            divergence = "Цена и объёмы растут — здоровый бычий тренд"
+        else:
+            divergence = "Цена и объёмы падают — истощение продавцов"
+
+        indicators["volume_analysis"] = {
+            "avg_volume": round(avg_volume, 0),
+            "recent_avg": round(recent_avg, 0),
+            "latest": round(latest_volume, 0),
+            "signal": vol_signal,
+            "css": vol_css,
+            "divergence": divergence,
+        }
+
+    # ── VOLATILITY ───────────────────────────────────────
+    if len(closes) >= 10:
+        # Standard deviation of daily returns
+        returns = [(closes[i] / closes[i-1] - 1) for i in range(1, len(closes))]
+        mean_return = sum(returns) / len(returns)
+        variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
+        daily_volatility = variance ** 0.5
+        annual_volatility = daily_volatility * (252 ** 0.5)  # annualized
+
+        if annual_volatility > 0.5:
+            vol_level = "Очень высокая волатильность"
+            vol_css = "bearish"
+        elif annual_volatility > 0.3:
+            vol_level = "Высокая волатильность"
+            vol_css = "neutral"
+        elif annual_volatility > 0.15:
+            vol_level = "Умеренная волатильность"
+            vol_css = "neutral"
+        else:
+            vol_level = "Низкая волатильность"
+            vol_css = "bullish"
+
+        indicators["volatility"] = {
+            "daily_pct": round(daily_volatility * 100, 2),
+            "annual_pct": round(annual_volatility * 100, 1),
+            "level": vol_level,
+            "css": vol_css,
+        }
+
+    # ── SUMMARY SIGNAL ───────────────────────────────────
+    bullish_signals = 0
+    bearish_signals = 0
+    neutral_signals = 0
+
+    for key in ["rsi", "fibonacci_price", "price_momentum", "volume_analysis", "volatility"]:
+        if key in indicators:
+            css = indicators[key].get("css", "neutral")
+            if css == "bullish":
+                bullish_signals += 1
+            elif css == "bearish":
+                bearish_signals += 1
+            else:
+                neutral_signals += 1
+
+    if bullish_signals >= 3:
+        overall = "БЫЧИЙ — большинство индикаторов указывают на рост"
+        overall_css = "bullish"
+    elif bearish_signals >= 3:
+        overall = "МЕДВЕЖИЙ — большинство индикаторов указывают на падение"
+        overall_css = "bearish"
+    else:
+        overall = "НЕЙТРАЛЬНЫЙ — смешанные сигналы"
+        overall_css = "neutral"
+
+    indicators["summary"] = {
+        "bullish_count": bullish_signals,
+        "bearish_count": bearish_signals,
+        "neutral_count": neutral_signals,
+        "overall": overall,
+        "css": overall_css,
+    }
+
+    return indicators
+
+
 # ─────────────────────────────────────────────────────────
 # ШАГ A — Haiku + web_search (улучшенный промпт)
 # ─────────────────────────────────────────────────────────
@@ -1400,6 +1870,50 @@ def slim_metrics_for_prompt(metrics: dict) -> dict:
     momentum = metrics.get("momentum", {})
     if momentum:
         keep["momentum"] = momentum
+
+    # NEW: Efficiency metrics
+    efficiency = metrics.get("efficiency", {})
+    if efficiency:
+        keep["efficiency"] = {
+            "inventory_turnover": efficiency.get("inventory_turnover"),
+            "receivable_days": efficiency.get("receivable_days"),
+            "payable_days": efficiency.get("payable_days"),
+            "cash_conversion_cycle": efficiency.get("cash_conversion_cycle"),
+        }
+
+    # NEW: DuPont Analysis
+    dupont = metrics.get("dupont_analysis", {})
+    if dupont:
+        keep["dupont_analysis"] = {
+            "roe_pct": dupont.get("roe_pct"),
+            "components": dupont.get("components"),
+            "drivers": dupont.get("drivers"),
+            "interpretation": dupont.get("interpretation"),
+        }
+
+    # NEW: Working Capital
+    working_cap = metrics.get("working_capital", {})
+    if working_cap:
+        keep["working_capital"] = {
+            "amount": working_cap.get("amount"),
+            "change_yoy": working_cap.get("change_yoy"),
+            "current_ratio": working_cap.get("current_ratio"),
+            "quick_ratio": working_cap.get("quick_ratio"),
+            "cash_ratio": working_cap.get("cash_ratio"),
+            "verdict": working_cap.get("verdict"),
+        }
+
+    # NEW: Technical Indicators
+    technical = metrics.get("technical_indicators", {})
+    if technical and technical.get("status") == "ok":
+        keep["technical_indicators"] = {
+            "rsi": technical.get("rsi"),
+            "fibonacci_price": technical.get("fibonacci_price"),
+            "price_momentum": technical.get("price_momentum"),
+            "volume_analysis": technical.get("volume_analysis"),
+            "volatility": technical.get("volatility"),
+            "summary": technical.get("summary"),
+        }
 
     return keep
 
@@ -1708,6 +2222,8 @@ _SECTION_ALIASES = {
     "ДОСЬЕ": ["ДОСЬЕ", "DOSSIER", "КРАТКОЕ_ДОСЬЕ", "КРАТКОЕ ДОСЬЕ"],
     "ЧТО_С_ДЕНЬГАМИ": ["ЧТО_С_ДЕНЬГАМИ", "ЧТО С ДЕНЬГАМИ", "ФИНАНСЫ", "ДЕНЬГИ", "ФИНАНСОВОЕ_СОСТОЯНИЕ"],
     "ТРЕНД": ["ТРЕНД", "TREND", "ТРЕНДЫ", "НАПРАВЛЕНИЕ"],
+    "ЭФФЕКТИВНОСТЬ": ["ЭФФЕКТИВНОСТЬ", "EFFICIENCY", "ОБОРАЧИВАЕМОСТЬ"],
+    "ТЕХНИЧЕСКИЙ_АНАЛИЗ": ["ТЕХНИЧЕСКИЙ_АНАЛИЗ", "ТЕХНИЧЕСКИЙ АНАЛИЗ", "TECHNICAL_ANALYSIS", "TECHNICAL ANALYSIS", "RSI", "ТЕХАНАЛИЗ"],
     "ФИБОНАЧЧИ": ["ФИБОНАЧЧИ", "FIBONACCI", "ФИБ", "FIB", "ФИБО"],
     "ОЦЕНКА_ЦЕНЫ": ["ОЦЕНКА_ЦЕНЫ", "ОЦЕНКА ЦЕНЫ", "ОЦЕНКА", "ЦЕНА", "СТОИМОСТЬ", "ДОРОГО_ИЛИ_ДЕШЕВО"],
     "КАТАЛИЗАТОРЫ": ["КАТАЛИЗАТОРЫ", "CATALYSTS", "ДВИЖУЩИЕ_СИЛЫ", "ФАКТОРЫ", "НОВОСТИ"],
@@ -1719,6 +2235,8 @@ _SECTION_ALIASES = {
     "ВЕРДИКТ": ["ВЕРДИКТ", "VERDICT", "РЕШЕНИЕ", "ИТОГОВЫЙ_ВЕРДИКТ"],
     "СОВЕТЫ": ["СОВЕТЫ", "РЕКОМЕНДАЦИИ", "ADVICE", "РЕКОМЕНДАЦИЯ"],
     "ИТОГ": ["ИТОГ", "ИТОГО", "CONCLUSION", "ВЫВОД", "ЗАКЛЮЧЕНИЕ"],
+    "РЫНОЧНЫЕ_ДАННЫЕ": ["РЫНОЧНЫЕ_ДАННЫЕ", "РЫНОЧНЫЕ ДАННЫЕ", "MARKET_DATA", "MARKET DATA"],
+    "ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА": ["ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА", "ОГРАНИЧЕНИЯ ПУБЛИЧНОГО КОНТУРА", "ОГРАНИЧЕНИЯ", "LIMITATIONS"],
     "ЗЕЛЕНЫЕ_ФЛАГИ": ["ЗЕЛЕНЫЕ_ФЛАГИ", "ЗЕЛЁНЫЕ_ФЛАГИ", "GREEN_FLAGS"],
     "КРАСНЫЕ_ФЛАГИ": ["КРАСНЫЕ_ФЛАГИ", "RED_FLAGS"],
 }
