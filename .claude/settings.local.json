@@ -20,7 +20,8 @@
       "Bash(curl -s \"https://ai-analys-production.up.railway.app/assets/index-B1Xx0LH8.css\")",
       "Bash(npm run *)",
       "PowerShell(npm run *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "PowerShell($env:Path)"
     ]
   }
 }
