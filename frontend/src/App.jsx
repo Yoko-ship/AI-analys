@@ -4,6 +4,71 @@ const STORAGE_KEY = "uz_stock_analyzer_token";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
 const THEME_KEY = "uz_stock_analyzer_theme";
 
+// Modern SVG Icons for landing page
+const Icons = {
+  chart: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7 14l4-4 4 4 5-5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  shield: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  zap: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  users: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="9" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  target: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="12" cy="12" r="6" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="12" cy="12" r="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  database: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <ellipse cx="12" cy="5" rx="9" ry="3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  trending: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M23 6l-9.5 9.5-5-5L1 18" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M17 6h6v6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  lock: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  star: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  play: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round"/>
+      <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+};
+
 const TEXTS = {
   ru: {
     pageTitle: "UZ Stock Analyzer",
@@ -36,20 +101,36 @@ const TEXTS = {
       trend: "Тренд",
     },
     main: {
-      title: "Что делает сервис",
-      copy:
-        "Платформа объединяет авторизацию, выбор компаний, получение инвестиционного анализа и персональный кабинет пользователя.",
-      cards: [
-        { title: "Регистрация и вход", copy: "Email/пароль или Google OAuth." },
-        { title: "Выбор компании", copy: "По тикеру, через список или поиск." },
-        { title: "Финальный отчет", copy: "Оценка, графики, метрики и вывод." },
+      title: "Платформа для инвестиционного анализа",
+      copy: "Получайте профессиональный анализ узбекских компаний за секунды. Оценка финансового здоровья, риски и потенциал роста.",
+      features: [
+        { icon: "chart", title: "Глубокий анализ", copy: "Piotroski F-Score, Altman Z-Score, DCF-оценка и другие профессиональные метрики" },
+        { icon: "zap", title: "Мгновенный результат", copy: "Полный отчет с графиками и рекомендациями за несколько секунд" },
+        { icon: "shield", title: "Надежные данные", copy: "Актуальная финансовая отчетность напрямую с Узбекской биржи" },
+        { icon: "target", title: "Точные прогнозы", copy: "Анализ трендов, катализаторов и рыночных сигналов" },
       ],
-      sideTitle: "Почему это удобно",
-      sideCards: [
-        { title: "Быстрый старт", copy: "Не нужно собирать данные вручную." },
-        { title: "Личный кабинет", copy: "История, избранное и статистика." },
-        { title: "Понятный результат", copy: "Коротко, профессионально и по цифрам." },
-      ],
+      howItWorks: {
+        title: "Как это работает",
+        steps: [
+          { num: "01", title: "Выберите компанию", copy: "Введите тикер или выберите из каталога доступных компаний" },
+          { num: "02", title: "Запустите анализ", copy: "Система соберет данные и проведет комплексный финансовый анализ" },
+          { num: "03", title: "Получите отчет", copy: "Изучите оценку, графики, метрики и инвестиционные рекомендации" },
+        ],
+      },
+      stats: {
+        title: "Платформа в цифрах",
+        items: [
+          { value: "50+", label: "Компаний в базе" },
+          { value: "15+", label: "Метрик анализа" },
+          { value: "24/7", label: "Доступность" },
+          { value: "100%", label: "Бесплатно" },
+        ],
+      },
+      cta: {
+        title: "Готовы начать?",
+        copy: "Зарегистрируйтесь бесплатно и получите доступ ко всем инструментам анализа",
+        button: "Начать анализ",
+      },
     },
     about: {
       title: "О проекте",
@@ -217,19 +298,36 @@ const TEXTS = {
       trend: "Trend",
     },
     main: {
-      title: "What the service does",
-      copy: "The platform combines authentication, company selection, investment analysis, and a personal user dashboard.",
-      cards: [
-        { title: "Registration and sign in", copy: "Email/password or Google OAuth." },
-        { title: "Company selection", copy: "By ticker, via list, or by search." },
-        { title: "Final report", copy: "Score, charts, metrics, and verdict." },
+      title: "Investment Analysis Platform",
+      copy: "Get professional analysis of Uzbek companies in seconds. Financial health assessment, risks, and growth potential.",
+      features: [
+        { icon: "chart", title: "Deep Analysis", copy: "Piotroski F-Score, Altman Z-Score, DCF valuation and other professional metrics" },
+        { icon: "zap", title: "Instant Results", copy: "Complete report with charts and recommendations in seconds" },
+        { icon: "shield", title: "Reliable Data", copy: "Up-to-date financial statements directly from Uzbek Stock Exchange" },
+        { icon: "target", title: "Accurate Forecasts", copy: "Trend analysis, catalysts, and market signals" },
       ],
-      sideTitle: "Why it matters",
-      sideCards: [
-        { title: "Fast start", copy: "No need to gather data manually." },
-        { title: "Personal dashboard", copy: "History, favorites, and activity." },
-        { title: "Readable output", copy: "Short, professional, and numeric." },
-      ],
+      howItWorks: {
+        title: "How It Works",
+        steps: [
+          { num: "01", title: "Select Company", copy: "Enter ticker or choose from the available companies catalog" },
+          { num: "02", title: "Run Analysis", copy: "System collects data and performs comprehensive financial analysis" },
+          { num: "03", title: "Get Report", copy: "Review score, charts, metrics and investment recommendations" },
+        ],
+      },
+      stats: {
+        title: "Platform in Numbers",
+        items: [
+          { value: "50+", label: "Companies" },
+          { value: "15+", label: "Analysis Metrics" },
+          { value: "24/7", label: "Availability" },
+          { value: "100%", label: "Free" },
+        ],
+      },
+      cta: {
+        title: "Ready to Start?",
+        copy: "Register for free and get access to all analysis tools",
+        button: "Start Analysis",
+      },
     },
     about: {
       title: "About the project",
@@ -397,19 +495,36 @@ const TEXTS = {
       trend: "Trend",
     },
     main: {
-      title: "Xizmat nima qiladi",
-      copy: "Platforma avtorizatsiya, kompaniya tanlash, tahlil va shaxsiy kabinetni bir joyga jamlaydi.",
-      cards: [
-        { title: "Ro'yxatdan o'tish va kirish", copy: "Email/parol yoki Google OAuth." },
-        { title: "Kompaniya tanlash", copy: "Ticker, ro'yxat yoki qidiruv orqali." },
-        { title: "Yakuniy hisobot", copy: "Baho, grafiklar, metrikalar va xulosa." },
+      title: "Investitsion tahlil platformasi",
+      copy: "O'zbek kompaniyalarining professional tahlilini soniyalar ichida oling. Moliyaviy salomatlik, xavflar va o'sish imkoniyatlari.",
+      features: [
+        { icon: "chart", title: "Chuqur tahlil", copy: "Piotroski F-Score, Altman Z-Score, DCF baholash va boshqa professional metrikalar" },
+        { icon: "zap", title: "Tezkor natija", copy: "Grafik va tavsiyalar bilan to'liq hisobot soniyalar ichida" },
+        { icon: "shield", title: "Ishonchli ma'lumot", copy: "O'zbekiston birjasidan to'g'ridan-to'g'ri yangilangan moliyaviy hisobotlar" },
+        { icon: "target", title: "Aniq bashoratlar", copy: "Trend, katalizatorlar va bozor signallari tahlili" },
       ],
-      sideTitle: "Nega bu qulay",
-      sideCards: [
-        { title: "Tez boshlash", copy: "Ma'lumotni qo'lda yig'ish shart emas." },
-        { title: "Shaxsiy kabinet", copy: "Tarix, tanlanganlar va faollik." },
-        { title: "O'qilishi oson natija", copy: "Qisqa, professional va raqamli." },
-      ],
+      howItWorks: {
+        title: "Qanday ishlaydi",
+        steps: [
+          { num: "01", title: "Kompaniyani tanlang", copy: "Ticker kiriting yoki mavjud kompaniyalar katalogidan tanlang" },
+          { num: "02", title: "Tahlilni boshlang", copy: "Tizim ma'lumotlarni yig'adi va keng qamrovli moliyaviy tahlil o'tkazadi" },
+          { num: "03", title: "Hisobotni oling", copy: "Baho, grafik, metrikalar va investitsion tavsiyalarni ko'rib chiqing" },
+        ],
+      },
+      stats: {
+        title: "Platforma raqamlarda",
+        items: [
+          { value: "50+", label: "Kompaniyalar" },
+          { value: "15+", label: "Tahlil metrikasi" },
+          { value: "24/7", label: "Mavjudlik" },
+          { value: "100%", label: "Bepul" },
+        ],
+      },
+      cta: {
+        title: "Boshlashga tayyormisiz?",
+        copy: "Bepul ro'yxatdan o'ting va barcha tahlil vositalariga kirish imkoniyatiga ega bo'ling",
+        button: "Tahlilni boshlash",
+      },
     },
     about: {
       title: "Loyiha haqida",
@@ -2258,42 +2373,66 @@ function App() {
           </section>
 
           {activeView === "main" && (
-            <section className="view-grid">
-              <article className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "nav.main")}</div>
-                    <h2>{t(language, "main.title")}</h2>
-                  </div>
+            <>
+              {/* Features Section */}
+              <section className="landing-features">
+                <div className="section-header">
+                  <h2>{t(language, "main.title")}</h2>
+                  <p>{t(language, "main.copy")}</p>
                 </div>
-                <p className="panel-copy">{t(language, "main.copy")}</p>
-                <div className="tile-grid">
-                  {TEXTS[language].main.cards.map((item) => (
-                    <div className="tile-card" key={item.title}>
-                      <strong>{item.title}</strong>
-                      <span>{item.copy}</span>
-                    </div>
+                <div className="features-grid">
+                  {TEXTS[language].main.features.map((feature) => (
+                    <article className="feature-card" key={feature.title}>
+                      <div className="feature-icon">{Icons[feature.icon]}</div>
+                      <h3>{feature.title}</h3>
+                      <p>{feature.copy}</p>
+                    </article>
                   ))}
                 </div>
-              </article>
+              </section>
 
-              <article className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "nav.main")}</div>
-                    <h2>{TEXTS[language].main.sideTitle}</h2>
-                  </div>
+              {/* How It Works Section */}
+              <section className="landing-how-it-works">
+                <div className="section-header">
+                  <h2>{TEXTS[language].main.howItWorks.title}</h2>
                 </div>
-                <div className="stacked-list">
-                  {TEXTS[language].main.sideCards.map((item) => (
-                    <div className="note-card" key={item.title}>
-                      <strong>{item.title}</strong>
-                      <p>{item.copy}</p>
-                    </div>
+                <div className="steps-grid">
+                  {TEXTS[language].main.howItWorks.steps.map((step) => (
+                    <article className="step-card" key={step.num}>
+                      <div className="step-number">{step.num}</div>
+                      <h3>{step.title}</h3>
+                      <p>{step.copy}</p>
+                    </article>
                   ))}
                 </div>
-              </article>
-            </section>
+              </section>
+
+              {/* Stats Section */}
+              <section className="landing-stats">
+                <div className="section-header">
+                  <h2>{TEXTS[language].main.stats.title}</h2>
+                </div>
+                <div className="stats-grid">
+                  {TEXTS[language].main.stats.items.map((stat) => (
+                    <article className="stat-card" key={stat.label}>
+                      <div className="stat-value">{stat.value}</div>
+                      <div className="stat-label">{stat.label}</div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              {/* CTA Section */}
+              <section className="landing-cta">
+                <div className="cta-content">
+                  <h2>{TEXTS[language].main.cta.title}</h2>
+                  <p>{TEXTS[language].main.cta.copy}</p>
+                  <button className="primary-btn cta-btn" type="button" onClick={() => setActiveView("analysis")}>
+                    {TEXTS[language].main.cta.button}
+                  </button>
+                </div>
+              </section>
+            </>
           )}
 
           {activeView === "about" && (
