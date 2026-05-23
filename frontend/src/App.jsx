@@ -2686,7 +2686,7 @@ function App() {
                             <div>
                               <div className="history-title">{item.company_name || item.company_input || t(language, "profile.empty")}</div>
                               <div className="history-sub">
-                                {item.ticker || "—"} · {item.from_cache ? t(language, "analysis.resultCacheHit") : t(language, "analysis.resultFresh")} · {item.model || ""}
+                                {item.ticker || "—"} · {item.from_cache ? t(language, "analysis.resultCacheHit") : t(language, "analysis.resultFresh")}
                               </div>
                             </div>
                             <div className="history-score">{item.score ?? "—"}</div>
