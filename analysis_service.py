@@ -17,6 +17,7 @@ from analyzer import (
     build_html,
     compare_to_industry,
     compute_metrics,
+    compute_technical_indicators,
     detect_industry,
     df_to_annual,
     df_to_quarterly,
@@ -1495,6 +1496,14 @@ def _analysis_prompt_v2(
             "excel_report_snapshot_count": (market_context.get("excel_report_snapshots") or {}).get("count"),
         }
 
+    # Compute technical indicators from price history
+    technical_indicators = {}
+    price_history = market_context.get("recent_price_history") or []
+    if price_history:
+        technical_indicators = compute_technical_indicators(price_history)
+        if technical_indicators.get("status") == "ok":
+            metrics["technical_indicators"] = technical_indicators
+
     prompt = f"""
 Ты — инвестиционный аналитик, который пишет короткую и строгую записку по отчётности.
 Твоя задача — не пересказывать данные, а объяснить экономический смысл для инвестора.
@@ -1538,6 +1547,9 @@ IFRS SNAPSHOT:
 PUBLIC MARKET DATA:
 {json.dumps(market_context, ensure_ascii=False, indent=2)}
 
+TECHNICAL INDICATORS (RSI, Fibonacci, Volume, Volatility):
+{json.dumps(technical_indicators, ensure_ascii=False, indent=2) if technical_indicators else '{"status": "нет данных о ценах"}'}
+
 Промежуточная отрасль и бенчмарк:
 {industry_context_str}
 
@@ -1572,8 +1584,18 @@ PUBLIC MARKET DATA:
 Покажи направление по выручке, прибыли, маржам и долгу за 3-5 лет.
 Если тренд смешанный, так и напиши.
 
-[ФИБОНАЧЧИ]
-Если нет рыночных уровней, напиши только: "Недостаточно рыночных данных".
+[ЭФФЕКТИВНОСТЬ]
+Оцени оборачиваемость: запасы (дни), дебиторка (дни), кредиторка (дни), цикл конвертации денег.
+Объясни, как быстро компания превращает товар в деньги.
+Если данных нет, напиши "Недостаточно данных".
+
+[ТЕХНИЧЕСКИЙ_АНАЛИЗ]
+Если есть данные о ценах в TECHNICAL INDICATORS:
+- RSI: значение и сигнал (перекупленность/перепроданность/нейтрально)
+- Fibonacci: текущая зона, ближайшие уровни поддержки и сопротивления
+- Объёмы: растут/падают, есть ли дивергенция с ценой
+- Волатильность: высокая/умеренная/низкая
+Если данных нет, напиши: "Рыночные данные отсутствуют".
 
 [ОЦЕНКА_ЦЕНЫ]
 Оцени, выглядит ли компания дешёвой или дорогой по DCF, Graham, Piotroski, Altman и Buffett.
