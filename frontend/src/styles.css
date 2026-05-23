@@ -4966,6 +4966,7 @@ body[data-theme="dark"] input::-webkit-input-placeholder {
    FINAM AI DARK THEME - Professional Finance Dashboard
    ═══════════════════════════════════════════════════════════════════════════ */
 body[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0a0f1a;
   --bg-2: #0d1220;
   --bg-glass: rgba(10, 15, 26, 0.88);
@@ -5306,4 +5307,19 @@ body[data-theme="dark"] .stat-card {
 
 body[data-theme="dark"] .cta-content {
   background: linear-gradient(135deg, rgba(255, 157, 0, 0.15), rgba(255, 157, 0, 0.05));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FINAL DARK THEME INPUT OVERRIDE - Maximum Specificity
+   ═══════════════════════════════════════════════════════════════════════════ */
+html body[data-theme="dark"] .history-filters input[type="search"],
+html body[data-theme="dark"] .history-filters select,
+html body[data-theme="dark"] .panel-toolbar input,
+html body[data-theme="dark"] .panel-toolbar select,
+html body[data-theme="dark"] input,
+html body[data-theme="dark"] select {
+  background: #0d1220 !important;
+  background-color: #0d1220 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f1f5f9 !important;
 }
