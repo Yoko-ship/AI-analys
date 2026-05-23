@@ -2275,16 +2275,15 @@ body {
 .hero-panel {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
   align-items: center;
-  gap: 28px;
-  padding: 32px 36px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9)),
-    radial-gradient(ellipse at 0% 0%, var(--accent-light), transparent 50%);
-  box-shadow: var(--shadow-lg);
+  gap: 40px;
+  width: 100%;
+  padding: 64px 48px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -2769,8 +2768,8 @@ body[data-theme="dark"] .primary-btn {
 }
 
 body[data-theme="dark"] .hero-panel {
-  background: linear-gradient(135deg, rgba(20, 26, 42, 0.95), rgba(16, 22, 36, 0.92));
-  border-color: rgba(255, 255, 255, 0.06);
+  background: transparent;
+  border: none;
 }
 
 body[data-theme="dark"] .panel,

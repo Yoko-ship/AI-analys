@@ -2323,29 +2323,30 @@ function App() {
         </header>
 
         <main className="content">
-          <section className="hero-panel">
-            <div className="hero-copy-block">
-              <div className="eyebrow">{t(language, "subtitle")}</div>
-              <h1>{t(language, "hero.title")}</h1>
-              <p>{t(language, "hero.copy")}</p>
-              <div className="hero-actions">
-                <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
-                  {TEXTS[language].hero.ctas.analysis}
-                </button>
-                <button className="ghost-btn" type="button" onClick={() => setActiveView("profile")}>
-                  {TEXTS[language].hero.ctas.profile}
-                </button>
-              </div>
-            </div>
-            <div className="hero-badges">
-              {TEXTS[language].hero.badges.map((badge) => (
-                <span key={badge}>{badge}</span>
-              ))}
-            </div>
-          </section>
-
           {activeView === "main" && (
             <>
+              {/* Hero Section */}
+              <section className="hero-panel">
+                <div className="hero-copy-block">
+                  <div className="eyebrow">{t(language, "subtitle")}</div>
+                  <h1>{t(language, "hero.title")}</h1>
+                  <p>{t(language, "hero.copy")}</p>
+                  <div className="hero-actions">
+                    <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
+                      {TEXTS[language].hero.ctas.analysis}
+                    </button>
+                    <button className="ghost-btn" type="button" onClick={() => setActiveView("profile")}>
+                      {TEXTS[language].hero.ctas.profile}
+                    </button>
+                  </div>
+                </div>
+                <div className="hero-badges">
+                  {TEXTS[language].hero.badges.map((badge) => (
+                    <span key={badge}>{badge}</span>
+                  ))}
+                </div>
+              </section>
+
               {/* Features Section */}
               <section className="landing-features">
                 <div className="section-header">
