@@ -4923,22 +4923,43 @@ body[data-theme="dark"] .history-score {
 
 /* Dark theme all inputs and selects */
 body[data-theme="dark"] input,
+body[data-theme="dark"] input[type="text"],
+body[data-theme="dark"] input[type="search"],
+body[data-theme="dark"] input[type="email"],
+body[data-theme="dark"] input[type="password"],
 body[data-theme="dark"] select,
-body[data-theme="dark"] textarea {
-  background: rgba(10, 17, 30, 0.9) !important;
+body[data-theme="dark"] textarea,
+body[data-theme="dark"] .history-filters input,
+body[data-theme="dark"] .history-filters select {
+  background: rgba(10, 17, 30, 0.95) !important;
+  background-color: rgba(10, 17, 30, 0.95) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   color: #f1f5f9 !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+body[data-theme="dark"] select option {
+  background: #0a0f1a;
+  color: #f1f5f9;
 }
 
 body[data-theme="dark"] input:focus,
 body[data-theme="dark"] select:focus,
-body[data-theme="dark"] textarea:focus {
+body[data-theme="dark"] textarea:focus,
+body[data-theme="dark"] .history-filters input:focus,
+body[data-theme="dark"] .history-filters select:focus {
   border-color: var(--accent) !important;
   background: rgba(15, 22, 35, 0.95) !important;
+  background-color: rgba(15, 22, 35, 0.95) !important;
 }
 
 body[data-theme="dark"] input::placeholder {
-  color: #5a6577;
+  color: #5a6577 !important;
+}
+
+body[data-theme="dark"] input::-webkit-input-placeholder {
+  color: #5a6577 !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
