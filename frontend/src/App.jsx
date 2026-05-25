@@ -1347,13 +1347,98 @@ function MetricCard({ label, value, sub, tone = "neutral" }) {
 }
 
 function SectionCard({ title, body, index, open = false }) {
+  const renderContent = (text) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    const elements = [];
+    let tableBuffer = [];
+    let inTable = false;
+
+    const flushTable = () => {
+      if (tableBuffer.length > 0) {
+        const headers = tableBuffer[0].split('|').filter(c => c.trim()).map(c => c.trim());
+        const rows = tableBuffer.slice(2).filter(row => !row.match(/^\|[-\s|]+\|$/));
+        elements.push(
+          <div key={`table-${elements.length}`} className="analysis-table-wrap">
+            <table className="analysis-table">
+              <thead>
+                <tr>{headers.map((h, i) => <th key={i}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {rows.map((row, ri) => (
+                  <tr key={ri} className={row.includes('ИТОГО') || row.includes('Итого') ? 'total-row' : ''}>
+                    {row.split('|').filter(c => c.trim()).map((cell, ci) => {
+                      const val = cell.trim();
+                      const isNeg = val.startsWith('-') || val.startsWith('−');
+                      const isPos = val.startsWith('+');
+                      return <td key={ci} className={`${ci > 0 ? 'num' : ''} ${isNeg ? 'neg' : ''} ${isPos ? 'pos' : ''}`}>{val}</td>;
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        tableBuffer = [];
+      }
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        inTable = true;
+        tableBuffer.push(trimmed);
+        continue;
+      } else if (inTable) {
+        flushTable();
+        inTable = false;
+      }
+
+      if (!trimmed) {
+        elements.push(<br key={`br-${i}`} />);
+      } else if (trimmed.match(/^(ЛИКВИДНОСТЬ|РЕНТАБЕЛЬНОСТЬ|ДОЛГОВАЯ НАГРУЗКА|СТРУКТУРА|ПОЗИТИВНЫЕ|НЕГАТИВНЫЕ|МАКРОЭКОНОМИЧЕСКИЕ):/i)) {
+        elements.push(<h4 key={`h4-${i}`} className="analysis-subheader">{trimmed}</h4>);
+      } else if (trimmed.match(/^(Формула|Formula):/i) || (trimmed.includes('=') && trimmed.match(/^\•?\s*\w+.*=.*[0-9]/))) {
+        elements.push(<div key={`formula-${i}`} className="formula-box">{trimmed}</div>);
+      } else if (trimmed.startsWith('•') || trimmed.startsWith('—') || trimmed.startsWith('-')) {
+        elements.push(<div key={`bullet-${i}`} className="analysis-bullet">{trimmed}</div>);
+      } else if (trimmed.match(/^[0-9]+\./)) {
+        elements.push(<div key={`num-${i}`} className="analysis-numbered">{trimmed}</div>);
+      } else if (trimmed.match(/^(✓|✗|🟢|🟡|🟠|🔴)/)) {
+        const isGood = trimmed.startsWith('✓') || trimmed.startsWith('🟢');
+        const isBad = trimmed.startsWith('✗') || trimmed.startsWith('🔴');
+        elements.push(<div key={`check-${i}`} className={`analysis-check ${isGood ? 'good' : ''} ${isBad ? 'bad' : ''}`}>{trimmed}</div>);
+      } else if (trimmed.includes(':') && trimmed.split(':')[0].length < 40 && !trimmed.startsWith('http')) {
+        const [label, ...rest] = trimmed.split(':');
+        const value = rest.join(':').trim();
+        if (value) {
+          elements.push(
+            <div key={`kv-${i}`} className="analysis-kv">
+              <span className="analysis-kv-label">{label}:</span>
+              <span className="analysis-kv-value">{value}</span>
+            </div>
+          );
+        } else {
+          elements.push(<p key={`p-${i}`} className="analysis-para">{trimmed}</p>);
+        }
+      } else {
+        elements.push(<p key={`p-${i}`} className="analysis-para">{trimmed}</p>);
+      }
+    }
+
+    flushTable();
+    return elements;
+  };
+
   return (
     <details className="section-card fade-in" open={open}>
       <summary>
-        <span>{title}</span>
-        <span className="muted">#{String(index + 1).padStart(2, "0")}</span>
+        <span className="section-number">РАЗДЕЛ {String(index + 1).padStart(2, "0")}</span>
+        <span className="section-title-text">{title}</span>
       </summary>
-      <div className="section-content">{body}</div>
+      <div className="section-content">{renderContent(body)}</div>
     </details>
   );
 }
