@@ -1398,9 +1398,11 @@ function SectionCard({ title, body, index, open = false }) {
 
       if (!trimmed) {
         elements.push(<br key={`br-${i}`} />);
-      } else if (trimmed.match(/^(ЛИКВИДНОСТЬ|РЕНТАБЕЛЬНОСТЬ|ДОЛГОВАЯ НАГРУЗКА|СТРУКТУРА|ПОЗИТИВНЫЕ|НЕГАТИВНЫЕ|МАКРОЭКОНОМИЧЕСКИЕ):/i)) {
+      } else if (trimmed.match(/^[0-9]+\.[0-9]+\.\s+/)) {
+        elements.push(<h3 key={`subsec-${i}`} className="analysis-subsection">{trimmed}</h3>);
+      } else if (trimmed.match(/^(ЛИКВИДНОСТЬ|РЕНТАБЕЛЬНОСТЬ|ДОЛГОВАЯ НАГРУЗКА|СТРУКТУРА|ПОЗИТИВНЫЕ|НЕГАТИВНЫЕ|МАКРОЭКОНОМИЧЕСКИЕ|ВЫРУЧКА|ПРИБЫЛЬ|АКТИВЫ|MOMENTUM):/i)) {
         elements.push(<h4 key={`h4-${i}`} className="analysis-subheader">{trimmed}</h4>);
-      } else if (trimmed.match(/^(Формула|Formula):/i) || (trimmed.includes('=') && trimmed.match(/^\•?\s*\w+.*=.*[0-9]/))) {
+      } else if (trimmed.match(/^(Формула|Formula):/i) || trimmed.match(/^Формула:\s*.+=.+/i) || (trimmed.includes('=') && trimmed.match(/^\•?\s*[\w\s()]+\s*[=:]\s*.*[0-9]/))) {
         elements.push(<div key={`formula-${i}`} className="formula-box">{trimmed}</div>);
       } else if (trimmed.startsWith('•') || trimmed.startsWith('—') || trimmed.startsWith('-')) {
         elements.push(<div key={`bullet-${i}`} className="analysis-bullet">{trimmed}</div>);
