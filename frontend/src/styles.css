@@ -6033,28 +6033,33 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   border: none !important;
   border-top: 3px solid var(--np-ink) !important;
   border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 .sections-panel .panel-head {
   border-bottom: 2px solid var(--np-ink);
-  padding: 16px 24px;
+  padding: 20px 28px;
+  background: var(--np-bg) !important;
 }
 
 .sections-panel .panel-label {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.25em;
   color: var(--np-gold);
+  text-transform: uppercase;
 }
 
 .sections-panel h2 {
   font-family: 'Playfair Display', serif !important;
-  font-size: 20px !important;
+  font-size: 22px !important;
   color: var(--np-ink) !important;
+  margin-top: 4px;
 }
 
 .sections-wrap {
-  padding: 20px 24px;
+  padding: 12px 28px 28px;
+  background: var(--np-bg);
 }
 
 /* Section cards - newspaper article style */
@@ -6162,44 +6167,89 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
    PROFESSIONAL ANALYSIS CONTENT STYLING
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Section card - professional style */
-.section-card {
+/* Section card - professional style - COMPLETE OVERRIDE */
+.sections-panel .section-card,
+.sections-wrap .section-card {
   background: var(--np-bg) !important;
   border: none !important;
   border-bottom: 1px solid var(--np-rule) !important;
   border-radius: 0 !important;
+  box-shadow: none !important;
+  margin-bottom: 0 !important;
 }
 
-.section-card summary {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 16px 0 !important;
+.sections-panel .section-card:last-child,
+.sections-wrap .section-card:last-child {
+  border-bottom: none !important;
+}
+
+.sections-panel .section-card summary,
+.sections-wrap .section-card summary {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 16px !important;
+  padding: 20px 0 !important;
   background: transparent !important;
+  background-image: none !important;
+  background-size: auto !important;
   cursor: pointer;
+  list-style: none;
 }
 
-.section-card summary .section-number {
+.sections-panel .section-card summary::-webkit-details-marker,
+.sections-wrap .section-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.sections-panel .section-card summary::after,
+.sections-wrap .section-card summary::after {
+  content: "+" !important;
+  position: static !important;
+  transform: none !important;
+  margin-left: auto;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.15em;
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--np-gold);
+  transition: transform 0.2s ease;
+}
+
+.sections-panel .section-card[open] summary::after,
+.sections-wrap .section-card[open] summary::after {
+  content: "−" !important;
+  transform: none !important;
+}
+
+.sections-panel .section-card summary .section-number,
+.sections-wrap .section-card summary .section-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   color: var(--np-gold);
   flex-shrink: 0;
+  text-transform: uppercase;
 }
 
-.section-card summary .section-title-text {
+.sections-panel .section-card summary .section-title-text,
+.sections-wrap .section-card summary .section-title-text {
   font-family: 'Playfair Display', serif;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--np-ink);
+  flex-grow: 1;
 }
 
-.section-content {
+.sections-panel .section-card .section-content,
+.sections-wrap .section-card .section-content {
   font-family: 'Source Serif 4', Georgia, serif;
   font-size: 15px;
-  line-height: 1.8;
+  line-height: 1.85;
   color: var(--np-ink-mid);
-  padding: 0 0 24px !important;
+  padding: 8px 0 28px 0 !important;
+  border-top: 1px solid var(--np-rule-light);
+  margin-top: 0;
 }
 
 /* Analysis tables */
@@ -6291,42 +6341,49 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 /* Analysis subheaders */
 .analysis-subheader {
   font-family: 'Playfair Display', serif;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   font-style: italic;
   color: var(--np-accent);
-  margin: 24px 0 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--np-rule-light);
+  margin: 28px 0 16px;
+  padding: 12px 16px;
+  background: var(--np-bg-warm);
+  border-left: 3px solid var(--np-accent);
 }
 
 /* Bullet points */
 .analysis-bullet {
-  padding: 6px 0 6px 20px;
+  padding: 8px 0 8px 24px;
   position: relative;
   color: var(--np-ink-mid);
-  line-height: 1.7;
+  line-height: 1.75;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
 }
 
 .analysis-bullet::before {
   content: '›';
   position: absolute;
-  left: 0;
+  left: 4px;
   color: var(--np-gold);
-  font-size: 16px;
+  font-size: 18px;
   font-weight: bold;
+  line-height: 1.5;
 }
 
 /* Numbered items */
 .analysis-numbered {
-  padding: 6px 0;
+  padding: 10px 0 10px 8px;
   color: var(--np-ink-mid);
-  line-height: 1.7;
+  line-height: 1.75;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
+  border-bottom: 1px solid var(--np-rule-light);
+  margin-bottom: 4px;
 }
 
-.analysis-numbered::first-line {
-  font-weight: 600;
-  color: var(--np-ink);
+.analysis-numbered:last-child {
+  border-bottom: none;
 }
 
 /* Checkmarks and status indicators */
@@ -6349,32 +6406,50 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 
 /* Key-value pairs */
 .analysis-kv {
-  display: flex;
-  gap: 8px;
-  padding: 6px 0;
-  line-height: 1.7;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 12px;
+  padding: 10px 16px;
+  margin: 8px 0;
+  background: var(--np-bg-warm);
+  border-left: 3px solid var(--np-gold);
+  line-height: 1.6;
 }
 
 .analysis-kv-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
   font-weight: 600;
   color: var(--np-ink);
-  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .analysis-kv-value {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
   color: var(--np-ink-mid);
 }
 
 /* Paragraphs */
 .analysis-para {
-  margin: 0 0 12px;
+  margin: 0 0 16px;
   text-align: justify;
   hyphens: auto;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--np-ink-mid);
 }
 
 .analysis-para:last-child {
   margin-bottom: 0;
+}
+
+/* First paragraph emphasis */
+.section-content > .analysis-para:first-child {
+  font-size: 16px;
+  color: var(--np-ink);
 }
 
 /* Responsive adjustments */
