@@ -812,24 +812,31 @@ def build_summary(result: dict) -> dict:
 COMPARISON_FIELDS = [
     {"key": "score", "label": "Общий score", "unit": "/100", "better": "higher"},
     {"key": "grade", "label": "Класс", "unit": "", "better": "higher"},
+    {"key": "latest_year", "label": "Год", "unit": "", "better": "neutral"},
     {"key": "revenue", "label": "Выручка", "unit": "UZS млн", "better": "higher"},
     {"key": "revenue_growth_pct", "label": "Рост выручки", "unit": "%", "better": "higher"},
     {"key": "net_income", "label": "Чистая прибыль", "unit": "UZS млн", "better": "higher"},
-    {"key": "net_income_growth_pct", "label": "Рост чистой прибыли", "unit": "%", "better": "higher"},
+    {"key": "net_income_growth_pct", "label": "Рост прибыли", "unit": "%", "better": "higher"},
     {"key": "net_profit_margin_pct", "label": "Чистая маржа", "unit": "%", "better": "higher"},
+    {"key": "gross_profit_margin_pct", "label": "Валовая маржа", "unit": "%", "better": "higher"},
     {"key": "roe_pct", "label": "ROE", "unit": "%", "better": "higher"},
     {"key": "roa_pct", "label": "ROA", "unit": "%", "better": "higher"},
     {"key": "debt_ratio_pct", "label": "Долг/активы", "unit": "%", "better": "lower"},
     {"key": "debt_to_equity_ratio", "label": "Debt/Equity", "unit": "x", "better": "lower"},
     {"key": "current_ratio", "label": "Current ratio", "unit": "x", "better": "higher"},
+    {"key": "quick_ratio", "label": "Quick ratio", "unit": "x", "better": "higher"},
+    {"key": "balance_quality_score", "label": "Качество баланса", "unit": "/100", "better": "higher"},
     {"key": "piotroski_score", "label": "Piotroski", "unit": "/9", "better": "higher"},
     {"key": "altman_score", "label": "Altman Z", "unit": "", "better": "higher"},
-    {"key": "latest_price", "label": "Последняя цена", "unit": "UZS", "better": "neutral"},
-    {"key": "day_change_percent", "label": "Изменение за день", "unit": "%", "better": "neutral"},
-    {"key": "period_change_percent", "label": "Изменение за период", "unit": "%", "better": "neutral"},
-    {"key": "avg_daily_trading_value", "label": "Средний дневной оборот", "unit": "UZS", "better": "higher"},
-    {"key": "dividend_count", "label": "Дивидендные события", "unit": "шт.", "better": "higher"},
-    {"key": "report_document_count", "label": "Отчеты PDF/Excel", "unit": "шт.", "better": "higher"},
+    {"key": "latest_price", "label": "Цена", "unit": "UZS", "better": "neutral"},
+    {"key": "day_change_percent", "label": "За день", "unit": "%", "better": "neutral"},
+    {"key": "period_change_percent", "label": "За период", "unit": "%", "better": "neutral"},
+    {"key": "avg_daily_trading_value", "label": "Ср. оборот", "unit": "UZS", "better": "higher"},
+    {"key": "total_trading_value", "label": "Всего оборот", "unit": "UZS", "better": "higher"},
+    {"key": "dividend_count", "label": "Дивиденды", "unit": "шт.", "better": "higher"},
+    {"key": "report_document_count", "label": "Отчеты", "unit": "шт.", "better": "higher"},
+    {"key": "pdf_report_count", "label": "PDF отчетов", "unit": "шт.", "better": "higher"},
+    {"key": "excel_report_count", "label": "Excel отчетов", "unit": "шт.", "better": "higher"},
 ]
 
 COMPARISON_CATEGORY_METRICS = {
@@ -1265,19 +1272,56 @@ def _compare_one_company(query: str) -> dict:
     report_docs = market_context.get("report_documents") or {}
     report_items = report_docs.get("items") or []
 
+    # Extract raw financial values for ratio calculations
+    revenue = _safe_float(latest.get("revenue")) or 0
+    net_income = _safe_float(latest.get("net_income")) or 0
+    equity = _safe_float(latest.get("equity")) or 0
+    total_assets = _safe_float(latest.get("total_assets")) or 0
+    current_assets = _safe_float(latest.get("current_assets")) or 0
+    current_liab = _safe_float(latest.get("current_liabilities")) or 0
+    long_term_debt = _safe_float(latest.get("long_term_debt")) or 0
+    inventory = _safe_float(latest.get("inventory")) or 0
+    gross_profit = _safe_float(latest.get("gross_profit")) or 0
+    # For banks, use explicit total_liabilities if available
+    total_liabilities_raw = _safe_float(latest.get("total_liabilities"))
+    total_liabilities = total_liabilities_raw if total_liabilities_raw else (total_assets - equity if total_assets and equity else 0)
+
+    # Get ratios from DataFrame, or calculate from raw values if missing
     debt_ratio = _round_metric(latest.get("debt_ratio"))
+    if debt_ratio is None and total_assets > 0 and total_liabilities > 0:
+        debt_ratio = _round_metric((total_liabilities / total_assets) * 100)
+
     current_ratio = _round_metric(latest.get("current_ratio"))
+    if current_ratio is None and current_liab > 0 and current_assets > 0:
+        current_ratio = _round_metric(current_assets / current_liab)
+
     quick_ratio = _round_metric(latest.get("quick_ratio"))
+    if quick_ratio is None and current_liab > 0 and current_assets > 0:
+        quick_ratio = _round_metric((current_assets - inventory) / current_liab)
+
     debt_to_equity = _round_metric(latest.get("debt_to_equity_ratio"))
-    balance_quality_score = 0.0
-    if current_ratio is not None:
-        balance_quality_score += min(current_ratio, 3) * 10
-    if quick_ratio is not None:
-        balance_quality_score += min(quick_ratio, 3) * 8
-    if debt_ratio is not None:
-        balance_quality_score -= debt_ratio / 2
-    if debt_to_equity is not None:
-        balance_quality_score -= debt_to_equity * 5
+    if debt_to_equity is None and equity > 0:
+        # For banks, use total_liabilities; for others, use long_term_debt
+        debt_for_ratio = total_liabilities if total_liabilities > 0 else long_term_debt
+        if debt_for_ratio > 0:
+            debt_to_equity = _round_metric(debt_for_ratio / equity)
+
+    # Calculate profitability ratios if not in DataFrame
+    net_profit_margin = _round_metric(latest.get("net_profit_margin"))
+    if net_profit_margin is None and revenue > 0:
+        net_profit_margin = _round_metric((net_income / revenue) * 100)
+
+    gross_profit_margin = _round_metric(latest.get("gross_profit_margin"))
+    if gross_profit_margin is None and revenue > 0 and gross_profit > 0:
+        gross_profit_margin = _round_metric((gross_profit / revenue) * 100)
+
+    roe = _round_metric(latest.get("return_on_equity"))
+    if roe is None and equity > 0 and net_income != 0:
+        roe = _round_metric((net_income / equity) * 100)
+
+    roa = _round_metric(latest.get("return_on_assets"))
+    if roa is None and total_assets > 0 and net_income != 0:
+        roa = _round_metric((net_income / total_assets) * 100)
 
     risk_flags = []
     if _safe_float(altman.get("score")) is not None and _safe_float(altman.get("score")) < 1.8:
@@ -1289,6 +1333,10 @@ def _compare_one_company(query: str) -> dict:
     if _safe_float(market_summary.get("period_change_percent")) is not None and _safe_float(market_summary.get("period_change_percent")) < -20:
         risk_flags.append("large_price_drawdown")
 
+    # Use previous year values for growth calculations
+    prev_revenue = _safe_float(previous.get("revenue"))
+    prev_net_income = _safe_float(previous.get("net_income"))
+
     return {
         "input": query,
         "company_name": resolved_name,
@@ -1298,14 +1346,14 @@ def _compare_one_company(query: str) -> dict:
         "score": _round_metric(total_score.get("score")),
         "grade": total_score.get("grade"),
         "score_summary": total_score.get("summary"),
-        "revenue": _round_metric(latest.get("revenue")),
-        "revenue_growth_pct": _growth_pct(latest.get("revenue"), previous.get("revenue")),
-        "net_income": _round_metric(latest.get("net_income")),
-        "net_income_growth_pct": _growth_pct(latest.get("net_income"), previous.get("net_income")),
-        "net_profit_margin_pct": _round_metric(latest.get("net_profit_margin")),
-        "gross_profit_margin_pct": _round_metric(latest.get("gross_profit_margin")),
-        "roe_pct": _round_metric(latest.get("return_on_equity")),
-        "roa_pct": _round_metric(latest.get("return_on_assets")),
+        "revenue": _round_metric(revenue) if revenue else None,
+        "revenue_growth_pct": _growth_pct(revenue, prev_revenue),
+        "net_income": _round_metric(net_income) if net_income else None,
+        "net_income_growth_pct": _growth_pct(net_income, prev_net_income),
+        "net_profit_margin_pct": net_profit_margin,
+        "gross_profit_margin_pct": gross_profit_margin,
+        "roe_pct": roe,
+        "roa_pct": roa,
         "debt_ratio_pct": debt_ratio,
         "debt_to_equity_ratio": debt_to_equity,
         "current_ratio": current_ratio,
