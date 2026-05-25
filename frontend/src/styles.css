@@ -5770,3 +5770,413 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NEWSPAPER THEME - Professional Financial Report Styling
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Import newspaper fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&display=swap');
+
+/* Newspaper color palette */
+:root {
+  --np-ink: #1a1612;
+  --np-ink-mid: #3d3530;
+  --np-ink-light: #6b5e55;
+  --np-rule: #c9b99a;
+  --np-rule-light: #e8ddd0;
+  --np-accent: #8b1a1a;
+  --np-gold: #9a7b3a;
+  --np-bg: #faf7f2;
+  --np-bg-warm: #f3ede3;
+  --np-green: #1a5c2e;
+  --np-red: #8b1a1a;
+  --np-amber: #7a5200;
+}
+
+/* Apply newspaper styling to result sections */
+.result-hero {
+  background: var(--np-bg) !important;
+  border: none !important;
+  border-top: 3px solid var(--np-ink) !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
+.result-hero .panel-head {
+  border-bottom: 2px solid var(--np-ink);
+  padding: 20px 32px;
+  background: var(--np-bg);
+}
+
+.result-hero .panel-head .panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--np-gold);
+}
+
+.result-hero .panel-head h2 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  color: var(--np-ink) !important;
+  letter-spacing: -0.01em;
+}
+
+/* Score strip - newspaper style */
+.score-strip {
+  background: var(--np-bg-warm);
+  border: 1px solid var(--np-rule);
+  padding: 24px 32px;
+  margin: 24px 32px;
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 24px;
+  align-items: center;
+}
+
+.score-card {
+  background: var(--np-bg) !important;
+  border: 2px solid var(--np-ink) !important;
+  border-radius: 0 !important;
+  min-height: 120px;
+}
+
+.score-value {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 2.5rem !important;
+  color: var(--np-accent) !important;
+}
+
+.score-caption {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--np-ink-light);
+}
+
+.grade-pill {
+  background: var(--np-bg) !important;
+  border: 1px solid var(--np-gold) !important;
+  border-radius: 0 !important;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--np-gold) !important;
+  padding: 6px 14px;
+}
+
+.verdict-text {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  color: var(--np-ink) !important;
+  font-style: italic;
+}
+
+.summary-text {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--np-ink-mid);
+}
+
+/* Chart card - newspaper style */
+.chart-card {
+  background: var(--np-bg) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  margin: 0 32px 24px;
+  padding: 20px;
+}
+
+.chart-head h3 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  font-style: italic;
+  color: var(--np-accent) !important;
+}
+
+.analysis-chart {
+  background: var(--np-bg) !important;
+  border: 1px solid var(--np-rule-light) !important;
+  border-radius: 0 !important;
+}
+
+/* Signal cards - newspaper callout style */
+.market-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 0 32px 24px;
+}
+
+.signal-card {
+  background: var(--np-bg-warm) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  padding: 16px 20px !important;
+}
+
+.signal-card.tone-good {
+  border-left: 4px solid var(--np-green) !important;
+}
+
+.signal-card.tone-warning {
+  border-left: 4px solid var(--np-amber) !important;
+}
+
+.signal-card.tone-danger {
+  border-left: 4px solid var(--np-red) !important;
+}
+
+.signal-label {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 9px !important;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--np-ink-light) !important;
+}
+
+.signal-value {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  color: var(--np-ink) !important;
+}
+
+.signal-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--np-ink-light);
+}
+
+/* Metrics panel - newspaper style */
+.metrics-panel {
+  background: var(--np-bg) !important;
+  border: none !important;
+  border-top: 3px solid var(--np-ink) !important;
+  border-radius: 0 !important;
+}
+
+.metrics-panel .panel-head {
+  border-bottom: 2px solid var(--np-ink);
+  padding: 16px 24px;
+}
+
+.metrics-panel .panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--np-gold);
+}
+
+.metrics-panel h2 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 20px !important;
+  color: var(--np-ink) !important;
+}
+
+.metrics-grid {
+  padding: 20px 24px;
+  gap: 12px;
+}
+
+.metric-card {
+  background: var(--np-bg-warm) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  padding: 16px !important;
+}
+
+.metric-label {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 9px !important;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--np-ink-light) !important;
+}
+
+.metric-value {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+}
+
+.metric-card.tone-good .metric-value {
+  color: var(--np-green) !important;
+}
+
+.metric-card.tone-warning .metric-value {
+  color: var(--np-amber) !important;
+}
+
+.metric-card.tone-danger .metric-value {
+  color: var(--np-red) !important;
+}
+
+.metric-verdict {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 12px;
+  color: var(--np-ink-light);
+  line-height: 1.5;
+}
+
+/* Sections panel - newspaper style */
+.sections-panel {
+  background: var(--np-bg) !important;
+  border: none !important;
+  border-top: 3px solid var(--np-ink) !important;
+  border-radius: 0 !important;
+}
+
+.sections-panel .panel-head {
+  border-bottom: 2px solid var(--np-ink);
+  padding: 16px 24px;
+}
+
+.sections-panel .panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--np-gold);
+}
+
+.sections-panel h2 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 20px !important;
+  color: var(--np-ink) !important;
+}
+
+.sections-wrap {
+  padding: 20px 24px;
+}
+
+/* Section cards - newspaper article style */
+.section-card {
+  background: var(--np-bg) !important;
+  border: none !important;
+  border-bottom: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.section-card:last-child {
+  border-bottom: none !important;
+}
+
+.section-header {
+  padding: 16px 0 !important;
+  background: transparent !important;
+}
+
+.section-title {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: var(--np-ink) !important;
+}
+
+.section-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--np-gold);
+  letter-spacing: 0.1em;
+  margin-right: 12px;
+}
+
+.section-body {
+  font-family: 'Source Serif 4', Georgia, serif !important;
+  font-size: 15px !important;
+  line-height: 1.8 !important;
+  color: var(--np-ink-mid) !important;
+  padding: 0 0 20px !important;
+  text-align: justify;
+}
+
+/* Status badges - newspaper style */
+.status-badge {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--np-bg-warm) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  color: var(--np-ink-light) !important;
+  padding: 4px 10px !important;
+}
+
+/* Results grid layout */
+.results-grid {
+  background: var(--np-bg);
+}
+
+/* Analysis layout background */
+.analysis-layout {
+  background: var(--np-bg);
+}
+
+/* Footer note style */
+.result-hero .meta-grid {
+  border-top: 1px solid var(--np-rule);
+  padding: 16px 32px;
+  margin-top: 0;
+}
+
+.result-favorite-btn {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  letter-spacing: 0.1em;
+  color: var(--np-gold) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  background: var(--np-bg-warm) !important;
+}
+
+.result-favorite-btn:hover {
+  background: var(--np-bg) !important;
+  border-color: var(--np-gold) !important;
+}
+
+/* Empty states - newspaper style */
+.sections-panel .empty-state,
+.metrics-panel .empty-state {
+  background: var(--np-bg-warm) !important;
+  border: 1px dashed var(--np-rule) !important;
+  border-radius: 0 !important;
+}
+
+.empty-copy {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-style: italic;
+  color: var(--np-ink-light);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .score-strip {
+    grid-template-columns: 1fr;
+    text-align: center;
+    margin: 16px;
+    padding: 20px;
+  }
+
+  .market-strip {
+    grid-template-columns: 1fr;
+    margin: 0 16px 16px;
+  }
+
+  .chart-card {
+    margin: 0 16px 16px;
+  }
+
+  .result-hero .panel-head {
+    padding: 16px;
+  }
+}
