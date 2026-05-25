@@ -941,6 +941,302 @@ def compute_metrics(annual_data: list, quarterly_data: list = None) -> dict:
         ),
     }
 
+    # ── HORIZONTAL ANALYSIS (Горизонтальный анализ) ──────
+    # Сравнение показателей текущего года с предыдущим (YoY изменения)
+    horizontal = {}
+
+    def yoy_change(current, previous):
+        if current and previous and previous != 0:
+            change = current - previous
+            pct = (change / abs(previous)) * 100
+            return {"current": round(current, 0), "previous": round(previous, 0),
+                    "change": round(change, 0), "pct": round(pct, 1)}
+        return None
+
+    # Ключевые статьи для горизонтального анализа
+    h_items = [
+        ("revenue", "Выручка"),
+        ("gross_profit", "Валовая прибыль"),
+        ("net_income", "Чистая прибыль"),
+        ("total_assets", "Всего активов"),
+        ("equity", "Собственный капитал"),
+        ("current_assets", "Оборотные активы"),
+        ("current_liabilities", "Краткосрочные обязательства"),
+        ("long_term_debt", "Долгосрочный долг"),
+        ("cash", "Денежные средства"),
+        ("inventory", "Запасы"),
+    ]
+
+    for key, label in h_items:
+        curr_val = get(latest, key, 0)
+        prev_val = get(prev, key, 0)
+        change = yoy_change(curr_val, prev_val)
+        if change:
+            horizontal[key] = {"label": label, **change}
+
+    if horizontal:
+        # Определяем общий тренд горизонтального анализа
+        growing = sum(1 for v in horizontal.values() if v.get("pct", 0) > 5)
+        declining = sum(1 for v in horizontal.values() if v.get("pct", 0) < -5)
+
+        metrics["horizontal_analysis"] = {
+            "items": horizontal,
+            "summary": {
+                "growing_count": growing,
+                "declining_count": declining,
+                "stable_count": len(horizontal) - growing - declining,
+            },
+            "verdict": (
+                "Позитивная динамика — большинство показателей растут" if growing > declining + 2
+                else "Негативная динамика — большинство показателей падают" if declining > growing + 2
+                else "Смешанная динамика — нет явного тренда"
+            ),
+        }
+
+    # ── VERTICAL ANALYSIS (Вертикальный анализ) ───────────
+    # Структура баланса: каждая статья как % от общих активов
+    # Структура доходов: каждая статья как % от выручки
+    vertical = {}
+
+    # Баланс: % от total_assets
+    if total_assets > 0:
+        balance_structure = {}
+        balance_items = [
+            ("cash", "Денежные средства"),
+            ("accounts_receivable", "Дебиторская задолженность"),
+            ("inventory", "Запасы"),
+            ("current_assets", "Оборотные активы"),
+            ("long_term_debt", "Долгосрочный долг"),
+            ("equity", "Собственный капитал"),
+        ]
+        for key, label in balance_items:
+            val = get(latest, key, 0) or 0
+            if val:
+                balance_structure[key] = {
+                    "label": label,
+                    "value": round(val, 0),
+                    "pct_of_assets": round((val / total_assets) * 100, 1),
+                }
+
+        # Добавляем обязательства (total_assets - equity)
+        total_liab = total_assets - equity
+        if total_liab > 0:
+            balance_structure["total_liabilities"] = {
+                "label": "Всего обязательств",
+                "value": round(total_liab, 0),
+                "pct_of_assets": round((total_liab / total_assets) * 100, 1),
+            }
+
+        vertical["balance_sheet"] = {
+            "base": "total_assets",
+            "base_value": round(total_assets, 0),
+            "items": balance_structure,
+            "equity_ratio": round((equity / total_assets) * 100, 1) if equity else 0,
+            "debt_ratio": round((total_liab / total_assets) * 100, 1) if total_liab else 0,
+        }
+
+    # Отчет о прибылях: % от выручки
+    if revenue > 0:
+        income_structure = {}
+        income_items = [
+            ("gross_profit", "Валовая прибыль"),
+            ("ebit", "Операционная прибыль (EBIT)"),
+            ("net_income", "Чистая прибыль"),
+            ("interest_expense", "Процентные расходы"),
+        ]
+        for key, label in income_items:
+            val = get(latest, key, 0) or 0
+            if val:
+                income_structure[key] = {
+                    "label": label,
+                    "value": round(val, 0),
+                    "pct_of_revenue": round((val / revenue) * 100, 1),
+                }
+
+        # Расчет COGS если есть валовая прибыль
+        if gross_profit:
+            cogs_calc = revenue - gross_profit
+            income_structure["cogs"] = {
+                "label": "Себестоимость",
+                "value": round(cogs_calc, 0),
+                "pct_of_revenue": round((cogs_calc / revenue) * 100, 1),
+            }
+
+        vertical["income_statement"] = {
+            "base": "revenue",
+            "base_value": round(revenue, 0),
+            "items": income_structure,
+            "gross_margin_pct": round((gross_profit / revenue) * 100, 1) if gross_profit else 0,
+            "operating_margin_pct": round((ebit / revenue) * 100, 1) if ebit else 0,
+            "net_margin_pct": round((net_income / revenue) * 100, 1),
+        }
+
+    if vertical:
+        metrics["vertical_analysis"] = vertical
+
+    # ── PROFITABILITY RATIOS (Коэффициенты рентабельности) ─
+    profitability = {}
+
+    if revenue > 0:
+        profitability["gross_margin"] = {
+            "value": round((gross_profit / revenue) * 100, 2) if gross_profit else 0,
+            "benchmark": "15-40%",
+            "verdict": (
+                "Отлично" if gross_profit and (gross_profit / revenue) > 0.35
+                else "Хорошо" if gross_profit and (gross_profit / revenue) > 0.20
+                else "Низкая маржа"
+            ),
+        }
+        profitability["operating_margin"] = {
+            "value": round((ebit / revenue) * 100, 2) if ebit else 0,
+            "benchmark": "10-25%",
+            "verdict": (
+                "Отлично" if ebit and (ebit / revenue) > 0.20
+                else "Хорошо" if ebit and (ebit / revenue) > 0.10
+                else "Низкая операционная маржа"
+            ),
+        }
+        profitability["net_margin"] = {
+            "value": round((net_income / revenue) * 100, 2),
+            "benchmark": "5-15%",
+            "verdict": (
+                "Отлично" if (net_income / revenue) > 0.15
+                else "Хорошо" if (net_income / revenue) > 0.08
+                else "Нормально" if (net_income / revenue) > 0.03
+                else "Низкая чистая маржа"
+            ),
+        }
+
+    if total_assets > 0:
+        profitability["roa"] = {
+            "value": round((net_income / total_assets) * 100, 2),
+            "benchmark": "5-10%",
+            "verdict": (
+                "Отлично" if (net_income / total_assets) > 0.10
+                else "Хорошо" if (net_income / total_assets) > 0.05
+                else "Низкая доходность активов"
+            ),
+        }
+
+    if equity > 0:
+        profitability["roe"] = {
+            "value": round((net_income / equity) * 100, 2),
+            "benchmark": "15-25%",
+            "verdict": (
+                "Отлично" if (net_income / equity) > 0.20
+                else "Хорошо" if (net_income / equity) > 0.12
+                else "Низкая доходность капитала"
+            ),
+        }
+
+    if profitability:
+        metrics["profitability_ratios"] = profitability
+
+    # ── SOLVENCY RATIOS (Коэффициенты платежеспособности) ─
+    solvency = {}
+    total_liab = total_assets - equity if total_assets and equity else 0
+
+    if total_assets > 0:
+        solvency["debt_ratio"] = {
+            "value": round((total_liab / total_assets) * 100, 1),
+            "benchmark": "<50%",
+            "verdict": (
+                "Отлично — низкий долг" if (total_liab / total_assets) < 0.40
+                else "Нормально" if (total_liab / total_assets) < 0.60
+                else "Высокий долг — риск"
+            ),
+        }
+
+    if equity > 0 and total_liab > 0:
+        dte = total_liab / equity
+        solvency["debt_to_equity"] = {
+            "value": round(dte, 2),
+            "benchmark": "<1.0",
+            "verdict": (
+                "Отлично — капитал превышает долг" if dte < 0.5
+                else "Нормально" if dte < 1.5
+                else "Высокий финансовый рычаг"
+            ),
+        }
+
+    if equity > 0:
+        solvency["equity_ratio"] = {
+            "value": round((equity / total_assets) * 100, 1) if total_assets else 0,
+            "benchmark": ">40%",
+            "verdict": (
+                "Отлично — сильный капитал" if total_assets and (equity / total_assets) > 0.50
+                else "Нормально" if total_assets and (equity / total_assets) > 0.30
+                else "Слабая капитализация"
+            ),
+        }
+
+    if solvency:
+        metrics["solvency_ratios"] = solvency
+
+    # ── CASH FLOW ANALYSIS (Анализ денежных потоков) ──────
+    # Используем доступные данные для оценки денежных потоков
+    cash_flow = {}
+
+    # Операционный денежный поток (прокси через EBIT + амортизация)
+    # Упрощение: OCF ≈ EBIT × (1 - tax) + depreciation (если нет прямых данных)
+    op_cash_flow = get(latest, "operating_cash_flow", 0)
+    if not op_cash_flow and ebit > 0:
+        # Грубая оценка: EBIT после налога как прокси OCF
+        op_cash_flow = ebit * 0.85  # ~15% налог
+
+    if op_cash_flow and revenue > 0:
+        ocf_to_sales = (op_cash_flow / revenue) * 100
+        cash_flow["ocf_to_sales"] = {
+            "value": round(ocf_to_sales, 1),
+            "interpretation": (
+                "Отлично — сильная генерация кеша" if ocf_to_sales > 15
+                else "Хорошо — здоровый денежный поток" if ocf_to_sales > 8
+                else "Нормально" if ocf_to_sales > 3
+                else "Слабый денежный поток"
+            ),
+        }
+
+    # Коэффициент денежного покрытия
+    if op_cash_flow and current_liab > 0:
+        cash_coverage = op_cash_flow / current_liab
+        cash_flow["cash_coverage_ratio"] = {
+            "value": round(cash_coverage, 2),
+            "interpretation": (
+                "Отлично — OCF покрывает обязательства" if cash_coverage > 1.5
+                else "Нормально" if cash_coverage > 0.8
+                else "Риск — недостаточный денежный поток"
+            ),
+        }
+
+    # Free Cash Flow (если есть CAPEX или оцениваем)
+    capex = get(latest, "capital_expenditures", 0) or get(latest, "capex", 0)
+    if op_cash_flow:
+        # Если нет CAPEX, оцениваем как % от выручки (средне 5-10%)
+        if not capex and revenue > 0:
+            capex = revenue * 0.06  # консервативная оценка
+
+        fcf = op_cash_flow - capex if capex else op_cash_flow
+        cash_flow["free_cash_flow"] = {
+            "value": round(fcf, 0),
+            "as_pct_of_revenue": round((fcf / revenue) * 100, 1) if revenue else 0,
+            "verdict": (
+                "Позитивный FCF — компания генерирует свободный кеш" if fcf > 0
+                else "Отрицательный FCF — компания потребляет кеш"
+            ),
+        }
+
+        if op_cash_flow > 0:
+            fcf_ratio = fcf / op_cash_flow
+            cash_flow["fcf_to_ocf_ratio"] = {
+                "value": round(fcf_ratio * 100, 1),
+                "interpretation": (
+                    f"{round(fcf_ratio * 100, 0)}% OCF остается после капзатрат"
+                ),
+            }
+
+    if cash_flow:
+        metrics["cash_flow_analysis"] = cash_flow
+
     # ── TREND ANALYSIS: SLOPE / ACCELERATION / CONSISTENCY ─
     # Все три метода считаются из временного ряда без внешних библиотек.
 
@@ -1990,6 +2286,38 @@ def slim_metrics_for_prompt(metrics: dict) -> dict:
             "summary": technical.get("summary"),
         }
 
+    # NEW: Horizontal Analysis (YoY changes)
+    horizontal = metrics.get("horizontal_analysis", {})
+    if horizontal:
+        keep["horizontal_analysis"] = {
+            "items": horizontal.get("items"),
+            "summary": horizontal.get("summary"),
+            "verdict": horizontal.get("verdict"),
+        }
+
+    # NEW: Vertical Analysis (structure %)
+    vertical = metrics.get("vertical_analysis", {})
+    if vertical:
+        keep["vertical_analysis"] = {
+            "balance_sheet": vertical.get("balance_sheet"),
+            "income_statement": vertical.get("income_statement"),
+        }
+
+    # NEW: Profitability Ratios
+    profitability = metrics.get("profitability_ratios", {})
+    if profitability:
+        keep["profitability_ratios"] = profitability
+
+    # NEW: Solvency Ratios
+    solvency = metrics.get("solvency_ratios", {})
+    if solvency:
+        keep["solvency_ratios"] = solvency
+
+    # NEW: Cash Flow Analysis
+    cash_flow = metrics.get("cash_flow_analysis", {})
+    if cash_flow:
+        keep["cash_flow_analysis"] = cash_flow
+
     return keep
 
 
@@ -2057,6 +2385,13 @@ ANALYSIS_PROMPT = """Ты — инвестиционный аналитик сп
 ЭКСПЕРТНЫЕ МЕТРИКИ (посчитаны автоматически по данным компании):
 {metrics_json}
 
+МЕТОДОЛОГИЯ АНАЛИЗА (используй эти подходы):
+1. ГОРИЗОНТАЛЬНЫЙ АНАЛИЗ — сравни показатели текущего года с прошлым (YoY изменения в %)
+2. ВЕРТИКАЛЬНЫЙ АНАЛИЗ — оцени структуру: какой % активов = долг, какой % выручки = прибыль
+3. КОЭФФИЦИЕНТНЫЙ АНАЛИЗ — используй рассчитанные метрики выше
+4. АНАЛИЗ ДЕНЕЖНЫХ ПОТОКОВ — способность генерировать кеш (OCF/Sales, FCF)
+5. ТРЕНД-АНАЛИЗ — направление и ускорение роста/падения за 3-5 лет
+
 БИРЖЕВАЯ ЛИКВИДНОСТЬ АКЦИИ ЗА ПОСЛЕДНИЕ 30 ДНЕЙ:
 {liquidity_json}
 Учитывай ликвидность в вердикте: даже хорошая компания может быть неудобной для входа и выхода, если сделок мало.
@@ -2090,6 +2425,43 @@ ANALYSIS_PROMPT = """Ты — инвестиционный аналитик сп
 Простое объяснение финансового состояния без терминов (5–7 предложений).
 Сравнивай с нормами Узбекистана, не глобальными. Используй аналогии с обычной жизнью.
 Объясни: зарабатывает ли компания, растёт ли, есть ли долги, хватает ли денег на работу.
+
+[СТРУКТУРА_ФИНАНСОВ]
+Вертикальный анализ — структура баланса и доходов:
+Структура активов: ... (какой % = деньги, какой % = запасы, какой % = дебиторка)
+Структура капитала: ...% собственный капитал vs ...% заёмный — это значит ...
+Структура доходов: валовая маржа ...%, операционная маржа ...%, чистая маржа ...%
+Вывод о структуре: ЗДОРОВАЯ / РИСКОВАННАЯ / ЕСТЬ ВОПРОСЫ — 1 предложение почему
+
+[РЕНТАБЕЛЬНОСТЬ]
+Коэффициенты рентабельности простым языком:
+ROE (доходность капитала): ...% — на каждые 100 сум капитала зарабатывают ... сум прибыли
+ROA (доходность активов): ...% — насколько эффективно используют имущество
+Чистая маржа: ...% — сколько из каждых 100 сум выручки остается прибылью
+Оценка по меркам UZ: ОТЛИЧНО / ХОРОШО / НОРМАЛЬНО / СЛАБО — почему
+
+[ЛИКВИДНОСТЬ_И_ДОЛГ]
+Способность платить по счетам:
+Текущая ликвидность: ... (хватает ли оборотных активов на краткосрочные долги)
+Быстрая ликвидность: ... (хватает ли без учета запасов)
+Долговая нагрузка: ...% активов = долг — это НИЗКО / СРЕДНЕ / ВЫСОКО для UZ
+Покрытие процентов: ... — насколько легко обслуживать долги
+Вывод: компания УСТОЙЧИВА / ЕСТЬ РИСКИ / КРИТИЧНЫЙ ДОЛГ
+
+[ДЕНЕЖНЫЕ_ПОТОКИ]
+Анализ движения денег:
+Генерация кеша: компания генерирует ...% от выручки в виде денежного потока — это ... для UZ
+Свободный денежный поток: ... млрд UZS — денег после капзатрат ... (ХВАТАЕТ / НЕ ХВАТАЕТ)
+Покрытие обязательств: операционный поток покрывает текущие долги в ... раз
+Вывод: у компании ЗДОРОВЫЙ / СЛАБЫЙ / ПРОБЛЕМНЫЙ денежный поток
+
+[ДИНАМИКА_ПОКАЗАТЕЛЕЙ]
+Горизонтальный анализ — изменения год к году:
+Выручка: ... → ... (+...%) — РОСТ / ПАДЕНИЕ
+Прибыль: ... → ... (+...%) — РОСТ / ПАДЕНИЕ
+Активы: ... → ... (+...%) — компания РАСТЕТ / СЖИМАЕТСЯ
+Капитал: ... → ... (+...%) — капитализация УКРЕПЛЯЕТСЯ / РАЗМЫВАЕТСЯ
+Общая динамика: ПОЗИТИВНАЯ / НЕГАТИВНАЯ / СМЕШАННАЯ — объяснение
 
 [ТРЕНД]
 Анализ направления движения компании за последние 3–5 лет:
@@ -2372,230 +2744,308 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Инвест-анализ · {company}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=IBM+Plex+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<title>Анализ финансовой отчётности — {company}</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#c8a96e;--accent2:#5b9cf6;--text:#dde2ec;--muted:#7a8099;--green:#4ade80;--red:#f87171;--yellow:#fbbf24;--purple:#a78bfa;}}
-  *{{box-sizing:border-box;margin:0;padding:0}}
-  body{{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-weight:300;line-height:1.7}}
-  header{{border-bottom:1px solid var(--border);padding:48px 0 40px;text-align:center;background:radial-gradient(ellipse 60% 80% at 50% -20%,#1e2235 0%,transparent 70%)}}
-  .header-label{{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}}
-  header h1{{font-family:'Playfair Display',serif;font-size:clamp(28px,5vw,52px);color:#fff;letter-spacing:-.02em}}
-  .meta-row{{margin-top:16px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}}
-  .meta-chip{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:4px 12px;border-radius:20px}}
-  .container{{max-width:960px;margin:0 auto;padding:48px 24px 80px}}
+  :root {{
+    --ink: #1a1612;
+    --ink-mid: #3d3530;
+    --ink-light: #6b5e55;
+    --rule: #c9b99a;
+    --rule-light: #e8ddd0;
+    --accent: #8b1a1a;
+    --accent-soft: #c0392b;
+    --gold: #9a7b3a;
+    --bg: #faf7f2;
+    --bg-warm: #f3ede3;
+    --bg-table: #fdf9f4;
+    --green: #1a5c2e;
+    --red: #8b1a1a;
+    --amber: #7a5200;
+  }}
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ background: var(--bg); color: var(--ink); font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; line-height: 1.8; }}
 
-  /* Скоринг */
-  .score-banner{{display:flex;align-items:center;gap:24px;padding:28px 32px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:32px}}
-  .score-circle{{width:88px;height:88px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;border:3px solid var(--accent)}}
-  .score-num{{font-family:'Playfair Display',serif;font-size:32px;color:var(--accent);line-height:1}}
-  .score-max{{font-size:11px;color:var(--muted)}}
-  .score-grade{{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--accent);margin-bottom:6px}}
-  .score-desc{{font-size:14px;color:var(--muted);line-height:1.6}}
+  .masthead {{ border-top: 3px solid var(--ink); border-bottom: 1px solid var(--rule); padding: 12px 0 8px; text-align: center; background: var(--bg); margin-bottom: 0; }}
+  .masthead-journal {{ font-family: 'Playfair Display', serif; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-light); }}
+  .masthead-title {{ font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; letter-spacing: 0.01em; color: var(--ink); margin: 6px 0 4px; }}
+  .masthead-sub {{ font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }}
+  .masthead-rule {{ display: flex; align-items: center; gap: 12px; margin: 10px auto 0; max-width: 400px; justify-content: center; }}
+  .masthead-rule span {{ height: 1px; flex: 1; background: var(--rule); }}
+  .masthead-rule em {{ font-size: 11px; color: var(--ink-light); letter-spacing: 0.2em; font-style: normal; }}
 
-  .verdict-banner{{display:flex;align-items:flex-start;gap:20px;padding:28px 32px;border-radius:12px;margin-bottom:32px;border:1px solid}}
-  .verdict-banner.green{{background:rgba(74,222,128,.06);border-color:rgba(74,222,128,.25)}}
-  .verdict-banner.yellow{{background:rgba(251,191,36,.06);border-color:rgba(251,191,36,.25)}}
-  .verdict-banner.red{{background:rgba(248,113,113,.06);border-color:rgba(248,113,113,.25)}}
-  .verdict-banner.orange{{background:rgba(251,146,60,.06);border-color:rgba(251,146,60,.25)}}
-  .verdict-emoji{{font-size:40px;flex-shrink:0;line-height:1}}
-  .verdict-body h2{{font-family:'Playfair Display',serif;font-size:22px;margin-bottom:8px}}
-  .verdict-body p{{color:var(--muted);font-size:15px}}
+  .page {{ max-width: 900px; margin: 0 auto; padding: 0 40px 80px; }}
+  .meta-bar {{ border-bottom: 2px solid var(--ink); padding: 14px 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-bottom: 40px; }}
+  .meta-item {{ padding: 0 16px; border-right: 1px solid var(--rule); }}
+  .meta-item:first-child {{ padding-left: 0; }}
+  .meta-item:last-child {{ border-right: none; }}
+  .meta-label {{ font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 2px; }}
+  .meta-value {{ font-family: 'Playfair Display', serif; font-size: 13px; color: var(--ink); }}
 
-  .section{{margin-bottom:40px}}
-  .section-title{{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid var(--border)}}
-  .prose{{font-size:15px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent2);padding:22px 26px;border-radius:0 10px 10px 0;line-height:1.85;white-space:pre-wrap}}
-  .prose-plain{{font-size:15px;color:var(--text);line-height:1.85;white-space:pre-wrap}}
+  .abstract {{ border-left: 3px solid var(--accent); padding: 20px 24px; background: var(--bg-warm); margin-bottom: 44px; position: relative; }}
+  .abstract::before {{ content: 'АННОТАЦИЯ'; font-size: 9px; letter-spacing: 0.35em; color: var(--accent); display: block; margin-bottom: 10px; }}
+  .abstract p {{ font-size: 15px; line-height: 1.75; color: var(--ink-mid); font-style: italic; }}
 
-  /* Метрики */
-  .metrics-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}}
-  .metric-card{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}}
-  .metric-label{{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);margin-bottom:8px}}
-  .metric-val{{font-family:'Playfair Display',serif;font-size:24px;margin-bottom:4px}}
-  .metric-sub{{font-size:12px;color:var(--muted);line-height:1.4}}
-  .val-green{{color:var(--green)}} .val-red{{color:var(--red)}} .val-yellow{{color:var(--yellow)}} .val-purple{{color:var(--purple)}}
+  .section {{ margin-bottom: 52px; }}
+  .section-number {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gold); letter-spacing: 0.1em; display: block; margin-bottom: 4px; }}
+  h2 {{ font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 22px; line-height: 1.3; }}
+  h3 {{ font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; font-style: italic; color: var(--accent); margin: 28px 0 12px; }}
+  p {{ margin-bottom: 16px; text-align: justify; hyphens: auto; }}
+  p:last-child {{ margin-bottom: 0; }}
+  .dropcap::first-letter {{ font-family: 'Playfair Display', serif; font-size: 68px; font-weight: 700; float: left; line-height: 0.8; margin: 6px 8px -4px 0; color: var(--accent); }}
+  .prose {{ font-size: 15px; line-height: 1.85; white-space: pre-wrap; }}
 
-  /* Фибоначчи */
-  .fib-levels{{display:flex;flex-direction:column;gap:6px;margin-top:12px}}
-  .fib-row{{display:flex;align-items:center;gap:10px;font-size:13px}}
-  .fib-label{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);width:50px}}
-  .fib-bar-wrap{{flex:1;height:6px;background:var(--border);border-radius:3px;position:relative}}
-  .fib-bar{{height:6px;border-radius:3px;background:var(--accent)}}
-  .fib-val{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);width:80px;text-align:right}}
+  .table-wrap {{ margin: 28px 0 32px; overflow-x: auto; }}
+  .table-caption {{ font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 8px; padding-left: 2px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 14px; background: var(--bg-table); }}
+  thead tr {{ background: var(--ink); color: #f5ede0; }}
+  thead th {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; padding: 10px 12px; text-align: right; font-weight: 500; }}
+  thead th:first-child {{ text-align: left; }}
+  tbody tr {{ border-bottom: 1px solid var(--rule-light); }}
+  tbody tr:hover {{ background: #f0e9de; }}
+  tbody tr.subtotal {{ background: #ede4d6; font-weight: 600; }}
+  tbody tr.total {{ background: var(--bg-warm); border-top: 2px solid var(--rule); border-bottom: 2px solid var(--rule); font-weight: 700; }}
+  tbody tr.section-head {{ background: #f7f1e8; }}
+  tbody td {{ padding: 8px 12px; color: var(--ink-mid); vertical-align: middle; }}
+  tbody td:first-child {{ color: var(--ink); }}
+  tbody td.num {{ text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 13px; }}
+  .pos {{ color: var(--green); font-weight: 600; }}
+  .neg {{ color: var(--red); font-weight: 600; }}
+  .warn {{ color: var(--amber); font-weight: 600; }}
+  .indent {{ padding-left: 28px !important; font-size: 13.5px; color: var(--ink-light); }}
 
-  /* Катализаторы */
-  .catalyst-grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
-  @media(max-width:600px){{.catalyst-grid{{grid-template-columns:1fr}}}}
-  .catalyst-card{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}}
-  .catalyst-card.up{{border-left:3px solid var(--green)}}
-  .catalyst-card.down{{border-left:3px solid var(--red)}}
-  .catalyst-card.macro{{border-left:3px solid var(--yellow)}}
-  .catalyst-label{{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}}
-  .catalyst-label.up{{color:var(--green)}} .catalyst-label.down{{color:var(--red)}} .catalyst-label.macro{{color:var(--yellow)}}
-  .catalyst-item{{font-size:13px;color:var(--text);margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)}}
-  .catalyst-item:last-child{{border-bottom:none;margin-bottom:0;padding-bottom:0}}
+  .callout-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0 32px; }}
+  .callout {{ border: 1px solid var(--rule); padding: 16px 20px; background: var(--bg-warm); }}
+  .callout.good {{ border-left: 4px solid var(--green); }}
+  .callout.bad {{ border-left: 4px solid var(--red); }}
+  .callout.neutral {{ border-left: 4px solid var(--gold); }}
+  .callout-label {{ font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 6px; }}
+  .callout-value {{ font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; color: var(--ink); }}
+  .callout-desc {{ font-size: 12.5px; color: var(--ink-light); margin-top: 4px; line-height: 1.5; }}
 
-  /* SWOT */
-  .swot-grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
-  @media(max-width:600px){{.swot-grid{{grid-template-columns:1fr}}}}
-  .swot-card{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px}}
-  .swot-card h3{{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.15em;margin-bottom:12px}}
-  .swot-card.strengths h3{{color:var(--green)}} .swot-card.weaknesses h3{{color:var(--red)}}
-  .swot-item{{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}}
-  .swot-item:last-child{{margin-bottom:0;padding-bottom:0;border-bottom:none}}
-  .swot-fact{{font-size:14px;font-weight:500}} .swot-num{{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent)}} .swot-sig{{font-size:12px;color:var(--muted);margin-top:2px}}
+  .kpi-row {{ display: flex; gap: 0; border: 1px solid var(--rule); margin: 24px 0 32px; }}
+  .kpi-item {{ flex: 1; padding: 16px 18px; border-right: 1px solid var(--rule); text-align: center; }}
+  .kpi-item:last-child {{ border-right: none; }}
+  .kpi-label {{ font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 6px; }}
+  .kpi-val {{ font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--accent); }}
+  .kpi-sub {{ font-size: 11px; color: var(--ink-light); margin-top: 2px; }}
 
-  /* Прогноз */
-  .forecast-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}}
-  @media(max-width:600px){{.forecast-grid{{grid-template-columns:1fr}}}}
-  .forecast-card{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;text-align:center}}
-  .forecast-label{{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);margin-bottom:8px}}
-  .forecast-val{{font-family:'Playfair Display',serif;font-size:18px;margin-bottom:6px}}
-  .forecast-note{{font-size:12px;color:var(--muted);line-height:1.4}}
-  .trend-up{{color:var(--green)}} .trend-down{{color:var(--red)}} .trend-flat{{color:var(--yellow)}}
+  .formula-box {{ border: 1px solid var(--rule); border-left: 3px solid var(--gold); background: #faf5ec; padding: 12px 18px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--ink-mid); margin: 12px 0 20px; }}
 
-  /* Советы */
-  .tips-card{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:22px}}
-  .tips-row{{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}}
-  .tips-badge{{background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.3);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:5px 12px;border-radius:20px}}
-  .watch-item{{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}}
-  .watch-item:last-child{{border-bottom:none}}
-  .watch-num{{width:22px;height:22px;background:var(--accent);color:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;margin-top:2px}}
-  .watch-name{{font-size:14px;font-weight:500}} .watch-why{{font-size:12px;color:var(--muted)}}
+  .metrics-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 20px 0; }}
+  .metric-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 16px; }}
+  .metric-label {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--ink-light); margin-bottom: 8px; }}
+  .metric-val {{ font-family: 'Playfair Display', serif; font-size: 24px; margin-bottom: 4px; }}
+  .metric-sub {{ font-size: 12px; color: var(--ink-light); line-height: 1.4; }}
+  .val-green {{ color: var(--green); }} .val-red {{ color: var(--red); }} .val-yellow {{ color: var(--amber); }}
 
-  .conclusion{{background:linear-gradient(135deg,rgba(200,169,110,.08) 0%,rgba(91,156,246,.05) 100%);border:1px solid rgba(200,169,110,.2);border-radius:12px;padding:28px 32px;font-size:16px;line-height:1.85}}
-  .web-toggle{{background:none;border:1px solid var(--border);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 14px;border-radius:20px;cursor:pointer;text-transform:uppercase;letter-spacing:.1em}}
-  .web-toggle:hover{{border-color:var(--accent);color:var(--accent)}}
-  .web-text{{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-left:3px solid #6366f1;padding:16px 20px;border-radius:0 8px 8px 0;line-height:1.75;white-space:pre-wrap;max-height:240px;overflow-y:auto;display:none;margin-top:10px}}
-  .trend-row{{display:flex;flex-direction:column;gap:8px}}
-  .trend-item{{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px}}
-  .trend-name{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);width:90px;flex-shrink:0}}
-  .trend-bar-wrap{{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}}
-  .trend-bar{{height:4px;border-radius:2px}}
-  .trend-bar.pos{{background:var(--green)}}.trend-bar.neg{{background:var(--red)}}.trend-bar.neu{{background:var(--yellow)}}
-  .trend-val{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);width:55px;text-align:right;flex-shrink:0}}
-  .trend-lbl{{font-size:12px;color:var(--muted);margin-left:4px;flex-shrink:0}}
-  footer{{text-align:center;padding:32px;border-top:1px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}}
+  .swot-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }}
+  @media (max-width: 600px) {{ .swot-grid {{ grid-template-columns: 1fr; }} }}
+  .swot-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 18px; }}
+  .swot-card h3 {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; border: none; padding: 0; }}
+  .swot-card.strengths h3 {{ color: var(--green); }} .swot-card.weaknesses h3 {{ color: var(--red); }}
+  .swot-item {{ margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rule-light); }}
+  .swot-item:last-child {{ margin-bottom: 0; padding-bottom: 0; border-bottom: none; }}
+  .swot-fact {{ font-size: 14px; font-weight: 500; }} .swot-num {{ font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); }} .swot-sig {{ font-size: 12px; color: var(--ink-light); margin-top: 2px; }}
+
+  .catalyst-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }}
+  @media (max-width: 600px) {{ .catalyst-grid {{ grid-template-columns: 1fr; }} }}
+  .catalyst-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 14px; }}
+  .catalyst-card.up {{ border-left: 4px solid var(--green); }}
+  .catalyst-card.down {{ border-left: 4px solid var(--red); }}
+  .catalyst-card.macro {{ border-left: 4px solid var(--amber); }}
+  .catalyst-label {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }}
+  .catalyst-label.up {{ color: var(--green); }} .catalyst-label.down {{ color: var(--red); }} .catalyst-label.macro {{ color: var(--amber); }}
+  .catalyst-item {{ font-size: 13px; color: var(--ink); margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--rule-light); }}
+  .catalyst-item:last-child {{ border-bottom: none; margin-bottom: 0; padding-bottom: 0; }}
+
+  .forecast-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }}
+  @media (max-width: 600px) {{ .forecast-grid {{ grid-template-columns: 1fr; }} }}
+  .forecast-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 18px; text-align: center; }}
+  .forecast-label {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--ink-light); margin-bottom: 8px; }}
+  .forecast-val {{ font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 6px; }}
+  .forecast-note {{ font-size: 12px; color: var(--ink-light); line-height: 1.4; }}
+  .trend-up {{ color: var(--green); }} .trend-down {{ color: var(--red); }} .trend-flat {{ color: var(--amber); }}
+
+  .tips-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 22px; margin: 20px 0; }}
+  .tips-row {{ display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }}
+  .tips-badge {{ background: rgba(154, 123, 58, 0.1); border: 1px solid rgba(154, 123, 58, 0.3); color: var(--gold); font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 5px 12px; }}
+  .watch-item {{ display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule-light); }}
+  .watch-item:last-child {{ border-bottom: none; }}
+  .watch-num {{ width: 22px; height: 22px; background: var(--gold); color: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; margin-top: 2px; }}
+  .watch-name {{ font-size: 14px; font-weight: 500; }} .watch-why {{ font-size: 12px; color: var(--ink-light); }}
+
+  .trend-row {{ display: flex; flex-direction: column; gap: 8px; margin: 20px 0; }}
+  .trend-item {{ display: flex; align-items: center; gap: 10px; background: var(--bg-warm); border: 1px solid var(--rule); padding: 10px 14px; }}
+  .trend-name {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-light); width: 90px; flex-shrink: 0; }}
+  .trend-bar-wrap {{ flex: 1; height: 4px; background: var(--rule-light); overflow: hidden; }}
+  .trend-bar {{ height: 4px; }}
+  .trend-bar.pos {{ background: var(--green); }} .trend-bar.neg {{ background: var(--red); }} .trend-bar.neu {{ background: var(--amber); }}
+  .trend-val {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gold); width: 55px; text-align: right; flex-shrink: 0; }}
+  .trend-lbl {{ font-size: 12px; color: var(--ink-light); margin-left: 4px; flex-shrink: 0; }}
+
+  .verdict {{ background: var(--ink); color: #f5ede0; padding: 32px 36px; margin: 40px 0 0; }}
+  .verdict-label {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.3em; color: var(--gold); margin-bottom: 14px; }}
+  .verdict h3 {{ color: #f5ede0; font-family: 'Playfair Display', serif; font-size: 20px; margin: 0 0 16px; font-style: normal; border: none; padding: 0; }}
+  .verdict p {{ color: #d4c5b0; font-size: 15px; margin-bottom: 12px; text-align: left; }}
+  .verdict ul {{ list-style: none; padding: 0; margin-top: 8px; }}
+  .verdict ul li {{ font-size: 14.5px; color: #d4c5b0; padding: 5px 0 5px 18px; position: relative; border-bottom: 1px solid #3d352a; }}
+  .verdict ul li::before {{ content: '›'; position: absolute; left: 0; color: var(--gold); font-size: 18px; line-height: 1.4; }}
+
+  .web-toggle {{ background: none; border: 1px solid var(--rule); color: var(--ink-light); font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 6px 14px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; margin: 10px 0; }}
+  .web-toggle:hover {{ border-color: var(--gold); color: var(--gold); }}
+  .web-text {{ font-size: 13px; color: var(--ink-light); background: var(--bg-warm); border: 1px solid var(--rule); border-left: 3px solid var(--gold); padding: 16px 20px; line-height: 1.75; white-space: pre-wrap; max-height: 240px; overflow-y: auto; display: none; margin-top: 10px; }}
+
+  .footer {{ border-top: 2px solid var(--ink); padding: 20px 0 0; margin-top: 60px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; font-size: 12px; color: var(--ink-light); }}
+  .footer strong {{ display: block; color: var(--ink); margin-bottom: 4px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }}
+
+  @media (max-width: 700px) {{
+    .page {{ padding: 0 20px 60px; }}
+    .meta-bar {{ grid-template-columns: 1fr 1fr; }}
+    .callout-grid {{ grid-template-columns: 1fr; }}
+    .kpi-row {{ flex-wrap: wrap; }}
+    .footer {{ grid-template-columns: 1fr; }}
+    .masthead-title {{ font-size: 20px; }}
+  }}
+
+  @media print {{
+    body {{ font-size: 12pt; }}
+    .page {{ max-width: 100%; padding: 0; }}
+    h2 {{ page-break-after: avoid; }}
+    .section {{ page-break-inside: avoid; }}
+    table {{ page-break-inside: avoid; }}
+  }}
 </style>
 </head>
 <body>
-<header>
-  <div class="header-label">Профессиональный инвест-анализ</div>
-  <h1>{company}</h1>
-  <div class="meta-row">
-    <span class="meta-chip">📅 {annual_period}</span>
-    <span class="meta-chip">📊 {quarterly_period}</span>
-    <span class="meta-chip">🔬 Fibonacci · Piotroski · Graham · Altman</span>
 
-    <span class="meta-chip">🕐 {analyzed_at}</span>
-  </div>
-</header>
+<div class="masthead">
+  <div class="masthead-journal">Финансовый анализ / Financial Analysis Report</div>
+  <div class="masthead-title">{company}</div>
+  <div class="masthead-sub">Анализ финансовой отчётности — {annual_period}</div>
+  <div class="masthead-rule"><span></span><em>{analyzed_at}</em><span></span></div>
+</div>
 
-<div class="container">
+<div class="page">
 
-  <!-- СКОРИНГ -->
-  <div class="score-banner">
-    <div class="score-circle">
-      <div class="score-num">{score}</div>
-      <div class="score-max">/100</div>
+  <div class="meta-bar">
+    <div class="meta-item">
+      <div class="meta-label">Эмитент</div>
+      <div class="meta-value">{company}</div>
     </div>
-    <div>
-      <div class="score-grade">{score_grade}</div>
-      <div class="score-desc">{score_desc}</div>
+    <div class="meta-item">
+      <div class="meta-label">Период</div>
+      <div class="meta-value">{annual_period}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Кварталы</div>
+      <div class="meta-value">{quarterly_period}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Скоринг</div>
+      <div class="meta-value">{score}/100 · {score_grade}</div>
     </div>
   </div>
 
-  <!-- ВЕРДИКТ -->
-  <div class="verdict-banner {verdict_class}">
-    <div class="verdict-emoji">{verdict_emoji}</div>
-    <div class="verdict-body"><h2>{verdict_label}</h2><p>{verdict_text}</p></div>
+  <div class="abstract">
+    <p>{company_profile}</p>
   </div>
 
-  <!-- ПРОФИЛЬ -->
+  <!-- РАЗДЕЛ 1: ПРОФИЛЬ И МЕТОДОЛОГИЯ -->
   <div class="section">
-    <div class="section-title">01 · Профиль компании</div>
-    <div class="prose">{company_profile}</div>
+    <span class="section-number">РАЗДЕЛ 1</span>
+    <h2>Профиль компании и методология анализа</h2>
+    <p class="dropcap">{score_desc}</p>
+    <p>Настоящий анализ строится на трёх классических методах финансового анализа: <strong>горизонтальный анализ</strong> (оценка динамики абсолютных и относительных изменений), <strong>вертикальный анализ</strong> (структурный анализ — удельный вес каждой статьи) и <strong>коэффициентный анализ</strong> (расчёт показателей по группам: ликвидность, рентабельность, качество активов, достаточность капитала, эффективность).</p>
   </div>
 
-  <!-- ЧТО С ДЕНЬГАМИ -->
+  <!-- РАЗДЕЛ 2: ФИНАНСОВЫЙ АНАЛИЗ -->
   <div class="section">
-    <div class="section-title">02 · Что происходит с деньгами</div>
+    <span class="section-number">РАЗДЕЛ 2</span>
+    <h2>Анализ финансовых показателей</h2>
     <div class="prose">{what_money}</div>
-  </div>
-
-  <!-- ТРЕНД -->
-  <div class="section">
-    <div class="section-title">03 · Куда движется компания</div>
     {trends_html}
-    <div class="prose" style="margin-top:12px">{trend_text}</div>
+    <div class="prose" style="margin-top:20px">{trend_text}</div>
   </div>
 
-  <!-- ЭКСПЕРТНЫЕ МЕТРИКИ -->
+  <!-- РАЗДЕЛ 3: ЭКСПЕРТНЫЕ МЕТРИКИ -->
   <div class="section">
-    <div class="section-title">04 · Экспертные метрики</div>
+    <span class="section-number">РАЗДЕЛ 3</span>
+    <h2>Экспертные метрики и индикаторы</h2>
+    <p>Ключевые метрики рассчитаны по методологиям Piotroski F-Score, Altman Z-Score, критериям Баффетта и другим признанным подходам.</p>
     <div class="metrics-grid">{metrics_html}</div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">04B · Ликвидность акции</div>
+    <h3>Ликвидность акции на рынке</h3>
     {liquidity_html}
   </div>
 
-  <!-- ФИБОНАЧЧИ -->
+  <!-- РАЗДЕЛ 4: ТЕХНИЧЕСКИЙ АНАЛИЗ -->
   <div class="section">
-    <div class="section-title">05 · Анализ Фибоначчи</div>
+    <span class="section-number">РАЗДЕЛ 4</span>
+    <h2>Технический анализ и уровни Фибоначчи</h2>
     <div class="prose">{fibonacci_text}</div>
-  </div>
-
-  <!-- ОЦЕНКА ЦЕНЫ -->
-  <div class="section">
-    <div class="section-title">06 · Дорого или дёшево?</div>
+    <h3>Оценка стоимости акции</h3>
     <div class="prose">{price_valuation}</div>
   </div>
 
-  <!-- КАТАЛИЗАТОРЫ -->
+  <!-- РАЗДЕЛ 5: КАТАЛИЗАТОРЫ -->
   <div class="section">
-    <div class="section-title">07 · Что может двигать цену</div>
+    <span class="section-number">РАЗДЕЛ 5</span>
+    <h2>Факторы, влияющие на стоимость</h2>
     {catalysts_html}
   </div>
 
-  <!-- SWOT -->
+  <!-- РАЗДЕЛ 6: СИЛЬНЫЕ И СЛАБЫЕ СТОРОНЫ -->
   <div class="section">
-    <div class="section-title">08 · Сильные и слабые стороны</div>
+    <span class="section-number">РАЗДЕЛ 6</span>
+    <h2>Сильные и слабые стороны компании</h2>
     <div class="swot-grid">
-      <div class="swot-card strengths"><h3>💪 Сильные стороны</h3>{strengths_html}</div>
-      <div class="swot-card weaknesses"><h3>⚠️ Слабые стороны</h3>{weaknesses_html}</div>
+      <div class="swot-card strengths"><h3>Сильные стороны</h3>{strengths_html}</div>
+      <div class="swot-card weaknesses"><h3>Риски и слабости</h3>{weaknesses_html}</div>
     </div>
   </div>
 
-  <!-- ПРОГНОЗ -->
+  <!-- РАЗДЕЛ 7: ВЕРДИКТ И РЕКОМЕНДАЦИИ -->
   <div class="section">
-    <div class="section-title">09 · Прогноз</div>
+    <span class="section-number">РАЗДЕЛ 7</span>
+    <h2>Инвестиционный вердикт</h2>
+
+    <h3>Прогноз</h3>
     <div class="forecast-grid">{forecast_html}</div>
+
+    <h3>Рекомендации</h3>
+    <div class="tips-card">
+      <div class="tips-row">{tips_badges_html}</div>
+      <div>{watch_html}</div>
+    </div>
+
+    <div class="verdict">
+      <div class="verdict-label">{verdict_emoji} ЗАКЛЮЧЕНИЕ</div>
+      <h3>{verdict_label}</h3>
+      <p>{verdict_text}</p>
+      <p>{itog}</p>
+    </div>
   </div>
 
-  <!-- СОВЕТЫ -->
+  <!-- ВЕБ-ИССЛЕДОВАНИЕ -->
   <div class="section">
-    <div class="section-title">10 · Советы</div>
-    <div class="tips-card"><div class="tips-row">{tips_badges_html}</div><div>{watch_html}</div></div>
-  </div>
-
-  <!-- ИТОГ -->
-  <div class="section">
-    <div class="section-title">11 · Итог простыми словами</div>
-    <div class="conclusion">{itog}</div>
-  </div>
-
-  <!-- ВЕБ -->
-  <div class="section">
-    <div class="section-title">12 · Веб-исследование</div>
-    <button class="web-toggle" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block'">📰 Показать источники</button>
+    <span class="section-number">ПРИЛОЖЕНИЕ</span>
+    <h2>Источники и веб-исследование</h2>
+    <button class="web-toggle" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block'">Показать источники</button>
     <div class="web-text">{web_research}</div>
   </div>
 
+  <div class="footer">
+    <div>
+      <strong>Методология</strong>
+      Fibonacci · Piotroski · Graham · Altman
+    </div>
+    <div>
+      <strong>Дисклеймер</strong>
+      Данный отчёт не является инвестиционной рекомендацией
+    </div>
+  </div>
+
 </div>
-<footer>Сгенерировано автоматически · Fibonacci · Piotroski · Graham · Altman · Не является инвестиционной рекомендацией</footer>
 </body>
 </html>
 """
