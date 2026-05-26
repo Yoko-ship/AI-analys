@@ -6504,3 +6504,28 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
     gap: 4px;
   }
 }
+
+/* ── Supplementary sections group (Приложение) ── */
+.section-card--supplementary {
+  margin-top: 24px !important;
+  border-top: 2px solid var(--np-rule) !important;
+  background: var(--np-bg-warm, #f5efe4) !important;
+}
+
+.section-card--supplementary > summary {
+  padding: 18px 0 !important;
+}
+
+.section-card--supplementary > summary .section-number {
+  color: var(--np-ink-light, #6b5e55) !important;
+  letter-spacing: 0.18em;
+}
+
+.sections-wrap--nested {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.sections-wrap--nested .section-card {
+  background: transparent !important;
+}
