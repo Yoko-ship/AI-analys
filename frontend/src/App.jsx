@@ -238,12 +238,16 @@ const TEXTS = {
     },
     toasts: { success: "Готово", error: "Ошибка", info: "Инфо" },
     sections: {
-      СКОРИНГ: "Общая оценка и скоринг эмитента",
-      ДОСЬЕ: "Общие сведения об эмитенте",
-      ЧТО_С_ДЕНЬГАМИ: "Анализ финансового состояния",
+      ОБЩИЕ_СВЕДЕНИЯ: "Общие сведения об эмитенте и методология анализа",
       ГОРИЗОНТАЛЬНЫЙ_АНАЛИЗ: "Горизонтальный анализ бухгалтерского баланса",
       ВЕРТИКАЛЬНЫЙ_АНАЛИЗ: "Вертикальный анализ бухгалтерского баланса",
-      КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Коэффициентный анализ финансовых показателей",
+      АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ: "Анализ отчёта о финансовых результатах",
+      КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Коэффициентный анализ",
+      СВОДНАЯ_ТАБЛИЦА: "Сводная таблица ключевых показателей",
+      ЗАКЛЮЧЕНИЕ: "Итоговая оценка и инвестиционная рекомендация",
+      СКОРИНГ: "Общая оценка и скоринг эмитента",
+      ДОСЬЕ: "Краткое досье эмитента",
+      ЧТО_С_ДЕНЬГАМИ: "Финансовая выжимка",
       ТРЕНД: "Анализ трендов и динамики показателей",
       ОЦЕНКА_СТОИМОСТИ: "Оценка справедливой стоимости",
       ФИБОНАЧЧИ: "Технический анализ (уровни Фибоначчи)",
@@ -439,12 +443,16 @@ const TEXTS = {
     },
     toasts: { success: "Done", error: "Error", info: "Info" },
     sections: {
-      СКОРИНГ: "Overall Assessment and Scoring",
-      ДОСЬЕ: "Company Overview",
-      ЧТО_С_ДЕНЬГАМИ: "Financial Position Analysis",
+      ОБЩИЕ_СВЕДЕНИЯ: "Issuer Overview and Analytical Methodology",
       ГОРИЗОНТАЛЬНЫЙ_АНАЛИЗ: "Horizontal Balance Sheet Analysis",
       ВЕРТИКАЛЬНЫЙ_АНАЛИЗ: "Vertical Balance Sheet Analysis",
+      АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ: "Income Statement Analysis",
       КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Financial Ratio Analysis",
+      СВОДНАЯ_ТАБЛИЦА: "Summary Table of Key Metrics",
+      ЗАКЛЮЧЕНИЕ: "Final Assessment and Investment Recommendation",
+      СКОРИНГ: "Overall Assessment and Scoring",
+      ДОСЬЕ: "Company Snapshot",
+      ЧТО_С_ДЕНЬГАМИ: "Financial Position Brief",
       ТРЕНД: "Trend and Dynamics Analysis",
       ОЦЕНКА_СТОИМОСТИ: "Fair Value Assessment",
       ФИБОНАЧЧИ: "Technical Analysis (Fibonacci Levels)",
@@ -640,12 +648,16 @@ const TEXTS = {
     },
     toasts: { success: "Tayyor", error: "Xato", info: "Ma'lumot" },
     sections: {
-      СКОРИНГ: "Umumiy baholash va skoringi",
-      ДОСЬЕ: "Emitent haqida umumiy ma'lumot",
-      ЧТО_С_ДЕНЬГАМИ: "Moliyaviy holat tahlili",
+      ОБЩИЕ_СВЕДЕНИЯ: "Emitent haqida umumiy ma'lumot va tahlil metodologiyasi",
       ГОРИЗОНТАЛЬНЫЙ_АНАЛИЗ: "Buxgalteriya balansining gorizontal tahlili",
       ВЕРТИКАЛЬНЫЙ_АНАЛИЗ: "Buxgalteriya balansining vertikal tahlili",
+      АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ: "Moliyaviy natijalar hisoboti tahlili",
       КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Moliyaviy koeffitsientlar tahlili",
+      СВОДНАЯ_ТАБЛИЦА: "Asosiy ko'rsatkichlarning umumlashtirilgan jadvali",
+      ЗАКЛЮЧЕНИЕ: "Yakuniy baho va investitsion tavsiya",
+      СКОРИНГ: "Umumiy baholash va skoringi",
+      ДОСЬЕ: "Emitent haqida qisqacha ma'lumot",
+      ЧТО_С_ДЕНЬГАМИ: "Moliyaviy holat qisqacha",
       ТРЕНД: "Trendlar va dinamika tahlili",
       ОЦЕНКА_СТОИМОСТИ: "Adolatli qiymatni baholash",
       ФИБОНАЧЧИ: "Texnik tahlil (Fibonachchi darajalari)",
@@ -998,6 +1010,33 @@ function formatRatio(value, digits = 2, language = "ru") {
 
 function getSectionTitle(language, key) {
   return t(language, `sections.${key}`) || key.replaceAll("_", " ");
+}
+
+// 7 основных разделов в журнальном стиле (как в ipoteka_bank_analysis_Q1_2026.html).
+// Эти разделы выводятся сверху в строго заданном порядке, остальные — под катом «Дополнительно».
+const PRIMARY_SECTIONS = [
+  "ОБЩИЕ_СВЕДЕНИЯ",
+  "ГОРИЗОНТАЛЬНЫЙ_АНАЛИЗ",
+  "ВЕРТИКАЛЬНЫЙ_АНАЛИЗ",
+  "АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ",
+  "КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ",
+  "СВОДНАЯ_ТАБЛИЦА",
+  "ЗАКЛЮЧЕНИЕ",
+];
+
+function splitSections(sections) {
+  const sourceEntries = sections ? Object.entries(sections) : [];
+  const lookup = new Map(sourceEntries);
+  const primary = [];
+  const seen = new Set();
+  for (const key of PRIMARY_SECTIONS) {
+    if (lookup.has(key)) {
+      primary.push([key, lookup.get(key)]);
+      seen.add(key);
+    }
+  }
+  const supplementary = sourceEntries.filter(([key]) => !seen.has(key));
+  return { primary, supplementary };
 }
 
 function getProfileInitials(user) {
@@ -3058,13 +3097,48 @@ function App() {
                     <h2>{t(language, "analysis.sectionsTitle")}</h2>
                   </div>
                 </div>
-                {analysisResult?.sections ? (
-                  <div className="sections-wrap">
-                    {Object.entries(analysisResult.sections).map(([key, value], index) => (
-                      <SectionCard key={key} title={getSectionTitle(language, key)} body={value || t(language, "analysis.noData")} index={index} open={index === 0} />
-                    ))}
-                  </div>
-                ) : (
+                {analysisResult?.sections ? (() => {
+                  const { primary, supplementary } = splitSections(analysisResult.sections);
+                  return (
+                    <div className="sections-wrap">
+                      {primary.map(([key, value], index) => (
+                        <SectionCard
+                          key={key}
+                          title={getSectionTitle(language, key)}
+                          body={value || t(language, "analysis.noData")}
+                          index={index}
+                          open={index === 0}
+                        />
+                      ))}
+                      {supplementary.length > 0 && (
+                        <details className="section-card section-card--supplementary fade-in">
+                          <summary>
+                            <span className="section-number">ПРИЛОЖЕНИЕ</span>
+                            <span className="section-title-text">
+                              {language === "en"
+                                ? "Additional analysis blocks"
+                                : language === "uz"
+                                ? "Qo'shimcha tahlil bloklari"
+                                : "Дополнительные блоки анализа"}
+                            </span>
+                          </summary>
+                          <div className="section-content">
+                            <div className="sections-wrap sections-wrap--nested">
+                              {supplementary.map(([key, value], idx) => (
+                                <SectionCard
+                                  key={key}
+                                  title={getSectionTitle(language, key)}
+                                  body={value || t(language, "analysis.noData")}
+                                  index={primary.length + idx}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  );
+                })() : (
                   <div className="empty-state">
                     <p className="empty-copy">{analysisLoading ? t(language, "analysis.loadingSections") : t(language, "analysis.resultEmpty")}</p>
                   </div>
