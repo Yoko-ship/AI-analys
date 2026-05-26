@@ -105,31 +105,131 @@ def _fetch_api_bundle(urls: dict[str, str]) -> dict[str, dict | list]:
 
 def _lookup_org_id_via_api(user_input: str) -> tuple[str, str] | None:
     """
-    Пытается найти org_id через несколько API endpoints:
-    1. Autofill API (быстрый поиск по имени)
-    2. Search API (полнотекстовый поиск)
+    Пытается найти org_id через несколько стратегий:
+    1. Autofill API с различными вариантами написания
+    2. Полный список организаций с fuzzy matching
     """
     normalized_input = _normalize_company_key(user_input)
 
-    # Стратегия 1: Autofill API
-    result = _try_autofill_api(user_input, normalized_input)
-    if result:
-        return result
+    # Генерируем все варианты поиска
+    variants = _get_search_variants(user_input)
+    logger.debug(f"Варианты поиска для '{user_input}': {variants}")
 
-    # Стратегия 2: Search API с пагинацией
-    result = _try_search_api(user_input, normalized_input)
-    if result:
-        return result
-
-    # Стратегия 3: Попробовать только первое слово (часто это тикер или ключевое слово)
-    first_word = user_input.split()[0] if user_input.split() else user_input
-    if first_word != user_input:
-        logger.info(f"Пробуем поиск по первому слову: '{first_word}'")
-        result = _try_autofill_api(first_word, _normalize_company_key(first_word))
+    # Стратегия 1: Autofill API с разными вариантами
+    for variant in variants:
+        result = _try_autofill_api(variant, _normalize_company_key(variant))
         if result:
             return result
 
+    # Стратегия 2: Поиск по первому слову
+    first_word = user_input.split()[0] if user_input.split() else user_input
+    if first_word != user_input:
+        first_variants = _get_search_variants(first_word)
+        for variant in first_variants:
+            result = _try_autofill_api(variant, _normalize_company_key(variant))
+            if result:
+                return result
+
+    # Стратегия 3: Полный список организаций с fuzzy matching
+    logger.info("Autofill не нашёл, загружаем полный список организаций...")
+    result = _search_in_full_org_list(user_input, normalized_input)
+    if result:
+        return result
+
     return None
+
+
+# Таблица транслитерации кириллицы в латиницу (основной вариант)
+_TRANSLIT_MAP = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+    'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+    'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sh', 'ъ': '',
+    'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+    'ў': "o'", 'қ': 'q', 'ғ': "g'", 'ҳ': 'h',
+}
+
+# Альтернативные варианты транслитерации для fuzzy поиска
+_TRANSLIT_ALTERNATIVES = {
+    'х': ['h', 'x', 'kh'],  # Хамкор -> Hamkor, Xamkor, Khamkor
+    'ж': ['j', 'zh'],
+    'ш': ['sh', 'sch'],
+    'ч': ['ch', 'tch'],
+    'й': ['y', 'i', 'j'],
+    'ю': ['yu', 'iu', 'u'],
+    'я': ['ya', 'ia', 'a'],
+    'е': ['e', 'ye'],
+    'ё': ['yo', 'e', 'io'],
+}
+
+
+def _transliterate_to_latin(text: str) -> str:
+    """Транслитерация кириллицы в латиницу (узбекский стиль)."""
+    result = []
+    for char in text:
+        lower = char.lower()
+        if lower in _TRANSLIT_MAP:
+            mapped = _TRANSLIT_MAP[lower]
+            result.append(mapped.upper() if char.isupper() else mapped)
+        else:
+            result.append(char)
+    return "".join(result)
+
+
+# Словарь общих слов с известным переводом (кириллица -> латиница)
+_COMMON_WORDS = {
+    'авто': 'auto', 'банк': 'bank', 'телеком': 'telecom', 'газ': 'gaz',
+    'нефть': 'neft', 'электро': 'elektro', 'пром': 'prom', 'строй': 'stroy',
+    'транс': 'trans', 'агро': 'agro', 'фарм': 'farm', 'текстиль': 'tekstil',
+}
+
+
+def _get_search_variants(text: str) -> list[str]:
+    """Генерирует варианты поиска для лучшего fuzzy matching."""
+    variants = [text]
+
+    # Добавляем транслитерированный вариант
+    translit = _transliterate_to_latin(text)
+    if translit != text:
+        variants.append(translit)
+
+    # Заменяем общие слова на известные варианты и транслитерируем остальное
+    text_lower = text.lower()
+    for rus, eng in _COMMON_WORDS.items():
+        if rus in text_lower:
+            # Сначала заменяем общее слово, потом транслитерируем остальное
+            replaced = text_lower.replace(rus, eng)
+            # Теперь транслитерируем оставшуюся кириллицу
+            fully_latin = _transliterate_to_latin(replaced)
+            if fully_latin not in [v.lower() for v in variants]:
+                variants.append(fully_latin)
+
+    # Добавляем варианты с альтернативной транслитерацией
+    for cyrillic, alternatives in _TRANSLIT_ALTERNATIVES.items():
+        if cyrillic in text.lower():
+            for alt in alternatives[1:]:  # Пропускаем первый (основной) вариант
+                alt_text = ""
+                for char in text:
+                    if char.lower() == cyrillic:
+                        replacement = alt.upper() if char.isupper() else alt
+                        alt_text += replacement
+                    else:
+                        lower = char.lower()
+                        if lower in _TRANSLIT_MAP:
+                            mapped = _TRANSLIT_MAP[lower]
+                            alt_text += mapped.upper() if char.isupper() else mapped
+                        else:
+                            alt_text += char
+                if alt_text not in variants:
+                    variants.append(alt_text)
+
+    # Варианты без дефисов и апострофов
+    for v in variants[:]:
+        clean = v.replace("-", " ").replace("'", "").replace("`", "")
+        if clean not in variants:
+            variants.append(clean)
+
+    return variants[:6]  # Максимум 6 вариантов
 
 
 def _try_autofill_api(query: str, normalized_query: str) -> tuple[str, str] | None:
@@ -164,39 +264,137 @@ def _try_autofill_api(query: str, normalized_query: str) -> tuple[str, str] | No
     return org_id, company_name
 
 
-def _try_search_api(query: str, normalized_query: str) -> tuple[str, str] | None:
-    """Поиск через search endpoint с пагинацией."""
-    url = "https://new-api.openinfo.uz/api/v2/home/search/"
-    try:
-        response = requests.get(
-            url,
-            params={"search": query, "page": 1, "page_size": 20},
-            timeout=REQUEST_TIMEOUT,
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-            verify=False,
-        )
-        response.raise_for_status()
-        data = response.json()
-        items = data.get("results", []) if isinstance(data, dict) else data
-    except Exception as exc:
-        logger.warning(f"Search API ошибка: {exc}")
+# Кэш полного списка организаций (загружается один раз)
+_FULL_ORG_LIST: list | None = None
+_FULL_ORG_LIST_PATH = Path("full_org_list_cache.json")
+
+
+def _load_full_org_list() -> list:
+    """Загружает полный список организаций (из кэша или API)."""
+    global _FULL_ORG_LIST
+
+    if _FULL_ORG_LIST is not None:
+        return _FULL_ORG_LIST
+
+    # Пробуем загрузить из файлового кэша
+    if _FULL_ORG_LIST_PATH.exists():
+        try:
+            cache_data = json.loads(_FULL_ORG_LIST_PATH.read_text(encoding="utf-8"))
+            # Кэш валиден 24 часа
+            if time.time() - cache_data.get("timestamp", 0) < 86400:
+                _FULL_ORG_LIST = cache_data.get("organizations", [])
+                logger.info(f"Список организаций загружен из кэша: {len(_FULL_ORG_LIST)} записей")
+                return _FULL_ORG_LIST
+        except Exception as exc:
+            logger.warning(f"Не удалось загрузить кэш организаций: {exc}")
+
+    # Загружаем из API
+    logger.info("Загружаем полный список организаций из API...")
+    all_orgs = []
+    page = 1
+    max_pages = 50  # Защита от бесконечного цикла
+
+    while page <= max_pages:
+        try:
+            response = requests.get(
+                "https://new-api.openinfo.uz/api/v2/home/organizations/",
+                params={"page": page, "page_size": 100},
+                timeout=REQUEST_TIMEOUT,
+                headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+                verify=False,
+            )
+            response.raise_for_status()
+            data = response.json()
+            results = data.get("results", [])
+            all_orgs.extend(results)
+
+            if not data.get("next"):
+                break
+            page += 1
+        except Exception as exc:
+            logger.error(f"Ошибка загрузки списка организаций (страница {page}): {exc}")
+            break
+
+    logger.info(f"Загружено {len(all_orgs)} организаций из API")
+
+    # Сохраняем в кэш
+    if all_orgs:
+        try:
+            _FULL_ORG_LIST_PATH.write_text(
+                json.dumps({"timestamp": time.time(), "organizations": all_orgs}, ensure_ascii=False),
+                encoding="utf-8"
+            )
+        except Exception as exc:
+            logger.warning(f"Не удалось сохранить кэш организаций: {exc}")
+
+    _FULL_ORG_LIST = all_orgs
+    return _FULL_ORG_LIST
+
+
+def _search_in_full_org_list(query: str, normalized_query: str) -> tuple[str, str] | None:
+    """Fuzzy поиск по полному списку организаций."""
+    orgs = _load_full_org_list()
+    if not orgs:
         return None
 
-    if not items:
-        logger.debug(f"Search API: пустой результат для '{query}'")
-        return None
+    # Генерируем все варианты запроса для поиска
+    query_variants = _get_search_variants(query)
+    normalized_variants = [_normalize_company_key(v) for v in query_variants]
 
-    best_item = _find_best_match(items, normalized_query)
-    if not best_item:
-        return None
+    best_item = None
+    best_score = 0.0
 
-    org_id = str(best_item.get("id") or best_item.get("org_id", ""))
-    company_name = str(best_item.get("full_name_text", "") or best_item.get("name", "")).strip()
-    if not org_id:
-        return None
-    logger.info(f"org_id получен через search API: {org_id} ({company_name})")
-    _store_org_id_cache(query, org_id, company_name)
-    return org_id, company_name
+    for org in orgs:
+        full_name = str(org.get("full_name_text", "") or org.get("name", "")).strip()
+        org_id = org.get("id")
+        if not full_name or org_id is None:
+            continue
+
+        normalized_name = _normalize_company_key(full_name)
+
+        # Считаем score по всем вариантам запроса
+        score = 0.0
+        for nv in normalized_variants:
+            score = max(score, _calc_match_score(nv, normalized_name))
+
+        if score > best_score:
+            best_score = score
+            best_item = org
+
+    if best_item and best_score >= 2.0:  # Минимум 1 хорошее совпадение
+        org_id = str(best_item["id"])
+        company_name = str(best_item.get("full_name_text", "")).strip()
+        logger.info(f"org_id найден в полном списке (score={best_score:.1f}): {org_id} ({company_name})")
+        _store_org_id_cache(query, org_id, company_name)
+        return org_id, company_name
+
+    return None
+
+
+def _calc_match_score(query_normalized: str, name_normalized: str) -> float:
+    """Вычисляет score совпадения между запросом и названием."""
+    if not query_normalized or not name_normalized:
+        return 0.0
+
+    score = 0.0
+    query_tokens = set(query_normalized.split())
+    name_tokens = set(name_normalized.split())
+
+    common = query_tokens & name_tokens
+    score += len(common) * 2  # 2 очка за каждое совпадающее слово
+
+    if query_normalized == name_normalized:
+        score += 100
+    elif query_normalized in name_normalized:
+        score += 20
+    elif name_normalized in query_normalized:
+        score += 10
+
+    # Бонус за все слова запроса в названии
+    if query_tokens and query_tokens <= name_tokens:
+        score += 15
+
+    return score
 
 
 def _find_best_match(items: list, normalized_input: str) -> dict | None:
