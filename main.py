@@ -407,13 +407,17 @@ def _api_get(url: str, session: requests.Session | None = None) -> dict | list:
     """HTTP GET с таймаутом и понятной ошибкой."""
     try:
         client = session or requests
-        resp = client.get(url, timeout=REQUEST_TIMEOUT)
+        resp = client.get(url, timeout=REQUEST_TIMEOUT, verify=False)
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        logger.debug(f"API response from {url}: {type(data).__name__}, len={len(data) if isinstance(data, (list, dict)) else 'N/A'}")
+        return data
     except requests.exceptions.Timeout:
-        raise RuntimeError(f"Таймаут запроса к API: {url}")
+        logger.error(f"Таймаут запроса к API: {url}")
+        return [] if "accounting-report" in url else {}
     except requests.exceptions.RequestException as e:
-        raise RuntimeError(f"Ошибка API запроса: {e}")
+        logger.error(f"Ошибка API запроса {url}: {e}")
+        return [] if "accounting-report" in url else {}
 
 
 # ─────────────────────────────────────────────────────────
@@ -422,22 +426,56 @@ def _api_get(url: str, session: requests.Session | None = None) -> dict | list:
 
 def _parse_annual(data: list) -> list[dict]:
     result = []
+    if not data:
+        logger.debug("_parse_annual: входные данные пусты")
+        return result
+
     for report in data:
         year = report.get("reporting_year")
-        for item in report.get("accounting_report", []):
+        accounting_report = report.get("accounting_report", [])
+
+        if not accounting_report:
+            # Попробуем альтернативные ключи
+            accounting_report = report.get("data", []) or report.get("items", []) or report.get("results", [])
+            if accounting_report:
+                logger.info(f"Найдены данные в альтернативном ключе для года {year}")
+
+        if not accounting_report:
+            logger.debug(f"Нет accounting_report для года {year}. Ключи: {list(report.keys())}")
+            continue
+
+        for item in accounting_report:
+            value = item.get("value")
+            # Пробуем альтернативные ключи для значения
+            if value is None:
+                value = item.get("amount") or item.get("sum") or item.get("total")
             result.append({
                 "reporting_year": year,
-                "title":          item.get("title"),
-                "value":          item.get("value"),
+                "title":          item.get("title") or item.get("name") or item.get("label"),
+                "value":          value,
             })
     return result
 
 
 def _parse_quarter(data: list) -> list[dict]:
     result = []
+    if not data:
+        logger.debug("_parse_quarter: входные данные пусты")
+        return result
+
     for report in data:
         year = report.get("reporting_year")
-        for item in report.get("accounting_report", []):
+        accounting_report = report.get("accounting_report", [])
+
+        if not accounting_report:
+            accounting_report = report.get("data", []) or report.get("items", []) or report.get("results", [])
+
+        if not accounting_report:
+            logger.debug(f"Нет квартальных данных для года {year}")
+            continue
+
+        for item in accounting_report:
+            title = item.get("title") or item.get("name") or item.get("label")
             for q, value in enumerate(
                 [item.get(f"value{i}") for i in range(1, 5)], start=1
             ):
@@ -445,7 +483,7 @@ def _parse_quarter(data: list) -> list[dict]:
                     result.append({
                         "reporting_year": year,
                         "quarter":        q,
-                        "title":          item.get("title"),
+                        "title":          title,
                         "value":          value,
                     })
     return result
@@ -504,23 +542,66 @@ def get_data(user_input: str | None = None):
     balance_quarter = bundle["balance_quarter"]
     efficiency      = bundle["efficiency"]
 
+    # Debug: если данных нет, сохраняем сырой ответ API для диагностики
+    all_empty = not incomes_annual and not balance_annual and not incomes_quarter and not balance_quarter
+    if all_empty:
+        debug_path = Path("debug_api_response.json")
+        debug_data = {
+            "org_id": org_id,
+            "company_name": company_name,
+            "urls": urls,
+            "responses": {
+                "income_annual": incomes_annual,
+                "balance_annual": balance_annual,
+                "income_quarter": incomes_quarter,
+                "balance_quarter": balance_quarter,
+                "efficiency": efficiency,
+            }
+        }
+        debug_path.write_text(json.dumps(debug_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        logger.warning(f"API вернул пустые данные. Диагностика сохранена в {debug_path.absolute()}")
+
+    # Логируем что получили от API
+    logger.info(f"API ответы - annual income: {len(incomes_annual)} записей, annual balance: {len(balance_annual)} записей")
+    logger.info(f"API ответы - quarter income: {len(incomes_quarter)} записей, quarter balance: {len(balance_quarter)} записей")
+
     # 4. Собираем DataFrames
+    annual_income_parsed = _parse_annual(incomes_annual)
+    annual_balance_parsed = _parse_annual(balance_annual)
+
+    if not annual_income_parsed and not annual_balance_parsed:
+        logger.warning(f"Нет годовых данных для org_id={org_id}. Возможно, компания использует другой формат отчётности.")
+
     annual_df = pd.concat([
-        pd.DataFrame(_parse_annual(incomes_annual)),
-        pd.DataFrame(_parse_annual(balance_annual)),
-    ], ignore_index=True).sort_values("reporting_year")
+        pd.DataFrame(annual_income_parsed),
+        pd.DataFrame(annual_balance_parsed),
+    ], ignore_index=True)
+
+    if not annual_df.empty:
+        annual_df = annual_df.sort_values("reporting_year")
+
+    quarter_income_parsed = _parse_quarter(incomes_quarter)
+    quarter_balance_parsed = _parse_quarter(balance_quarter)
 
     quarter_df = pd.concat([
-        pd.DataFrame(_parse_quarter(incomes_quarter)),
-        pd.DataFrame(_parse_quarter(balance_quarter)),
-    ], ignore_index=True).sort_values(["reporting_year", "quarter"])
+        pd.DataFrame(quarter_income_parsed),
+        pd.DataFrame(quarter_balance_parsed),
+    ], ignore_index=True)
+
+    if not quarter_df.empty:
+        quarter_df = quarter_df.sort_values(["reporting_year", "quarter"])
 
     # 5. Присоединяем коэффициенты эффективности
-    efficiency_df = pd.DataFrame(efficiency.get("results", []))
-    if not efficiency_df.empty:
+    efficiency_results = efficiency.get("results", []) if isinstance(efficiency, dict) else []
+    efficiency_df = pd.DataFrame(efficiency_results)
+    if not efficiency_df.empty and not annual_df.empty:
         annual_df = annual_df.merge(efficiency_df, on="reporting_year", how="left")
 
     logger.info(f"Данные получены: {len(annual_df)} строк годовых, {len(quarter_df)} квартальных")
+
+    if annual_df.empty and quarter_df.empty:
+        logger.warning(f"Данные не найдены для '{company_name}' (org_id={org_id}). Проверьте наличие отчётов на openinfo.uz")
+
     return annual_df, quarter_df, liquidity_df, company_name
 
 
