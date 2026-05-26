@@ -104,11 +104,41 @@ def _fetch_api_bundle(urls: dict[str, str]) -> dict[str, dict | list]:
 
 
 def _lookup_org_id_via_api(user_input: str) -> tuple[str, str] | None:
+    """
+    Пытается найти org_id через несколько API endpoints:
+    1. Autofill API (быстрый поиск по имени)
+    2. Search API (полнотекстовый поиск)
+    """
+    normalized_input = _normalize_company_key(user_input)
+
+    # Стратегия 1: Autofill API
+    result = _try_autofill_api(user_input, normalized_input)
+    if result:
+        return result
+
+    # Стратегия 2: Search API с пагинацией
+    result = _try_search_api(user_input, normalized_input)
+    if result:
+        return result
+
+    # Стратегия 3: Попробовать только первое слово (часто это тикер или ключевое слово)
+    first_word = user_input.split()[0] if user_input.split() else user_input
+    if first_word != user_input:
+        logger.info(f"Пробуем поиск по первому слову: '{first_word}'")
+        result = _try_autofill_api(first_word, _normalize_company_key(first_word))
+        if result:
+            return result
+
+    return None
+
+
+def _try_autofill_api(query: str, normalized_query: str) -> tuple[str, str] | None:
+    """Поиск через autofill endpoint."""
     url = "https://new-api.openinfo.uz/api/v2/home/autofill/"
     try:
         response = requests.get(
             url,
-            params={"name": user_input},
+            params={"name": query},
             timeout=REQUEST_TIMEOUT,
             headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
             verify=False,
@@ -116,42 +146,97 @@ def _lookup_org_id_via_api(user_input: str) -> tuple[str, str] | None:
         response.raise_for_status()
         items = response.json()
     except Exception as exc:
-        logger.warning(f"Не удалось получить org_id через autofill API: {exc}")
+        logger.warning(f"Autofill API ошибка: {exc}")
         return None
 
     if not items:
+        logger.debug(f"Autofill API: пустой результат для '{query}'")
         return None
 
-    normalized_input = _normalize_company_key(user_input)
-    best_item = None
-    best_score = -1.0
-
-    for item in items:
-        full_name = str(item.get("full_name_text", "")).strip()
-        org_id = item.get("id")
-        if not full_name or org_id is None:
-            continue
-        normalized_name = _normalize_company_key(full_name)
-        score = 0.0
-        if normalized_input and normalized_name:
-            common_tokens = set(normalized_input.split()) & set(normalized_name.split())
-            score = len(common_tokens)
-            if normalized_input == normalized_name:
-                score += 100
-            elif normalized_input in normalized_name or normalized_name in normalized_input:
-                score += 10
-        if score > best_score:
-            best_score = score
-            best_item = item
-
+    best_item = _find_best_match(items, normalized_query)
     if not best_item:
         return None
 
     org_id = str(best_item["id"])
     company_name = str(best_item.get("full_name_text", "")).strip()
     logger.info(f"org_id получен через autofill API: {org_id} ({company_name})")
-    _store_org_id_cache(user_input, org_id, company_name)
+    _store_org_id_cache(query, org_id, company_name)
     return org_id, company_name
+
+
+def _try_search_api(query: str, normalized_query: str) -> tuple[str, str] | None:
+    """Поиск через search endpoint с пагинацией."""
+    url = "https://new-api.openinfo.uz/api/v2/home/search/"
+    try:
+        response = requests.get(
+            url,
+            params={"search": query, "page": 1, "page_size": 20},
+            timeout=REQUEST_TIMEOUT,
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+            verify=False,
+        )
+        response.raise_for_status()
+        data = response.json()
+        items = data.get("results", []) if isinstance(data, dict) else data
+    except Exception as exc:
+        logger.warning(f"Search API ошибка: {exc}")
+        return None
+
+    if not items:
+        logger.debug(f"Search API: пустой результат для '{query}'")
+        return None
+
+    best_item = _find_best_match(items, normalized_query)
+    if not best_item:
+        return None
+
+    org_id = str(best_item.get("id") or best_item.get("org_id", ""))
+    company_name = str(best_item.get("full_name_text", "") or best_item.get("name", "")).strip()
+    if not org_id:
+        return None
+    logger.info(f"org_id получен через search API: {org_id} ({company_name})")
+    _store_org_id_cache(query, org_id, company_name)
+    return org_id, company_name
+
+
+def _find_best_match(items: list, normalized_input: str) -> dict | None:
+    """Находит лучшее совпадение по нормализованному имени."""
+    best_item = None
+    best_score = -1.0
+
+    for item in items:
+        full_name = str(item.get("full_name_text", "") or item.get("name", "")).strip()
+        org_id = item.get("id") or item.get("org_id")
+        if not full_name or org_id is None:
+            continue
+        normalized_name = _normalize_company_key(full_name)
+        score = 0.0
+        if normalized_input and normalized_name:
+            input_tokens = set(normalized_input.split())
+            name_tokens = set(normalized_name.split())
+            common_tokens = input_tokens & name_tokens
+            score = len(common_tokens)
+            if normalized_input == normalized_name:
+                score += 100
+            elif normalized_input in normalized_name or normalized_name in normalized_input:
+                score += 10
+            # Бонус если все слова запроса найдены
+            if input_tokens and input_tokens <= name_tokens:
+                score += 5
+        if score > best_score:
+            best_score = score
+            best_item = item
+
+    # Возвращаем только если есть хоть какое-то совпадение
+    if best_item and best_score > 0:
+        return best_item
+    # Если нет совпадений но есть результаты — вернуть первый
+    if items and not best_item:
+        first = items[0]
+        if first.get("id") or first.get("org_id"):
+            logger.info("Точного совпадения нет, используем первый результат")
+            return first
+    return None
 
 
 # ─────────────────────────────────────────────────────────
@@ -218,8 +303,9 @@ def _scrape_org_id(user_input: str) -> tuple[str, str]:
     """
     if not SELENIUM_AVAILABLE:
         raise RuntimeError(
-            "Не удалось получить org_id через API, а Selenium fallback недоступен. "
-            "Для fallback-режима установи selenium/selenium-wire и Chrome."
+            "Компания не найдена через API openinfo.uz. "
+            "Проверьте правильность названия или тикера. "
+            "Для расширенного поиска установите: pip install selenium selenium-wire"
         )
 
     last_error = None
