@@ -204,6 +204,7 @@ const TEXTS = {
       quick: "Быстрый",
       full: "Полный",
       includeHtml: "Возвращать HTML-отчет",
+      forceRefresh: "Обновить из источника (обойти кэш)",
       submit: "Анализировать",
       availableTitle: "Доступные компании",
       resultTitle: "Результат",
@@ -409,6 +410,7 @@ const TEXTS = {
       quick: "Quick",
       full: "Full",
       includeHtml: "Return HTML report",
+      forceRefresh: "Refresh from source (bypass cache)",
       submit: "Analyze",
       availableTitle: "Available companies",
       resultTitle: "Result",
@@ -614,6 +616,7 @@ const TEXTS = {
       quick: "Tez",
       full: "To'liq",
       includeHtml: "HTML hisobotni qaytarish",
+      forceRefresh: "Manbadan yangilash (keshni chetlab o'tish)",
       submit: "Tahlil qilish",
       availableTitle: "Mavjud kompaniyalar",
       resultTitle: "Natija",
@@ -1855,6 +1858,7 @@ function App() {
   const [analysisCompany, setAnalysisCompany] = useState("");
   const [includeHtml, setIncludeHtml] = useState(true);
   const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
+  const [forceRefresh, setForceRefresh] = useState(false);
   const [excelReportLimit, setExcelReportLimit] = useState("");
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -2104,6 +2108,7 @@ function App() {
           language,
           include_html: includeHtml,
           include_raw: false,
+          force_refresh: forceRefresh,
           include_all_excel_reports: includeAllExcelReports,
           ...(includeAllExcelReports && excelReportLimit.trim() ? { excel_report_limit: Number(excelReportLimit) } : {}),
         }),
@@ -2898,6 +2903,10 @@ function App() {
                     <label className="analysis-checkbox">
                       <input type="checkbox" checked={includeHtml} onChange={(event) => setIncludeHtml(event.target.checked)} />
                       <span>{t(language, "analysis.includeHtml")}</span>
+                    </label>
+                    <label className="analysis-checkbox">
+                      <input type="checkbox" checked={forceRefresh} onChange={(event) => setForceRefresh(event.target.checked)} />
+                      <span>{t(language, "analysis.forceRefresh")}</span>
                     </label>
                   </div>
 
