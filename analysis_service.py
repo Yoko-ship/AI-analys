@@ -184,9 +184,18 @@ def _analysis_cache_mode(include_all_excel_reports: bool, excel_report_limit: in
 
 
 def _as_pct(value, digits: int = 2):
+    """Convert ratio→percent, tolerating sources that already deliver percent.
+
+    openinfo /financial_indicators/ is inconsistent: return_on_equity comes as
+    27.64 (already %), while net_profit_margin comes as 0.12 (fraction). A
+    blind ×100 inflates ROE to 2764. If |value|>1 we assume the source is
+    already in percent and pass it through; otherwise we scale.
+    """
     parsed = _safe_float(value)
     if parsed is None:
         return None
+    if abs(parsed) > 1:
+        return round(parsed, digits)
     return round(parsed * 100, digits)
 
 
