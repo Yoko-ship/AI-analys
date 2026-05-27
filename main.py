@@ -425,15 +425,16 @@ def _find_best_match(items: list, normalized_input: str) -> dict | None:
             best_score = score
             best_item = item
 
-    # Возвращаем только если есть хоть какое-то совпадение
-    if best_item and best_score > 0:
+    # Trust autofill: it already searched by substring server-side.
+    # Short tickers like ALKB/IPTB/HMKB score 0 against full names, but the
+    # autofill result is still the right company.
+    if best_item:
+        if best_score <= 0:
+            logger.info(
+                "Скор=0, доверяем autofill: %s",
+                best_item.get("full_name_text") or best_item.get("name"),
+            )
         return best_item
-    # Если нет совпадений но есть результаты — вернуть первый
-    if items and not best_item:
-        first = items[0]
-        if first.get("id") or first.get("org_id"):
-            logger.info("Точного совпадения нет, используем первый результат")
-            return first
     return None
 
 
