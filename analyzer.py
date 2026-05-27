@@ -166,6 +166,52 @@ BANK_TITLES = {
     "Расходы по процентам":                                                 "interest_expense",
     "Прибыль от операционной деятельности":                                 "ebit",
     "Операционная прибыль":                                                 "ebit",
+
+    # Real titles from the openinfo PnL/Balance Form2/Form1 banking template
+    "ЧИСТАЯ ПРИБЫЛЬ (УБЫТКИ)":                                              "net_income",
+    "Чистая прибыль (убытки)":                                              "net_income",
+    "ЧИСТАЯ ПРИБЫЛЬ ДО УПЛАТЫ НАЛОГОВ И ДРУГИХ ПОПРАВОК":                   "ebt",
+    "ДОХОД ДО ВВЕДЕНИЯ ПОПРАВОК":                                           "ebt",
+    "ЧИСТЫЙ ДОХОД ДО ОПЕРАЦИОННЫХ РАСХОДОВ":                                "gross_profit",
+    "ЧИСТЫЕ ПРОЦЕНТНЫЕ ДОХОДЫ ДО ОЦЕНКИ ВОЗМОЖНЫХ УБЫТКОВ ПО КРЕДИТАМ И ЛИЗИНГУ": "gross_profit",
+    "ОПЕРАЦИОННЫЕ РАСХОДЫ":                                                 "operating_expenses",
+    "Итого операционных расходов":                                          "operating_expenses",
+    "Итого процентных расходов":                                            "interest_expense",
+    "Итого процентных доходов":                                             "revenue",
+    "Итого активов":                                                        "total_assets",
+    "Итого обязательств":                                                   "total_liabilities",
+    "Итого собственного капитала":                                          "equity",
+    "Кредиты и лизинговые операции":                                        "loans_to_customers",
+    "Кредиты и лизинговые операции, чистые":                                "loans_to_customers",
+    "Кассовая наличность и другие платежные документы":                     "cash",
+    "Срочные депозиты":                                                     "customer_deposits",
+    "Депозиты до востребования":                                            "customer_deposits",
+}
+
+
+# Removes leading numbering like "14.", "л.", "      а." (numeric or single
+# Cyrillic/Latin letter followed by . or )). Repeats up to twice for items
+# such as "5   а. Инвестиции" which carry double numbering.
+_TITLE_NUMBERING_RE = re.compile(r'^\s*(?:\d+|[a-zа-яёўқғҳ])\s*[.\)]\s*', re.IGNORECASE)
+
+
+def _normalize_title(title) -> str:
+    if not title:
+        return ""
+    text = str(title).strip()
+    for _ in range(2):
+        cleaned = _TITLE_NUMBERING_RE.sub('', text, count=1).strip()
+        if cleaned == text:
+            break
+        text = cleaned
+    return re.sub(r'\s+', ' ', text).lower()
+
+
+_NORMALIZED_FIELD_MAP = {
+    _normalize_title(key): value
+    for source in (KEEP_TITLES, BANK_TITLES)
+    for key, value in source.items()
+    if _normalize_title(key)
 }
 
 ANNUAL_RATIOS = [
@@ -180,11 +226,21 @@ ANNUAL_RATIOS = [
 # ─────────────────────────────────────────────────────────
 
 def _get_field_mapping(title: str) -> str | None:
-    """Get the field mapping from title, checking both standard and bank formats."""
+    """Get the field mapping from title, checking both standard and bank formats.
+
+    Falls back to a normalized lookup so that titles arriving from openinfo as
+    '14. Итого активов' / '      л. Итого процентных доходов' still match the
+    plain-form keys we keep in KEEP_TITLES / BANK_TITLES.
+    """
     if title in KEEP_TITLES:
         return KEEP_TITLES[title]
     if title in BANK_TITLES:
         return BANK_TITLES[title]
+    normalized = _normalize_title(title)
+    if normalized:
+        mapped = _NORMALIZED_FIELD_MAP.get(normalized)
+        if mapped:
+            return mapped
     return None
 
 
