@@ -1400,7 +1400,29 @@ function MetricCard({ label, value, sub, tone = "neutral" }) {
   );
 }
 
-function SectionCard({ title, body, index, open = false }) {
+const SECTION_LABELS = {
+  ru: "РАЗДЕЛ",
+  en: "SECTION",
+  uz: "BO'LIM",
+};
+
+const SUPPLEMENTARY_LABELS = {
+  ru: "ПРИЛОЖЕНИЕ",
+  en: "APPENDIX",
+  uz: "ILOVA",
+};
+
+// Subheaders we want to bold: any uppercase phrase (4-60 chars) ending with ":"
+// covers RU/EN/UZ ("ЛИКВИДНОСТЬ:", "LIQUIDITY:", "LIKVIDLIK:") in one rule.
+const UPPER_SUBHEADER_RE = /^[A-ZА-ЯЁЎҚҒҲ][A-ZА-ЯЁЎҚҒҲ0-9\s,'’\-/()&]{2,58}:\s*$/u;
+
+// KV pair: short label, then value that *starts with a number or sign* — keeps
+// real metric lines ("ROE: 15.2%") and rejects normal prose ("Главное: банк…").
+const KV_LABEL_MAX = 40;
+const KV_VALUE_NUMERIC_RE = /^\s*[+\-−]?\s*[\d(]/;
+
+function SectionCard({ title, body, index, open = false, language = "ru" }) {
+  const sectionLabel = SECTION_LABELS[language] || SECTION_LABELS.ru;
   const renderContent = (text) => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -1454,9 +1476,9 @@ function SectionCard({ title, body, index, open = false }) {
         elements.push(<br key={`br-${i}`} />);
       } else if (trimmed.match(/^[0-9]+\.[0-9]+\.\s+/)) {
         elements.push(<h3 key={`subsec-${i}`} className="analysis-subsection">{trimmed}</h3>);
-      } else if (trimmed.match(/^(ЛИКВИДНОСТЬ|РЕНТАБЕЛЬНОСТЬ|ДОЛГОВАЯ НАГРУЗКА|СТРУКТУРА|ПОЗИТИВНЫЕ|НЕГАТИВНЫЕ|МАКРОЭКОНОМИЧЕСКИЕ|ВЫРУЧКА|ПРИБЫЛЬ|АКТИВЫ|MOMENTUM):/i)) {
+      } else if (UPPER_SUBHEADER_RE.test(trimmed)) {
         elements.push(<h4 key={`h4-${i}`} className="analysis-subheader">{trimmed}</h4>);
-      } else if (trimmed.match(/^(Формула|Formula):/i) || trimmed.match(/^Формула:\s*.+=.+/i) || (trimmed.includes('=') && trimmed.match(/^\•?\s*[\w\s()]+\s*[=:]\s*.*[0-9]/))) {
+      } else if (trimmed.match(/^(Формула|Formula|Formula):/i) || trimmed.match(/^Формула:\s*.+=.+/i) || (trimmed.includes('=') && trimmed.match(/^\•?\s*[\w\s()]+\s*[=:]\s*.*[0-9]/))) {
         elements.push(<div key={`formula-${i}`} className="formula-box">{trimmed}</div>);
       } else if (trimmed.startsWith('•') || trimmed.startsWith('—') || trimmed.startsWith('-')) {
         elements.push(<div key={`bullet-${i}`} className="analysis-bullet">{trimmed}</div>);
@@ -1466,19 +1488,20 @@ function SectionCard({ title, body, index, open = false }) {
         const isGood = trimmed.startsWith('✓') || trimmed.startsWith('🟢');
         const isBad = trimmed.startsWith('✗') || trimmed.startsWith('🔴');
         elements.push(<div key={`check-${i}`} className={`analysis-check ${isGood ? 'good' : ''} ${isBad ? 'bad' : ''}`}>{trimmed}</div>);
-      } else if (trimmed.includes(':') && trimmed.split(':')[0].length < 40 && !trimmed.startsWith('http')) {
+      } else if (
+        trimmed.includes(':') &&
+        trimmed.split(':')[0].length < KV_LABEL_MAX &&
+        !trimmed.startsWith('http') &&
+        KV_VALUE_NUMERIC_RE.test(trimmed.split(':').slice(1).join(':').trim())
+      ) {
         const [label, ...rest] = trimmed.split(':');
         const value = rest.join(':').trim();
-        if (value) {
-          elements.push(
-            <div key={`kv-${i}`} className="analysis-kv">
-              <span className="analysis-kv-label">{label}:</span>
-              <span className="analysis-kv-value">{value}</span>
-            </div>
-          );
-        } else {
-          elements.push(<p key={`p-${i}`} className="analysis-para">{trimmed}</p>);
-        }
+        elements.push(
+          <div key={`kv-${i}`} className="analysis-kv">
+            <span className="analysis-kv-label">{label}:</span>
+            <span className="analysis-kv-value">{value}</span>
+          </div>
+        );
       } else {
         elements.push(<p key={`p-${i}`} className="analysis-para">{trimmed}</p>);
       }
@@ -1491,7 +1514,7 @@ function SectionCard({ title, body, index, open = false }) {
   return (
     <details className="section-card fade-in" open={open}>
       <summary>
-        <span className="section-number">РАЗДЕЛ {String(index + 1).padStart(2, "0")}</span>
+        <span className="section-number">{sectionLabel} {String(index + 1).padStart(2, "0")}</span>
         <span className="section-title-text">{title}</span>
       </summary>
       <div className="section-content">{renderContent(body)}</div>
@@ -3117,12 +3140,13 @@ function App() {
                           body={value || t(language, "analysis.noData")}
                           index={index}
                           open={index === 0}
+                          language={language}
                         />
                       ))}
                       {supplementary.length > 0 && (
                         <details className="section-card section-card--supplementary fade-in">
                           <summary>
-                            <span className="section-number">ПРИЛОЖЕНИЕ</span>
+                            <span className="section-number">{SUPPLEMENTARY_LABELS[language] || SUPPLEMENTARY_LABELS.ru}</span>
                             <span className="section-title-text">
                               {language === "en"
                                 ? "Additional analysis blocks"
@@ -3139,6 +3163,7 @@ function App() {
                                   title={getSectionTitle(language, key)}
                                   body={value || t(language, "analysis.noData")}
                                   index={primary.length + idx}
+                                  language={language}
                                 />
                               ))}
                             </div>
