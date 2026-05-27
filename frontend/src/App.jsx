@@ -106,7 +106,7 @@ const TEXTS = {
       title: "Платформа для инвестиционного анализа",
       copy: "Получайте профессиональный анализ узбекских компаний за секунды. Оценка финансового здоровья, риски и потенциал роста.",
       features: [
-        { icon: "chart", title: "Глубокий анализ", copy: "Piotroski F-Score, Altman Z-Score, DCF-оценка и другие профессиональные метрики" },
+        { icon: "chart", title: "Глубокий анализ", copy: "DCF-оценка, отраслевые сигналы, динамика выручки и прибыли" },
         { icon: "zap", title: "Мгновенный результат", copy: "Полный отчет с графиками и рекомендациями за несколько секунд" },
         { icon: "shield", title: "Надежные данные", copy: "Актуальная финансовая отчетность напрямую с Узбекской биржи" },
         { icon: "target", title: "Точные прогнозы", copy: "Анализ трендов, катализаторов и рыночных сигналов" },
@@ -145,7 +145,7 @@ const TEXTS = {
       rightCards: [
         { title: "Оценка", copy: "Общий скор по компании." },
         { title: "Вердикт", copy: "Краткое итоговое заключение." },
-        { title: "Метрики", copy: "Piotroski, Altman, Buffett, DCF, Graham и отраслевые сигналы." },
+        { title: "Метрики", copy: "DCF, отраслевые сигналы, ликвидность и динамика." },
         { title: "История", copy: "Сохраненные анализы и избранные компании." },
       ],
     },
@@ -312,7 +312,7 @@ const TEXTS = {
       title: "Investment Analysis Platform",
       copy: "Get professional analysis of Uzbek companies in seconds. Financial health assessment, risks, and growth potential.",
       features: [
-        { icon: "chart", title: "Deep Analysis", copy: "Piotroski F-Score, Altman Z-Score, DCF valuation and other professional metrics" },
+        { icon: "chart", title: "Deep Analysis", copy: "DCF valuation, sector signals, revenue and profit dynamics" },
         { icon: "zap", title: "Instant Results", copy: "Complete report with charts and recommendations in seconds" },
         { icon: "shield", title: "Reliable Data", copy: "Up-to-date financial statements directly from Uzbek Stock Exchange" },
         { icon: "target", title: "Accurate Forecasts", copy: "Trend analysis, catalysts, and market signals" },
@@ -351,7 +351,7 @@ const TEXTS = {
       rightCards: [
         { title: "Score", copy: "One main score for quick orientation." },
         { title: "Verdict", copy: "A short final recommendation." },
-        { title: "Metrics", copy: "Piotroski, Altman, Buffett, DCF, Graham, and sector signals." },
+        { title: "Metrics", copy: "DCF, sector signals, liquidity, and trend dynamics." },
         { title: "History", copy: "Saved analyses and favorite companies." },
       ],
     },
@@ -518,7 +518,7 @@ const TEXTS = {
       title: "Investitsion tahlil platformasi",
       copy: "O'zbek kompaniyalarining professional tahlilini soniyalar ichida oling. Moliyaviy salomatlik, xavflar va o'sish imkoniyatlari.",
       features: [
-        { icon: "chart", title: "Chuqur tahlil", copy: "Piotroski F-Score, Altman Z-Score, DCF baholash va boshqa professional metrikalar" },
+        { icon: "chart", title: "Chuqur tahlil", copy: "DCF baholash, sektor signallari, daromad va foyda dinamikasi" },
         { icon: "zap", title: "Tezkor natija", copy: "Grafik va tavsiyalar bilan to'liq hisobot soniyalar ichida" },
         { icon: "shield", title: "Ishonchli ma'lumot", copy: "O'zbekiston birjasidan to'g'ridan-to'g'ri yangilangan moliyaviy hisobotlar" },
         { icon: "target", title: "Aniq bashoratlar", copy: "Trend, katalizatorlar va bozor signallari tahlili" },
@@ -557,7 +557,7 @@ const TEXTS = {
       rightCards: [
         { title: "Baho", copy: "Tez orientatsiya uchun yagona ko'rsatkich." },
         { title: "Xulosa", copy: "Qisqa yakuniy tavsiya." },
-        { title: "Metrikalar", copy: "Piotroski, Altman, Buffett, DCF, Graham va sektor signallari." },
+        { title: "Metrikalar", copy: "DCF, sektor signallari, likvidlik va trend dinamikasi." },
         { title: "Tarix", copy: "Saqlangan tahlillar va tanlangan kompaniyalar." },
       ],
     },
@@ -2334,19 +2334,6 @@ function App() {
 
     const total = metrics.total_score || {};
     push(t(language, "metrics.total_score"), total.score ?? "—", total.summary || total.grade || "", total.score >= 70 ? "good" : total.score >= 45 ? "warning" : "danger");
-    const piotroski = metrics.piotroski_f_score || {};
-    push(t(language, "metrics.piotroski_f_score"), `${piotroski.score ?? "—"}/9`, piotroski.verdict || "", piotroski.score >= 7 ? "good" : piotroski.score >= 4 ? "warning" : "danger");
-    const altman = metrics.altman_z_score || {};
-    push(t(language, "metrics.altman_z_score"), altman.score ?? "—", altman.verdict || "", altman.score > 2.99 ? "good" : altman.score > 1.81 ? "warning" : "danger");
-    const buffett = metrics.buffett_criteria || {};
-    push(t(language, "metrics.buffett_criteria"), `${buffett.passed ?? "—"}/${buffett.total ?? "—"}`, buffett.verdict || "", buffett.passed >= 4 ? "good" : buffett.passed >= 2 ? "warning" : "danger");
-    const graham = metrics.graham_number || {};
-    push(
-      t(language, "metrics.graham_number"),
-      graham.graham_number ?? graham.value ?? "—",
-      [graham.verdict, graham.upside_pct != null ? `${graham.upside_pct}% ${language === "ru" ? "потенциал" : language === "uz" ? "salohiyat" : "upside"}` : ""].filter(Boolean).join(" · "),
-      graham.upside_pct > 0 ? "good" : "warning"
-    );
     const dcf = metrics.dcf || {};
     push(t(language, "metrics.dcf"), dcf.intrinsic_value_bn ?? "—", dcf.verdict || dcf.signal || "", dcf.signal === "bullish" ? "good" : dcf.signal === "bearish" ? "danger" : "warning");
     const industry = metrics.industry || {};
@@ -2364,7 +2351,21 @@ function App() {
       liquidity.liquidity_label === "high" ? "good" : "warning"
     );
     const momentum = metrics.momentum || {};
-    push(t(language, "metrics.momentum"), momentum.overall || "—", momentum.acceleration || "", momentum.css === "bullish" ? "good" : momentum.css === "bearish" ? "danger" : "warning");
+    const momentumLabel = momentum.overall_label || momentum.overall;
+    if (momentumLabel) {
+      const subParts = [
+        momentum.overall_score != null ? `${language === "en" ? "Score" : language === "uz" ? "Ball" : "Балл"} ${momentum.overall_score}` : "",
+        momentum.revenue?.label ? `${language === "en" ? "Revenue" : language === "uz" ? "Daromad" : "Выручка"}: ${momentum.revenue.label}` : "",
+        momentum.profit?.label ? `${language === "en" ? "Profit" : language === "uz" ? "Foyda" : "Прибыль"}: ${momentum.profit.label}` : "",
+      ].filter(Boolean);
+      const score = Number(momentum.overall_score);
+      push(
+        t(language, "metrics.momentum"),
+        momentumLabel,
+        subParts.join(" · "),
+        Number.isFinite(score) ? (score >= 7 ? "good" : score >= 4 ? "warning" : "danger") : "warning"
+      );
+    }
     return cards;
   })();
 
@@ -3049,36 +3050,33 @@ function App() {
                               : "danger"
                         }
                       />
-                      <SignalCard
-                        label={t(language, "analysis.signalRisk")}
-                        value={
-                          Number.isFinite(Number(analysisResult?.metrics?.altman_z_score?.score))
-                            ? Number(analysisResult.metrics.altman_z_score.score) > 2.99
-                              ? t(language, "analysis.signalUp")
-                              : Number(analysisResult.metrics.altman_z_score.score) > 1.81
-                                ? t(language, "analysis.signalFlat")
-                                : t(language, "analysis.signalDown")
-                            : t(language, "analysis.noData")
+                      {(() => {
+                        const de = Number(analysisResult?.ifrs_snapshot?.balance_sheet?.debt_to_equity);
+                        const cr = Number(analysisResult?.ifrs_snapshot?.balance_sheet?.current_ratio);
+                        const haveDe = Number.isFinite(de);
+                        const haveCr = Number.isFinite(cr);
+                        let value = t(language, "analysis.noData");
+                        let tone = "neutral";
+                        if (haveDe) {
+                          value = `D/E ${formatRatio(de, 2, language)}`;
+                          tone = de < 1 ? "good" : de < 2 ? "warning" : "danger";
+                        } else if (haveCr) {
+                          value = `CR ${formatRatio(cr, 2, language)}`;
+                          tone = cr > 1.5 ? "good" : cr > 1 ? "warning" : "danger";
                         }
-                        sub={
-                          [
-                            Number.isFinite(Number(analysisResult?.metrics?.altman_z_score?.score)) ? `Altman ${formatRatio(analysisResult.metrics.altman_z_score.score, 2, language)}` : "",
-                            analysisResult?.ifrs_snapshot?.balance_sheet?.debt_to_equity != null ? `D/E ${formatRatio(analysisResult.ifrs_snapshot.balance_sheet.debt_to_equity, 2, language)}` : "",
-                            analysisResult?.ifrs_snapshot?.balance_sheet?.current_ratio != null ? `CR ${formatRatio(analysisResult.ifrs_snapshot.balance_sheet.current_ratio, 2, language)}` : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") || t(language, "analysis.noData")
-                        }
-                        tone={
-                          Number.isFinite(Number(analysisResult?.metrics?.altman_z_score?.score))
-                            ? Number(analysisResult.metrics.altman_z_score.score) > 2.99
-                              ? "good"
-                              : Number(analysisResult.metrics.altman_z_score.score) > 1.81
-                                ? "warning"
-                                : "danger"
-                            : "neutral"
-                        }
-                      />
+                        const sub = [
+                          haveDe ? `D/E ${formatRatio(de, 2, language)}` : "",
+                          haveCr ? `CR ${formatRatio(cr, 2, language)}` : "",
+                        ].filter(Boolean).join(" · ") || t(language, "analysis.noData");
+                        return (
+                          <SignalCard
+                            label={t(language, "analysis.signalRisk")}
+                            value={value}
+                            sub={sub}
+                            tone={tone}
+                          />
+                        );
+                      })()}
                     </div>
 
                     <FinancialVisuals result={analysisResult} language={language} score={resultScore} />
@@ -3448,8 +3446,8 @@ function FinancialVisuals({ result, language, score }) {
 
   const scoreValue = safeNumber(score);
   const scoreValuePercent = scorePercent(scoreValue);
-  const piotroski = pickNumber(metrics?.piotroski_f_score?.score, metrics?.piotroski?.score);
-  const altman = pickNumber(metrics?.altman_z_score?.score, metrics?.altman?.score);
+  const roePct = pickNumber(result?.ifrs_snapshot?.quality?.roe_pct, latestAnnual?.roe_pct);
+  const netMarginPct = pickNumber(result?.ifrs_snapshot?.income_statement?.net_margin_pct, latestAnnual?.net_margin_pct);
   const debtToEquity = pickNumber(balance?.debt_to_equity, latestAnnual?.debt_to_equity);
   const rings = [
     {
@@ -3459,16 +3457,16 @@ function FinancialVisuals({ result, language, score }) {
       tone: scoreTone(scoreValue),
     },
     {
-      label: vt(language, "piotroski"),
-      percent: piotroski === null ? null : (piotroski / 9) * 100,
-      display: piotroski === null ? "—" : `${formatRatio(piotroski, 0, language)}/9`,
-      tone: piotroski === null ? "neutral" : piotroski >= 7 ? "good" : piotroski >= 4 ? "warning" : "danger",
+      label: language === "en" ? "ROE" : language === "uz" ? "ROE" : "ROE",
+      percent: roePct === null ? null : Math.min(100, Math.max(0, roePct / 30 * 100)),
+      display: roePct === null ? "—" : `${formatRatio(roePct, 1, language)}%`,
+      tone: roePct === null ? "neutral" : roePct >= 15 ? "good" : roePct >= 5 ? "warning" : "danger",
     },
     {
-      label: vt(language, "altman"),
-      percent: altman === null ? null : (altman / 3.5) * 100,
-      display: altman === null ? "—" : formatRatio(altman, 2, language),
-      tone: altman === null ? "neutral" : altman > 2.99 ? "good" : altman > 1.81 ? "warning" : "danger",
+      label: language === "en" ? "Net margin" : language === "uz" ? "Sof marja" : "Чистая маржа",
+      percent: netMarginPct === null ? null : Math.min(100, Math.max(0, netMarginPct / 25 * 100)),
+      display: netMarginPct === null ? "—" : `${formatRatio(netMarginPct, 1, language)}%`,
+      tone: netMarginPct === null ? "neutral" : netMarginPct >= 10 ? "good" : netMarginPct >= 3 ? "warning" : "danger",
     },
     {
       label: vt(language, "leverage"),
