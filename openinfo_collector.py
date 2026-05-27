@@ -187,32 +187,64 @@ def resolve_company(query: str, session: requests.Session | None = None) -> dict
         raise ValueError("company query cannot be empty")
 
     client = session or _make_session()
-    items = _json_get(client, "/home/autofill/", {"name": query})
-    if not isinstance(items, list) or not items:
-        raise LookupError(f"OpenInfo company was not found for {query!r}")
 
-    normalized_query = _normalize_key(query)
-    scored: list[tuple[int, dict[str, Any]]] = []
-    for item in items:
-        name = str(item.get("full_name_text") or "")
-        score = 0
-        if normalized_query:
-            normalized_name = _normalize_key(name)
-            if normalized_query == normalized_name:
-                score += 100
-            elif normalized_query and normalized_query in normalized_name:
-                score += 20
-        scored.append((score, item))
+    # Strategy 1: direct autofill (fast, returns logo).
+    try:
+        items = _json_get(client, "/home/autofill/", {"name": query})
+    except requests.RequestException:
+        items = []
 
-    scored.sort(key=lambda pair: pair[0], reverse=True)
-    best = scored[0][1]
-    return {
-        "input": query,
-        "org_id": str(best.get("id")),
-        "company_name": best.get("full_name_text") or "",
-        "logo": best.get("logo"),
-        "source_url": f"{OPENINFO_API_BASE}/home/autofill/?{urlencode({'name': query})}",
-    }
+    if isinstance(items, list) and items:
+        normalized_query = _normalize_key(query)
+        scored: list[tuple[int, dict[str, Any]]] = []
+        for item in items:
+            name = str(item.get("full_name_text") or "")
+            score = 0
+            if normalized_query:
+                normalized_name = _normalize_key(name)
+                if normalized_query == normalized_name:
+                    score += 100
+                elif normalized_query and normalized_query in normalized_name:
+                    score += 20
+            scored.append((score, item))
+
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        best = scored[0][1]
+        return {
+            "input": query,
+            "org_id": str(best.get("id")),
+            "company_name": best.get("full_name_text") or "",
+            "logo": best.get("logo"),
+            "source_url": f"{OPENINFO_API_BASE}/home/autofill/?{urlencode({'name': query})}",
+        }
+
+    # Strategy 2: shared fuzzy/transliteration/full-list lookup from main.py.
+    # autofill misses Cyrillic queries, capitalization variants, missing dashes/apostrophes, etc.
+    from main import _lookup_org_id_via_api
+
+    fallback = _lookup_org_id_via_api(query)
+    if fallback:
+        org_id, company_name = fallback
+        # Best-effort logo lookup using the canonical company name.
+        logo = None
+        try:
+            logo_items = _json_get(client, "/home/autofill/", {"name": company_name})
+            if isinstance(logo_items, list):
+                for item in logo_items:
+                    if str(item.get("id")) == str(org_id):
+                        logo = item.get("logo")
+                        break
+        except requests.RequestException:
+            pass
+        return {
+            "input": query,
+            "org_id": str(org_id),
+            "company_name": company_name,
+            "logo": logo,
+            "source_url": f"{OPENINFO_API_BASE}/home/autofill/?{urlencode({'name': query})}",
+        }
+
+    raise LookupError(f"OpenInfo company was not found for {query!r}")
 
 
 def fetch_stock_screener(
@@ -713,6 +745,26 @@ def preview_pdf_url(session: requests.Session, url: str, max_pages: int = 2, max
     }
 
 
+def _probe_screener_availability(session: requests.Session) -> dict[str, Any]:
+    """Check whether the OpenInfo stock screener has any data at all.
+
+    Distinguishes "company is not listed" from "upstream screener is currently empty".
+    """
+    try:
+        payload = _json_get(session, "/iuzse/stock-screener/", {"mkt_id": "STK", "page_size": 1})
+        total = int(payload.get("count") or 0) if isinstance(payload, dict) else 0
+        return {
+            "ok": total > 0,
+            "screener_total_securities": total,
+        }
+    except requests.RequestException as exc:
+        return {
+            "ok": False,
+            "error": f"screener probe failed: {exc}",
+            "screener_total_securities": 0,
+        }
+
+
 def collect_company_data(
     query: str,
     history_months: int = 6,
@@ -736,8 +788,12 @@ def collect_company_data(
 
     security = _pick_security(query, securities, company_name=company_name)
     price_history: dict[str, Any] | None = None
+    price_history_error: str | None = None
     if security and security.get("isin_code"):
-        price_history = fetch_price_history(security["isin_code"], session=session, months=history_months)
+        try:
+            price_history = fetch_price_history(security["isin_code"], session=session, months=history_months)
+        except requests.RequestException as exc:
+            price_history_error = str(exc)
 
     dividends = fetch_dividends(query, session=session)
     if dividends["count"] == 0 and company_name != query:
@@ -791,6 +847,46 @@ def collect_company_data(
         else {"enabled": False, "count": 0, "items": [], "errors": []}
     )
 
+    market_availability: dict[str, Any] = {
+        "screener_match_count": len(securities),
+        "selected_security_present": security is not None,
+        "price_history_available": bool(price_history and (price_history.get("points") or [])),
+    }
+    if price_history_error:
+        market_availability["price_history_error"] = price_history_error
+
+    if not securities:
+        probe = _probe_screener_availability(session)
+        if probe.get("screener_total_securities", 0) == 0:
+            market_availability.update({
+                "available": False,
+                "reason": "openinfo_stock_screener_empty",
+                "note": (
+                    "Источник https://new-api.openinfo.uz/api/v2/iuzse/stock-screener/ "
+                    "сейчас возвращает 0 ценных бумаг для любых запросов "
+                    "(подтверждено пробой без поиска). Биржевые данные временно недоступны на стороне openinfo.uz."
+                ),
+                "screener_total_securities": probe.get("screener_total_securities", 0),
+            })
+        else:
+            market_availability.update({
+                "available": False,
+                "reason": "company_not_in_screener",
+                "note": (
+                    f"В скринере openinfo.uz найдено {probe.get('screener_total_securities')} бумаг, "
+                    f"но ни одна не соответствует запросу. Скорее всего эмитент не торгуется на iUzse."
+                ),
+                "screener_total_securities": probe.get("screener_total_securities", 0),
+            })
+    else:
+        market_availability["available"] = True
+        if security and security.get("isin_code") and not market_availability["price_history_available"]:
+            market_availability.setdefault(
+                "note",
+                "Эндпоинт /iuzse/conclusions/ не вернул историю котировок по ISIN. "
+                "Цены и объёмы торгов в текущем наборе недоступны.",
+            )
+
     return {
         "ok": True,
         "company": company,
@@ -799,6 +895,7 @@ def collect_company_data(
         "market": {
             "summary": _market_summary(security, (price_history or {}).get("points") or []),
             "price_history": price_history,
+            "availability": market_availability,
         },
         "dividends": dividends,
         "reports": reports,
