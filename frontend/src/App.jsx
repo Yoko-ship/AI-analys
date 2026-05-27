@@ -3048,6 +3048,8 @@ function App() {
                       <AnalysisChart chartData={chartData} language={language} />
                     </div>
 
+                    <BankMetricsPanel analysisResult={analysisResult} language={language} />
+
                     <FinancialVisuals result={analysisResult} language={language} score={resultScore} />
 
                     <div className="meta-grid">
@@ -3367,6 +3369,65 @@ function HeroKpiTile({ label, value, year, change, tone = "neutral", hint }) {
         {yoyText && <span className={`hero-kpi-yoy tone-${tone}`}>{yoyText}</span>}
         {year && <span className="hero-kpi-year">{year}</span>}
         {hint && !year && <span className="hero-kpi-year">{hint}</span>}
+      </div>
+    </article>
+  );
+}
+
+const BANK_METRIC_LABELS = {
+  ru: {
+    title: "Банковские коэффициенты",
+    car: "Достаточность капитала",
+    nim: "Чистая процентная маржа",
+    ldr: "Кредиты / депозиты",
+    cir: "Cost-to-Income",
+  },
+  en: {
+    title: "Banking ratios",
+    car: "Capital adequacy",
+    nim: "Net interest margin",
+    ldr: "Loan-to-deposit",
+    cir: "Cost-to-Income",
+  },
+  uz: {
+    title: "Bank koeffitsientlari",
+    car: "Kapital yetarliligi",
+    nim: "Sof foiz marjasi",
+    ldr: "Kreditlar / depozitlar",
+    cir: "Cost-to-Income",
+  },
+};
+
+function BankMetricCell({ label, value, tone = "neutral", note, language }) {
+  return (
+    <article className={`bank-metric-cell tone-${tone}`}>
+      <span className="bank-metric-label">{label}</span>
+      <strong className="bank-metric-value">{value ?? "—"}</strong>
+      {note && <p className="bank-metric-note">{note}</p>}
+    </article>
+  );
+}
+
+function BankMetricsPanel({ analysisResult, language }) {
+  const bank = analysisResult?.ifrs_snapshot?.bank;
+  if (!bank || !bank.is_bank) return null;
+  const lbl = BANK_METRIC_LABELS[language] || BANK_METRIC_LABELS.ru;
+  const tones = bank.tones || {};
+  const notes = bank.notes || {};
+  const fmt = (v) => v == null ? "—" : `${formatRatio(v, 1, language)}%`;
+  return (
+    <article className="panel bank-metrics-panel">
+      <div className="panel-head">
+        <div>
+          <div className="panel-label">{lbl.title}</div>
+          <h3>{lbl.title}</h3>
+        </div>
+      </div>
+      <div className="bank-metrics-grid">
+        <BankMetricCell label={lbl.car} value={fmt(bank.car_simple_pct)} tone={tones.car_simple_pct} note={notes.car_simple_pct} language={language} />
+        <BankMetricCell label={lbl.nim} value={fmt(bank.nim_pct)} tone={tones.nim_pct} note={notes.nim_pct} language={language} />
+        <BankMetricCell label={lbl.ldr} value={fmt(bank.ldr_pct)} tone={tones.ldr_pct} note={notes.ldr_pct} language={language} />
+        <BankMetricCell label={lbl.cir} value={fmt(bank.cir_pct)} tone={tones.cir_pct} note={notes.cir_pct} language={language} />
       </div>
     </article>
   );

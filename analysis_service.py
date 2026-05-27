@@ -480,6 +480,80 @@ def _slim_technical_indicators_for_prompt(indicators: dict) -> dict:
     return slim
 
 
+def _compute_bank_profile(latest: dict, prev: dict | None) -> dict | None:
+    """Compute bank-specific ratios (CAR, NIM, LDR, CIR) when the company has
+    bank-shaped balance sheet (customer_deposits / loans_to_customers).
+
+    Returns None for non-banks so the front-end can skip the bank panel."""
+    customer_deposits = _safe_float(latest.get("customer_deposits"))
+    loans = _safe_float(latest.get("loans_to_customers"))
+    interbank = _safe_float(latest.get("interbank_deposits"))
+    if customer_deposits is None and loans is None and interbank is None:
+        return None
+
+    total_assets = _safe_float(latest.get("total_assets"))
+    equity = _safe_float(latest.get("equity"))
+    revenue = _safe_float(latest.get("revenue"))           # interest income for banks
+    gross_profit = _safe_float(latest.get("gross_profit"))  # net interest income
+    operating_expenses = _safe_float(latest.get("operating_expenses"))
+    net_income = _safe_float(latest.get("net_income"))
+    interest_expense = _safe_float(latest.get("interest_expense"))
+
+    def pct(num, den):
+        if num is None or den in (None, 0):
+            return None
+        return round(num / den * 100, 2)
+
+    # CAR (simplified: equity / total assets — true CAR needs risk-weighted assets)
+    car_simple = pct(equity, total_assets)
+    # NIM: net interest income / total assets
+    nim = pct(gross_profit, total_assets)
+    # LDR: loans / customer deposits
+    ldr = pct(loans, customer_deposits)
+    # CIR: operating expenses / (net interest income + ... ) ≈ opex / revenue (interest income)
+    # Use gross_profit (NII) as denominator when revenue is sketchy
+    cir_denom = gross_profit if gross_profit and gross_profit > 0 else revenue
+    cir = pct(operating_expenses, cir_denom) if operating_expenses is not None else None
+    # Cost of funds (rough): interest_expense / customer_deposits
+    cost_of_funds = pct(interest_expense, customer_deposits)
+    # Loan-to-asset
+    loan_to_assets = pct(loans, total_assets)
+    # ROA / ROE — банк-aware (используем то же net_income / equity / assets)
+    bank_roa = pct(net_income, total_assets)
+    bank_roe = pct(net_income, equity)
+
+    def tone(value, good, bad, reverse=False):
+        if value is None:
+            return "neutral"
+        if reverse:  # lower is better (CIR, cost of funds)
+            return "good" if value <= good else "warning" if value <= bad else "danger"
+        return "good" if value >= good else "warning" if value >= bad else "danger"
+
+    return {
+        "is_bank": True,
+        "car_simple_pct": car_simple,           # capital adequacy (equity/assets)
+        "nim_pct": nim,                          # net interest margin
+        "ldr_pct": ldr,                          # loan-to-deposit
+        "cir_pct": cir,                          # cost-to-income
+        "loan_to_assets_pct": loan_to_assets,
+        "roa_pct": bank_roa,
+        "roe_pct": bank_roe,
+        "tones": {
+            "car_simple_pct": tone(car_simple, 10, 6),        # >10% strong, <6% weak
+            "nim_pct": tone(nim, 4, 2),                        # >4% strong
+            "ldr_pct": tone(ldr, 70, 95, reverse=True) if ldr is not None and ldr > 100
+                       else tone(ldr, 90, 70),                 # 70-95% sweet spot
+            "cir_pct": tone(cir, 50, 65, reverse=True),       # <50% strong, >65% weak
+        },
+        "notes": {
+            "car_simple_pct": "Достаточность капитала (equity / активы) — рисково-взвешенный CAR требует RWA, которого нет в публичной отчётности.",
+            "nim_pct": "Чистый процентный доход / активы — сколько банк зарабатывает на каждом сум активов.",
+            "ldr_pct": "Кредиты / депозиты — насколько активно банк раздаёт собранные деньги.",
+            "cir_pct": "Операционные расходы / чистый процентный доход — сколько съедает обслуживание.",
+        },
+    }
+
+
 def _build_ifrs_snapshot(
     company_name: str,
     annual_data: list,
@@ -689,6 +763,7 @@ def _build_ifrs_snapshot(
         },
         "industry": industry or {},
         "liquidity": liquidity_data or {},
+        "bank": _compute_bank_profile(latest, prev),
         "valuation_summary": {
             "score": metrics.get("total_score", {}).get("score") if isinstance(metrics, dict) else None,
             "grade": metrics.get("total_score", {}).get("grade") if isinstance(metrics, dict) else None,
