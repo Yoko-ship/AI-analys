@@ -2229,37 +2229,9 @@ def slim_metrics_for_prompt(metrics: dict) -> dict:
             "summary": score.get("summary"),
         }
 
-    piotroski = metrics.get("piotroski_f_score", {})
-    if piotroski:
-        keep["piotroski_f_score"] = {
-            "score": piotroski.get("score"),
-            "max": piotroski.get("max"),
-            "verdict": piotroski.get("verdict"),
-        }
-
-    altman = metrics.get("altman_z_score", {})
-    if altman:
-        keep["altman_z_score"] = {
-            "score": altman.get("score"),
-            "verdict": altman.get("verdict"),
-        }
-
-    buffett = metrics.get("buffett_criteria", {})
-    if buffett:
-        keep["buffett_criteria"] = {
-            "passed": buffett.get("passed"),
-            "total": buffett.get("total"),
-            "verdict": buffett.get("verdict"),
-        }
-
-    graham = metrics.get("graham_number", {})
-    if graham:
-        keep["graham_number"] = {
-            "value": graham.get("graham_number"),
-            "price": graham.get("current_price"),
-            "upside_pct": graham.get("upside_pct"),
-            "verdict": graham.get("verdict"),
-        }
+    # Piotroski / Altman / Buffett / Graham are NOT shown to the user any more
+    # (industrial-only models, misleading for banks). Don't pass them to the LLM
+    # either — otherwise it cites the numbers in the verdict text.
 
     dcf = metrics.get("dcf", {})
     if dcf:
@@ -2397,8 +2369,6 @@ ROA: <2% / 2–8% / >8%
 Долг/капитал: >2.0 / 0.5–2.0 / <0.5
 Ликвидность: <1.0 / 1.0–2.5 / >2.5
 Рост выручки: <5% / 5–25% / >25%
-Piotroski: 0–3 / 4–6 / 7–9
-Altman Z: <1.5 / 1.5–2.5 / >2.5
 
 КОНТЕКСТ РЫНКА:
 - Рынок акций Узбекистана — молодой (биржа с 1994, активен с 2020-х)
@@ -2409,9 +2379,9 @@ Altman Z: <1.5 / 1.5–2.5 / >2.5
 - Курс USD/UZS волатилен → экспортёры выигрывают при ослаблении сума
 
 КАЛИБРОВКА ВЕРДИКТА:
-Для ПОКУПАТЬ достаточно 3+ из 5: [маржа выше нормы UZ] [рост выручки > 10%] 
-[Piotroski ≥ 5] [долг в норме] [положительный тренд 2+ лет]
-Для ВОЗДЕРЖАТЬСЯ нужно 3+ красных флага с цифрами — НЕ просто «рынок нестабилен»
+Для позитивного вердикта достаточно 3+ из 5: [маржа выше нормы UZ] [рост выручки > 10%]
+[ROE в норме или выше] [долг в норме] [положительный тренд 2+ лет]
+Для негативного нужно 3+ красных флага с цифрами — НЕ просто «рынок нестабилен»
 
 ОТРАСЛЕВОЙ КОНТЕКСТ (авто-определён):
 {industry_context}
@@ -2427,11 +2397,18 @@ ANALYSIS_PROMPT = """Ты — профессиональный финансов�
 ═══════════════════════════════════════════════════════════════════════════════
 
 ТОНАЛЬНОСТЬ:
-— Пиши как аналитик инвестиционного банка, а не как блогер
-— Академический, но доступный стиль — как статья в «Ведомостях» или «РБК»
+— Доступная аналитика для частного инвестора, а не отчёт для коллеги-CFA
 — Каждое утверждение подкреплено конкретной цифрой
-— Используй профессиональную терминологию, но расшифровывай формулы
 — Структурируй информацию: тезис → данные → интерпретация → вывод
+— ЯЗЫК ПРОСТЫМИ СЛОВАМИ: если используешь профессиональный термин или аббревиатуру
+  (ROE, ROA, EBIT, EBITDA, NIM, ЧПД, CIR, LTD, P/E, D/E, NPL, CAR, free cash flow),
+  СРАЗУ В СКОБКАХ давай короткое пояснение на 3–7 слов простым языком.
+  Пример: «ROE 27% (доходность на каждый сум собственного капитала)»,
+  «D/E 4.5 (на 1 сум капитала приходится 4.5 сума долга)».
+— НЕ упоминай Piotroski F-Score, Altman Z-Score, Buffett-критерии, число Грэма —
+  эти модели не показываются пользователю.
+— Не используй слова «инвестор», «акционер», «фондовый рынок» как если бы читатель
+  знал их назубок — допускай что человек впервые читает финансовый отчёт.
 
 МЕТОДОЛОГИЯ АНАЛИЗА:
 Настоящий анализ строится на трёх классических методах:
