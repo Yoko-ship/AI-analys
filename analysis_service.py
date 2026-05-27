@@ -33,7 +33,7 @@ from openinfo_collector import collect_company_data
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("api_key")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip() or "gpt-5.4-mini"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low").strip().lower() or "low"
-ANALYSIS_POLICY_VERSION = "public-information-v3-excel-snapshots"
+ANALYSIS_POLICY_VERSION = "public-information-v4-bank-aware-2026-05-27"
 DEFAULT_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
 ABSOLUTE_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
 REPORT_DOCUMENTS_PROMPT_LIMIT = int(os.getenv("OPENINFO_REPORT_DOCUMENTS_PROMPT_LIMIT", "100"))

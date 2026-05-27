@@ -852,6 +852,92 @@ img {
   gap: 16px;
 }
 
+.hero-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.hero-kpi-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 22px;
+  border: 1px solid var(--np-rule, rgba(255,255,255,0.08));
+  border-radius: 14px;
+  background: var(--np-bg-warm, rgba(255,255,255,0.02));
+  border-left: 4px solid transparent;
+}
+
+.hero-kpi-tile.tone-good { border-left-color: #10b981; }
+.hero-kpi-tile.tone-warning { border-left-color: #f59e0b; }
+.hero-kpi-tile.tone-danger { border-left-color: #ef4444; }
+.hero-kpi-tile.tone-neutral { border-left-color: #94a3b8; }
+
+.hero-kpi-label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted, #94a3b8);
+}
+
+.hero-kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.hero-kpi-foot {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted, #94a3b8);
+  flex-wrap: wrap;
+}
+
+.hero-kpi-yoy { font-weight: 600; }
+.hero-kpi-yoy.tone-good { color: #10b981; }
+.hero-kpi-yoy.tone-warning { color: #f59e0b; }
+.hero-kpi-yoy.tone-danger { color: #ef4444; }
+
+.hero-verdict-line {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text, inherit);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.section-tldr-inline {
+  display: none;
+  font-size: 13px;
+  color: var(--muted, #94a3b8);
+  font-weight: 400;
+  margin-left: 12px;
+  font-style: italic;
+}
+.section-card[open] .section-tldr-inline { display: none; }
+.section-card:not([open]) .section-tldr-inline { display: inline; }
+
+.section-tldr-block {
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  background: rgba(245, 184, 77, 0.08);
+  border-left: 3px solid #f5b84d;
+  border-radius: 6px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .hero-kpi-strip { grid-template-columns: 1fr; }
+}
+
 .score-strip {
   display: grid;
   grid-template-columns: 160px 1fr;
