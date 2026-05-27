@@ -107,7 +107,8 @@ def _lookup_org_id_via_api(user_input: str) -> tuple[str, str] | None:
     """
     Пытается найти org_id через несколько стратегий:
     1. Autofill API с различными вариантами написания
-    2. Полный список организаций с fuzzy matching
+    2. Поиск по индексам отчётов и дивидендов (страховка, если autofill потерял запись)
+    3. Полный список организаций с fuzzy matching
     """
     normalized_input = _normalize_company_key(user_input)
 
@@ -130,12 +131,58 @@ def _lookup_org_id_via_api(user_input: str) -> tuple[str, str] | None:
             if result:
                 return result
 
-    # Стратегия 3: Полный список организаций с fuzzy matching
-    logger.info("Autofill не нашёл, загружаем полный список организаций...")
+    # Стратегия 3: индексы отчётов/дивидендов (autofill иногда теряет тикеры)
+    for variant in variants:
+        result = _try_secondary_indexes(variant)
+        if result:
+            return result
+
+    # Стратегия 4: Полный список организаций с fuzzy matching
+    logger.info("Autofill и индексы не нашли, загружаем полный список организаций...")
     result = _search_in_full_org_list(user_input, normalized_input)
     if result:
         return result
 
+    return None
+
+
+def _try_secondary_indexes(query: str) -> tuple[str, str] | None:
+    """Fallback search via /reports/main/ and /disclosure/dividend-calendar/.
+
+    Both endpoints index issuers by ticker/name and expose organization id +
+    organization_name, which is enough to keep the analysis pipeline running
+    even when /home/autofill/ stops returning a particular ticker.
+    """
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    sources = [
+        ("reports/main", "https://new-api.openinfo.uz/api/v2/reports/main/",
+         {"page_size": 5, "search": query}, "organization", "organization_name"),
+        ("dividend-calendar", "https://new-api.openinfo.uz/api/v2/disclosure/dividend-calendar/",
+         {"page_size": 5, "search": query}, "organization_id", "organization"),
+    ]
+    for label, url, params, id_key, name_key in sources:
+        try:
+            response = requests.get(url, params=params, headers=headers,
+                                    timeout=REQUEST_TIMEOUT, verify=False)
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            logger.warning(f"Fallback {label} ошибка: {exc}")
+            continue
+
+        results = payload.get("results", []) if isinstance(payload, dict) else []
+        for item in results:
+            org_id = item.get(id_key)
+            name = item.get(name_key)
+            if org_id is None or not name:
+                continue
+            org_id = str(org_id).strip()
+            name = str(name).strip()
+            if not org_id or not name:
+                continue
+            logger.info(f"org_id найден через {label}: {org_id} ({name})")
+            _store_org_id_cache(query, org_id, name)
+            return org_id, name
     return None
 
 
