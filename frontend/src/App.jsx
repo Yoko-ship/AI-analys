@@ -1421,8 +1421,28 @@ const UPPER_SUBHEADER_RE = /^[A-ZА-ЯЁЎҚҒҲ][A-ZА-ЯЁЎҚҒҲ0-9\s,'’\-
 const KV_LABEL_MAX = 40;
 const KV_VALUE_NUMERIC_RE = /^\s*[+\-−]?\s*[\d(]/;
 
+const TLDR_RE = /^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\s*[:：-—]\s*(.+)$/i;
+
+function extractTldr(body) {
+  if (!body) return { tldr: null, rest: body };
+  const lines = body.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const match = line.match(TLDR_RE);
+    if (match) {
+      const rest = lines.slice(0, i).concat(lines.slice(i + 1)).join('\n');
+      return { tldr: match[1].trim(), rest };
+    }
+    // Stop after first non-empty line — TL;DR must be first.
+    break;
+  }
+  return { tldr: null, rest: body };
+}
+
 function SectionCard({ title, body, index, open = false, language = "ru" }) {
   const sectionLabel = SECTION_LABELS[language] || SECTION_LABELS.ru;
+  const { tldr, rest } = extractTldr(body);
   const renderContent = (text) => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -1516,8 +1536,12 @@ function SectionCard({ title, body, index, open = false, language = "ru" }) {
       <summary>
         <span className="section-number">{sectionLabel} {String(index + 1).padStart(2, "0")}</span>
         <span className="section-title-text">{title}</span>
+        {tldr && <span className="section-tldr-inline">{tldr}</span>}
       </summary>
-      <div className="section-content">{renderContent(body)}</div>
+      <div className="section-content">
+        {tldr && <div className="section-tldr-block">{tldr}</div>}
+        {renderContent(rest)}
+      </div>
     </details>
   );
 }
@@ -3002,16 +3026,16 @@ function App() {
                     <ResultSkeleton language={language} />
                   ) : (
                   <>
-                    <div className="score-strip">
-                      <div className="score-card">
-                        <ScoreGauge score={resultScore} language={language} />
-                      </div>
-                      <div className="score-meta">
-                        <div className="grade-pill">{resultGrade || "—"}</div>
-                        <p className="verdict-text">{resultVerdict || t(language, "analysis.verdictPlaceholder")}</p>
-                        <p className="summary-text">{resultSummary}</p>
-                      </div>
-                    </div>
+                    <HeroKpiStrip
+                      analysisResult={analysisResult}
+                      chartData={chartData}
+                      language={language}
+                    />
+                    {(resultVerdict || resultSummary) && (
+                      <p className="hero-verdict-line">
+                        {resultVerdict || resultSummary}
+                      </p>
+                    )}
 
                     <div className="chart-card">
                       <div className="chart-head">
@@ -3022,61 +3046,6 @@ function App() {
                         <span className="status-badge muted">{chartData ? `${chartData.filtered[0].year}–${chartData.filtered.at(-1).year}` : t(language, "analysis.chartMetaEmpty")}</span>
                       </div>
                       <AnalysisChart chartData={chartData} language={language} />
-                    </div>
-
-                    <div className="market-strip">
-                      <SignalCard
-                        label={t(language, "analysis.signalRevenue")}
-                        value={chartData && chartData.latest?.revenue != null ? formatCompactNumber(chartData.latest.revenue, language) : "—"}
-                        sub={chartData && chartData.revenueChange !== null ? `${t(language, "analysis.signalTrend")} ${formatSignedPercent(chartData.revenueChange)} · ${t(language, "analysis.signalLatest")} ${chartData.latest.year}` : t(language, "analysis.noData")}
-                        tone={chartData && chartData.revenueChange !== null ? (chartData.revenueChange >= 10 ? "good" : chartData.revenueChange >= 0 ? "warning" : "danger") : "neutral"}
-                      />
-                      <SignalCard
-                        label={t(language, "analysis.signalMargin")}
-                        value={analysisResult?.ifrs_snapshot?.income_statement?.net_margin_pct != null ? `${formatSignedPercent(analysisResult.ifrs_snapshot.income_statement.net_margin_pct)}` : analysisResult?.ifrs_snapshot?.quality?.roe_pct != null ? `${formatSignedPercent(analysisResult.ifrs_snapshot.quality.roe_pct)}` : "—"}
-                        sub={
-                          [
-                            analysisResult?.ifrs_snapshot?.quality?.roe_pct != null ? `ROE ${formatSignedPercent(analysisResult.ifrs_snapshot.quality.roe_pct)}` : "",
-                            analysisResult?.ifrs_snapshot?.quality?.roa_pct != null ? `ROA ${formatSignedPercent(analysisResult.ifrs_snapshot.quality.roa_pct)}` : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") || t(language, "analysis.noData")
-                        }
-                        tone={
-                          Number(analysisResult?.ifrs_snapshot?.income_statement?.net_margin_pct) >= 15 || Number(analysisResult?.ifrs_snapshot?.quality?.roe_pct) >= 15
-                            ? "good"
-                            : Number(analysisResult?.ifrs_snapshot?.income_statement?.net_margin_pct) >= 5 || Number(analysisResult?.ifrs_snapshot?.quality?.roe_pct) >= 5
-                              ? "warning"
-                              : "danger"
-                        }
-                      />
-                      {(() => {
-                        const de = Number(analysisResult?.ifrs_snapshot?.balance_sheet?.debt_to_equity);
-                        const cr = Number(analysisResult?.ifrs_snapshot?.balance_sheet?.current_ratio);
-                        const haveDe = Number.isFinite(de);
-                        const haveCr = Number.isFinite(cr);
-                        let value = t(language, "analysis.noData");
-                        let tone = "neutral";
-                        if (haveDe) {
-                          value = `D/E ${formatRatio(de, 2, language)}`;
-                          tone = de < 1 ? "good" : de < 2 ? "warning" : "danger";
-                        } else if (haveCr) {
-                          value = `CR ${formatRatio(cr, 2, language)}`;
-                          tone = cr > 1.5 ? "good" : cr > 1 ? "warning" : "danger";
-                        }
-                        const sub = [
-                          haveDe ? `D/E ${formatRatio(de, 2, language)}` : "",
-                          haveCr ? `CR ${formatRatio(cr, 2, language)}` : "",
-                        ].filter(Boolean).join(" · ") || t(language, "analysis.noData");
-                        return (
-                          <SignalCard
-                            label={t(language, "analysis.signalRisk")}
-                            value={value}
-                            sub={sub}
-                            tone={tone}
-                          />
-                        );
-                      })()}
                     </div>
 
                     <FinancialVisuals result={analysisResult} language={language} score={resultScore} />
@@ -3378,6 +3347,77 @@ function SignalCard({ label, value, sub, tone = "neutral" }) {
       <strong>{value}</strong>
       <p>{sub}</p>
     </article>
+  );
+}
+
+const HERO_LABELS = {
+  ru: { revenue: "Выручка", profit: "Чистая прибыль", roe: "Доходность капитала (ROE)", noData: "Нет данных" },
+  en: { revenue: "Revenue", profit: "Net income", roe: "Return on equity (ROE)", noData: "No data" },
+  uz: { revenue: "Daromad", profit: "Sof foyda", roe: "Kapital rentabelligi (ROE)", noData: "Maʼlumot yoʻq" },
+};
+
+function HeroKpiTile({ label, value, year, change, tone = "neutral", hint }) {
+  const arrow = change == null ? null : change > 0 ? "▲" : change < 0 ? "▼" : "→";
+  const yoyText = change == null ? null : `${arrow} ${formatSignedPercent(change)}`;
+  return (
+    <article className={`hero-kpi-tile tone-${tone}`}>
+      <span className="hero-kpi-label">{label}</span>
+      <strong className="hero-kpi-value">{value}</strong>
+      <div className="hero-kpi-foot">
+        {yoyText && <span className={`hero-kpi-yoy tone-${tone}`}>{yoyText}</span>}
+        {year && <span className="hero-kpi-year">{year}</span>}
+        {hint && !year && <span className="hero-kpi-year">{hint}</span>}
+      </div>
+    </article>
+  );
+}
+
+function HeroKpiStrip({ analysisResult, chartData, language }) {
+  const lbl = HERO_LABELS[language] || HERO_LABELS.ru;
+  const ifrs = analysisResult?.ifrs_snapshot || {};
+  const quality = ifrs.quality || {};
+  const latest = chartData?.latest;
+  const noData = lbl.noData;
+
+  // Revenue
+  const revenue = latest && Number.isFinite(latest.revenue) ? latest.revenue : null;
+  const revenueChange = chartData?.revenueChange;
+  const revenueTone = revenueChange == null ? "neutral" : revenueChange >= 10 ? "good" : revenueChange >= 0 ? "warning" : "danger";
+
+  // Net income
+  const profit = latest && Number.isFinite(latest.profit) ? latest.profit : null;
+  const profitChange = chartData?.profitChange;
+  const profitTone = profitChange == null ? "neutral" : profitChange >= 10 ? "good" : profitChange >= 0 ? "warning" : "danger";
+
+  // ROE
+  const roe = Number(quality.roe_pct);
+  const haveRoe = Number.isFinite(roe);
+  const roeTone = !haveRoe ? "neutral" : roe >= 15 ? "good" : roe >= 5 ? "warning" : "danger";
+
+  return (
+    <div className="hero-kpi-strip">
+      <HeroKpiTile
+        label={lbl.revenue}
+        value={revenue != null ? formatCompactNumber(revenue, language) : noData}
+        year={latest?.year ?? null}
+        change={revenueChange}
+        tone={revenueTone}
+      />
+      <HeroKpiTile
+        label={lbl.profit}
+        value={profit != null ? formatCompactNumber(profit, language) : noData}
+        year={latest?.year ?? null}
+        change={profitChange}
+        tone={profitTone}
+      />
+      <HeroKpiTile
+        label={lbl.roe}
+        value={haveRoe ? `${formatRatio(roe, 1, language)}%` : noData}
+        year={null}
+        change={null}
+        tone={roeTone}
+      />
+    </div>
   );
 }
 
