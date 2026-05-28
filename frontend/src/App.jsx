@@ -1434,28 +1434,327 @@ const UPPER_SUBHEADER_RE = /^[A-ZА-ЯЁЎҚҒҲ][A-ZА-ЯЁЎҚҒҲ0-9\s,'’\-
 const KV_LABEL_MAX = 40;
 const KV_VALUE_NUMERIC_RE = /^\s*[+\-−]?\s*[\d(]/;
 
-const TLDR_RE = /^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\s*[-:：—]\s*(.+)$/i;
+const TLDR_HEADER_RE = /^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\s*[-:：—]?\s*$/i;
+const TLDR_INLINE_RE = /^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\s*[-:：—]\s*(.+)$/i;
+const TLDR_TONE_LABEL_RE = /^\s*Тон\s*[-:：—]\s*(.+)$/i;
+const TLDR_SCORE_LABEL_RE = /^\s*Скор\s*[-:：—]\s*(.+)$/i;
+const TLDR_PLUSES_LABEL_RE = /^\s*Плюсы\s*[-:：—]?\s*$/i;
+const TLDR_MINUSES_LABEL_RE = /^\s*Минусы\s*[-:：—]?\s*$/i;
+const TLDR_FORYOU_LABEL_RE = /^\s*Для\s+тебя\s*[-:：—]\s*(.+)$/i;
+const TLDR_BULLET_RE = /^\s*[-•—]\s+(.+)$/;
+const TLDR_TONE_KEYS = {
+  позитивный: "positive",
+  positive: "positive",
+  ijobiy: "positive",
+  умеренный: "neutral",
+  умеренная: "neutral",
+  neutral: "neutral",
+  mixed: "neutral",
+  смешанный: "neutral",
+  o_rtacha: "neutral",
+  "o'rtacha": "neutral",
+  тревожный: "caution",
+  тревожная: "caution",
+  осторожно: "caution",
+  caution: "caution",
+  warning: "caution",
+  ehtiyot: "caution",
+  критичный: "critical",
+  критическая: "critical",
+  critical: "critical",
+  негативный: "critical",
+  негативная: "critical",
+  tanqidiy: "critical",
+  нет_данных: "unknown",
+  unknown: "unknown",
+  insufficient: "unknown",
+  "ma'lumot_yo'q": "unknown",
+};
 
-function extractTldr(body) {
+function normalizeToneKey(raw) {
+  if (!raw) return "unknown";
+  const clean = String(raw)
+    .toLowerCase()
+    .replace(/[.,;!?].*$/, "")
+    .replace(/\s+/g, "_")
+    .trim();
+  return TLDR_TONE_KEYS[clean] || TLDR_TONE_KEYS[clean.replace(/_.*$/, "")] || "neutral";
+}
+
+function parseTldrBlock(body) {
   if (!body) return { tldr: null, rest: body };
-  const lines = body.split('\n');
+  const lines = body.split("\n");
+
+  let start = -1;
+  let headerLines = 0;
+  let inlineSummary = null;
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    const match = line.match(TLDR_RE);
-    if (match) {
-      const rest = lines.slice(0, i).concat(lines.slice(i + 1)).join('\n');
-      return { tldr: match[1].trim(), rest };
+    const trimmed = lines[i].trim();
+    if (!trimmed) continue;
+    const inlineMatch = trimmed.match(TLDR_INLINE_RE);
+    if (inlineMatch) {
+      start = i;
+      headerLines = 1;
+      inlineSummary = inlineMatch[1].trim();
+      break;
     }
-    // Stop after first non-empty line — TL;DR must be first.
-    break;
+    if (TLDR_HEADER_RE.test(trimmed)) {
+      start = i;
+      headerLines = 1;
+      break;
+    }
+    return { tldr: null, rest: body };
   }
-  return { tldr: null, rest: body };
+  if (start === -1) return { tldr: null, rest: body };
+
+  const tldr = {
+    tone: "neutral",
+    toneRaw: null,
+    score: null,
+    pluses: [],
+    minuses: [],
+    forYou: null,
+    summary: inlineSummary,
+  };
+
+  let cursor = start + headerLines;
+  let activeList = null;
+  let consumed = cursor;
+
+  while (cursor < lines.length) {
+    const line = lines[cursor];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      cursor += 1;
+      consumed = cursor;
+      continue;
+    }
+
+    let matched = false;
+
+    const tone = trimmed.match(TLDR_TONE_LABEL_RE);
+    if (tone) {
+      tldr.toneRaw = tone[1].trim();
+      tldr.tone = normalizeToneKey(tone[1]);
+      activeList = null;
+      matched = true;
+    }
+
+    const score = !matched && trimmed.match(TLDR_SCORE_LABEL_RE);
+    if (score) {
+      tldr.score = score[1].trim();
+      activeList = null;
+      matched = true;
+    }
+
+    if (!matched && TLDR_PLUSES_LABEL_RE.test(trimmed)) {
+      activeList = "pluses";
+      matched = true;
+    }
+    if (!matched && TLDR_MINUSES_LABEL_RE.test(trimmed)) {
+      activeList = "minuses";
+      matched = true;
+    }
+
+    const forYou = !matched && trimmed.match(TLDR_FORYOU_LABEL_RE);
+    if (forYou) {
+      tldr.forYou = forYou[1].trim();
+      activeList = null;
+      matched = true;
+    }
+
+    const bullet = !matched && trimmed.match(TLDR_BULLET_RE);
+    if (bullet && activeList) {
+      tldr[activeList].push(bullet[1].trim());
+      matched = true;
+    }
+
+    if (!matched) break;
+
+    cursor += 1;
+    consumed = cursor;
+  }
+
+  if (!tldr.pluses.length && !tldr.minuses.length && !tldr.forYou && !tldr.toneRaw && !tldr.summary) {
+    return { tldr: null, rest: body };
+  }
+
+  const rest = lines.slice(0, start).concat(lines.slice(consumed)).join("\n").replace(/^\s+|\s+$/g, "");
+  return { tldr, rest };
+}
+
+function tldrCardTitle(language, tone) {
+  const dict = {
+    ru: {
+      positive: "Сильная сторона",
+      neutral: "Смешанная картина",
+      caution: "Требует внимания",
+      critical: "Повышенный риск",
+      unknown: "Недостаточно данных",
+    },
+    en: {
+      positive: "Strong signal",
+      neutral: "Mixed picture",
+      caution: "Watch closely",
+      critical: "Elevated risk",
+      unknown: "Insufficient data",
+    },
+    uz: {
+      positive: "Kuchli tomon",
+      neutral: "Aralash holat",
+      caution: "Diqqat talab qiladi",
+      critical: "Yuqori xavf",
+      unknown: "Ma'lumot yetarli emas",
+    },
+  };
+  return dict[language]?.[tone] || dict.ru[tone] || dict.ru.neutral;
+}
+
+const TONE_ICONS = {
+  positive: "✓",
+  neutral: "~",
+  caution: "⚠",
+  critical: "✗",
+  unknown: "?",
+};
+
+function TldrCard({ tldr, language = "ru", variant = "default" }) {
+  if (!tldr) return null;
+  const hasPluses = tldr.pluses?.length > 0;
+  const hasMinuses = tldr.minuses?.length > 0;
+  const labels = {
+    ru: { pluses: "Плюсы", minuses: "Минусы", forYou: "Что это значит для тебя" },
+    en: { pluses: "Strengths", minuses: "Concerns", forYou: "What this means for you" },
+    uz: { pluses: "Kuchli tomonlar", minuses: "Zaif tomonlar", forYou: "Bu siz uchun nimani anglatadi" },
+  }[language] || {
+    ru: { pluses: "Плюсы", minuses: "Минусы", forYou: "Что это значит для тебя" },
+  }.ru;
+
+  return (
+    <div className={`tldr-card tldr-card--${tldr.tone} tldr-card--${variant}`}>
+      <div className="tldr-card__head">
+        <span className="tldr-card__tone-icon" aria-hidden="true">{TONE_ICONS[tldr.tone] || "~"}</span>
+        <span className="tldr-card__tone-label">{tldrCardTitle(language, tldr.tone)}</span>
+        {tldr.score && <span className="tldr-card__score">{tldr.score}</span>}
+      </div>
+      {tldr.summary && <p className="tldr-card__summary">{tldr.summary}</p>}
+      <div className="tldr-card__body">
+        {hasPluses && (
+          <div className="tldr-card__col tldr-card__col--pos">
+            <div className="tldr-card__col-label">{labels.pluses}</div>
+            <ul>
+              {tldr.pluses.map((item, idx) => <li key={`p-${idx}`}>{item}</li>)}
+            </ul>
+          </div>
+        )}
+        {hasMinuses && (
+          <div className="tldr-card__col tldr-card__col--neg">
+            <div className="tldr-card__col-label">{labels.minuses}</div>
+            <ul>
+              {tldr.minuses.map((item, idx) => <li key={`m-${idx}`}>{item}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
+      {tldr.forYou && (
+        <div className="tldr-card__foryou">
+          <span className="tldr-card__foryou-label">{labels.forYou}:</span>
+          <span className="tldr-card__foryou-text">{tldr.forYou}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function pickFirstParagraph(text) {
+  if (!text) return null;
+  const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  if (!blocks.length) return null;
+  return blocks[0]
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function HeroVerdictBlock({ analysisResult, language = "ru" }) {
+  if (!analysisResult?.sections) return null;
+  const scoringRaw = analysisResult.sections["СКОРИНГ"];
+  const summaryRaw =
+    analysisResult.sections["ИТОГ"] ||
+    analysisResult.sections["ВЕРДИКТ"] ||
+    null;
+  if (!scoringRaw && !summaryRaw) return null;
+
+  const { tldr: scoringTldr } = parseTldrBlock(scoringRaw || "");
+  const { tldr: summaryTldr, rest: summaryRest } = parseTldrBlock(summaryRaw || "");
+  const heroParagraph = pickFirstParagraph(summaryRest);
+
+  const tone = scoringTldr?.tone || summaryTldr?.tone || "neutral";
+  const score = scoringTldr?.score || null;
+  const verdictTitle = tldrCardTitle(language, tone);
+  const pluses = scoringTldr?.pluses?.length ? scoringTldr.pluses : summaryTldr?.pluses || [];
+  const minuses = scoringTldr?.minuses?.length ? scoringTldr.minuses : summaryTldr?.minuses || [];
+  const forYou = summaryTldr?.forYou || scoringTldr?.forYou || null;
+
+  const headline = {
+    ru: { lead: "Что показывает отчётность", pluses: "Главные плюсы", minuses: "Главные минусы", paragraph: "Простыми словами" },
+    en: { lead: "What the report shows", pluses: "Key positives", minuses: "Key concerns", paragraph: "In plain language" },
+    uz: { lead: "Hisobotda nima ko'rinmoqda", pluses: "Asosiy ijobiy tomonlar", minuses: "Asosiy salbiy tomonlar", paragraph: "Sodda til bilan" },
+  }[language] || {
+    lead: "Что показывает отчётность", pluses: "Главные плюсы", minuses: "Главные минусы", paragraph: "Простыми словами",
+  };
+
+  return (
+    <article className={`hero-verdict hero-verdict--${tone}`}>
+      <div className="hero-verdict__crown">
+        <span className="hero-verdict__crown-label">{headline.lead}</span>
+        {score && <span className="hero-verdict__crown-score">{score}</span>}
+      </div>
+      <div className="hero-verdict__headline">
+        <span className="hero-verdict__icon" aria-hidden="true">{TONE_ICONS[tone] || "~"}</span>
+        <h2 className="hero-verdict__title">{verdictTitle}</h2>
+      </div>
+      {(pluses.length > 0 || minuses.length > 0) && (
+        <div className="hero-verdict__grid">
+          {pluses.length > 0 && (
+            <div className="hero-verdict__col hero-verdict__col--pos">
+              <div className="hero-verdict__col-label">{headline.pluses}</div>
+              <ul>
+                {pluses.slice(0, 3).map((item, idx) => <li key={`hp-${idx}`}>{item}</li>)}
+              </ul>
+            </div>
+          )}
+          {minuses.length > 0 && (
+            <div className="hero-verdict__col hero-verdict__col--neg">
+              <div className="hero-verdict__col-label">{headline.minuses}</div>
+              <ul>
+                {minuses.slice(0, 3).map((item, idx) => <li key={`hm-${idx}`}>{item}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+      {heroParagraph && (
+        <div className="hero-verdict__paragraph">
+          <div className="hero-verdict__paragraph-label">{headline.paragraph}</div>
+          <p>{heroParagraph}</p>
+        </div>
+      )}
+      {!heroParagraph && forYou && (
+        <div className="hero-verdict__paragraph">
+          <div className="hero-verdict__paragraph-label">{headline.paragraph}</div>
+          <p>{forYou}</p>
+        </div>
+      )}
+    </article>
+  );
 }
 
 function SectionCard({ title, body, index, open = false, language = "ru" }) {
   const sectionLabel = SECTION_LABELS[language] || SECTION_LABELS.ru;
-  const { tldr, rest } = extractTldr(body);
+  const { tldr, rest } = parseTldrBlock(body);
+  const summaryHint = tldr?.summary || tldr?.forYou || null;
   const renderContent = (text) => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -1545,14 +1844,14 @@ function SectionCard({ title, body, index, open = false, language = "ru" }) {
   };
 
   return (
-    <details className="section-card fade-in" open={open}>
+    <details className={`section-card fade-in${tldr ? ` section-card--tone-${tldr.tone}` : ""}`} open={open}>
       <summary>
         <span className="section-number">{sectionLabel} {String(index + 1).padStart(2, "0")}</span>
         <span className="section-title-text">{title}</span>
-        {tldr && <span className="section-tldr-inline">{tldr}</span>}
+        {summaryHint && <span className="section-tldr-inline">{summaryHint}</span>}
       </summary>
       <div className="section-content">
-        {tldr && <div className="section-tldr-block">{tldr}</div>}
+        {tldr && <TldrCard tldr={tldr} language={language} />}
         {renderContent(rest)}
       </div>
     </details>
@@ -3084,6 +3383,7 @@ function App() {
 
           {activeView === "analysis" && (analysisResult || analysisLoading) && (
             <section className="results-grid">
+              <HeroVerdictBlock analysisResult={analysisResult} language={language} />
               <article className="panel metrics-panel">
                 <div className="panel-head">
                   <div>
