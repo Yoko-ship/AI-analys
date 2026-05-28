@@ -6289,7 +6289,7 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   --np-rule: #c9b99a;
   --np-rule-light: #e8ddd0;
   --np-accent: #8b1a1a;
-  --np-gold: #9a7b3a;
+  --np-gold: #7a5a1f;  /* darkened from #9a7b3a so panel-labels pass WCAG AA on cream/white surfaces (~5.5:1 vs #faf7f2) */
   --np-bg: #faf7f2;
   --np-bg-warm: #f3ede3;
   --np-green: #1a5c2e;
