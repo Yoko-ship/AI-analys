@@ -1434,7 +1434,7 @@ const UPPER_SUBHEADER_RE = /^[A-ZА-ЯЁЎҚҒҲ][A-ZА-ЯЁЎҚҒҲ0-9\s,'’\-
 const KV_LABEL_MAX = 40;
 const KV_VALUE_NUMERIC_RE = /^\s*[+\-−]?\s*[\d(]/;
 
-const TLDR_RE = /^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\s*[:：-—]\s*(.+)$/i;
+const TLDR_RE = /^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\s*[-:：—]\s*(.+)$/i;
 
 function extractTldr(body) {
   if (!body) return { tldr: null, rest: body };
