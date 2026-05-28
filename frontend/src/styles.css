@@ -936,25 +936,40 @@ img {
 }
 
 /* ─── TL;DR card ───────────────────────────────────────────────────── */
+/* Strategy: tone is expressed via border-left + icon + labels, NOT via a
+   tinted background. Text and surfaces use theme-aware tokens so contrast
+   stays correct in both dark and light themes. */
 .tldr-card {
   --tone-color: #94a3b8;
-  --tone-bg: rgba(148, 163, 184, 0.08);
+  --card-surface: rgba(255, 255, 255, 0.05);
+  --card-text: #f1f5f9;
+  --card-text-muted: #94a3b8;
+  --card-border: rgba(148, 163, 184, 0.22);
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px 18px 18px;
   margin-bottom: 16px;
   border-radius: 12px;
-  background: var(--tone-bg);
-  border: 1px solid color-mix(in srgb, var(--tone-color) 28%, transparent);
+  background: var(--card-surface);
+  color: var(--card-text);
+  border: 1px solid var(--card-border);
   border-left: 4px solid var(--tone-color);
   overflow-wrap: anywhere;
 }
-.tldr-card--positive { --tone-color: #10b981; --tone-bg: rgba(16, 185, 129, 0.08); }
-.tldr-card--neutral  { --tone-color: #94a3b8; --tone-bg: rgba(148, 163, 184, 0.08); }
-.tldr-card--caution  { --tone-color: #f59e0b; --tone-bg: rgba(245, 158, 11, 0.10); }
-.tldr-card--critical { --tone-color: #ef4444; --tone-bg: rgba(239, 68, 68, 0.10); }
-.tldr-card--unknown  { --tone-color: #64748b; --tone-bg: rgba(100, 116, 139, 0.08); }
+.tldr-card--positive { --tone-color: #10b981; }
+.tldr-card--neutral  { --tone-color: #94a3b8; }
+.tldr-card--caution  { --tone-color: #f59e0b; }
+.tldr-card--critical { --tone-color: #ef4444; }
+.tldr-card--unknown  { --tone-color: #64748b; }
+
+body[data-theme="light"] .tldr-card {
+  --card-surface: #ffffff;
+  --card-text: #0f172a;
+  --card-text-muted: #475569;
+  --card-border: rgba(148, 163, 184, 0.30);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
 
 .tldr-card__head {
   display: flex;
@@ -986,14 +1001,14 @@ img {
   margin-left: auto;
   font-size: 13px;
   font-weight: 600;
-  color: var(--muted, #94a3b8);
+  color: var(--card-text-muted);
   font-variant-numeric: tabular-nums;
 }
 .tldr-card__summary {
   margin: 0;
   font-size: 14px;
   line-height: 1.5;
-  color: var(--text, inherit);
+  color: var(--card-text);
 }
 .tldr-card__body {
   display: grid;
@@ -1006,7 +1021,7 @@ img {
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--muted, #94a3b8);
+  color: var(--card-text-muted);
   margin-bottom: 6px;
 }
 .tldr-card__col--pos .tldr-card__col-label { color: #10b981; }
@@ -1024,7 +1039,7 @@ img {
   padding-left: 18px;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--text, inherit);
+  color: var(--card-text);
 }
 .tldr-card__col--pos li::before {
   content: "✓";
@@ -1053,7 +1068,7 @@ img {
   color: var(--tone-color);
   margin-right: 6px;
 }
-.tldr-card__foryou-text { color: var(--text, inherit); }
+.tldr-card__foryou-text { color: var(--card-text); }
 
 @media (max-width: 720px) {
   .tldr-card__body { grid-template-columns: 1fr; }
@@ -1067,25 +1082,38 @@ img {
 /* ─── Hero verdict block ───────────────────────────────────────────── */
 .hero-verdict {
   --tone-color: #94a3b8;
-  --tone-bg-start: rgba(148, 163, 184, 0.12);
-  --tone-bg-end: rgba(148, 163, 184, 0.02);
+  --hero-surface: rgba(255, 255, 255, 0.04);
+  --hero-text: #f1f5f9;
+  --hero-text-muted: #cbd5e1;
+  --hero-border: rgba(148, 163, 184, 0.22);
+  --hero-paragraph-surface: rgba(255, 255, 255, 0.06);
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   gap: 18px;
   padding: 28px 32px 30px;
   border-radius: 18px;
-  background: linear-gradient(135deg, var(--tone-bg-start), var(--tone-bg-end));
-  border: 1px solid color-mix(in srgb, var(--tone-color) 22%, transparent);
+  background: var(--hero-surface);
+  color: var(--hero-text);
+  border: 1px solid var(--hero-border);
   border-top: 4px solid var(--tone-color);
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.18);
   margin-bottom: 8px;
 }
-.hero-verdict--positive { --tone-color: #10b981; --tone-bg-start: rgba(16, 185, 129, 0.14); --tone-bg-end: rgba(16, 185, 129, 0.02); }
-.hero-verdict--neutral  { --tone-color: #94a3b8; --tone-bg-start: rgba(148, 163, 184, 0.12); --tone-bg-end: rgba(148, 163, 184, 0.02); }
-.hero-verdict--caution  { --tone-color: #f59e0b; --tone-bg-start: rgba(245, 158, 11, 0.16); --tone-bg-end: rgba(245, 158, 11, 0.02); }
-.hero-verdict--critical { --tone-color: #ef4444; --tone-bg-start: rgba(239, 68, 68, 0.18); --tone-bg-end: rgba(239, 68, 68, 0.02); }
-.hero-verdict--unknown  { --tone-color: #64748b; --tone-bg-start: rgba(100, 116, 139, 0.12); --tone-bg-end: rgba(100, 116, 139, 0.02); }
+.hero-verdict--positive { --tone-color: #10b981; }
+.hero-verdict--neutral  { --tone-color: #94a3b8; }
+.hero-verdict--caution  { --tone-color: #f59e0b; }
+.hero-verdict--critical { --tone-color: #ef4444; }
+.hero-verdict--unknown  { --tone-color: #64748b; }
+
+body[data-theme="light"] .hero-verdict {
+  --hero-surface: #ffffff;
+  --hero-text: #0f172a;
+  --hero-text-muted: #475569;
+  --hero-border: rgba(148, 163, 184, 0.30);
+  --hero-paragraph-surface: #f8fafc;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+}
 
 .hero-verdict__crown {
   display: flex;
@@ -1097,7 +1125,7 @@ img {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 700;
-  color: var(--muted, #94a3b8);
+  color: var(--hero-text-muted);
 }
 .hero-verdict__crown-score {
   margin-left: auto;
@@ -1107,7 +1135,8 @@ img {
   color: var(--tone-color);
   padding: 4px 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--tone-color) 18%, transparent);
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid currentColor;
   font-variant-numeric: tabular-nums;
 }
 .hero-verdict__headline {
@@ -1135,7 +1164,7 @@ img {
   line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--text, inherit);
+  color: var(--hero-text);
 }
 .hero-verdict__grid {
   display: grid;
@@ -1164,6 +1193,7 @@ img {
   padding-left: 22px;
   font-size: 14.5px;
   line-height: 1.5;
+  color: var(--hero-text);
 }
 .hero-verdict__col--pos li::before {
   content: "✓";
@@ -1186,8 +1216,8 @@ img {
 .hero-verdict__paragraph {
   padding: 16px 18px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--tone-color) 6%, rgba(0,0,0,0.04));
-  border: 1px solid color-mix(in srgb, var(--tone-color) 18%, transparent);
+  background: var(--hero-paragraph-surface);
+  border: 1px solid var(--hero-border);
 }
 .hero-verdict__paragraph-label {
   font-size: 11px;
@@ -1201,7 +1231,7 @@ img {
   margin: 0;
   font-size: 15px;
   line-height: 1.6;
-  color: var(--text, inherit);
+  color: var(--hero-text);
 }
 @media (max-width: 720px) {
   .hero-verdict { padding: 22px 18px; }
