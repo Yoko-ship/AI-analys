@@ -2214,7 +2214,11 @@ body[data-theme="light"] .section-card {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
-body[data-theme="light"] .panel-label { color: #b45309; }
+body[data-theme="light"] .panel-label,
+body[data-theme="light"] .result-hero .panel-head .panel-label,
+body[data-theme="light"] .metrics-panel .panel-label,
+body[data-theme="light"] .sections-panel .panel-label,
+body[data-theme="light"] .bank-metrics-panel .panel-label { color: #b45309; }
 
 .panel-copy,
 .empty-copy,
