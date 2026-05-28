@@ -1436,6 +1436,8 @@ const KV_VALUE_NUMERIC_RE = /^\s*[+\-−]?\s*[\d(]/;
 
 const TLDR_HEADER_RE = /^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\s*[-:：—]?\s*$/i;
 const TLDR_INLINE_RE = /^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\s*[-:：—]\s*(.+)$/i;
+const TLDR_STARTS_RE = /^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\b/i;
+const TLDR_STRUCTURED_HINT_RE = /\b(?:Тон|Tone|Плюсы|Минусы|Pluses|Minuses|Strengths|Concerns|Score|Скор|Для\s+тебя|For\s+you|Bu\s+siz)\s*[-:：—]/i;
 const TLDR_TONE_LABEL_RE = /^\s*Тон\s*[-:：—]\s*(.+)$/i;
 const TLDR_SCORE_LABEL_RE = /^\s*Скор\s*[-:：—]\s*(.+)$/i;
 const TLDR_PLUSES_LABEL_RE = /^\s*Плюсы\s*[-:：—]?\s*$/i;
@@ -1481,31 +1483,113 @@ function normalizeToneKey(raw) {
   return TLDR_TONE_KEYS[clean] || TLDR_TONE_KEYS[clean.replace(/_.*$/, "")] || "neutral";
 }
 
+function splitInlineBullets(text) {
+  if (!text) return [];
+  const cleaned = text.replace(/^[-•—]\s*/, "");
+  return cleaned
+    .split(/\s+[-•—]\s+/)
+    .map((s) => s.replace(/[\s.;,]+$/, "").trim())
+    .filter(Boolean);
+}
+
+function parseInlineTldr(rawText) {
+  if (!rawText) return null;
+  const text = rawText.replace(/^\s*(?:>\s*)?(?:TL;?DR|КРАТКО|Кратко|Brief|Qisqacha)\s*[-:：—]?\s*/i, "").trim();
+  if (!text) return null;
+
+  const tldr = {
+    tone: "neutral",
+    toneRaw: null,
+    score: null,
+    pluses: [],
+    minuses: [],
+    forYou: null,
+    summary: null,
+  };
+
+  const labelOrder = [
+    { key: "tone", re: /Тон\s*[-:：—]\s*/i },
+    { key: "score", re: /Скор\s*[-:：—]\s*/i },
+    { key: "pluses", re: /Плюсы\s*[-:：—]\s*/i },
+    { key: "minuses", re: /Минусы\s*[-:：—]\s*/i },
+    { key: "forYou", re: /Для\s+тебя\s*[-:：—]\s*/i },
+  ];
+
+  const matches = [];
+  for (const { key, re } of labelOrder) {
+    const m = text.match(re);
+    if (m && m.index !== undefined) {
+      matches.push({ key, start: m.index, valueStart: m.index + m[0].length });
+    }
+  }
+  if (!matches.length) {
+    tldr.summary = text;
+    return tldr;
+  }
+  matches.sort((a, b) => a.start - b.start);
+
+  if (matches[0].start > 0) {
+    const head = text.slice(0, matches[0].start).trim();
+    if (head) tldr.summary = head;
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const current = matches[i];
+    const end = i + 1 < matches.length ? matches[i + 1].start : text.length;
+    const value = text.slice(current.valueStart, end).trim();
+    if (!value) continue;
+    if (current.key === "tone") {
+      tldr.toneRaw = value;
+      tldr.tone = normalizeToneKey(value);
+    } else if (current.key === "score") {
+      tldr.score = value;
+    } else if (current.key === "pluses") {
+      tldr.pluses = splitInlineBullets(value);
+    } else if (current.key === "minuses") {
+      tldr.minuses = splitInlineBullets(value);
+    } else if (current.key === "forYou") {
+      tldr.forYou = value;
+    }
+  }
+
+  return tldr;
+}
+
 function parseTldrBlock(body) {
   if (!body) return { tldr: null, rest: body };
   const lines = body.split("\n");
 
   let start = -1;
-  let headerLines = 0;
-  let inlineSummary = null;
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (!trimmed) continue;
-    const inlineMatch = trimmed.match(TLDR_INLINE_RE);
-    if (inlineMatch) {
-      start = i;
-      headerLines = 1;
-      inlineSummary = inlineMatch[1].trim();
-      break;
-    }
-    if (TLDR_HEADER_RE.test(trimmed)) {
-      start = i;
-      headerLines = 1;
-      break;
-    }
-    return { tldr: null, rest: body };
+    if (!TLDR_STARTS_RE.test(trimmed)) return { tldr: null, rest: body };
+    start = i;
+    break;
   }
   if (start === -1) return { tldr: null, rest: body };
+
+  const firstLine = lines[start].trim();
+  const firstLineHasStructuredHint = TLDR_STRUCTURED_HINT_RE.test(firstLine);
+
+  // CASE A: LLM emitted TL;DR as a single dense line with inline labels
+  // ("TL;DR Тон: ... Плюсы: - ... Минусы: - ... Для тебя: ...").
+  // Consume the whole TL;DR header line and parse it inline.
+  if (firstLineHasStructuredHint) {
+    const tldr = parseInlineTldr(firstLine);
+    if (tldr && (tldr.pluses.length || tldr.minuses.length || tldr.forYou || tldr.toneRaw || tldr.summary)) {
+      const rest = lines.slice(0, start).concat(lines.slice(start + 1)).join("\n").replace(/^\s+|\s+$/g, "");
+      return { tldr, rest };
+    }
+  }
+
+  // CASE B: classic multiline structured block.
+  let headerLines = 1;
+  let inlineSummary = null;
+  const inlineMatch = firstLine.match(TLDR_INLINE_RE);
+  if (inlineMatch) {
+    inlineSummary = inlineMatch[1].trim();
+  }
 
   const tldr = {
     tone: "neutral",
@@ -1522,8 +1606,7 @@ function parseTldrBlock(body) {
   let consumed = cursor;
 
   while (cursor < lines.length) {
-    const line = lines[cursor];
-    const trimmed = line.trim();
+    const trimmed = lines[cursor].trim();
     if (!trimmed) {
       cursor += 1;
       consumed = cursor;
@@ -1576,6 +1659,12 @@ function parseTldrBlock(body) {
   }
 
   if (!tldr.pluses.length && !tldr.minuses.length && !tldr.forYou && !tldr.toneRaw && !tldr.summary) {
+    // Last-resort: parse the first paragraph as inline.
+    const fallback = parseInlineTldr(firstLine);
+    if (fallback) {
+      const rest = lines.slice(0, start).concat(lines.slice(start + 1)).join("\n").replace(/^\s+|\s+$/g, "");
+      return { tldr: fallback, rest };
+    }
     return { tldr: null, rest: body };
   }
 
