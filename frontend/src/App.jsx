@@ -250,6 +250,8 @@ const TEXTS = {
       ДОСЬЕ: "Краткое досье эмитента",
       ЧТО_С_ДЕНЬГАМИ: "Финансовая выжимка",
       ТРЕНД: "Анализ трендов и динамики показателей",
+      ЭФФЕКТИВНОСТЬ: "Операционная эффективность и оборачиваемость",
+      ТЕХНИЧЕСКИЙ_АНАЛИЗ: "Технический анализ (RSI, Фибоначчи, объёмы)",
       ОЦЕНКА_СТОИМОСТИ: "Оценка справедливой стоимости",
       ФИБОНАЧЧИ: "Технический анализ (уровни Фибоначчи)",
       ОЦЕНКА_ЦЕНЫ: "Оценка инвестиционной привлекательности",
@@ -456,6 +458,8 @@ const TEXTS = {
       ДОСЬЕ: "Company Snapshot",
       ЧТО_С_ДЕНЬГАМИ: "Financial Position Brief",
       ТРЕНД: "Trend and Dynamics Analysis",
+      ЭФФЕКТИВНОСТЬ: "Operational Efficiency and Turnover",
+      ТЕХНИЧЕСКИЙ_АНАЛИЗ: "Technical Analysis (RSI, Fibonacci, Volume)",
       ОЦЕНКА_СТОИМОСТИ: "Fair Value Assessment",
       ФИБОНАЧЧИ: "Technical Analysis (Fibonacci Levels)",
       ОЦЕНКА_ЦЕНЫ: "Investment Attractiveness",
@@ -662,6 +666,8 @@ const TEXTS = {
       ДОСЬЕ: "Emitent haqida qisqacha ma'lumot",
       ЧТО_С_ДЕНЬГАМИ: "Moliyaviy holat qisqacha",
       ТРЕНД: "Trendlar va dinamika tahlili",
+      ЭФФЕКТИВНОСТЬ: "Operatsion samaradorlik va aylanma",
+      ТЕХНИЧЕСКИЙ_АНАЛИЗ: "Texnik tahlil (RSI, Fibonachchi, hajmlar)",
       ОЦЕНКА_СТОИМОСТИ: "Adolatli qiymatni baholash",
       ФИБОНАЧЧИ: "Texnik tahlil (Fibonachchi darajalari)",
       ОЦЕНКА_ЦЕНЫ: "Investitsion jozibadorlikni baholash",
@@ -1015,16 +1021,23 @@ function getSectionTitle(language, key) {
   return t(language, `sections.${key}`) || key.replaceAll("_", " ");
 }
 
-// 7 основных разделов в журнальном стиле (как в ipoteka_bank_analysis_Q1_2026.html).
+// 14 разделов из _analysis_prompt_v2 в analysis_service.py (public-information-v4-bank-aware-2026-05-27).
 // Эти разделы выводятся сверху в строго заданном порядке, остальные — под катом «Дополнительно».
 const PRIMARY_SECTIONS = [
-  "ОБЩИЕ_СВЕДЕНИЯ",
-  "ГОРИЗОНТАЛЬНЫЙ_АНАЛИЗ",
-  "ВЕРТИКАЛЬНЫЙ_АНАЛИЗ",
-  "АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ",
-  "КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ",
-  "СВОДНАЯ_ТАБЛИЦА",
-  "ЗАКЛЮЧЕНИЕ",
+  "СКОРИНГ",
+  "ДОСЬЕ",
+  "ЧТО_С_ДЕНЬГАМИ",
+  "ТРЕНД",
+  "ЭФФЕКТИВНОСТЬ",
+  "ТЕХНИЧЕСКИЙ_АНАЛИЗ",
+  "ОЦЕНКА_ЦЕНЫ",
+  "КАТАЛИЗАТОРЫ",
+  "СИЛЬНЫЕ_СТОРОНЫ",
+  "СЛАБЫЕ_СТОРОНЫ",
+  "РЫНОЧНЫЕ_ДАННЫЕ",
+  "ВЕРДИКТ",
+  "ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА",
+  "ИТОГ",
 ];
 
 function splitSections(sections) {
