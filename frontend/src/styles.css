@@ -4918,6 +4918,96 @@ body[data-theme="dark"] .compare-table th {
   transform: translateY(-50%) rotate(180deg);
 }
 
+body[data-theme="dark"] .sections-panel .section-card summary,
+body[data-theme="dark"] .sections-wrap .section-card summary {
+  display: grid;
+  grid-template-columns: minmax(76px, max-content) minmax(0, 1.05fr) minmax(0, 1fr) 16px;
+  gap: 12px 18px;
+  align-items: center;
+  justify-content: initial;
+  padding-right: 20px;
+}
+
+body[data-theme="dark"] .sections-panel .section-card summary::after,
+body[data-theme="dark"] .sections-wrap .section-card summary::after {
+  position: static;
+  grid-column: 4;
+  justify-self: end;
+  transform: none;
+}
+
+body[data-theme="dark"] .sections-panel .section-card[open] summary::after,
+body[data-theme="dark"] .sections-wrap .section-card[open] summary::after {
+  transform: rotate(180deg);
+}
+
+body[data-theme="dark"] .sections-panel .section-card summary .section-number,
+body[data-theme="dark"] .sections-wrap .section-card summary .section-number {
+  grid-column: 1;
+  min-width: 76px;
+  white-space: nowrap;
+}
+
+body[data-theme="dark"] .sections-panel .section-card summary .section-title-text,
+body[data-theme="dark"] .sections-wrap .section-card summary .section-title-text {
+  grid-column: 2;
+  min-width: 0;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+body[data-theme="dark"] .sections-panel .section-card summary:not(:has(.section-tldr-inline)) .section-title-text,
+body[data-theme="dark"] .sections-wrap .section-card summary:not(:has(.section-tldr-inline)) .section-title-text,
+body[data-theme="dark"] .sections-panel .section-card[open] summary .section-title-text,
+body[data-theme="dark"] .sections-wrap .section-card[open] summary .section-title-text {
+  grid-column: 2 / 4;
+}
+
+body[data-theme="dark"] .sections-panel .section-card:not([open]) summary .section-tldr-inline,
+body[data-theme="dark"] .sections-wrap .section-card:not([open]) summary .section-tldr-inline {
+  display: block;
+  grid-column: 3;
+  min-width: 0;
+  margin-left: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 620px) {
+  body[data-theme="dark"] .sections-panel .section-card summary,
+  body[data-theme="dark"] .sections-wrap .section-card summary {
+    grid-template-columns: minmax(68px, max-content) minmax(0, 1fr) 16px;
+    gap: 6px 12px;
+  }
+
+  body[data-theme="dark"] .sections-panel .section-card summary::after,
+  body[data-theme="dark"] .sections-wrap .section-card summary::after {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  body[data-theme="dark"] .sections-panel .section-card summary .section-number,
+  body[data-theme="dark"] .sections-wrap .section-card summary .section-number {
+    min-width: 68px;
+  }
+
+  body[data-theme="dark"] .sections-panel .section-card summary .section-title-text,
+  body[data-theme="dark"] .sections-wrap .section-card summary .section-title-text,
+  body[data-theme="dark"] .sections-panel .section-card summary:not(:has(.section-tldr-inline)) .section-title-text,
+  body[data-theme="dark"] .sections-wrap .section-card summary:not(:has(.section-tldr-inline)) .section-title-text,
+  body[data-theme="dark"] .sections-panel .section-card[open] summary .section-title-text,
+  body[data-theme="dark"] .sections-wrap .section-card[open] summary .section-title-text {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  body[data-theme="dark"] .sections-panel .section-card:not([open]) summary .section-tldr-inline,
+  body[data-theme="dark"] .sections-wrap .section-card:not([open]) summary .section-tldr-inline {
+    grid-column: 2 / 4;
+    grid-row: 2;
+  }
+}
+
 /* Quick Chips Enhanced */
 .quick-chip {
   position: relative;
