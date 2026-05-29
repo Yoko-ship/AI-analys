@@ -1548,7 +1548,17 @@ function parseInlineTldr(rawText) {
     } else if (current.key === "minuses") {
       tldr.minuses = splitInlineBullets(value);
     } else if (current.key === "forYou") {
-      tldr.forYou = value;
+      // The "Для тебя" value is the LAST inline label, so when the model crams
+      // an entire section onto one line it greedily swallows the trailing hero
+      // paragraph ("Статус: ... Причина — ..."). Cut it off so "Для тебя" stays
+      // a short phrase and the rest renders as normal section text.
+      const heroCut = value.search(/(?:Статус|Вывод|Итог|Резюме|Заключение)\s*[:：]/i);
+      if (heroCut > 0) {
+        tldr.forYou = value.slice(0, heroCut).trim();
+        tldr.trailing = value.slice(heroCut).trim();
+      } else {
+        tldr.forYou = value;
+      }
     }
   }
 
@@ -1578,7 +1588,11 @@ function parseTldrBlock(body) {
   if (firstLineHasStructuredHint) {
     const tldr = parseInlineTldr(firstLine);
     if (tldr && (tldr.pluses.length || tldr.minuses.length || tldr.forYou || tldr.toneRaw || tldr.summary)) {
-      const rest = lines.slice(0, start).concat(lines.slice(start + 1)).join("\n").replace(/^\s+|\s+$/g, "");
+      let rest = lines.slice(0, start).concat(lines.slice(start + 1)).join("\n").replace(/^\s+|\s+$/g, "");
+      if (tldr.trailing) {
+        rest = `${tldr.trailing}\n\n${rest}`.replace(/^\s+|\s+$/g, "");
+        delete tldr.trailing;
+      }
       return { tldr, rest };
     }
   }
@@ -1662,7 +1676,11 @@ function parseTldrBlock(body) {
     // Last-resort: parse the first paragraph as inline.
     const fallback = parseInlineTldr(firstLine);
     if (fallback) {
-      const rest = lines.slice(0, start).concat(lines.slice(start + 1)).join("\n").replace(/^\s+|\s+$/g, "");
+      let rest = lines.slice(0, start).concat(lines.slice(start + 1)).join("\n").replace(/^\s+|\s+$/g, "");
+      if (fallback.trailing) {
+        rest = `${fallback.trailing}\n\n${rest}`.replace(/^\s+|\s+$/g, "");
+        delete fallback.trailing;
+      }
       return { tldr: fallback, rest };
     }
     return { tldr: null, rest: body };

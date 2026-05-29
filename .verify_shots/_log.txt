@@ -1,0 +1,195 @@
+→ goto https://ai-analys-production.up.railway.app/  (token injected)
+default theme: dark
+📸 v4_01_landing_dark.png
+→ open analysis view
+📸 v4_02_analysis_form_dark.png
+  force_refresh checked
+→ type HMKB and submit
+  clicked HMKB chip
+  clicked button:has-text("Анализиро")
+→ waiting for analysis result (max 300s)
+📸 v4_03_analysis_top_dark.png
+📸 v4_04_analysis_mid_dark.png
+📸 v4_05_analysis_lower_dark.png
+
+--- contrast probe @ dark theme ---
+  body theme=dark bg=rgba(0, 0, 0, 0) color=rgb(241, 245, 249)
+  .hero-verdict (1280x438) color=rgb(241, 245, 249) bg=rgba(255, 255, 255, 0.04) text='Что показывает отчётность42/100~Смешанная картинаГлавные плюсыВыручка выросла на'
+  .hero-verdict__title (245x29) color=rgb(241, 245, 249) bg=rgba(0, 0, 0, 0) text='Смешанная картина'
+  .hero-verdict__paragraph p (1176x120) color=rgb(241, 245, 249) bg=rgba(0, 0, 0, 0) text='ХЕРО-АБЗАЦ ДЛЯ НОВИЧКА: банк за год стал больше и заработал больше денег. Это ви'
+  .hero-verdict__col li (595x22) color=rgb(241, 245, 249) bg=rgba(0, 0, 0, 0) text='Выручка выросла на 38% за год, до 4,35 млрд сумов.'
+  .hero-verdict__crown-score (82x29) color=rgb(241, 245, 249) bg=rgba(148, 163, 184, 0.22) text='42/100'
+  .tldr-card (546x251) color=rgb(241, 245, 249) bg=rgba(255, 255, 255, 0.05) text='~Смешанная картина42/100ПлюсыВыручка выросла на 38% за год, до 4,35 млрд сумов.Ч'
+  .tldr-card__col li (245x41) color=rgb(241, 245, 249) bg=rgba(0, 0, 0, 0) text='Выручка выросла на 38% за год, до 4,35 млрд сумов.'
+  .tldr-card__foryou-text (494x36) color=rgb(241, 245, 249) bg=rgba(0, 0, 0, 0) text='цифры у банка неплохие, но баланс и проценты дают заметный риск.'
+  .tldr-card__tone-label (167x23) color=rgb(203, 213, 225) bg=rgba(0, 0, 0, 0) text='Смешанная картина'
+  .tldr-card__score (63x27) color=rgb(241, 245, 249) bg=rgba(148, 163, 184, 0.18) text='42/100'
+  .section-card summary (582x56) color=rgb(237, 242, 255) bg=rgba(255, 157, 0, 0.12) text='РАЗДЕЛ 01Общая оценка и скоринг эмитентацифры у банка неплохие, но баланс и проц'
+  .section-card .section-title-text (280x20) color=rgb(237, 242, 255) bg=rgba(0, 0, 0, 0) text='Общая оценка и скоринг эмитента'
+  .analysis-para (546x28) color=rgb(139, 149, 165) bg=rgba(0, 0, 0, 0) text='Класс: C'
+  .analysis-bullet → ABSENT
+  .analysis-kv (546x199) color=rgb(139, 149, 165) bg=rgba(0, 0, 0, 0) text='Выручка растёт быстро:4,35 млрд сумов против 3,15 млрд сумов годом ранее. Чистая'
+  .bank-metrics-panel (1134x305) color=rgb(237, 242, 255) bg=rgba(20, 26, 42, 0.95) text='Банковские коэффициентыБанковские коэффициентыДостаточность капитала18%Достаточн'
+  .bank-metric-value (227x26) color=rgb(241, 245, 249) bg=rgba(0, 0, 0, 0) text='18%'
+  .bank-metric-note (227x70) color=rgb(203, 213, 225) bg=rgba(0, 0, 0, 0) text='Достаточность капитала (equity / активы) — рисково-взвешенный CAR требует RWA, к'
+  .panel (1180x887) color=rgb(237, 242, 255) bg=rgba(20, 26, 42, 0.95) text='Анализ компанииПолучите комплексный финансовый анализ на основе ИИКомпания"Hamko'
+  .panel h2 (848x36) color=rgb(237, 242, 255) bg=rgba(0, 0, 0, 0) text='Chet el kapitali ishtirokidagi "Hamkorbank" aksiyadorlik tijorat banki'
+  .panel-label (848x15) color=rgb(255, 157, 0) bg=rgba(0, 0, 0, 0) text='Результат'
+  .panel-copy → ABSENT
+
+=== WCAG audit @ dark theme ===
+  [15.83:1] .hero-verdict__title  text='Смешанная картина'
+  [13.43:1] .hero-verdict__paragraph p  text='ХЕРО-АБЗАЦ ДЛЯ НОВИЧКА: банк за год стал больше и заработал боль'
+  [15.83:1] .hero-verdict__col li[0]  text='Выручка выросла на 38% за год, до 4,35 млрд сумов.'
+  [15.83:1] .hero-verdict__col li[1]  text='Чистая прибыль выросла на 19%, до 1,43 млрд сумов.'
+  [15.83:1] .hero-verdict__col li[2]  text='Процентные платежи съедают 54% выручки.'
+  [11.68:1] .hero-verdict__crown-label  text='Что показывает отчётность'
+  [10.68:1] .hero-verdict__crown-score  text='42/100'
+  [9.02:1] .hero-verdict__col-label[0]  text='Главные плюсы'
+  [6.27:1 ⚠ AA only] .hero-verdict__col-label[1]  text='Главные минусы'
+  [10.31:1] .tldr-card__tone-label[0]  text='Смешанная картина'
+  [10.31:1] .tldr-card__tone-label[1]  text='Смешанная картина'
+  [10.31:1] .tldr-card__tone-label[2]  text='Смешанная картина'
+  [13.97:1] .tldr-card__col li[0]  text='Выручка выросла на 38% за год, до 4,35 млрд сумов.'
+  [13.97:1] .tldr-card__col li[1]  text='Чистая прибыль выросла на 19%, до 1,43 млрд сумов.'
+  [13.97:1] .tldr-card__col li[2]  text='Процентные платежи съедают 54% выручки.'
+  [13.97:1] .tldr-card__foryou-text[0]  text='цифры у банка неплохие, но баланс и проценты дают заметный риск.'
+  [13.97:1] .tldr-card__foryou-text[1]  text='это банковский бизнес, где важны маржа на процентах и качество к'
+  [13.97:1] .tldr-card__foryou-text[2]  text='деньги в банк приходят, но их удержание ухудшилось.'
+  [10.11:1] .tldr-card__score  text='42/100'
+  [7.96:1] .tldr-card__col-label[0]  text='Плюсы'
+  [5.53:1 ⚠ AA only] .tldr-card__col-label[1]  text='Минусы'
+  [7.96:1] .tldr-card__col-label[2]  text='Плюсы'
+  [12.69:1] .section-card summary .section-title-text[0]  text='Общая оценка и скоринг эмитента'
+  [15.52:1] .section-card summary .section-title-text[1]  text='Краткое досье эмитента'
+  [15.52:1] .section-card summary .section-title-text[2]  text='Финансовая выжимка'
+  [11.71:1] .section-tldr-inline[1]  text='это банковский бизнес, где важны маржа на процентах и качество к'
+  [11.71:1] .section-tldr-inline[2]  text='деньги в банк приходят, но их удержание ухудшилось.'
+  [5.75:1 ⚠ AA only] .analysis-para[0]  text='Класс: C'
+  [5.75:1 ⚠ AA only] .analysis-para[1]  text='Расшифровка: Банк растёт по выручке и прибыли, но качество балан'
+  [5.75:1 ⚠ AA only] .analysis-para[2]  text='Hamkorbank зарабатывает как банк: получает процентный доход, раз'
+  [5.75:1 ⚠ AA only] .analysis-kv-value[0]  text='4,35 млрд сумов против 3,15 млрд сумов годом ранее. Чистая маржа'
+  [5.75:1 ⚠ AA only] .analysis-kv-value[1]  text='2023 — 3,15 млрд, 2024 — 4,35 млрд сумов. Тренд по прибыли тоже'
+  [5.75:1 ⚠ AA only] .analysis-kv-label[0]  text='Выручка растёт быстро:'
+  [5.75:1 ⚠ AA only] .analysis-kv-label[1]  text='Тренд по выручке положительный:'
+  [14.35:1] .bank-metric-value[0]  text='18%'
+  [14.35:1] .bank-metric-value[1]  text='6,9%'
+  [14.35:1] .bank-metric-value[2]  text='283,1%'
+  [10.59:1] .bank-metric-note[0]  text='Достаточность капитала (equity / активы) — рисково-взвешенный CA'
+  [10.59:1] .bank-metric-note[1]  text='Чистый процентный доход / активы — сколько банк зарабатывает на'
+  [10.59:1] .bank-metric-note[2]  text='Кредиты / депозиты — насколько активно банк раздаёт собранные де'
+  [10.59:1] .bank-metric-label[0]  text='Достаточность капитала'
+  [10.59:1] .bank-metric-label[1]  text='Чистая процентная маржа'
+  [10.59:1] .bank-metric-label[2]  text='Кредиты / депозиты'
+  [14.11:1] .metric-card .metric-label[0]  text='Итоговый скор'
+  [14.11:1] .metric-card .metric-label[1]  text='DCF-оценка'
+  [14.11:1] .metric-card .metric-label[2]  text='Отрасль'
+  [15.52:1] .panel h2[0]  text='Chet el kapitali ishtirokidagi "Hamkorbank" aksiyadorlik tijorat'
+  [15.52:1] .panel h2[1]  text='Ключевые показатели'
+  [15.52:1] .panel h2[2]  text='Разделы отчета'
+  [8.34:1] .panel-label[0]  text='Результат'
+  [8.34:1] .panel-label[1]  text='Динамика выручки и прибыли'
+  [8.34:1] .panel-label[2]  text='Банковские коэффициенты'
+
+→ toggle theme
+  theme now: light
+📸 v4_06_analysis_top_light.png
+📸 v4_07_analysis_mid_light.png
+📸 v4_08_analysis_lower_light.png
+
+--- contrast probe @ light theme ---
+  body theme=light bg=rgba(0, 0, 0, 0) color=rgb(15, 23, 42)
+  .hero-verdict (1280x438) color=rgb(15, 23, 42) bg=rgb(255, 255, 255) text='Что показывает отчётность42/100~Смешанная картинаГлавные плюсыВыручка выросла на'
+  .hero-verdict__title (245x29) color=rgb(15, 23, 42) bg=rgba(0, 0, 0, 0) text='Смешанная картина'
+  .hero-verdict__paragraph p (1176x120) color=rgb(15, 23, 42) bg=rgba(0, 0, 0, 0) text='ХЕРО-АБЗАЦ ДЛЯ НОВИЧКА: банк за год стал больше и заработал больше денег. Это ви'
+  .hero-verdict__col li (595x22) color=rgb(15, 23, 42) bg=rgba(0, 0, 0, 0) text='Выручка выросла на 38% за год, до 4,35 млрд сумов.'
+  .hero-verdict__crown-score (82x29) color=rgb(15, 23, 42) bg=rgba(148, 163, 184, 0.22) text='42/100'
+  .tldr-card (530x253) color=rgb(15, 23, 42) bg=rgb(255, 255, 255) text='~Смешанная картина42/100ПлюсыВыручка выросла на 38% за год, до 4,35 млрд сумов.Ч'
+  .tldr-card__col li (237x41) color=rgb(15, 23, 42) bg=rgba(0, 0, 0, 0) text='Выручка выросла на 38% за год, до 4,35 млрд сумов.'
+  .tldr-card__foryou-text (433x39) color=rgb(15, 23, 42) bg=rgba(0, 0, 0, 0) text='цифры у банка неплохие, но баланс и проценты дают заметный риск.'
+  .tldr-card__tone-label (170x24) color=rgb(71, 85, 105) bg=rgba(0, 0, 0, 0) text='Смешанная картина'
+  .tldr-card__score (57x28) color=rgb(15, 23, 42) bg=rgba(148, 163, 184, 0.18) text='42/100'
+  .section-card summary (530x64) color=rgb(15, 23, 42) bg=rgba(0, 0, 0, 0) text='РАЗДЕЛ 01Общая оценка и скоринг эмитентацифры у банка неплохие, но баланс и проц'
+  .section-card .section-title-text (405x24) color=rgb(26, 22, 18) bg=rgba(0, 0, 0, 0) text='Общая оценка и скоринг эмитента'
+  .analysis-para (530x28) color=rgb(61, 53, 48) bg=rgba(0, 0, 0, 0) text='Класс: C'
+  .analysis-bullet → ABSENT
+  .analysis-kv (530x308) color=rgb(61, 53, 48) bg=rgb(243, 237, 227) text='Выручка растёт быстро:4,35 млрд сумов против 3,15 млрд сумов годом ранее. Чистая'
+  .bank-metrics-panel (1180x343) color=rgb(15, 23, 42) bg=rgba(255, 255, 255, 0.9) text='Банковские коэффициентыБанковские коэффициентыДостаточность капитала18%Достаточн'
+  .bank-metric-value (238x26) color=rgb(15, 23, 42) bg=rgba(0, 0, 0, 0) text='18%'
+  .bank-metric-note (238x70) color=rgb(71, 85, 105) bg=rgba(0, 0, 0, 0) text='Достаточность капитала (equity / активы) — рисково-взвешенный CAR требует RWA, к'
+  .panel (1180x893) color=rgb(15, 23, 42) bg=rgba(255, 255, 255, 0.9) text='Анализ компанииПолучите комплексный финансовый анализ на основе ИИКомпания"Hamko'
+  .panel h2 (814x35) color=rgb(26, 22, 18) bg=rgba(0, 0, 0, 0) text='Chet el kapitali ishtirokidagi "Hamkorbank" aksiyadorlik tijorat banki'
+  .panel-label (814x11) color=rgb(122, 90, 31) bg=rgba(0, 0, 0, 0) text='Результат'
+  .panel-copy → ABSENT
+
+=== WCAG audit @ light theme ===
+  [17.85:1] .hero-verdict__title  text='Смешанная картина'
+  [17.06:1] .hero-verdict__paragraph p  text='ХЕРО-АБЗАЦ ДЛЯ НОВИЧКА: банк за год стал больше и заработал боль'
+  [17.85:1] .hero-verdict__col li[0]  text='Выручка выросла на 38% за год, до 4,35 млрд сумов.'
+  [17.85:1] .hero-verdict__col li[1]  text='Чистая прибыль выросла на 19%, до 1,43 млрд сумов.'
+  [17.85:1] .hero-verdict__col li[2]  text='Процентные платежи съедают 54% выручки.'
+  [7.58:1] .hero-verdict__crown-label  text='Что показывает отчётность'
+  [14.90:1] .hero-verdict__crown-score  text='42/100'
+  [5.48:1 ⚠ AA only] .hero-verdict__col-label[0]  text='Главные плюсы'
+  [6.47:1 ⚠ AA only] .hero-verdict__col-label[1]  text='Главные минусы'
+  [7.58:1] .tldr-card__tone-label[0]  text='Смешанная картина'
+  [7.58:1] .tldr-card__tone-label[1]  text='Смешанная картина'
+  [7.58:1] .tldr-card__tone-label[2]  text='Смешанная картина'
+  [17.85:1] .tldr-card__col li[0]  text='Выручка выросла на 38% за год, до 4,35 млрд сумов.'
+  [17.85:1] .tldr-card__col li[1]  text='Чистая прибыль выросла на 19%, до 1,43 млрд сумов.'
+  [17.85:1] .tldr-card__col li[2]  text='Процентные платежи съедают 54% выручки.'
+  [17.85:1] .tldr-card__foryou-text[0]  text='цифры у банка неплохие, но баланс и проценты дают заметный риск.'
+  [17.85:1] .tldr-card__foryou-text[1]  text='это банковский бизнес, где важны маржа на процентах и качество к'
+  [17.85:1] .tldr-card__foryou-text[2]  text='деньги в банк приходят, но их удержание ухудшилось.'
+  [15.37:1] .tldr-card__score  text='42/100'
+  [5.48:1 ⚠ AA only] .tldr-card__col-label[0]  text='Плюсы'
+  [6.47:1 ⚠ AA only] .tldr-card__col-label[1]  text='Минусы'
+  [5.48:1 ⚠ AA only] .tldr-card__col-label[2]  text='Плюсы'
+  [16.83:1] .section-card summary .section-title-text[0]  text='Общая оценка и скоринг эмитента'
+  [16.83:1] .section-card summary .section-title-text[1]  text='Краткое досье эмитента'
+  [16.83:1] .section-card summary .section-title-text[2]  text='Финансовая выжимка'
+  [7.09:1] .section-tldr-inline[1]  text='это банковский бизнес, где важны маржа на процентах и качество к'
+  [7.09:1] .section-tldr-inline[2]  text='деньги в банк приходят, но их удержание ухудшилось.'
+  [11.23:1] .analysis-para[0]  text='Класс: C'
+  [11.23:1] .analysis-para[1]  text='Расшифровка: Банк растёт по выручке и прибыли, но качество балан'
+  [11.23:1] .analysis-para[2]  text='Hamkorbank зарабатывает как банк: получает процентный доход, раз'
+  [10.30:1] .analysis-kv-value[0]  text='4,35 млрд сумов против 3,15 млрд сумов годом ранее. Чистая маржа'
+  [10.30:1] .analysis-kv-value[1]  text='2023 — 3,15 млрд, 2024 — 4,35 млрд сумов. Тренд по прибыли тоже'
+  [15.45:1] .analysis-kv-label[0]  text='Выручка растёт быстро:'
+  [15.45:1] .analysis-kv-label[1]  text='Тренд по выручке положительный:'
+  [17.85:1] .bank-metric-value[0]  text='18%'
+  [17.85:1] .bank-metric-value[1]  text='6,9%'
+  [17.85:1] .bank-metric-value[2]  text='283,1%'
+  [7.58:1] .bank-metric-note[0]  text='Достаточность капитала (equity / активы) — рисково-взвешенный CA'
+  [7.58:1] .bank-metric-note[1]  text='Чистый процентный доход / активы — сколько банк зарабатывает на'
+  [7.58:1] .bank-metric-note[2]  text='Кредиты / депозиты — насколько активно банк раздаёт собранные де'
+  [7.58:1] .bank-metric-label[0]  text='Достаточность капитала'
+  [7.58:1] .bank-metric-label[1]  text='Чистая процентная маржа'
+  [7.58:1] .bank-metric-label[2]  text='Кредиты / депозиты'
+  [5.37:1 ⚠ AA only] .metric-card .metric-label[0]  text='Итоговый скор'
+  [5.37:1 ⚠ AA only] .metric-card .metric-label[1]  text='DCF-оценка'
+  [5.37:1 ⚠ AA only] .metric-card .metric-label[2]  text='Отрасль'
+  [16.83:1] .panel h2[0]  text='Chet el kapitali ishtirokidagi "Hamkorbank" aksiyadorlik tijorat'
+  [16.83:1] .panel h2[1]  text='Ключевые показатели'
+  [16.83:1] .panel h2[2]  text='Разделы отчета'
+  [5.94:1 ⚠ AA only] .panel-label[0]  text='Результат'
+  [4.70:1 ⚠ AA only] .panel-label[1]  text='Динамика выручки и прибыли'
+  [5.94:1 ⚠ AA only] .panel-label[2]  text='Банковские коэффициенты'
+
+--- final element census ---
+{
+  "hero": true,
+  "heroClass": "hero-verdict hero-verdict--neutral",
+  "heroH": 437.5,
+  "sectionCount": 14,
+  "tldrCount": 14,
+  "tldrClasses": [
+    "tldr-card tldr-card--neutral tldr-card--default",
+    "tldr-card tldr-card--neutral tldr-card--default",
+    "tldr-card tldr-card--neutral tldr-card--default",
+    "tldr-card tldr-card--neutral tldr-card--default",
+    "tldr-card tldr-card--unknown tldr-card--default"
+  ],
+  "first_section_summary": "РАЗДЕЛ 01Общая оценка и скоринг эмитентацифры у банка неплохие, но баланс и проценты дают заметный риск."
+}
+📸 v4_09_all_sections_open_light.png
