@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Анализ финансовой отчётности — «Ипотека-банк» АТИБ | Q1 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1612;
+    --ink-mid: #3d3530;
+    --ink-light: #6b5e55;
+    --rule: #c9b99a;
+    --rule-light: #e8ddd0;
+    --accent: #8b1a1a;
+    --accent-soft: #c0392b;
+    --gold: #9a7b3a;
+    --bg: #faf7f2;
+    --bg-warm: #f3ede3;
+    --bg-table: #fdf9f4;
+    --green: #1a5c2e;
+    --red: #8b1a1a;
+    --amber: #7a5200;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 17px;
+    line-height: 1.8;
+  }
+
+  /* ── MASTHEAD ── */
+  .masthead {
+    border-top: 3px solid var(--ink);
+    border-bottom: 1px solid var(--rule);
+    padding: 12px 0 8px;
+    text-align: center;
+    background: var(--bg);
+    margin-bottom: 0;
+  }
+  .masthead-journal {
+    font-family: 'Playfair Display', serif;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+  }
+  .masthead-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--ink);
+    margin: 6px 0 4px;
+  }
+  .masthead-sub {
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .masthead-rule {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 10px auto 0;
+    max-width: 400px;
+    justify-content: center;
+  }
+  .masthead-rule span { height: 1px; flex: 1; background: var(--rule); }
+  .masthead-rule em { font-size: 11px; color: var(--ink-light); letter-spacing: 0.2em; font-style: normal; }
+
+  /* ── LAYOUT ── */
+  .page { max-width: 900px; margin: 0 auto; padding: 0 40px 80px; }
+
+  /* ── META BAR ── */
+  .meta-bar {
+    border-bottom: 2px solid var(--ink);
+    padding: 14px 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin-bottom: 40px;
+  }
+  .meta-item { padding: 0 16px; border-right: 1px solid var(--rule); }
+  .meta-item:first-child { padding-left: 0; }
+  .meta-item:last-child { border-right: none; }
+  .meta-label { font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 2px; }
+  .meta-value { font-family: 'Playfair Display', serif; font-size: 13px; color: var(--ink); }
+
+  /* ── ABSTRACT ── */
+  .abstract {
+    border-left: 3px solid var(--accent);
+    padding: 20px 24px;
+    background: var(--bg-warm);
+    margin-bottom: 44px;
+    position: relative;
+  }
+  .abstract::before {
+    content: 'АННОТАЦИЯ';
+    font-size: 9px;
+    letter-spacing: 0.35em;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 10px;
+  }
+  .abstract p { font-size: 15px; line-height: 1.75; color: var(--ink-mid); font-style: italic; }
+
+  /* ── SECTION ── */
+  .section { margin-bottom: 52px; }
+  .section-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    display: block;
+    margin-bottom: 4px;
+  }
+  h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 22px;
+    line-height: 1.3;
+  }
+  h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    font-weight: 600;
+    font-style: italic;
+    color: var(--accent);
+    margin: 28px 0 12px;
+  }
+  p { margin-bottom: 16px; text-align: justify; hyphens: auto; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ── DROPCAP ── */
+  .dropcap::first-letter {
+    font-family: 'Playfair Display', serif;
+    font-size: 68px;
+    font-weight: 700;
+    float: left;
+    line-height: 0.8;
+    margin: 6px 8px -4px 0;
+    color: var(--accent);
+  }
+
+  /* ── TABLES ── */
+  .table-wrap { margin: 28px 0 32px; overflow-x: auto; }
+  .table-caption {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 8px;
+    padding-left: 2px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    background: var(--bg-table);
+  }
+  thead tr { background: var(--ink); color: #f5ede0; }
+  thead th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 10px 12px;
+    text-align: right;
+    font-weight: 500;
+  }
+  thead th:first-child { text-align: left; }
+  tbody tr { border-bottom: 1px solid var(--rule-light); }
+  tbody tr:hover { background: #f0e9de; }
+  tbody tr.subtotal { background: #ede4d6; font-weight: 600; }
+  tbody tr.total { background: var(--bg-warm); border-top: 2px solid var(--rule); border-bottom: 2px solid var(--rule); font-weight: 700; }
+  tbody tr.section-head { background: #f7f1e8; }
+  tbody td {
+    padding: 8px 12px;
+    color: var(--ink-mid);
+    vertical-align: middle;
+  }
+  tbody td:first-child { color: var(--ink); }
+  tbody td.num { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+  .pos { color: var(--green); font-weight: 600; }
+  .neg { color: var(--red); font-weight: 600; }
+  .warn { color: var(--amber); font-weight: 600; }
+  .indent { padding-left: 28px !important; font-size: 13.5px; color: var(--ink-light); }
+
+  /* ── CALLOUT BOXES ── */
+  .callout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0 32px; }
+  .callout {
+    border: 1px solid var(--rule);
+    padding: 16px 20px;
+    background: var(--bg-warm);
+  }
+  .callout.good { border-left: 4px solid var(--green); }
+  .callout.bad { border-left: 4px solid var(--red); }
+  .callout.neutral { border-left: 4px solid var(--gold); }
+  .callout-label { font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 6px; }
+  .callout-value { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; color: var(--ink); }
+  .callout-desc { font-size: 12.5px; color: var(--ink-light); margin-top: 4px; line-height: 1.5; }
+
+  /* ── INLINE KPI ── */
+  .kpi-row { display: flex; gap: 0; border: 1px solid var(--rule); margin: 24px 0 32px; }
+  .kpi-item { flex: 1; padding: 16px 18px; border-right: 1px solid var(--rule); text-align: center; }
+  .kpi-item:last-child { border-right: none; }
+  .kpi-label { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 6px; }
+  .kpi-val { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--accent); }
+  .kpi-sub { font-size: 11px; color: var(--ink-light); margin-top: 2px; }
+
+  /* ── VERDICT BOX ── */
+  .verdict {
+    background: var(--ink);
+    color: #f5ede0;
+    padding: 32px 36px;
+    margin: 40px 0 0;
+  }
+  .verdict-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.3em; color: var(--gold); margin-bottom: 14px; }
+  .verdict h3 { color: #f5ede0; font-family: 'Playfair Display', serif; font-size: 20px; margin: 0 0 16px; font-style: normal; }
+  .verdict p { color: #d4c5b0; font-size: 15px; margin-bottom: 12px; text-align: left; }
+  .verdict ul { list-style: none; padding: 0; margin-top: 8px; }
+  .verdict ul li { font-size: 14.5px; color: #d4c5b0; padding: 5px 0 5px 18px; position: relative; border-bottom: 1px solid #3d352a; }
+  .verdict ul li::before { content: '›'; position: absolute; left: 0; color: var(--gold); font-size: 18px; line-height: 1.4; }
+
+  /* ── FORMULA ── */
+  .formula-box {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--gold);
+    background: #faf5ec;
+    padding: 12px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--ink-mid);
+    margin: 12px 0 20px;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    border-top: 2px solid var(--ink);
+    padding: 20px 0 0;
+    margin-top: 60px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    font-size: 12px;
+    color: var(--ink-light);
+  }
+  .footer strong { display: block; color: var(--ink); margin-bottom: 4px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  @media (max-width: 700px) {
+    .page { padding: 0 20px 60px; }
+    .meta-bar { grid-template-columns: 1fr 1fr; }
+    .callout-grid { grid-template-columns: 1fr; }
+    .kpi-row { flex-wrap: wrap; }
+    .footer { grid-template-columns: 1fr; }
+    .masthead-title { font-size: 20px; }
+  }
+
+  @media print {
+    body { font-size: 12pt; }
+    .page { max-width: 100%; padding: 0; }
+    h2 { page-break-after: avoid; }
+    .section { page-break-inside: avoid; }
+    table { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="masthead-journal">Финансовый анализ / Financial Analysis Report</div>
+  <div class="masthead-title">«Ипотека-банк» АТИБ</div>
+  <div class="masthead-sub">Анализ финансовой отчётности по НСБУ — I квартал 2026 года</div>
+  <div class="masthead-rule"><span></span><em>31 марта 2026</em><span></span></div>
+</div>
+
+<div class="page">
+
+  <div class="meta-bar">
+    <div class="meta-item">
+      <div class="meta-label">Эмитент</div>
+      <div class="meta-value">«Ипотека-банк» АТИБ</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Тикер</div>
+      <div class="meta-value">IPTB / IPTBP</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Отчётная дата</div>
+      <div class="meta-value">31 марта 2026</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Единица измерения</div>
+      <div class="meta-value">Тысяч сум (тыс. сум)</div>
+    </div>
+  </div>
+
+  <!-- ABSTRACT -->
+  <div class="abstract">
+    <p>Настоящая статья представляет собой полноформатный финансовый анализ квартальной отчётности Акционерного коммерческого ипотечного банка «Ипотека-банк» за первый квартал 2026 года, составленной в соответствии с Национальными стандартами бухгалтерского учёта Республики Узбекистан (НСБУ). Анализ охватывает горизонтальный и вертикальный разборы баланса (форма № 1) и отчёта о финансовых результатах (форма № 2), а также расчёт и интерпретацию ключевых коэффициентов ликвидности, рентабельности, качества активов, достаточности капитала и операционной эффективности. Сравнительной базой служат данные на 31 декабря 2025 года. Все расчёты произведены на основе официально раскрытых данных Единого портала корпоративной информации НАПП Республики Узбекистан.</p>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- РАЗДЕЛ 1 -->
+  <!-- ─────────────────────────────────────────── -->
+  <div class="section">
+    <span class="section-number">РАЗДЕЛ 1</span>
+    <h2>Общие сведения об эмитенте и методология анализа</h2>
+
+    <p class="dropcap">Акционерный коммерческий ипотечный банк «Ипотека-банк» был зарегистрирован Центральным банком Республики Узбекистан 30 апреля 2005 года под номером 74 и по состоянию на дату настоящего анализа является одним из крупнейших государственно-аффилированных банков страны, специализирующихся на ипотечном и корпоративном кредитовании. Банк ведёт деятельность под биржевыми тикерами IPTB (обыкновенные акции) и IPTBP (привилегированные акции), уставный капитал разделён на акции обоих классов: 3 826 165 639 тыс. сум и 8 052 000 тыс. сум соответственно.</p>
+
+    <p>Настоящий анализ строится на трёх классических методах, закреплённых в теории финансового анализа и применяемых в рамках НСБУ: <strong>горизонтальный анализ</strong> (оценка динамики абсолютных и относительных изменений статей отчётности), <strong>вертикальный анализ</strong> (структурный анализ — определение удельного веса каждой статьи в итоговом показателе) и <strong>коэффициентный анализ</strong> (расчёт финансовых показателей по пяти основным группам: ликвидность, рентабельность, качество активов, достаточность капитала и операционная эффективность).</p>
+
+    <p>Сравнительной базой для анализа баланса является дата 31 декабря 2025 года, для отчёта о финансовых результатах — данные приведены только за I квартал 2026 года (с 1 января по 31 марта 2026 года), что соответствует формату квартального отчёта эмитента. Там, где это методологически обоснованно, квартальные показатели рентабельности аннуализированы (умножены на 4) для обеспечения сопоставимости с отраслевыми ориентирами.</p>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- РАЗДЕЛ 2 -->
+  <!-- ─────────────────────────────────────────── -->
+  <div class="section">
+    <span class="section-number">РАЗДЕЛ 2</span>
+    <h2>Горизонтальный анализ бухгалтерского баланса (Форма № 1)</h2>
+
+    <p>Горизонтальный анализ позволяет количественно оценить направление и масштаб изменений в структуре активов, обязательств и капитала банка за анализируемый период. Ниже представлена сравнительная таблица основных статей баланса на 31.03.2026 и 31.12.2025.</p>
+
+    <h3>2.1. Анализ динамики активов</h3>
+
+    <div class="table-wrap">
+      <div class="table-caption">Таблица 1 — Горизонтальный анализ активов (тыс. сум)</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:42%">Статья актива</th>
+            <th>31.03.2026</th>
+            <th>31.12.2025</th>
+            <th>Изм., тыс. сум</th>
+            <th>Изм., %</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1. Кассовая наличность и платёжные документы</td>
+            <td class="num">888 081 858</td>
+            <td class="num">920 824 892</td>
+            <td class="num neg">-32 743 034</td>
+            <td class="num neg">-3,6%</td>
+          </tr>
+          <tr>
+            <td>2. К получению из ЦБРУ</td>
+            <td class="num">1 144 248 431</td>
+            <td class="num">1 757 795 485</td>
+            <td class="num neg">-613 547 054</td>
+            <td class="num neg">-34,9%</td>
+          </tr>
+          <tr>
+            <td>3. К получению из других банков</td>
+            <td class="num">6 792 104 238</td>
+            <td class="num">5 990 865 225</td>
+            <td class="num pos">+801 239 013</td>
+            <td class="num pos">+13,4%</td>
+          </tr>
+          <tr>
+            <td>5. Инвестиции (нетто)</td>
+            <td class="num">5 972 433 716</td>
+            <td class="num">10 457 481 584</td>
+            <td class="num neg">-4 485 047 868</td>
+            <td class="num neg">-42,9%</td>
+          </tr>
+          <tr>
+            <td>7. Кредиты и лизинг (нетто)</td>
+            <td class="num">33 842 745 127</td>
+            <td class="num">35 048 827 088</td>
+            <td class="num neg">-1 206 081 961</td>
+            <td class="num neg">-3,4%</td>
+          </tr>
+          <tr class="indent-row">
+            <td class="indent">— в т.ч. брутто-кредиты</td>
+            <td class="num">34 980 980 721</td>
+            <td class="num">35 639 532 897</td>
+            <td class="num neg">-658 552 176</td>
+            <td class="num neg">-1,8%</td>
+          </tr>
+          <tr class="indent-row">
+            <td class="indent">— в т.ч. резерв на потери</td>
+            <td class="num neg">1 138 235 594</td>
+            <td class="num neg">590 705 809</td>
+            <td class="num neg">+547 529 785</td>
+            <td class="num neg">+92,7%</td>
+          </tr>
+          <tr>
+            <td>10. Основные средства (нетто)</td>
+            <td class="num">962 755 734</td>
+            <td class="num">1 208 001 655</td>
+            <td class="num neg">-245 245 921</td>
+            <td class="num neg">-20,3%</td>
+          </tr>
+          <tr>
+            <td>11. Начисленные проценты к получению</td>
+            <td class="num">896 069 804</td>
+            <td class="num">736 279 944</td>
+            <td class="num pos">+159 789 860</td>
+            <td class="num pos">+21,7%</td>
+          </tr>
+          <tr>
+            <td>13. Другие активы</td>
+            <td class="num">98 186 841</td>
+            <td class="num">176 907 191</td>
+            <td class="num neg">-78 720 350</td>
+            <td class="num neg">-44,5%</td>
+          </tr>
+          <tr class="total">
+            <td><strong>14. ИТОГО АКТИВОВ</strong></td>
+            <td class="num"><strong>50 668 871 579</strong></td>
+            <td class="num"><strong>56 342 801 342</strong></td>
+            <td class="num neg"><strong>-5 673 929 763</strong></td>
+            <td class="num neg"><strong>-10,1%</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>За период с 31 декабря 2025 года по 31 марта 2026 года совокупные активы банка сократились на <strong>5 673,9 млрд сум, или на 10,1%</strong>, составив 50 668,9 млрд сум. Данное сжатие является значительным в масштабах одного квартала и требует детального разбора по компонентам.</p>
+
+    <p>Наиболее существенным по абсолютной величине является сокращение <strong>инвестиционного портфеля</strong> — на 4 485,0 млрд сум (-42,9%). Столь резкое падение, как правило, свидетельствует о плановой переоценке или реструктуризации портфеля ценных бумаг, возможно, о погашении государственных ценных бумаг в портфеле банка либо о перераспределении средств в иные инструменты. Остатки на корреспондентских счетах в ЦБРУ также существенно снизились: -613,5 млрд сум (-34,9%), что может указывать на использование высоколиквидных активов для покрытия оттока депозитной базы (подробнее — в разделе об обязательствах).</p>
+
+    <p>Кредитный портфель сократился умеренно: <strong>нетто-кредиты уменьшились на 1 206,1 млрд сум (-3,4%)</strong>, при этом брутто-кредиты снизились лишь на 658,6 млрд сум (-1,8%). Разница объясняется резким ростом резервов на возможные потери: с 590,7 млрд до 1 138,2 млрд сум (+92,7%). Этот факт является одним из ключевых сигналов квартала и будет подробно рассмотрен в разделе о качестве активов. Несмотря на сокращение, кредитный портфель остаётся бесспорно доминирующим активом, подтверждая профиль банка как кредитной организации.</p>
+
+    <p>Положительным исключением выступают межбанковские размещения: <strong>к получению из других банков выросли на 801,2 млрд сум (+13,4%)</strong>, а начисленные проценты к получению — на 159,8 млрд сум (+21,7%), что косвенно свидетельствует об активном межбанковском кредитовании и накоплении процентной дебиторской задолженности в квартале.</p>
+
+    <h3>2.2. Анализ динамики обязательств и собственного капитала</h3>
+
+    <div class="table-wrap">
+      <div class="table-caption">Таблица 2 — Горизонтальный анализ обязательств и капитала (тыс. сум)</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:42%">Статья пассива</th>
+            <th>31.03.2026</th>
+            <th>31.12.2025</th>
+            <th>Изм., тыс. сум</th>
+            <th>Изм., %</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="section-head">
+            <td colspan="5"><strong>ОБЯЗАТЕЛЬСТВА</strong></td>
+          </tr>
+          <tr>
+            <td>15. Депозиты до востребования</td>
+            <td class="num">7 286 139 269</td>
+            <td class="num">8 583 933 665</td>
+            <td class="num neg">-1 297 794 396</td>
+            <td class="num neg">-15,1%</td>
+          </tr>
+          <tr>
+            <td>17. Срочные депозиты</td>
+            <td class="num">17 794 525 417</td>
+            <td class="num">19 609 315 765</td>
+            <td class="num neg">-1 814 790 348</td>
+            <td class="num neg">-9,3%</td>
+          </tr>
+          <tr>
+            <td>18. К оплате в ЦБРУ</td>
+            <td class="num">203 235 156</td>
+            <td class="num">142 691 192</td>
+            <td class="num pos">+60 543 964</td>
+            <td class="num pos">+42,4%</td>
+          </tr>
+          <tr>
+            <td>20. Ценные бумаги с обратным выкупом (РЕПО)</td>
+            <td class="num">4 982 788 368</td>
+            <td class="num">6 228 123 778</td>
+            <td class="num neg">-1 245 335 410</td>
+            <td class="num neg">-20,0%</td>
+          </tr>
+          <tr>
+            <td>21. Кредиты и лизинг к оплате</td>
+            <td class="num">10 137 930 812</td>
+            <td class="num">9 823 005 326</td>
+            <td class="num pos">+314 925 486</td>
+            <td class="num pos">+3,2%</td>
+          </tr>
+          <tr>
+            <td>22. Субординированный долг</td>
+            <td class="num">526 627 605</td>
+            <td class="num">494 860 387</td>
+            <td class="num pos">+31 767 218</td>
+            <td class="num pos">+6,4%</td>
+          </tr>
+          <tr>
+            <td>23. Начисленные проценты к оплате</td>
+            <td class="num">829 675 831</td>
+            <td class="num">975 871 832</td>
+            <td class="num neg">-146 196 001</td>
+            <td class="num neg">-15,0%</td>
+          </tr>
+          <tr>
+            <td>24. Другие обязательства</td>
+            <td class="num">879 303 619</td>
+            <td class="num">1 373 473 418</td>
+            <td class="num neg">-494 169 799</td>
+            <td class="num neg">-36,0%</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>25. Итого обязательств</strong></td>
+            <td class="num"><strong>43 231 581 882</strong></td>
+            <td class="num"><strong>47 761 680 297</strong></td>
+            <td class="num neg"><strong>-4 530 098 415</strong></td>
+            <td class="num neg"><strong>-9,5%</strong></td>
+          </tr>
+          <tr class="section-head">
+            <td colspan="5"><strong>СОБСТВЕННЫЙ КАПИТАЛ</strong></td>
+          </tr>
+          <tr>
+            <td>26. Уставный капитал</td>
+            <td class="num">3 834 217 639</td>
+            <td class="num">3 834 217 639</td>
+            <td class="num">—</td>
+            <td class="num">0,0%</td>
+          </tr>
+          <tr>
+            <td>28. Резервный капитал</td>
+            <td class="num">961 204 361</td>
+            <td class="num">960 687 536</td>
+            <td class="num pos">+516 825</td>
+            <td class="num pos">+0,05%</td>
+          </tr>
+          <tr>
+            <td>29. Нераспределённая прибыль</td>
+            <td class="num">2 641 113 263</td>
+            <td class="num">3 785 461 436</td>
+            <td class="num neg">-1 144 348 173</td>
+            <td class="num neg">-30,2%</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>30. Итого собственного капитала</strong></td>
+            <td class="num"><strong>7 437 289 697</strong></td>
+            <td class="num"><strong>8 581 121 045</strong></td>
+            <td class="num neg"><strong>-1 143 831 348</strong></td>
+            <td class="num neg"><strong>-13,3%</strong></td>
+          </tr>
+          <tr class="total">
+            <td><strong>31. ИТОГО ПАССИВОВ</strong></td>
+            <td class="num"><strong>50 668 871 579</strong></td>
+            <td class="num"><strong>56 342 801 342</strong></td>
+            <td class="num neg"><strong>-5 673 929 763</strong></td>
+            <td class="num neg"><strong>-10,1%</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>На стороне пассивов основным фактором сжатия баланса стал <strong>отток ресурсной базы</strong>. Совокупные обязательства сократились на 4 530,1 млрд сум (-9,5%). Депозиты до востребования уменьшились на 1 297,8 млрд сум (-15,1%), срочные депозиты — на 1 814,8 млрд сум (-9,3%). Итоговое сокращение депозитной базы (до востребования + срочные) составило <strong>3 112,6 млрд сум</strong>. Сокращение обязательств по РЕПО-операциям (-1 245,3 млрд сум, -20,0%) дополнительно усилило давление на пассивную сторону баланса.</p>
+
+    <p>В то же время следует отметить, что банк компенсировал часть оттока за счёт <strong>наращивания привлечённых кредитных ресурсов</strong> (+314,9 млрд сум, +3,2%) и субординированного долга (+31,8 млрд сум, +6,4%), что увеличивает зависимость от оптового и регуляторного фондирования.</p>
+
+    <p>Особого внимания заслуживает динамика <strong>собственного капитала</strong>: он сократился на 1 143,8 млрд сум (-13,3%). Уставный капитал остался неизменным (3 834,2 млрд сум), резервный капитал практически не изменился. Таким образом, весь прирост капитала за счёт чистой прибыли квартала (846,4 млрд сум) был нивелирован и перекрыт <strong>выплатой дивидендов</strong>, которые по расчётным данным составили порядка <strong>1 990 млрд сум</strong> (нераспределённая прибыль сократилась на 1 144,3 млрд сум при чистой прибыли 846,4 млрд сум). Это характерно для I квартала, когда банки традиционно распределяют прибыль предыдущего года.</p>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- РАЗДЕЛ 3 -->
+  <!-- ─────────────────────────────────────────── -->
+  <div class="section">
+    <span class="section-number">РАЗДЕЛ 3</span>
+    <h2>Вертикальный анализ бухгалтерского баланса</h2>
+
+    <p>Вертикальный анализ позволяет оценить структуру баланса вне зависимости от абсолютных значений, приводя все статьи к процентному соотношению с итоговой суммой. Это особенно важно при сравнении двух периодов с разными объёмами активов — именно структурный сдвиг, а не абсолютное изменение, раскрывает трансформацию бизнес-модели банка.</p>
+
+    <div class="table-wrap">
+      <div class="table-caption">Таблица 3 — Вертикальный анализ активов (% от итога)</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:42%">Статья актива</th>
+            <th>31.03.2026</th>
+            <th>% к итогу</th>
+            <th>31.12.2025</th>
+            <th>% к итогу</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Касса и платёжные документы</td>
+            <td class="num">888 082</td>
+            <td class="num">1,75%</td>
+            <td class="num">920 825</td>
+            <td class="num">1,63%</td>
+          </tr>
+          <tr>
+            <td>К получению из ЦБРУ</td>
+            <td class="num">1 144 248</td>
+            <td class="num">2,26%</td>
+            <td class="num">1 757 795</td>
+            <td class="num">3,12%</td>
+          </tr>
+          <tr>
+            <td>К получению из других банков</td>
+            <td class="num">6 792 104</td>
+            <td class="num warn"><strong>13,41%</strong></td>
+            <td class="num">5 990 865</td>
+            <td class="num">10,63%</td>
+          </tr>
+          <tr>
+            <td>Инвестиции (нетто)</td>
+            <td class="num">5 972 434</td>
+            <td class="num warn"><strong>11,79%</strong></td>
+            <td class="num">10 457 482</td>
+            <td class="num warn"><strong>18,56%</strong></td>
+          </tr>
+          <tr>
+            <td>Кредиты и лизинг (нетто)</td>
+            <td class="num">33 842 745</td>
+            <td class="num pos"><strong>66,79%</strong></td>
+            <td class="num">35 048 827</td>
+            <td class="num pos"><strong>62,21%</strong></td>
+          </tr>
+          <tr>
+            <td>Основные средства</td>
+            <td class="num">962 756</td>
+            <td class="num">1,90%</td>
+            <td class="num">1 208 002</td>
+            <td class="num">2,14%</td>
+          </tr>
+          <tr>
+            <td>Нач. проценты к получению</td>
+            <td class="num">896 070</td>
+            <td class="num">1,77%</td>
+            <td class="num">736 280</td>
+            <td class="num">1,31%</td>
+          </tr>
+          <tr>
+            <td>Прочие активы и имущество</td>
+            <td class="num">170 433</td>
+            <td class="num">0,33%</td>
+            <td class="num">222 725</td>
+            <td class="num">0,40%</td>
+          </tr>
+          <tr class="total">
+            <td><strong>ИТОГО АКТИВОВ</strong></td>
+            <td class="num"><strong>50 668 872</strong></td>
+            <td class="num"><strong>100,0%</strong></td>
+            <td class="num"><strong>56 342 801</strong></td>
+            <td class="num"><strong>100,0%</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Структура активов отражает типичную модель коммерческого банка с выраженной кредитной специализацией. Кредитный портфель занимает доминирующую позицию — <strong>66,79% совокупных активов</strong> на 31.03.2026, при этом его удельный вес за квартал вырос с 62,21%, несмотря на абсолютное сокращение. Это объясняется опережающим сжатием инвестиционного портфеля, доля которого рухнула с <strong>18,56% до 11,79%</strong> — структурный сдвиг на 6,77 п.п., один из наиболее заметных за квартал.</p>
+
+    <p>Доля межбанковских размещений, напротив, выросла с 10,63% до 13,41%, свидетельствуя о переориентации части высвободившейся ликвидности в межбанковский сектор. Доля ликвидных активов первой линии (касса + ЦБРУ) составила 4,01% — на нижней границе комфортной зоны для банков с интенсивной депозитной базой.</p>
+
+    <div class="table-wrap">
+      <div class="table-caption">Таблица 4 — Вертикальный анализ пассивов (% от итога)</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:42%">Статья пассива</th>
+            <th>31.03.2026</th>
+            <th>% к итогу</th>
+            <th>31.12.2025</th>
+            <th>% к итогу</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Депозиты до востребования</td>
+            <td class="num">7 286 139</td>
+            <td class="num">14,38%</td>
+            <td class="num">8 583 934</td>
+            <td class="num">15,24%</td>
+          </tr>
+          <tr>
+            <td>Срочные депозиты</td>
+            <td class="num">17 794 525</td>
+            <td class="num pos"><strong>35,12%</strong></td>
+            <td class="num">19 609 316</td>
+            <td class="num pos"><strong>34,81%</strong></td>
+          </tr>
+          <tr>
+            <td>РЕПО (ценные бумаги с обратным выкупом)</td>
+            <td class="num">4 982 788</td>
+            <td class="num">9,83%</td>
+            <td class="num">6 228 124</td>
+            <td class="num">11,05%</td>
+          </tr>
+          <tr>
+            <td>Кредиты и лизинг к оплате</td>
+            <td class="num">10 137 931</td>
+            <td class="num warn"><strong>20,01%</strong></td>
+            <td class="num">9 823 005</td>
+            <td class="num warn"><strong>17,44%</strong></td>
+          </tr>
+          <tr>
+            <td>Субординированный долг</td>
+            <td class="num">526 628</td>
+            <td class="num">1,04%</td>
+            <td class="num">494 860</td>
+            <td class="num">0,88%</td>
+          </tr>
+          <tr>
+            <td>К оплате в ЦБРУ и другие банки</td>
+            <td class="num">794 591</td>
+            <td class="num">1,57%</td>
+            <td class="num">673 096</td>
+            <td class="num">1,19%</td>
+          </tr>
+          <tr>
+            <td>Нач. проценты к оплате и прочие</td>
+            <td class="num">1 708 979</td>
+            <td class="num">3,37%</td>
+            <td class="num">2 349 345</td>
+            <td class="num">4,17%</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>Итого обязательств</strong></td>
+            <td class="num"><strong>43 231 582</strong></td>
+            <td class="num"><strong>85,32%</strong></td>
+            <td class="num"><strong>47 761 680</strong></td>
+            <td class="num"><strong>84,79%</strong></td>
+          </tr>
+          <tr>
+            <td>Уставный капитал</td>
+            <td class="num">3 834 218</td>
+            <td class="num">7,57%</td>
+            <td class="num">3 834 218</td>
+            <td class="num">6,80%</td>
+          </tr>
+          <tr>
+            <td>Резервный капитал</td>
+            <td class="num">961 204</td>
+            <td class="num">1,90%</td>
+            <td class="num">960 688</td>
+            <td class="num">1,71%</td>
+          </tr>
+          <tr>
+            <td>Нераспределённая прибыль</td>
+            <td class="num">2 641 113</td>
+            <td class="num">5,21%</td>
+            <td class="num">3 785 461</td>
+            <td class="num">6,72%</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>Итого собственного капитала</strong></td>
+            <td class="num"><strong>7 437 290</strong></td>
+            <td class="num"><strong>14,68%</strong></td>
+            <td class="num"><strong>8 581 121</strong></td>
+            <td class="num"><strong>15,23%</strong></td>
+          </tr>
+          <tr class="total">
+            <td><strong>ИТОГО ПАССИВОВ</strong></td>
+            <td class="num"><strong>50 668 872</strong></td>
+            <td class="num"><strong>100,0%</strong></td>
+            <td class="num"><strong>56 342 801</strong></td>
+            <td class="num"><strong>100,0%</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Структура пассивов демонстрирует умеренную диверсификацию фондирования. Срочные депозиты остаются главным источником ресурсной базы (35,12%), однако значимую долю занимают привлечённые кредиты — 20,01%, доля которых возросла по сравнению с концом 2025 года (17,44%). Это свидетельствует об усилении зависимости от оптового и регуляторного фондирования на фоне оттока клиентских депозитов.</p>
+
+    <p>Коэффициент достаточности капитала по простому методу (капитал/активы) составил <strong>14,68%</strong> против <strong>15,23%</strong> на конец 2025 года — снижение на 0,55 п.п., которое при сохранении тенденции выплаты крупных дивидендов следует мониторировать в последующих периодах.</p>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- РАЗДЕЛ 4 -->
+  <!-- ─────────────────────────────────────────── -->
+  <div class="section">
+    <span class="section-number">РАЗДЕЛ 4</span>
+    <h2>Анализ отчёта о финансовых результатах (Форма № 2)</h2>
+
+    <p>Отчёт о финансовых результатах за I квартал 2026 года раскрывает структуру доходов и расходов банка за период с 1 января по 31 марта 2026 года включительно. В отличие от баланса, представленного двумя сравнительными датами, данные о прибылях и убытках приведены только за текущий отчётный период, что ограничивает возможность прямого горизонтального сравнения. Тем не менее вертикальный анализ позволяет оценить структуру доходов и бремя расходов.</p>
+
+    <h3>4.1. Горизонтальный и вертикальный анализ доходов и расходов</h3>
+
+    <div class="table-wrap">
+      <div class="table-caption">Таблица 5 — Отчёт о финансовых результатах, I квартал 2026 (тыс. сум)</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:52%">Статья</th>
+            <th>Сумма, тыс. сум</th>
+            <th>% от проц. дох.</th>
+            <th>% от сов. дох.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="section-head">
+            <td colspan="4"><strong>I. ПРОЦЕНТНЫЕ ДОХОДЫ</strong></td>
+          </tr>
+          <tr>
+            <td class="indent">По счетам в ЦБРУ</td>
+            <td class="num">3 517 808</td>
+            <td class="num">0,11%</td>
+            <td class="num">0,08%</td>
+          </tr>
+          <tr>
+            <td class="indent">По счетам в других банках</td>
+            <td class="num">64 121 692</td>
+            <td class="num">2,06%</td>
+            <td class="num">1,45%</td>
+          </tr>
+          <tr>
+            <td class="indent">По купле-продаже ц/б (доходы по инвестициям)</td>
+            <td class="num">323 173 324</td>
+            <td class="num">10,39%</td>
+            <td class="num">7,29%</td>
+          </tr>
+          <tr>
+            <td class="indent">По кредитам и лизингу</td>
+            <td class="num">1 727 456 768</td>
+            <td class="num pos"><strong>55,52%</strong></td>
+            <td class="num">38,96%</td>
+          </tr>
+          <tr>
+            <td class="indent">Прочие процентные доходы</td>
+            <td class="num">993 200 661</td>
+            <td class="num">31,92%</td>
+            <td class="num">22,40%</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>Итого процентных доходов</strong></td>
+            <td class="num"><strong>3 111 470 253</strong></td>
+            <td class="num"><strong>100,0%</strong></td>
+            <td class="num"><strong>70,18%</strong></td>
+          </tr>
+          <tr class="section-head">
+            <td colspan="4"><strong>II. ПРОЦЕНТНЫЕ РАСХОДЫ</strong></td>
+          </tr>
+          <tr>
+            <td class="indent">По депозитам до востребования</td>
+            <td class="num">25 479 285</td>
+            <td class="num">0,82%</td>
+            <td class="num">—</td>
+          </tr>
+          <tr>
+            <td class="indent">По срочным депозитам</td>
+            <td class="num">663 827 315</td>
+            <td class="num">21,33%</td>
+            <td class="num">—</td>
+          </tr>
+          <tr>
+            <td class="indent">По счетам в других банках</td>
+            <td class="num">10 561 817</td>
+            <td class="num">0,34%</td>
+            <td class="num">—</td>
+          </tr>
+          <tr>
+            <td class="indent">По кредитам к оплате</td>
+            <td class="num">204 838 536</td>
+            <td class="num">6,59%</td>
+            <td class="num">—</td>
+          </tr>
+          <tr>
+            <td class="indent">Прочие процентные расходы</td>
+            <td class="num">1 176 168 091</td>
+            <td class="num neg"><strong>37,80%</strong></td>
+            <td class="num">—</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>Итого процентных расходов</strong></td>
+            <td class="num neg"><strong>2 080 875 044</strong></td>
+            <td class="num neg"><strong>66,88%</strong></td>
+            <td class="num">—</td>
+          </tr>
+          <tr class="total">
+            <td><strong>III. ЧПД ДО РЕЗЕРВОВ</strong></td>
+            <td class="num pos"><strong>1 030 595 209</strong></td>
+            <td class="num pos"><strong>33,12%</strong></td>
+            <td class="num">—</td>
+          </tr>
+          <tr>
+            <td class="indent">Минус: резервы на убытки по кредитам</td>
+            <td class="num neg">519 085 596</td>
+            <td class="num neg">16,69%</td>
+            <td class="num">—</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>ЧПД после резервов</strong></td>
+            <td class="num"><strong>511 509 613</strong></td>
+            <td class="num"><strong>16,44%</strong></td>
+            <td class="num">—</td>
+          </tr>
+          <tr class="section-head">
+            <td colspan="4"><strong>IV. БЕСПРОЦЕНТНЫЕ ДОХОДЫ</strong></td>
+          </tr>
+          <tr>
+            <td class="indent">Доходы от комиссий и услуг</td>
+            <td class="num">220 758 003</td>
+            <td class="num">—</td>
+            <td class="num">4,98%</td>
+          </tr>
+          <tr>
+            <td class="indent">Прибыль в иностранной валюте</td>
+            <td class="num">365 395 856</td>
+            <td class="num">—</td>
+            <td class="num">8,24%</td>
+          </tr>
+          <tr>
+            <td class="indent">Прочие беспроцентные доходы</td>
+            <td class="num">770 292 474</td>
+            <td class="num">—</td>
+            <td class="num">17,38%</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>Итого беспроцентных доходов</strong></td>
+            <td class="num"><strong>1 356 446 333</strong></td>
+            <td class="num">—</td>
+            <td class="num"><strong>30,60%</strong></td>
+          </tr>
+          <tr class="section-head">
+            <td colspan="4"><strong>V. БЕСПРОЦЕНТНЫЕ РАСХОДЫ</strong></td>
+          </tr>
+          <tr>
+            <td class="indent">Комиссионные расходы</td>
+            <td class="num">37 977 475</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+          </tr>
+          <tr>
+            <td class="indent">Убытки в иностранной валюте</td>
+            <td class="num">308 347 471</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+          </tr>
+          <tr>
+            <td class="indent">Прочие беспроцентные расходы</td>
+            <td class="num">7 554 629</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>Итого беспроцентных расходов</strong></td>
+            <td class="num neg"><strong>353 879 575</strong></td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+          </tr>
+          <tr class="section-head">
+            <td colspan="4"><strong>VI. ОПЕРАЦИОННЫЕ РАСХОДЫ</strong></td>
+          </tr>
+          <tr>
+            <td class="indent">Заработная плата и персонал</td>
+            <td class="num">371 130 489</td>
+            <td class="num">—</td>
+            <td class="num">68,0%*</td>
+          </tr>
+          <tr>
+            <td class="indent">Аренда и содержание</td>
+            <td class="num">32 814 670</td>
+            <td class="num">—</td>
+            <td class="num">6,0%*</td>
+          </tr>
+          <tr>
+            <td class="indent">Амортизация</td>
+            <td class="num">50 347 351</td>
+            <td class="num">—</td>
+            <td class="num">9,2%*</td>
+          </tr>
+          <tr>
+            <td class="indent">Налоги, страхование и прочие</td>
+            <td class="num">91 295 418</td>
+            <td class="num">—</td>
+            <td class="num">16,8%*</td>
+          </tr>
+          <tr class="subtotal">
+            <td><strong>Итого операционных расходов</strong></td>
+            <td class="num neg"><strong>545 587 928</strong></td>
+            <td class="num">—</td>
+            <td class="num">*% от итого оп. расх.</td>
+          </tr>
+          <tr class="total">
+            <td><strong>VII. ЧИСТАЯ ПРИБЫЛЬ ДО НАЛОГОВ</strong></td>
+            <td class="num pos"><strong>968 488 443</strong></td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+          </tr>
+          <tr>
+            <td class="indent">Налог на прибыль</td>
+            <td class="num">122 058 681</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+          </tr>
+          <tr class="total">
+            <td><strong>VIII. ЧИСТАЯ ПРИБЫЛЬ (УБЫТКИ)</strong></td>
+            <td class="num pos"><strong>846 429 762</strong></td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Совокупные доходы банка (процентные + беспроцентные) за I квартал 2026 года составили <strong>4 435,9 млрд сум</strong>, из которых 70,18% — процентные доходы и 30,60% — беспроцентные. Подобная пропорция отражает достаточно высокий уровень диверсификации доходной базы: банк получает значимую долю выручки от операций с иностранной валютой, комиссионных доходов и прочих непроцентных операций.</p>
+
+    <p>Процентные доходы формируются преимущественно за счёт кредитного портфеля: <strong>55,52% процентных доходов</strong> приходится на проценты по кредитам и лизингу (1 727,5 млрд сум). Тревожным сигналом является высокая доля «прочих процентных доходов» — 993,2 млрд сум (31,92%), расшифровка которых в отчёте не детализирована. Возможно, сюда включены доходы по государственным ценным бумагам, операциям РЕПО или иным инструментам.</p>
+
+    <p>На стороне процентных расходов показательна высокая доля «прочих процентных расходов» — 1 176,2 млрд сум (56,5% от совокупных процентных расходов), что также требует расшифровки. Суммарные процентные расходы составили 2 080,9 млрд сум, что соответствует 66,88% от процентных доходов. Данный показатель означает, что на каждый рубль процентного дохода банк тратит около 67 тийинов на обслуживание ресурсной базы — умеренный, но высокий уровень, характерный для высокопроцентной среды.</p>
+
+    <p>Чистая прибыль банка за квартал составила <strong>846,4 млрд сум</strong> при эффективной ставке налога на прибыль <strong>12,6%</strong> (122,1 млрд сум налога на прибыль до уплаты 968,5 млрд сум), что заметно ниже стандартной ставки налога на прибыль в Узбекистане — вероятно, в результате применения льгот или переноса убытков. Операционные расходы в квартале были значительными — 545,6 млрд сум, из которых <strong>68%</strong> приходится на фонд оплаты труда (371,1 млрд сум), что типично для крупных банков с разветвлённой филиальной сетью.</p>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- РАЗДЕЛ 5 -->
+  <!-- ─────────────────────────────────────────── -->
+  <div class="section">
+    <span class="section-number">РАЗДЕЛ 5</span>
+    <h2>Коэффициентный анализ</h2>
+
+    <h3>5.1. Анализ ликвидности</h3>
+
+    <p>Ликвидность банка — его способность своевременно и в полном объёме выполнять текущие обязательства перед вкладчиками и кредиторами без привлечения экстренного финансирования. Для банков применяются специфические метрики, отличающиеся от классических коэффициентов текущей ликвидности нефинансовых компаний.</p>
+
+    <div class="formula-box">
+      Коэффициент кредитов к депозитам (LTD) = Кредиты (нетто) / (Депозиты до востребования + Срочные депозиты)<br>
+      LTD = 33 842 745 / (7 286 139 + 17 794 525) = 33 842 745 / 25 080 664 = <strong>134,9%</strong>
+    </div>
+
+    <div class="formula-box">
+      Доля ликвидных активов 1-й линии в активах = (Касса + ЦБРУ) / Итого активов<br>
+      = (888 082 + 1 144 248) / 50 668 872 = <strong>4,01%</strong>
+    </div>
+
+    <div class="callout-grid">
+      <div class="callout bad">
+        <div class="callout-label">Кредиты / Депозиты (LTD)</div>
+        <div class="callout-value">135,0%</div>
+        <div class="callout-desc">Норма: до 80–100%. Высокий показатель означает, что банк финансирует кредиты не только за счёт депозитов, но и за счёт рыночных займов.</div>
+      </div>
+      <div class="callout neutral">
+        <div class="callout-label">Ликвидные активы 1-й линии</div>
+        <div class="callout-value">4,01%</div>
+        <div class="callout-desc">Доля кассы и средств в ЦБРУ от активов. На нижней границе норматива. Сократилась с 4,76% в конце 2025 г.</div>
+      </div>
+    </div>
+
+    <p>Значение коэффициента «кредиты к депозитам» на уровне 135% является сигнальным. Это означает, что банк привлекает значительный объём дополнительного финансирования (через оптовые займы, РЕПО, межбанковский рынок) для покрытия разрыва между кредитным портфелем и клиентской депозитной базой. В условиях стабильного рынка данная ситуация управляема, однако при стрессовом оттоке фондирования она создаёт риск ликвидности. Отток клиентских депозитов в I квартале 2026 года на 3 112,6 млрд сум усиливает этот риск и должен стать предметом пристального мониторинга.</p>
+
+    <h3>5.2. Анализ рентабельности</h3>
+
+    <p>Рентабельность оценивается через соотношение чистой прибыли с ключевыми базами — активами и капиталом. Поскольку данные представлены за один квартал, для корректного сравнения с отраслевыми ориентирами показатели аннуализированы.</p>
+
+    <div class="formula-box">
+      ROA (квартал) = Чистая прибыль / Итого активов = 846 430 / 50 668 872 = <strong>1,67%</strong><br>
+      ROA (аннуализированный) = 1,67% × 4 = <strong>6,68%</strong>
+    </div>
+
+    <div class="formula-box">
+      ROE (квартал) = Чистая прибыль / Собственный капитал = 846 430 / 7 437 290 = <strong>11,38%</strong><br>
+      ROE (аннуализированный) = 11,38% × 4 = <strong>45,5%</strong>
+    </div>
+
+    <div class="formula-box">
+      NIM = ЧПД до резервов / Итого активов = 1 030 595 / 50 668 872 = <strong>2,03%</strong> (квартал)<br>
+      NIM (аннуализированный) = <strong>8,13%</strong>
+    </div>
+
+    <div class="formula-box">
+      Чистая маржа = Чистая прибыль / Процентные доходы = 846 430 / 3 111 470 = <strong>27,2%</strong>
+    </div>
+
+    <div class="formula-box">
+      Ставка налогообложения эффективная = Налог / Прибыль до налогов = 122 059 / 968 488 = <strong>12,6%</strong>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-item">
+        <div class="kpi-label">ROA аннуал.</div>
+        <div class="kpi-val">6,68%</div>
+        <div class="kpi-sub">Высокий для банков</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-label">ROE аннуал.</div>
+        <div class="kpi-val">45,5%</div>
+        <div class="kpi-sub">Исключительно высокий</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-label">NIM аннуал.</div>
+        <div class="kpi-val">8,13%</div>
+        <div class="kpi-sub">Высокая маржа</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-label">Чистая маржа</div>
+        <div class="kpi-val">27,2%</div>
+        <div class="kpi-sub">Каждые 100 сум дохода → 27 сум прибыли</div>
+      </div>
+    </div>
+
+    <p>Показатели рентабельности «Ипотека-банка» выглядят исключительно сильно. Аннуализированный <strong>ROA в 6,68%</strong> значительно превышает среднеотраслевые ориентиры как для узбекского банковского рынка, так и для международных аналогов (типичный ROA для коммерческих банков — 1–2%). Это обусловлено совокупным действием высокой процентной маржи (NIM 8,13% аннуализированно — прямое следствие высоких ставок в экономике Узбекистана), значимыми непроцентными доходами (1 356,4 млрд сум) и умеренной налоговой нагрузкой (12,6%).</p>
+
+    <p>Аннуализированный <strong>ROE на уровне 45,5%</strong> объясняется сочетанием высокой прибыли и относительно невысокой капитальной базы (14,7% капитал/активы). По сути, это означает, что акционеры банка получают около 45 тийинов прибыли на каждый сум вложенного капитала — феноменально высокий показатель, актуальный при сохранении текущей процентной среды и качества активов.</p>
+
+    <h3>5.3. Анализ качества активов</h3>
+
+    <p>Качество кредитного портфеля является одним из ключевых индикаторов устойчивости банка. Для его оценки применяется соотношение резервов на возможные потери к брутто-кредитному портфелю.</p>
+
+    <div class="formula-box">
+      Coverage ratio = Резерв на убытки / Брутто-кредиты<br>
+      31.03.2026: 1 138 236 / 34 980 981 = <strong>3,25%</strong><br>
+      31.12.2025: 590 706 / 35 639 533 = <strong>1,66%</strong><br>
+      Изменение: <strong>+1,59 п.п. (+92,7%)</strong>
+    </div>
+
+    <div class="formula-box">
+      Нагрузка резервирования (к процентным доходам) = Резервы / Проц. доходы<br>
+      = 519 086 / 3 111 470 = <strong>16,69%</strong>
+    </div>
+
+    <div class="callout-grid">
+      <div class="callout bad">
+        <div class="callout-label">Резерв / Брутто-кредиты</div>
+        <div class="callout-value">3,25%</div>
+        <div class="callout-desc">Рост с 1,66% (31.12.2025) до 3,25% — удвоение резервного покрытия за один квартал. Сильнейший сигнал ухудшения качества портфеля.</div>
+      </div>
+      <div class="callout bad">
+        <div class="callout-label">Резервы квартала</div>
+        <div class="callout-value">519 млрд</div>
+        <div class="callout-desc">Расходы на резервирование в Q1 2026 составили 50% от ЧПД до резервов — крайне высокая нагрузка, «съедающая» половину процентного дохода.</div>
+      </div>
+    </div>
+
+    <p>Удвоение резервного покрытия кредитного портфеля за один квартал — с 1,66% до 3,25% — является наиболее тревожным сигналом в данной отчётности. Абсолютный прирост резервов составил 547,5 млрд сум (+92,7%). При этом расходы на резервирование в форме № 2 составили 519,1 млрд сум, что согласуется с динамикой баланса и исключает нетипичные корректировки.</p>
+
+    <p>Резервирование в размере 16,69% от процентных доходов означает, что банк «откладывает» на потери существенную долю своей процентной маржи. Формально даже после этих расходов чистая прибыль остаётся высокой — 846,4 млрд сум. Однако устойчивость этого тренда зависит от того, отражают ли созданные резервы реальное ухудшение портфеля (просрочка, дефолты) или же носят превентивный, консервативный характер. Без данных о структуре NPL (необслуживаемых кредитов) оценить этот вопрос по квартальному отчёту не представляется возможным.</p>
+
+    <h3>5.4. Достаточность капитала</h3>
+
+    <div class="formula-box">
+      Левередж (простой) = Итого активов / Собственный капитал<br>
+      = 50 668 872 / 7 437 290 = <strong>6,81x</strong>
+    </div>
+
+    <div class="formula-box">
+      Коэффициент задолженности = Итого обязательств / Итого активов<br>
+      = 43 231 582 / 50 668 872 = <strong>85,32%</strong>
+    </div>
+
+    <div class="formula-box">
+      Коэффициент долга к капиталу (D/E) = Итого обязательств / Собственный капитал<br>
+      = 43 231 582 / 7 437 290 = <strong>5,81x</strong>
+    </div>
+
+    <p>Коэффициент задолженности 85,32% является нормативным для банковского сектора: банки как финансовые посредники по природе своей деятельности работают с высоким финансовым рычагом. Тем не менее ключевым ориентиром выступает показатель <strong>капитал/активы = 14,68%</strong>, который превышает требования НСБУ и рекомендации Базельского комитета (минимум 8% по Базелю I). Банк располагает достаточным капитальным буфером. Однако снижение этого показателя с 15,23% до 14,68% за квартал на фоне дивидендных выплат требует осторожности при принятии решений о дальнейших дивидендных распределениях.</p>
+
+    <h3>5.5. Операционная эффективность</h3>
+
+    <div class="formula-box">
+      Cost-to-Income Ratio (CIR) = Операционные расходы / Чистый доход до операционных расходов<br>
+      = 545 588 / 1 514 076 = <strong>36,03%</strong>
+    </div>
+
+    <div class="formula-box">
+      Покрытие процентных расходов процентными доходами<br>
+      = 3 111 470 / 2 080 875 = <strong>1,495x</strong> (или 149,5%)
+    </div>
+
+    <div class="formula-box">
+      Доля непроцентных доходов в совокупных доходах<br>
+      = 1 356 446 / (3 111 470 + 1 356 446) = <strong>30,4%</strong>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-item">
+        <div class="kpi-label">Cost-to-Income</div>
+        <div class="kpi-val" style="color: var(--green)">36,0%</div>
+        <div class="kpi-sub">Норма: 40–60%. Отлично.</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-label">Покрытие % расходов</div>
+        <div class="kpi-val" style="color: var(--green)">1,50x</div>
+        <div class="kpi-sub">Процентный доход превышает расходы в 1,5 раза</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-label">Доля непроц. доходов</div>
+        <div class="kpi-val" style="color: var(--gold)">30,4%</div>
+        <div class="kpi-sub">Хорошая диверсификация</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-label">ФОТ / Опер. расходы</div>
+        <div class="kpi-val" style="color: var(--gold)">68,0%</div>
+        <div class="kpi-sub">Доминирование затрат на персонал</div>
+      </div>
+    </div>
+
+    <p>Показатель операционной эффективности CIR на уровне 36% является выдающимся результатом. Типичный диапазон для коммерческих банков — 40–60%, и нахождение ниже этого порога означает, что банк генерирует значительно больше дохода, чем тратит на операционные нужды. Покрытие процентных расходов процентными доходами на уровне 1,50x подтверждает устойчивость базовой банковской модели. Доля расходов на персонал в операционных расходах (68%) типична для крупного универсального банка, при этом структура F&D-расходов не вызывает опасений.</p>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- РАЗДЕЛ 6 -->
+  <!-- ─────────────────────────────────────────── -->
+  <div class="section">
+    <span class="section-number">РАЗДЕЛ 6</span>
+    <h2>Сводная таблица ключевых показателей</h2>
+
+    <div class="table-wrap">
+      <div class="table-caption">Таблица 6 — Сводный коэффициентный профиль «Ипотека-банк» АТИБ, I квартал 2026</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:35%">Показатель</th>
+            <th>Значение</th>
+            <th>Ориентир / норма</th>
+            <th>Оценка</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="section-head"><td colspan="4"><strong>Ликвидность</strong></td></tr>
+          <tr>
+            <td>Кредиты / Депозиты (LTD)</td>
+            <td class="num">135,0%</td>
+            <td class="num">< 100%</td>
+            <td class="num neg">⚠ Высокий</td>
+          </tr>
+          <tr>
+            <td>Ликвидные активы 1-й линии / Активы</td>
+            <td class="num">4,01%</td>
+            <td class="num">> 5–8%</td>
+            <td class="num warn">~ Умеренный</td>
+          </tr>
+          <tr class="section-head"><td colspan="4"><strong>Рентабельность (аннуализированная)</strong></td></tr>
+          <tr>
+            <td>ROA</td>
+            <td class="num">6,68%</td>
+            <td class="num">1–2% (норм.)</td>
+            <td class="num pos">✓ Высокая</td>
+          </tr>
+          <tr>
+            <td>ROE</td>
+            <td class="num">45,5%</td>
+            <td class="num">10–20% (норм.)</td>
+            <td class="num pos">✓ Исключительная</td>
+          </tr>
+          <tr>
+            <td>NIM (чистая процентная маржа)</td>
+            <td class="num">8,13%</td>
+            <td class="num">3–5% (норм.)</td>
+            <td class="num pos">✓ Высокая</td>
+          </tr>
+          <tr>
+            <td>Чистая маржа прибыли</td>
+            <td class="num">27,2%</td>
+            <td class="num">15–25%</td>
+            <td class="num pos">✓ Хорошая</td>
+          </tr>
+          <tr class="section-head"><td colspan="4"><strong>Качество активов</strong></td></tr>
+          <tr>
+            <td>Резервы / Брутто-кредиты (31.03.2026)</td>
+            <td class="num">3,25%</td>
+            <td class="num">< 2%</td>
+            <td class="num neg">⚠ Ухудшение</td>
+          </tr>
+          <tr>
+            <td>Резервы / Брутто-кредиты (31.12.2025)</td>
+            <td class="num">1,66%</td>
+            <td class="num">< 2%</td>
+            <td class="num pos">✓ Норма</td>
+          </tr>
+          <tr>
+            <td>Нагрузка резервирования (от проц. доходов)</td>
+            <td class="num">16,7%</td>
+            <td class="num">< 10%</td>
+            <td class="num neg">⚠ Высокая</td>
+          </tr>
+          <tr class="section-head"><td colspan="4"><strong>Достаточность капитала</strong></td></tr>
+          <tr>
+            <td>Капитал / Активы</td>
+            <td class="num">14,68%</td>
+            <td class="num">> 8% (Базель)</td>
+            <td class="num pos">✓ Достаточный</td>
+          </tr>
+          <tr>
+            <td>Коэффициент задолженности</td>
+            <td class="num">85,32%</td>
+            <td class="num">~85% (норм. для банков)</td>
+            <td class="num pos">✓ Норма</td>
+          </tr>
+          <tr>
+            <td>D/E (долг к капиталу)</td>
+            <td class="num">5,81x</td>
+            <td class="num">4–8x (банки)</td>
+            <td class="num pos">✓ Норма</td>
+          </tr>
+          <tr class="section-head"><td colspan="4"><strong>Операционная эффективность</strong></td></tr>
+          <tr>
+            <td>Cost-to-Income (CIR)</td>
+            <td class="num">36,0%</td>
+            <td class="num">40–60%</td>
+            <td class="num pos">✓ Отличный</td>
+          </tr>
+          <tr>
+            <td>Покрытие % расходов доходами</td>
+            <td class="num">1,50x</td>
+            <td class="num">> 1,2x</td>
+            <td class="num pos">✓ Хорошее</td>
+          </tr>
+          <tr>
+            <td>Доля непроц. доходов в совокупных</td>
+            <td class="num">30,4%</td>
+            <td class="num">20–40%</td>
+            <td class="num pos">✓ Норма</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- VERDICT -->
+  <div class="verdict">
+    <div class="verdict-label">РАЗДЕЛ 7 / ЗАКЛЮЧЕНИЕ</div>
+    <h3>Итоговая оценка финансового состояния «Ипотека-банк» АТИБ по результатам I квартала 2026 года</h3>
+    <p>По совокупности показателей «Ипотека-банк» демонстрирует <strong>высокую рентабельность и операционную эффективность</strong> при умеренных рисках ликвидности и усиливающихся сигналах со стороны качества кредитного портфеля. Банк остаётся прибыльным и хорошо капитализированным учреждением, однако ряд факторов требует мониторинга в последующих периодах.</p>
+    <ul>
+      <li><strong>Сильная сторона №1 — Рентабельность:</strong> аннуализированный ROA 6,68% и ROE 45,5% — исключительные результаты, свидетельствующие о высокой процентной марже в узбекской экономике и эффективном управлении расходами.</li>
+      <li><strong>Сильная сторона №2 — Операционная эффективность:</strong> CIR 36% значительно лучше отраслевого ориентира (40–60%), что указывает на хорошее управление административными и операционными расходами.</li>
+      <li><strong>Сильная сторона №3 — Диверсификация доходов:</strong> 30,4% доходов формируется непроцентными источниками (валютные операции, комиссии), что снижает зависимость от процентной среды.</li>
+      <li><strong>Риск №1 — Качество кредитного портфеля:</strong> резервное покрытие удвоилось за квартал (1,66% → 3,25%), а нагрузка резервирования достигла 16,7% от процентных доходов. Без данных о NPL невозможно определить, является ли это консервативным превентивным резервированием или отражением реального ухудшения портфеля.</li>
+      <li><strong>Риск №2 — Ликвидность:</strong> LTD 135% и отток клиентских депозитов на 3,1 трлн сум за квартал создают давление на фондирование. Банк компенсирует это оптовыми займами, увеличивая зависимость от более волатильных источников ресурсов.</li>
+      <li><strong>Риск №3 — Капитальный буфер:</strong> крупные дивидендные выплаты (~2 трлн сум) снизили коэффициент капитализации с 15,23% до 14,68%. При продолжении агрессивной дивидендной политики и одновременном росте резервов буфер может сократиться до уровней, требующих внимания регулятора.</li>
+    </ul>
+  </div>
+
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>
+      <strong>Источник данных</strong>
+      Единый портал корпоративной информации НАПП Республики Узбекистан. Квартальный отчёт эмитента «Ипотека-банк» АТИБ за I квартал 2026 года. Дата раскрытия: 27 апреля 2026 г.
+    </div>
+    <div>
+      <strong>Раскрытие информации</strong>
+      Настоящий анализ носит информационно-аналитический характер и не является инвестиционной рекомендацией. Все расчёты основаны исключительно на публично раскрытой финансовой отчётности. Методология соответствует принципам НСБУ Республики Узбекистан и общепринятым стандартам финансового анализа.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

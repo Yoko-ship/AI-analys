@@ -27,7 +27,22 @@
       "Bash(git stash *)",
       "Bash(git rm *)",
       "PowerShell(Test-Path *)",
-      "PowerShell(Get-ChildItem -Path C:\\\\,D:\\\\ -Recurse -Filter \"node.exe\" -ErrorAction SilentlyContinue -Depth 5 2>$null | Select-Object -First 3 | ForEach-Object { $_.FullName })"
+      "PowerShell(Get-ChildItem -Path C:\\\\,D:\\\\ -Recurse -Filter \"node.exe\" -ErrorAction SilentlyContinue -Depth 5 2>$null | Select-Object -First 3 | ForEach-Object { $_.FullName })",
+      "PowerShell(git add *)",
+      "PowerShell(git push *)",
+      "PowerShell(python -c \"import requests; r = requests.get\\('https://new-api.openinfo.uz/api/v2/home/organizations/', params={'page': 1, 'page_size': 5}, verify=False, timeout=15\\); print\\(r.status_code\\); print\\(r.text[:2000]\\)\")",
+      "PowerShell(cd D:\\\\projects; $env:PYTHONIOENCODING='utf-8'; python test_new_search.py)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(cd D:\\\\projects; $env:PYTHONIOENCODING='utf-8'; python debug_uzauto.py)",
+      "PowerShell(cd D:\\\\projects; $env:PYTHONIOENCODING='utf-8'; python check_missing.py)",
+      "Bash(dir D:projects *)",
+      "PowerShell(Get-ChildItem -Path 'D:\\\\projects' -Force | Where-Object { -not $_.PSIsContainer -or $_.Name -notin '.venv','node_modules','.git' } | Select-Object Name, Mode, Length)",
+      "Bash(.venv/Scripts/python.exe test_api.py)",
+      "Bash(.venv/Scripts/python.exe test_new_search.py)",
+      "Bash(.venv/Scripts/python.exe test_api2.py)",
+      "Bash(.venv/Scripts/python.exe check_missing.py)",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(gh pr *)"
     ]
   }
 }
