@@ -903,15 +903,6 @@ img {
 .hero-kpi-yoy.tone-warning { color: #f59e0b; }
 .hero-kpi-yoy.tone-danger { color: #ef4444; }
 
-.hero-verdict-line {
-  margin: 4px 0 0;
-  font-size: 15px;
-  line-height: 1.55;
-  color: var(--text, inherit);
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
 .section-tldr-inline {
   display: none;
   font-size: 13px;

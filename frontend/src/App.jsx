@@ -2762,8 +2762,6 @@ function App() {
   const analysisTicker = analysisResult?.ticker || resolveTicker(analysisResult?.input || analysisCompany || analysisResult?.company_name);
   const resultScore = analysisResult?.summary?.score ?? analysisResult?.metrics?.total_score?.score ?? null;
   const resultGrade = analysisResult?.summary?.grade ?? analysisResult?.metrics?.total_score?.grade ?? "—";
-  const resultVerdict = analysisResult?.summary?.verdict ?? "";
-  const resultSummary = analysisResult?.summary?.itog ?? analysisResult?.summary?.score_summary ?? "";
   const resultCacheText = analysisResult ? (analysisResult.from_cache ? t(language, "analysis.resultCacheHit") : t(language, "analysis.resultFresh")) : t(language, "analysis.resultCacheWaiting");
 
   const metricCards = (() => {
@@ -3450,12 +3448,6 @@ function App() {
                       chartData={chartData}
                       language={language}
                     />
-                    {(resultVerdict || resultSummary) && (
-                      <p className="hero-verdict-line">
-                        {resultVerdict || resultSummary}
-                      </p>
-                    )}
-
                     <div className="chart-card">
                       <div className="chart-head">
                         <div>
