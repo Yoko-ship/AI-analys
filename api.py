@@ -522,6 +522,8 @@ async def api_analyze(
         "cache_mode": result.get("cache_mode"),
         "summary": build_summary(result),
         "sections": result.get("sections", {}),
+        "report_tables": result.get("report_tables"),
+        "report_tables_version": result.get("report_tables_version"),
         "metrics": result.get("metrics"),
         "ifrs_snapshot": result.get("ifrs_snapshot"),
         "liquidity": result.get("liquidity"),
