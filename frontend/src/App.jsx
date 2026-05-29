@@ -3382,23 +3382,23 @@ function App() {
                     </label>
                     {includeAllExcelReports ? (
                       <div className="analysis-input-group analysis-excel-limit">
-                        <label>{language === "en" ? "Optional XLSX limit" : language === "uz" ? "Ixtiyoriy XLSX limiti" : "Лимит XLSX, необязательно"}</label>
+                        <label>{language === "en" ? "Optional XLSX cap" : language === "uz" ? "Ixtiyoriy XLSX chegarasi" : "Ограничение XLSX, необязательно"}</label>
                         <input
                           type="number"
                           min="1"
                           max="100"
                           value={excelReportLimit}
                           onChange={(event) => setExcelReportLimit(event.target.value)}
-                          placeholder={language === "en" ? "All found, max 100" : language === "uz" ? "Topilgan hammasi, max 100" : "Все найденные, максимум 100"}
+                          placeholder={language === "en" ? "Leave empty = all found" : language === "uz" ? "Bo'sh qoldiring = hammasi" : "Пусто = все найденные"}
                         />
                       </div>
                     ) : null}
                     <p>
                       {language === "en"
-                        ? "This mode is slower on first run, but snapshots are cached after parsing."
+                        ? "Leave the limit empty to parse every found XLSX report. This mode is slower on first run, then snapshots are cached."
                         : language === "uz"
-                          ? "Bu rejim birinchi ishga tushishda sekinroq, keyin snapshot keshdan olinadi."
-                          : "Этот режим медленнее при первом запуске, после парсинга snapshot берется из кэша."}
+                          ? "Barcha topilgan XLSX hisobotlarni olish uchun limitni bo'sh qoldiring. Bu rejim birinchi ishga tushishda sekinroq, keyin snapshot keshdan olinadi."
+                          : "Оставьте лимит пустым, чтобы разобрать все найденные XLSX-отчёты. Этот режим медленнее при первом запуске, после парсинга snapshot берется из кэша."}
                     </p>
                   </div>
 
