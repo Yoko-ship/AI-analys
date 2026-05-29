@@ -3349,6 +3349,37 @@ body[data-theme="dark"] .activity-footer {
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
 }
 
+body[data-theme="dark"] .hero-kpi-tile,
+body[data-theme="dark"] .legend-chip {
+  background: rgba(15, 23, 42, 0.94);
+  border-color: rgba(148, 163, 184, 0.18);
+  color: #edf2ff;
+}
+
+body[data-theme="dark"] .hero-kpi-label,
+body[data-theme="dark"] .hero-kpi-foot,
+body[data-theme="dark"] .legend-label {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+body[data-theme="dark"] .hero-kpi-value,
+body[data-theme="dark"] .legend-value {
+  color: #f8fafc;
+}
+
+body[data-theme="dark"] .hero-kpi-tile.tone-good { border-left-color: #10b981; }
+body[data-theme="dark"] .hero-kpi-tile.tone-warning { border-left-color: #f59e0b; }
+body[data-theme="dark"] .hero-kpi-tile.tone-danger { border-left-color: #ef4444; }
+body[data-theme="dark"] .hero-kpi-tile.tone-neutral { border-left-color: #94a3b8; }
+
+body[data-theme="dark"] .legend-delta.is-up {
+  color: var(--accent-2);
+}
+
+body[data-theme="dark"] .legend-delta.is-down {
+  color: var(--danger);
+}
+
 body[data-theme="dark"] .panel:hover,
 body[data-theme="dark"] .tile-card:hover,
 body[data-theme="dark"] .profile-stat-card:hover,
