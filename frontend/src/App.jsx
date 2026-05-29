@@ -1868,14 +1868,41 @@ function SectionCard({ title, body, index, open = false, language = "ru" }) {
     const elements = [];
     let tableBuffer = [];
     let inTable = false;
+    let proseBuffer = [];
+
+    const tableCaptionRe = /^(?:таблица|table|jadval)\b/i;
+
+    const flushProse = () => {
+      if (!proseBuffer.length) return;
+      elements.push(
+        <section key={`detail-${elements.length}`} className="analysis-sector analysis-sector--detail">
+          {proseBuffer.map(({ key, text: paragraph }) => (
+            <p key={key} className="analysis-para">{paragraph}</p>
+          ))}
+        </section>
+      );
+      proseBuffer = [];
+    };
+
+    const popTableCaption = () => {
+      if (!proseBuffer.length) return null;
+      const last = proseBuffer[proseBuffer.length - 1].text.trim();
+      if (!tableCaptionRe.test(last)) return null;
+      proseBuffer = proseBuffer.slice(0, -1);
+      return last;
+    };
 
     const flushTable = () => {
       if (tableBuffer.length > 0) {
+        const caption = popTableCaption();
+        flushProse();
         const headers = tableBuffer[0].split('|').filter(c => c.trim()).map(c => c.trim());
         const rows = tableBuffer.slice(2).filter(row => !row.match(/^\|[-\s|]+\|$/));
         elements.push(
-          <div key={`table-${elements.length}`} className="analysis-table-wrap">
-            <table className="analysis-table">
+          <section key={`table-${elements.length}`} className="analysis-sector analysis-sector--table">
+            {caption && <div className="analysis-sector__caption">{caption}</div>}
+            <div className="analysis-table-wrap">
+              <table className="analysis-table">
               <thead>
                 <tr>{headers.map((h, i) => <th key={i}>{h}</th>)}</tr>
               </thead>
@@ -1891,8 +1918,9 @@ function SectionCard({ title, body, index, open = false, language = "ru" }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          </section>
         );
         tableBuffer = [];
       }
@@ -1912,20 +1940,26 @@ function SectionCard({ title, body, index, open = false, language = "ru" }) {
       }
 
       if (!trimmed) {
-        elements.push(<br key={`br-${i}`} />);
+        continue;
       } else if (trimmed.match(/^[0-9]+\.[0-9]+\.\s+/)) {
+        flushProse();
         elements.push(<h3 key={`subsec-${i}`} className="analysis-subsection">{trimmed}</h3>);
       } else if (UPPER_SUBHEADER_RE.test(trimmed)) {
+        flushProse();
         elements.push(<h4 key={`h4-${i}`} className="analysis-subheader">{trimmed}</h4>);
       } else if (trimmed.match(/^(Формула|Formula|Formula):/i) || trimmed.match(/^Формула:\s*.+=.+/i) || (trimmed.includes('=') && trimmed.match(/^\•?\s*[\w\s()]+\s*[=:]\s*.*[0-9]/))) {
+        flushProse();
         elements.push(<div key={`formula-${i}`} className="formula-box">{trimmed}</div>);
       } else if (trimmed.startsWith('•') || trimmed.startsWith('—') || trimmed.startsWith('-')) {
+        flushProse();
         elements.push(<div key={`bullet-${i}`} className="analysis-bullet">{trimmed}</div>);
       } else if (trimmed.match(/^[0-9]+\./)) {
+        flushProse();
         elements.push(<div key={`num-${i}`} className="analysis-numbered">{trimmed}</div>);
       } else if (trimmed.match(/^(✓|✗|🟢|🟡|🟠|🔴)/)) {
         const isGood = trimmed.startsWith('✓') || trimmed.startsWith('🟢');
         const isBad = trimmed.startsWith('✗') || trimmed.startsWith('🔴');
+        flushProse();
         elements.push(<div key={`check-${i}`} className={`analysis-check ${isGood ? 'good' : ''} ${isBad ? 'bad' : ''}`}>{trimmed}</div>);
       } else if (
         trimmed.includes(':') &&
@@ -1933,6 +1967,7 @@ function SectionCard({ title, body, index, open = false, language = "ru" }) {
         !trimmed.startsWith('http') &&
         KV_VALUE_NUMERIC_RE.test(trimmed.split(':').slice(1).join(':').trim())
       ) {
+        flushProse();
         const [label, ...rest] = trimmed.split(':');
         const value = rest.join(':').trim();
         elements.push(
@@ -1942,11 +1977,12 @@ function SectionCard({ title, body, index, open = false, language = "ru" }) {
           </div>
         );
       } else {
-        elements.push(<p key={`p-${i}`} className="analysis-para">{trimmed}</p>);
+        proseBuffer.push({ key: `p-${i}`, text: trimmed });
       }
     }
 
     flushTable();
+    flushProse();
     return elements;
   };
 
