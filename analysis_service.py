@@ -33,7 +33,8 @@ from openinfo_collector import collect_company_data
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("api_key")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip() or "gpt-5.4-mini"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low").strip().lower() or "low"
-ANALYSIS_POLICY_VERSION = "public-information-v5-newbie-tldr-2026-05-28"
+ANALYSIS_POLICY_VERSION = "public-information-v6-report-tables-2026-05-29"
+REPORT_TABLES_VERSION = "report-tables-v1"
 DEFAULT_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
 ABSOLUTE_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
 REPORT_DOCUMENTS_PROMPT_LIMIT = int(os.getenv("OPENINFO_REPORT_DOCUMENTS_PROMPT_LIMIT", "100"))
@@ -214,6 +215,275 @@ def _growth_pct(current, previous):
     if curr is None or prev in (None, 0):
         return None
     return round((curr - prev) / abs(prev) * 100, 2)
+
+
+def _format_report_number(value, language: str = "ru", digits: int = 0, signed: bool = False) -> str:
+    number = _safe_float(value)
+    if number is None:
+        return "—"
+    prefix = "+" if signed and number > 0 else ""
+    text = f"{number:,.{digits}f}"
+    if digits == 0:
+        text = text.split(".")[0]
+    text = text.replace(",", " ")
+    if language != "en":
+        text = text.replace(".", ",")
+    return f"{prefix}{text}"
+
+
+def _format_report_pct(value, language: str = "ru", digits: int = 1, signed: bool = False) -> str:
+    number = _safe_float(value)
+    if number is None:
+        return "—"
+    return f"{_format_report_number(number, language=language, digits=digits, signed=signed)}%"
+
+
+def _markdown_cell(value) -> str:
+    text = str(value if value not in (None, "") else "—").strip()
+    return text.replace("|", "/").replace("\n", " ") or "—"
+
+
+def _markdown_table(caption: str, headers: list[str], rows: list[list[str]]) -> str | None:
+    if not rows:
+        return None
+    safe_headers = [_markdown_cell(header) for header in headers]
+    safe_rows = [[_markdown_cell(cell) for cell in row] for row in rows]
+    align = ["---"] + ["---:" for _ in safe_headers[1:]]
+    lines = [
+        caption,
+        "",
+        "| " + " | ".join(safe_headers) + " |",
+        "| " + " | ".join(align) + " |",
+    ]
+    lines.extend("| " + " | ".join(row) + " |" for row in safe_rows)
+    return "\n".join(lines)
+
+
+def _report_table_labels(language: str) -> dict:
+    lang = _normalize_language(language)
+    if lang == "en":
+        return {
+            "horizontal_caption": "Table 1 — horizontal analysis of key reporting lines (UZS mln)",
+            "trend_caption": "Table 2 — dynamics of revenue, profit and balance sheet (UZS mln)",
+            "vertical_caption": "Table 3 — balance sheet structure (% of assets)",
+            "line": "Line item",
+            "current": "Current period",
+            "previous": "Previous period",
+            "change": "Change, UZS mln",
+            "change_pct": "Change, %",
+            "year": "Year",
+            "revenue": "Revenue",
+            "net_income": "Net income",
+            "assets": "Assets",
+            "equity": "Equity",
+            "net_margin": "Net margin",
+            "amount": "Amount",
+            "share": "Share",
+        }
+    if lang == "uz":
+        return {
+            "horizontal_caption": "Jadval 1 — asosiy hisobot satrlarining gorizontal tahlili (mln so'm)",
+            "trend_caption": "Jadval 2 — tushum, foyda va balans dinamikasi (mln so'm)",
+            "vertical_caption": "Jadval 3 — balans tuzilmasi (aktivlarga nisbatan, %)",
+            "line": "Satr",
+            "current": "Joriy davr",
+            "previous": "Oldingi davr",
+            "change": "O'zgarish, mln so'm",
+            "change_pct": "O'zgarish, %",
+            "year": "Yil",
+            "revenue": "Tushum",
+            "net_income": "Sof foyda",
+            "assets": "Aktivlar",
+            "equity": "O'z kapitali",
+            "net_margin": "Sof marja",
+            "amount": "Summa",
+            "share": "Ulush",
+        }
+    return {
+        "horizontal_caption": "Таблица 1 — горизонтальный анализ ключевых строк отчётности (млн сум)",
+        "trend_caption": "Таблица 2 — динамика выручки, прибыли и баланса (млн сум)",
+        "vertical_caption": "Таблица 3 — структура баланса (% от активов)",
+        "line": "Статья",
+        "current": "Текущий период",
+        "previous": "Предыдущий период",
+        "change": "Изм., млн сум",
+        "change_pct": "Изм., %",
+        "year": "Год",
+        "revenue": "Выручка",
+        "net_income": "Чистая прибыль",
+        "assets": "Активы",
+        "equity": "Капитал",
+        "net_margin": "Чистая маржа",
+        "amount": "Сумма",
+        "share": "Доля",
+    }
+
+
+def _build_horizontal_report_table(metrics: dict, language: str) -> dict | None:
+    labels = _report_table_labels(language)
+    items = ((metrics or {}).get("horizontal_analysis") or {}).get("items") or {}
+    rows = []
+    for item in items.values():
+        if not isinstance(item, dict):
+            continue
+        rows.append([
+            item.get("label") or "—",
+            _format_report_number(item.get("current"), language),
+            _format_report_number(item.get("previous"), language),
+            _format_report_number(item.get("change"), language, signed=True),
+            _format_report_pct(item.get("pct"), language, signed=True),
+        ])
+    if not rows:
+        return None
+    headers = [labels["line"], labels["current"], labels["previous"], labels["change"], labels["change_pct"]]
+    markdown = _markdown_table(labels["horizontal_caption"], headers, rows[:10])
+    return {
+        "id": "horizontal_key_lines",
+        "caption": labels["horizontal_caption"],
+        "headers": headers,
+        "rows": rows[:10],
+        "markdown": markdown,
+        "source": "metrics.horizontal_analysis",
+    }
+
+
+def _build_trend_report_table(ifrs_snapshot: dict, language: str) -> dict | None:
+    labels = _report_table_labels(language)
+    annual = (((ifrs_snapshot or {}).get("series") or {}).get("annual") or [])[-5:]
+    rows = []
+    for row in annual:
+        if not isinstance(row, dict):
+            continue
+        rows.append([
+            row.get("year") or "—",
+            _format_report_number(row.get("revenue"), language),
+            _format_report_number(row.get("net_income"), language),
+            _format_report_number(row.get("total_assets"), language),
+            _format_report_number(row.get("equity"), language),
+            _format_report_pct(_as_pct(row.get("net_profit_margin")), language),
+        ])
+    if len(rows) < 2:
+        return None
+    headers = [
+        labels["year"],
+        labels["revenue"],
+        labels["net_income"],
+        labels["assets"],
+        labels["equity"],
+        labels["net_margin"],
+    ]
+    markdown = _markdown_table(labels["trend_caption"], headers, rows)
+    return {
+        "id": "annual_financial_dynamics",
+        "caption": labels["trend_caption"],
+        "headers": headers,
+        "rows": rows,
+        "markdown": markdown,
+        "source": "ifrs_snapshot.series.annual",
+    }
+
+
+def _build_vertical_balance_table(metrics: dict, language: str) -> dict | None:
+    labels = _report_table_labels(language)
+    items = ((((metrics or {}).get("vertical_analysis") or {}).get("balance_sheet") or {}).get("items") or {})
+    rows = []
+    for item in items.values():
+        if not isinstance(item, dict):
+            continue
+        rows.append([
+            item.get("label") or "—",
+            _format_report_number(item.get("value"), language),
+            _format_report_pct(item.get("pct_of_assets"), language),
+        ])
+    if not rows:
+        return None
+    headers = [labels["line"], labels["amount"], labels["share"]]
+    markdown = _markdown_table(labels["vertical_caption"], headers, rows[:10])
+    return {
+        "id": "vertical_balance_structure",
+        "caption": labels["vertical_caption"],
+        "headers": headers,
+        "rows": rows[:10],
+        "markdown": markdown,
+        "source": "metrics.vertical_analysis.balance_sheet",
+    }
+
+
+def _build_report_tables(metrics: dict, ifrs_snapshot: dict, language: str) -> dict[str, list[dict]]:
+    tables: dict[str, list[dict]] = {}
+    horizontal = _build_horizontal_report_table(metrics, language)
+    vertical = _build_vertical_balance_table(metrics, language)
+    trend = _build_trend_report_table(ifrs_snapshot, language)
+    if horizontal:
+        tables.setdefault("ЧТО_С_ДЕНЬГАМИ", []).append(horizontal)
+    if vertical:
+        tables.setdefault("ЧТО_С_ДЕНЬГАМИ", []).append(vertical)
+    if trend:
+        tables.setdefault("ТРЕНД", []).append(trend)
+    return tables
+
+
+def _section_has_markdown_table(text: str) -> bool:
+    lines = [line.strip() for line in str(text or "").splitlines()]
+    return any(line.startswith("|") and "---" in line for line in lines)
+
+
+def _insert_after_tldr(text: str, payload: str) -> str:
+    lines = str(text or "").splitlines()
+    first = lines[0].strip().lower() if lines else ""
+    if first not in {"кратко", "brief", "qisqacha", "tl;dr", "tldr"}:
+        return f"{payload}\n\n{text}".strip()
+
+    insert_at = None
+    for idx, line in enumerate(lines):
+        lowered = line.strip().lower()
+        if lowered.startswith(("для тебя:", "for you:", "siz uchun:")):
+            insert_at = idx + 1
+            while insert_at < len(lines) and not lines[insert_at].strip():
+                insert_at += 1
+            break
+    if insert_at is None:
+        return f"{payload}\n\n{text}".strip()
+
+    before = "\n".join(lines[:insert_at]).rstrip()
+    after = "\n".join(lines[insert_at:]).lstrip()
+    if after:
+        return f"{before}\n\n{payload}\n\n{after}".strip()
+    return f"{before}\n\n{payload}".strip()
+
+
+def _enrich_sections_with_report_tables(
+    sections: dict,
+    metrics: dict,
+    ifrs_snapshot: dict,
+    language: str,
+) -> tuple[dict, dict[str, list[dict]]]:
+    if not isinstance(sections, dict):
+        return sections, {}
+    tables = _build_report_tables(metrics or {}, ifrs_snapshot or {}, language)
+    if not tables:
+        return sections, tables
+
+    enriched = dict(sections)
+    for section_key, section_tables in tables.items():
+        if section_key not in enriched:
+            continue
+        current = str(enriched.get(section_key) or "")
+        if _section_has_markdown_table(current):
+            continue
+        markdown_blocks = [table.get("markdown") for table in section_tables if table.get("markdown")]
+        if markdown_blocks:
+            enriched[section_key] = _insert_after_tldr(current, "\n\n".join(markdown_blocks))
+    return enriched, tables
+
+
+def _serialize_sections_for_report(sections: dict) -> str:
+    if not isinstance(sections, dict):
+        return ""
+    blocks = []
+    for key, body in sections.items():
+        blocks.append(f"[{key}]\n{str(body or '').strip()}".strip())
+    return "\n\n".join(blocks).strip()
 
 
 def _build_fibonacci_levels(points: list[dict]) -> dict:
@@ -1764,6 +2034,13 @@ def _analysis_prompt_v2(
 - Техническая секция [ФИБОНАЧЧИ] допускается только если есть реальные рыночные уровни; иначе напиши "Недостаточно рыночных данных".
 - Не выдумывай денежный поток, EPS, количество акций или цену, если этих данных нет.
 
+Формат табличного разбора:
+- В секциях [ЧТО_С_ДЕНЬГАМИ] и [ТРЕНД] после блока «Кратко» сначала дай одну компактную Markdown-таблицу с реальными строками из отчётности, расчётных метрик или EXCEL REPORT SNAPSHOTS.
+- Перед таблицей обязательно поставь подпись отдельной строкой: «Таблица 1 — ...», «Table 1 — ...» или «Jadval 1 — ...» по языку ответа.
+- Таблица должна быть обычной Markdown-таблицей через символ |, не HTML.
+- После таблицы дай подробный аналитический текст 2-4 абзацами: что именно изменилось, почему это важно, где риск, где положительное исключение.
+- Не придумывай строки таблицы. Если чистых строк для таблицы нет, напиши «Недостаточно данных» и сразу переходи к тексту.
+
 Фокус анализа по МСФО:
 1) Выручка и её динамика
 2) Валовая прибыль и валовая маржа
@@ -2072,6 +2349,11 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
         "Слова 'Тон', 'Плюсы', 'Минусы', 'Для тебя' начинают каждая свою строку. "
         "Каждый bullet (- ...) — тоже на отдельной строке. "
         "После строки 'Для тебя: ...' — ПУСТАЯ СТРОКА, и только потом обычный текст секции.\n"
+        "В секциях [ЧТО_С_ДЕНЬГАМИ] и [ТРЕНД] после блока «Кратко» и перед обычным текстом "
+        "обязательно поставь report-style Markdown-таблицу с подписью 'Таблица ...' / 'Table ...' / 'Jadval ...', "
+        "если в переданных данных есть реальные строки для такой таблицы. Таблица строится только из переданных "
+        "IFRS snapshot, расчётных метрик или EXCEL REPORT SNAPSHOTS; строки и цифры не выдумывать. "
+        "После таблицы пиши подробный аналитический текст 2-4 абзацами, как в финансовой записке.\n"
         "В блоке «Кратко» (Тон/Плюсы/Минусы/Для тебя) КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНЫ голые "
         "аббревиатуры: ROE, ROA, EBIT, EBITDA, NIM, ЧПД, CIR, LDR, LTD, CAR, D/E, P/E, "
         "NPL, FCF, WACC, DCF, DSO, DPO, DIO, CCC. "
@@ -2098,8 +2380,8 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
         "одно предложение 'стоит ли вкладываться обычному частному инвестору и почему'. "
         f"{_language_hint(lang, 'analysis')}"
     )
-    # Reduced from 8000 to 5000 - typical analysis is 2000-3500 tokens
-    raw, response = _responses_text(prompt, instructions, max_output_tokens=5000)
+    # Tables add some output length, but the report still stays compact.
+    raw, response = _responses_text(prompt, instructions, max_output_tokens=6500)
 
     usage = getattr(response, "usage", None)
     input_tokens = getattr(usage, "input_tokens", 0) or 0
@@ -2146,6 +2428,16 @@ async def run_company_analysis(
             cached.setdefault("market_context", {})
             cached.setdefault("analysis_policy", PUBLIC_ANALYSIS_POLICY_META)
             cached.setdefault("excel_report_mode", excel_report_mode)
+            enriched_sections, report_tables = _enrich_sections_with_report_tables(
+                cached.get("sections") or {},
+                cached.get("metrics") or {},
+                cached.get("ifrs_snapshot") or {},
+                language,
+            )
+            cached["sections"] = enriched_sections
+            cached["raw_analysis"] = _serialize_sections_for_report(enriched_sections) or cached.get("raw_analysis")
+            cached["report_tables"] = report_tables
+            cached["report_tables_version"] = REPORT_TABLES_VERSION
             return cached
 
     loop = asyncio.get_running_loop()
@@ -2203,6 +2495,14 @@ async def run_company_analysis(
             company_data,
         ),
     )
+    parsed_sections = parse_response(raw_analysis)
+    enriched_sections, report_tables = _enrich_sections_with_report_tables(
+        parsed_sections,
+        metrics,
+        ifrs_snapshot,
+        language,
+    )
+    report_analysis = _serialize_sections_for_report(enriched_sections) or raw_analysis
     web_research = WEB_RESEARCH_NOTE
     html_report = await loop.run_in_executor(
         None,
@@ -2211,7 +2511,7 @@ async def run_company_analysis(
             resolved_name,
             company_profile,
             web_research,
-            raw_analysis,
+            report_analysis,
             annual_period,
             quarterly_period,
             cost,
@@ -2224,8 +2524,10 @@ async def run_company_analysis(
         "company_name": resolved_name,
         "ticker": ((company_data.get("security") or {}).get("ticker") if isinstance(company_data, dict) else None),
         "html_report": html_report,
-        "raw_analysis": raw_analysis,
-        "sections": parse_response(raw_analysis),
+        "raw_analysis": report_analysis,
+        "sections": enriched_sections,
+        "report_tables": report_tables,
+        "report_tables_version": REPORT_TABLES_VERSION,
         "annual_period": annual_period,
         "quarterly_period": quarterly_period,
         "cost": cost,
