@@ -412,7 +412,16 @@ def _slim_market_context_for_prompt(market_context: dict) -> dict:
         "items": (dividends.get("items") or [])[:2],
     }
 
-    # Skip excel_report_snapshots for prompt (already processed into metrics)
+    excel_reports = market_context.get("excel_report_snapshots") or {}
+    slim_excel_reports = {
+        "enabled": excel_reports.get("enabled", False),
+        "count": excel_reports.get("count", 0),
+        "selected_count": excel_reports.get("selected_count", 0),
+        "included_in_prompt": excel_reports.get("included_in_prompt", 0),
+        "items": excel_reports.get("items") or [],
+        "errors": excel_reports.get("errors") or [],
+    }
+
     return {
         "status": "ok",
         "security": market_context.get("security"),
@@ -422,6 +431,7 @@ def _slim_market_context_for_prompt(market_context: dict) -> dict:
         "recent_price_history": slim_prices,
         "dividends": slim_dividends,
         "report_documents": slim_reports,
+        "excel_report_snapshots": slim_excel_reports,
     }
 
 
