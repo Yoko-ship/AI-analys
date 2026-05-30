@@ -1858,51 +1858,47 @@ function HeroVerdictBlock({ analysisResult, language = "ru" }) {
   );
 }
 
-function SectionCard({ title, body, index, open = false, language = "ru" }) {
-  const sectionLabel = SECTION_LABELS[language] || SECTION_LABELS.ru;
-  const { tldr, rest } = parseTldrBlock(body);
-  const summaryHint = tldr?.summary || tldr?.forYou || null;
-  const renderContent = (text) => {
-    if (!text) return null;
-    const lines = text.split('\n');
-    const elements = [];
-    let tableBuffer = [];
-    let inTable = false;
-    let proseBuffer = [];
+function renderAnalysisContent(text, { keyPrefix = "analysis" } = {}) {
+  if (!text) return null;
+  const lines = text.split('\n');
+  const elements = [];
+  let tableBuffer = [];
+  let inTable = false;
+  let proseBuffer = [];
 
-    const tableCaptionRe = /^(?:таблица|table|jadval)\b/i;
+  const tableCaptionRe = /^(?:таблица|table|jadval)\b/i;
 
-    const flushProse = () => {
-      if (!proseBuffer.length) return;
+  const flushProse = () => {
+    if (!proseBuffer.length) return;
+    elements.push(
+      <section key={`${keyPrefix}-detail-${elements.length}`} className="analysis-sector analysis-sector--detail">
+        {proseBuffer.map(({ key, text: paragraph }) => (
+          <p key={key} className="analysis-para">{paragraph}</p>
+        ))}
+      </section>
+    );
+    proseBuffer = [];
+  };
+
+  const popTableCaption = () => {
+    if (!proseBuffer.length) return null;
+    const last = proseBuffer[proseBuffer.length - 1].text.trim();
+    if (!tableCaptionRe.test(last)) return null;
+    proseBuffer = proseBuffer.slice(0, -1);
+    return last;
+  };
+
+  const flushTable = () => {
+    if (tableBuffer.length > 0) {
+      const caption = popTableCaption();
+      flushProse();
+      const headers = tableBuffer[0].split('|').filter(c => c.trim()).map(c => c.trim());
+      const rows = tableBuffer.slice(2).filter(row => !row.match(/^\|[-\s|]+\|$/));
       elements.push(
-        <section key={`detail-${elements.length}`} className="analysis-sector analysis-sector--detail">
-          {proseBuffer.map(({ key, text: paragraph }) => (
-            <p key={key} className="analysis-para">{paragraph}</p>
-          ))}
-        </section>
-      );
-      proseBuffer = [];
-    };
-
-    const popTableCaption = () => {
-      if (!proseBuffer.length) return null;
-      const last = proseBuffer[proseBuffer.length - 1].text.trim();
-      if (!tableCaptionRe.test(last)) return null;
-      proseBuffer = proseBuffer.slice(0, -1);
-      return last;
-    };
-
-    const flushTable = () => {
-      if (tableBuffer.length > 0) {
-        const caption = popTableCaption();
-        flushProse();
-        const headers = tableBuffer[0].split('|').filter(c => c.trim()).map(c => c.trim());
-        const rows = tableBuffer.slice(2).filter(row => !row.match(/^\|[-\s|]+\|$/));
-        elements.push(
-          <section key={`table-${elements.length}`} className="analysis-sector analysis-sector--table">
-            {caption && <div className="analysis-sector__caption">{caption}</div>}
-            <div className="analysis-table-wrap">
-              <table className="analysis-table">
+        <section key={`${keyPrefix}-table-${elements.length}`} className="analysis-sector analysis-sector--table">
+          {caption && <div className="analysis-sector__caption">{caption}</div>}
+          <div className="analysis-table-wrap">
+            <table className="analysis-table">
               <thead>
                 <tr>{headers.map((h, i) => <th key={i}>{h}</th>)}</tr>
               </thead>
@@ -1918,73 +1914,78 @@ function SectionCard({ title, body, index, open = false, language = "ru" }) {
                   </tr>
                 ))}
               </tbody>
-              </table>
-            </div>
-          </section>
-        );
-        tableBuffer = [];
-      }
-    };
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmed = line.trim();
-
-      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-        inTable = true;
-        tableBuffer.push(trimmed);
-        continue;
-      } else if (inTable) {
-        flushTable();
-        inTable = false;
-      }
-
-      if (!trimmed) {
-        continue;
-      } else if (trimmed.match(/^[0-9]+\.[0-9]+\.\s+/)) {
-        flushProse();
-        elements.push(<h3 key={`subsec-${i}`} className="analysis-subsection">{trimmed}</h3>);
-      } else if (UPPER_SUBHEADER_RE.test(trimmed)) {
-        flushProse();
-        elements.push(<h4 key={`h4-${i}`} className="analysis-subheader">{trimmed}</h4>);
-      } else if (trimmed.match(/^(Формула|Formula|Formula):/i) || trimmed.match(/^Формула:\s*.+=.+/i) || (trimmed.includes('=') && trimmed.match(/^\•?\s*[\w\s()]+\s*[=:]\s*.*[0-9]/))) {
-        flushProse();
-        elements.push(<div key={`formula-${i}`} className="formula-box">{trimmed}</div>);
-      } else if (trimmed.startsWith('•') || trimmed.startsWith('—') || trimmed.startsWith('-')) {
-        flushProse();
-        elements.push(<div key={`bullet-${i}`} className="analysis-bullet">{trimmed}</div>);
-      } else if (trimmed.match(/^[0-9]+\./)) {
-        flushProse();
-        elements.push(<div key={`num-${i}`} className="analysis-numbered">{trimmed}</div>);
-      } else if (trimmed.match(/^(✓|✗|🟢|🟡|🟠|🔴)/)) {
-        const isGood = trimmed.startsWith('✓') || trimmed.startsWith('🟢');
-        const isBad = trimmed.startsWith('✗') || trimmed.startsWith('🔴');
-        flushProse();
-        elements.push(<div key={`check-${i}`} className={`analysis-check ${isGood ? 'good' : ''} ${isBad ? 'bad' : ''}`}>{trimmed}</div>);
-      } else if (
-        trimmed.includes(':') &&
-        trimmed.split(':')[0].length < KV_LABEL_MAX &&
-        !trimmed.startsWith('http') &&
-        KV_VALUE_NUMERIC_RE.test(trimmed.split(':').slice(1).join(':').trim())
-      ) {
-        flushProse();
-        const [label, ...rest] = trimmed.split(':');
-        const value = rest.join(':').trim();
-        elements.push(
-          <div key={`kv-${i}`} className="analysis-kv">
-            <span className="analysis-kv-label">{label}:</span>
-            <span className="analysis-kv-value">{value}</span>
+            </table>
           </div>
-        );
-      } else {
-        proseBuffer.push({ key: `p-${i}`, text: trimmed });
-      }
+        </section>
+      );
+      tableBuffer = [];
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      inTable = true;
+      tableBuffer.push(trimmed);
+      continue;
+    } else if (inTable) {
+      flushTable();
+      inTable = false;
     }
 
-    flushTable();
-    flushProse();
-    return elements;
-  };
+    if (!trimmed) {
+      continue;
+    } else if (trimmed.match(/^[0-9]+\.[0-9]+\.\s+/)) {
+      flushProse();
+      elements.push(<h3 key={`${keyPrefix}-subsec-${i}`} className="analysis-subsection">{trimmed}</h3>);
+    } else if (UPPER_SUBHEADER_RE.test(trimmed)) {
+      flushProse();
+      elements.push(<h4 key={`${keyPrefix}-h4-${i}`} className="analysis-subheader">{trimmed}</h4>);
+    } else if (trimmed.match(/^(Формула|Formula|Formula):/i) || trimmed.match(/^Формула:\s*.+=.+/i) || (trimmed.includes('=') && trimmed.match(/^\•?\s*[\w\s()]+\s*[=:]\s*.*[0-9]/))) {
+      flushProse();
+      elements.push(<div key={`${keyPrefix}-formula-${i}`} className="formula-box">{trimmed}</div>);
+    } else if (trimmed.startsWith('•') || trimmed.startsWith('—') || trimmed.startsWith('-')) {
+      flushProse();
+      elements.push(<div key={`${keyPrefix}-bullet-${i}`} className="analysis-bullet">{trimmed}</div>);
+    } else if (trimmed.match(/^[0-9]+\./)) {
+      flushProse();
+      elements.push(<div key={`${keyPrefix}-num-${i}`} className="analysis-numbered">{trimmed}</div>);
+    } else if (trimmed.match(/^(✓|✗|🟢|🟡|🟠|🔴)/)) {
+      const isGood = trimmed.startsWith('✓') || trimmed.startsWith('🟢');
+      const isBad = trimmed.startsWith('✗') || trimmed.startsWith('🔴');
+      flushProse();
+      elements.push(<div key={`${keyPrefix}-check-${i}`} className={`analysis-check ${isGood ? 'good' : ''} ${isBad ? 'bad' : ''}`}>{trimmed}</div>);
+    } else if (
+      trimmed.includes(':') &&
+      trimmed.split(':')[0].length < KV_LABEL_MAX &&
+      !trimmed.startsWith('http') &&
+      KV_VALUE_NUMERIC_RE.test(trimmed.split(':').slice(1).join(':').trim())
+    ) {
+      flushProse();
+      const [label, ...rest] = trimmed.split(':');
+      const value = rest.join(':').trim();
+      elements.push(
+        <div key={`${keyPrefix}-kv-${i}`} className="analysis-kv">
+          <span className="analysis-kv-label">{label}:</span>
+          <span className="analysis-kv-value">{value}</span>
+        </div>
+      );
+    } else {
+      proseBuffer.push({ key: `${keyPrefix}-p-${i}`, text: trimmed });
+    }
+  }
+
+  flushTable();
+  flushProse();
+  return elements;
+}
+
+function SectionCard({ title, body, index, open = false, language = "ru" }) {
+  const sectionLabel = SECTION_LABELS[language] || SECTION_LABELS.ru;
+  const { tldr, rest } = parseTldrBlock(body);
+  const summaryHint = tldr?.summary || tldr?.forYou || null;
 
   return (
     <details className={`section-card fade-in${tldr ? ` section-card--tone-${tldr.tone}` : ""}`} open={open}>
@@ -1995,9 +1996,187 @@ function SectionCard({ title, body, index, open = false, language = "ru" }) {
       </summary>
       <div className="section-content">
         {tldr && <TldrCard tldr={tldr} language={language} />}
-        {renderContent(rest)}
+        {renderAnalysisContent(rest, { keyPrefix: `section-${index}` })}
       </div>
     </details>
+  );
+}
+
+const ARTICLE_SECTION_ORDER = [
+  "ДОСЬЕ",
+  "ЧТО_С_ДЕНЬГАМИ",
+  "ТРЕНД",
+  "ЭФФЕКТИВНОСТЬ",
+  "ОЦЕНКА_ЦЕНЫ",
+  "РЫНОЧНЫЕ_ДАННЫЕ",
+  "ВЕРДИКТ",
+  "ИТОГ",
+];
+
+const ARTICLE_SECTION_TITLES = {
+  ru: {
+    ДОСЬЕ: "Общие сведения об эмитенте и методология анализа",
+    ЧТО_С_ДЕНЬГАМИ: "Горизонтальный и вертикальный анализ отчётности",
+    ТРЕНД: "Анализ динамики показателей",
+    ЭФФЕКТИВНОСТЬ: "Коэффициентный анализ",
+    ОЦЕНКА_ЦЕНЫ: "Оценка стоимости и качества цены",
+    РЫНОЧНЫЕ_ДАННЫЕ: "Публичные рыночные данные",
+    ВЕРДИКТ: "Итоговая оценка качества отчётности",
+    ИТОГ: "Заключение для частного инвестора",
+  },
+  en: {
+    ДОСЬЕ: "Issuer overview and analysis method",
+    ЧТО_С_ДЕНЬГАМИ: "Horizontal and vertical financial analysis",
+    ТРЕНД: "Performance trend analysis",
+    ЭФФЕКТИВНОСТЬ: "Ratio analysis",
+    ОЦЕНКА_ЦЕНЫ: "Valuation and price quality",
+    РЫНОЧНЫЕ_ДАННЫЕ: "Public market data",
+    ВЕРДИКТ: "Final reporting-quality assessment",
+    ИТОГ: "Conclusion for a private investor",
+  },
+  uz: {
+    ДОСЬЕ: "Emitent haqida umumiy ma'lumot va tahlil usuli",
+    ЧТО_С_ДЕНЬГАМИ: "Hisobotning gorizontal va vertikal tahlili",
+    ТРЕНД: "Ko'rsatkichlar dinamikasi tahlili",
+    ЭФФЕКТИВНОСТЬ: "Koeffitsiyentlar tahlili",
+    ОЦЕНКА_ЦЕНЫ: "Qiymat va narx sifati",
+    РЫНОЧНЫЕ_ДАННЫЕ: "Ochiq bozor ma'lumotlari",
+    ВЕРДИКТ: "Hisobot sifati bo'yicha yakuniy baho",
+    ИТОГ: "Xususiy investor uchun xulosa",
+  },
+};
+
+function countReportTables(reportTables) {
+  if (!reportTables || typeof reportTables !== "object") return 0;
+  return Object.values(reportTables).reduce((sum, tables) => sum + (Array.isArray(tables) ? tables.length : 0), 0);
+}
+
+function ReportArticleView({ analysisResult, language = "ru" }) {
+  if (!analysisResult?.sections) return null;
+  const sections = analysisResult.sections;
+  const ordered = ARTICLE_SECTION_ORDER
+    .filter((key) => sections[key])
+    .map((key) => [key, sections[key]]);
+  const fallback = Object.entries(sections).filter(([key]) => !ARTICLE_SECTION_ORDER.includes(key));
+  const entries = ordered.length ? ordered : fallback;
+  if (!entries.length) return null;
+
+  const dict = {
+    ru: {
+      desk: "UZ STOCK ANALYZER",
+      title: "Анализ финансовой отчётности",
+      subtitle: "Структурированный отчёт с таблицами и подробным разбором",
+      annotation: "Аннотация",
+      company: "Эмитент",
+      ticker: "Тикер",
+      annual: "Годовой период",
+      quarterly: "Квартальный период",
+      tables: "Таблиц",
+      source: "Источник",
+      fresh: "Свежий расчёт",
+      cache: "Из кэша",
+    },
+    en: {
+      desk: "UZ STOCK ANALYZER",
+      title: "Financial Statement Analysis",
+      subtitle: "Structured report with tables and detailed commentary",
+      annotation: "Abstract",
+      company: "Issuer",
+      ticker: "Ticker",
+      annual: "Annual period",
+      quarterly: "Quarterly period",
+      tables: "Tables",
+      source: "Source",
+      fresh: "Fresh run",
+      cache: "Cached",
+    },
+    uz: {
+      desk: "UZ STOCK ANALYZER",
+      title: "Moliyaviy hisobot tahlili",
+      subtitle: "Jadvallar va batafsil izohlar bilan tuzilgan hisobot",
+      annotation: "Annotatsiya",
+      company: "Emitent",
+      ticker: "Tiker",
+      annual: "Yillik davr",
+      quarterly: "Chorak davr",
+      tables: "Jadval",
+      source: "Manba",
+      fresh: "Yangi hisob",
+      cache: "Keshdan",
+    },
+  }[language] || {
+    desk: "UZ STOCK ANALYZER",
+    title: "Анализ финансовой отчётности",
+    subtitle: "Структурированный отчёт с таблицами и подробным разбором",
+    annotation: "Аннотация",
+    company: "Эмитент",
+    ticker: "Тикер",
+    annual: "Годовой период",
+    quarterly: "Квартальный период",
+    tables: "Таблиц",
+    source: "Источник",
+    fresh: "Свежий расчёт",
+    cache: "Из кэша",
+  };
+
+  const company = analysisResult.company_name || analysisResult.input || "—";
+  const ticker = analysisResult.ticker || "—";
+  const tableCount = countReportTables(analysisResult.report_tables);
+  const summaryRaw = sections["ИТОГ"] || sections["ВЕРДИКТ"] || entries[0]?.[1] || "";
+  const { rest: summaryRest } = parseTldrBlock(summaryRaw);
+  const abstractText = pickFirstParagraph(summaryRest) || tldrCardTitle(language, "neutral");
+  const sectionTitles = ARTICLE_SECTION_TITLES[language] || ARTICLE_SECTION_TITLES.ru;
+
+  return (
+    <article className="report-article-panel">
+      <div className="report-article">
+        <header className="report-article__masthead">
+          <div className="report-article__desk">{dict.desk}</div>
+          <h2>{dict.title}</h2>
+          <div className="report-article__subtitle">{dict.subtitle}</div>
+          <div className="report-article__rule" aria-hidden="true"><span /><em>DATA REPORT</em><span /></div>
+        </header>
+
+        <div className="report-article__meta">
+          {[
+            [dict.company, company],
+            [dict.ticker, ticker],
+            [dict.annual, analysisResult.annual_period || "—"],
+            [dict.quarterly, analysisResult.quarterly_period || "—"],
+            [dict.tables, tableCount || "—"],
+            [dict.source, analysisResult.from_cache ? dict.cache : dict.fresh],
+          ].map(([label, value]) => (
+            <div className="report-article__meta-item" key={label}>
+              <div className="report-article__meta-label">{label}</div>
+              <div className="report-article__meta-value">{value}</div>
+            </div>
+          ))}
+        </div>
+
+        {abstractText && (
+          <section className="report-article__abstract">
+            <div className="report-article__abstract-label">{dict.annotation}</div>
+            <p>{abstractText}</p>
+          </section>
+        )}
+
+        <div className="report-article__body">
+          {entries.map(([key, value], index) => {
+            const { rest } = parseTldrBlock(value || "");
+            if (!rest) return null;
+            return (
+              <section className="report-article__section" key={key}>
+                <span className="report-article__section-number">{String(index + 1).padStart(2, "0")}</span>
+                <h3>{sectionTitles[key] || getSectionTitle(language, key)}</h3>
+                <div className="report-article__section-content">
+                  {renderAnalysisContent(rest, { keyPrefix: `article-${index}-${key}` })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -3538,6 +3717,8 @@ function App() {
                   </div>
                 )}
               </article>
+
+              {analysisResult?.sections && <ReportArticleView analysisResult={analysisResult} language={language} />}
 
               <article className="panel sections-panel">
                 <div className="panel-head">
