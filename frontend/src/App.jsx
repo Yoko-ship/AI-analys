@@ -2051,15 +2051,73 @@ function countReportTables(reportTables) {
   return Object.values(reportTables).reduce((sum, tables) => sum + (Array.isArray(tables) ? tables.length : 0), 0);
 }
 
+function articleTableCellClass(cell, columnIndex) {
+  const value = String(cell ?? "").trim();
+  const classes = [];
+  if (columnIndex > 0) classes.push("num");
+  if (value.startsWith("-") || value.startsWith("\u2212")) classes.push("neg");
+  if (value.startsWith("+")) classes.push("pos");
+  return classes.join(" ");
+}
+
+function isArticleTotalRow(row) {
+  const label = String(Array.isArray(row) ? row[0] ?? "" : "").toLowerCase();
+  return label.includes("итого") || label.includes("total") || label.includes("jami");
+}
+
+function StructuredReportBlocks({ blocks = [], keyPrefix = "article" }) {
+  return blocks.map((block, index) => {
+    if (block?.type === "table") {
+      const headers = Array.isArray(block.headers) ? block.headers : [];
+      const rows = Array.isArray(block.rows) ? block.rows : [];
+      if (!headers.length || !rows.length) return null;
+      return (
+        <section key={`${keyPrefix}-table-${block.id || index}`} className="analysis-sector analysis-sector--table">
+          {block.caption && <div className="analysis-sector__caption">{block.caption}</div>}
+          <div className="analysis-table-wrap">
+            <table className="analysis-table">
+              <thead>
+                <tr>{headers.map((header, headerIndex) => <th key={headerIndex}>{header}</th>)}</tr>
+              </thead>
+              <tbody>
+                {rows.map((row, rowIndex) => {
+                  const cells = Array.isArray(row) ? row : [];
+                  return (
+                    <tr key={rowIndex} className={isArticleTotalRow(cells) ? "total-row" : ""}>
+                      {cells.map((cell, cellIndex) => (
+                        <td key={cellIndex} className={articleTableCellClass(cell, cellIndex)}>
+                          {cell ?? "—"}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      );
+    }
+    if (block?.type === "paragraph" && block.text) {
+      return (
+        <section key={`${keyPrefix}-paragraph-${index}`} className="analysis-sector analysis-sector--detail">
+          <p className="analysis-para">{block.text}</p>
+        </section>
+      );
+    }
+    return null;
+  });
+}
+
 function ReportArticleView({ analysisResult, language = "ru" }) {
-  if (!analysisResult?.sections) return null;
-  const sections = analysisResult.sections;
+  const articleReport = analysisResult?.article_report?.sections?.length ? analysisResult.article_report : null;
+  const sections = analysisResult?.sections || {};
   const ordered = ARTICLE_SECTION_ORDER
     .filter((key) => sections[key])
     .map((key) => [key, sections[key]]);
   const fallback = Object.entries(sections).filter(([key]) => !ARTICLE_SECTION_ORDER.includes(key));
   const entries = ordered.length ? ordered : fallback;
-  if (!entries.length) return null;
+  if (!articleReport && !entries.length) return null;
 
   const dict = {
     ru: {
@@ -2119,13 +2177,15 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
     cache: "Из кэша",
   };
 
-  const company = analysisResult.company_name || analysisResult.input || "—";
-  const ticker = analysisResult.ticker || "—";
-  const tableCount = countReportTables(analysisResult.report_tables);
+  const reportMeta = articleReport?.meta || {};
+  const company = reportMeta.company || analysisResult.company_name || analysisResult.input || "—";
+  const ticker = reportMeta.ticker || analysisResult.ticker || "—";
+  const tableCount = reportMeta.table_count ?? countReportTables(analysisResult.report_tables);
   const summaryRaw = sections["ИТОГ"] || sections["ВЕРДИКТ"] || entries[0]?.[1] || "";
   const { rest: summaryRest } = parseTldrBlock(summaryRaw);
-  const abstractText = pickFirstParagraph(summaryRest) || tldrCardTitle(language, "neutral");
+  const abstractText = articleReport?.abstract || pickFirstParagraph(summaryRest) || tldrCardTitle(language, "neutral");
   const sectionTitles = ARTICLE_SECTION_TITLES[language] || ARTICLE_SECTION_TITLES.ru;
+  const articleSections = articleReport?.sections || [];
 
   return (
     <article className="report-article-panel">
@@ -2141,8 +2201,8 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
           {[
             [dict.company, company],
             [dict.ticker, ticker],
-            [dict.annual, analysisResult.annual_period || "—"],
-            [dict.quarterly, analysisResult.quarterly_period || "—"],
+            [dict.annual, reportMeta.annual_period || analysisResult.annual_period || "—"],
+            [dict.quarterly, reportMeta.quarterly_period || analysisResult.quarterly_period || "—"],
             [dict.tables, tableCount || "—"],
             [dict.source, analysisResult.from_cache ? dict.cache : dict.fresh],
           ].map(([label, value]) => (
@@ -2161,7 +2221,15 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
         )}
 
         <div className="report-article__body">
-          {entries.map(([key, value], index) => {
+          {articleReport ? articleSections.map((section, index) => (
+            <section className="report-article__section" key={section.id || index}>
+              <span className="report-article__section-number">{section.number || String(index + 1).padStart(2, "0")}</span>
+              <h3>{section.title || `${dict.tables} ${String(index + 1).padStart(2, "0")}`}</h3>
+              <div className="report-article__section-content">
+                <StructuredReportBlocks blocks={section.blocks || []} keyPrefix={`article-structured-${section.id || index}`} />
+              </div>
+            </section>
+          )) : entries.map(([key, value], index) => {
             const { rest } = parseTldrBlock(value || "");
             if (!rest) return null;
             return (

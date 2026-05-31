@@ -33,8 +33,9 @@ from openinfo_collector import collect_company_data
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("api_key")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip() or "gpt-5.4-mini"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low").strip().lower() or "low"
-ANALYSIS_POLICY_VERSION = "public-information-v6-report-tables-2026-05-29"
+ANALYSIS_POLICY_VERSION = "public-information-v7-article-report-2026-05-31"
 REPORT_TABLES_VERSION = "report-tables-v1"
+ARTICLE_REPORT_VERSION = "article-report-v1"
 DEFAULT_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
 ABSOLUTE_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
 REPORT_DOCUMENTS_PROMPT_LIMIT = int(os.getenv("OPENINFO_REPORT_DOCUMENTS_PROMPT_LIMIT", "100"))
@@ -484,6 +485,482 @@ def _serialize_sections_for_report(sections: dict) -> str:
     for key, body in sections.items():
         blocks.append(f"[{key}]\n{str(body or '').strip()}".strip())
     return "\n\n".join(blocks).strip()
+
+
+def _strip_tldr_for_article(text: str) -> str:
+    lines = str(text or "").splitlines()
+    if not lines:
+        return ""
+    first_index = next((idx for idx, line in enumerate(lines) if line.strip()), None)
+    if first_index is None:
+        return ""
+    first = lines[first_index].strip().lower()
+    if first not in {"кратко", "brief", "qisqacha", "tl;dr", "tldr"}:
+        return str(text or "").strip()
+    cursor = first_index + 1
+    while cursor < len(lines):
+        lowered = lines[cursor].strip().lower()
+        cursor += 1
+        if lowered.startswith(("для тебя:", "for you:", "siz uchun:")):
+            while cursor < len(lines) and not lines[cursor].strip():
+                cursor += 1
+            break
+    return "\n".join(lines[cursor:]).strip()
+
+
+def _first_article_paragraph(sections: dict, *keys: str) -> str:
+    for key in keys:
+        text = _strip_tldr_for_article((sections or {}).get(key, ""))
+        blocks = [block.strip() for block in text.split("\n\n") if block.strip()]
+        if blocks:
+            return " ".join(line.strip() for line in blocks[0].splitlines() if line.strip())
+    return ""
+
+
+def _excel_rows_for_article(company_data: dict | None) -> list[dict]:
+    if not isinstance(company_data, dict):
+        return []
+    reports = ((company_data.get("excel_reports") or {}).get("items") or [])
+    rows: list[dict] = []
+    for report_index, report in enumerate(reports):
+        for sheet in report.get("sheets") or []:
+            sheet_name = str(sheet.get("sheet") or "")
+            for row in sheet.get("table_rows") or []:
+                label = str(row.get("label") or "").strip()
+                if not label:
+                    continue
+                rows.append({
+                    **row,
+                    "label": label,
+                    "sheet": sheet_name,
+                    "report_index": report_index,
+                    "report_id": report.get("report_id"),
+                    "published_at": report.get("published_at"),
+                    "period_type": report.get("period_type"),
+                    "report_form": report.get("report_form"),
+                    "title": report.get("title"),
+                })
+    return rows
+
+
+def _article_row_kind(row: dict) -> str:
+    text = " ".join(
+        str(row.get(key) or "").lower()
+        for key in ("label", "sheet", "report_form", "title")
+    )
+    if any(token in text for token in (
+        "форма 2", "form2", "финансов", "прибы", "убыт", "доход", "расход",
+        "выруч", "себесто", "income", "profit", "loss",
+    )):
+        return "income_statement"
+    if any(token in text for token in (
+        "пассив", "обязатель", "капитал", "депозит", "вклад", "заем", "заём",
+        "кредитор", "резерв", "устав", "liabil", "equity",
+    )):
+        return "liabilities_equity"
+    if any(token in text for token in (
+        "актив", "касс", "цбру", "к получению", "инвести", "кредит", "лизинг",
+        "основн", "денеж", "дебитор", "запас", "имуществ", "asset",
+    )):
+        return "assets"
+    return str(row.get("kind") or "financial_row")
+
+
+def _article_amount_cells(row: dict) -> list[dict]:
+    cells = row.get("numeric_cells") or []
+    if not cells:
+        cells = [
+            {"index": index, "value": value}
+            for index, value in enumerate(row.get("numeric_values") or [])
+        ]
+    cleaned = []
+    for cell in cells:
+        value = _safe_float(cell.get("value") if isinstance(cell, dict) else None)
+        if value is None:
+            continue
+        cleaned.append({"index": int(cell.get("index", len(cleaned))), "value": value})
+    return cleaned
+
+
+def _article_amount_pair(row: dict) -> tuple[float, float] | None:
+    cells = _article_amount_cells(row)
+    large = [cell for cell in cells if abs(cell["value"]) >= 1000]
+    source = large if len(large) >= 2 else cells
+    if len(source) < 2:
+        return None
+    source = sorted(source, key=lambda item: item["index"])
+    return source[0]["value"], source[1]["value"]
+
+
+def _article_current_amount(row: dict) -> float | None:
+    pair = _article_amount_pair(row)
+    if pair:
+        return pair[0]
+    cells = _article_amount_cells(row)
+    large = [cell for cell in cells if abs(cell["value"]) >= 1000]
+    if large:
+        return sorted(large, key=lambda item: item["index"])[0]["value"]
+    return cells[0]["value"] if cells else None
+
+
+def _clean_article_label(label: str) -> str:
+    text = str(label or "").replace("\n", " ").strip(" -–—|")
+    return " ".join(text.split())[:180] or "—"
+
+
+def _table_from_rows(
+    table_id: str,
+    caption: str,
+    headers: list[str],
+    rows: list[list[str]],
+    *,
+    source: str,
+) -> dict | None:
+    if not rows:
+        return None
+    markdown = _markdown_table(caption, headers, rows)
+    return {
+        "id": table_id,
+        "caption": caption,
+        "headers": headers,
+        "rows": rows,
+        "markdown": markdown,
+        "source": source,
+    }
+
+
+def _horizontal_article_table(
+    table_id: str,
+    caption: str,
+    source_rows: list[dict],
+    language: str,
+    *,
+    limit: int = 16,
+) -> dict | None:
+    labels = _report_table_labels(language)
+    rows = []
+    seen = set()
+    for row in source_rows:
+        label = _clean_article_label(row.get("label"))
+        if label in seen:
+            continue
+        pair = _article_amount_pair(row)
+        if not pair:
+            continue
+        current, previous = pair
+        change = current - previous
+        pct = (change / abs(previous) * 100) if previous else None
+        rows.append([
+            label,
+            _format_report_number(current, language),
+            _format_report_number(previous, language),
+            _format_report_number(change, language, signed=True),
+            _format_report_pct(pct, language, signed=True),
+        ])
+        seen.add(label)
+        if len(rows) >= limit:
+            break
+    return _table_from_rows(
+        table_id,
+        caption,
+        [labels["line"], labels["current"], labels["previous"], labels["change"], labels["change_pct"]],
+        rows,
+        source="openinfo_excel.table_rows",
+    )
+
+
+def _vertical_article_table(
+    table_id: str,
+    caption: str,
+    source_rows: list[dict],
+    language: str,
+    *,
+    total_hint: str,
+    fallback_total: float | None = None,
+    limit: int = 16,
+) -> dict | None:
+    labels = _report_table_labels(language)
+    total = fallback_total
+    for row in source_rows:
+        label = str(row.get("label") or "").lower()
+        if total_hint in label:
+            total = _article_current_amount(row)
+            break
+    if not total:
+        return None
+
+    rows = []
+    seen = set()
+    for row in source_rows:
+        label = _clean_article_label(row.get("label"))
+        if label in seen:
+            continue
+        current = _article_current_amount(row)
+        if current is None:
+            continue
+        share = current / total * 100 if total else None
+        rows.append([
+            label,
+            _format_report_number(current, language),
+            _format_report_pct(share, language),
+        ])
+        seen.add(label)
+        if len(rows) >= limit:
+            break
+    return _table_from_rows(
+        table_id,
+        caption,
+        [labels["line"], labels["amount"], labels["share"]],
+        rows,
+        source="openinfo_excel.table_rows",
+    )
+
+
+def _income_article_table(source_rows: list[dict], language: str) -> dict | None:
+    labels = _report_table_labels(language)
+    rows = []
+    seen = set()
+    revenue_base = None
+    for row in source_rows:
+        label_lower = str(row.get("label") or "").lower()
+        if any(token in label_lower for token in ("выруч", "доход", "revenue")):
+            revenue_base = _article_current_amount(row)
+            if revenue_base:
+                break
+    for row in source_rows:
+        label = _clean_article_label(row.get("label"))
+        if label in seen:
+            continue
+        pair = _article_amount_pair(row)
+        if not pair:
+            continue
+        current, previous = pair
+        change = current - previous
+        pct = (change / abs(previous) * 100) if previous else None
+        share = (current / revenue_base * 100) if revenue_base else None
+        rows.append([
+            label,
+            _format_report_number(current, language),
+            _format_report_number(previous, language),
+            _format_report_number(change, language, signed=True),
+            _format_report_pct(pct, language, signed=True),
+            _format_report_pct(share, language),
+        ])
+        seen.add(label)
+        if len(rows) >= 18:
+            break
+    return _table_from_rows(
+        "income_statement_horizontal_vertical",
+        {
+            "ru": "Таблица 5 — Отчёт о финансовых результатах",
+            "en": "Table 5 — Income statement",
+            "uz": "Jadval 5 — Moliyaviy natijalar hisoboti",
+        }.get(_normalize_language(language), "Таблица 5 — Отчёт о финансовых результатах"),
+        [labels["line"], labels["current"], labels["previous"], labels["change"], labels["change_pct"], labels["share"]],
+        rows,
+        source="openinfo_excel.table_rows",
+    )
+
+
+def _ratio_article_table(metrics: dict, ifrs_snapshot: dict, language: str) -> dict | None:
+    labels = {
+        "ru": ["Показатель", "Значение", "Смысл"],
+        "en": ["Metric", "Value", "Meaning"],
+        "uz": ["Ko'rsatkich", "Qiymat", "Mazmuni"],
+    }.get(_normalize_language(language), ["Показатель", "Значение", "Смысл"])
+    metric_rows = []
+
+    def add(label: str, value, meaning: str, pct: bool = False, digits: int = 2):
+        if value is None or value == "":
+            return
+        formatted = _format_report_pct(value, language, digits=digits) if pct else str(value)
+        metric_rows.append([label, formatted, meaning])
+
+    quality = (ifrs_snapshot or {}).get("quality") or {}
+    balance = (ifrs_snapshot or {}).get("balance_sheet") or {}
+    income = (ifrs_snapshot or {}).get("income_statement") or {}
+    bank = (ifrs_snapshot or {}).get("bank") or {}
+    total_score = (metrics or {}).get("total_score") or {}
+    add("Итоговый скоринг", total_score.get("score"), total_score.get("summary") or total_score.get("grade") or "Сводная оценка качества отчётности")
+    add("ROE", quality.get("roe_pct"), "Доходность собственного капитала", pct=True)
+    add("ROA", quality.get("roa_pct"), "Прибыль на активы", pct=True)
+    add("Чистая маржа", income.get("net_margin_pct"), "Сколько прибыли остаётся с дохода", pct=True)
+    add("Текущая ликвидность", balance.get("current_ratio"), "Способность покрывать краткосрочные обязательства")
+    add("Долг / капитал", balance.get("debt_to_equity"), "Во сколько раз долг соотносится с собственным капиталом")
+    add("Долг / активы", (balance.get("debt_to_assets") or 0) * 100 if balance.get("debt_to_assets") is not None else None, "Доля долга в активах", pct=True)
+    add("Покрытие процентов", quality.get("interest_coverage"), "Запас прибыли для выплаты процентов")
+    add("CAR simplified", bank.get("car_simple_pct"), "Капитал к активам, приближённая оценка", pct=True)
+    add("NIM", bank.get("nim_pct"), "Чистый процентный доход к активам", pct=True)
+    add("LDR", bank.get("ldr_pct"), "Кредиты к депозитам", pct=True)
+    add("CIR", bank.get("cir_pct"), "Расходы к доходам", pct=True)
+    return _table_from_rows(
+        "ratio_summary",
+        {
+            "ru": "Таблица 6 — Сводный коэффициентный профиль",
+            "en": "Table 6 — Ratio summary profile",
+            "uz": "Jadval 6 — Koeffitsiyentlar profili",
+        }.get(_normalize_language(language), "Таблица 6 — Сводный коэффициентный профиль"),
+        labels,
+        metric_rows,
+        source="metrics.ifrs_snapshot",
+    )
+
+
+def _table_count_from_article(sections: list[dict]) -> int:
+    return sum(
+        1
+        for section in sections
+        for block in section.get("blocks", [])
+        if block.get("type") == "table"
+    )
+
+
+def _build_article_report(
+    *,
+    company_name: str,
+    ticker: str | None,
+    annual_period: str,
+    quarterly_period: str,
+    sections: dict,
+    metrics: dict,
+    ifrs_snapshot: dict,
+    company_data: dict | None,
+    language: str,
+) -> dict:
+    lang = _normalize_language(language)
+    excel_rows = _excel_rows_for_article(company_data)
+    for row in excel_rows:
+        row["article_kind"] = _article_row_kind(row)
+
+    asset_rows = [row for row in excel_rows if row.get("article_kind") == "assets"]
+    liability_rows = [row for row in excel_rows if row.get("article_kind") == "liabilities_equity"]
+    income_rows = [row for row in excel_rows if row.get("article_kind") == "income_statement"]
+
+    total_assets = ((ifrs_snapshot or {}).get("balance_sheet") or {}).get("total_assets")
+    total_liabilities = None
+    balance = (ifrs_snapshot or {}).get("balance_sheet") or {}
+    if balance.get("total_assets") is not None and balance.get("equity") is not None:
+        assets_value = _safe_float(balance.get("total_assets"))
+        equity_value = _safe_float(balance.get("equity"))
+        if assets_value is not None and equity_value is not None:
+            total_liabilities = assets_value - equity_value
+
+    captions = {
+        "assets_h": {"ru": "Таблица 1 — Горизонтальный анализ активов", "en": "Table 1 — Horizontal analysis of assets", "uz": "Jadval 1 — Aktivlarning gorizontal tahlili"},
+        "liab_h": {"ru": "Таблица 2 — Горизонтальный анализ обязательств и капитала", "en": "Table 2 — Horizontal analysis of liabilities and equity", "uz": "Jadval 2 — Majburiyatlar va kapital gorizontal tahlili"},
+        "assets_v": {"ru": "Таблица 3 — Вертикальный анализ активов (% от итога)", "en": "Table 3 — Vertical analysis of assets (% of total)", "uz": "Jadval 3 — Aktivlarning vertikal tahlili"},
+        "liab_v": {"ru": "Таблица 4 — Вертикальный анализ пассивов (% от итога)", "en": "Table 4 — Vertical analysis of liabilities/equity", "uz": "Jadval 4 — Passivlarning vertikal tahlili"},
+    }
+
+    assets_h = _horizontal_article_table("assets_horizontal", captions["assets_h"].get(lang, captions["assets_h"]["ru"]), asset_rows, lang)
+    liab_h = _horizontal_article_table("liabilities_horizontal", captions["liab_h"].get(lang, captions["liab_h"]["ru"]), liability_rows, lang)
+    assets_v = _vertical_article_table("assets_vertical", captions["assets_v"].get(lang, captions["assets_v"]["ru"]), asset_rows, lang, total_hint="итого актив", fallback_total=_safe_float(total_assets))
+    liab_v = _vertical_article_table("liabilities_vertical", captions["liab_v"].get(lang, captions["liab_v"]["ru"]), liability_rows, lang, total_hint="итого пассив", fallback_total=total_liabilities)
+    income_table = _income_article_table(income_rows, lang)
+    ratio_table = _ratio_article_table(metrics or {}, ifrs_snapshot or {}, lang)
+
+    def p(text: str) -> dict:
+        return {"type": "paragraph", "text": text}
+
+    def t(table: dict | None) -> list[dict]:
+        return [{"type": "table", **table}] if table else []
+
+    article_sections = [
+        {
+            "id": "overview",
+            "number": "01",
+            "title": {
+                "ru": "Общие сведения об эмитенте и методология анализа",
+                "en": "Issuer overview and analysis method",
+                "uz": "Emitent haqida umumiy ma'lumot va tahlil usuli",
+            }.get(lang),
+            "blocks": [p(_first_article_paragraph(sections, "ДОСЬЕ") or "Анализ построен на публичной отчётности, расчетных метриках и доступных Excel-раскрытиях эмитента.")],
+        },
+        {
+            "id": "horizontal_balance",
+            "number": "02",
+            "title": {
+                "ru": "Горизонтальный анализ бухгалтерского баланса",
+                "en": "Horizontal balance sheet analysis",
+                "uz": "Balansning gorizontal tahlili",
+            }.get(lang),
+            "blocks": [
+                *t(assets_h),
+                *t(liab_h),
+                p(_first_article_paragraph(sections, "ЧТО_С_ДЕНЬГАМИ") or "Горизонтальный анализ показывает изменение ключевых строк между текущим и предыдущим периодом."),
+            ],
+        },
+        {
+            "id": "vertical_balance",
+            "number": "03",
+            "title": {
+                "ru": "Вертикальный анализ бухгалтерского баланса",
+                "en": "Vertical balance sheet analysis",
+                "uz": "Balansning vertikal tahlili",
+            }.get(lang),
+            "blocks": [
+                *t(assets_v),
+                *t(liab_v),
+                p("Вертикальный анализ показывает, какая часть активов и пассивов приходится на каждую крупную строку отчётности. Это помогает увидеть концентрацию баланса и зависимость от отдельных статей."),
+            ],
+        },
+        {
+            "id": "income_statement",
+            "number": "04",
+            "title": {
+                "ru": "Анализ отчёта о финансовых результатах",
+                "en": "Income statement analysis",
+                "uz": "Moliyaviy natijalar hisoboti tahlili",
+            }.get(lang),
+            "blocks": [
+                *t(income_table),
+                p(_first_article_paragraph(sections, "ТРЕНД", "ЧТО_С_ДЕНЬГАМИ") or "Раздел сопоставляет доходы, расходы и прибыльность между периодами."),
+            ],
+        },
+        {
+            "id": "ratio_analysis",
+            "number": "05",
+            "title": {
+                "ru": "Коэффициентный анализ",
+                "en": "Ratio analysis",
+                "uz": "Koeffitsiyentlar tahlili",
+            }.get(lang),
+            "blocks": [
+                *t(ratio_table),
+                p(_first_article_paragraph(sections, "ЭФФЕКТИВНОСТЬ", "ОЦЕНКА_ЦЕНЫ") or "Коэффициенты дополняют табличный разбор и показывают прибыльность, устойчивость баланса и качество операционной модели."),
+            ],
+        },
+        {
+            "id": "conclusion",
+            "number": "06",
+            "title": {
+                "ru": "Итоговая оценка финансового состояния",
+                "en": "Final financial condition assessment",
+                "uz": "Moliyaviy holat bo'yicha yakuniy baho",
+            }.get(lang),
+            "blocks": [p(_first_article_paragraph(sections, "ИТОГ", "ВЕРДИКТ") or "Итоговая оценка зависит от качества прибыли, структуры баланса и полноты раскрытых данных.")],
+        },
+    ]
+
+    article_sections = [
+        section for section in article_sections
+        if any(block.get("type") != "table" or block.get("rows") for block in section.get("blocks", []))
+    ]
+    table_count = _table_count_from_article(article_sections)
+    return {
+        "version": ARTICLE_REPORT_VERSION,
+        "source": "openinfo_excel" if excel_rows else "metrics_fallback",
+        "meta": {
+            "company": company_name,
+            "ticker": ticker,
+            "annual_period": annual_period,
+            "quarterly_period": quarterly_period,
+            "table_count": table_count,
+            "excel_row_count": len(excel_rows),
+        },
+        "abstract": _first_article_paragraph(sections, "ИТОГ", "ВЕРДИКТ", "ДОСЬЕ"),
+        "sections": article_sections,
+    }
 
 
 def _build_fibonacci_levels(points: list[dict]) -> dict:
@@ -2438,6 +2915,18 @@ async def run_company_analysis(
             cached["raw_analysis"] = _serialize_sections_for_report(enriched_sections) or cached.get("raw_analysis")
             cached["report_tables"] = report_tables
             cached["report_tables_version"] = REPORT_TABLES_VERSION
+            cached["article_report"] = _build_article_report(
+                company_name=cached.get("company_name") or company_name,
+                ticker=cached.get("ticker"),
+                annual_period=cached.get("annual_period") or "",
+                quarterly_period=cached.get("quarterly_period") or "",
+                sections=enriched_sections,
+                metrics=cached.get("metrics") or {},
+                ifrs_snapshot=cached.get("ifrs_snapshot") or {},
+                company_data=cached.get("market_data") or {},
+                language=language,
+            )
+            cached["article_report_version"] = ARTICLE_REPORT_VERSION
             return cached
 
     loop = asyncio.get_running_loop()
@@ -2503,6 +2992,17 @@ async def run_company_analysis(
         language,
     )
     report_analysis = _serialize_sections_for_report(enriched_sections) or raw_analysis
+    article_report = _build_article_report(
+        company_name=resolved_name,
+        ticker=((company_data.get("security") or {}).get("ticker") if isinstance(company_data, dict) else None),
+        annual_period=annual_period,
+        quarterly_period=quarterly_period,
+        sections=enriched_sections,
+        metrics=metrics,
+        ifrs_snapshot=ifrs_snapshot,
+        company_data=company_data,
+        language=language,
+    )
     web_research = WEB_RESEARCH_NOTE
     html_report = await loop.run_in_executor(
         None,
@@ -2528,6 +3028,8 @@ async def run_company_analysis(
         "sections": enriched_sections,
         "report_tables": report_tables,
         "report_tables_version": REPORT_TABLES_VERSION,
+        "article_report": article_report,
+        "article_report_version": ARTICLE_REPORT_VERSION,
         "annual_period": annual_period,
         "quarterly_period": quarterly_period,
         "cost": cost,
