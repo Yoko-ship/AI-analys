@@ -30,10 +30,10 @@ EXCEL_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
 EXCEL_MAX_ANNUAL_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_ANNUAL_REPORTS", "1"))
 EXCEL_MAX_QUARTER_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_QUARTER_REPORTS", "2"))
 EXCEL_ABSOLUTE_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
-EXCEL_MAX_TABLE_ROWS_PER_SHEET = int(os.getenv("OPENINFO_EXCEL_MAX_TABLE_ROWS_PER_SHEET", "140"))
+EXCEL_MAX_TABLE_ROWS_PER_SHEET = int(os.getenv("OPENINFO_EXCEL_MAX_TABLE_ROWS_PER_SHEET", "240"))
 EXCEL_CACHE_TTL_SECONDS = int(os.getenv("OPENINFO_EXCEL_CACHE_TTL_DAYS", "30")) * 24 * 60 * 60
 EXCEL_CACHE_PATH = Path(os.getenv("OPENINFO_EXCEL_CACHE_PATH", "data/openinfo_excel_cache.json")).expanduser()
-EXCEL_PARSER_VERSION = "openinfo-excel-full-rows-v2"
+EXCEL_PARSER_VERSION = "openinfo-excel-full-rows-v3"
 _EXCEL_CACHE_LOCK = threading.Lock()
 
 if not VERIFY_SSL and InsecureRequestWarning is not None:
@@ -545,8 +545,8 @@ def _classify_excel_row(label: str, sheet_name: str) -> str:
 def _parse_excel_workbook(
     content: bytes,
     *,
-    max_sheets: int = 6,
-    max_rows_per_sheet: int = 180,
+    max_sheets: int = 12,
+    max_rows_per_sheet: int = 360,
     max_matched_rows_per_sheet: int = 24,
 ) -> dict[str, Any]:
     import pandas as pd
@@ -576,19 +576,19 @@ def _parse_excel_workbook(
 
             label = _excel_row_label(values)
             numeric_cells = []
-            for col_index, value in enumerate(values[:14]):
+            for col_index, value in enumerate(values[:18]):
                 number = _safe_report_number(value)
                 if number is not None:
                     numeric_cells.append({"index": col_index, "value": round(number, 4)})
-            numeric_values = [cell["value"] for cell in numeric_cells][:10]
+            numeric_values = [cell["value"] for cell in numeric_cells][:14]
 
             if label and numeric_cells and len(table_rows) < max_table_rows:
                 table_rows.append({
                     "row": int(index) + 1,
                     "label": label,
-                    "values": values[:14],
+                    "values": values[:18],
                     "numeric_values": numeric_values,
-                    "numeric_cells": numeric_cells[:10],
+                    "numeric_cells": numeric_cells[:14],
                     "kind": _classify_excel_row(label, str(sheet_name)),
                 })
 

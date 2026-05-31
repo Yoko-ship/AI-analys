@@ -33,9 +33,13 @@ from openinfo_collector import collect_company_data
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("api_key")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip() or "gpt-5.4-mini"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low").strip().lower() or "low"
-ANALYSIS_POLICY_VERSION = "public-information-v7-article-report-2026-05-31"
+ANALYSIS_POLICY_VERSION = "public-information-v8-expanded-article-report-2026-05-31"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v1"
+ARTICLE_REPORT_VERSION = "article-report-v2"
+ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
+ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
+ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
+ARTICLE_EXCEL_APPENDIX_MAX_COLUMNS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_COLUMNS", "8"))
 DEFAULT_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
 ABSOLUTE_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
 REPORT_DOCUMENTS_PROMPT_LIMIT = int(os.getenv("OPENINFO_REPORT_DOCUMENTS_PROMPT_LIMIT", "100"))
@@ -635,7 +639,7 @@ def _horizontal_article_table(
     source_rows: list[dict],
     language: str,
     *,
-    limit: int = 16,
+    limit: int = ARTICLE_ANALYSIS_ROW_LIMIT,
 ) -> dict | None:
     labels = _report_table_labels(language)
     rows = []
@@ -677,7 +681,7 @@ def _vertical_article_table(
     *,
     total_hint: str,
     fallback_total: float | None = None,
-    limit: int = 16,
+    limit: int = ARTICLE_ANALYSIS_ROW_LIMIT,
 ) -> dict | None:
     labels = _report_table_labels(language)
     total = fallback_total
@@ -716,7 +720,12 @@ def _vertical_article_table(
     )
 
 
-def _income_article_table(source_rows: list[dict], language: str) -> dict | None:
+def _income_article_table(
+    source_rows: list[dict],
+    language: str,
+    *,
+    limit: int = ARTICLE_ANALYSIS_ROW_LIMIT,
+) -> dict | None:
     labels = _report_table_labels(language)
     rows = []
     seen = set()
@@ -747,7 +756,7 @@ def _income_article_table(source_rows: list[dict], language: str) -> dict | None
             _format_report_pct(share, language),
         ])
         seen.add(label)
-        if len(rows) >= 18:
+        if len(rows) >= limit:
             break
     return _table_from_rows(
         "income_statement_horizontal_vertical",
@@ -806,6 +815,122 @@ def _ratio_article_table(metrics: dict, ifrs_snapshot: dict, language: str) -> d
     )
 
 
+def _excel_appendix_article_tables(company_data: dict | None, language: str) -> list[dict]:
+    if not isinstance(company_data, dict):
+        return []
+
+    lang = _normalize_language(language)
+    labels = _report_table_labels(lang)
+    text = {
+        "ru": {
+            "table": "Таблица",
+            "source": "исходные строки XLSX",
+            "row": "Строка",
+            "value": "Значение",
+            "shown": "Показано строк",
+            "of": "из",
+        },
+        "en": {
+            "table": "Table",
+            "source": "source XLSX rows",
+            "row": "Row",
+            "value": "Value",
+            "shown": "Rows shown",
+            "of": "of",
+        },
+        "uz": {
+            "table": "Jadval",
+            "source": "XLSX manba satrlari",
+            "row": "Qator",
+            "value": "Qiymat",
+            "shown": "Ko'rsatilgan qatorlar",
+            "of": "dan",
+        },
+    }.get(lang, {
+        "table": "Table",
+        "source": "source XLSX rows",
+        "row": "Row",
+        "value": "Value",
+        "shown": "Rows shown",
+        "of": "of",
+    })
+
+    reports = ((company_data.get("excel_reports") or {}).get("items") or [])
+    max_tables = max(0, ARTICLE_EXCEL_APPENDIX_MAX_TABLES)
+    max_rows = max(0, ARTICLE_EXCEL_APPENDIX_MAX_ROWS)
+    max_columns = max(2, ARTICLE_EXCEL_APPENDIX_MAX_COLUMNS)
+    tables: list[dict] = []
+
+    for report_index, report in enumerate(reports):
+        report_name = (
+            report.get("report_form")
+            or report.get("title")
+            or report.get("period_type")
+            or f"report {report_index + 1}"
+        )
+        published = report.get("published_at")
+        for sheet_index, sheet in enumerate(report.get("sheets") or []):
+            source_rows = sheet.get("table_rows") or []
+            if not source_rows:
+                continue
+
+            rows: list[list[str]] = []
+            row_value_counts: list[int] = []
+            seen: set[tuple[str, tuple[str, ...]]] = set()
+
+            for row in source_rows:
+                label = _clean_article_label(row.get("label"))
+                values = [
+                    _format_report_number(cell["value"], lang)
+                    for cell in _article_amount_cells(row)
+                ][:max_columns]
+                if not label or not values:
+                    continue
+                key = (label, tuple(values))
+                if key in seen:
+                    continue
+                seen.add(key)
+                row_value_counts.append(len(values))
+                rows.append([
+                    str(row.get("row") or len(rows) + 1),
+                    label,
+                    *values,
+                ])
+                if len(rows) >= max_rows:
+                    break
+
+            if not rows:
+                continue
+
+            value_count = max(row_value_counts or [1])
+            headers = [
+                text["row"],
+                labels["line"],
+                *[f"{text['value']} {index + 1}" for index in range(value_count)],
+            ]
+            normalized_rows = [
+                row + ["—"] * max(0, len(headers) - len(row))
+                for row in rows
+            ]
+            sheet_name = sheet.get("sheet") or f"sheet {sheet_index + 1}"
+            period_bits = " / ".join(str(bit) for bit in (published, report_name, sheet_name) if bit)
+            caption = f"{text['table']} {7 + len(tables)} - {text['source']}: {period_bits}"
+            table = _table_from_rows(
+                f"excel_source_{report_index}_{sheet_index}_{len(tables)}",
+                caption,
+                headers,
+                normalized_rows,
+                source="openinfo_excel.table_rows",
+            )
+            if table:
+                table["note"] = f"{text['shown']}: {len(normalized_rows)} {text['of']} {len(source_rows)}"
+                tables.append(table)
+            if len(tables) >= max_tables:
+                return tables
+
+    return tables
+
+
 def _table_count_from_article(sections: list[dict]) -> int:
     return sum(
         1
@@ -858,6 +983,7 @@ def _build_article_report(
     liab_v = _vertical_article_table("liabilities_vertical", captions["liab_v"].get(lang, captions["liab_v"]["ru"]), liability_rows, lang, total_hint="итого пассив", fallback_total=total_liabilities)
     income_table = _income_article_table(income_rows, lang)
     ratio_table = _ratio_article_table(metrics or {}, ifrs_snapshot or {}, lang)
+    appendix_tables = _excel_appendix_article_tables(company_data, lang)
 
     def p(text: str) -> dict:
         return {"type": "paragraph", "text": text}
@@ -932,7 +1058,7 @@ def _build_article_report(
         },
         {
             "id": "conclusion",
-            "number": "06",
+            "number": "07" if appendix_tables else "06",
             "title": {
                 "ru": "Итоговая оценка финансового состояния",
                 "en": "Final financial condition assessment",
@@ -941,6 +1067,21 @@ def _build_article_report(
             "blocks": [p(_first_article_paragraph(sections, "ИТОГ", "ВЕРДИКТ") or "Итоговая оценка зависит от качества прибыли, структуры баланса и полноты раскрытых данных.")],
         },
     ]
+
+    if appendix_tables:
+        article_sections.insert(
+            -1,
+            {
+                "id": "source_excel_data",
+                "number": "06",
+                "title": {
+                    "ru": "Исходные строки из XLSX-отчётов",
+                    "en": "Source rows from XLSX reports",
+                    "uz": "XLSX hisobotlaridan manba satrlar",
+                }.get(lang),
+                "blocks": [{"type": "table", **table} for table in appendix_tables],
+            },
+        )
 
     article_sections = [
         section for section in article_sections
@@ -957,6 +1098,7 @@ def _build_article_report(
             "quarterly_period": quarterly_period,
             "table_count": table_count,
             "excel_row_count": len(excel_rows),
+            "excel_source_table_count": len(appendix_tables),
         },
         "abstract": _first_article_paragraph(sections, "ИТОГ", "ВЕРДИКТ", "ДОСЬЕ"),
         "sections": article_sections,

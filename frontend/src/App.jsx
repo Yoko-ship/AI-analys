@@ -2074,6 +2074,7 @@ function StructuredReportBlocks({ blocks = [], keyPrefix = "article" }) {
       return (
         <section key={`${keyPrefix}-table-${block.id || index}`} className="analysis-sector analysis-sector--table">
           {block.caption && <div className="analysis-sector__caption">{block.caption}</div>}
+          {block.note && <div className="analysis-sector__note">{block.note}</div>}
           <div className="analysis-table-wrap">
             <table className="analysis-table">
               <thead>
