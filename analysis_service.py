@@ -35,7 +35,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip() or "gpt-5.4-min
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low").strip().lower() or "low"
 ANALYSIS_POLICY_VERSION = "public-information-v8-expanded-article-report-2026-05-31"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v3"
+ARTICLE_REPORT_VERSION = "article-report-v4"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
@@ -977,80 +977,246 @@ def _largest_abs_table_row(table: dict | None, column_index: int) -> tuple[str, 
     return best[1], best[2]
 
 
+def _is_total_report_label(label: str) -> bool:
+    lowered = str(label or "").lower()
+    return any(token in lowered for token in ("итого", "total", "jami", "всего"))
+
+
+def _rank_report_rows(
+    table: dict | None,
+    column_index: int,
+    *,
+    reverse: bool = True,
+    exclude_total: bool = True,
+) -> list[tuple[float, str, str]]:
+    if not table:
+        return []
+    ranked: list[tuple[float, str, str]] = []
+    for row in table.get("rows") or []:
+        if len(row) <= column_index:
+            continue
+        label = str(row[0] or "").strip()
+        if not label or (exclude_total and _is_total_report_label(label)):
+            continue
+        parsed = _number_from_report_text(row[column_index])
+        if parsed is None:
+            continue
+        ranked.append((parsed, label, str(row[column_index] or "").strip()))
+    return sorted(ranked, key=lambda item: item[0], reverse=reverse)
+
+
+def _total_report_row(table: dict | None) -> list[str] | None:
+    if not table:
+        return None
+    for row in table.get("rows") or []:
+        label = str(row[0] if row else "")
+        if _is_total_report_label(label):
+            return row
+    return None
+
+
+def _format_change_phrase(row: list[str] | None) -> str:
+    if not row or len(row) < 5:
+        return ""
+    return f"{row[0]}: {row[3]} ({row[4]})"
+
+
 def _table_explanation_blocks(table: dict | None, role: str, language: str) -> list[dict]:
     if not table:
         return []
     lang = _normalize_language(language)
     row_count = len(table.get("rows") or [])
+    total_row = _total_report_row(table)
+    total_phrase = _format_change_phrase(total_row)
+    strongest_growth = next((item for item in _rank_report_rows(table, 3, reverse=True) if item[0] > 0), None)
+    strongest_decline = next((item for item in _rank_report_rows(table, 3, reverse=False) if item[0] < 0), None)
     biggest_change = _largest_abs_table_row(table, 3)
     largest_share = _largest_abs_table_row(table, 2)
+    largest_income_share = _largest_abs_table_row(table, 5)
 
     def block(text: str) -> dict:
         return {"type": "paragraph", "text": text}
 
     if role == "assets_horizontal":
         if lang == "en":
-            detail = f" The largest absolute movement is {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
-            return [block(f"This table is needed to separate normal asset growth from balance-sheet reshuffling across {row_count} asset lines.{detail} Large falls in liquid assets or loans can weaken liquidity and earnings capacity, while sharp increases may point to risk build-up or a change in allocation policy.")]
+            opening = f"The horizontal asset table shows the direction and scale of change across {row_count} asset lines."
+            if total_phrase:
+                opening += f" The headline movement is {total_phrase}, so the first analytical question is whether the balance sheet is expanding normally or shrinking/reallocating capital."
+            outlier = ""
+            if strongest_decline:
+                outlier += f" The largest negative contribution is {strongest_decline[1]} ({strongest_decline[2]})."
+            if strongest_growth and strongest_growth[0] > 0:
+                outlier += f" The main positive offset is {strongest_growth[1]} ({strongest_growth[2]})."
+            return [
+                block(opening),
+                block((outlier or "The individual line movements show where the balance sheet changed most materially.") + " This matters because asset contraction in liquid reserves, loans or securities has different meanings for future income and liquidity."),
+                block("For the final analysis, this table affects the risk tone: falling liquid assets can weaken the safety buffer, falling loans can reduce future interest income, and rapid growth in one asset category can signal concentration or risk accumulation."),
+            ]
         if lang == "uz":
-            detail = f" Eng katta mutlaq o'zgarish: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
-            return [block(f"Bu jadval {row_count} ta aktiv satri bo'yicha oddiy o'sishni balans tarkibidagi siljishlardan ajratish uchun kerak.{detail} Likvid aktivlar yoki kreditlardagi katta pasayish likvidlik va daromad salohiyatini pasaytirishi, keskin o'sish esa risk yig'ilishini ko'rsatishi mumkin.")]
-        detail = f" Самое крупное абсолютное движение: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
-        return [block(f"Эта таблица нужна, чтобы отделить обычный рост активов от перераспределения баланса по {row_count} строкам.{detail} Сильное снижение ликвидных активов или кредитов может ухудшить ликвидность и будущую прибыль, а резкий рост отдельных статей может означать накопление риска.")]
+            opening = f"Gorizontal aktiv jadvali {row_count} ta aktiv satri bo'yicha o'zgarish yo'nalishi va hajmini ko'rsatadi."
+            if total_phrase:
+                opening += f" Asosiy harakat: {total_phrase}; shuning uchun balans oddiy o'syaptimi yoki kapital qayta taqsimlanyaptimi, degan savol muhim."
+            outlier = ""
+            if strongest_decline:
+                outlier += f" Eng katta salbiy hissa: {strongest_decline[1]} ({strongest_decline[2]})."
+            if strongest_growth and strongest_growth[0] > 0:
+                outlier += f" Asosiy ijobiy qarshi harakat: {strongest_growth[1]} ({strongest_growth[2]})."
+            return [
+                block(opening),
+                block((outlier or "Alohida satrlar balans qayerda eng ko'p o'zgarganini ko'rsatadi.") + " Bu muhim, chunki likvid zaxiralar, kreditlar yoki qimmatli qog'ozlardagi o'zgarish kelajakdagi daromad va likvidlikka turlicha ta'sir qiladi."),
+                block("Yakuniy tahlilda bu jadval risk tonini o'zgartiradi: likvid aktivlar kamayishi xavfsizlik yostig'ini susaytiradi, kreditlar kamayishi foiz daromadini pasaytiradi, bitta aktiv guruhi tez o'sishi esa konsentratsiya riskini kuchaytiradi."),
+            ]
+        opening = f"Горизонтальная таблица активов показывает направление и масштаб изменений по {row_count} строкам актива."
+        if total_phrase:
+            opening += f" Ключевое движение: {total_phrase}; поэтому главный вопрос анализа — баланс реально растёт или происходит сжатие и перераспределение активов."
+        outlier = ""
+        if strongest_decline:
+            outlier += f" Наибольший отрицательный вклад даёт статья «{strongest_decline[1]}» ({strongest_decline[2]})."
+        if strongest_growth and strongest_growth[0] > 0:
+            outlier += f" Главный положительный противовес — «{strongest_growth[1]}» ({strongest_growth[2]})."
+        return [
+            block(opening),
+            block((outlier or "Движения отдельных строк показывают, где баланс изменился наиболее существенно.") + " Это важно, потому что снижение ликвидных резервов, кредитов или ценных бумаг по-разному влияет на будущий доход и запас ликвидности."),
+            block("В итоговой оценке эта таблица меняет тон риска: падение ликвидных активов ослабляет защитный буфер, сокращение кредитов может давить на будущие процентные доходы, а резкий рост одной группы активов указывает на возможную концентрацию риска."),
+        ]
 
     if role == "liabilities_horizontal":
         if lang == "en":
-            detail = f" The largest absolute movement is {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
-            return [block(f"This table explains how the bank funds its assets: deposits, debt, reserves and equity.{detail} The analysis uses these movements to judge funding stability, leverage pressure and whether asset growth is supported by durable capital or borrowed money.")]
+            opening = f"The liabilities and equity table explains how the asset base is funded across {row_count} lines."
+            if total_phrase:
+                opening += f" The aggregate movement is {total_phrase}, which shows whether the bank is losing resources, replacing deposits with debt, or strengthening its own capital."
+            pressure = ""
+            if strongest_decline:
+                pressure += f" The largest funding reduction is {strongest_decline[1]} ({strongest_decline[2]})."
+            if strongest_growth and strongest_growth[0] > 0:
+                pressure += f" The largest compensating increase is {strongest_growth[1]} ({strongest_growth[2]})."
+            return [
+                block(opening),
+                block((pressure or "The composition of funding determines how stable the balance sheet is.") + " Deposit outflows are usually more important for liquidity risk than accounting movements inside equity, while rising borrowings can increase dependence on wholesale or regulated funding."),
+                block("For the final verdict, this table affects leverage and liquidity assessment: stable capital and deposits support resilience; shrinking deposits, rising short-term debt or falling retained earnings make the analysis more cautious."),
+            ]
         if lang == "uz":
-            detail = f" Eng katta mutlaq o'zgarish: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
-            return [block(f"Bu jadval bank aktivlari qaysi manbalar bilan moliyalashtirilganini ko'rsatadi: depozitlar, qarzlar, zaxiralar va kapital.{detail} Shu harakatlar funding barqarorligi, leverage bosimi va o'sish kapital bilanmi yoki qarz bilanmi ta'minlanganini baholashga ta'sir qiladi.")]
-        detail = f" Самое крупное абсолютное движение: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
-        return [block(f"Эта таблица объясняет, за счёт чего банк финансирует активы: депозиты, долг, резервы и капитал.{detail} Эти изменения влияют на оценку устойчивости фондирования, долговой нагрузки и того, поддержан ли рост активов капиталом или заёмными средствами.")]
+            opening = f"Majburiyatlar va kapital jadvali {row_count} satr bo'yicha aktivlar qaysi manbalar bilan moliyalashtirilganini ko'rsatadi."
+            if total_phrase:
+                opening += f" Umumiy harakat: {total_phrase}; bu bank resurs yo'qotyaptimi, depozitlarni qarz bilan almashtiryaptimi yoki kapitalni kuchaytiryaptimi degan savolga javob beradi."
+            pressure = ""
+            if strongest_decline:
+                pressure += f" Eng katta funding kamayishi: {strongest_decline[1]} ({strongest_decline[2]})."
+            if strongest_growth and strongest_growth[0] > 0:
+                pressure += f" Eng katta kompensatsion o'sish: {strongest_growth[1]} ({strongest_growth[2]})."
+            return [
+                block(opening),
+                block((pressure or "Funding tarkibi balans barqarorligini belgilaydi.") + " Depozit chiqib ketishi likvidlik riski uchun odatda kapital ichidagi buxgalteriya harakatlaridan muhimroq, qarzlar o'sishi esa ulgurji yoki regulyator fundingiga bog'liqlikni oshiradi."),
+                block("Yakuniy xulosada bu jadval leverage va likvidlik bahosiga ta'sir qiladi: barqaror kapital va depozitlar kuch beradi; depozitlar kamayishi, qisqa muddatli qarz o'sishi yoki taqsimlanmagan foyda pasayishi tahlilni ehtiyotkor qiladi."),
+            ]
+        opening = f"Таблица обязательств и капитала объясняет, за счёт каких источников профинансирована база активов по {row_count} строкам."
+        if total_phrase:
+            opening += f" Совокупное движение: {total_phrase}; оно показывает, теряет ли банк ресурсную базу, замещает ли депозиты долгом или усиливает собственный капитал."
+        pressure = ""
+        if strongest_decline:
+            pressure += f" Самое крупное сокращение фондирования — «{strongest_decline[1]}» ({strongest_decline[2]})."
+        if strongest_growth and strongest_growth[0] > 0:
+            pressure += f" Крупнейший компенсирующий рост — «{strongest_growth[1]}» ({strongest_growth[2]})."
+        return [
+            block(opening),
+            block((pressure or "Структура фондирования определяет устойчивость баланса.") + " Отток депозитов обычно важнее для риска ликвидности, чем бухгалтерские движения внутри капитала, а рост заёмных ресурсов повышает зависимость от оптового или регуляторного фондирования."),
+            block("Для итогового вердикта эта таблица влияет на оценку долговой нагрузки и ликвидности: стабильный капитал и депозиты поддерживают устойчивость; сокращение депозитов, рост краткосрочного долга или снижение нераспределённой прибыли делают вывод более осторожным."),
+        ]
 
     if role == "assets_vertical":
         if lang == "en":
             detail = f" The largest visible weight is {largest_share[0]} ({largest_share[1]})." if largest_share else ""
-            return [block(f"Vertical asset analysis is needed to see concentration, not just growth.{detail} If one asset group dominates, the final risk view becomes more sensitive to that group: for a bank this can mean credit quality, investment portfolio risk or liquidity reserve quality.")]
+            return [
+                block(f"Vertical asset analysis is needed because it shows concentration, not just growth.{detail} The same asset change has different meaning when it is a small line item versus a dominant balance-sheet block."),
+                block("If loans dominate, the analysis becomes more sensitive to credit quality and reserve dynamics. If liquid assets dominate, liquidity is stronger but profitability can be lower; if securities dominate, valuation and interest-rate risk become more important."),
+            ]
         if lang == "uz":
             detail = f" Eng katta ko'rinadigan ulush: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
-            return [block(f"Vertikal aktiv tahlili faqat o'sishni emas, konsentratsiyani ham ko'rsatadi.{detail} Bitta aktiv guruhi ustun bo'lsa, yakuniy risk bahosi shu guruhga ko'proq bog'lanadi: bankda bu kredit sifati, investitsiya portfeli riski yoki likvid zaxiralar sifatini anglatadi.")]
+            return [
+                block(f"Vertikal aktiv tahlili faqat o'sishni emas, konsentratsiyani ko'rsatgani uchun kerak.{detail} Bir xil o'zgarish kichik satrda va dominant balans blokida turlicha ma'no beradi."),
+                block("Kreditlar ustun bo'lsa, tahlil kredit sifati va rezervlar dinamikasiga sezgir bo'ladi. Likvid aktivlar ustun bo'lsa, likvidlik kuchliroq, lekin rentabellik pastroq bo'lishi mumkin; qimmatli qog'ozlar ustun bo'lsa, baholash va foiz stavkasi riski muhimlashadi."),
+            ]
         detail = f" Самая крупная видимая доля: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
-        return [block(f"Вертикальный анализ активов нужен, чтобы увидеть не только рост, но и концентрацию.{detail} Если одна группа активов доминирует, итоговая оценка риска сильнее зависит от неё: для банка это может быть качество кредитов, риск инвестиционного портфеля или качество ликвидных резервов.")]
+        return [
+            block(f"Вертикальный анализ активов нужен, потому что показывает не только рост, но и концентрацию.{detail} Одно и то же изменение имеет разный смысл, если оно находится в малой строке или в доминирующем блоке баланса."),
+            block("Если доминируют кредиты, итоговая оценка становится чувствительнее к качеству портфеля и резервам. Если велика доля ликвидных активов, запас ликвидности выше, но доходность может быть ниже; если велика доля ценных бумаг, важнее становятся переоценка и процентный риск."),
+        ]
 
     if role == "liabilities_vertical":
         if lang == "en":
             detail = f" The largest visible weight is {largest_share[0]} ({largest_share[1]})." if largest_share else ""
-            return [block(f"Vertical liabilities/equity analysis shows whether the balance is mainly funded by stable deposits, market debt, provisions or own capital.{detail} This affects the analysis of solvency and sensitivity to funding outflows.")]
+            return [
+                block(f"Vertical liabilities/equity analysis shows the funding model rather than only the change in amounts.{detail} A bank with the same asset size can have very different risk depending on whether it is funded by retail deposits, wholesale debt or own capital."),
+                block("This section affects the final solvency view: a high capital share creates a buffer, a high deposit share can be stable if deposits are sticky, and a rising debt or repo share increases sensitivity to refinancing conditions."),
+            ]
         if lang == "uz":
             detail = f" Eng katta ko'rinadigan ulush: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
-            return [block(f"Passiv va kapitalning vertikal tahlili balans asosan barqaror depozitlar, bozor qarzi, zaxiralar yoki o'z kapitali bilan moliyalashtirilganini ko'rsatadi.{detail} Bu to'lov qobiliyati va funding chiqib ketishiga sezgirlik bahosiga ta'sir qiladi.")]
+            return [
+                block(f"Passiv va kapitalning vertikal tahlili faqat summalar o'zgarishini emas, funding modelini ko'rsatadi.{detail} Bir xil aktiv hajmiga ega bank retail depozit, ulgurji qarz yoki kapital bilan moliyalashtirilganiga qarab turlicha riskka ega bo'ladi."),
+                block("Bu bo'lim yakuniy to'lov qobiliyati bahosiga ta'sir qiladi: kapital ulushi yuqori bo'lsa bufer kuchli, depozit ulushi barqaror bo'lsa funding sifatli, qarz yoki REPO ulushi oshsa qayta moliyalashtirish sharoitlariga sezgirlik kuchayadi."),
+            ]
         detail = f" Самая крупная видимая доля: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
-        return [block(f"Вертикальный анализ пассивов и капитала показывает, чем в основном профинансирован баланс: стабильными депозитами, рыночным долгом, резервами или собственным капиталом.{detail} Это влияет на оценку платёжеспособности и чувствительности к оттоку фондирования.")]
+        return [
+            block(f"Вертикальный анализ пассивов и капитала показывает не только изменение сумм, но и модель фондирования.{detail} Банк с одинаковым размером активов может иметь разный риск в зависимости от того, профинансирован он розничными депозитами, оптовым долгом или собственным капиталом."),
+            block("Этот раздел влияет на итоговую оценку платёжеспособности: высокая доля капитала создаёт буфер, высокая доля устойчивых депозитов поддерживает качество фондирования, а рост долга или РЕПО повышает чувствительность к условиям рефинансирования."),
+        ]
 
     if role == "income_statement":
         if lang == "en":
             detail = f" The largest absolute profit-and-loss movement is {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
-            return [block(f"This table links growth to profitability quality, not just headline revenue.{detail} If expenses grow faster than income or profit relies on one-off lines, the final analysis becomes more cautious even when revenue is rising.")]
+            share = f" The largest visible weight in the current-period structure is {largest_income_share[0]} ({largest_income_share[1]})." if largest_income_share else ""
+            return [
+                block(f"The income statement table links growth to profit quality, not just headline revenue.{detail}{share} It shows whether the bank earns from core interest business, commissions, trading/FX operations or one-off lines."),
+                block("This matters because revenue growth is not automatically good: if funding costs, provisions or operating expenses grow faster than income, the final analysis becomes more cautious even when the top line looks strong."),
+                block("For the final verdict, recurring interest margin and controlled expenses improve quality; dependence on unclear 'other' income, high provisions or fast cost growth reduces confidence in sustainability."),
+            ]
         if lang == "uz":
             detail = f" Eng katta foyda-zarar o'zgarishi: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
-            return [block(f"Bu jadval o'sishni faqat tushum bilan emas, foyda sifati bilan bog'laydi.{detail} Xarajatlar daromaddan tezroq o'ssa yoki foyda bir martalik satrlarga tayansa, tushum o'ssa ham yakuniy baho ehtiyotkorroq bo'ladi.")]
+            share = f" Joriy davr tarkibidagi eng katta ko'rinadigan ulush: {largest_income_share[0]} ({largest_income_share[1]})." if largest_income_share else ""
+            return [
+                block(f"Moliyaviy natijalar jadvali o'sishni faqat tushum bilan emas, foyda sifati bilan bog'laydi.{detail}{share} U bank asosiy foiz biznesidanmi, komissiyalardanmi, savdo/valyuta operatsiyalaridanmi yoki bir martalik satrlardanmi daromad olayotganini ko'rsatadi."),
+                block("Bu muhim, chunki tushum o'sishi avtomatik ravishda yaxshi signal emas: funding xarajatlari, rezervlar yoki operatsion xarajatlar daromaddan tezroq o'ssa, yuqori tushumga qaramay yakuniy baho ehtiyotkor bo'ladi."),
+                block("Yakuniy xulosada takrorlanuvchi foiz marjasi va nazoratdagi xarajatlar sifatni oshiradi; noaniq 'boshqa' daromadlar, yuqori rezervlar yoki xarajatlarning tez o'sishi barqarorlikka ishonchni pasaytiradi."),
+            ]
         detail = f" Самое крупное движение в отчёте о прибылях и убытках: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
-        return [block(f"Эта таблица связывает рост бизнеса не только с выручкой, но и с качеством прибыли.{detail} Если расходы растут быстрее доходов или прибыль держится на разовых статьях, итоговая оценка становится осторожнее даже при росте выручки.")]
+        share = f" Самая крупная видимая доля в структуре текущего периода: {largest_income_share[0]} ({largest_income_share[1]})." if largest_income_share else ""
+        return [
+            block(f"Таблица финансовых результатов связывает рост бизнеса не только с выручкой, но и с качеством прибыли.{detail}{share} Она показывает, за счёт чего банк зарабатывает: базового процентного бизнеса, комиссий, торговых/валютных операций или разовых статей."),
+            block("Это важно, потому что рост доходов сам по себе ещё не является хорошим сигналом: если стоимость фондирования, резервы или операционные расходы растут быстрее доходов, итоговая оценка становится осторожнее даже при сильной верхней строке."),
+            block("Для финального вердикта устойчивую оценку поддерживают повторяемая процентная маржа и контролируемые расходы; зависимость от нерасшифрованных «прочих» доходов, высоких резервов или быстрого роста затрат снижает уверенность в устойчивости прибыли."),
+        ]
 
     if role == "ratio_summary":
         if lang == "en":
-            return [block(f"Ratio analysis turns the raw statements into comparable risk and quality signals across {row_count} metrics. These figures affect the final verdict because they connect profitability, leverage, liquidity and operating efficiency in one scoring layer.")]
+            return [
+                block(f"Ratio analysis turns the raw statements into comparable risk and quality signals across {row_count} metrics. Unlike absolute balance-sheet lines, these indicators show whether the business is efficient relative to its assets, capital and funding base."),
+                block("These figures affect the final verdict because they connect profitability, leverage, liquidity and operating efficiency in one scoring layer. Strong profitability can be offset by weak liquidity or aggressive leverage, while moderate growth can still be attractive if capital quality and coverage are strong."),
+            ]
         if lang == "uz":
-            return [block(f"Koeffitsiyentlar tahlili xom hisobotlarni {row_count} ta solishtiriladigan risk va sifat signaliga aylantiradi. Ular yakuniy xulosaga ta'sir qiladi, chunki rentabellik, leverage, likvidlik va operatsion samaradorlikni bitta baholash qatlamida bog'laydi.")]
-        return [block(f"Коэффициентный анализ превращает сырые отчёты в {row_count} сопоставимых сигналов риска и качества. Эти показатели влияют на итоговый вердикт, потому что связывают прибыльность, долговую нагрузку, ликвидность и операционную эффективность в один слой оценки.")]
+            return [
+                block(f"Koeffitsiyentlar tahlili xom hisobotlarni {row_count} ta solishtiriladigan risk va sifat signaliga aylantiradi. Mutlaq balans satrlaridan farqli ravishda ular biznes aktivlar, kapital va funding bazasiga nisbatan qanchalik samarali ishlayotganini ko'rsatadi."),
+                block("Bu ko'rsatkichlar yakuniy xulosaga ta'sir qiladi, chunki rentabellik, leverage, likvidlik va operatsion samaradorlikni bitta baholash qatlamida bog'laydi. Kuchli rentabellik zaif likvidlik yoki agressiv leverage bilan neytrallashishi mumkin; o'rtacha o'sish esa kapital sifati va qoplama kuchli bo'lsa jozibali qoladi."),
+            ]
+        return [
+            block(f"Коэффициентный анализ превращает сырые отчёты в {row_count} сопоставимых сигналов риска и качества. В отличие от абсолютных строк баланса, эти показатели показывают, насколько эффективно бизнес работает относительно активов, капитала и ресурсной базы."),
+            block("Эти показатели влияют на итоговый вердикт, потому что связывают прибыльность, долговую нагрузку, ликвидность и операционную эффективность в один слой оценки. Сильная рентабельность может быть нейтрализована слабой ликвидностью или агрессивным рычагом, а умеренный рост всё ещё может быть привлекательным при сильном капитале и хорошем покрытии рисков."),
+        ]
 
     if role == "excel_source":
         if lang == "en":
-            return [block("These appendix tables are included for auditability: they show the source XLSX rows behind the analytical tables. They should not be read as separate conclusions; they help verify whether the analysis missed a line item, used the right period columns, or needs a deeper manual check.")]
+            return [
+                block("These appendix tables are included for auditability: they show the source XLSX rows behind the analytical tables. They should not be read as separate conclusions; they are the evidence layer that lets the reader trace where the numbers came from."),
+                block("They affect the analysis indirectly: if an important line appears here but not in the analytical sections, it flags a need for manual review; if period columns look unusual, the conclusion should be treated with more caution."),
+            ]
         if lang == "uz":
-            return [block("Bu ilova jadvallari tekshirish uchun qo'shilgan: ular tahliliy jadvallar ortidagi XLSX manba satrlarini ko'rsatadi. Ularni alohida xulosa deb o'qimaslik kerak; ular biror satr tushib qolmaganini, davr ustunlari to'g'ri olinganini yoki qo'lda chuqurroq tekshiruv kerakligini ko'rishga yordam beradi.")]
-        return [block("Эти таблицы в приложении нужны для проверяемости: они показывают исходные строки XLSX, из которых собраны аналитические таблицы. Их не нужно читать как отдельные выводы; они помогают проверить, не пропущена ли важная строка, правильно ли взяты колонки периода и нужен ли более глубокий ручной разбор.")]
+            return [
+                block("Bu ilova jadvallari tekshirish uchun qo'shilgan: ular tahliliy jadvallar ortidagi XLSX manba satrlarini ko'rsatadi. Ularni alohida xulosa deb o'qimaslik kerak; ular raqamlar qayerdan kelganini kuzatish uchun dalil qatlamidir."),
+                block("Ular tahlilga bilvosita ta'sir qiladi: muhim satr bu yerda bor, lekin tahliliy bo'limlarda yo'q bo'lsa, qo'lda tekshiruv kerak; davr ustunlari noodatiy ko'rinsa, xulosaga ehtiyotkorroq qarash kerak."),
+            ]
+        return [
+            block("Таблицы приложения нужны для проверяемости: они показывают исходные строки XLSX, из которых собраны аналитические таблицы. Их не нужно читать как отдельные выводы; это доказательная база, позволяющая проследить происхождение чисел."),
+            block("На анализ они влияют косвенно: если важная строка есть здесь, но не попала в аналитические разделы, это сигнал для ручной проверки; если колонки периодов выглядят нестандартно, итоговый вывод нужно читать осторожнее."),
+        ]
 
     return []
 
