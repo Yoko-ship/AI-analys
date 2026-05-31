@@ -524,6 +524,8 @@ async def api_analyze(
         "sections": result.get("sections", {}),
         "report_tables": result.get("report_tables"),
         "report_tables_version": result.get("report_tables_version"),
+        "article_report": result.get("article_report"),
+        "article_report_version": result.get("article_report_version"),
         "metrics": result.get("metrics"),
         "ifrs_snapshot": result.get("ifrs_snapshot"),
         "liquidity": result.get("liquidity"),

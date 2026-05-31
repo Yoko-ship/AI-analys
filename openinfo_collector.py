@@ -30,8 +30,10 @@ EXCEL_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
 EXCEL_MAX_ANNUAL_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_ANNUAL_REPORTS", "1"))
 EXCEL_MAX_QUARTER_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_QUARTER_REPORTS", "2"))
 EXCEL_ABSOLUTE_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
+EXCEL_MAX_TABLE_ROWS_PER_SHEET = int(os.getenv("OPENINFO_EXCEL_MAX_TABLE_ROWS_PER_SHEET", "140"))
 EXCEL_CACHE_TTL_SECONDS = int(os.getenv("OPENINFO_EXCEL_CACHE_TTL_DAYS", "30")) * 24 * 60 * 60
 EXCEL_CACHE_PATH = Path(os.getenv("OPENINFO_EXCEL_CACHE_PATH", "data/openinfo_excel_cache.json")).expanduser()
+EXCEL_PARSER_VERSION = "openinfo-excel-full-rows-v2"
 _EXCEL_CACHE_LOCK = threading.Lock()
 
 if not VERIFY_SSL and InsecureRequestWarning is not None:
@@ -510,6 +512,36 @@ def _row_matches_financial_context(values: list[Any]) -> bool:
     return numeric_count >= 2 and string_count >= 1
 
 
+def _excel_row_label(values: list[Any]) -> str:
+    parts: list[str] = []
+    for value in values[:6]:
+        if not isinstance(value, str):
+            continue
+        text = value.strip()
+        if not text:
+            continue
+        if _safe_report_number(text) is not None:
+            continue
+        parts.append(text)
+    if parts:
+        return " | ".join(parts)[:260]
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:260]
+    return str(values[0])[:260] if values else ""
+
+
+def _classify_excel_row(label: str, sheet_name: str) -> str:
+    text = f"{sheet_name} {label}".lower()
+    if any(token in text for token in ("финансов", "прибыл", "убыт", "доход", "расход", "income", "profit", "loss")):
+        return "income_statement"
+    if any(token in text for token in ("пассив", "обязатель", "капитал", "депозит", "устав", "equity", "liabil")):
+        return "liabilities_equity"
+    if any(token in text for token in ("актив", "касс", "цбру", "к получению", "инвести", "кредит", "лизинг", "asset")):
+        return "assets"
+    return "financial_row"
+
+
 def _parse_excel_workbook(
     content: bytes,
     *,
@@ -533,45 +565,52 @@ def _parse_excel_workbook(
 
         frame = frame.dropna(how="all").dropna(axis=1, how="all")
         matched_rows: list[dict[str, Any]] = []
+        table_rows: list[dict[str, Any]] = []
+        max_table_rows = max(0, min(EXCEL_MAX_TABLE_ROWS_PER_SHEET, max_rows_per_sheet))
 
         for index, row in frame.iterrows():
             raw_values = [_compact_cell(value) for value in row.tolist()]
             values = [value for value in raw_values if value not in ("", None)]
             if not values:
                 continue
-            if not _row_matches_financial_context(values):
-                continue
 
-            label_parts = [
-                str(value)
-                for value in values[:4]
-                if isinstance(value, str) and not str(value).replace(".", "", 1).isdigit()
-            ]
-            numeric_values = [
-                round(number, 4)
-                for number in (_safe_report_number(value) for value in values)
-                if number is not None
-            ][:10]
+            label = _excel_row_label(values)
+            numeric_cells = []
+            for col_index, value in enumerate(values[:14]):
+                number = _safe_report_number(value)
+                if number is not None:
+                    numeric_cells.append({"index": col_index, "value": round(number, 4)})
+            numeric_values = [cell["value"] for cell in numeric_cells][:10]
 
-            matched_rows.append({
-                "row": int(index) + 1,
-                "label": " | ".join(label_parts)[:220] if label_parts else str(values[0])[:220],
-                "values": values[:12],
-                "numeric_values": numeric_values,
-            })
-            facts_count += 1
+            if label and numeric_cells and len(table_rows) < max_table_rows:
+                table_rows.append({
+                    "row": int(index) + 1,
+                    "label": label,
+                    "values": values[:14],
+                    "numeric_values": numeric_values,
+                    "numeric_cells": numeric_cells[:10],
+                    "kind": _classify_excel_row(label, str(sheet_name)),
+                })
 
-            if len(matched_rows) >= max_matched_rows_per_sheet:
-                break
+            if _row_matches_financial_context(values) and len(matched_rows) < max_matched_rows_per_sheet:
+                matched_rows.append({
+                    "row": int(index) + 1,
+                    "label": label,
+                    "values": values[:12],
+                    "numeric_values": numeric_values,
+                })
+                facts_count += 1
 
-        if matched_rows:
+        if matched_rows or table_rows:
             sheets.append({
                 "sheet": str(sheet_name),
                 "rows_scanned": int(len(frame)),
                 "matched_rows": matched_rows,
+                "table_rows": table_rows,
             })
 
     return {
+        "parser_version": EXCEL_PARSER_VERSION,
         "sheet_count": len(workbook.sheet_names),
         "sheets_read": len(sheets),
         "facts_count": facts_count,
@@ -589,7 +628,7 @@ def parse_excel_report_document(
         return {"ok": False, "error": "excel_url is missing"}
 
     cached = _get_excel_cache(url)
-    if cached:
+    if cached and cached.get("parser_version") == EXCEL_PARSER_VERSION:
         return cached
 
     response = session.get(url, timeout=REQUEST_TIMEOUT)
@@ -608,6 +647,7 @@ def parse_excel_report_document(
     payload = {
         "ok": True,
         "source": "openinfo_excel",
+        "parser_version": EXCEL_PARSER_VERSION,
         "from_cache": False,
         "report_id": document.get("id"),
         "object_id": document.get("object_id"),
