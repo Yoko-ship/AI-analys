@@ -35,7 +35,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip() or "gpt-5.4-min
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low").strip().lower() or "low"
 ANALYSIS_POLICY_VERSION = "public-information-v8-expanded-article-report-2026-05-31"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v2"
+ARTICLE_REPORT_VERSION = "article-report-v3"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
@@ -940,6 +940,130 @@ def _table_count_from_article(sections: list[dict]) -> int:
     )
 
 
+def _number_from_report_text(value: str) -> float | None:
+    text = str(value or "").strip()
+    if not text or text in {"—", "-"}:
+        return None
+    sign = -1 if text.startswith(("−", "-")) else 1
+    text = text.lstrip("+−-").replace("%", "").replace("\xa0", " ").replace(" ", "")
+    if "," in text and "." not in text:
+        text = text.replace(",", ".")
+    text = "".join(ch for ch in text if ch.isdigit() or ch == ".")
+    try:
+        return sign * float(text)
+    except ValueError:
+        return None
+
+
+def _largest_abs_table_row(table: dict | None, column_index: int) -> tuple[str, str] | None:
+    if not table:
+        return None
+    best: tuple[float, str, str] | None = None
+    for row in table.get("rows") or []:
+        if len(row) <= column_index:
+            continue
+        parsed = _number_from_report_text(row[column_index])
+        if parsed is None:
+            continue
+        label = str(row[0] or "").strip()
+        value = str(row[column_index] or "").strip()
+        if not label or not value:
+            continue
+        magnitude = abs(parsed)
+        if best is None or magnitude > best[0]:
+            best = (magnitude, label, value)
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
+def _table_explanation_blocks(table: dict | None, role: str, language: str) -> list[dict]:
+    if not table:
+        return []
+    lang = _normalize_language(language)
+    row_count = len(table.get("rows") or [])
+    biggest_change = _largest_abs_table_row(table, 3)
+    largest_share = _largest_abs_table_row(table, 2)
+
+    def block(text: str) -> dict:
+        return {"type": "paragraph", "text": text}
+
+    if role == "assets_horizontal":
+        if lang == "en":
+            detail = f" The largest absolute movement is {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
+            return [block(f"This table is needed to separate normal asset growth from balance-sheet reshuffling across {row_count} asset lines.{detail} Large falls in liquid assets or loans can weaken liquidity and earnings capacity, while sharp increases may point to risk build-up or a change in allocation policy.")]
+        if lang == "uz":
+            detail = f" Eng katta mutlaq o'zgarish: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
+            return [block(f"Bu jadval {row_count} ta aktiv satri bo'yicha oddiy o'sishni balans tarkibidagi siljishlardan ajratish uchun kerak.{detail} Likvid aktivlar yoki kreditlardagi katta pasayish likvidlik va daromad salohiyatini pasaytirishi, keskin o'sish esa risk yig'ilishini ko'rsatishi mumkin.")]
+        detail = f" Самое крупное абсолютное движение: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
+        return [block(f"Эта таблица нужна, чтобы отделить обычный рост активов от перераспределения баланса по {row_count} строкам.{detail} Сильное снижение ликвидных активов или кредитов может ухудшить ликвидность и будущую прибыль, а резкий рост отдельных статей может означать накопление риска.")]
+
+    if role == "liabilities_horizontal":
+        if lang == "en":
+            detail = f" The largest absolute movement is {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
+            return [block(f"This table explains how the bank funds its assets: deposits, debt, reserves and equity.{detail} The analysis uses these movements to judge funding stability, leverage pressure and whether asset growth is supported by durable capital or borrowed money.")]
+        if lang == "uz":
+            detail = f" Eng katta mutlaq o'zgarish: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
+            return [block(f"Bu jadval bank aktivlari qaysi manbalar bilan moliyalashtirilganini ko'rsatadi: depozitlar, qarzlar, zaxiralar va kapital.{detail} Shu harakatlar funding barqarorligi, leverage bosimi va o'sish kapital bilanmi yoki qarz bilanmi ta'minlanganini baholashga ta'sir qiladi.")]
+        detail = f" Самое крупное абсолютное движение: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
+        return [block(f"Эта таблица объясняет, за счёт чего банк финансирует активы: депозиты, долг, резервы и капитал.{detail} Эти изменения влияют на оценку устойчивости фондирования, долговой нагрузки и того, поддержан ли рост активов капиталом или заёмными средствами.")]
+
+    if role == "assets_vertical":
+        if lang == "en":
+            detail = f" The largest visible weight is {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+            return [block(f"Vertical asset analysis is needed to see concentration, not just growth.{detail} If one asset group dominates, the final risk view becomes more sensitive to that group: for a bank this can mean credit quality, investment portfolio risk or liquidity reserve quality.")]
+        if lang == "uz":
+            detail = f" Eng katta ko'rinadigan ulush: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+            return [block(f"Vertikal aktiv tahlili faqat o'sishni emas, konsentratsiyani ham ko'rsatadi.{detail} Bitta aktiv guruhi ustun bo'lsa, yakuniy risk bahosi shu guruhga ko'proq bog'lanadi: bankda bu kredit sifati, investitsiya portfeli riski yoki likvid zaxiralar sifatini anglatadi.")]
+        detail = f" Самая крупная видимая доля: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+        return [block(f"Вертикальный анализ активов нужен, чтобы увидеть не только рост, но и концентрацию.{detail} Если одна группа активов доминирует, итоговая оценка риска сильнее зависит от неё: для банка это может быть качество кредитов, риск инвестиционного портфеля или качество ликвидных резервов.")]
+
+    if role == "liabilities_vertical":
+        if lang == "en":
+            detail = f" The largest visible weight is {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+            return [block(f"Vertical liabilities/equity analysis shows whether the balance is mainly funded by stable deposits, market debt, provisions or own capital.{detail} This affects the analysis of solvency and sensitivity to funding outflows.")]
+        if lang == "uz":
+            detail = f" Eng katta ko'rinadigan ulush: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+            return [block(f"Passiv va kapitalning vertikal tahlili balans asosan barqaror depozitlar, bozor qarzi, zaxiralar yoki o'z kapitali bilan moliyalashtirilganini ko'rsatadi.{detail} Bu to'lov qobiliyati va funding chiqib ketishiga sezgirlik bahosiga ta'sir qiladi.")]
+        detail = f" Самая крупная видимая доля: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+        return [block(f"Вертикальный анализ пассивов и капитала показывает, чем в основном профинансирован баланс: стабильными депозитами, рыночным долгом, резервами или собственным капиталом.{detail} Это влияет на оценку платёжеспособности и чувствительности к оттоку фондирования.")]
+
+    if role == "income_statement":
+        if lang == "en":
+            detail = f" The largest absolute profit-and-loss movement is {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
+            return [block(f"This table links growth to profitability quality, not just headline revenue.{detail} If expenses grow faster than income or profit relies on one-off lines, the final analysis becomes more cautious even when revenue is rising.")]
+        if lang == "uz":
+            detail = f" Eng katta foyda-zarar o'zgarishi: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
+            return [block(f"Bu jadval o'sishni faqat tushum bilan emas, foyda sifati bilan bog'laydi.{detail} Xarajatlar daromaddan tezroq o'ssa yoki foyda bir martalik satrlarga tayansa, tushum o'ssa ham yakuniy baho ehtiyotkorroq bo'ladi.")]
+        detail = f" Самое крупное движение в отчёте о прибылях и убытках: {biggest_change[0]}: {biggest_change[1]}." if biggest_change else ""
+        return [block(f"Эта таблица связывает рост бизнеса не только с выручкой, но и с качеством прибыли.{detail} Если расходы растут быстрее доходов или прибыль держится на разовых статьях, итоговая оценка становится осторожнее даже при росте выручки.")]
+
+    if role == "ratio_summary":
+        if lang == "en":
+            return [block(f"Ratio analysis turns the raw statements into comparable risk and quality signals across {row_count} metrics. These figures affect the final verdict because they connect profitability, leverage, liquidity and operating efficiency in one scoring layer.")]
+        if lang == "uz":
+            return [block(f"Koeffitsiyentlar tahlili xom hisobotlarni {row_count} ta solishtiriladigan risk va sifat signaliga aylantiradi. Ular yakuniy xulosaga ta'sir qiladi, chunki rentabellik, leverage, likvidlik va operatsion samaradorlikni bitta baholash qatlamida bog'laydi.")]
+        return [block(f"Коэффициентный анализ превращает сырые отчёты в {row_count} сопоставимых сигналов риска и качества. Эти показатели влияют на итоговый вердикт, потому что связывают прибыльность, долговую нагрузку, ликвидность и операционную эффективность в один слой оценки.")]
+
+    if role == "excel_source":
+        if lang == "en":
+            return [block("These appendix tables are included for auditability: they show the source XLSX rows behind the analytical tables. They should not be read as separate conclusions; they help verify whether the analysis missed a line item, used the right period columns, or needs a deeper manual check.")]
+        if lang == "uz":
+            return [block("Bu ilova jadvallari tekshirish uchun qo'shilgan: ular tahliliy jadvallar ortidagi XLSX manba satrlarini ko'rsatadi. Ularni alohida xulosa deb o'qimaslik kerak; ular biror satr tushib qolmaganini, davr ustunlari to'g'ri olinganini yoki qo'lda chuqurroq tekshiruv kerakligini ko'rishga yordam beradi.")]
+        return [block("Эти таблицы в приложении нужны для проверяемости: они показывают исходные строки XLSX, из которых собраны аналитические таблицы. Их не нужно читать как отдельные выводы; они помогают проверить, не пропущена ли важная строка, правильно ли взяты колонки периода и нужен ли более глубокий ручной разбор.")]
+
+    return []
+
+
+def _table_with_explanation(table: dict | None, role: str, language: str) -> list[dict]:
+    if not table:
+        return []
+    return [
+        {"type": "table", **table},
+        *_table_explanation_blocks(table, role, language),
+    ]
+
+
 def _build_article_report(
     *,
     company_name: str,
@@ -988,8 +1112,8 @@ def _build_article_report(
     def p(text: str) -> dict:
         return {"type": "paragraph", "text": text}
 
-    def t(table: dict | None) -> list[dict]:
-        return [{"type": "table", **table}] if table else []
+    def t(table: dict | None, role: str) -> list[dict]:
+        return _table_with_explanation(table, role, lang)
 
     article_sections = [
         {
@@ -1011,8 +1135,8 @@ def _build_article_report(
                 "uz": "Balansning gorizontal tahlili",
             }.get(lang),
             "blocks": [
-                *t(assets_h),
-                *t(liab_h),
+                *t(assets_h, "assets_horizontal"),
+                *t(liab_h, "liabilities_horizontal"),
                 p(_first_article_paragraph(sections, "ЧТО_С_ДЕНЬГАМИ") or "Горизонтальный анализ показывает изменение ключевых строк между текущим и предыдущим периодом."),
             ],
         },
@@ -1025,8 +1149,8 @@ def _build_article_report(
                 "uz": "Balansning vertikal tahlili",
             }.get(lang),
             "blocks": [
-                *t(assets_v),
-                *t(liab_v),
+                *t(assets_v, "assets_vertical"),
+                *t(liab_v, "liabilities_vertical"),
                 p("Вертикальный анализ показывает, какая часть активов и пассивов приходится на каждую крупную строку отчётности. Это помогает увидеть концентрацию баланса и зависимость от отдельных статей."),
             ],
         },
@@ -1039,7 +1163,7 @@ def _build_article_report(
                 "uz": "Moliyaviy natijalar hisoboti tahlili",
             }.get(lang),
             "blocks": [
-                *t(income_table),
+                *t(income_table, "income_statement"),
                 p(_first_article_paragraph(sections, "ТРЕНД", "ЧТО_С_ДЕНЬГАМИ") or "Раздел сопоставляет доходы, расходы и прибыльность между периодами."),
             ],
         },
@@ -1052,7 +1176,7 @@ def _build_article_report(
                 "uz": "Koeffitsiyentlar tahlili",
             }.get(lang),
             "blocks": [
-                *t(ratio_table),
+                *t(ratio_table, "ratio_summary"),
                 p(_first_article_paragraph(sections, "ЭФФЕКТИВНОСТЬ", "ОЦЕНКА_ЦЕНЫ") or "Коэффициенты дополняют табличный разбор и показывают прибыльность, устойчивость баланса и качество операционной модели."),
             ],
         },
@@ -1079,7 +1203,11 @@ def _build_article_report(
                     "en": "Source rows from XLSX reports",
                     "uz": "XLSX hisobotlaridan manba satrlar",
                 }.get(lang),
-                "blocks": [{"type": "table", **table} for table in appendix_tables],
+                "blocks": [
+                    block
+                    for table in appendix_tables
+                    for block in _table_with_explanation(table, "excel_source", lang)
+                ],
             },
         )
 
