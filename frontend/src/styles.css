@@ -7046,6 +7046,17 @@ body[data-theme="light"] .report-article .analysis-sector__caption {
   letter-spacing: 0.15em;
 }
 
+.report-article .analysis-sector__note,
+body[data-theme="dark"] .report-article .analysis-sector__note,
+body[data-theme="light"] .report-article .analysis-sector__note {
+  margin: -10px 0 10px;
+  color: #8a7a69;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .report-article .analysis-table-wrap,
 body[data-theme="dark"] .report-article .analysis-table-wrap,
 body[data-theme="light"] .report-article .analysis-table-wrap {
