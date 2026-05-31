@@ -612,6 +612,79 @@ def _clean_article_label(label: str) -> str:
     return " ".join(text.split())[:180] or "—"
 
 
+def _find_excel_amount(
+    rows: list[dict],
+    *keywords: str,
+    kind_filter: str | None = None,
+) -> tuple[float | None, float | None]:
+    """Return (current, prior) amounts for the first Excel row whose label contains ALL keywords."""
+    kws = [kw.lower() for kw in keywords]
+    for row in rows:
+        label = (row.get("label") or "").lower()
+        if kind_filter and str(row.get("article_kind") or "") != kind_filter:
+            continue
+        if all(kw in label for kw in kws):
+            pair = _article_amount_pair(row)
+            if pair:
+                return pair[0], pair[1]
+            cur = _article_current_amount(row)
+            return cur, None
+    return None, None
+
+
+def _bank_ratios_from_excel(
+    excel_rows: list[dict],
+    total_assets: float | None,
+    interest_income: float | None,
+    interest_expense: float | None,
+) -> dict:
+    """Compute bank-specific ratios that require raw Excel row data (NSBOU forms 1 & 2)."""
+    result: dict = {}
+    if not excel_rows:
+        return result
+
+    # ── First-line liquidity: (Cash + Due-from-CBU) / Total Assets ────────
+    cash_cur, _ = _find_excel_amount(excel_rows, "касс", kind_filter="assets")
+    cbu_cur, _ = _find_excel_amount(excel_rows, "цбру", kind_filter="assets")
+    if cbu_cur is None:
+        cbu_cur, _ = _find_excel_amount(excel_rows, "получен", "цбру")
+    if (cash_cur is not None or cbu_cur is not None) and total_assets:
+        first_line = ((cash_cur or 0.0) + (cbu_cur or 0.0)) / total_assets * 100
+        result["first_line_liquidity_pct"] = round(first_line, 2)
+
+    # ── Coverage ratio: Loan-loss reserve / Gross loans (current & prior) ─
+    llr_cur, llr_prior = _find_excel_amount(excel_rows, "резерв", "потер")
+    gross_cur, gross_prior = _find_excel_amount(excel_rows, "брутто")
+    if gross_cur is None:
+        gross_cur, gross_prior = _find_excel_amount(excel_rows, "кредит", "брутто")
+    if llr_cur is not None and gross_cur and gross_cur > 0:
+        result["coverage_ratio_current_pct"] = round(abs(llr_cur) / gross_cur * 100, 2)
+    if llr_prior is not None and gross_prior and gross_prior > 0:
+        result["coverage_ratio_prior_pct"] = round(abs(llr_prior) / gross_prior * 100, 2)
+
+    # ── Reserve burden: provision expense / interest income ───────────────
+    prov_cur, _ = _find_excel_amount(excel_rows, "резерв", "убыт", kind_filter="income_statement")
+    if prov_cur is None:
+        prov_cur, _ = _find_excel_amount(excel_rows, "резерв", "кредит", kind_filter="income_statement")
+    if prov_cur is not None and interest_income and interest_income > 0:
+        result["reserve_burden_pct"] = round(abs(prov_cur) / interest_income * 100, 2)
+
+    # ── Interest income coverage: interest income / interest expense ───────
+    if interest_income and interest_expense and interest_expense > 0:
+        result["interest_income_coverage"] = round(interest_income / abs(interest_expense), 3)
+
+    # ── Non-interest income share: non-int income / (int + non-int income) ─
+    non_int_cur, _ = _find_excel_amount(excel_rows, "беспроцентн", "доход", kind_filter="income_statement")
+    if non_int_cur is None:
+        non_int_cur, _ = _find_excel_amount(excel_rows, "непроцентн", "доход", kind_filter="income_statement")
+    if non_int_cur is not None and interest_income and interest_income > 0:
+        total_income = interest_income + abs(non_int_cur)
+        if total_income > 0:
+            result["non_interest_share_pct"] = round(abs(non_int_cur) / total_income * 100, 2)
+
+    return result
+
+
 def _table_from_rows(
     table_id: str,
     caption: str,
@@ -771,45 +844,216 @@ def _income_article_table(
     )
 
 
-def _ratio_article_table(metrics: dict, ifrs_snapshot: dict, language: str) -> dict | None:
-    labels = {
-        "ru": ["Показатель", "Значение", "Смысл"],
-        "en": ["Metric", "Value", "Meaning"],
-        "uz": ["Ko'rsatkich", "Qiymat", "Mazmuni"],
-    }.get(_normalize_language(language), ["Показатель", "Значение", "Смысл"])
-    metric_rows = []
+def _ratio_article_table(
+    metrics: dict,
+    ifrs_snapshot: dict,
+    language: str,
+    bank_extra: dict | None = None,
+) -> dict | None:
+    lang = _normalize_language(language)
+    headers = {
+        "ru": ["Показатель", "Значение", "Ориентир / норма", "Оценка", "Смысл"],
+        "en": ["Metric", "Value", "Benchmark", "Assessment", "Meaning"],
+        "uz": ["Ko'rsatkich", "Qiymat", "Me'yor", "Baho", "Mazmuni"],
+    }.get(lang, ["Показатель", "Значение", "Ориентир / норма", "Оценка", "Смысл"])
+    metric_rows: list[list[str]] = []
+    bank_extra = bank_extra or {}
 
-    def add(label: str, value, meaning: str, pct: bool = False, digits: int = 2):
+    def _assess(value, good_threshold, warn_threshold, *, reverse: bool = False, fmt: str = "pct") -> str:
+        """Return assessment label based on value vs thresholds. reverse=True: lower is better."""
+        if value is None:
+            return "—"
+        v = float(value)
+        if reverse:
+            if v <= good_threshold:
+                return "✓ Хорошо"
+            if v <= warn_threshold:
+                return "~ Умеренно"
+            return "⚠ Высокий"
+        else:
+            if v >= good_threshold:
+                return "✓ Хорошо"
+            if v >= warn_threshold:
+                return "~ Умеренно"
+            return "⚠ Слабый"
+
+    def add(
+        label: str,
+        value,
+        meaning: str,
+        benchmark: str = "—",
+        assessment: str = "—",
+        *,
+        pct: bool = False,
+        ratio_suffix: str = "",
+        digits: int = 2,
+    ):
         if value is None or value == "":
             return
-        formatted = _format_report_pct(value, language, digits=digits) if pct else str(value)
-        metric_rows.append([label, formatted, meaning])
+        if pct:
+            formatted = _format_report_pct(value, language, digits=digits)
+        elif ratio_suffix:
+            formatted = f"{round(float(value), digits)}{ratio_suffix}"
+        else:
+            formatted = str(value)
+        metric_rows.append([label, formatted, benchmark, assessment, meaning])
 
     quality = (ifrs_snapshot or {}).get("quality") or {}
     balance = (ifrs_snapshot or {}).get("balance_sheet") or {}
     income = (ifrs_snapshot or {}).get("income_statement") or {}
     bank = (ifrs_snapshot or {}).get("bank") or {}
     total_score = (metrics or {}).get("total_score") or {}
-    add("Итоговый скоринг", total_score.get("score"), total_score.get("summary") or total_score.get("grade") or "Сводная оценка качества отчётности")
-    add("ROE", quality.get("roe_pct"), "Доходность собственного капитала", pct=True)
-    add("ROA", quality.get("roa_pct"), "Прибыль на активы", pct=True)
-    add("Чистая маржа", income.get("net_margin_pct"), "Сколько прибыли остаётся с дохода", pct=True)
-    add("Текущая ликвидность", balance.get("current_ratio"), "Способность покрывать краткосрочные обязательства")
-    add("Долг / капитал", balance.get("debt_to_equity"), "Во сколько раз долг соотносится с собственным капиталом")
-    add("Долг / активы", (balance.get("debt_to_assets") or 0) * 100 if balance.get("debt_to_assets") is not None else None, "Доля долга в активах", pct=True)
-    add("Покрытие процентов", quality.get("interest_coverage"), "Запас прибыли для выплаты процентов")
-    add("CAR simplified", bank.get("car_simple_pct"), "Капитал к активам, приближённая оценка", pct=True)
-    add("NIM", bank.get("nim_pct"), "Чистый процентный доход к активам", pct=True)
-    add("LDR", bank.get("ldr_pct"), "Кредиты к депозитам", pct=True)
-    add("CIR", bank.get("cir_pct"), "Расходы к доходам", pct=True)
+    is_bank = bool(bank.get("is_bank"))
+
+    # ── Scoring ────────────────────────────────────────────────────────────
+    add(
+        "Итоговый скоринг",
+        total_score.get("score"),
+        total_score.get("summary") or total_score.get("grade") or "Сводная оценка качества отчётности",
+        benchmark="≥ 60",
+        assessment=_assess(total_score.get("score"), 70, 45),
+    )
+
+    # ── Liquidity ──────────────────────────────────────────────────────────
+    ldr = bank.get("ldr_pct")
+    add(
+        "LDR — Кредиты / Депозиты" if is_bank else "Текущая ликвидность",
+        ldr if is_bank else balance.get("current_ratio"),
+        "Активы банка, размещённые в кредитах, vs. клиентская депозитная база" if is_bank else "Способность покрывать краткосрочные обязательства",
+        benchmark="< 100%" if is_bank else "1,5–2,5",
+        assessment=_assess(ldr, 100, 120, reverse=True) if is_bank else _assess(balance.get("current_ratio"), 1.5, 1.0),
+        pct=is_bank,
+    )
+    first_line = bank_extra.get("first_line_liquidity_pct")
+    add(
+        "Ликвид. активы 1-й линии / Активы",
+        first_line,
+        "Касса + счёт в ЦБ / итого активов — мгновенная ликвидность",
+        benchmark="> 5%",
+        assessment=_assess(first_line, 8, 4),
+        pct=True,
+    )
+    if not is_bank:
+        add("Текущая ликвидность", balance.get("current_ratio"), "Способность покрывать краткосрочные обязательства", benchmark="1,5–2,5")
+
+    # ── Profitability ──────────────────────────────────────────────────────
+    roe = quality.get("roe_pct") or (bank.get("roe_pct") if is_bank else None)
+    roa = quality.get("roa_pct") or (bank.get("roa_pct") if is_bank else None)
+    nim = bank.get("nim_pct")
+    add(
+        "ROA (аннуализ.)" if is_bank else "ROA",
+        roa,
+        "Прибыль на активы",
+        benchmark="1–2% (норм.)" if is_bank else "> 5%",
+        assessment=_assess(roa, 1, 0.5),
+        pct=True,
+    )
+    add(
+        "ROE (аннуализ.)" if is_bank else "ROE",
+        roe,
+        "Доходность собственного капитала",
+        benchmark="10–20% (норм.)",
+        assessment=_assess(roe, 10, 5),
+        pct=True,
+    )
+    if is_bank and nim is not None:
+        add("NIM — Чистая процентная маржа", nim, "Чистый процентный доход / итого активов", benchmark="3–5% (норм.)", assessment=_assess(nim, 3, 1), pct=True)
+    add(
+        "Чистая маржа прибыли",
+        income.get("net_margin_pct"),
+        "Сколько прибыли остаётся с дохода",
+        benchmark="15–25%",
+        assessment=_assess(income.get("net_margin_pct"), 15, 5),
+        pct=True,
+    )
+
+    # ── Asset quality (bank-specific) ──────────────────────────────────────
+    cov_cur = bank_extra.get("coverage_ratio_current_pct")
+    cov_prior = bank_extra.get("coverage_ratio_prior_pct")
+    res_burden = bank_extra.get("reserve_burden_pct")
+    if is_bank:
+        add(
+            "Резервы / Брутто-кредиты (текущий)",
+            cov_cur,
+            "Coverage ratio — покрытие кредитных потерь резервами",
+            benchmark="< 2%",
+            assessment=_assess(cov_cur, 2, 3, reverse=True) if cov_cur is not None else "—",
+            pct=True,
+        )
+        add(
+            "Резервы / Брутто-кредиты (предыдущий)",
+            cov_prior,
+            "Coverage ratio предыдущего периода для сравнения",
+            benchmark="< 2%",
+            assessment=_assess(cov_prior, 2, 3, reverse=True) if cov_prior is not None else "—",
+            pct=True,
+        )
+        add(
+            "Нагрузка резервирования",
+            res_burden,
+            "Резервы периода / процентные доходы — доля прибыли на покрытие потерь",
+            benchmark="< 10%",
+            assessment=_assess(res_burden, 10, 15, reverse=True) if res_burden is not None else "—",
+            pct=True,
+        )
+
+    # ── Capital adequacy ───────────────────────────────────────────────────
+    car = bank.get("car_simple_pct")
+    if is_bank and car is not None:
+        add("Капитал / Активы (CAR упрощ.)", car, "Собственный капитал к активам — приближённая достаточность", benchmark="> 8% (Базель)", assessment=_assess(car, 10, 6), pct=True)
+    d_to_e = balance.get("debt_to_equity")
+    d_to_a_raw = balance.get("debt_to_assets")
+    d_to_a = (d_to_a_raw or 0) * 100 if d_to_a_raw is not None else None
+    add(
+        "Коэффициент задолженности (D/A)",
+        d_to_a,
+        "Доля обязательств в активах",
+        benchmark="~85% (норм. для банков)" if is_bank else "< 50%",
+        assessment="✓ Норма" if (is_bank and d_to_a is not None and 80 <= d_to_a <= 90) else _assess(d_to_a, 50, 70, reverse=True) if not is_bank else "—",
+        pct=True,
+    )
+    add(
+        "D/E — Долг / Капитал",
+        d_to_e,
+        "Финансовый рычаг",
+        benchmark="4–8× (банки)" if is_bank else "< 1,5",
+        assessment="✓ Норма" if (is_bank and d_to_e is not None and 4 <= d_to_e <= 8) else _assess(d_to_e, 1.5, 2.0, reverse=True) if not is_bank else "—",
+    )
+
+    # ── Operational efficiency ─────────────────────────────────────────────
+    cir = bank.get("cir_pct")
+    int_cov = bank.get("interest_income_coverage") or bank_extra.get("interest_income_coverage")
+    non_int_share = bank_extra.get("non_interest_share_pct")
+    if is_bank:
+        add("CIR — Cost-to-Income", cir, "Операционные расходы / чистый доход", benchmark="40–60%", assessment=_assess(cir, 60, 70, reverse=True) if cir is not None else "—", pct=True)
+        add(
+            "Покрытие % расходов доходами",
+            int_cov,
+            "Процентные доходы / процентные расходы",
+            benchmark="> 1,2×",
+            assessment=_assess(int_cov, 1.5, 1.2) if int_cov is not None else "—",
+            ratio_suffix="×",
+        )
+        add(
+            "Доля непроц. доходов",
+            non_int_share,
+            "Непроцентные доходы / совокупные доходы",
+            benchmark="20–40%",
+            assessment="✓ Норма" if (non_int_share is not None and 20 <= non_int_share <= 40) else "~ Вне нормы" if non_int_share is not None else "—",
+            pct=True,
+        )
+    else:
+        add("Покрытие процентов", quality.get("interest_coverage"), "Запас прибыли для выплаты процентов", benchmark="> 3×")
+        add("Долг / капитал", d_to_e, "Во сколько раз долг соотносится с собственным капиталом", benchmark="< 1,5")
+
     return _table_from_rows(
         "ratio_summary",
         {
             "ru": "Таблица 6 — Сводный коэффициентный профиль",
             "en": "Table 6 — Ratio summary profile",
             "uz": "Jadval 6 — Koeffitsiyentlar profili",
-        }.get(_normalize_language(language), "Таблица 6 — Сводный коэффициентный профиль"),
-        labels,
+        }.get(lang, "Таблица 6 — Сводный коэффициентный профиль"),
+        headers,
         metric_rows,
         source="metrics.ifrs_snapshot",
     )
@@ -1190,15 +1434,18 @@ def _table_explanation_blocks(table: dict | None, role: str, language: str) -> l
         if lang == "en":
             return [
                 block(f"Ratio analysis turns the raw statements into comparable risk and quality signals across {row_count} metrics. Unlike absolute balance-sheet lines, these indicators show whether the business is efficient relative to its assets, capital and funding base."),
+                block("For banks the table includes bank-specific ratios: LDR (loan-to-deposit), first-line liquidity, NIM, CIR, coverage ratio (loan-loss reserve / gross loans), reserve burden (provision expense / interest income), interest income coverage (interest income / interest expense), and non-interest income share. These ratios are computed from XLSX data where available and supplement the standard scoring metrics."),
                 block("These figures affect the final verdict because they connect profitability, leverage, liquidity and operating efficiency in one scoring layer. Strong profitability can be offset by weak liquidity or aggressive leverage, while moderate growth can still be attractive if capital quality and coverage are strong."),
             ]
         if lang == "uz":
             return [
                 block(f"Koeffitsiyentlar tahlili xom hisobotlarni {row_count} ta solishtiriladigan risk va sifat signaliga aylantiradi. Mutlaq balans satrlaridan farqli ravishda ular biznes aktivlar, kapital va funding bazasiga nisbatan qanchalik samarali ishlayotganini ko'rsatadi."),
+                block("Banklar uchun jadvalga bank-spetsifik nisbatlar kiritilgan: LDR, birinchi qator likvidlik, NIM, CIR, qoplama koeffitsienti (zararlar uchun rezerv / brutto kreditlar), rezerv yuki (ta'minotlar / foiz daromadlari), foiz daromadlari qoplanishi (foiz daromadlari / foiz xarajatlari) va nofoiz daromadlar ulushi."),
                 block("Bu ko'rsatkichlar yakuniy xulosaga ta'sir qiladi, chunki rentabellik, leverage, likvidlik va operatsion samaradorlikni bitta baholash qatlamida bog'laydi. Kuchli rentabellik zaif likvidlik yoki agressiv leverage bilan neytrallashishi mumkin; o'rtacha o'sish esa kapital sifati va qoplama kuchli bo'lsa jozibali qoladi."),
             ]
         return [
             block(f"Коэффициентный анализ превращает сырые отчёты в {row_count} сопоставимых сигналов риска и качества. В отличие от абсолютных строк баланса, эти показатели показывают, насколько эффективно бизнес работает относительно активов, капитала и ресурсной базы."),
+            block("Для банков таблица включает специфические банковские коэффициенты: LDR (кредиты/депозиты), ликвидность 1-й линии, NIM, CIR, коэффициент покрытия (резерв на убытки / брутто-кредиты), нагрузку резервирования (резервы периода / процентные доходы), покрытие процентных расходов доходами и долю непроцентных доходов. Эти показатели вычисляются из данных XLSX там, где они доступны."),
             block("Эти показатели влияют на итоговый вердикт, потому что связывают прибыльность, долговую нагрузку, ликвидность и операционную эффективность в один слой оценки. Сильная рентабельность может быть нейтрализована слабой ликвидностью или агрессивным рычагом, а умеренный рост всё ещё может быть привлекательным при сильном капитале и хорошем покрытии рисков."),
         ]
 
@@ -1272,7 +1519,20 @@ def _build_article_report(
     assets_v = _vertical_article_table("assets_vertical", captions["assets_v"].get(lang, captions["assets_v"]["ru"]), asset_rows, lang, total_hint="итого актив", fallback_total=_safe_float(total_assets))
     liab_v = _vertical_article_table("liabilities_vertical", captions["liab_v"].get(lang, captions["liab_v"]["ru"]), liability_rows, lang, total_hint="итого пассив", fallback_total=total_liabilities)
     income_table = _income_article_table(income_rows, lang)
-    ratio_table = _ratio_article_table(metrics or {}, ifrs_snapshot or {}, lang)
+    # Compute bank-specific ratios that need raw Excel row data
+    _bank = (ifrs_snapshot or {}).get("bank") or {}
+    _is_bank = bool(_bank.get("is_bank"))
+    _bank_extra: dict = {}
+    if _is_bank and excel_rows:
+        _snap_income = (ifrs_snapshot or {}).get("income_statement") or {}
+        _snap_balance = (ifrs_snapshot or {}).get("balance_sheet") or {}
+        _bank_extra = _bank_ratios_from_excel(
+            excel_rows,
+            total_assets=_safe_float(_snap_balance.get("total_assets")),
+            interest_income=_safe_float(_snap_income.get("revenue")),
+            interest_expense=_safe_float(_snap_balance.get("interest_expense")),
+        )
+    ratio_table = _ratio_article_table(metrics or {}, ifrs_snapshot or {}, lang, bank_extra=_bank_extra)
     appendix_tables = _excel_appendix_article_tables(company_data, lang)
 
     def p(text: str) -> dict:
@@ -1714,6 +1974,10 @@ def _compute_bank_profile(latest: dict, prev: dict | None) -> dict | None:
     # ROA / ROE — банк-aware (используем то же net_income / equity / assets)
     bank_roa = pct(net_income, total_assets)
     bank_roe = pct(net_income, equity)
+    # Interest income coverage (banking): interest income / interest expense
+    int_income_cov = None
+    if revenue is not None and interest_expense not in (None, 0):
+        int_income_cov = round(revenue / abs(interest_expense), 3)
 
     def tone(value, good, bad, reverse=False):
         if value is None:
@@ -1731,18 +1995,21 @@ def _compute_bank_profile(latest: dict, prev: dict | None) -> dict | None:
         "loan_to_assets_pct": loan_to_assets,
         "roa_pct": bank_roa,
         "roe_pct": bank_roe,
+        "interest_income_coverage": int_income_cov,  # interest income / interest expense
         "tones": {
-            "car_simple_pct": tone(car_simple, 10, 6),        # >10% strong, <6% weak
-            "nim_pct": tone(nim, 4, 2),                        # >4% strong
+            "car_simple_pct": tone(car_simple, 10, 6),
+            "nim_pct": tone(nim, 4, 2),
             "ldr_pct": tone(ldr, 70, 95, reverse=True) if ldr is not None and ldr > 100
-                       else tone(ldr, 90, 70),                 # 70-95% sweet spot
-            "cir_pct": tone(cir, 50, 65, reverse=True),       # <50% strong, >65% weak
+                       else tone(ldr, 90, 70),
+            "cir_pct": tone(cir, 50, 65, reverse=True),
+            "interest_income_coverage": tone(int_income_cov, 1.5, 1.2),
         },
         "notes": {
             "car_simple_pct": "Достаточность капитала (equity / активы) — рисково-взвешенный CAR требует RWA, которого нет в публичной отчётности.",
             "nim_pct": "Чистый процентный доход / активы — сколько банк зарабатывает на каждом сум активов.",
             "ldr_pct": "Кредиты / депозиты — насколько активно банк раздаёт собранные деньги.",
             "cir_pct": "Операционные расходы / чистый процентный доход — сколько съедает обслуживание.",
+            "interest_income_coverage": "Процентные доходы / процентные расходы — сколько раз доходы покрывают стоимость фондирования.",
         },
     }
 
