@@ -4,6 +4,7 @@ import asyncio
 import json
 import math
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
@@ -35,7 +36,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v9-deep-analysis-2026-05-31"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v5"
+ARTICLE_REPORT_VERSION = "article-report-v6"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
@@ -274,7 +275,7 @@ def _report_table_labels(language: str) -> dict:
             "line": "Line item",
             "current": "Current period",
             "previous": "Previous period",
-            "change": "Change, UZS mln",
+            "change": "Change, UZS ths.",
             "change_pct": "Change, %",
             "year": "Year",
             "revenue": "Revenue",
@@ -293,7 +294,7 @@ def _report_table_labels(language: str) -> dict:
             "line": "Satr",
             "current": "Joriy davr",
             "previous": "Oldingi davr",
-            "change": "O'zgarish, mln so'm",
+            "change": "O'zgarish, ming so'm",
             "change_pct": "O'zgarish, %",
             "year": "Yil",
             "revenue": "Tushum",
@@ -311,7 +312,7 @@ def _report_table_labels(language: str) -> dict:
         "line": "Статья",
         "current": "Текущий период",
         "previous": "Предыдущий период",
-        "change": "Изм., млн сум",
+        "change": "Изм., тыс. сум",
         "change_pct": "Изм., %",
         "year": "Год",
         "revenue": "Выручка",
@@ -529,13 +530,32 @@ def _excel_rows_for_article(company_data: dict | None) -> list[dict]:
     for report_index, report in enumerate(reports):
         for sheet in report.get("sheets") or []:
             sheet_name = str(sheet.get("sheet") or "")
-            for row in sheet.get("table_rows") or []:
+            statement_section = None
+            reporting_date = None
+            for row in sorted(sheet.get("table_rows") or [], key=lambda item: int(item.get("row") or 0)):
                 label = str(row.get("label") or "").strip()
                 if not label:
                     continue
+                lowered = label.lower()
+                if "дата отчетности" in lowered:
+                    for value in row.get("values") or []:
+                        match = re.search(r"\d{4}-\d{2}-\d{2}", str(value))
+                        if match:
+                            reporting_date = match.group(0)
+                            break
+                if "отчет о финансовых результатах" in lowered or "форма № 2" in lowered:
+                    statement_section = "income_statement"
+                elif "обязательства и собственный капитал" in lowered or lowered == "обязательства" or lowered == "собственный капитал":
+                    statement_section = "liabilities_equity"
+                elif lowered == "активы" or lowered.endswith(" активы"):
+                    statement_section = "assets"
+                elif "бухгалтерский баланс" in lowered or "форма № 1" in lowered:
+                    statement_section = None
                 rows.append({
                     **row,
                     "label": label,
+                    "statement_section": statement_section,
+                    "reporting_date": reporting_date,
                     "sheet": sheet_name,
                     "report_index": report_index,
                     "report_id": report.get("report_id"),
@@ -548,6 +568,12 @@ def _excel_rows_for_article(company_data: dict | None) -> list[dict]:
 
 
 def _article_row_kind(row: dict) -> str:
+    section = str(row.get("statement_section") or "").strip()
+    if section in {"assets", "liabilities_equity", "income_statement"}:
+        return section
+    raw_kind = str(row.get("kind") or "").strip()
+    if raw_kind in {"assets", "liabilities_equity", "income_statement"}:
+        return raw_kind
     text = " ".join(
         str(row.get(key) or "").lower()
         for key in ("label", "sheet", "report_form", "title")
@@ -706,6 +732,105 @@ def _table_from_rows(
     }
 
 
+def _article_report_sort_value(rows: list[dict], report_index: int) -> str:
+    report_rows = [row for row in rows if row.get("report_index") == report_index]
+    for row in report_rows:
+        reporting_date = str(row.get("reporting_date") or "")
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", reporting_date):
+            return reporting_date
+    for row in report_rows:
+        label = str(row.get("label") or "").lower()
+        if "дата отчетности" in label:
+            for value in row.get("values") or []:
+                match = re.search(r"\d{4}-\d{2}-\d{2}", str(value))
+                if match:
+                    return match.group(0)
+    for row in report_rows:
+        published = str(row.get("published_at") or "")
+        match = re.search(r"\d{4}-\d{2}-\d{2}", published)
+        if match:
+            return match.group(0)
+    return ""
+
+
+def _article_report_period_label(rows: list[dict], report_index: int, fallback: str) -> str:
+    value = _article_report_sort_value(rows, report_index)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value or ""):
+        year, month, day = value.split("-")
+        return f"{day}.{month}.{year}"
+    return fallback
+
+
+def _article_previous_balance_period_label(current_label: str, fallback: str) -> str:
+    match = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{4})", str(current_label or ""))
+    if not match:
+        return fallback
+    year = int(match.group(3))
+    return f"31.12.{year - 1}"
+
+
+def _article_report_indices(rows: list[dict]) -> list[int]:
+    indices = sorted({int(row.get("report_index") or 0) for row in rows})
+    return sorted(indices, key=lambda index: _article_report_sort_value(rows, index), reverse=True)
+
+
+def _article_rows_for_report(rows: list[dict], report_index: int | None) -> list[dict]:
+    if report_index is None:
+        return []
+    return [row for row in rows if int(row.get("report_index") or 0) == int(report_index)]
+
+
+def _article_line_code(label: str) -> str:
+    text = str(label or "").strip().lower()
+    match = re.match(r"^(\d+)\s*[\.\)]?", text)
+    if match:
+        return f"n:{match.group(1)}"
+    match = re.match(r"^([a-zа-яё])\s*[\.\)]", text)
+    if match:
+        return f"l:{match.group(1)}:{_normalize_article_label_key(text)}"
+    return _normalize_article_label_key(text)
+
+
+def _normalize_article_label_key(label: str) -> str:
+    text = str(label or "").lower()
+    text = re.sub(r"^[\s\d\.\)\-–—]+", "", text)
+    text = re.sub(r"^[a-zа-яё]\s*[\.\)]\s*", "", text)
+    text = text.replace("ё", "е")
+    text = re.sub(r"\b(а|б|в|г|д|е|ж|з|и|к|л)\b", " ", text)
+    text = re.sub(r"[^a-zа-я0-9]+", " ", text)
+    return " ".join(text.split())
+
+
+def _article_row_lookup(rows: list[dict]) -> dict[str, dict]:
+    lookup: dict[str, dict] = {}
+    for row in rows:
+        amount = _article_current_amount(row)
+        if amount is None:
+            continue
+        label = str(row.get("label") or "")
+        for key in {_article_line_code(label), _normalize_article_label_key(label)}:
+            if key and key not in lookup:
+                lookup[key] = row
+    return lookup
+
+
+def _article_matching_row(row: dict, lookup: dict[str, dict]) -> dict | None:
+    label = str(row.get("label") or "")
+    for key in (_article_line_code(label), _normalize_article_label_key(label)):
+        if key and key in lookup:
+            return lookup[key]
+    return None
+
+
+def _article_current_previous_amounts(row: dict, previous_row: dict | None = None) -> tuple[float | None, float | None]:
+    pair = _article_amount_pair(row)
+    if pair:
+        return pair[0], pair[1]
+    current = _article_current_amount(row)
+    previous = _article_current_amount(previous_row or {}) if previous_row else None
+    return current, previous
+
+
 def _horizontal_article_table(
     table_id: str,
     caption: str,
@@ -717,20 +842,30 @@ def _horizontal_article_table(
     labels = _report_table_labels(language)
     rows = []
     seen = set()
-    for row in source_rows:
+    report_indices = _article_report_indices(source_rows)
+    current_index = report_indices[0] if report_indices else None
+    previous_index = report_indices[1] if len(report_indices) > 1 else None
+    current_rows = _article_rows_for_report(source_rows, current_index) or source_rows
+    previous_lookup = _article_row_lookup(_article_rows_for_report(source_rows, previous_index))
+    current_label = _article_report_period_label(source_rows, current_index, labels["current"]) if current_index is not None else labels["current"]
+    previous_label = _article_report_period_label(source_rows, previous_index, labels["previous"]) if previous_index is not None else labels["previous"]
+    if any(_article_amount_pair(row) for row in current_rows):
+        previous_label = _article_previous_balance_period_label(current_label, previous_label)
+
+    for row in current_rows:
         label = _clean_article_label(row.get("label"))
         if label in seen:
             continue
-        pair = _article_amount_pair(row)
-        if not pair:
+        previous_row = _article_matching_row(row, previous_lookup)
+        current, previous = _article_current_previous_amounts(row, previous_row)
+        if current is None:
             continue
-        current, previous = pair
-        change = current - previous
-        pct = (change / abs(previous) * 100) if previous else None
+        change = current - previous if previous is not None else None
+        pct = (change / abs(previous) * 100) if previous not in (None, 0) and change is not None else None
         rows.append([
             label,
             _format_report_number(current, language),
-            _format_report_number(previous, language),
+            _format_report_number(previous, language) if previous is not None else "—",
             _format_report_number(change, language, signed=True),
             _format_report_pct(pct, language, signed=True),
         ])
@@ -740,7 +875,7 @@ def _horizontal_article_table(
     return _table_from_rows(
         table_id,
         caption,
-        [labels["line"], labels["current"], labels["previous"], labels["change"], labels["change_pct"]],
+        [labels["line"], current_label, previous_label, labels["change"], labels["change_pct"]],
         rows,
         source="openinfo_excel.table_rows",
     )
@@ -757,29 +892,48 @@ def _vertical_article_table(
     limit: int = ARTICLE_ANALYSIS_ROW_LIMIT,
 ) -> dict | None:
     labels = _report_table_labels(language)
+    report_indices = _article_report_indices(source_rows)
+    current_index = report_indices[0] if report_indices else None
+    previous_index = report_indices[1] if len(report_indices) > 1 else None
+    current_rows = _article_rows_for_report(source_rows, current_index) or source_rows
+    previous_rows = _article_rows_for_report(source_rows, previous_index)
+    previous_lookup = _article_row_lookup(previous_rows)
+    current_label = _article_report_period_label(source_rows, current_index, labels["current"]) if current_index is not None else labels["current"]
+    previous_label = _article_report_period_label(source_rows, previous_index, labels["previous"]) if previous_index is not None else labels["previous"]
+    if any(_article_amount_pair(row) for row in current_rows):
+        previous_label = _article_previous_balance_period_label(current_label, previous_label)
+
     total = fallback_total
-    for row in source_rows:
+    previous_total = None
+    for row in current_rows:
         label = str(row.get("label") or "").lower()
         if total_hint in label:
             total = _article_current_amount(row)
+            previous_row = _article_matching_row(row, previous_lookup)
+            _, previous_total = _article_current_previous_amounts(row, previous_row)
             break
     if not total:
         return None
 
     rows = []
     seen = set()
-    for row in source_rows:
+    display_scale = 1000 if abs(total) >= 10_000_000 else 1
+    for row in current_rows:
         label = _clean_article_label(row.get("label"))
         if label in seen:
             continue
-        current = _article_current_amount(row)
+        previous_row = _article_matching_row(row, previous_lookup)
+        current, previous = _article_current_previous_amounts(row, previous_row)
         if current is None:
             continue
         share = current / total * 100 if total else None
+        previous_share = previous / previous_total * 100 if previous is not None and previous_total else None
         rows.append([
             label,
-            _format_report_number(current, language),
+            _format_report_number(current / display_scale, language),
             _format_report_pct(share, language),
+            _format_report_number(previous / display_scale, language) if previous is not None else "—",
+            _format_report_pct(previous_share, language) if previous_share is not None else "—",
         ])
         seen.add(label)
         if len(rows) >= limit:
@@ -787,7 +941,7 @@ def _vertical_article_table(
     return _table_from_rows(
         table_id,
         caption,
-        [labels["line"], labels["amount"], labels["share"]],
+        [labels["line"], current_label, labels["share"], previous_label, labels["share"]],
         rows,
         source="openinfo_excel.table_rows",
     )
@@ -802,31 +956,49 @@ def _income_article_table(
     labels = _report_table_labels(language)
     rows = []
     seen = set()
-    revenue_base = None
-    for row in source_rows:
+    report_indices = _article_report_indices(source_rows)
+    current_index = report_indices[0] if report_indices else None
+    current_rows = _article_rows_for_report(source_rows, current_index) or source_rows
+
+    interest_income_base = None
+    non_interest_income_base = None
+    operating_expense_base = None
+    for row in current_rows:
         label_lower = str(row.get("label") or "").lower()
-        if any(token in label_lower for token in ("выруч", "доход", "revenue")):
-            revenue_base = _article_current_amount(row)
-            if revenue_base:
-                break
-    for row in source_rows:
+        amount = _article_current_amount(row)
+        if amount is None:
+            continue
+        if "итого процентных доход" in label_lower or "total interest income" in label_lower:
+            interest_income_base = abs(amount)
+        if "итого беспроцентных доход" in label_lower or "total non-interest income" in label_lower:
+            non_interest_income_base = abs(amount)
+        if "итого операционных расход" in label_lower or "total operating expense" in label_lower:
+            operating_expense_base = abs(amount)
+    total_income_base = (interest_income_base or 0) + (non_interest_income_base or 0)
+    if total_income_base <= 0:
+        total_income_base = None
+
+    for row in current_rows:
         label = _clean_article_label(row.get("label"))
         if label in seen:
             continue
-        pair = _article_amount_pair(row)
-        if not pair:
+        current = _article_current_amount(row)
+        if current is None:
             continue
-        current, previous = pair
-        change = current - previous
-        pct = (change / abs(previous) * 100) if previous else None
-        share = (current / revenue_base * 100) if revenue_base else None
+        label_lower = label.lower()
+        if "отчет о финансовых результатах" in label_lower:
+            continue
+        pct_interest = (abs(current) / interest_income_base * 100) if interest_income_base else None
+        pct_total = None
+        if total_income_base and any(token in label_lower for token in ("доход", "прибыль")):
+            pct_total = abs(current) / total_income_base * 100
+        if operating_expense_base and any(token in label_lower for token in ("заработ", "аренда", "административ", "износ", "страхование", "налог")):
+            pct_total = abs(current) / operating_expense_base * 100
         rows.append([
             label,
             _format_report_number(current, language),
-            _format_report_number(previous, language),
-            _format_report_number(change, language, signed=True),
-            _format_report_pct(pct, language, signed=True),
-            _format_report_pct(share, language),
+            _format_report_pct(pct_interest, language) if pct_interest is not None else "—",
+            _format_report_pct(pct_total, language) if pct_total is not None else "—",
         ])
         seen.add(label)
         if len(rows) >= limit:
@@ -838,7 +1010,7 @@ def _income_article_table(
             "en": "Table 5 — Income statement",
             "uz": "Jadval 5 — Moliyaviy natijalar hisoboti",
         }.get(_normalize_language(language), "Таблица 5 — Отчёт о финансовых результатах"),
-        [labels["line"], labels["current"], labels["previous"], labels["change"], labels["change_pct"], labels["share"]],
+        [labels["line"], labels["amount"], "% от проц. дох.", "% от сов. дох."],
         rows,
         source="openinfo_excel.table_rows",
     )
@@ -1461,9 +1633,188 @@ def _excel_source_intro_blocks(table_count: int, language: str) -> list[dict]:
     ]
 
 
+def _table_row_by_keywords(table: dict | None, *keywords: str) -> list[str] | None:
+    if not table:
+        return None
+    lowered_keywords = [keyword.lower() for keyword in keywords]
+    for row in table.get("rows") or []:
+        label = str(row[0] if row else "").lower()
+        if all(keyword in label for keyword in lowered_keywords):
+            return row
+    return None
+
+
+def _table_number(row: list[str] | None, index: int) -> float | None:
+    if not row or len(row) <= index:
+        return None
+    return _number_from_report_text(row[index])
+
+
+def _table_label(row: list[str] | None) -> str:
+    return str(row[0] if row else "").strip()
+
+
+def _format_bln_sum_from_thousand(value: float | None, language: str = "ru") -> str:
+    if value is None:
+        return "—"
+    return f"{_format_report_number(value / 1_000_000, language=language, digits=1)} млрд сум"
+
+
+def _html_style_table_explanation_blocks(table: dict | None, role: str, language: str) -> list[dict] | None:
+    if not table or _normalize_language(language) != "ru":
+        return None
+
+    def block(text: str) -> dict:
+        return {"type": "paragraph", "text": text}
+
+    rows = table.get("rows") or []
+    total_row = _total_report_row(table)
+    total_current = _table_number(total_row, 1)
+    total_previous = _table_number(total_row, 2)
+    total_change = _table_number(total_row, 3)
+    total_pct = str(total_row[4]).strip() if total_row and len(total_row) > 4 else "—"
+    strongest_growth = next((item for item in _rank_report_rows(table, 3, reverse=True) if item[0] > 0), None)
+    strongest_decline = next((item for item in _rank_report_rows(table, 3, reverse=False) if item[0] < 0), None)
+
+    if role == "assets_horizontal":
+        investment = _table_row_by_keywords(table, "инвест")
+        loans = _table_row_by_keywords(table, "кредит")
+        reserves = _table_row_by_keywords(table, "резерв")
+        liquid_cbu = _table_row_by_keywords(table, "цбру")
+        interbank = _table_row_by_keywords(table, "других банков")
+        intro = "Горизонтальный анализ активов показывает, какие части баланса реально изменились за период, а какие только сохранили прежний вес."
+        if total_row:
+            intro = (
+                f"За анализируемый период совокупные активы изменились на "
+                f"{_format_bln_sum_from_thousand(total_change, language)} ({total_pct}) и составили "
+                f"{_format_bln_sum_from_thousand(total_current, language)}. Это главный масштаб изменения баланса, от которого зависит тон всего дальнейшего анализа."
+            )
+        main = "Наиболее заметные движения нужно читать не по количеству строк, а по абсолютному влиянию на баланс."
+        if strongest_decline:
+            main += f" Самое сильное сокращение: «{strongest_decline[1]}» ({strongest_decline[2]})."
+        if strongest_growth:
+            main += f" Самый сильный рост: «{strongest_growth[1]}» ({strongest_growth[2]})."
+        loan_bits = []
+        if loans:
+            loan_bits.append(f"кредитный портфель: {_table_label(loans)} изменился на {loans[3]} ({loans[4] if len(loans) > 4 else '—'})")
+        if reserves:
+            loan_bits.append(f"резервы: {_table_label(reserves)} изменились на {reserves[3]} ({reserves[4] if len(reserves) > 4 else '—'})")
+        if investment:
+            loan_bits.append(f"инвестиции: {_table_label(investment)} изменились на {investment[3]} ({investment[4] if len(investment) > 4 else '—'})")
+        detail = "Для пользователя важен практический вывод: изменение активов показывает, где банк зарабатывает будущий доход и где появляется риск."
+        if loan_bits:
+            detail += " По ключевым строкам видно: " + "; ".join(loan_bits) + "."
+        liquidity = "Ликвидность смотрим отдельно: если строки денег, ЦБРУ или межбанковских размещений падают, банк мог использовать быстрые активы для покрытия оттока ресурсов; если они растут, запас манёвра становится выше."
+        if liquid_cbu or interbank:
+            pieces = []
+            if liquid_cbu:
+                pieces.append(f"ЦБРУ: {liquid_cbu[3]} ({liquid_cbu[4] if len(liquid_cbu) > 4 else '—'})")
+            if interbank:
+                pieces.append(f"другие банки: {interbank[3]} ({interbank[4] if len(interbank) > 4 else '—'})")
+            liquidity += " В этой таблице ключевые сигналы: " + "; ".join(pieces) + "."
+        return [block(intro), block(main), block(detail), block(liquidity)]
+
+    if role == "liabilities_horizontal":
+        deposits_demand = _table_row_by_keywords(table, "депозит", "востреб")
+        deposits_term = _table_row_by_keywords(table, "сроч")
+        debt = _table_row_by_keywords(table, "кредит", "оплат")
+        equity = _table_row_by_keywords(table, "собственного капитала")
+        intro = "Горизонтальный анализ пассивов показывает, какими деньгами профинансирован баланс: депозитами клиентов, заёмными средствами или собственным капиталом."
+        if total_row:
+            intro += f" Совокупная строка изменилась на {total_row[3]} ({total_row[4] if len(total_row) > 4 else '—'})."
+        funding = "Главный вопрос здесь — устойчивость ресурсной базы."
+        moves = []
+        for row in (deposits_demand, deposits_term, debt, equity):
+            if row:
+                moves.append(f"{_table_label(row)}: {row[3]} ({row[4] if len(row) > 4 else '—'})")
+        if moves:
+            funding += " Ключевые движения: " + "; ".join(moves) + "."
+        risk = "Если депозиты сокращаются, а заёмные средства растут, банк сильнее зависит от оптового фондирования и условий рефинансирования. Если капитал снижается, запас прочности хуже даже при сохранении прибыли."
+        verdict = "Эта таблица напрямую влияет на итоговую оценку ликвидности и долговой нагрузки: стабильные депозиты и капитал улучшают вывод, отток депозитов и рост дорогого фондирования делают вывод осторожнее."
+        return [block(intro), block(funding), block(risk), block(verdict)]
+
+    if role == "assets_vertical":
+        largest_ranked = _rank_report_rows(table, 2, reverse=True)
+        largest = (largest_ranked[0][1], largest_ranked[0][2]) if largest_ranked else None
+        intro = "Вертикальный анализ активов показывает структуру баланса: не сколько банк вырос или снизился, а из чего он состоит."
+        if largest:
+            intro += f" Крупнейшая доля в текущем периоде — «{largest[0]}» ({largest[1]})."
+        loans = _table_row_by_keywords(table, "кредит")
+        liquid = _table_row_by_keywords(table, "цбру") or _table_row_by_keywords(table, "касс")
+        securities = _table_row_by_keywords(table, "инвест")
+        detail = "Для анализа это важнее простой динамики: большая доля кредитов означает зависимость от качества портфеля, большая доля ликвидных активов — запас безопасности, большая доля ценных бумаг — чувствительность к ставкам и переоценке."
+        facts = []
+        for row in (loans, liquid, securities):
+            if row and len(row) > 4:
+                facts.append(f"{_table_label(row)}: {row[2]} сейчас против {row[4]} ранее")
+        if facts:
+            detail += " По структуре видно: " + "; ".join(facts) + "."
+        return [block(intro), block(detail)]
+
+    if role == "liabilities_vertical":
+        largest_ranked = _rank_report_rows(table, 2, reverse=True)
+        largest = (largest_ranked[0][1], largest_ranked[0][2]) if largest_ranked else None
+        intro = "Вертикальный анализ пассивов показывает модель фондирования банка: какую долю занимают депозиты, долг и собственный капитал."
+        if largest:
+            intro += f" Крупнейшая доля в текущем периоде — «{largest[0]}» ({largest[1]})."
+        capital = _table_row_by_keywords(table, "собственного капитала")
+        liabilities = _table_row_by_keywords(table, "обязательств")
+        detail = "Для пользователя это отвечает на простой вопрос: баланс держится на устойчивой клиентской базе и капитале или на более чувствительных заёмных источниках."
+        facts = []
+        for row in (liabilities, capital):
+            if row and len(row) > 4:
+                facts.append(f"{_table_label(row)}: {row[2]} сейчас против {row[4]} ранее")
+        if facts:
+            detail += " Ключевые доли: " + "; ".join(facts) + "."
+        return [block(intro), block(detail)]
+
+    if role == "income_statement":
+        interest_income = _table_row_by_keywords(table, "итого процентных доход")
+        interest_expense = _table_row_by_keywords(table, "итого процентных расход")
+        non_interest_income = _table_row_by_keywords(table, "итого беспроцентных доход")
+        profit = _table_row_by_keywords(table, "чистая прибыль")
+        provisions = _table_row_by_keywords(table, "убыт", "кредит") or _table_row_by_keywords(table, "резерв")
+        intro = "Отчёт о финансовых результатах показывает не только размер прибыли, но и качество её источников: процентная маржа, комиссии, валютные операции, резервы и операционные расходы."
+        facts = []
+        for row in (interest_income, non_interest_income, interest_expense, provisions, profit):
+            if row:
+                facts.append(f"{_table_label(row)} — {row[1]}")
+        if facts:
+            intro += " Ключевые суммы: " + "; ".join(facts) + "."
+        quality = "Хороший результат считается устойчивым, когда процентные доходы покрывают стоимость фондирования, резервы не съедают маржу, а прибыль не держится только на разовых или плохо раскрытых строках."
+        if interest_expense and interest_income:
+            expense_ratio = _table_number(interest_expense, 2)
+            if expense_ratio is not None:
+                quality += f" В этой таблице процентные расходы составляют {interest_expense[2]} от процентных доходов, поэтому маржу нужно оценивать вместе с резервами."
+        verdict = "Для итогового вывода это главный раздел по качеству прибыли: рост доходов сам по себе не достаточен, если одновременно растут резервы, стоимость фондирования или операционные расходы."
+        return [block(intro), block(quality), block(verdict)]
+
+    if role == "ratio_summary":
+        weak_rows = []
+        strong_rows = []
+        for row in rows:
+            text = " ".join(str(cell) for cell in row).lower()
+            if "⚠" in text or "высок" in text and any(token in text for token in ("риск", "ухуд", "нагруз")):
+                weak_rows.append(row)
+            elif "✓" in text or "хорош" in text or "норм" in text:
+                strong_rows.append(row)
+        intro = "Коэффициентный анализ переводит таблицы в набор быстрых сигналов: ликвидность, рентабельность, качество активов, капитал и эффективность."
+        if weak_rows:
+            intro += " Сначала стоит смотреть слабые места: " + "; ".join(_table_label(row) for row in weak_rows[:3]) + "."
+        balance = "Сводный вывод строится не по одному коэффициенту, а по сочетанию сигналов. Высокая прибыльность улучшает картину только тогда, когда ликвидность, резервы и капитал не дают встречных красных флагов."
+        if strong_rows:
+            balance += " Поддерживающие показатели: " + "; ".join(_table_label(row) for row in strong_rows[:3]) + "."
+        return [block(intro), block(balance)]
+
+    return None
+
+
 def _table_explanation_blocks(table: dict | None, role: str, language: str) -> list[dict]:
     if not table:
         return []
+    html_style_blocks = _html_style_table_explanation_blocks(table, role, language)
+    if html_style_blocks is not None:
+        return html_style_blocks
     practical_blocks = _practical_table_explanation_blocks(table, role, language)
     if practical_blocks is not None:
         return practical_blocks
@@ -1716,7 +2067,7 @@ def _build_article_report(
     assets_h = _horizontal_article_table("assets_horizontal", captions["assets_h"].get(lang, captions["assets_h"]["ru"]), asset_rows, lang)
     liab_h = _horizontal_article_table("liabilities_horizontal", captions["liab_h"].get(lang, captions["liab_h"]["ru"]), liability_rows, lang)
     assets_v = _vertical_article_table("assets_vertical", captions["assets_v"].get(lang, captions["assets_v"]["ru"]), asset_rows, lang, total_hint="итого актив", fallback_total=_safe_float(total_assets))
-    liab_v = _vertical_article_table("liabilities_vertical", captions["liab_v"].get(lang, captions["liab_v"]["ru"]), liability_rows, lang, total_hint="итого пассив", fallback_total=total_liabilities)
+    liab_v = _vertical_article_table("liabilities_vertical", captions["liab_v"].get(lang, captions["liab_v"]["ru"]), liability_rows, lang, total_hint="итого обязательств и собственного", fallback_total=_safe_float(total_assets))
     income_table = _income_article_table(income_rows, lang)
     # Compute bank-specific ratios that need raw Excel row data
     _bank = (ifrs_snapshot or {}).get("bank") or {}
@@ -1732,7 +2083,7 @@ def _build_article_report(
             interest_expense=_safe_float(_snap_balance.get("interest_expense")),
         )
     ratio_table = _ratio_article_table(metrics or {}, ifrs_snapshot or {}, lang, bank_extra=_bank_extra)
-    appendix_tables = _excel_appendix_article_tables(company_data, lang)
+    appendix_tables: list[dict] = []
 
     def p(text: str) -> dict:
         return {"type": "paragraph", "text": text}
@@ -1760,9 +2111,9 @@ def _build_article_report(
                 "uz": "Balansning gorizontal tahlili",
             }.get(lang),
             "blocks": [
+                p(_first_article_paragraph(sections, "ЧТО_С_ДЕНЬГАМИ") or "Горизонтальный анализ показывает изменение ключевых строк между текущим и предыдущим периодом."),
                 *t(assets_h, "assets_horizontal"),
                 *t(liab_h, "liabilities_horizontal"),
-                p(_first_article_paragraph(sections, "ЧТО_С_ДЕНЬГАМИ") or "Горизонтальный анализ показывает изменение ключевых строк между текущим и предыдущим периодом."),
             ],
         },
         {
@@ -1774,9 +2125,9 @@ def _build_article_report(
                 "uz": "Balansning vertikal tahlili",
             }.get(lang),
             "blocks": [
+                p("Вертикальный анализ показывает, какая часть активов и пассивов приходится на каждую крупную строку отчётности. Это помогает увидеть концентрацию баланса и зависимость от отдельных статей."),
                 *t(assets_v, "assets_vertical"),
                 *t(liab_v, "liabilities_vertical"),
-                p("Вертикальный анализ показывает, какая часть активов и пассивов приходится на каждую крупную строку отчётности. Это помогает увидеть концентрацию баланса и зависимость от отдельных статей."),
             ],
         },
         {
@@ -1788,8 +2139,8 @@ def _build_article_report(
                 "uz": "Moliyaviy natijalar hisoboti tahlili",
             }.get(lang),
             "blocks": [
-                *t(income_table, "income_statement"),
                 p(_first_article_paragraph(sections, "ТРЕНД", "ЧТО_С_ДЕНЬГАМИ") or "Раздел сопоставляет доходы, расходы и прибыльность между периодами."),
+                *t(income_table, "income_statement"),
             ],
         },
         {
@@ -1801,8 +2152,8 @@ def _build_article_report(
                 "uz": "Koeffitsiyentlar tahlili",
             }.get(lang),
             "blocks": [
-                *t(ratio_table, "ratio_summary"),
                 p(_first_article_paragraph(sections, "ЭФФЕКТИВНОСТЬ", "ОЦЕНКА_ЦЕНЫ") or "Коэффициенты дополняют табличный разбор и показывают прибыльность, устойчивость баланса и качество операционной модели."),
+                *t(ratio_table, "ratio_summary"),
             ],
         },
         {
@@ -1816,24 +2167,6 @@ def _build_article_report(
             "blocks": [p(_first_article_paragraph(sections, "ИТОГ", "ВЕРДИКТ") or "Итоговая оценка зависит от качества прибыли, структуры баланса и полноты раскрытых данных.")],
         },
     ]
-
-    if appendix_tables:
-        article_sections.insert(
-            -1,
-            {
-                "id": "source_excel_data",
-                "number": "06",
-                "title": {
-                    "ru": "Исходные строки из XLSX-отчётов",
-                    "en": "Source rows from XLSX reports",
-                    "uz": "XLSX hisobotlaridan manba satrlar",
-                }.get(lang),
-                "blocks": [
-                    *_excel_source_intro_blocks(len(appendix_tables), lang),
-                    *[{"type": "table", **table} for table in appendix_tables],
-                ],
-            },
-        )
 
     article_sections = [
         section for section in article_sections
