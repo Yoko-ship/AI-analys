@@ -35,7 +35,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v9-deep-analysis-2026-05-31"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v4"
+ARTICLE_REPORT_VERSION = "article-report-v5"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
@@ -1265,9 +1265,208 @@ def _format_change_phrase(row: list[str] | None) -> str:
     return f"{row[0]}: {row[3]} ({row[4]})"
 
 
+def _practical_table_explanation_blocks(table: dict | None, role: str, language: str) -> list[dict] | None:
+    if not table:
+        return []
+
+    lang = _normalize_language(language)
+    row_count = len(table.get("rows") or [])
+    total_phrase = _format_change_phrase(_total_report_row(table))
+    strongest_growth = next((item for item in _rank_report_rows(table, 3, reverse=True) if item[0] > 0), None)
+    strongest_decline = next((item for item in _rank_report_rows(table, 3, reverse=False) if item[0] < 0), None)
+    biggest_change = _largest_abs_table_row(table, 3)
+    largest_share = _largest_abs_table_row(table, 2)
+    largest_income_share = _largest_abs_table_row(table, 5)
+
+    def block(text: str) -> dict:
+        return {"type": "paragraph", "text": text}
+
+    def movement_text(growth_word: str, decline_word: str) -> str:
+        parts = []
+        if strongest_decline:
+            parts.append(f"{decline_word}: {strongest_decline[1]} ({strongest_decline[2]})")
+        if strongest_growth:
+            parts.append(f"{growth_word}: {strongest_growth[1]} ({strongest_growth[2]})")
+        return "; ".join(parts)
+
+    if role == "assets_horizontal":
+        moves_en = movement_text("largest growth", "largest fall")
+        moves_uz = movement_text("eng katta o'sish", "eng katta pasayish")
+        moves_ru = movement_text("самый сильный рост", "самое сильное снижение")
+        if lang == "en":
+            headline = f"Use this table to see where the bank moved its money across {row_count} asset lines."
+            if total_phrase:
+                headline += f" Main movement: {total_phrase}."
+            if moves_en:
+                headline += f" Key rows: {moves_en}."
+            return [
+                block(headline),
+                block("What to do: if loans grew, check provisions and portfolio quality; if cash/liquid assets fell, check liquidity pressure; if one asset line jumped sharply, treat concentration risk as a separate question in the final analysis."),
+            ]
+        if lang == "uz":
+            headline = f"Bu jadval bank pullari {row_count} ta aktiv satri bo'yicha qayerga ko'chganini ko'rsatadi."
+            if total_phrase:
+                headline += f" Asosiy harakat: {total_phrase}."
+            if moves_uz:
+                headline += f" Muhim satrlar: {moves_uz}."
+            return [
+                block(headline),
+                block("Nima qilish kerak: kreditlar o'ssa, rezervlar va portfel sifatini tekshiring; likvid aktivlar kamaygan bo'lsa, likvidlik bosimini ko'ring; bitta aktiv keskin o'ssa, yakuniy tahlilda konsentratsiya riskini alohida baholang."),
+            ]
+        headline = f"Эта таблица показывает, куда банк перераспределил деньги по {row_count} строкам активов."
+        if total_phrase:
+            headline += f" Главное движение: {total_phrase}."
+        if moves_ru:
+            headline += f" Ключевые строки: {moves_ru}."
+        return [
+            block(headline),
+            block("Что делать: если выросли кредиты, проверьте резервы и качество портфеля; если снизились деньги или ликвидные активы, смотрите риск нехватки ликвидности; если резко выросла одна статья, учитывайте риск концентрации в итоговом выводе."),
+        ]
+
+    if role == "liabilities_horizontal":
+        moves_en = movement_text("largest increase", "largest reduction")
+        moves_uz = movement_text("eng katta o'sish", "eng katta kamayish")
+        moves_ru = movement_text("самый сильный рост", "самое сильное сокращение")
+        if lang == "en":
+            headline = f"This table shows where the bank got funding for its assets across {row_count} lines."
+            if total_phrase:
+                headline += f" Main movement: {total_phrase}."
+            if moves_en:
+                headline += f" Key funding rows: {moves_en}."
+            return [
+                block(headline),
+                block("What to do: falling deposits or rising borrowings mean liquidity and refinancing risk need extra attention; stronger equity makes the balance safer; a funding mix that changes quickly should make the final tone more cautious."),
+            ]
+        if lang == "uz":
+            headline = f"Bu jadval bank aktivlari {row_count} ta manba bo'yicha qaysi pul bilan moliyalashtirilganini ko'rsatadi."
+            if total_phrase:
+                headline += f" Asosiy harakat: {total_phrase}."
+            if moves_uz:
+                headline += f" Muhim funding satrlari: {moves_uz}."
+            return [
+                block(headline),
+                block("Nima qilish kerak: depozitlar kamayishi yoki qarzlar o'sishi likvidlik va qayta moliyalashtirish riskini kuchaytiradi; kapital o'sishi balansni xavfsizroq qiladi; funding tarkibi tez o'zgarsa, yakuniy bahoda ehtiyotkor bo'lish kerak."),
+            ]
+        headline = f"Эта таблица показывает, за счёт каких денег банк финансирует активы по {row_count} строкам."
+        if total_phrase:
+            headline += f" Главное движение: {total_phrase}."
+        if moves_ru:
+            headline += f" Ключевые строки фондирования: {moves_ru}."
+        return [
+            block(headline),
+            block("Что делать: если депозиты падают или заёмные средства растут, отдельно проверьте ликвидность и риск рефинансирования; рост капитала делает баланс устойчивее; резкая смена источников денег должна делать итоговую оценку осторожнее."),
+        ]
+
+    if role == "assets_vertical":
+        if lang == "en":
+            detail = f" Largest weight: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+            return [
+                block(f"This table shows what the balance sheet is mostly made of, not just whether it grew.{detail}"),
+                block("What to do: focus the analysis on the biggest asset block. Loans mean credit-quality risk, liquid assets mean safety but usually lower yield, securities mean market and interest-rate sensitivity."),
+            ]
+        if lang == "uz":
+            detail = f" Eng katta ulush: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+            return [
+                block(f"Bu jadval balans asosan nimadan iboratligini ko'rsatadi, faqat o'sishni emas.{detail}"),
+                block("Nima qilish kerak: tahlilni eng katta aktiv blokiga qarating. Kreditlar bo'lsa kredit sifati, likvid aktivlar bo'lsa xavfsizlik va pastroq rentabellik, qimmatli qog'ozlar bo'lsa bozor va foiz riski muhim."),
+            ]
+        detail = f" Самая большая доля: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+        return [
+            block(f"Эта таблица показывает, из чего в основном состоит баланс, а не просто вырос он или нет.{detail}"),
+            block("Что делать: главный фокус анализа переносите на крупнейший блок активов. Кредиты означают риск качества портфеля, ликвидные активы дают запас прочности, но обычно ниже доходность, ценные бумаги добавляют рыночный и процентный риск."),
+        ]
+
+    if role == "liabilities_vertical":
+        if lang == "en":
+            detail = f" Largest weight: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+            return [
+                block(f"This table shows the bank's funding model: deposits, borrowings or equity.{detail}"),
+                block("What to do: a high stable-deposit or equity share supports the score; a high debt/repo share means the conclusion must pay more attention to refinancing terms and liquidity buffers."),
+            ]
+        if lang == "uz":
+            detail = f" Eng katta ulush: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+            return [
+                block(f"Bu jadval bankning funding modelini ko'rsatadi: depozitlar, qarzlar yoki kapital.{detail}"),
+                block("Nima qilish kerak: barqaror depozit yoki kapital ulushi yuqori bo'lsa baho mustahkamlanadi; qarz/REPO ulushi yuqori bo'lsa, xulosada qayta moliyalashtirish shartlari va likvidlik buferlariga ko'proq e'tibor bering."),
+            ]
+        detail = f" Самая большая доля: {largest_share[0]} ({largest_share[1]})." if largest_share else ""
+        return [
+            block(f"Эта таблица показывает модель фондирования банка: депозиты, заёмные средства или собственный капитал.{detail}"),
+            block("Что делать: высокая доля устойчивых депозитов или капитала поддерживает оценку; высокая доля долга/РЕПО означает, что в выводе нужно сильнее учитывать сроки рефинансирования и запас ликвидности."),
+        ]
+
+    if role == "income_statement":
+        if lang == "en":
+            detail = f" Largest P&L movement: {biggest_change[0]} ({biggest_change[1]})." if biggest_change else ""
+            share = f" Largest current-period weight: {largest_income_share[0]} ({largest_income_share[1]})." if largest_income_share else ""
+            return [
+                block(f"This table shows where profit is coming from and whether revenue growth is actually turning into profit. {detail}{share}".strip()),
+                block("What to do: compare income growth with funding costs, provisions and operating expenses. If costs or provisions rise faster than income, the final analysis should be more cautious even when revenue is growing."),
+            ]
+        if lang == "uz":
+            detail = f" Eng katta foyda-zarar harakati: {biggest_change[0]} ({biggest_change[1]})." if biggest_change else ""
+            share = f" Joriy davrdagi eng katta ulush: {largest_income_share[0]} ({largest_income_share[1]})." if largest_income_share else ""
+            return [
+                block(f"Bu jadval foyda qayerdan kelayotganini va tushum o'sishi haqiqiy foydaga aylanayotganini ko'rsatadi. {detail}{share}".strip()),
+                block("Nima qilish kerak: daromad o'sishini funding xarajatlari, rezervlar va operatsion xarajatlar bilan solishtiring. Xarajatlar yoki rezervlar daromaddan tezroq o'ssa, tushum o'ssa ham yakuniy xulosa ehtiyotkor bo'lishi kerak."),
+            ]
+        detail = f" Самое крупное движение в прибыли/убытке: {biggest_change[0]} ({biggest_change[1]})." if biggest_change else ""
+        share = f" Самая большая доля в текущем периоде: {largest_income_share[0]} ({largest_income_share[1]})." if largest_income_share else ""
+        return [
+            block(f"Эта таблица показывает, откуда берётся прибыль и превращается ли рост доходов в реальный результат. {detail}{share}".strip()),
+            block("Что делать: сравните рост доходов со стоимостью фондирования, резервами и операционными расходами. Если расходы или резервы растут быстрее доходов, итоговый вывод должен быть осторожнее даже при росте выручки."),
+        ]
+
+    if role == "ratio_summary":
+        if lang == "en":
+            return [
+                block(f"This table turns the statements into {row_count} quick health checks: profitability, leverage, liquidity, funding and efficiency."),
+                block("What to do: read weak ratios first and connect them with the tables above. One good ratio is not enough; the final view should improve only when profitability, liquidity and capital quality are consistent at the same time."),
+            ]
+        if lang == "uz":
+            return [
+                block(f"Bu jadval hisobotlarni {row_count} ta tezkor sog'liq signaliga aylantiradi: rentabellik, qarz yuki, likvidlik, funding va samaradorlik."),
+                block("Nima qilish kerak: avval zaif koeffitsiyentlarni o'qing va ularni yuqoridagi jadvallar bilan bog'lang. Bitta yaxshi ko'rsatkich yetarli emas; yakuniy baho faqat rentabellik, likvidlik va kapital sifati bir vaqtda mos bo'lsa yaxshilanadi."),
+            ]
+        return [
+            block(f"Эта таблица превращает отчётность в {row_count} быстрых проверок здоровья бизнеса: прибыльность, долговая нагрузка, ликвидность, фондирование и эффективность."),
+            block("Что делать: сначала смотрите слабые коэффициенты и связывайте их с таблицами выше. Один хороший показатель не спасает картину; итоговая оценка улучшается только когда прибыльность, ликвидность и качество капитала совпадают одновременно."),
+        ]
+
+    if role == "excel_source":
+        return _excel_source_intro_blocks(1, lang)
+
+    return None
+
+
+def _excel_source_intro_blocks(table_count: int, language: str) -> list[dict]:
+    lang = _normalize_language(language)
+
+    def block(text: str) -> dict:
+        return {"type": "paragraph", "text": text}
+
+    if lang == "en":
+        return [
+            block(f"Below are the raw XLSX rows used by the analysis ({table_count} source tables). Use this section only when you want to check where a number came from or why a line affected the conclusion."),
+            block("What to do: compare suspicious or large rows with the explanation above. If an important line is here but not explained in the analysis, open the original report or rerun deep Excel analysis for a cleaner result."),
+        ]
+    if lang == "uz":
+        return [
+            block(f"Quyida tahlilda ishlatilgan XLSX manba satrlari bor ({table_count} ta manba jadval). Bu bo'lim raqam qayerdan kelganini yoki nima uchun xulosaga ta'sir qilganini tekshirish uchun kerak."),
+            block("Nima qilish kerak: shubhali yoki katta satrlarni yuqoridagi izohlar bilan solishtiring. Muhim satr bu yerda bor, lekin tahlilda tushuntirilmagan bo'lsa, asl hisobotni oching yoki chuqur Excel tahlilini qayta ishga tushiring."),
+        ]
+    return [
+        block(f"Ниже показаны исходные строки XLSX, которые использовались в анализе ({table_count} таблиц-источников). Этот раздел нужен не для чтения подряд, а чтобы быстро проверить, откуда взялась цифра и почему она повлияла на вывод."),
+        block("Что делать: смотрите только подозрительные или самые крупные строки и сравнивайте их с объяснениями выше. Если важная статья есть здесь, но не объяснена в анализе, откройте исходный отчёт или перезапустите глубокий Excel-анализ."),
+    ]
+
+
 def _table_explanation_blocks(table: dict | None, role: str, language: str) -> list[dict]:
     if not table:
         return []
+    practical_blocks = _practical_table_explanation_blocks(table, role, language)
+    if practical_blocks is not None:
+        return practical_blocks
     lang = _normalize_language(language)
     row_count = len(table.get("rows") or [])
     total_row = _total_report_row(table)
@@ -1630,9 +1829,8 @@ def _build_article_report(
                     "uz": "XLSX hisobotlaridan manba satrlar",
                 }.get(lang),
                 "blocks": [
-                    block
-                    for table in appendix_tables
-                    for block in _table_with_explanation(table, "excel_source", lang)
+                    *_excel_source_intro_blocks(len(appendix_tables), lang),
+                    *[{"type": "table", **table} for table in appendix_tables],
                 ],
             },
         )
