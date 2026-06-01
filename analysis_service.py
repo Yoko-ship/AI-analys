@@ -36,7 +36,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v9-deep-analysis-2026-05-31"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v6"
+ARTICLE_REPORT_VERSION = "article-report-v7"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
@@ -831,6 +831,229 @@ def _article_current_previous_amounts(row: dict, previous_row: dict | None = Non
     return current, previous
 
 
+def _article_amount_is_zero(value: float | None) -> bool:
+    return value is None or abs(value) < 0.5
+
+
+def _article_is_zero_noise(label: str, current: float | None, previous: float | None = None) -> bool:
+    if _is_total_report_label(label):
+        return False
+    return _article_amount_is_zero(current) and _article_amount_is_zero(previous)
+
+
+def _article_spec_score(row: dict, spec: dict) -> int | None:
+    label = _clean_article_label(row.get("label"))
+    lowered = label.lower()
+    normalized = _normalize_article_label_key(label)
+    code = _article_line_code(label)
+
+    excludes = [str(item).lower() for item in spec.get("exclude") or []]
+    if any(item and item in lowered for item in excludes):
+        return None
+
+    keywords = [str(item).lower() for item in spec.get("keywords") or []]
+    if any(item and item not in lowered for item in keywords):
+        return None
+
+    any_groups = spec.get("any_keywords") or []
+    for group in any_groups:
+        group_keywords = [str(item).lower() for item in group or []]
+        if group_keywords and not any(item in lowered for item in group_keywords):
+            return None
+
+    line_codes = set(spec.get("line_codes") or [])
+    score = 0
+    if line_codes:
+        if code in line_codes:
+            score += 100
+        elif spec.get("line_code_required"):
+            return None
+
+    exact = str(spec.get("exact") or "").strip().lower()
+    if exact and lowered == exact:
+        score += 120
+
+    normalized_contains = [str(item).lower() for item in spec.get("normalized_contains") or []]
+    if any(item and item not in normalized for item in normalized_contains):
+        return None
+    score += len(keywords) * 8 + len(any_groups) * 4 + len(normalized_contains) * 5
+    if not (keywords or any_groups or normalized_contains or line_codes or exact):
+        return None
+    if spec.get("prefer_total") and _is_total_report_label(label):
+        score += 20
+    if spec.get("prefer_clean") and any(token in lowered for token in ("чист", "нетто")):
+        score += 12
+    if spec.get("prefer_gross") and any(token in lowered for token in ("брутто", "gross")):
+        score += 12
+    return score
+
+
+def _article_select_row(rows: list[dict], spec: dict) -> dict | None:
+    best: tuple[int, int, dict] | None = None
+    for index, row in enumerate(rows):
+        current = _article_current_amount(row)
+        if current is None:
+            continue
+        score = _article_spec_score(row, spec)
+        if score is None:
+            continue
+        if not spec.get("keep_zero") and _article_is_zero_noise(str(row.get("label") or ""), current, None):
+            score -= 15
+        candidate = (score, -index, row)
+        if best is None or candidate > best:
+            best = candidate
+    return best[2] if best else None
+
+
+def _article_entry_from_spec(
+    spec: dict,
+    current_rows: list[dict],
+    previous_lookup: dict[str, dict],
+    used_labels: set[str],
+) -> dict | None:
+    if spec.get("aggregate"):
+        current_total = 0.0
+        previous_total = 0.0
+        has_current = False
+        has_previous = False
+        source_labels = []
+        for part in spec.get("aggregate") or []:
+            row = _article_select_row(current_rows, part)
+            if not row:
+                continue
+            label = _clean_article_label(row.get("label"))
+            if label in source_labels:
+                continue
+            previous_row = _article_matching_row(row, previous_lookup)
+            current, previous = _article_current_previous_amounts(row, previous_row)
+            if current is not None:
+                current_total += current
+                has_current = True
+            if previous is not None:
+                previous_total += previous
+                has_previous = True
+            source_labels.append(label)
+        if not has_current:
+            return None
+        current = current_total
+        previous = previous_total if has_previous else None
+    else:
+        row = _article_select_row(current_rows, spec)
+        if not row:
+            return None
+        source_label = _clean_article_label(row.get("label"))
+        if source_label in used_labels and not spec.get("allow_duplicate"):
+            return None
+        previous_row = _article_matching_row(row, previous_lookup)
+        current, previous = _article_current_previous_amounts(row, previous_row)
+        used_labels.add(source_label)
+
+    label = spec.get("label") or _clean_article_label((row or {}).get("label") if not spec.get("aggregate") else "")
+    if not spec.get("keep_zero") and _article_is_zero_noise(label, current, previous):
+        return None
+    return {"label": label, "current": current, "previous": previous, "spec": spec}
+
+
+def _asset_article_specs() -> list[dict]:
+    return [
+        {"label": "1. Касса и платёжные документы", "line_codes": ["n:1"], "keywords": ["касс"]},
+        {"label": "2. Средства к получению из ЦБРУ", "line_codes": ["n:2"], "keywords": ["цбру"]},
+        {"label": "3. Средства к получению из других банков", "line_codes": ["n:3"], "keywords": ["других банков"]},
+        {"label": "5. Инвестиции (нетто)", "line_codes": ["n:5"], "keywords": ["инвести"], "exclude": ["резерв"], "prefer_clean": True},
+        {"label": "7. Кредиты и лизинг (нетто)", "line_codes": ["n:7"], "keywords": ["кредит"], "exclude": ["брутто", "резерв", "минус"], "prefer_clean": True},
+        {"label": "— в т.ч. брутто-кредиты", "keywords": ["брутто", "кредит"], "prefer_gross": True},
+        {"label": "— в т.ч. резерв на потери", "keywords": ["резерв", "кредит"], "any_keywords": [["потер", "лизинг"]]},
+        {"label": "10. Основные средства (нетто)", "line_codes": ["n:10"], "keywords": ["основные средства"]},
+        {"label": "11. Начисленные проценты к получению", "line_codes": ["n:11"], "keywords": ["начисленные проценты"]},
+        {"label": "13. Другие активы", "line_codes": ["n:13"], "keywords": ["другие активы"], "exclude": ["приобрет", "резерв"]},
+        {"label": "14. ИТОГО АКТИВОВ", "line_codes": ["n:14"], "keywords": ["итого актив"], "keep_zero": True},
+    ]
+
+
+def _liability_article_specs() -> list[dict]:
+    deposit_parts = [
+        {"line_codes": ["n:15"], "keywords": ["депозит", "востреб"]},
+        {"line_codes": ["n:16"], "keywords": ["сберегатель", "депозит"]},
+        {"line_codes": ["n:17"], "keywords": ["сроч", "депозит"]},
+    ]
+    return [
+        {"label": "Клиентские депозиты, всего", "aggregate": deposit_parts, "allow_duplicate": True},
+        {"label": "15. Депозиты до востребования", "line_codes": ["n:15"], "keywords": ["депозит", "востреб"]},
+        {"label": "16. Сберегательные депозиты", "line_codes": ["n:16"], "keywords": ["сберегатель", "депозит"]},
+        {"label": "17. Срочные депозиты", "line_codes": ["n:17"], "keywords": ["сроч", "депозит"]},
+        {"label": "18. К оплате в ЦБРУ", "line_codes": ["n:18"], "keywords": ["цбру"]},
+        {"label": "19. К оплате в другие банки", "line_codes": ["n:19"], "keywords": ["другие банки"]},
+        {"label": "20. РЕПО / проданные ценные бумаги", "line_codes": ["n:20"], "keywords": ["выкупом"]},
+        {"label": "21. Кредиты и лизинг к оплате", "line_codes": ["n:21"], "keywords": ["кредит", "оплат"]},
+        {"label": "22. Субординированный долг", "line_codes": ["n:22"], "keywords": ["субординир"]},
+        {"label": "23. Начисленные проценты к оплате", "line_codes": ["n:23"], "keywords": ["начисленные проценты"]},
+        {"label": "24. Другие обязательства", "line_codes": ["n:24"], "keywords": ["другие обязательства"]},
+        {"label": "25. ИТОГО ОБЯЗАТЕЛЬСТВ", "line_codes": ["n:25"], "keywords": ["итого обязательств"], "keep_zero": True},
+        {"label": "26. Уставный капитал", "line_codes": ["n:26"], "keywords": ["уставный капитал"]},
+        {"label": "28. Резервный капитал", "line_codes": ["n:28"], "keywords": ["резервный капитал"]},
+        {"label": "29. Нераспределённая прибыль", "line_codes": ["n:29"], "keywords": ["нераспредел"]},
+        {"label": "30. ИТОГО СОБСТВЕННОГО КАПИТАЛА", "line_codes": ["n:30"], "keywords": ["итого собственного капитала"], "keep_zero": True},
+        {"label": "31. ИТОГО ОБЯЗАТЕЛЬСТВ И КАПИТАЛА", "line_codes": ["n:31"], "keywords": ["итого обязательств", "капитал"], "keep_zero": True},
+    ]
+
+
+def _income_article_specs() -> list[dict]:
+    return [
+        {"label": "Процентные доходы: ЦБРУ", "keywords": ["процентные доходы", "цбру"]},
+        {"label": "Процентные доходы: другие банки", "keywords": ["процентные доходы", "других банках"]},
+        {"label": "Процентные доходы: торговые ценные бумаги", "keywords": ["процентные доходы", "купли-продажи"]},
+        {"label": "Процентные доходы: кредиты и лизинг", "keywords": ["процент", "кредит", "лизингов"]},
+        {"label": "Другие процентные доходы", "keywords": ["другие процентные доходы"]},
+        {"label": "ИТОГО ПРОЦЕНТНЫХ ДОХОДОВ", "keywords": ["итого процентных доход"], "prefer_total": True, "keep_zero": True},
+        {"label": "Процентные расходы по депозитам", "keywords": ["итого процентных расходов по депозитам"], "prefer_total": True},
+        {"label": "Процентные расходы по кредитам к оплате", "keywords": ["процентные расходы", "кредитам к оплате"]},
+        {"label": "Другие процентные расходы", "keywords": ["другие процентные расходы"]},
+        {"label": "ИТОГО ПРОЦЕНТНЫХ РАСХОДОВ", "keywords": ["итого процентных расходов"], "exclude": ["депозитам", "займам"], "prefer_total": True, "keep_zero": True},
+        {"label": "Чистые процентные доходы до резервов", "line_codes": ["n:3"], "keywords": ["чистые процентные доходы до"]},
+        {"label": "Оценка возможных убытков по кредитам и лизингу", "keywords": ["оценка возможных убытков", "кредитам"]},
+        {"label": "Чистые процентные доходы после резервов", "keywords": ["после оценки возможных убытков"]},
+        {"label": "Комиссионные доходы", "keywords": ["доходы от комиссий"]},
+        {"label": "Прибыль в иностранной валюте", "keywords": ["прибыль в иностранной валюте"]},
+        {"label": "Другие беспроцентные доходы", "keywords": ["другие беспроцентные доходы"]},
+        {"label": "ИТОГО БЕСПРОЦЕНТНЫХ ДОХОДОВ", "keywords": ["итого беспроцентных доход"], "prefer_total": True, "keep_zero": True},
+        {"label": "ИТОГО БЕСПРОЦЕНТНЫХ РАСХОДОВ", "keywords": ["итого беспроцентных расходов"], "prefer_total": True},
+        {"label": "Чистый доход до операционных расходов", "line_codes": ["n:6"], "keywords": ["чистый доход до операционных расходов"]},
+        {"label": "Операционные расходы: персонал", "keywords": ["заработная плата"]},
+        {"label": "Операционные расходы: административные", "keywords": ["административные расходы"]},
+        {"label": "Операционные расходы: износ", "keywords": ["расходы на износ"]},
+        {"label": "Операционные расходы: страхование и налоги", "keywords": ["страхование", "налоги"]},
+        {"label": "ИТОГО ОПЕРАЦИОННЫХ РАСХОДОВ", "keywords": ["итого операционных расходов"], "prefer_total": True},
+        {"label": "Чистая прибыль до налога", "line_codes": ["n:9"], "keywords": ["чистая прибыль до уплаты налогов"]},
+        {"label": "Налог на прибыль", "keywords": ["оценка налога на прибыль"]},
+        {"label": "ЧИСТАЯ ПРИБЫЛЬ", "line_codes": ["n:11"], "keywords": ["чистая прибыль"], "keep_zero": True},
+    ]
+
+
+def _normalized_article_entries(
+    table_id: str,
+    current_rows: list[dict],
+    previous_lookup: dict[str, dict],
+) -> list[dict]:
+    if not current_rows:
+        return []
+    if table_id.startswith("assets"):
+        specs = _asset_article_specs()
+    elif table_id.startswith("liabilities"):
+        specs = _liability_article_specs()
+    elif table_id == "income_statement_horizontal_vertical":
+        specs = _income_article_specs()
+    else:
+        return []
+
+    entries: list[dict] = []
+    used_labels: set[str] = set()
+    for spec in specs:
+        entry = _article_entry_from_spec(spec, current_rows, previous_lookup, used_labels)
+        if entry:
+            entries.append(entry)
+    return entries
+
+
 def _horizontal_article_table(
     table_id: str,
     caption: str,
@@ -852,12 +1075,28 @@ def _horizontal_article_table(
     if any(_article_amount_pair(row) for row in current_rows):
         previous_label = _article_previous_balance_period_label(current_label, previous_label)
 
-    for row in current_rows:
-        label = _clean_article_label(row.get("label"))
-        if label in seen:
-            continue
-        previous_row = _article_matching_row(row, previous_lookup)
-        current, previous = _article_current_previous_amounts(row, previous_row)
+    normalized_entries = _normalized_article_entries(table_id, current_rows, previous_lookup)
+    if normalized_entries:
+        row_source = normalized_entries
+    else:
+        row_source = []
+        for row in current_rows:
+            label = _clean_article_label(row.get("label"))
+            if label in seen:
+                continue
+            previous_row = _article_matching_row(row, previous_lookup)
+            current, previous = _article_current_previous_amounts(row, previous_row)
+            if current is None or _article_is_zero_noise(label, current, previous):
+                continue
+            row_source.append({"label": label, "current": current, "previous": previous})
+            seen.add(label)
+            if len(row_source) >= limit:
+                break
+
+    for entry in row_source:
+        label = _clean_article_label(entry.get("label"))
+        current = entry.get("current")
+        previous = entry.get("previous")
         if current is None:
             continue
         change = current - previous if previous is not None else None
@@ -869,7 +1108,6 @@ def _horizontal_article_table(
             _format_report_number(change, language, signed=True),
             _format_report_pct(pct, language, signed=True),
         ])
-        seen.add(label)
         if len(rows) >= limit:
             break
     return _table_from_rows(
@@ -918,12 +1156,28 @@ def _vertical_article_table(
     rows = []
     seen = set()
     display_scale = 1000 if abs(total) >= 10_000_000 else 1
-    for row in current_rows:
-        label = _clean_article_label(row.get("label"))
-        if label in seen:
-            continue
-        previous_row = _article_matching_row(row, previous_lookup)
-        current, previous = _article_current_previous_amounts(row, previous_row)
+    normalized_entries = _normalized_article_entries(table_id, current_rows, previous_lookup)
+    if normalized_entries:
+        row_source = normalized_entries
+    else:
+        row_source = []
+        for row in current_rows:
+            label = _clean_article_label(row.get("label"))
+            if label in seen:
+                continue
+            previous_row = _article_matching_row(row, previous_lookup)
+            current, previous = _article_current_previous_amounts(row, previous_row)
+            if current is None or _article_is_zero_noise(label, current, previous):
+                continue
+            row_source.append({"label": label, "current": current, "previous": previous})
+            seen.add(label)
+            if len(row_source) >= limit:
+                break
+
+    for entry in row_source:
+        label = _clean_article_label(entry.get("label"))
+        current = entry.get("current")
+        previous = entry.get("previous")
         if current is None:
             continue
         share = current / total * 100 if total else None
@@ -935,7 +1189,6 @@ def _vertical_article_table(
             _format_report_number(previous / display_scale, language) if previous is not None else "—",
             _format_report_pct(previous_share, language) if previous_share is not None else "—",
         ])
-        seen.add(label)
         if len(rows) >= limit:
             break
     return _table_from_rows(
@@ -978,11 +1231,26 @@ def _income_article_table(
     if total_income_base <= 0:
         total_income_base = None
 
-    for row in current_rows:
-        label = _clean_article_label(row.get("label"))
-        if label in seen:
-            continue
-        current = _article_current_amount(row)
+    normalized_entries = _normalized_article_entries("income_statement_horizontal_vertical", current_rows, {})
+    if normalized_entries:
+        row_source = normalized_entries
+    else:
+        row_source = []
+        for row in current_rows:
+            label = _clean_article_label(row.get("label"))
+            if label in seen:
+                continue
+            current = _article_current_amount(row)
+            if current is None or _article_is_zero_noise(label, current, None):
+                continue
+            row_source.append({"label": label, "current": current})
+            seen.add(label)
+            if len(row_source) >= limit:
+                break
+
+    for entry in row_source:
+        label = _clean_article_label(entry.get("label"))
+        current = entry.get("current")
         if current is None:
             continue
         label_lower = label.lower()
@@ -1000,7 +1268,6 @@ def _income_article_table(
             _format_report_pct(pct_interest, language) if pct_interest is not None else "—",
             _format_report_pct(pct_total, language) if pct_total is not None else "—",
         ])
-        seen.add(label)
         if len(rows) >= limit:
             break
     return _table_from_rows(
@@ -1660,6 +1927,330 @@ def _format_bln_sum_from_thousand(value: float | None, language: str = "ru") -> 
     return f"{_format_report_number(value / 1_000_000, language=language, digits=1)} млрд сум"
 
 
+def _table_value_by_keywords(table: dict | None, *keywords: str, column_index: int = 1) -> float | None:
+    return _table_number(_table_row_by_keywords(table, *keywords), column_index)
+
+
+def _table_last_value_by_keywords(table: dict | None, *keywords: str, column_index: int = 1) -> float | None:
+    if not table:
+        return None
+    lowered_keywords = [keyword.lower() for keyword in keywords]
+    for row in reversed(table.get("rows") or []):
+        label = str(row[0] if row else "").lower()
+        if all(keyword in label for keyword in lowered_keywords):
+            return _table_number(row, column_index)
+    return None
+
+
+def _table_sum_by_keyword_sets(
+    table: dict | None,
+    keyword_sets: list[tuple[str, ...]],
+    *,
+    column_index: int = 1,
+) -> float | None:
+    total = 0.0
+    found = False
+    seen_labels: set[str] = set()
+    for keywords in keyword_sets:
+        row = _table_row_by_keywords(table, *keywords)
+        if not row:
+            continue
+        label = _table_label(row)
+        if label in seen_labels:
+            continue
+        value = _table_number(row, column_index)
+        if value is None:
+            continue
+        total += value
+        found = True
+        seen_labels.add(label)
+    return total if found else None
+
+
+def _tone_from_threshold(value: float | None, good: float, warn: float, *, reverse: bool = False) -> str:
+    if value is None:
+        return "neutral"
+    if reverse:
+        if value <= good:
+            return "good"
+        if value <= warn:
+            return "warning"
+        return "danger"
+    if value >= good:
+        return "good"
+    if value >= warn:
+        return "warning"
+    return "danger"
+
+
+def _article_table_signals(
+    assets_h: dict | None,
+    liab_h: dict | None,
+    income_table: dict | None,
+) -> dict:
+    assets_total = _table_value_by_keywords(assets_h, "итого актив")
+    assets_change = _table_value_by_keywords(assets_h, "итого актив", column_index=3)
+    cash = _table_value_by_keywords(assets_h, "касс")
+    cbu = _table_value_by_keywords(assets_h, "цбру")
+    loans_net = _table_value_by_keywords(assets_h, "кредиты", "лизинг", "нетто")
+    if loans_net is None:
+        loans_net = _table_value_by_keywords(assets_h, "кредиты", "лизинг")
+    gross_loans = _table_value_by_keywords(assets_h, "брутто", "кредит")
+    reserve_loans = _table_value_by_keywords(assets_h, "резерв", "потер")
+    reserve_change = _table_value_by_keywords(assets_h, "резерв", "потер", column_index=3)
+
+    deposits = _table_value_by_keywords(liab_h, "клиентские депозиты")
+    if deposits is None:
+        deposits = _table_sum_by_keyword_sets(
+            liab_h,
+            [
+                ("депозиты", "востреб"),
+                ("сберегательные", "депозиты"),
+                ("срочные", "депозиты"),
+            ],
+        )
+    deposits_change = _table_value_by_keywords(liab_h, "клиентские депозиты", column_index=3)
+    if deposits_change is None:
+        deposits_change = _table_sum_by_keyword_sets(
+            liab_h,
+            [
+                ("депозиты", "востреб"),
+                ("сберегательные", "депозиты"),
+                ("срочные", "депозиты"),
+            ],
+            column_index=3,
+        )
+    equity = _table_value_by_keywords(liab_h, "итого собственного капитала")
+    equity_change = _table_value_by_keywords(liab_h, "итого собственного капитала", column_index=3)
+
+    interest_income = _table_value_by_keywords(income_table, "итого процентных доход")
+    interest_expense = _table_value_by_keywords(income_table, "итого процентных расходов")
+    non_interest_income = _table_value_by_keywords(income_table, "итого беспроцентных доход")
+    operating_expenses = _table_value_by_keywords(income_table, "итого операционных расходов")
+    pre_operating_income = _table_value_by_keywords(income_table, "чистый доход до операционных расходов")
+    net_profit = _table_last_value_by_keywords(income_table, "чистая прибыль")
+
+    ldr_pct = loans_net / deposits * 100 if loans_net is not None and deposits else None
+    first_line_pct = ((cash or 0.0) + (cbu or 0.0)) / assets_total * 100 if assets_total and (cash is not None or cbu is not None) else None
+    reserve_coverage_pct = reserve_loans / gross_loans * 100 if reserve_loans is not None and gross_loans else None
+    capital_assets_pct = equity / assets_total * 100 if equity is not None and assets_total else None
+    interest_coverage = interest_income / interest_expense if interest_income is not None and interest_expense else None
+    non_interest_share_pct = (
+        non_interest_income / (interest_income + non_interest_income) * 100
+        if interest_income is not None and non_interest_income is not None and (interest_income + non_interest_income)
+        else None
+    )
+    cir_pct = operating_expenses / pre_operating_income * 100 if operating_expenses is not None and pre_operating_income else None
+
+    return {
+        "assets_total": assets_total,
+        "assets_change": assets_change,
+        "cash": cash,
+        "cbu": cbu,
+        "loans_net": loans_net,
+        "gross_loans": gross_loans,
+        "reserve_loans": reserve_loans,
+        "reserve_change": reserve_change,
+        "deposits": deposits,
+        "deposits_change": deposits_change,
+        "equity": equity,
+        "equity_change": equity_change,
+        "interest_income": interest_income,
+        "interest_expense": interest_expense,
+        "non_interest_income": non_interest_income,
+        "operating_expenses": operating_expenses,
+        "pre_operating_income": pre_operating_income,
+        "net_profit": net_profit,
+        "ldr_pct": ldr_pct,
+        "first_line_pct": first_line_pct,
+        "reserve_coverage_pct": reserve_coverage_pct,
+        "capital_assets_pct": capital_assets_pct,
+        "interest_coverage": interest_coverage,
+        "non_interest_share_pct": non_interest_share_pct,
+        "cir_pct": cir_pct,
+    }
+
+
+def _article_formula_and_kpi_blocks(
+    assets_h: dict | None,
+    liab_h: dict | None,
+    income_table: dict | None,
+    language: str,
+) -> list[dict]:
+    if _normalize_language(language) != "ru":
+        return []
+
+    signals = _article_table_signals(assets_h, liab_h, income_table)
+    blocks: list[dict] = []
+    kpis: list[dict] = []
+    formulas: list[dict] = []
+
+    def add_pct(title: str, key: str, formula: str, hint: str, good: float, warn: float, *, reverse: bool = False):
+        value = signals.get(key)
+        if value is None:
+            return
+        tone = _tone_from_threshold(value, good, warn, reverse=reverse)
+        result = _format_report_pct(value, language)
+        kpis.append({"label": title, "value": result, "hint": hint, "tone": tone})
+        formulas.append({
+            "type": "formula",
+            "title": title,
+            "formula": formula,
+            "result": result,
+            "description": hint,
+            "tone": tone,
+        })
+
+    add_pct(
+        "LDR — кредиты / депозиты",
+        "ldr_pct",
+        "(Кредиты и лизинг нетто / клиентские депозиты) × 100",
+        "Показывает, хватает ли депозитной базы для финансирования кредитного портфеля.",
+        100,
+        120,
+        reverse=True,
+    )
+    add_pct(
+        "Ликвидность первой линии",
+        "first_line_pct",
+        "(Касса + средства в ЦБРУ) / активы × 100",
+        "Быстрый запас денег, который можно использовать без продажи кредитов или ценных бумаг.",
+        8,
+        4,
+    )
+    add_pct(
+        "Покрытие брутто-кредитов резервами",
+        "reserve_coverage_pct",
+        "Резерв на потери / брутто-кредиты × 100",
+        "Чем выше показатель, тем больше прибыль уже поглощается кредитным риском.",
+        2,
+        3,
+        reverse=True,
+    )
+    add_pct(
+        "Капитал / активы",
+        "capital_assets_pct",
+        "Собственный капитал / активы × 100",
+        "Показывает запас прочности баланса до привлечённых денег.",
+        12,
+        8,
+    )
+    add_pct(
+        "Доля непроцентных доходов",
+        "non_interest_share_pct",
+        "Беспроцентные доходы / (процентные + беспроцентные доходы) × 100",
+        "Показывает, насколько прибыль зависит не только от кредитно-депозитной маржи.",
+        20,
+        10,
+    )
+    add_pct(
+        "CIR — расходы / доход",
+        "cir_pct",
+        "Операционные расходы / чистый доход до операционных расходов × 100",
+        "Показывает, сколько операционных затрат съедает доход до налога.",
+        60,
+        70,
+        reverse=True,
+    )
+
+    coverage = signals.get("interest_coverage")
+    if coverage is not None:
+        tone = _tone_from_threshold(coverage, 1.5, 1.2)
+        result = f"{_format_report_number(coverage, language=language, digits=2)}×"
+        kpis.append({
+            "label": "Покрытие процентных расходов",
+            "value": result,
+            "hint": "Процентные доходы должны уверенно перекрывать стоимость фондирования.",
+            "tone": tone,
+        })
+        formulas.append({
+            "type": "formula",
+            "title": "Покрытие процентных расходов",
+            "formula": "Процентные доходы / процентные расходы",
+            "result": result,
+            "description": "Если показатель близок к 1×, маржа почти полностью уходит на фондирование.",
+            "tone": tone,
+        })
+
+    if kpis:
+        blocks.append({"type": "kpi_grid", "items": kpis[:8]})
+    blocks.extend(formulas)
+    return blocks
+
+
+def _article_conclusion_blocks(
+    base_text: str,
+    assets_h: dict | None,
+    liab_h: dict | None,
+    income_table: dict | None,
+    ratio_table: dict | None,
+    language: str,
+) -> list[dict]:
+    if _normalize_language(language) != "ru":
+        return [{"type": "paragraph", "text": base_text or "Final assessment depends on profit quality, balance structure and data completeness."}]
+
+    signals = _article_table_signals(assets_h, liab_h, income_table)
+    assets_total = signals.get("assets_total")
+    assets_change = signals.get("assets_change")
+    equity_change = signals.get("equity_change")
+    net_profit = signals.get("net_profit")
+
+    if assets_total is not None:
+        intro = (
+            f"Итоговая картина строится вокруг трёх фактов: активы составляют "
+            f"{_format_bln_sum_from_thousand(assets_total, language)}, изменение баланса за период — "
+            f"{_format_bln_sum_from_thousand(assets_change, language)}, чистая прибыль — "
+            f"{_format_bln_sum_from_thousand(net_profit, language)}. Поэтому вывод нужно читать не только через прибыль, "
+            "а через качество фондирования, ликвидность и то, сколько риска уже видно в резервах."
+        )
+    else:
+        intro = base_text or "Итоговая оценка зависит от качества прибыли, структуры баланса и полноты раскрытых данных."
+
+    items: list[dict] = []
+
+    def add(label: str, text: str, tone: str):
+        items.append({"label": label, "text": text, "tone": tone})
+
+    if net_profit is not None and net_profit > 0:
+        add("Сильная сторона", f"Банк остаётся прибыльным: чистая прибыль составила {_format_bln_sum_from_thousand(net_profit, language)}. Это поддерживает базовую оценку, но не отменяет проверки резервов и капитала.", "good")
+
+    interest_coverage = signals.get("interest_coverage")
+    if interest_coverage is not None and interest_coverage >= 1.2:
+        add("Маржа", f"Процентные доходы покрывают процентные расходы в {_format_report_number(interest_coverage, language=language, digits=2)}×. Это значит, что основной банковский бизнес генерирует запас над стоимостью денег.", "good" if interest_coverage >= 1.5 else "warning")
+
+    capital_assets = signals.get("capital_assets_pct")
+    if capital_assets is not None:
+        tone = _tone_from_threshold(capital_assets, 12, 8)
+        add("Капитал", f"Капитал к активам равен {_format_report_pct(capital_assets, language)}. Чем ниже этот запас, тем осторожнее нужно читать прибыль и рост портфеля.", tone)
+
+    first_line = signals.get("first_line_pct")
+    if first_line is not None:
+        tone = _tone_from_threshold(first_line, 8, 4)
+        add("Ликвидность", f"Ликвидность первой линии — {_format_report_pct(first_line, language)}. Это быстрые деньги на случай оттока ресурсов; низкое значение делает итоговый тон осторожнее.", tone)
+
+    if assets_change is not None and assets_change < 0:
+        add("Риск", f"Баланс сократился на {_format_bln_sum_from_thousand(abs(assets_change), language)}. Само по себе это не плохо, но нужно понимать, ушло ли снижение в плановую переоценку/погашение или в отток ресурсов.", "warning")
+
+    deposits_change = signals.get("deposits_change")
+    if deposits_change is not None and deposits_change < 0:
+        add("Фондирование", f"Клиентские депозиты снизились на {_format_bln_sum_from_thousand(abs(deposits_change), language)}. Это усиливает важность ликвидности и стоимости альтернативного фондирования.", "warning")
+
+    reserve_change = signals.get("reserve_change")
+    if reserve_change is not None and reserve_change > 0:
+        add("Кредитный риск", f"Резерв под потери вырос на {_format_bln_sum_from_thousand(reserve_change, language)}. Для анализа это сигнал проверить качество кредитного портфеля, а не смотреть только на чистую прибыль.", "danger")
+
+    if equity_change is not None and equity_change < 0:
+        add("Запас прочности", f"Собственный капитал снизился на {_format_bln_sum_from_thousand(abs(equity_change), language)}. Это уменьшает буфер, который покрывает ошибки в активах и рыночные шоки.", "warning")
+
+    if not items:
+        add("Что делать дальше", "Сравните самые крупные изменения в таблицах с коэффициентами выше: если слабые места совпадают сразу в балансе, прибыли и ликвидности, итоговую оценку нужно снижать.", "neutral")
+
+    return [
+        {"type": "paragraph", "text": intro},
+        {"type": "verdict_list", "items": items[:8]},
+    ]
+
+
 def _html_style_table_explanation_blocks(table: dict | None, role: str, language: str) -> list[dict] | None:
     if not table or _normalize_language(language) != "ru":
         return None
@@ -2083,6 +2674,7 @@ def _build_article_report(
             interest_expense=_safe_float(_snap_balance.get("interest_expense")),
         )
     ratio_table = _ratio_article_table(metrics or {}, ifrs_snapshot or {}, lang, bank_extra=_bank_extra)
+    formula_blocks = _article_formula_and_kpi_blocks(assets_h, liab_h, income_table, lang)
     appendix_tables: list[dict] = []
 
     def p(text: str) -> dict:
@@ -2153,6 +2745,7 @@ def _build_article_report(
             }.get(lang),
             "blocks": [
                 p(_first_article_paragraph(sections, "ЭФФЕКТИВНОСТЬ", "ОЦЕНКА_ЦЕНЫ") or "Коэффициенты дополняют табличный разбор и показывают прибыльность, устойчивость баланса и качество операционной модели."),
+                *formula_blocks,
                 *t(ratio_table, "ratio_summary"),
             ],
         },
@@ -2164,7 +2757,14 @@ def _build_article_report(
                 "en": "Final financial condition assessment",
                 "uz": "Moliyaviy holat bo'yicha yakuniy baho",
             }.get(lang),
-            "blocks": [p(_first_article_paragraph(sections, "ИТОГ", "ВЕРДИКТ") or "Итоговая оценка зависит от качества прибыли, структуры баланса и полноты раскрытых данных.")],
+            "blocks": _article_conclusion_blocks(
+                _first_article_paragraph(sections, "ИТОГ", "ВЕРДИКТ") or "Итоговая оценка зависит от качества прибыли, структуры баланса и полноты раскрытых данных.",
+                assets_h,
+                liab_h,
+                income_table,
+                ratio_table,
+                lang,
+            ),
         },
     ]
 

@@ -2067,6 +2067,53 @@ function isArticleTotalRow(row) {
 
 function StructuredReportBlocks({ blocks = [], keyPrefix = "article" }) {
   return blocks.map((block, index) => {
+    if (block?.type === "kpi_grid") {
+      const items = Array.isArray(block.items) ? block.items : [];
+      if (!items.length) return null;
+      return (
+        <section key={`${keyPrefix}-kpi-${index}`} className="analysis-sector analysis-sector--kpi-grid">
+          <div className="article-kpi-grid">
+            {items.map((item, itemIndex) => (
+              <div key={`${item.label || itemIndex}-${itemIndex}`} className={`article-kpi-card tone-${item.tone || "neutral"}`}>
+                <span className="article-kpi-card__label">{item.label}</span>
+                <strong className="article-kpi-card__value">{item.value ?? "—"}</strong>
+                {item.hint && <p className="article-kpi-card__hint">{item.hint}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
+    if (block?.type === "formula") {
+      return (
+        <section key={`${keyPrefix}-formula-${index}`} className={`analysis-sector analysis-sector--formula tone-${block.tone || "neutral"}`}>
+          <div className={`article-formula tone-${block.tone || "neutral"}`}>
+            {block.title && <div className="article-formula__title">{block.title}</div>}
+            <div className="article-formula__body">
+              <code>{block.formula}</code>
+              <strong>{block.result ?? "—"}</strong>
+            </div>
+            {block.description && <p>{block.description}</p>}
+          </div>
+        </section>
+      );
+    }
+    if (block?.type === "verdict_list") {
+      const items = Array.isArray(block.items) ? block.items : [];
+      if (!items.length) return null;
+      return (
+        <section key={`${keyPrefix}-verdict-${index}`} className="analysis-sector analysis-sector--verdict-list">
+          <div className="article-verdict-list">
+            {items.map((item, itemIndex) => (
+              <div key={`${item.label || itemIndex}-${itemIndex}`} className={`article-verdict-item tone-${item.tone || "neutral"}`}>
+                <span>{item.label}</span>
+                <p>{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
     if (block?.type === "table") {
       const headers = Array.isArray(block.headers) ? block.headers : [];
       const rows = Array.isArray(block.rows) ? block.rows : [];
