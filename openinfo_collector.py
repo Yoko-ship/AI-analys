@@ -680,12 +680,14 @@ def _select_excel_documents(
     max_annual_reports: int | None = None,
     max_quarter_reports: int | None = None,
 ) -> list[dict[str, Any]]:
+    excel_documents = [document for document in documents if document.get("excel_url")]
+    if include_all:
+        return excel_documents[:_bounded_report_limit(max_reports, EXCEL_ABSOLUTE_MAX_REPORTS)]
+
     annual: list[dict[str, Any]] = []
     quarter: list[dict[str, Any]] = []
     other: list[dict[str, Any]] = []
-    for document in documents:
-        if not document.get("excel_url"):
-            continue
+    for document in excel_documents:
         period_type = str(document.get("period_type") or "").lower()
         if period_type == "annual":
             annual.append(document)
@@ -694,15 +696,14 @@ def _select_excel_documents(
         else:
             other.append(document)
 
-    if include_all:
-        selected = annual + quarter + other
-        return selected[:_bounded_report_limit(max_reports, EXCEL_ABSOLUTE_MAX_REPORTS)]
-
     report_limit = _bounded_report_limit(max_reports, EXCEL_MAX_REPORTS)
+    if max_annual_reports is None and max_quarter_reports is None:
+        return excel_documents[:report_limit]
+
     annual_limit = _bounded_report_limit(max_annual_reports, EXCEL_MAX_ANNUAL_REPORTS)
     quarter_limit = _bounded_report_limit(max_quarter_reports, EXCEL_MAX_QUARTER_REPORTS)
-    selected = annual[:annual_limit]
-    selected.extend(quarter[:quarter_limit])
+    selected = quarter[:quarter_limit]
+    selected.extend(annual[:annual_limit])
     selected.extend(other)
     return selected[:report_limit]
 
