@@ -36,7 +36,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v9-deep-analysis-2026-05-31"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v8"
+ARTICLE_REPORT_VERSION = "article-report-v9"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
@@ -1488,10 +1488,10 @@ def _ratio_article_table(
     return _table_from_rows(
         "ratio_summary",
         {
-            "ru": "Таблица 6 — Сводный коэффициентный профиль",
-            "en": "Table 6 — Ratio summary profile",
-            "uz": "Jadval 6 — Koeffitsiyentlar profili",
-        }.get(lang, "Таблица 6 — Сводный коэффициентный профиль"),
+            "ru": "Таблица 7 — Сводный коэффициентный профиль",
+            "en": "Table 7 — Ratio summary profile",
+            "uz": "Jadval 7 — Koeffitsiyentlar profili",
+        }.get(lang, "Таблица 7 — Сводный коэффициентный профиль"),
         headers,
         metric_rows,
         source="metrics.ifrs_snapshot",
@@ -1727,6 +1727,22 @@ def _practical_table_explanation_blocks(table: dict | None, role: str, language:
         if strongest_growth:
             parts.append(f"{growth_word}: {strongest_growth[1]} ({strongest_growth[2]})")
         return "; ".join(parts)
+
+    if role == "multi_period_trend":
+        if lang == "en":
+            return [
+                block(f"This table checks whether the current quarter is part of a stable trend or just a one-period jump across {max(row_count, 0)} key lines."),
+                block("What to do: compare deposits, loans, capital and profit across columns. A good verdict needs consistency: profit should not improve while liquidity, capital or reserve coverage deteriorate at the same time."),
+            ]
+        if lang == "uz":
+            return [
+                block(f"Bu jadval joriy chorak barqaror trendning bir qismimi yoki {max(row_count, 0)} asosiy satr bo'yicha bir martalik sakrashmi, shuni tekshiradi."),
+                block("Nima qilish kerak: depozitlar, kreditlar, kapital va foydani ustunlar bo'yicha solishtiring. Yaxshi xulosa izchil bo'lishi kerak: foyda yaxshilanayotganda likvidlik, kapital yoki rezerv qoplamasi bir vaqtda yomonlashmasligi kerak."),
+            ]
+        return [
+            block(f"Эта таблица показывает не один квартал, а траекторию по {max(row_count, 0)} ключевым строкам: растёт ли банк устойчиво, сжимается ли баланс, ухудшается ли качество фондирования или прибыли."),
+            block("Что делать: сначала сравните депозиты, кредиты, капитал и чистую прибыль по датам. Хороший итоговый вывод возможен только тогда, когда прибыль не улучшается ценой падения ликвидности, слабого капитала или роста резервов."),
+        ]
 
     if role == "assets_horizontal":
         moves_en = movement_text("largest growth", "largest fall")
@@ -2139,6 +2155,214 @@ def _article_table_signals(
     }
 
 
+def _article_period_group_label(sort_value: str, fallback: str) -> str:
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(sort_value or "")):
+        year, month, day = str(sort_value).split("-")
+        return f"{day}.{month}.{year}"
+    return fallback
+
+
+def _article_period_groups(rows: list[dict], limit: int = 6) -> list[dict]:
+    groups: dict[str, dict] = {}
+    for index in _article_report_indices(rows):
+        report_rows = _article_rows_for_report(rows, index)
+        if not report_rows:
+            continue
+        sort_value = _article_report_sort_value(rows, index)
+        key = sort_value or f"report:{index}"
+        group = groups.setdefault(key, {"sort_value": sort_value, "indices": [], "rows": []})
+        group["indices"].append(index)
+        group["rows"].extend(report_rows)
+    ordered = sorted(groups.values(), key=lambda group: group.get("sort_value") or "", reverse=True)
+    return ordered[:limit]
+
+
+def _article_entry_current_value(entries: list[dict], *keywords: str, last: bool = False) -> float | None:
+    if not entries:
+        return None
+    normalized_keywords = [_normalize_article_label_key(keyword) for keyword in keywords]
+    source = reversed(entries) if last else entries
+    for entry in source:
+        label = str(entry.get("label") or "").lower()
+        normalized = _normalize_article_label_key(label)
+        matched = True
+        for keyword, normalized_keyword in zip(keywords, normalized_keywords):
+            lowered_keyword = str(keyword or "").lower()
+            if lowered_keyword not in label and normalized_keyword not in normalized:
+                matched = False
+                break
+        if matched:
+            return _safe_float(entry.get("current"))
+    return None
+
+
+def _format_article_trend_money(value: float | None, language: str) -> str:
+    if value is None:
+        return "—"
+    formatted = _format_bln_sum_from_thousand(value, language)
+    for suffix in (" млрд сум", " bln UZS", " mlrd so'm"):
+        if formatted.endswith(suffix):
+            return formatted[: -len(suffix)]
+    return formatted
+
+
+def _article_trend_point_from_rows(period_rows: list[dict]) -> dict | None:
+    asset_rows = [row for row in period_rows if row.get("article_kind") == "assets"]
+    liability_rows = [row for row in period_rows if row.get("article_kind") == "liabilities_equity"]
+    income_rows = [row for row in period_rows if row.get("article_kind") == "income_statement"]
+    asset_entries = _normalized_article_entries("assets_horizontal", asset_rows, {})
+    liability_entries = _normalized_article_entries("liabilities_horizontal", liability_rows, {})
+    income_entries = _normalized_article_entries("income_statement_horizontal_vertical", income_rows, {})
+
+    assets_total = _article_entry_current_value(asset_entries, "итого актив")
+    cash = _article_entry_current_value(asset_entries, "касса")
+    cbu = _article_entry_current_value(asset_entries, "цбру")
+    loans_net = _article_entry_current_value(asset_entries, "кредит", "лизинг", "нетто")
+    if loans_net is None:
+        loans_net = _article_entry_current_value(asset_entries, "кредит", "лизинг")
+    gross_loans = _article_entry_current_value(asset_entries, "брутто", "кредит")
+    reserve_loans = _article_entry_current_value(asset_entries, "резерв", "потер")
+    deposits = _article_entry_current_value(liability_entries, "клиентские депозиты")
+    equity = _article_entry_current_value(liability_entries, "итого собственного капитала")
+    interest_income = _article_entry_current_value(income_entries, "итого процентных доход")
+    interest_expense = _article_entry_current_value(income_entries, "итого процентных расход")
+    non_interest_income = _article_entry_current_value(income_entries, "итого беспроцентных доход")
+    operating_expenses = _article_entry_current_value(income_entries, "итого операционных расход")
+    pre_operating_income = _article_entry_current_value(income_entries, "чистый доход до операционных расходов")
+    net_profit = _article_entry_current_value(income_entries, "чистая прибыль", last=True)
+
+    if not any(value is not None for value in (assets_total, deposits, loans_net, equity, net_profit)):
+        return None
+    return {
+        "assets_total": assets_total,
+        "deposits": deposits,
+        "loans_net": loans_net,
+        "equity": equity,
+        "net_profit": net_profit,
+        "first_line_pct": ((cash or 0.0) + (cbu or 0.0)) / assets_total * 100 if assets_total and (cash is not None or cbu is not None) else None,
+        "ldr_pct": loans_net / deposits * 100 if loans_net is not None and deposits else None,
+        "capital_assets_pct": equity / assets_total * 100 if equity is not None and assets_total else None,
+        "reserve_coverage_pct": abs(reserve_loans) / gross_loans * 100 if reserve_loans is not None and gross_loans else None,
+        "interest_coverage": interest_income / abs(interest_expense) if interest_income is not None and interest_expense else None,
+        "non_interest_share_pct": (
+            non_interest_income / (interest_income + non_interest_income) * 100
+            if interest_income is not None and non_interest_income is not None and (interest_income + non_interest_income)
+            else None
+        ),
+        "cir_pct": abs(operating_expenses) / abs(pre_operating_income) * 100 if operating_expenses is not None and pre_operating_income else None,
+    }
+
+
+def _multi_period_article_trend_table(
+    excel_rows: list[dict],
+    language: str,
+    *,
+    limit: int = 6,
+) -> dict | None:
+    period_groups = _article_period_groups(excel_rows, limit=limit)
+    points: list[dict] = []
+    for group in period_groups:
+        point = _article_trend_point_from_rows(group.get("rows") or [])
+        if not point:
+            continue
+        point["label"] = _article_period_group_label(group.get("sort_value") or "", "Период")
+        points.append(point)
+    if len(points) < 2:
+        return None
+
+    labels = {
+        "ru": {
+            "caption": "Таблица 6 — Многоквартальная динамика ключевых показателей",
+            "note": "Периоды показаны от последнего отчёта к более ранним; суммы указаны в млрд сум.",
+            "metric": "Показатель",
+            "assets_total": "Активы",
+            "deposits": "Клиентские депозиты",
+            "loans_net": "Кредиты и лизинг (нетто)",
+            "equity": "Собственный капитал",
+            "net_profit": "Чистая прибыль",
+            "first_line_pct": "Ликвидность 1-й линии",
+            "ldr_pct": "LDR",
+            "capital_assets_pct": "Капитал / активы",
+            "reserve_coverage_pct": "Резерв / брутто-кредиты",
+            "interest_coverage": "Покрытие % расходов",
+            "cir_pct": "CIR",
+        },
+        "en": {
+            "caption": "Table 6 — Multi-period key indicator trend",
+            "note": "Periods are shown from latest to earlier; amounts are in bln UZS.",
+            "metric": "Metric",
+            "assets_total": "Assets",
+            "deposits": "Client deposits",
+            "loans_net": "Loans and leasing, net",
+            "equity": "Equity",
+            "net_profit": "Net profit",
+            "first_line_pct": "First-line liquidity",
+            "ldr_pct": "LDR",
+            "capital_assets_pct": "Capital / assets",
+            "reserve_coverage_pct": "Reserve / gross loans",
+            "interest_coverage": "Interest expense coverage",
+            "cir_pct": "CIR",
+        },
+        "uz": {
+            "caption": "Jadval 6 — Asosiy ko'rsatkichlarning ko'p davrli dinamikasi",
+            "note": "Davrlar eng so'nggi hisobotdan oldingilariga qarab berilgan; summalar mlrd so'mda.",
+            "metric": "Ko'rsatkich",
+            "assets_total": "Aktivlar",
+            "deposits": "Mijoz depozitlari",
+            "loans_net": "Kredit va lizing (netto)",
+            "equity": "Kapital",
+            "net_profit": "Sof foyda",
+            "first_line_pct": "1-qator likvidlik",
+            "ldr_pct": "LDR",
+            "capital_assets_pct": "Kapital / aktivlar",
+            "reserve_coverage_pct": "Rezerv / brutto kreditlar",
+            "interest_coverage": "Foiz xarajatlari qoplanishi",
+            "cir_pct": "CIR",
+        },
+    }.get(_normalize_language(language), {})
+    row_specs = [
+        ("assets_total", "money"),
+        ("deposits", "money"),
+        ("loans_net", "money"),
+        ("equity", "money"),
+        ("net_profit", "money"),
+        ("first_line_pct", "pct"),
+        ("ldr_pct", "pct"),
+        ("capital_assets_pct", "pct"),
+        ("reserve_coverage_pct", "pct"),
+        ("interest_coverage", "ratio"),
+        ("cir_pct", "pct"),
+    ]
+
+    rows: list[list[str]] = []
+    for key, kind in row_specs:
+        cells = []
+        present_count = 0
+        for point in points:
+            value = point.get(key)
+            if value is not None:
+                present_count += 1
+            if kind == "money":
+                cells.append(_format_article_trend_money(value, language))
+            elif kind == "pct":
+                cells.append(_format_report_pct(value, language) if value is not None else "—")
+            elif kind == "ratio":
+                cells.append(f"{_format_report_number(value, language=language, digits=2)}×" if value is not None else "—")
+        if present_count >= 2:
+            rows.append([labels.get(key, key), *cells])
+
+    table = _table_from_rows(
+        "multi_period_trend",
+        labels.get("caption", "Table 6 — Multi-period key indicator trend"),
+        [labels.get("metric", "Metric"), *[point["label"] for point in points]],
+        rows,
+        source="openinfo_excel.multi_period",
+    )
+    if table:
+        table["note"] = labels.get("note")
+    return table
+
+
 def _article_indicator_items(signals: dict, language: str) -> list[dict]:
     if _normalize_language(language) != "ru":
         return []
@@ -2421,7 +2645,7 @@ def _key_indicators_article_table(
     ]
     return _table_from_rows(
         "key_indicators_summary",
-        "Таблица 7 — Сводная таблица ключевых показателей",
+        "Таблица 8 — Сводная таблица ключевых показателей",
         ["Блок", "Показатель", "Значение", "Ориентир", "Вывод", "Как влияет на анализ"],
         rows,
         source="openinfo_excel.derived_ratios",
@@ -2465,6 +2689,75 @@ def _article_rating_from_signals(signals: dict, language: str) -> dict:
     }
 
 
+def _article_verdict_summary_items(signals: dict, language: str) -> list[dict]:
+    if _normalize_language(language) != "ru":
+        return []
+
+    items: list[dict] = []
+
+    def add(label: str, value: str, text: str, tone: str = "neutral"):
+        items.append({"label": label, "value": value, "text": text, "tone": tone})
+
+    capital_assets = signals.get("capital_assets_pct")
+    if capital_assets is None:
+        add("Устойчивость", "Данных мало", "Капитальный буфер не удалось посчитать из XLSX, поэтому итоговую оценку нужно читать осторожнее.")
+    elif capital_assets >= 12:
+        add("Устойчивость", _format_report_pct(capital_assets, language), "Капитал выглядит достаточным: у банка есть запас, который помогает пережить ошибки в активах и рыночные колебания.", "good")
+    elif capital_assets >= 8:
+        add("Устойчивость", _format_report_pct(capital_assets, language), "Капитал есть, но запас не широкий. Рост кредитов, падение прибыли или переоценка активов быстро ухудшат картину.", "warning")
+    else:
+        add("Устойчивость", _format_report_pct(capital_assets, language), "Капитальный буфер слабый. Даже положительная прибыль не полностью снимает риск, если баланс продолжит расти или резервы увеличатся.", "danger")
+
+    first_line = signals.get("first_line_pct")
+    ldr = signals.get("ldr_pct")
+    if first_line is not None and first_line >= 8 and (ldr is None or ldr <= 100):
+        add("Ликвидность", _format_report_pct(first_line, language), "Быстрые деньги и соотношение кредитов к депозитам выглядят спокойно: риск срочного дефицита ликвидности ниже.", "good")
+    elif (first_line is not None and first_line < 4) or (ldr is not None and ldr > 120):
+        value = _format_report_pct(first_line, language) if first_line is not None else _format_report_pct(ldr, language)
+        add("Ликвидность", value, "Ликвидность требует проверки: нужно смотреть, не финансируются ли кредиты слишком тонким запасом быстрых активов или дорогими ресурсами.", "danger")
+    else:
+        value = _format_report_pct(first_line, language) if first_line is not None else (_format_report_pct(ldr, language) if ldr is not None else "—")
+        add("Ликвидность", value, "Картина смешанная: критического сигнала может не быть, но следующий квартал должен подтвердить устойчивость депозитов и быстрых активов.", "warning")
+
+    net_profit = signals.get("net_profit")
+    interest_coverage = signals.get("interest_coverage")
+    cir = signals.get("cir_pct")
+    if net_profit is not None and net_profit > 0 and (interest_coverage is None or interest_coverage >= 1.2) and (cir is None or cir <= 70):
+        add("Качество прибыли", _format_bln_sum_from_thousand(net_profit, language), "Прибыль поддержана базовой банковской маржой и не выглядит полностью зависимой от разовых строк.", "good")
+    elif net_profit is not None and net_profit > 0:
+        add("Качество прибыли", _format_bln_sum_from_thousand(net_profit, language), "Прибыль положительная, но её качество нужно проверять через стоимость фондирования, резервы и операционные расходы.", "warning")
+    elif net_profit is not None:
+        add("Качество прибыли", _format_bln_sum_from_thousand(net_profit, language), "Отрицательный или слабый результат делает оценку заметно осторожнее: капитал и ликвидность должны компенсировать давление на прибыль.", "danger")
+
+    reserve_change = signals.get("reserve_change")
+    deposits_change = signals.get("deposits_change")
+    assets_change = signals.get("assets_change")
+    if reserve_change is not None and reserve_change > 0:
+        add("Главный риск", "Резервы растут", f"Резерв под потери вырос на {_format_bln_sum_from_thousand(reserve_change, language)}. Это главный сигнал проверить качество кредитного портфеля.", "danger")
+    elif deposits_change is not None and deposits_change < 0:
+        add("Главный риск", "Отток депозитов", f"Клиентские депозиты снизились на {_format_bln_sum_from_thousand(abs(deposits_change), language)}. Следующий шаг — проверить, чем банк заменяет эту ресурсную базу.", "warning")
+    elif assets_change is not None and assets_change < 0:
+        add("Главный риск", "Сжатие баланса", f"Активы сократились на {_format_bln_sum_from_thousand(abs(assets_change), language)}. Нужно понять, это плановая переоценка/погашение или сигнал давления на бизнес.", "warning")
+    elif ldr is not None and ldr > 120:
+        add("Главный риск", "Высокий LDR", "Кредитный портфель заметно выше депозитной базы. Это повышает зависимость от альтернативного фондирования.", "danger")
+    else:
+        add("Главный риск", "Без явного красного флага", "Главные показатели не дают одного доминирующего риска; итог нужно строить по сочетанию капитала, ликвидности и качества прибыли.", "good")
+
+    watch = []
+    if deposits_change is None or deposits_change < 0:
+        watch.append("депозиты")
+    if reserve_change is None or reserve_change > 0:
+        watch.append("резервы к брутто-кредитам")
+    if capital_assets is None or capital_assets < 12:
+        watch.append("капитал / активы")
+    if cir is None or cir > 60:
+        watch.append("CIR и операционные расходы")
+    if not watch:
+        watch = ["устойчивость маржи", "рост кредитов", "долю ликвидных активов"]
+    add("Следующий квартал", "Что проверить", "В следующем отчёте в первую очередь смотреть: " + ", ".join(watch[:4]) + ".", "neutral")
+    return items[:5]
+
+
 def _article_conclusion_blocks(
     base_text: str,
     assets_h: dict | None,
@@ -2483,6 +2776,7 @@ def _article_conclusion_blocks(
     net_profit = signals.get("net_profit")
     period_phrase = _article_period_phrase(_article_period_label_from_table(assets_h), language)
     rating = _article_rating_from_signals(signals, language)
+    summary_items = _article_verdict_summary_items(signals, language)
 
     if assets_total is not None:
         period_part = f" {period_phrase}" if period_phrase else ""
@@ -2538,6 +2832,7 @@ def _article_conclusion_blocks(
     return [
         {"type": "rating", "label": "Итоговая оценка", **rating},
         {"type": "paragraph", "text": intro},
+        *([{"type": "verdict_summary", "items": summary_items}] if summary_items else []),
         {"type": "verdict_list", "items": items[:8]},
     ]
 
@@ -2966,6 +3261,7 @@ def _build_article_report(
         )
     ratio_table = _ratio_article_table(metrics or {}, ifrs_snapshot or {}, lang, bank_extra=_bank_extra)
     ratio_blocks = _article_ratio_section_blocks(assets_h, liab_h, income_table, lang)
+    trend_table = _multi_period_article_trend_table(excel_rows, lang)
     key_indicators_table = _key_indicators_article_table(assets_h, liab_h, income_table, lang)
     period_phrase = _article_period_phrase(_article_period_label_from_table(assets_h), lang)
     period_suffix = f" {period_phrase}" if period_phrase and lang == "ru" else ""
@@ -3032,9 +3328,22 @@ def _build_article_report(
                 *t(income_table, "income_statement"),
             ],
         },
+        *([{
+            "id": "multi_period_trend",
+            "number": "05",
+            "title": {
+                "ru": "Многоквартальное сравнение ключевых показателей",
+                "en": "Multi-period key indicator comparison",
+                "uz": "Asosiy ko'rsatkichlarning ko'p davrli taqqoslanishi",
+            }.get(lang),
+            "blocks": [
+                p("Этот раздел нужен, чтобы не делать вывод по одному кварталу. Он показывает, повторяется ли тенденция в активах, депозитах, кредитах, капитале, прибыли и банковских коэффициентах."),
+                *t(trend_table, "multi_period_trend"),
+            ],
+        }] if trend_table else []),
         {
             "id": "ratio_analysis",
-            "number": "05",
+            "number": "06" if trend_table else "05",
             "title": {
                 "ru": "Коэффициентный анализ",
                 "en": "Ratio analysis",
@@ -3048,7 +3357,7 @@ def _build_article_report(
         },
         {
             "id": "key_indicators",
-            "number": "06",
+            "number": "07" if trend_table else "06",
             "title": {
                 "ru": "Сводная таблица ключевых показателей",
                 "en": "Key indicators summary",
@@ -3061,7 +3370,7 @@ def _build_article_report(
         },
         {
             "id": "conclusion",
-            "number": "07",
+            "number": "08" if trend_table else "07",
             "title": {
                 "ru": f"Итоговая оценка финансового состояния {company_name}{period_suffix}".strip(),
                 "en": "Final financial condition assessment",
