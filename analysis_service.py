@@ -34,9 +34,9 @@ from openinfo_collector import collect_company_data
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("api_key")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
-ANALYSIS_POLICY_VERSION = "public-information-v9-deep-analysis-2026-05-31"
+ANALYSIS_POLICY_VERSION = "public-information-v10-excel-document-order-2026-06-02"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v9"
+ARTICLE_REPORT_VERSION = "article-report-v10"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
@@ -2112,6 +2112,11 @@ def _article_table_signals(
     non_interest_income = _table_value_by_keywords(income_table, "итого беспроцентных доход")
     operating_expenses = _table_value_by_keywords(income_table, "итого операционных расходов")
     pre_operating_income = _table_value_by_keywords(income_table, "чистый доход до операционных расходов")
+    provision_expense = _table_value_by_keywords(income_table, "оценка возможных убытков", "кредит")
+    if provision_expense is None:
+        provision_expense = _table_value_by_keywords(income_table, "резерв")
+    pre_tax_profit = _table_value_by_keywords(income_table, "чистая прибыль до")
+    profit_tax = _table_value_by_keywords(income_table, "налог на прибыль")
     net_profit = _table_last_value_by_keywords(income_table, "чистая прибыль")
 
     ldr_pct = loans_net / deposits * 100 if loans_net is not None and deposits else None
@@ -2119,6 +2124,17 @@ def _article_table_signals(
     reserve_coverage_pct = reserve_loans / gross_loans * 100 if reserve_loans is not None and gross_loans else None
     capital_assets_pct = equity / assets_total * 100 if equity is not None and assets_total else None
     interest_coverage = interest_income / interest_expense if interest_income is not None and interest_expense else None
+    net_interest_income = interest_income - interest_expense if interest_income is not None and interest_expense is not None else None
+    roa_quarter_pct = net_profit / assets_total * 100 if net_profit is not None and assets_total else None
+    roe_quarter_pct = net_profit / equity * 100 if net_profit is not None and equity else None
+    nim_quarter_pct = net_interest_income / assets_total * 100 if net_interest_income is not None and assets_total else None
+    net_margin_pct = net_profit / interest_income * 100 if net_profit is not None and interest_income else None
+    reserve_burden_pct = abs(provision_expense) / abs(interest_income) * 100 if provision_expense is not None and interest_income else None
+    effective_tax_pct = abs(profit_tax) / abs(pre_tax_profit) * 100 if profit_tax is not None and pre_tax_profit else None
+    liabilities_total = _table_value_by_keywords(liab_h, "итого обязательств")
+    debt_assets_pct = liabilities_total / assets_total * 100 if liabilities_total is not None and assets_total else None
+    debt_equity = liabilities_total / equity if liabilities_total is not None and equity else None
+    leverage_assets_equity = assets_total / equity if assets_total is not None and equity else None
     non_interest_share_pct = (
         non_interest_income / (interest_income + non_interest_income) * 100
         if interest_income is not None and non_interest_income is not None and (interest_income + non_interest_income)
@@ -2144,12 +2160,29 @@ def _article_table_signals(
         "non_interest_income": non_interest_income,
         "operating_expenses": operating_expenses,
         "pre_operating_income": pre_operating_income,
+        "provision_expense": provision_expense,
+        "pre_tax_profit": pre_tax_profit,
+        "profit_tax": profit_tax,
         "net_profit": net_profit,
+        "net_interest_income": net_interest_income,
         "ldr_pct": ldr_pct,
         "first_line_pct": first_line_pct,
         "reserve_coverage_pct": reserve_coverage_pct,
         "capital_assets_pct": capital_assets_pct,
         "interest_coverage": interest_coverage,
+        "roa_quarter_pct": roa_quarter_pct,
+        "roa_annual_pct": roa_quarter_pct * 4 if roa_quarter_pct is not None else None,
+        "roe_quarter_pct": roe_quarter_pct,
+        "roe_annual_pct": roe_quarter_pct * 4 if roe_quarter_pct is not None else None,
+        "nim_quarter_pct": nim_quarter_pct,
+        "nim_annual_pct": nim_quarter_pct * 4 if nim_quarter_pct is not None else None,
+        "net_margin_pct": net_margin_pct,
+        "reserve_burden_pct": reserve_burden_pct,
+        "effective_tax_pct": effective_tax_pct,
+        "liabilities_total": liabilities_total,
+        "debt_assets_pct": debt_assets_pct,
+        "debt_equity": debt_equity,
+        "leverage_assets_equity": leverage_assets_equity,
         "non_interest_share_pct": non_interest_share_pct,
         "cir_pct": cir_pct,
     }
@@ -2430,6 +2463,50 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
             "tone": tone,
         })
 
+    def add_pct_neutral(
+        category: str,
+        title: str,
+        key: str,
+        formula: str,
+        hint: str,
+        benchmark: str,
+    ):
+        value = signals.get(key)
+        if value is None:
+            return
+        items.append({
+            "category": category,
+            "label": title,
+            "value": _format_report_pct(value, language),
+            "hint": hint,
+            "formula": formula,
+            "benchmark": benchmark,
+            "assessment": "Информационно",
+            "tone": "neutral",
+        })
+
+    def add_ratio_neutral(
+        category: str,
+        title: str,
+        key: str,
+        formula: str,
+        hint: str,
+        benchmark: str,
+    ):
+        value = signals.get(key)
+        if value is None:
+            return
+        items.append({
+            "category": category,
+            "label": title,
+            "value": f"{_format_report_number(value, language=language, digits=2)}×",
+            "hint": hint,
+            "formula": formula,
+            "benchmark": benchmark,
+            "assessment": "Информационно",
+            "tone": "neutral",
+        })
+
     net_profit = signals.get("net_profit")
     if net_profit is not None:
         tone = "good" if net_profit > 0 else "danger" if net_profit < 0 else "neutral"
@@ -2476,6 +2553,54 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
         1.2,
     )
     add_pct(
+        "profitability",
+        "ROA (аннуализ.)",
+        "roa_annual_pct",
+        "(Чистая прибыль / активы) × 4 × 100",
+        "Показывает доходность активов в годовом выражении. Для квартального отчёта показатель аннуализируется, чтобы его можно было сравнить с банковскими ориентирами.",
+        "1–2% для банков",
+        1,
+        0.5,
+    )
+    add_pct(
+        "profitability",
+        "ROE (аннуализ.)",
+        "roe_annual_pct",
+        "(Чистая прибыль / капитал) × 4 × 100",
+        "Показывает доходность капитала акционеров в годовом выражении. Очень высокий ROE нужно читать вместе с капитализацией и риском резервов.",
+        "10–20%",
+        10,
+        5,
+    )
+    add_pct(
+        "profitability",
+        "NIM (аннуализ.)",
+        "nim_annual_pct",
+        "(Процентные доходы − процентные расходы) / активы × 4 × 100",
+        "Показывает годовую чистую процентную маржу банка относительно активов.",
+        "3–5%",
+        3,
+        1,
+    )
+    add_pct(
+        "profitability",
+        "Чистая маржа прибыли",
+        "net_margin_pct",
+        "Чистая прибыль / процентные доходы × 100",
+        "Показывает, сколько чистой прибыли остаётся на 100 сум процентного дохода после расходов, резервов и налога.",
+        "> 15%",
+        15,
+        5,
+    )
+    add_pct_neutral(
+        "profitability",
+        "Эффективная ставка налога",
+        "effective_tax_pct",
+        "Налог на прибыль / прибыль до налога × 100",
+        "Помогает понять, насколько чистая прибыль зависит от налоговой нагрузки, льгот или разовых налоговых эффектов.",
+        "сравнить со стандартной ставкой",
+    )
+    add_pct(
         "asset_quality",
         "Покрытие брутто-кредитов резервами",
         "reserve_coverage_pct",
@@ -2487,6 +2612,17 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
         reverse=True,
     )
     add_pct(
+        "asset_quality",
+        "Резервная нагрузка",
+        "reserve_burden_pct",
+        "Расходы на резервы / процентные доходы × 100",
+        "Показывает, какую часть процентного дохода банк направляет на покрытие возможных кредитных потерь.",
+        "< 10%",
+        10,
+        20,
+        reverse=True,
+    )
+    add_pct(
         "capital",
         "Капитал / активы",
         "capital_assets_pct",
@@ -2495,6 +2631,30 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
         "> 12%",
         12,
         8,
+    )
+    add_ratio_neutral(
+        "capital",
+        "Левередж активы / капитал",
+        "leverage_assets_equity",
+        "Активы / собственный капитал",
+        "Показывает, во сколько раз активы превышают капитал. Для банков высокий рычаг нормален, но рост рычага снижает запас прочности.",
+        "≈ 6–12× для банков",
+    )
+    add_pct_neutral(
+        "capital",
+        "Коэффициент задолженности D/A",
+        "debt_assets_pct",
+        "Обязательства / активы × 100",
+        "Показывает долю привлечённых средств в балансе. Для банка высокий показатель нормален, но его нужно читать вместе с капиталом и ликвидностью.",
+        "≈ 80–90% для банков",
+    )
+    add_ratio_neutral(
+        "capital",
+        "D/E — долг / капитал",
+        "debt_equity",
+        "Обязательства / собственный капитал",
+        "Показывает финансовый рычаг: сколько обязательств приходится на 1 сум капитала.",
+        "≈ 4–8× для банков",
     )
     add_pct(
         "efficiency",
@@ -2572,6 +2732,92 @@ def _article_ratio_category_intro(category: str, items: list[dict], signals: dic
     return ""
 
 
+def _article_ratio_category_followups(category: str, signals: dict, language: str) -> list[dict]:
+    if _normalize_language(language) != "ru":
+        return []
+
+    def block(text: str) -> dict:
+        return {"type": "paragraph", "text": text}
+
+    def pct(key: str) -> str:
+        return _format_report_pct(signals.get(key), language)
+
+    def money(key: str) -> str:
+        return _format_bln_sum_from_thousand(signals.get(key), language)
+
+    out: list[dict] = []
+    if category == "liquidity":
+        ldr = signals.get("ldr_pct")
+        first_line = signals.get("first_line_pct")
+        deposits_change = signals.get("deposits_change")
+        if ldr is not None and ldr > 100:
+            text = (
+                f"Значение LDR на уровне {pct('ldr_pct')} означает, что кредитный портфель больше клиентской депозитной базы. "
+                "Банк покрывает этот разрыв за счёт других источников фондирования: привлечённых кредитов, межбанковского рынка, РЕПО или капитала."
+            )
+            if deposits_change is not None and deposits_change < 0:
+                text += f" Отток клиентских депозитов на {_format_bln_sum_from_thousand(abs(deposits_change), language)} усиливает этот риск и должен стать одним из главных пунктов мониторинга."
+            out.append(block(text))
+        if first_line is not None:
+            out.append(block(
+                f"Ликвидные активы первой линии составляют {pct('first_line_pct')} активов. Для банка с крупной депозитной базой это нижняя часть комфортной зоны: показатель не критичен сам по себе, но при оттоке депозитов запас быстрых денег становится важнее прибыли."
+            ))
+
+    if category == "profitability":
+        net_profit = signals.get("net_profit")
+        if net_profit is not None:
+            tax_text = ""
+            if signals.get("effective_tax_pct") is not None:
+                tax_text = f" Эффективная ставка налога составила {pct('effective_tax_pct')}, поэтому чистую прибыль нужно читать вместе с налоговыми эффектами периода."
+            out.append(block(
+                f"Чистая прибыль за квартал составила {money('net_profit')}.{tax_text} Это сильный результат, если он поддержан процентной маржой, а не только разовыми статьями."
+            ))
+        if signals.get("roa_quarter_pct") is not None or signals.get("roe_quarter_pct") is not None:
+            out.append(block(
+                f"Квартальный ROA составляет {pct('roa_quarter_pct')} ({pct('roa_annual_pct')} в годовом выражении), ROE — {pct('roe_quarter_pct')} за квартал ({pct('roe_annual_pct')} годовых). Аннуализация нужна потому, что отчёт покрывает один квартал, а банковские ориентиры обычно читаются в годовом формате."
+            ))
+        if signals.get("nim_quarter_pct") is not None or signals.get("net_margin_pct") is not None:
+            out.append(block(
+                f"Чистая процентная маржа до резервов составляет {pct('nim_quarter_pct')} за квартал ({pct('nim_annual_pct')} годовых), а чистая маржа прибыли — {pct('net_margin_pct')}. Это показывает, сколько процентного бизнеса превращается в итоговую прибыль после фондирования, резервов, расходов и налога."
+            ))
+
+    if category == "asset_quality":
+        if signals.get("reserve_burden_pct") is not None:
+            out.append(block(
+                f"Резервная нагрузка равна {pct('reserve_burden_pct')} процентных доходов. Это означает, что заметная часть процентной маржи уходит на покрытие возможных потерь, поэтому высокая прибыль не должна оцениваться отдельно от качества кредитного портфеля."
+            ))
+        if signals.get("reserve_change") is not None and signals.get("reserve_change") > 0:
+            out.append(block(
+                f"Резерв под потери вырос на {money('reserve_change')}. Если это отражает ухудшение портфеля, будущая прибыль может быть менее устойчивой; если это консервативное доформирование резервов, эффект может быть временным. Без раскрытия NPL это нужно оставлять как риск для следующего квартала."
+            ))
+
+    if category == "capital":
+        if signals.get("capital_assets_pct") is not None:
+            out.append(block(
+                f"Капитал/активы составляет {pct('capital_assets_pct')}, что выше базового ориентира 8% и даёт банку буфер прочности. Но сам факт достаточного капитала не отменяет контроля за дивидендами, резервами и ростом активов."
+            ))
+        if signals.get("debt_assets_pct") is not None or signals.get("debt_equity") is not None:
+            out.append(block(
+                f"Коэффициент задолженности D/A равен {pct('debt_assets_pct')}, D/E — {_format_report_number(signals.get('debt_equity'), language=language, digits=2)}×, левередж активы/капитал — {_format_report_number(signals.get('leverage_assets_equity'), language=language, digits=2)}×. Для банка высокий финансовый рычаг нормален, но снижение капитализации делает итоговый вывод осторожнее."
+            ))
+        if signals.get("equity_change") is not None and signals.get("equity_change") < 0 and signals.get("net_profit") is not None and signals.get("net_profit") > 0:
+            implied_distribution = abs(signals["equity_change"]) + signals["net_profit"]
+            out.append(block(
+                f"Капитал снизился на {_format_bln_sum_from_thousand(abs(signals['equity_change']), language)} при прибыли {money('net_profit')}. Расчётно это указывает на крупное распределение прибыли или прочие движения капитала около {_format_bln_sum_from_thousand(implied_distribution, language)}, что похоже на логику HTML-отчёта с акцентом на дивидендное давление."
+            ))
+
+    if category == "efficiency":
+        if signals.get("cir_pct") is not None:
+            out.append(block(
+                f"CIR составляет {pct('cir_pct')}. Чем ниже этот показатель, тем больше операционного дохода остаётся после административных расходов; для банка это один из главных признаков управляемости бизнес-модели."
+            ))
+        if signals.get("non_interest_share_pct") is not None:
+            out.append(block(
+                f"Доля непроцентных доходов равна {pct('non_interest_share_pct')}. Это полезно для диверсификации, но слишком высокая зависимость от разовых валютных, торговых или прочих доходов снижает предсказуемость прибыли."
+            ))
+    return out
+
+
 def _article_ratio_section_blocks(
     assets_h: dict | None,
     liab_h: dict | None,
@@ -2612,6 +2858,7 @@ def _article_ratio_section_blocks(
                 "description": item["hint"],
                 "tone": item["tone"],
             })
+        blocks.extend(_article_ratio_category_followups(category, signals, language))
     return blocks
 
 
