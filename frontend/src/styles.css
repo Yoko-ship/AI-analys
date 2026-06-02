@@ -7227,6 +7227,9 @@ body[data-theme="light"] .report-article .article-kpi-card__label,
 .report-article .article-formula__title,
 body[data-theme="dark"] .report-article .article-formula__title,
 body[data-theme="light"] .report-article .article-formula__title,
+.report-article .article-verdict-summary-card__label,
+body[data-theme="dark"] .report-article .article-verdict-summary-card__label,
+body[data-theme="light"] .report-article .article-verdict-summary-card__label,
 .report-article .article-verdict-item span,
 body[data-theme="dark"] .report-article .article-verdict-item span,
 body[data-theme="light"] .report-article .article-verdict-item span {
@@ -7306,6 +7309,46 @@ body[data-theme="light"] .report-article .article-formula p {
   color: #4a4038;
   font-size: 13px;
   line-height: 1.6;
+}
+
+.report-article .article-verdict-summary,
+body[data-theme="dark"] .report-article .article-verdict-summary,
+body[data-theme="light"] .report-article .article-verdict-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.report-article .article-verdict-summary-card,
+body[data-theme="dark"] .report-article .article-verdict-summary-card,
+body[data-theme="light"] .report-article .article-verdict-summary-card {
+  min-width: 0;
+  padding: 15px 16px;
+  border: 1px solid #d8c8aa;
+  border-left: 4px solid #8a7a69;
+  border-radius: 6px;
+  background: #fdf9f4;
+  box-shadow: 0 8px 18px rgba(72, 52, 28, 0.06);
+}
+
+.report-article .article-verdict-summary-card__value,
+body[data-theme="dark"] .report-article .article-verdict-summary-card__value,
+body[data-theme="light"] .report-article .article-verdict-summary-card__value {
+  display: block;
+  margin-top: 7px;
+  color: #1a1612;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 21px;
+  line-height: 1.18;
+}
+
+.report-article .article-verdict-summary-card__text,
+body[data-theme="dark"] .report-article .article-verdict-summary-card__text,
+body[data-theme="light"] .report-article .article-verdict-summary-card__text {
+  margin: 8px 0 0;
+  color: #2f2924;
+  font-size: 13px;
+  line-height: 1.62;
 }
 
 .report-article .article-verdict-list,

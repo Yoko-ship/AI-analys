@@ -2116,6 +2116,23 @@ function StructuredReportBlocks({ blocks = [], keyPrefix = "article" }) {
         </section>
       );
     }
+    if (block?.type === "verdict_summary") {
+      const items = Array.isArray(block.items) ? block.items : [];
+      if (!items.length) return null;
+      return (
+        <section key={`${keyPrefix}-verdict-summary-${index}`} className="analysis-sector analysis-sector--verdict-summary">
+          <div className="article-verdict-summary">
+            {items.map((item, itemIndex) => (
+              <div key={`${item.label || itemIndex}-${itemIndex}`} className={`article-verdict-summary-card tone-${item.tone || "neutral"}`}>
+                <span className="article-verdict-summary-card__label">{item.label}</span>
+                {item.value && <strong className="article-verdict-summary-card__value">{item.value}</strong>}
+                {item.text && <p className="article-verdict-summary-card__text">{item.text}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
     if (block?.type === "verdict_list") {
       const items = Array.isArray(block.items) ? block.items : [];
       if (!items.length) return null;
