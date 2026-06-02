@@ -2067,6 +2067,24 @@ function isArticleTotalRow(row) {
 
 function StructuredReportBlocks({ blocks = [], keyPrefix = "article" }) {
   return blocks.map((block, index) => {
+    if (block?.type === "subheading" && block.text) {
+      return (
+        <section key={`${keyPrefix}-subheading-${index}`} className="analysis-sector analysis-sector--subheading">
+          <h4 className="article-subheading">{block.text}</h4>
+        </section>
+      );
+    }
+    if (block?.type === "rating") {
+      return (
+        <section key={`${keyPrefix}-rating-${index}`} className={`analysis-sector analysis-sector--rating tone-${block.tone || "neutral"}`}>
+          <div className={`article-rating tone-${block.tone || "neutral"}`}>
+            {block.label && <span className="article-rating__label">{block.label}</span>}
+            <strong className="article-rating__value">{block.value ?? "—"}</strong>
+            {block.text && <p>{block.text}</p>}
+          </div>
+        </section>
+      );
+    }
     if (block?.type === "kpi_grid") {
       const items = Array.isArray(block.items) ? block.items : [];
       if (!items.length) return null;
@@ -2177,6 +2195,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
       ticker: "Тикер",
       annual: "Годовой период",
       quarterly: "Квартальный период",
+      analysisPeriod: "Период анализа",
       tables: "Таблиц",
       source: "Источник",
       fresh: "Свежий расчёт",
@@ -2191,6 +2210,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
       ticker: "Ticker",
       annual: "Annual period",
       quarterly: "Quarterly period",
+      analysisPeriod: "Analysis period",
       tables: "Tables",
       source: "Source",
       fresh: "Fresh run",
@@ -2205,6 +2225,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
       ticker: "Tiker",
       annual: "Yillik davr",
       quarterly: "Chorak davr",
+      analysisPeriod: "Tahlil davri",
       tables: "Jadval",
       source: "Manba",
       fresh: "Yangi hisob",
@@ -2219,6 +2240,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
     ticker: "Тикер",
     annual: "Годовой период",
     quarterly: "Квартальный период",
+    analysisPeriod: "Период анализа",
     tables: "Таблиц",
     source: "Источник",
     fresh: "Свежий расчёт",
@@ -2251,6 +2273,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
             [dict.ticker, ticker],
             [dict.annual, reportMeta.annual_period || analysisResult.annual_period || "—"],
             [dict.quarterly, reportMeta.quarterly_period || analysisResult.quarterly_period || "—"],
+            [dict.analysisPeriod, reportMeta.analysis_period || reportMeta.analysis_comparison || "—"],
             [dict.tables, tableCount || "—"],
             [dict.source, analysisResult.from_cache ? dict.cache : dict.fresh],
           ].map(([label, value]) => (
