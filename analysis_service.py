@@ -36,7 +36,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v10-excel-document-order-2026-06-02"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v10"
+ARTICLE_REPORT_VERSION = "article-report-v11"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
@@ -780,6 +780,13 @@ def _article_rows_for_report(rows: list[dict], report_index: int | None) -> list
     return [row for row in rows if int(row.get("report_index") or 0) == int(report_index)]
 
 
+def _article_rows_for_report_indices(rows: list[dict], report_indices: list[int]) -> list[dict]:
+    allowed = {int(index) for index in report_indices}
+    if not allowed:
+        return rows
+    return [row for row in rows if int(row.get("report_index") or 0) in allowed]
+
+
 def _article_line_code(label: str) -> str:
     text = str(label or "").strip().lower()
     match = re.match(r"^(\d+)\s*[\.\)]?", text)
@@ -1054,6 +1061,54 @@ def _normalized_article_entries(
     return entries
 
 
+def _article_entries_have_current_data(entries: list[dict], *, min_nonzero_rows: int = 2) -> bool:
+    nonzero_count = 0
+    for entry in entries or []:
+        current = _safe_float(entry.get("current"))
+        if _article_amount_is_zero(current):
+            continue
+        nonzero_count += 1
+        label = str(entry.get("label") or "")
+        if _is_total_report_label(label):
+            return True
+    return nonzero_count >= min_nonzero_rows
+
+
+def _article_report_has_current_data(table_id: str, current_rows: list[dict]) -> bool:
+    if not current_rows:
+        return False
+    normalized_entries = _normalized_article_entries(table_id, current_rows, {})
+    if normalized_entries:
+        return _article_entries_have_current_data(normalized_entries)
+
+    nonzero_count = 0
+    for row in current_rows:
+        current = _article_current_amount(row)
+        if _article_amount_is_zero(current):
+            continue
+        nonzero_count += 1
+        label = str(row.get("label") or "")
+        if _is_total_report_label(label):
+            return True
+    return nonzero_count >= 2
+
+
+def _article_report_indices_with_current_data(rows: list[dict], table_id: str) -> list[int]:
+    return [
+        index
+        for index in _article_report_indices(rows)
+        if _article_report_has_current_data(table_id, _article_rows_for_report(rows, index))
+    ]
+
+
+def _article_current_previous_report_indices(rows: list[dict], table_id: str) -> tuple[int | None, int | None]:
+    valid_indices = _article_report_indices_with_current_data(rows, table_id)
+    indices = valid_indices or _article_report_indices(rows)
+    current_index = indices[0] if indices else None
+    previous_index = indices[1] if len(indices) > 1 else None
+    return current_index, previous_index
+
+
 def _horizontal_article_table(
     table_id: str,
     caption: str,
@@ -1065,9 +1120,7 @@ def _horizontal_article_table(
     labels = _report_table_labels(language)
     rows = []
     seen = set()
-    report_indices = _article_report_indices(source_rows)
-    current_index = report_indices[0] if report_indices else None
-    previous_index = report_indices[1] if len(report_indices) > 1 else None
+    current_index, previous_index = _article_current_previous_report_indices(source_rows, table_id)
     current_rows = _article_rows_for_report(source_rows, current_index) or source_rows
     previous_lookup = _article_row_lookup(_article_rows_for_report(source_rows, previous_index))
     current_label = _article_report_period_label(source_rows, current_index, labels["current"]) if current_index is not None else labels["current"]
@@ -1130,9 +1183,7 @@ def _vertical_article_table(
     limit: int = ARTICLE_ANALYSIS_ROW_LIMIT,
 ) -> dict | None:
     labels = _report_table_labels(language)
-    report_indices = _article_report_indices(source_rows)
-    current_index = report_indices[0] if report_indices else None
-    previous_index = report_indices[1] if len(report_indices) > 1 else None
+    current_index, previous_index = _article_current_previous_report_indices(source_rows, table_id)
     current_rows = _article_rows_for_report(source_rows, current_index) or source_rows
     previous_rows = _article_rows_for_report(source_rows, previous_index)
     previous_lookup = _article_row_lookup(previous_rows)
@@ -1209,8 +1260,7 @@ def _income_article_table(
     labels = _report_table_labels(language)
     rows = []
     seen = set()
-    report_indices = _article_report_indices(source_rows)
-    current_index = report_indices[0] if report_indices else None
+    current_index, _ = _article_current_previous_report_indices(source_rows, "income_statement_horizontal_vertical")
     current_rows = _article_rows_for_report(source_rows, current_index) or source_rows
 
     interest_income_base = None
@@ -2243,9 +2293,21 @@ def _article_trend_point_from_rows(period_rows: list[dict]) -> dict | None:
     asset_rows = [row for row in period_rows if row.get("article_kind") == "assets"]
     liability_rows = [row for row in period_rows if row.get("article_kind") == "liabilities_equity"]
     income_rows = [row for row in period_rows if row.get("article_kind") == "income_statement"]
-    asset_entries = _normalized_article_entries("assets_horizontal", asset_rows, {})
-    liability_entries = _normalized_article_entries("liabilities_horizontal", liability_rows, {})
-    income_entries = _normalized_article_entries("income_statement_horizontal_vertical", income_rows, {})
+    asset_entries = (
+        _normalized_article_entries("assets_horizontal", asset_rows, {})
+        if _article_report_has_current_data("assets_horizontal", asset_rows)
+        else []
+    )
+    liability_entries = (
+        _normalized_article_entries("liabilities_horizontal", liability_rows, {})
+        if _article_report_has_current_data("liabilities_horizontal", liability_rows)
+        else []
+    )
+    income_entries = (
+        _normalized_article_entries("income_statement_horizontal_vertical", income_rows, {})
+        if _article_report_has_current_data("income_statement_horizontal_vertical", income_rows)
+        else []
+    )
 
     assets_total = _article_entry_current_value(asset_entries, "итого актив")
     cash = _article_entry_current_value(asset_entries, "касса")
@@ -2264,7 +2326,7 @@ def _article_trend_point_from_rows(period_rows: list[dict]) -> dict | None:
     pre_operating_income = _article_entry_current_value(income_entries, "чистый доход до операционных расходов")
     net_profit = _article_entry_current_value(income_entries, "чистая прибыль", last=True)
 
-    if not any(value is not None for value in (assets_total, deposits, loans_net, equity, net_profit)):
+    if not any(not _article_amount_is_zero(value) for value in (assets_total, deposits, loans_net, equity, net_profit)):
         return None
     return {
         "assets_total": assets_total,
@@ -3471,6 +3533,16 @@ def _build_article_report(
     asset_rows = [row for row in excel_rows if row.get("article_kind") == "assets"]
     liability_rows = [row for row in excel_rows if row.get("article_kind") == "liabilities_equity"]
     income_rows = [row for row in excel_rows if row.get("article_kind") == "income_statement"]
+    asset_valid_indices = set(_article_report_indices_with_current_data(asset_rows, "assets_horizontal"))
+    liability_valid_indices = set(_article_report_indices_with_current_data(liability_rows, "liabilities_horizontal"))
+    common_balance_indices = [
+        index
+        for index in _article_report_indices(asset_rows + liability_rows)
+        if index in asset_valid_indices and index in liability_valid_indices
+    ]
+    if common_balance_indices:
+        asset_rows = _article_rows_for_report_indices(asset_rows, common_balance_indices)
+        liability_rows = _article_rows_for_report_indices(liability_rows, common_balance_indices)
 
     total_assets = ((ifrs_snapshot or {}).get("balance_sheet") or {}).get("total_assets")
     total_liabilities = None
