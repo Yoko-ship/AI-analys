@@ -36,9 +36,9 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v10-excel-document-order-2026-06-02"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v13"
+ARTICLE_REPORT_VERSION = "article-report-v14"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "120"))
-ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "20"))
+ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "0"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "80"))
 ARTICLE_EXCEL_APPENDIX_MAX_COLUMNS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_COLUMNS", "8"))
 DEFAULT_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
@@ -1696,6 +1696,9 @@ def _excel_appendix_article_tables(company_data: dict | None, language: str) -> 
     max_tables = max(0, ARTICLE_EXCEL_APPENDIX_MAX_TABLES)
     max_rows = max(0, ARTICLE_EXCEL_APPENDIX_MAX_ROWS)
     max_columns = max(2, ARTICLE_EXCEL_APPENDIX_MAX_COLUMNS)
+    if max_tables <= 0 or max_rows <= 0:
+        return []
+
     tables: list[dict] = []
 
     for report_index, report in enumerate(reports):
