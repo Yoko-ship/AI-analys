@@ -36,7 +36,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v10-excel-document-order-2026-06-02"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v11"
+ARTICLE_REPORT_VERSION = "article-report-v12"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
@@ -778,13 +778,6 @@ def _article_rows_for_report(rows: list[dict], report_index: int | None) -> list
     if report_index is None:
         return []
     return [row for row in rows if int(row.get("report_index") or 0) == int(report_index)]
-
-
-def _article_rows_for_report_indices(rows: list[dict], report_indices: list[int]) -> list[dict]:
-    allowed = {int(index) for index in report_indices}
-    if not allowed:
-        return rows
-    return [row for row in rows if int(row.get("report_index") or 0) in allowed]
 
 
 def _article_line_code(label: str) -> str:
@@ -3533,16 +3526,6 @@ def _build_article_report(
     asset_rows = [row for row in excel_rows if row.get("article_kind") == "assets"]
     liability_rows = [row for row in excel_rows if row.get("article_kind") == "liabilities_equity"]
     income_rows = [row for row in excel_rows if row.get("article_kind") == "income_statement"]
-    asset_valid_indices = set(_article_report_indices_with_current_data(asset_rows, "assets_horizontal"))
-    liability_valid_indices = set(_article_report_indices_with_current_data(liability_rows, "liabilities_horizontal"))
-    common_balance_indices = [
-        index
-        for index in _article_report_indices(asset_rows + liability_rows)
-        if index in asset_valid_indices and index in liability_valid_indices
-    ]
-    if common_balance_indices:
-        asset_rows = _article_rows_for_report_indices(asset_rows, common_balance_indices)
-        liability_rows = _article_rows_for_report_indices(liability_rows, common_balance_indices)
 
     total_assets = ((ifrs_snapshot or {}).get("balance_sheet") or {}).get("total_assets")
     total_liabilities = None
