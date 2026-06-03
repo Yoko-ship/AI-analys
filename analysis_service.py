@@ -36,10 +36,10 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v10-excel-document-order-2026-06-02"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v12"
-ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "40"))
-ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "12"))
-ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "30"))
+ARTICLE_REPORT_VERSION = "article-report-v13"
+ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "120"))
+ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "20"))
+ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "80"))
 ARTICLE_EXCEL_APPENDIX_MAX_COLUMNS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_COLUMNS", "8"))
 DEFAULT_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
 ABSOLUTE_EXCEL_REPORT_LIMIT = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
@@ -911,12 +911,13 @@ def _article_entry_from_spec(
     previous_lookup: dict[str, dict],
     used_labels: set[str],
 ) -> dict | None:
+    source_label = ""
+    source_labels: list[str] = []
     if spec.get("aggregate"):
         current_total = 0.0
         previous_total = 0.0
         has_current = False
         has_previous = False
-        source_labels = []
         for part in spec.get("aggregate") or []:
             row = _article_select_row(current_rows, part)
             if not row:
@@ -951,7 +952,12 @@ def _article_entry_from_spec(
     label = spec.get("label") or _clean_article_label((row or {}).get("label") if not spec.get("aggregate") else "")
     if not spec.get("keep_zero") and _article_is_zero_noise(label, current, previous):
         return None
-    return {"label": label, "current": current, "previous": previous, "spec": spec}
+    entry = {"label": label, "current": current, "previous": previous, "spec": spec}
+    if source_label:
+        entry["source_label"] = source_label
+    if source_labels:
+        entry["source_labels"] = source_labels
+    return entry
 
 
 def _asset_article_specs() -> list[dict]:
@@ -1054,6 +1060,93 @@ def _normalized_article_entries(
     return entries
 
 
+def _article_label_keys(label: str) -> set[str]:
+    cleaned = _clean_article_label(label)
+    if not cleaned or cleaned in {"-", "\u2013", "\u2014"}:
+        return set()
+    return {
+        key
+        for key in (
+            cleaned.lower(),
+            _article_line_code(cleaned),
+            _normalize_article_label_key(cleaned),
+        )
+        if key
+    }
+
+
+def _article_entry_label_keys(entry: dict) -> set[str]:
+    keys: set[str] = set()
+    for label in (entry.get("label"), entry.get("source_label")):
+        keys.update(_article_label_keys(str(label or "")))
+    for label in entry.get("source_labels") or []:
+        keys.update(_article_label_keys(str(label or "")))
+    spec = entry.get("spec") or {}
+    for line_code in spec.get("line_codes") or []:
+        if line_code:
+            keys.add(str(line_code))
+    for part in spec.get("aggregate") or []:
+        for line_code in part.get("line_codes") or []:
+            if line_code:
+                keys.add(str(line_code))
+    return keys
+
+
+def _article_supplemental_label_is_noise(label: str) -> bool:
+    cleaned = _clean_article_label(label)
+    if not cleaned or cleaned in {"-", "\u2013", "\u2014"}:
+        return True
+    if len(cleaned) <= 2 and not re.search(r"\d", cleaned):
+        return True
+    if re.fullmatch(r"(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4})", cleaned):
+        return True
+    lowered = cleaned.lower()
+    noise_tokens = (
+        "reporting date",
+        "date of report",
+        "balance sheet",
+        "income statement",
+        "\u0434\u0430\u0442\u0430 \u043e\u0442\u0447\u0435\u0442\u043d\u043e\u0441\u0442\u0438",
+        "\u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0441\u043a\u0438\u0439 \u0431\u0430\u043b\u0430\u043d\u0441",
+        "\u0444\u043e\u0440\u043c\u0430 \u2116",
+        "\u043e\u0442\u0447\u0435\u0442 \u043e \u0444\u0438\u043d\u0430\u043d\u0441\u043e\u0432\u044b\u0445 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442\u0430\u0445",
+    )
+    return any(token in lowered for token in noise_tokens)
+
+
+def _article_supplemental_entries(
+    current_rows: list[dict],
+    previous_lookup: dict[str, dict],
+    used_entries: list[dict],
+    limit: int,
+) -> list[dict]:
+    if limit <= 0:
+        return []
+
+    used_keys: set[str] = set()
+    for entry in used_entries or []:
+        used_keys.update(_article_entry_label_keys(entry))
+
+    entries: list[dict] = []
+    for row in current_rows:
+        label = _clean_article_label(row.get("label"))
+        if _article_supplemental_label_is_noise(label):
+            continue
+        row_keys = _article_label_keys(label)
+        if row_keys and row_keys & used_keys:
+            continue
+        previous_row = _article_matching_row(row, previous_lookup)
+        current, previous = _article_current_previous_amounts(row, previous_row)
+        if current is None or _article_is_zero_noise(label, current, previous):
+            continue
+        entry = {"label": label, "current": current, "previous": previous}
+        entries.append(entry)
+        used_keys.update(row_keys)
+        if len(entries) >= limit:
+            break
+    return entries
+
+
 def _article_entries_have_current_data(entries: list[dict], *, min_nonzero_rows: int = 2) -> bool:
     nonzero_count = 0
     for entry in entries or []:
@@ -1123,7 +1216,13 @@ def _horizontal_article_table(
 
     normalized_entries = _normalized_article_entries(table_id, current_rows, previous_lookup)
     if normalized_entries:
-        row_source = normalized_entries
+        row_source = list(normalized_entries)
+        row_source.extend(_article_supplemental_entries(
+            current_rows,
+            previous_lookup,
+            row_source,
+            max(0, limit - len(row_source)),
+        ))
     else:
         row_source = []
         for row in current_rows:
@@ -1202,7 +1301,13 @@ def _vertical_article_table(
     display_scale = 1000 if abs(total) >= 10_000_000 else 1
     normalized_entries = _normalized_article_entries(table_id, current_rows, previous_lookup)
     if normalized_entries:
-        row_source = normalized_entries
+        row_source = list(normalized_entries)
+        row_source.extend(_article_supplemental_entries(
+            current_rows,
+            previous_lookup,
+            row_source,
+            max(0, limit - len(row_source)),
+        ))
     else:
         row_source = []
         for row in current_rows:
@@ -1276,7 +1381,13 @@ def _income_article_table(
 
     normalized_entries = _normalized_article_entries("income_statement_horizontal_vertical", current_rows, {})
     if normalized_entries:
-        row_source = normalized_entries
+        row_source = list(normalized_entries)
+        row_source.extend(_article_supplemental_entries(
+            current_rows,
+            {},
+            row_source,
+            max(0, limit - len(row_source)),
+        ))
     else:
         row_source = []
         for row in current_rows:
@@ -3567,13 +3678,23 @@ def _build_article_report(
     key_indicators_table = _key_indicators_article_table(assets_h, liab_h, income_table, lang)
     period_phrase = _article_period_phrase(_article_period_label_from_table(assets_h), lang)
     period_suffix = f" {period_phrase}" if period_phrase and lang == "ru" else ""
-    appendix_tables: list[dict] = []
+    appendix_tables = _excel_appendix_article_tables(company_data, lang)
 
     def p(text: str) -> dict:
         return {"type": "paragraph", "text": text}
 
     def t(table: dict | None, role: str) -> list[dict]:
         return _table_with_explanation(table, role, lang)
+
+    appendix_intro = {
+        "ru": "\u0414\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0435 XLSX-\u0441\u0442\u0440\u043e\u043a\u0438 \u043d\u0443\u0436\u043d\u044b, \u0447\u0442\u043e\u0431\u044b \u043d\u0435 \u0442\u0435\u0440\u044f\u0442\u044c \u0434\u0430\u043d\u043d\u044b\u0435, \u043a\u043e\u0442\u043e\u0440\u044b\u0435 \u043d\u0435 \u0432\u043e\u0448\u043b\u0438 \u0432 \u043e\u0441\u043d\u043e\u0432\u043d\u044b\u0435 \u0441\u0432\u043e\u0434\u043d\u044b\u0435 \u0442\u0430\u0431\u043b\u0438\u0446\u044b. \u0418\u0445 \u0441\u0442\u043e\u0438\u0442 \u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c \u043a\u0430\u043a \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043e\u0432\u043a\u0443: \u0435\u0441\u043b\u0438 \u0441\u0442\u0440\u043e\u043a\u0430 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0435\u043d\u043d\u0430\u044f, \u043e\u043d\u0430 \u043f\u043e\u043c\u043e\u0433\u0430\u0435\u0442 \u043f\u043e\u043d\u044f\u0442\u044c, \u0438\u0437 \u0447\u0435\u0433\u043e \u0441\u043b\u043e\u0436\u0438\u043b\u0438\u0441\u044c \u0440\u0438\u0441\u043a, \u0434\u043e\u0445\u043e\u0434, \u043b\u0438\u043a\u0432\u0438\u0434\u043d\u043e\u0441\u0442\u044c \u0438\u043b\u0438 \u043a\u0430\u043f\u0438\u0442\u0430\u043b.",
+        "en": "Additional XLSX rows are included so the report does not lose data that did not fit into the main summary tables. Read them as detail: material lines help explain what drives risk, income, liquidity or capital.",
+        "uz": "Qo'shimcha XLSX qatorlari asosiy jadvallarga sig'magan ma'lumot yo'qolmasligi uchun beriladi. Ularni tafsilot sifatida o'qing: muhim qatorlar risk, daromad, likvidlik yoki kapital nimadan shakllanganini ko'rsatadi.",
+    }.get(lang, "Additional XLSX rows are included so the report does not lose source data.")
+    appendix_blocks = [
+        p(appendix_intro),
+        *({"type": "table", **table} for table in appendix_tables),
+    ] if appendix_tables else []
 
     article_sections = [
         {
@@ -3687,6 +3808,16 @@ def _build_article_report(
                 lang,
             ),
         },
+        *([{
+            "id": "excel_appendix",
+            "number": "09" if trend_table else "08",
+            "title": {
+                "ru": "\u0414\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0435 XLSX-\u0441\u0442\u0440\u043e\u043a\u0438",
+                "en": "Additional XLSX rows",
+                "uz": "Qo'shimcha XLSX qatorlari",
+            }.get(lang),
+            "blocks": appendix_blocks,
+        }] if appendix_blocks else []),
     ]
 
     article_sections = [
