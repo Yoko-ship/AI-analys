@@ -6117,6 +6117,32 @@ html body[data-theme="dark"] select {
   cursor: pointer;
 }
 
+.analysis-period-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 18px;
+  padding: 18px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+}
+
+.analysis-period-picker .analysis-input-group {
+  min-width: 0;
+}
+
+.analysis-period-picker select {
+  width: 100%;
+  min-height: 56px;
+  padding: 14px 16px;
+  font-size: 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
 .analysis-checkbox {
   display: flex;
   align-items: center;
@@ -6319,6 +6345,10 @@ html body[data-theme="dark"] select {
 
   .analysis-options-row {
     flex-direction: column;
+  }
+
+  .analysis-period-picker {
+    grid-template-columns: 1fr;
   }
 
   .analysis-companies-section {

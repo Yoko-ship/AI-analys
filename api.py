@@ -77,6 +77,10 @@ class AnalyzeRequest(BaseModel):
     include_raw: bool = False
     include_all_excel_reports: bool = False
     excel_report_limit: int | None = Field(default=None, ge=0, le=100)
+    report_analysis_type: Literal["latest", "quarterly", "annual"] = "latest"
+    report_quarter: int | None = Field(default=None, ge=1, le=4)
+    report_current_year: int | None = Field(default=None, ge=1900, le=2100)
+    report_previous_year: int | None = Field(default=None, ge=1900, le=2100)
 
 
 class CompanyDataRequest(BaseModel):
@@ -499,6 +503,10 @@ async def api_analyze(
             force_refresh=payload.force_refresh,
             include_all_excel_reports=payload.include_all_excel_reports,
             excel_report_limit=payload.excel_report_limit,
+            report_analysis_type=payload.report_analysis_type,
+            report_quarter=payload.report_quarter,
+            report_current_year=payload.report_current_year,
+            report_previous_year=payload.report_previous_year,
         )
     except ValueError as exc:
         logger.exception("Analysis failed with value error for %s", payload.company)
@@ -532,6 +540,7 @@ async def api_analyze(
         "market_data": result.get("market_data"),
         "market_context": result.get("market_context"),
         "excel_report_mode": result.get("excel_report_mode"),
+        "report_comparison": result.get("report_comparison"),
         "analysis_policy_version": result.get("analysis_policy_version"),
         "analysis_policy": result.get("analysis_policy"),
         "requested_by": current_user.to_public_dict(),

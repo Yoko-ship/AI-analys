@@ -203,6 +203,12 @@ const TEXTS = {
       mode: "Режим",
       quick: "Быстрый",
       full: "Полный",
+      reportType: "Тип отчёта",
+      quarterlyReport: "Квартальный",
+      annualReport: "Годовой",
+      quarter: "Квартал",
+      currentYear: "Сравнить год",
+      previousYear: "С годом",
       includeHtml: "Возвращать HTML-отчет",
       forceRefresh: "Обновить из источника (обойти кэш)",
       submit: "Анализировать",
@@ -411,6 +417,12 @@ const TEXTS = {
       mode: "Mode",
       quick: "Quick",
       full: "Full",
+      reportType: "Report type",
+      quarterlyReport: "Quarterly",
+      annualReport: "Annual",
+      quarter: "Quarter",
+      currentYear: "Compare year",
+      previousYear: "With year",
       includeHtml: "Return HTML report",
       forceRefresh: "Refresh from source (bypass cache)",
       submit: "Analyze",
@@ -619,6 +631,12 @@ const TEXTS = {
       mode: "Rejim",
       quick: "Tez",
       full: "To'liq",
+      reportType: "Hisobot turi",
+      quarterlyReport: "Choraklik",
+      annualReport: "Yillik",
+      quarter: "Chorak",
+      currentYear: "Taqqoslanadigan yil",
+      previousYear: "Bilan solishtirish",
       includeHtml: "HTML hisobotni qaytarish",
       forceRefresh: "Manbadan yangilash (keshni chetlab o'tish)",
       submit: "Tahlil qilish",
@@ -2213,6 +2231,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
       annual: "Годовой период",
       quarterly: "Квартальный период",
       analysisPeriod: "Период анализа",
+      comparison: "Сравнение",
       tables: "Таблиц",
       source: "Источник",
       fresh: "Свежий расчёт",
@@ -2228,6 +2247,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
       annual: "Annual period",
       quarterly: "Quarterly period",
       analysisPeriod: "Analysis period",
+      comparison: "Comparison",
       tables: "Tables",
       source: "Source",
       fresh: "Fresh run",
@@ -2243,6 +2263,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
       annual: "Yillik davr",
       quarterly: "Chorak davr",
       analysisPeriod: "Tahlil davri",
+      comparison: "Taqqoslash",
       tables: "Jadval",
       source: "Manba",
       fresh: "Yangi hisob",
@@ -2258,6 +2279,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
     annual: "Годовой период",
     quarterly: "Квартальный период",
     analysisPeriod: "Период анализа",
+    comparison: "Сравнение",
     tables: "Таблиц",
     source: "Источник",
     fresh: "Свежий расчёт",
@@ -2268,6 +2290,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
   const company = reportMeta.company || analysisResult.company_name || analysisResult.input || "—";
   const ticker = reportMeta.ticker || analysisResult.ticker || "—";
   const tableCount = reportMeta.table_count ?? countReportTables(analysisResult.report_tables);
+  const selectedComparison = reportMeta.report_comparison?.label || analysisResult.report_comparison?.label || "";
   const summaryRaw = sections["ИТОГ"] || sections["ВЕРДИКТ"] || entries[0]?.[1] || "";
   const { rest: summaryRest } = parseTldrBlock(summaryRaw);
   const abstractText = articleReport?.abstract || pickFirstParagraph(summaryRest) || tldrCardTitle(language, "neutral");
@@ -2291,6 +2314,7 @@ function ReportArticleView({ analysisResult, language = "ru" }) {
             [dict.annual, reportMeta.annual_period || analysisResult.annual_period || "—"],
             [dict.quarterly, reportMeta.quarterly_period || analysisResult.quarterly_period || "—"],
             [dict.analysisPeriod, reportMeta.analysis_period || reportMeta.analysis_comparison || "—"],
+            ...(selectedComparison ? [[dict.comparison, selectedComparison]] : []),
             [dict.tables, tableCount || "—"],
             [dict.source, analysisResult.from_cache ? dict.cache : dict.fresh],
           ].map(([label, value]) => (
@@ -2677,6 +2701,8 @@ function CompareSummaryText({ summary, language }) {
 }
 
 function App() {
+  const defaultReportYear = Math.max(2000, new Date().getFullYear() - 1);
+  const reportYearOptions = Array.from({ length: 12 }, (_, index) => String(defaultReportYear + 1 - index));
   const [language, setLanguage] = useState(() => normalizeLanguage(localStorage.getItem(LANGUAGE_KEY) || "ru"));
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem(THEME_KEY);
@@ -2697,6 +2723,10 @@ function App() {
   const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
   const [excelReportLimit, setExcelReportLimit] = useState("");
+  const [reportAnalysisType, setReportAnalysisType] = useState("quarterly");
+  const [reportQuarter, setReportQuarter] = useState("1");
+  const [reportCurrentYear, setReportCurrentYear] = useState(String(defaultReportYear));
+  const [reportPreviousYear, setReportPreviousYear] = useState(String(defaultReportYear - 1));
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
@@ -2934,6 +2964,10 @@ function App() {
       addToast(t(language, "analysis.resultEmpty"), "error");
       return;
     }
+    if (reportCurrentYear === reportPreviousYear) {
+      addToast(language === "en" ? "Choose two different years" : language === "uz" ? "Ikki xil yilni tanlang" : "Выберите два разных года", "error");
+      return;
+    }
 
     setAnalysisLoading(true);
     setAnalysisMessage(t(language, "analysis.resultLoading"));
@@ -2947,6 +2981,10 @@ function App() {
           include_raw: false,
           force_refresh: forceRefresh,
           include_all_excel_reports: includeAllExcelReports,
+          report_analysis_type: reportAnalysisType,
+          report_current_year: Number(reportCurrentYear),
+          report_previous_year: Number(reportPreviousYear),
+          ...(reportAnalysisType === "quarterly" ? { report_quarter: Number(reportQuarter) } : {}),
           ...(includeAllExcelReports && excelReportLimit.trim() ? { excel_report_limit: Number(excelReportLimit) } : {}),
         }),
       });
@@ -3726,6 +3764,43 @@ function App() {
                         </option>
                       ))}
                     </datalist>
+                  </div>
+
+                  <div className="analysis-period-picker">
+                    <div className="analysis-input-group">
+                      <label>{t(language, "analysis.reportType")}</label>
+                      <select value={reportAnalysisType} onChange={(event) => setReportAnalysisType(event.target.value)}>
+                        <option value="quarterly">{t(language, "analysis.quarterlyReport")}</option>
+                        <option value="annual">{t(language, "analysis.annualReport")}</option>
+                      </select>
+                    </div>
+                    {reportAnalysisType === "quarterly" ? (
+                      <div className="analysis-input-group">
+                        <label>{t(language, "analysis.quarter")}</label>
+                        <select value={reportQuarter} onChange={(event) => setReportQuarter(event.target.value)}>
+                          <option value="1">{language === "en" ? "Q1" : language === "uz" ? "1-chorak" : "1 квартал"}</option>
+                          <option value="2">{language === "en" ? "Q2" : language === "uz" ? "2-chorak" : "2 квартал"}</option>
+                          <option value="3">{language === "en" ? "Q3" : language === "uz" ? "3-chorak" : "3 квартал"}</option>
+                          <option value="4">{language === "en" ? "Q4" : language === "uz" ? "4-chorak" : "4 квартал"}</option>
+                        </select>
+                      </div>
+                    ) : null}
+                    <div className="analysis-input-group">
+                      <label>{t(language, "analysis.currentYear")}</label>
+                      <select value={reportCurrentYear} onChange={(event) => setReportCurrentYear(event.target.value)}>
+                        {reportYearOptions.map((year) => (
+                          <option key={`current-${year}`} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="analysis-input-group">
+                      <label>{t(language, "analysis.previousYear")}</label>
+                      <select value={reportPreviousYear} onChange={(event) => setReportPreviousYear(event.target.value)}>
+                        {reportYearOptions.map((year) => (
+                          <option key={`previous-${year}`} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="analysis-options-row">

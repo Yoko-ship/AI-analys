@@ -36,7 +36,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v10-excel-document-order-2026-06-02"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v14"
+ARTICLE_REPORT_VERSION = "article-report-v15"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "120"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "0"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "80"))
@@ -181,13 +181,67 @@ def _normalize_excel_report_limit(value: int | None, include_all: bool = False) 
     return max(0, min(ABSOLUTE_EXCEL_REPORT_LIMIT, parsed))
 
 
-def _analysis_cache_mode(include_all_excel_reports: bool, excel_report_limit: int) -> str:
+def _normalize_report_comparison(
+    report_analysis_type: str | None = None,
+    report_quarter: int | None = None,
+    report_current_year: int | None = None,
+    report_previous_year: int | None = None,
+) -> dict:
+    mode = str(report_analysis_type or "latest").strip().lower()
+    if mode in {"quarter", "quarterly"}:
+        mode = "quarterly"
+    elif mode in {"annual", "year", "yearly"}:
+        mode = "annual"
+    else:
+        mode = "latest"
+
+    comparison = {
+        "mode": mode,
+        "quarter": None,
+        "current_year": None,
+        "previous_year": None,
+    }
+    if mode == "latest":
+        return comparison
+
+    current_year = int(report_current_year or 0)
+    previous_year = int(report_previous_year or 0)
+    if current_year < 1900 or previous_year < 1900:
+        raise ValueError("Для выбранного режима укажите два года для сравнения.")
+    if current_year == previous_year:
+        raise ValueError("Годы для сравнения должны отличаться.")
+
+    comparison["current_year"] = current_year
+    comparison["previous_year"] = previous_year
+    if mode == "quarterly":
+        quarter = int(report_quarter or 0)
+        if quarter not in {1, 2, 3, 4}:
+            raise ValueError("Для квартального анализа выберите квартал от 1 до 4.")
+        comparison["quarter"] = quarter
+    return comparison
+
+
+def _comparison_cache_suffix(report_comparison: dict | None) -> str:
+    comparison = report_comparison or {}
+    mode = comparison.get("mode") or "latest"
+    if mode == "quarterly":
+        return f"_quarterly_q{comparison.get('quarter')}_{comparison.get('current_year')}_{comparison.get('previous_year')}"
+    if mode == "annual":
+        return f"_annual_{comparison.get('current_year')}_{comparison.get('previous_year')}"
+    return ""
+
+
+def _analysis_cache_mode(
+    include_all_excel_reports: bool,
+    excel_report_limit: int,
+    report_comparison: dict | None = None,
+) -> str:
     default_limit = _normalize_excel_report_limit(None, include_all=False)
     if include_all_excel_reports:
-        return f"deep_excel_all_{excel_report_limit}"
+        return f"deep_excel_all_{excel_report_limit}{_comparison_cache_suffix(report_comparison)}"
     if excel_report_limit != default_limit:
-        return f"excel_limit_{excel_report_limit}"
-    return "default"
+        return f"excel_limit_{excel_report_limit}{_comparison_cache_suffix(report_comparison)}"
+    return f"default{_comparison_cache_suffix(report_comparison)}"
 
 
 def _as_pct(value, digits: int = 2):
@@ -732,32 +786,314 @@ def _table_from_rows(
     }
 
 
-def _article_report_sort_value(rows: list[dict], report_index: int) -> str:
-    report_rows = [row for row in rows if row.get("report_index") == report_index]
-    for row in report_rows:
-        reporting_date = str(row.get("reporting_date") or "")
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", reporting_date):
-            return reporting_date
-    for row in report_rows:
-        label = str(row.get("label") or "").lower()
-        if "дата отчетности" in label:
-            for value in row.get("values") or []:
-                match = re.search(r"\d{4}-\d{2}-\d{2}", str(value))
-                if match:
-                    return match.group(0)
-    for row in report_rows:
-        published = str(row.get("published_at") or "")
-        match = re.search(r"\d{4}-\d{2}-\d{2}", published)
-        if match:
-            return match.group(0)
+def _parse_report_date_parts(value) -> tuple[int, int, int] | None:
+    text = str(value or "")
+    match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
+    if match:
+        year, month, day = (int(part) for part in match.groups())
+    else:
+        match = re.search(r"(\d{1,2})[./](\d{1,2})[./](\d{4})", text)
+        if not match:
+            return None
+        day, month, year = (int(part) for part in match.groups())
+    if 1900 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31:
+        return year, month, day
+    return None
+
+
+def _format_report_date_label(year: int | None, month: int | None, day: int | None) -> str:
+    if not year or not month or not day:
+        return ""
+    return f"{int(day):02d}.{int(month):02d}.{int(year):04d}"
+
+
+def _format_report_date_iso(year: int | None, month: int | None, day: int | None) -> str:
+    if not year or not month or not day:
+        return ""
+    return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
+
+
+def _quarter_end_date(year: int | None, quarter: int | None) -> tuple[int, int, int] | None:
+    if not year or quarter not in {1, 2, 3, 4}:
+        return None
+    month = {1: 3, 2: 6, 3: 9, 4: 12}[int(quarter)]
+    day = 30 if quarter in {2, 3} else 31
+    return int(year), month, day
+
+
+def _article_report_rows(rows: list[dict], report_index: int | None) -> list[dict]:
+    if report_index is None:
+        return []
+    return [row for row in rows if int(row.get("report_index") or 0) == int(report_index)]
+
+
+def _article_report_metadata_value(rows: list[dict], report_index: int | None, key: str):
+    for row in _article_report_rows(rows, report_index):
+        value = row.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _article_report_reporting_date(rows: list[dict], report_index: int | None) -> str:
+    for row in _article_report_rows(rows, report_index):
+        parts = _parse_report_date_parts(row.get("reporting_date"))
+        if parts:
+            return _format_report_date_iso(*parts)
+    for row in _article_report_rows(rows, report_index):
+        values = [row.get("label"), *(row.get("values") or [])]
+        for value in values:
+            parts = _parse_report_date_parts(value)
+            if parts:
+                return _format_report_date_iso(*parts)
     return ""
 
 
+def _article_report_published_date(rows: list[dict], report_index: int | None) -> str:
+    for row in _article_report_rows(rows, report_index):
+        parts = _parse_report_date_parts(row.get("published_at"))
+        if parts:
+            return _format_report_date_iso(*parts)
+    return ""
+
+
+def _normalize_article_period_type(value) -> str:
+    text = str(value or "").strip().lower()
+    if "quarter" in text or text in {"q", "quarterly"}:
+        return "quarterly"
+    if "annual" in text or text in {"year", "yearly"}:
+        return "annual"
+    return ""
+
+
+def _article_quarter_from_reporting_month(month: int | None) -> int | None:
+    return {3: 1, 6: 2, 9: 3, 12: 4}.get(int(month or 0))
+
+
+def _article_quarter_from_published_date(year: int, month: int) -> tuple[int, int]:
+    if 4 <= month <= 6:
+        return year, 1
+    if 7 <= month <= 9:
+        return year, 2
+    if 10 <= month <= 12:
+        return year, 3
+    return year - 1, 4
+
+
+def _article_report_has_meaningful_data(rows: list[dict], report_index: int | None) -> bool:
+    nonzero = 0
+    for row in _article_report_rows(rows, report_index):
+        label = _clean_article_label(row.get("label"))
+        if _article_supplemental_label_is_noise(label):
+            continue
+        current = _article_current_amount(row)
+        if current is None or _article_amount_is_zero(current):
+            continue
+        nonzero += 1
+        if _is_total_report_label(label) or nonzero >= 2:
+            return True
+    return False
+
+
+def _article_report_period_info(rows: list[dict], report_index: int) -> dict:
+    raw_type = _normalize_article_period_type(_article_report_metadata_value(rows, report_index, "period_type"))
+    reporting_date = _article_report_reporting_date(rows, report_index)
+    published_date = _article_report_published_date(rows, report_index)
+    reporting_parts = _parse_report_date_parts(reporting_date)
+    published_parts = _parse_report_date_parts(published_date)
+
+    period_type = raw_type
+    if not period_type and reporting_parts:
+        period_type = "annual" if reporting_parts[1] == 12 else "quarterly"
+
+    year = None
+    quarter = None
+    label = ""
+    if period_type == "quarterly":
+        if reporting_parts:
+            year = reporting_parts[0]
+            quarter = _article_quarter_from_reporting_month(reporting_parts[1])
+        if (not year or not quarter) and published_parts:
+            year, quarter = _article_quarter_from_published_date(published_parts[0], published_parts[1])
+        if year and quarter:
+            end_date = reporting_parts if reporting_parts else _quarter_end_date(year, quarter)
+            label = _format_report_date_label(*(end_date or (None, None, None)))
+    elif period_type == "annual":
+        if reporting_parts and reporting_parts[1] == 12:
+            year = reporting_parts[0]
+        elif published_parts:
+            year = published_parts[0] - 1
+        if year:
+            label = _format_report_date_label(year, 12, 31)
+
+    if not label and reporting_parts:
+        label = _format_report_date_label(*reporting_parts)
+    if not label and published_parts:
+        label = _format_report_date_label(*published_parts)
+
+    return {
+        "index": int(report_index),
+        "period_type": period_type or "unknown",
+        "year": year,
+        "quarter": quarter,
+        "label": label,
+        "display": f"Q{quarter} {year}" if period_type == "quarterly" and year and quarter else (str(year) if period_type == "annual" and year else label),
+        "reporting_date": reporting_date,
+        "published_at": published_date,
+        "sort_value": reporting_date or published_date or f"report:{report_index}",
+        "has_data": _article_report_has_meaningful_data(rows, report_index),
+    }
+
+
+def _article_available_period_summary(infos: list[dict], language: str = "ru") -> dict:
+    lang = _normalize_language(language)
+    quarterly = sorted(
+        {
+            f"Q{info.get('quarter')} {info.get('year')}"
+            for info in infos
+            if info.get("period_type") == "quarterly" and info.get("year") and info.get("quarter") and info.get("has_data")
+        },
+        key=lambda value: (
+            int(value.split()[1]) if len(value.split()) > 1 else 0,
+            int(value[1]) if value.startswith("Q") and value[1].isdigit() else 0,
+        ),
+        reverse=True,
+    )
+    annual = sorted(
+        {
+            str(info.get("year"))
+            for info in infos
+            if info.get("period_type") == "annual" and info.get("year") and info.get("has_data")
+        },
+        reverse=True,
+    )
+    if lang == "en":
+        parts = []
+        if quarterly:
+            parts.append(f"quarterly: {', '.join(quarterly)}")
+        if annual:
+            parts.append(f"annual: {', '.join(annual)}")
+        text = "Available periods: " + ("; ".join(parts) if parts else "none")
+    elif lang == "uz":
+        parts = []
+        if quarterly:
+            parts.append(f"choraklik: {', '.join(quarterly)}")
+        if annual:
+            parts.append(f"yillik: {', '.join(annual)}")
+        text = "Mavjud davrlar: " + ("; ".join(parts) if parts else "yo'q")
+    else:
+        parts = []
+        if quarterly:
+            parts.append(f"квартальные: {', '.join(quarterly)}")
+        if annual:
+            parts.append(f"годовые: {', '.join(annual)}")
+        text = "Доступные периоды: " + ("; ".join(parts) if parts else "нет")
+    return {"text": text, "quarterly": quarterly, "annual": annual}
+
+
+def _article_comparison_selection_label(current: dict, previous: dict, language: str = "ru") -> str:
+    lang = _normalize_language(language)
+    current_display = current.get("display") or current.get("label") or ""
+    previous_display = previous.get("display") or previous.get("label") or ""
+    joiner = " vs " if lang == "en" else " ga " if lang == "uz" else " к "
+    return f"{current_display}{joiner}{previous_display}".strip()
+
+
+def _select_article_comparison_indices(
+    excel_rows: list[dict],
+    report_comparison: dict | None,
+    language: str = "ru",
+) -> dict:
+    lang = _normalize_language(language)
+    comparison = report_comparison or {}
+    mode = comparison.get("mode") or "latest"
+    infos = [_article_report_period_info(excel_rows, index) for index in _article_report_indices(excel_rows)]
+    available = _article_available_period_summary(infos, lang)
+    base = {
+        "mode": mode,
+        "current_index": None,
+        "previous_index": None,
+        "force_previous_row": False,
+        "available_periods": available,
+    }
+    if mode == "latest":
+        return base
+
+    if not infos:
+        raise ValueError("В XLSX-отчётах компании нет данных для выбранного сравнения.")
+
+    def find_info(year: int | None, quarter: int | None = None) -> dict | None:
+        for info in infos:
+            if not info.get("has_data"):
+                continue
+            if int(info.get("year") or 0) != int(year or 0):
+                continue
+            if mode == "quarterly":
+                if info.get("period_type") == "quarterly" and int(info.get("quarter") or 0) == int(quarter or 0):
+                    return info
+            elif mode == "annual" and info.get("period_type") == "annual":
+                return info
+        return None
+
+    current_year = comparison.get("current_year")
+    previous_year = comparison.get("previous_year")
+    quarter = comparison.get("quarter")
+    current = find_info(current_year, quarter)
+    previous = find_info(previous_year, quarter)
+    if current and previous:
+        label = _article_comparison_selection_label(current, previous, lang)
+        mode_label = {"quarterly": "quarterly", "annual": "annual"}[mode]
+        if lang == "ru":
+            mode_label = "квартальное" if mode == "quarterly" else "годовое"
+            description = f"Режим анализа: {mode_label} сравнение {label}. Основные таблицы берут данные только из выбранных XLSX-отчётов."
+        elif lang == "uz":
+            mode_label = "choraklik" if mode == "quarterly" else "yillik"
+            description = f"Tahlil rejimi: {mode_label} taqqoslash {label}. Asosiy jadvallar faqat tanlangan XLSX hisobotlaridan olinadi."
+        else:
+            description = f"Analysis mode: {mode_label} comparison {label}. Main tables use only the selected XLSX reports."
+        return {
+            **base,
+            "current_index": current["index"],
+            "previous_index": previous["index"],
+            "current_label": current.get("label"),
+            "previous_label": previous.get("label"),
+            "label": label,
+            "force_previous_row": True,
+            "description": description,
+            "current_report": current,
+            "previous_report": previous,
+        }
+
+    if mode == "quarterly":
+        requested_current = f"Q{quarter} {current_year}"
+        requested_previous = f"Q{quarter} {previous_year}"
+    else:
+        requested_current = str(current_year)
+        requested_previous = str(previous_year)
+    missing = [
+        value
+        for value, found in ((requested_current, current), (requested_previous, previous))
+        if not found
+    ]
+    if lang == "en":
+        raise ValueError(f"Selected report period was not found: {', '.join(missing)}. {available['text']}")
+    if lang == "uz":
+        raise ValueError(f"Tanlangan hisobot davri topilmadi: {', '.join(missing)}. {available['text']}")
+    raise ValueError(f"Не найден выбранный период отчёта: {', '.join(missing)}. {available['text']}")
+
+
+def _article_report_sort_value(rows: list[dict], report_index: int) -> str:
+    return _article_report_reporting_date(rows, report_index) or _article_report_published_date(rows, report_index)
+
+
 def _article_report_period_label(rows: list[dict], report_index: int, fallback: str) -> str:
+    info = _article_report_period_info(rows, report_index)
+    if info.get("label"):
+        return str(info["label"])
     value = _article_report_sort_value(rows, report_index)
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value or ""):
-        year, month, day = value.split("-")
-        return f"{day}.{month}.{year}"
+    parts = _parse_report_date_parts(value)
+    if parts:
+        return _format_report_date_label(*parts)
     return fallback
 
 
@@ -775,9 +1111,7 @@ def _article_report_indices(rows: list[dict]) -> list[int]:
 
 
 def _article_rows_for_report(rows: list[dict], report_index: int | None) -> list[dict]:
-    if report_index is None:
-        return []
-    return [row for row in rows if int(row.get("report_index") or 0) == int(report_index)]
+    return _article_report_rows(rows, report_index)
 
 
 def _article_line_code(label: str) -> str:
@@ -822,11 +1156,19 @@ def _article_matching_row(row: dict, lookup: dict[str, dict]) -> dict | None:
     return None
 
 
-def _article_current_previous_amounts(row: dict, previous_row: dict | None = None) -> tuple[float | None, float | None]:
+def _article_current_previous_amounts(
+    row: dict,
+    previous_row: dict | None = None,
+    *,
+    force_previous_row: bool = False,
+) -> tuple[float | None, float | None]:
+    current = _article_current_amount(row)
+    if force_previous_row:
+        previous = _article_current_amount(previous_row or {}) if previous_row else None
+        return current, previous
     pair = _article_amount_pair(row)
     if pair:
         return pair[0], pair[1]
-    current = _article_current_amount(row)
     previous = _article_current_amount(previous_row or {}) if previous_row else None
     return current, previous
 
@@ -910,6 +1252,8 @@ def _article_entry_from_spec(
     current_rows: list[dict],
     previous_lookup: dict[str, dict],
     used_labels: set[str],
+    *,
+    force_previous_row: bool = False,
 ) -> dict | None:
     source_label = ""
     source_labels: list[str] = []
@@ -926,7 +1270,11 @@ def _article_entry_from_spec(
             if label in source_labels:
                 continue
             previous_row = _article_matching_row(row, previous_lookup)
-            current, previous = _article_current_previous_amounts(row, previous_row)
+            current, previous = _article_current_previous_amounts(
+                row,
+                previous_row,
+                force_previous_row=force_previous_row,
+            )
             if current is not None:
                 current_total += current
                 has_current = True
@@ -946,7 +1294,11 @@ def _article_entry_from_spec(
         if source_label in used_labels and not spec.get("allow_duplicate"):
             return None
         previous_row = _article_matching_row(row, previous_lookup)
-        current, previous = _article_current_previous_amounts(row, previous_row)
+        current, previous = _article_current_previous_amounts(
+            row,
+            previous_row,
+            force_previous_row=force_previous_row,
+        )
         used_labels.add(source_label)
 
     label = spec.get("label") or _clean_article_label((row or {}).get("label") if not spec.get("aggregate") else "")
@@ -1039,6 +1391,8 @@ def _normalized_article_entries(
     table_id: str,
     current_rows: list[dict],
     previous_lookup: dict[str, dict],
+    *,
+    force_previous_row: bool = False,
 ) -> list[dict]:
     if not current_rows:
         return []
@@ -1054,7 +1408,13 @@ def _normalized_article_entries(
     entries: list[dict] = []
     used_labels: set[str] = set()
     for spec in specs:
-        entry = _article_entry_from_spec(spec, current_rows, previous_lookup, used_labels)
+        entry = _article_entry_from_spec(
+            spec,
+            current_rows,
+            previous_lookup,
+            used_labels,
+            force_previous_row=force_previous_row,
+        )
         if entry:
             entries.append(entry)
     return entries
@@ -1119,6 +1479,8 @@ def _article_supplemental_entries(
     previous_lookup: dict[str, dict],
     used_entries: list[dict],
     limit: int,
+    *,
+    force_previous_row: bool = False,
 ) -> list[dict]:
     if limit <= 0:
         return []
@@ -1136,7 +1498,11 @@ def _article_supplemental_entries(
         if row_keys and row_keys & used_keys:
             continue
         previous_row = _article_matching_row(row, previous_lookup)
-        current, previous = _article_current_previous_amounts(row, previous_row)
+        current, previous = _article_current_previous_amounts(
+            row,
+            previous_row,
+            force_previous_row=force_previous_row,
+        )
         if current is None or _article_is_zero_noise(label, current, previous):
             continue
         entry = {"label": label, "current": current, "previous": previous}
@@ -1202,19 +1568,31 @@ def _horizontal_article_table(
     language: str,
     *,
     limit: int = ARTICLE_ANALYSIS_ROW_LIMIT,
+    forced_current_index: int | None = None,
+    forced_previous_index: int | None = None,
+    force_previous_row: bool = False,
 ) -> dict | None:
     labels = _report_table_labels(language)
     rows = []
     seen = set()
-    current_index, previous_index = _article_current_previous_report_indices(source_rows, table_id)
+    if forced_current_index is not None:
+        current_index = forced_current_index
+        previous_index = forced_previous_index
+    else:
+        current_index, previous_index = _article_current_previous_report_indices(source_rows, table_id)
     current_rows = _article_rows_for_report(source_rows, current_index) or source_rows
     previous_lookup = _article_row_lookup(_article_rows_for_report(source_rows, previous_index))
     current_label = _article_report_period_label(source_rows, current_index, labels["current"]) if current_index is not None else labels["current"]
     previous_label = _article_report_period_label(source_rows, previous_index, labels["previous"]) if previous_index is not None else labels["previous"]
-    if any(_article_amount_pair(row) for row in current_rows):
+    if not force_previous_row and any(_article_amount_pair(row) for row in current_rows):
         previous_label = _article_previous_balance_period_label(current_label, previous_label)
 
-    normalized_entries = _normalized_article_entries(table_id, current_rows, previous_lookup)
+    normalized_entries = _normalized_article_entries(
+        table_id,
+        current_rows,
+        previous_lookup,
+        force_previous_row=force_previous_row,
+    )
     if normalized_entries:
         row_source = list(normalized_entries)
         row_source.extend(_article_supplemental_entries(
@@ -1222,6 +1600,7 @@ def _horizontal_article_table(
             previous_lookup,
             row_source,
             max(0, limit - len(row_source)),
+            force_previous_row=force_previous_row,
         ))
     else:
         row_source = []
@@ -1230,7 +1609,11 @@ def _horizontal_article_table(
             if label in seen:
                 continue
             previous_row = _article_matching_row(row, previous_lookup)
-            current, previous = _article_current_previous_amounts(row, previous_row)
+            current, previous = _article_current_previous_amounts(
+                row,
+                previous_row,
+                force_previous_row=force_previous_row,
+            )
             if current is None or _article_is_zero_noise(label, current, previous):
                 continue
             row_source.append({"label": label, "current": current, "previous": previous})
@@ -1273,15 +1656,22 @@ def _vertical_article_table(
     total_hint: str,
     fallback_total: float | None = None,
     limit: int = ARTICLE_ANALYSIS_ROW_LIMIT,
+    forced_current_index: int | None = None,
+    forced_previous_index: int | None = None,
+    force_previous_row: bool = False,
 ) -> dict | None:
     labels = _report_table_labels(language)
-    current_index, previous_index = _article_current_previous_report_indices(source_rows, table_id)
+    if forced_current_index is not None:
+        current_index = forced_current_index
+        previous_index = forced_previous_index
+    else:
+        current_index, previous_index = _article_current_previous_report_indices(source_rows, table_id)
     current_rows = _article_rows_for_report(source_rows, current_index) or source_rows
     previous_rows = _article_rows_for_report(source_rows, previous_index)
     previous_lookup = _article_row_lookup(previous_rows)
     current_label = _article_report_period_label(source_rows, current_index, labels["current"]) if current_index is not None else labels["current"]
     previous_label = _article_report_period_label(source_rows, previous_index, labels["previous"]) if previous_index is not None else labels["previous"]
-    if any(_article_amount_pair(row) for row in current_rows):
+    if not force_previous_row and any(_article_amount_pair(row) for row in current_rows):
         previous_label = _article_previous_balance_period_label(current_label, previous_label)
 
     total = fallback_total
@@ -1291,7 +1681,11 @@ def _vertical_article_table(
         if total_hint in label:
             total = _article_current_amount(row)
             previous_row = _article_matching_row(row, previous_lookup)
-            _, previous_total = _article_current_previous_amounts(row, previous_row)
+            _, previous_total = _article_current_previous_amounts(
+                row,
+                previous_row,
+                force_previous_row=force_previous_row,
+            )
             break
     if not total:
         return None
@@ -1299,7 +1693,12 @@ def _vertical_article_table(
     rows = []
     seen = set()
     display_scale = 1000 if abs(total) >= 10_000_000 else 1
-    normalized_entries = _normalized_article_entries(table_id, current_rows, previous_lookup)
+    normalized_entries = _normalized_article_entries(
+        table_id,
+        current_rows,
+        previous_lookup,
+        force_previous_row=force_previous_row,
+    )
     if normalized_entries:
         row_source = list(normalized_entries)
         row_source.extend(_article_supplemental_entries(
@@ -1307,6 +1706,7 @@ def _vertical_article_table(
             previous_lookup,
             row_source,
             max(0, limit - len(row_source)),
+            force_previous_row=force_previous_row,
         ))
     else:
         row_source = []
@@ -1315,7 +1715,11 @@ def _vertical_article_table(
             if label in seen:
                 continue
             previous_row = _article_matching_row(row, previous_lookup)
-            current, previous = _article_current_previous_amounts(row, previous_row)
+            current, previous = _article_current_previous_amounts(
+                row,
+                previous_row,
+                force_previous_row=force_previous_row,
+            )
             if current is None or _article_is_zero_noise(label, current, previous):
                 continue
             row_source.append({"label": label, "current": current, "previous": previous})
@@ -1354,12 +1758,22 @@ def _income_article_table(
     language: str,
     *,
     limit: int = ARTICLE_ANALYSIS_ROW_LIMIT,
+    forced_current_index: int | None = None,
+    forced_previous_index: int | None = None,
+    force_previous_row: bool = False,
 ) -> dict | None:
     labels = _report_table_labels(language)
     rows = []
     seen = set()
-    current_index, _ = _article_current_previous_report_indices(source_rows, "income_statement_horizontal_vertical")
+    if forced_current_index is not None:
+        current_index = forced_current_index
+        previous_index = forced_previous_index
+    else:
+        current_index, previous_index = _article_current_previous_report_indices(source_rows, "income_statement_horizontal_vertical")
     current_rows = _article_rows_for_report(source_rows, current_index) or source_rows
+    previous_lookup = _article_row_lookup(_article_rows_for_report(source_rows, previous_index))
+    current_label = _article_report_period_label(source_rows, current_index, labels["current"]) if current_index is not None else labels["current"]
+    previous_label = _article_report_period_label(source_rows, previous_index, labels["previous"]) if previous_index is not None else labels["previous"]
 
     interest_income_base = None
     non_interest_income_base = None
@@ -1379,14 +1793,20 @@ def _income_article_table(
     if total_income_base <= 0:
         total_income_base = None
 
-    normalized_entries = _normalized_article_entries("income_statement_horizontal_vertical", current_rows, {})
+    normalized_entries = _normalized_article_entries(
+        "income_statement_horizontal_vertical",
+        current_rows,
+        previous_lookup,
+        force_previous_row=force_previous_row,
+    )
     if normalized_entries:
         row_source = list(normalized_entries)
         row_source.extend(_article_supplemental_entries(
             current_rows,
-            {},
+            previous_lookup,
             row_source,
             max(0, limit - len(row_source)),
+            force_previous_row=force_previous_row,
         ))
     else:
         row_source = []
@@ -1394,10 +1814,15 @@ def _income_article_table(
             label = _clean_article_label(row.get("label"))
             if label in seen:
                 continue
-            current = _article_current_amount(row)
-            if current is None or _article_is_zero_noise(label, current, None):
+            previous_row = _article_matching_row(row, previous_lookup)
+            current, previous = _article_current_previous_amounts(
+                row,
+                previous_row,
+                force_previous_row=force_previous_row,
+            )
+            if current is None or _article_is_zero_noise(label, current, previous):
                 continue
-            row_source.append({"label": label, "current": current})
+            row_source.append({"label": label, "current": current, "previous": previous})
             seen.add(label)
             if len(row_source) >= limit:
                 break
@@ -1405,6 +1830,7 @@ def _income_article_table(
     for entry in row_source:
         label = _clean_article_label(entry.get("label"))
         current = entry.get("current")
+        previous = entry.get("previous")
         if current is None:
             continue
         label_lower = label.lower()
@@ -1416,9 +1842,14 @@ def _income_article_table(
             pct_total = abs(current) / total_income_base * 100
         if operating_expense_base and any(token in label_lower for token in ("заработ", "аренда", "административ", "износ", "страхование", "налог")):
             pct_total = abs(current) / operating_expense_base * 100
+        change = current - previous if previous is not None else None
+        pct_change = (change / abs(previous) * 100) if previous not in (None, 0) and change is not None else None
         rows.append([
             label,
             _format_report_number(current, language),
+            _format_report_number(previous, language) if previous is not None else "—",
+            _format_report_number(change, language, signed=True),
+            _format_report_pct(pct_change, language, signed=True),
             _format_report_pct(pct_interest, language) if pct_interest is not None else "—",
             _format_report_pct(pct_total, language) if pct_total is not None else "—",
         ])
@@ -1431,7 +1862,7 @@ def _income_article_table(
             "en": "Table 5 — Income statement",
             "uz": "Jadval 5 — Moliyaviy natijalar hisoboti",
         }.get(_normalize_language(language), "Таблица 5 — Отчёт о финансовых результатах"),
-        [labels["line"], labels["amount"], "% от проц. дох.", "% от сов. дох."],
+        [labels["line"], current_label, previous_label, labels["change"], labels["change_pct"], "% от проц. дох.", "% от сов. дох."],
         rows,
         source="openinfo_excel.table_rows",
     )
@@ -3631,15 +4062,29 @@ def _build_article_report(
     ifrs_snapshot: dict,
     company_data: dict | None,
     language: str,
+    report_comparison: dict | None = None,
 ) -> dict:
     lang = _normalize_language(language)
     excel_rows = _excel_rows_for_article(company_data)
     for row in excel_rows:
         row["article_kind"] = _article_row_kind(row)
 
-    asset_rows = [row for row in excel_rows if row.get("article_kind") == "assets"]
-    liability_rows = [row for row in excel_rows if row.get("article_kind") == "liabilities_equity"]
-    income_rows = [row for row in excel_rows if row.get("article_kind") == "income_statement"]
+    comparison_selection = _select_article_comparison_indices(excel_rows, report_comparison, lang)
+    forced_current_index = comparison_selection.get("current_index")
+    forced_previous_index = comparison_selection.get("previous_index")
+    force_previous_row = bool(comparison_selection.get("force_previous_row"))
+    selected_indices = {
+        int(index)
+        for index in (forced_current_index, forced_previous_index)
+        if index is not None
+    }
+    analysis_excel_rows = [
+        row for row in excel_rows if int(row.get("report_index") or 0) in selected_indices
+    ] if force_previous_row and selected_indices else excel_rows
+
+    asset_rows = [row for row in analysis_excel_rows if row.get("article_kind") == "assets"]
+    liability_rows = [row for row in analysis_excel_rows if row.get("article_kind") == "liabilities_equity"]
+    income_rows = [row for row in analysis_excel_rows if row.get("article_kind") == "income_statement"]
 
     total_assets = ((ifrs_snapshot or {}).get("balance_sheet") or {}).get("total_assets")
     total_liabilities = None
@@ -3657,11 +4102,16 @@ def _build_article_report(
         "liab_v": {"ru": "Таблица 4 — Вертикальный анализ пассивов (% от итога)", "en": "Table 4 — Vertical analysis of liabilities/equity", "uz": "Jadval 4 — Passivlarning vertikal tahlili"},
     }
 
-    assets_h = _horizontal_article_table("assets_horizontal", captions["assets_h"].get(lang, captions["assets_h"]["ru"]), asset_rows, lang)
-    liab_h = _horizontal_article_table("liabilities_horizontal", captions["liab_h"].get(lang, captions["liab_h"]["ru"]), liability_rows, lang)
-    assets_v = _vertical_article_table("assets_vertical", captions["assets_v"].get(lang, captions["assets_v"]["ru"]), asset_rows, lang, total_hint="итого актив", fallback_total=_safe_float(total_assets))
-    liab_v = _vertical_article_table("liabilities_vertical", captions["liab_v"].get(lang, captions["liab_v"]["ru"]), liability_rows, lang, total_hint="итого обязательств и собственного", fallback_total=_safe_float(total_assets))
-    income_table = _income_article_table(income_rows, lang)
+    table_period_args = {
+        "forced_current_index": forced_current_index,
+        "forced_previous_index": forced_previous_index,
+        "force_previous_row": force_previous_row,
+    }
+    assets_h = _horizontal_article_table("assets_horizontal", captions["assets_h"].get(lang, captions["assets_h"]["ru"]), asset_rows, lang, **table_period_args)
+    liab_h = _horizontal_article_table("liabilities_horizontal", captions["liab_h"].get(lang, captions["liab_h"]["ru"]), liability_rows, lang, **table_period_args)
+    assets_v = _vertical_article_table("assets_vertical", captions["assets_v"].get(lang, captions["assets_v"]["ru"]), asset_rows, lang, total_hint="итого актив", fallback_total=_safe_float(total_assets), **table_period_args)
+    liab_v = _vertical_article_table("liabilities_vertical", captions["liab_v"].get(lang, captions["liab_v"]["ru"]), liability_rows, lang, total_hint="итого обязательств и собственного", fallback_total=_safe_float(total_assets), **table_period_args)
+    income_table = _income_article_table(income_rows, lang, **table_period_args)
     # Compute bank-specific ratios that need raw Excel row data
     _bank = (ifrs_snapshot or {}).get("bank") or {}
     _is_bank = bool(_bank.get("is_bank"))
@@ -3669,8 +4119,9 @@ def _build_article_report(
     if _is_bank and excel_rows:
         _snap_income = (ifrs_snapshot or {}).get("income_statement") or {}
         _snap_balance = (ifrs_snapshot or {}).get("balance_sheet") or {}
+        bank_ratio_rows = _article_rows_for_report(excel_rows, forced_current_index) if force_previous_row else excel_rows
         _bank_extra = _bank_ratios_from_excel(
-            excel_rows,
+            bank_ratio_rows or excel_rows,
             total_assets=_safe_float(_snap_balance.get("total_assets")),
             interest_income=_safe_float(_snap_income.get("revenue")),
             interest_expense=_safe_float(_snap_balance.get("interest_expense")),
@@ -3710,6 +4161,7 @@ def _build_article_report(
             }.get(lang),
             "blocks": [
                 p(_first_article_paragraph(sections, "ДОСЬЕ") or "Анализ построен на публичной отчётности, расчетных метриках и доступных Excel-раскрытиях эмитента."),
+                *([p(str(comparison_selection.get("description")))] if comparison_selection.get("description") else []),
                 *([p(f"Отчётный фокус: {period_phrase}. Сравнение баланса построено по датам {_article_comparison_phrase(assets_h, lang)}, поэтому таблицы показывают не только величины, но и направление изменения за период.")] if period_phrase and lang == "ru" else []),
             ],
         },
@@ -3838,6 +4290,7 @@ def _build_article_report(
             "quarterly_period": quarterly_period,
             "analysis_period": period_phrase,
             "analysis_comparison": _article_comparison_phrase(assets_h, lang),
+            "report_comparison": comparison_selection,
             "table_count": table_count,
             "excel_row_count": len(excel_rows),
             "excel_source_table_count": len(appendix_tables),
@@ -5789,20 +6242,34 @@ async def run_company_analysis(
     language: str = "ru",
     include_all_excel_reports: bool = False,
     excel_report_limit: int | None = None,
+    report_analysis_type: str | None = None,
+    report_quarter: int | None = None,
+    report_current_year: int | None = None,
+    report_previous_year: int | None = None,
 ) -> dict:
     company_name = (company_name or "").strip()
     if not company_name:
         raise ValueError("company_name cannot be empty")
     language = _normalize_language(language)
+    report_comparison = _normalize_report_comparison(
+        report_analysis_type,
+        report_quarter,
+        report_current_year,
+        report_previous_year,
+    )
+    comparison_requires_excel = report_comparison.get("mode") != "latest"
+    if comparison_requires_excel:
+        include_all_excel_reports = True
     excel_report_limit = _normalize_excel_report_limit(
-        excel_report_limit,
+        ABSOLUTE_EXCEL_REPORT_LIMIT if comparison_requires_excel else excel_report_limit,
         include_all=include_all_excel_reports,
     )
     excel_report_mode = {
         "include_all": include_all_excel_reports,
         "limit": excel_report_limit,
+        "report_comparison": report_comparison,
     }
-    cache_mode = _analysis_cache_mode(include_all_excel_reports, excel_report_limit)
+    cache_mode = _analysis_cache_mode(include_all_excel_reports, excel_report_limit, report_comparison)
     allow_cache = not force_refresh
 
     if allow_cache:
@@ -5839,8 +6306,10 @@ async def run_company_analysis(
                 ifrs_snapshot=cached.get("ifrs_snapshot") or {},
                 company_data=cached.get("market_data") or {},
                 language=language,
+                report_comparison=report_comparison,
             )
             cached["article_report_version"] = ARTICLE_REPORT_VERSION
+            cached["report_comparison"] = report_comparison
             return cached
 
     loop = asyncio.get_running_loop()
@@ -5916,6 +6385,7 @@ async def run_company_analysis(
         ifrs_snapshot=ifrs_snapshot,
         company_data=company_data,
         language=language,
+        report_comparison=report_comparison,
     )
     web_research = WEB_RESEARCH_NOTE
     html_report = await loop.run_in_executor(
@@ -5953,6 +6423,7 @@ async def run_company_analysis(
         "market_data": company_data,
         "market_context": market_context,
         "excel_report_mode": excel_report_mode,
+        "report_comparison": report_comparison,
         "cache_mode": cache_mode,
         "from_cache": False,
         "source": "fresh",
