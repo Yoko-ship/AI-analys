@@ -36,7 +36,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v10-excel-document-order-2026-06-02"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v15"
+ARTICLE_REPORT_VERSION = "article-report-v16"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "120"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "0"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "80"))
@@ -677,6 +677,17 @@ def _article_amount_pair(row: dict) -> tuple[float, float] | None:
 
 
 def _article_current_amount(row: dict) -> float | None:
+    preferred_index = row.get("_article_value_cell_index")
+    if preferred_index is not None:
+        try:
+            preferred_index = int(preferred_index)
+        except (TypeError, ValueError):
+            preferred_index = None
+    if preferred_index is not None:
+        for cell in _article_amount_cells(row):
+            if int(cell.get("index") or 0) == preferred_index:
+                return cell["value"]
+
     pair = _article_amount_pair(row)
     if pair:
         return pair[0]
@@ -835,12 +846,62 @@ def _article_report_metadata_value(rows: list[dict], report_index: int | None, k
     return None
 
 
+def _article_report_value_candidates(row: dict) -> list[float]:
+    values = [cell["value"] for cell in _article_amount_cells(row)]
+    for value in row.get("values") or []:
+        parsed = _safe_float(value)
+        if parsed is not None:
+            values.append(parsed)
+    return values
+
+
+def _article_report_explicit_quarter(rows: list[dict], report_index: int | None) -> int | None:
+    quarter_label_tokens = (
+        "период квартала",
+        "номер квартала",
+        "quarter period",
+        "quarter number",
+    )
+    for row in _article_report_rows(rows, report_index):
+        label = str(row.get("label") or "").lower()
+        if any(token in label for token in quarter_label_tokens):
+            for value in _article_report_value_candidates(row):
+                rounded = int(round(value))
+                if 1 <= rounded <= 4 and abs(value - rounded) < 0.01:
+                    return rounded
+        match = re.search(r"\b(?:q|quarter|квартал)\s*([1-4])\b|\b([1-4])\s*(?:q|quarter|квартал)", label)
+        if match:
+            return int(match.group(1) or match.group(2))
+
+    title = str(_article_report_metadata_value(rows, report_index, "title") or "").lower()
+    match = re.search(r"\b(?:q|quarter|квартал)\s*([1-4])\b|\b([1-4])\s*(?:q|quarter|квартал)", title)
+    if match:
+        return int(match.group(1) or match.group(2))
+    return None
+
+
+def _article_year_from_published_quarter(year: int, month: int, quarter: int) -> int:
+    if int(quarter) == 4 and int(month) <= 3:
+        return int(year) - 1
+    return int(year)
+
+
 def _article_report_reporting_date(rows: list[dict], report_index: int | None) -> str:
     for row in _article_report_rows(rows, report_index):
         parts = _parse_report_date_parts(row.get("reporting_date"))
         if parts:
             return _format_report_date_iso(*parts)
     for row in _article_report_rows(rows, report_index):
+        label = str(row.get("label") or "").lower()
+        if not any(token in label for token in (
+            "дата отчетности",
+            "отчетная дата",
+            "дата отчета",
+            "reporting date",
+            "date of report",
+            "report date",
+        )):
+            continue
         values = [row.get("label"), *(row.get("values") or [])]
         for value in values:
             parts = _parse_report_date_parts(value)
@@ -880,13 +941,25 @@ def _article_quarter_from_published_date(year: int, month: int) -> tuple[int, in
     return year - 1, 4
 
 
+def _article_row_material_amount(row: dict) -> float | None:
+    current = _article_current_amount(row)
+    if current is not None and not _article_amount_is_zero(current):
+        return current
+    large = [
+        cell["value"]
+        for cell in _article_amount_cells(row)
+        if abs(cell["value"]) >= 1000
+    ]
+    return large[0] if large else current
+
+
 def _article_report_has_meaningful_data(rows: list[dict], report_index: int | None) -> bool:
     nonzero = 0
     for row in _article_report_rows(rows, report_index):
         label = _clean_article_label(row.get("label"))
         if _article_supplemental_label_is_noise(label):
             continue
-        current = _article_current_amount(row)
+        current = _article_row_material_amount(row)
         if current is None or _article_amount_is_zero(current):
             continue
         nonzero += 1
@@ -895,12 +968,42 @@ def _article_report_has_meaningful_data(rows: list[dict], report_index: int | No
     return False
 
 
+def _article_preferred_value_cell_index(rows: list[dict], report_index: int | None) -> int | None:
+    counts: dict[int, int] = {}
+    for row in _article_report_rows(rows, report_index):
+        if row.get("article_kind") not in {"assets", "liabilities_equity", "income_statement"}:
+            continue
+        label = _clean_article_label(row.get("label"))
+        if _article_supplemental_label_is_noise(label):
+            continue
+        for cell in _article_amount_cells(row):
+            value = cell["value"]
+            if _article_amount_is_zero(value) or abs(value) < 1000:
+                continue
+            index = int(cell.get("index") or 0)
+            counts[index] = counts.get(index, 0) + 1
+    if not counts:
+        return None
+
+    repeated_indices = [index for index, count in counts.items() if count >= 2]
+    return min(repeated_indices or counts)
+
+
+def _article_apply_preferred_value_cell(rows: list[dict], report_index: int | None) -> None:
+    preferred_index = _article_preferred_value_cell_index(rows, report_index)
+    if preferred_index is None:
+        return
+    for row in _article_report_rows(rows, report_index):
+        row["_article_value_cell_index"] = preferred_index
+
+
 def _article_report_period_info(rows: list[dict], report_index: int) -> dict:
     raw_type = _normalize_article_period_type(_article_report_metadata_value(rows, report_index, "period_type"))
     reporting_date = _article_report_reporting_date(rows, report_index)
     published_date = _article_report_published_date(rows, report_index)
     reporting_parts = _parse_report_date_parts(reporting_date)
     published_parts = _parse_report_date_parts(published_date)
+    explicit_quarter = _article_report_explicit_quarter(rows, report_index)
 
     period_type = raw_type
     if not period_type and reporting_parts:
@@ -911,12 +1014,20 @@ def _article_report_period_info(rows: list[dict], report_index: int) -> dict:
     label = ""
     if period_type == "quarterly":
         if reporting_parts:
-            year = reporting_parts[0]
-            quarter = _article_quarter_from_reporting_month(reporting_parts[1])
+            report_quarter = _article_quarter_from_reporting_month(reporting_parts[1])
+            if report_quarter:
+                year = reporting_parts[0]
+                quarter = report_quarter
+        if (not year or not quarter) and explicit_quarter:
+            quarter = explicit_quarter
+            if reporting_parts:
+                year = reporting_parts[0]
+            elif published_parts:
+                year = _article_year_from_published_quarter(published_parts[0], published_parts[1], quarter)
         if (not year or not quarter) and published_parts:
             year, quarter = _article_quarter_from_published_date(published_parts[0], published_parts[1])
         if year and quarter:
-            end_date = reporting_parts if reporting_parts else _quarter_end_date(year, quarter)
+            end_date = _quarter_end_date(year, quarter)
             label = _format_report_date_label(*(end_date or (None, None, None)))
     elif period_type == "annual":
         if reporting_parts and reporting_parts[1] == 12:
@@ -4078,6 +4189,9 @@ def _build_article_report(
         for index in (forced_current_index, forced_previous_index)
         if index is not None
     }
+    if force_previous_row:
+        for index in selected_indices:
+            _article_apply_preferred_value_cell(excel_rows, index)
     analysis_excel_rows = [
         row for row in excel_rows if int(row.get("report_index") or 0) in selected_indices
     ] if force_previous_row and selected_indices else excel_rows
