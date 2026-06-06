@@ -230,6 +230,7 @@ const TEXTS = {
       chartMetaEmpty: "Нет данных",
       noData: "Недостаточно данных",
       signalRevenue: "Выручка",
+      signalDebt: "Обязательства",
       signalMargin: "Маржа",
       signalRisk: "Риск",
       signalTrend: "Тренд",
@@ -444,6 +445,7 @@ const TEXTS = {
       chartMetaEmpty: "No data",
       noData: "No data",
       signalRevenue: "Revenue",
+      signalDebt: "Liabilities",
       signalMargin: "Margin",
       signalRisk: "Risk",
       signalTrend: "Trend",
@@ -658,6 +660,7 @@ const TEXTS = {
       chartMetaEmpty: "Ma'lumot yo'q",
       noData: "Ma'lumot yo'q",
       signalRevenue: "Tushum",
+      signalDebt: "Majburiyatlar",
       signalMargin: "Marja",
       signalRisk: "Risk",
       signalTrend: "Trend",
@@ -1219,15 +1222,16 @@ function buildSeriesChart(series, language) {
       year: row?.year,
       revenue: safeNumber(row?.revenue),
       profit: safeNumber(row?.net_income),
+      debt: safeNumber(row?.total_liabilities ?? row?.total_debt ?? row?.debt),
     }))
-    .filter((row) => row.year !== undefined && row.year !== null && (row.revenue !== null || row.profit !== null));
+    .filter((row) => row.year !== undefined && row.year !== null && (row.revenue !== null || row.profit !== null || row.debt !== null));
 
   if (filtered.length < 2) return null;
 
   const width = 1000;
   const height = 340;
   const padding = { left: 74, right: 24, top: 28, bottom: 44 };
-  const allValues = filtered.flatMap((row) => [row.revenue, row.profit]).filter((value) => Number.isFinite(value));
+  const allValues = filtered.flatMap((row) => [row.revenue, row.profit, row.debt]).filter((value) => Number.isFinite(value));
   let min = Math.min(...allValues);
   let max = Math.max(...allValues);
   if (min > 0) min = 0;
@@ -1244,8 +1248,10 @@ function buildSeriesChart(series, language) {
 
   const revenuePoints = filtered.map((row) => row.revenue ?? min);
   const profitPoints = filtered.map((row) => row.profit ?? min);
+  const debtPoints = filtered.map((row) => row.debt ?? min);
   const revenuePath = line(revenuePoints);
   const profitPath = line(profitPoints);
+  const debtPath = line(debtPoints);
   const zeroY = y(0);
   const areaPath = `${revenuePath} L ${x(filtered.length - 1).toFixed(2)} ${zeroY.toFixed(2)} L ${x(0).toFixed(2)} ${zeroY.toFixed(2)} Z`;
 
@@ -1266,6 +1272,10 @@ function buildSeriesChart(series, language) {
     Number.isFinite(latest.profit) && Number.isFinite(previous.profit)
       ? ((latest.profit - previous.profit) / Math.abs(previous.profit || 1)) * 100
       : null;
+  const debtChange =
+    Number.isFinite(latest.debt) && Number.isFinite(previous.debt)
+      ? ((latest.debt - previous.debt) / Math.abs(previous.debt || 1)) * 100
+      : null;
 
   return {
     width,
@@ -1274,10 +1284,12 @@ function buildSeriesChart(series, language) {
     areaPath,
     revenuePath,
     profitPath,
+    debtPath,
     yTicks,
     latest,
     revenueChange,
     profitChange,
+    debtChange,
     x,
     y,
   };
@@ -4595,7 +4607,7 @@ function AnalysisChart({ chartData, language }) {
     );
   }
 
-  const { width, height, filtered, areaPath, revenuePath, profitPath, yTicks, x, y, revenueChange, profitChange, latest } = chartData;
+  const { width, height, filtered, areaPath, revenuePath, profitPath, debtPath, yTicks, x, y, revenueChange, profitChange, debtChange, latest } = chartData;
 
   return (
     <div className="analysis-chart">
@@ -4617,10 +4629,12 @@ function AnalysisChart({ chartData, language }) {
         <path d={areaPath} className="chart-area" />
         <path d={revenuePath} className="chart-line chart-line-revenue" />
         <path d={profitPath} className="chart-line chart-line-profit" />
+        <path d={debtPath} className="chart-line chart-line-debt" />
         {filtered.map((point, index) => (
           <g key={`${point.year}-${index}`}>
             <circle cx={x(index)} cy={y(point.revenue ?? 0)} r="4.8" className="chart-dot chart-dot-revenue" />
             <circle cx={x(index)} cy={y(point.profit ?? 0)} r="4.8" className="chart-dot chart-dot-profit" />
+            <circle cx={x(index)} cy={y(point.debt ?? 0)} r="4.8" className="chart-dot chart-dot-debt" />
           </g>
         ))}
         {filtered.map((point, index) => (
@@ -4645,6 +4659,14 @@ function AnalysisChart({ chartData, language }) {
           <strong className="legend-value">{latest.profit != null ? formatCompactNumber(latest.profit, language) : "—"}</strong>
           <span className={`legend-delta ${profitChange === null ? "" : profitChange >= 0 ? "is-up" : "is-down"}`}>
             {profitChange === null ? "—" : formatSignedPercent(profitChange)}
+          </span>
+        </div>
+        <div className="legend-chip">
+          <span className="legend-swatch legend-swatch-debt" />
+          <span className="legend-label">{t(language, "analysis.signalDebt")}</span>
+          <strong className="legend-value">{latest.debt != null ? formatCompactNumber(latest.debt, language) : "—"}</strong>
+          <span className={`legend-delta ${debtChange === null ? "" : debtChange >= 0 ? "is-down" : "is-up"}`}>
+            {debtChange === null ? "—" : formatSignedPercent(debtChange)}
           </span>
         </div>
       </div>
