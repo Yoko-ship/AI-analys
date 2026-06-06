@@ -5371,6 +5371,15 @@ def _build_ifrs_snapshot(
                     "current_ratio": _safe_float(row.get("current_ratio")),
                     "debt_to_equity_ratio": _safe_float(row.get("debt_to_equity_ratio")),
                     "net_profit_margin": _safe_float(row.get("net_profit_margin")),
+                    "total_liabilities": _safe_float(
+                        row.get("total_liabilities")
+                        if row.get("total_liabilities") is not None
+                        else (
+                            (row.get("total_assets") - row.get("equity"))
+                            if row.get("total_assets") is not None and row.get("equity") is not None
+                            else row.get("long_term_debt")
+                        )
+                    ),
                 }
                 for row in annual_data
                 if isinstance(row, dict)
