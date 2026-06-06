@@ -203,7 +203,8 @@ const TEXTS = {
       mode: "Режим",
       quick: "Быстрый",
       full: "Полный",
-      reportType: "Тип отчёта",
+      reportType: "Тип анализа",
+      fullAnalysis: "Полный анализ",
       quarterlyReport: "Квартальный",
       annualReport: "Годовой",
       quarter: "Квартал",
@@ -417,7 +418,8 @@ const TEXTS = {
       mode: "Mode",
       quick: "Quick",
       full: "Full",
-      reportType: "Report type",
+      reportType: "Analysis type",
+      fullAnalysis: "Full analysis",
       quarterlyReport: "Quarterly",
       annualReport: "Annual",
       quarter: "Quarter",
@@ -631,7 +633,8 @@ const TEXTS = {
       mode: "Rejim",
       quick: "Tez",
       full: "To'liq",
-      reportType: "Hisobot turi",
+      reportType: "Tahlil turi",
+      fullAnalysis: "To'liq tahlil",
       quarterlyReport: "Choraklik",
       annualReport: "Yillik",
       quarter: "Chorak",
@@ -2723,7 +2726,7 @@ function App() {
   const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
   const [excelReportLimit, setExcelReportLimit] = useState("");
-  const [reportAnalysisType, setReportAnalysisType] = useState("quarterly");
+  const [reportAnalysisType, setReportAnalysisType] = useState("latest");
   const [reportQuarter, setReportQuarter] = useState("1");
   const [reportCurrentYear, setReportCurrentYear] = useState(String(defaultReportYear));
   const [reportPreviousYear, setReportPreviousYear] = useState(String(defaultReportYear - 1));
@@ -2964,7 +2967,7 @@ function App() {
       addToast(t(language, "analysis.resultEmpty"), "error");
       return;
     }
-    if (reportCurrentYear === reportPreviousYear) {
+    if (reportAnalysisType !== "latest" && reportCurrentYear === reportPreviousYear) {
       addToast(language === "en" ? "Choose two different years" : language === "uz" ? "Ikki xil yilni tanlang" : "Выберите два разных года", "error");
       return;
     }
@@ -2982,8 +2985,10 @@ function App() {
           force_refresh: forceRefresh,
           include_all_excel_reports: includeAllExcelReports,
           report_analysis_type: reportAnalysisType,
-          report_current_year: Number(reportCurrentYear),
-          report_previous_year: Number(reportPreviousYear),
+          ...(reportAnalysisType !== "latest" ? {
+            report_current_year: Number(reportCurrentYear),
+            report_previous_year: Number(reportPreviousYear),
+          } : {}),
           ...(reportAnalysisType === "quarterly" ? { report_quarter: Number(reportQuarter) } : {}),
           ...(includeAllExcelReports && excelReportLimit.trim() ? { excel_report_limit: Number(excelReportLimit) } : {}),
         }),
@@ -3770,6 +3775,7 @@ function App() {
                     <div className="analysis-input-group">
                       <label>{t(language, "analysis.reportType")}</label>
                       <select value={reportAnalysisType} onChange={(event) => setReportAnalysisType(event.target.value)}>
+                        <option value="latest">{t(language, "analysis.fullAnalysis")}</option>
                         <option value="quarterly">{t(language, "analysis.quarterlyReport")}</option>
                         <option value="annual">{t(language, "analysis.annualReport")}</option>
                       </select>
@@ -3785,22 +3791,26 @@ function App() {
                         </select>
                       </div>
                     ) : null}
-                    <div className="analysis-input-group">
-                      <label>{t(language, "analysis.currentYear")}</label>
-                      <select value={reportCurrentYear} onChange={(event) => setReportCurrentYear(event.target.value)}>
-                        {reportYearOptions.map((year) => (
-                          <option key={`current-${year}`} value={year}>{year}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="analysis-input-group">
-                      <label>{t(language, "analysis.previousYear")}</label>
-                      <select value={reportPreviousYear} onChange={(event) => setReportPreviousYear(event.target.value)}>
-                        {reportYearOptions.map((year) => (
-                          <option key={`previous-${year}`} value={year}>{year}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {reportAnalysisType !== "latest" ? (
+                      <>
+                        <div className="analysis-input-group">
+                          <label>{t(language, "analysis.currentYear")}</label>
+                          <select value={reportCurrentYear} onChange={(event) => setReportCurrentYear(event.target.value)}>
+                            {reportYearOptions.map((year) => (
+                              <option key={`current-${year}`} value={year}>{year}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="analysis-input-group">
+                          <label>{t(language, "analysis.previousYear")}</label>
+                          <select value={reportPreviousYear} onChange={(event) => setReportPreviousYear(event.target.value)}>
+                            {reportYearOptions.map((year) => (
+                              <option key={`previous-${year}`} value={year}>{year}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
 
                   <div className="analysis-options-row">
