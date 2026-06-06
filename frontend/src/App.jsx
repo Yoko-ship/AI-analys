@@ -3317,22 +3317,6 @@ function App() {
       [`${t(language, "analysis.signalLatest")}: ${liquidity.trade_days ?? "—"}/30`, liquidity.avg_trade_value ? formatCompactNumber(liquidity.avg_trade_value, language) : ""].filter(Boolean).join(" · "),
       liquidity.liquidity_label === "high" ? "good" : "warning"
     );
-    const momentum = metrics.momentum || {};
-    const momentumLabel = momentum.overall_label || momentum.overall;
-    if (momentumLabel) {
-      const subParts = [
-        momentum.overall_score != null ? `${language === "en" ? "Score" : language === "uz" ? "Ball" : "Балл"} ${momentum.overall_score}` : "",
-        momentum.revenue?.label ? `${language === "en" ? "Revenue" : language === "uz" ? "Daromad" : "Выручка"}: ${momentum.revenue.label}` : "",
-        momentum.profit?.label ? `${language === "en" ? "Profit" : language === "uz" ? "Foyda" : "Прибыль"}: ${momentum.profit.label}` : "",
-      ].filter(Boolean);
-      const score = Number(momentum.overall_score);
-      push(
-        t(language, "metrics.momentum"),
-        momentumLabel,
-        subParts.join(" · "),
-        Number.isFinite(score) ? (score >= 7 ? "good" : score >= 4 ? "warning" : "danger") : "warning"
-      );
-    }
     return cards;
   })();
 
