@@ -36,7 +36,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
 ANALYSIS_POLICY_VERSION = "public-information-v10-excel-document-order-2026-06-02"
 REPORT_TABLES_VERSION = "report-tables-v1"
-ARTICLE_REPORT_VERSION = "article-report-v16"
+ARTICLE_REPORT_VERSION = "article-report-v17"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "120"))
 ARTICLE_EXCEL_APPENDIX_MAX_TABLES = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_TABLES", "0"))
 ARTICLE_EXCEL_APPENDIX_MAX_ROWS = int(os.getenv("OPENINFO_ARTICLE_EXCEL_APPENDIX_MAX_ROWS", "80"))
@@ -783,11 +783,12 @@ def _table_from_rows(
     rows: list[list[str]],
     *,
     source: str,
+    source_labels: list[str] | None = None,
 ) -> dict | None:
     if not rows:
         return None
     markdown = _markdown_table(caption, headers, rows)
-    return {
+    table = {
         "id": table_id,
         "caption": caption,
         "headers": headers,
@@ -795,6 +796,9 @@ def _table_from_rows(
         "markdown": markdown,
         "source": source,
     }
+    if source_labels:
+        table["_source_labels"] = source_labels[:len(rows)]
+    return table
 
 
 def _parse_report_date_parts(value) -> tuple[int, int, int] | None:
@@ -1498,6 +1502,120 @@ def _income_article_specs() -> list[dict]:
     ]
 
 
+_ARTICLE_LABEL_TRANSLATIONS = {
+    "en": {
+        "1. Касса и платёжные документы": "1. Cash and payment documents",
+        "2. Средства к получению из ЦБРУ": "2. Due from the Central Bank",
+        "3. Средства к получению из других банков": "3. Due from other banks",
+        "5. Инвестиции (нетто)": "5. Investments, net",
+        "7. Кредиты и лизинг (нетто)": "7. Loans and leasing, net",
+        "— в т.ч. брутто-кредиты": "- including gross loans",
+        "— в т.ч. резерв на потери": "- including loss allowance",
+        "10. Основные средства (нетто)": "10. Fixed assets, net",
+        "11. Начисленные проценты к получению": "11. Accrued interest receivable",
+        "13. Другие активы": "13. Other assets",
+        "14. ИТОГО АКТИВОВ": "14. TOTAL ASSETS",
+        "Клиентские депозиты, всего": "Client deposits, total",
+        "15. Депозиты до востребования": "15. Demand deposits",
+        "16. Сберегательные депозиты": "16. Savings deposits",
+        "17. Срочные депозиты": "17. Term deposits",
+        "18. К оплате в ЦБРУ": "18. Due to the Central Bank",
+        "19. К оплате в другие банки": "19. Due to other banks",
+        "20. РЕПО / проданные ценные бумаги": "20. REPO / securities sold",
+        "21. Кредиты и лизинг к оплате": "21. Loans and leasing payable",
+        "22. Субординированный долг": "22. Subordinated debt",
+        "23. Начисленные проценты к оплате": "23. Accrued interest payable",
+        "24. Другие обязательства": "24. Other liabilities",
+        "25. ИТОГО ОБЯЗАТЕЛЬСТВ": "25. TOTAL LIABILITIES",
+        "26. Уставный капитал": "26. Charter capital",
+        "28. Резервный капитал": "28. Reserve capital",
+        "29. Нераспределённая прибыль": "29. Retained earnings",
+        "30. ИТОГО СОБСТВЕННОГО КАПИТАЛА": "30. TOTAL EQUITY",
+        "31. ИТОГО ОБЯЗАТЕЛЬСТВ И КАПИТАЛА": "31. TOTAL LIABILITIES AND EQUITY",
+        "Процентные доходы: ЦБРУ": "Interest income: Central Bank",
+        "Процентные доходы: другие банки": "Interest income: other banks",
+        "Процентные доходы: торговые ценные бумаги": "Interest income: trading securities",
+        "Процентные доходы: кредиты и лизинг": "Interest income: loans and leasing",
+        "Другие процентные доходы": "Other interest income",
+        "ИТОГО ПРОЦЕНТНЫХ ДОХОДОВ": "TOTAL INTEREST INCOME",
+        "Процентные расходы по депозитам": "Interest expense on deposits",
+        "Процентные расходы по кредитам к оплате": "Interest expense on borrowings payable",
+        "Другие процентные расходы": "Other interest expense",
+        "ИТОГО ПРОЦЕНТНЫХ РАСХОДОВ": "TOTAL INTEREST EXPENSE",
+        "Чистые процентные доходы до резервов": "Net interest income before provisions",
+        "Оценка возможных убытков по кредитам и лизингу": "Provision for possible losses on loans and leasing",
+        "Чистые процентные доходы после резервов": "Net interest income after provisions",
+        "Комиссионные доходы": "Fee and commission income",
+        "Прибыль в иностранной валюте": "Foreign exchange profit",
+        "Другие беспроцентные доходы": "Other non-interest income",
+        "ИТОГО БЕСПРОЦЕНТНЫХ ДОХОДОВ": "TOTAL NON-INTEREST INCOME",
+        "ИТОГО БЕСПРОЦЕНТНЫХ РАСХОДОВ": "TOTAL NON-INTEREST EXPENSE",
+        "Чистый доход до операционных расходов": "Net income before operating expenses",
+        "Операционные расходы: персонал": "Operating expenses: personnel",
+        "Операционные расходы: административные": "Operating expenses: administrative",
+        "Операционные расходы: износ": "Operating expenses: depreciation",
+        "Операционные расходы: страхование и налоги": "Operating expenses: insurance and taxes",
+        "ИТОГО ОПЕРАЦИОННЫХ РАСХОДОВ": "TOTAL OPERATING EXPENSES",
+        "Чистая прибыль до налога": "Net profit before tax",
+        "Налог на прибыль": "Income tax",
+        "ЧИСТАЯ ПРИБЫЛЬ": "NET PROFIT",
+    }
+}
+
+
+def _article_display_label(label: str, language: str) -> str:
+    text = _clean_article_label(label)
+    lang = _normalize_language(language)
+    if lang == "ru":
+        return text
+    translations = _ARTICLE_LABEL_TRANSLATIONS.get(lang) or {}
+    if text in translations:
+        return translations[text]
+
+    lowered = text.lower()
+    prefix_match = re.match(r"^(\d+\.\s*)", text)
+    prefix = prefix_match.group(1) if prefix_match else ""
+    fallback_rules = [
+        (("итого", "актив"), "TOTAL ASSETS"),
+        (("клиентские депозиты",), "Client deposits, total"),
+        (("депозит", "востреб"), "Demand deposits"),
+        (("сберегатель", "депозит"), "Savings deposits"),
+        (("сроч", "депозит"), "Term deposits"),
+        (("итого", "обязательств", "капитал"), "TOTAL LIABILITIES AND EQUITY"),
+        (("итого", "обязательств"), "TOTAL LIABILITIES"),
+        (("итого", "собственного капитала"), "TOTAL EQUITY"),
+        (("уставный капитал",), "Charter capital"),
+        (("резервный капитал",), "Reserve capital"),
+        (("нераспредел",), "Retained earnings"),
+        (("касс",), "Cash and payment documents"),
+        (("цбру",), "Central Bank balances"),
+        (("других банков",), "Due from/to other banks"),
+        (("инвест",), "Investments"),
+        (("кредит", "лизинг", "нетто"), "Loans and leasing, net"),
+        (("брутто", "кредит"), "Gross loans"),
+        (("резерв", "потер"), "Loss allowance"),
+        (("основные средства",), "Fixed assets, net"),
+        (("начисленные проценты", "получ"), "Accrued interest receivable"),
+        (("начисленные проценты", "оплат"), "Accrued interest payable"),
+        (("другие активы",), "Other assets"),
+        (("другие обязательства",), "Other liabilities"),
+        (("итого процентных доход",), "TOTAL INTEREST INCOME"),
+        (("итого процентных расход",), "TOTAL INTEREST EXPENSE"),
+        (("чистые процентные доходы до",), "Net interest income before provisions"),
+        (("после оценки возможных убытков",), "Net interest income after provisions"),
+        (("итого беспроцентных доход",), "TOTAL NON-INTEREST INCOME"),
+        (("итого беспроцентных расход",), "TOTAL NON-INTEREST EXPENSE"),
+        (("итого операционных расход",), "TOTAL OPERATING EXPENSES"),
+        (("чистая прибыль до",), "Net profit before tax"),
+        (("налог на прибыль",), "Income tax"),
+        (("чистая прибыль",), "NET PROFIT"),
+    ]
+    for keywords, translation in fallback_rules:
+        if all(keyword in lowered for keyword in keywords):
+            return f"{prefix}{translation}" if prefix and not translation.startswith(prefix) else translation
+    return text
+
+
 def _normalized_article_entries(
     table_id: str,
     current_rows: list[dict],
@@ -1685,6 +1803,7 @@ def _horizontal_article_table(
 ) -> dict | None:
     labels = _report_table_labels(language)
     rows = []
+    source_labels: list[str] = []
     seen = set()
     if forced_current_index is not None:
         current_index = forced_current_index
@@ -1733,13 +1852,15 @@ def _horizontal_article_table(
                 break
 
     for entry in row_source:
-        label = _clean_article_label(entry.get("label"))
+        source_label = _clean_article_label(entry.get("label"))
+        label = _article_display_label(source_label, language)
         current = entry.get("current")
         previous = entry.get("previous")
         if current is None:
             continue
         change = current - previous if previous is not None else None
         pct = (change / abs(previous) * 100) if previous not in (None, 0) and change is not None else None
+        source_labels.append(source_label)
         rows.append([
             label,
             _format_report_number(current, language),
@@ -1755,6 +1876,7 @@ def _horizontal_article_table(
         [labels["line"], current_label, previous_label, labels["change"], labels["change_pct"]],
         rows,
         source="openinfo_excel.table_rows",
+        source_labels=source_labels,
     )
 
 
@@ -1802,6 +1924,7 @@ def _vertical_article_table(
         return None
 
     rows = []
+    source_labels: list[str] = []
     seen = set()
     display_scale = 1000 if abs(total) >= 10_000_000 else 1
     normalized_entries = _normalized_article_entries(
@@ -1839,13 +1962,15 @@ def _vertical_article_table(
                 break
 
     for entry in row_source:
-        label = _clean_article_label(entry.get("label"))
+        source_label = _clean_article_label(entry.get("label"))
+        label = _article_display_label(source_label, language)
         current = entry.get("current")
         previous = entry.get("previous")
         if current is None:
             continue
         share = current / total * 100 if total else None
         previous_share = previous / previous_total * 100 if previous is not None and previous_total else None
+        source_labels.append(source_label)
         rows.append([
             label,
             _format_report_number(current / display_scale, language),
@@ -1861,6 +1986,7 @@ def _vertical_article_table(
         [labels["line"], current_label, labels["share"], previous_label, labels["share"]],
         rows,
         source="openinfo_excel.table_rows",
+        source_labels=source_labels,
     )
 
 
@@ -1875,6 +2001,7 @@ def _income_article_table(
 ) -> dict | None:
     labels = _report_table_labels(language)
     rows = []
+    source_labels: list[str] = []
     seen = set()
     if forced_current_index is not None:
         current_index = forced_current_index
@@ -1939,12 +2066,13 @@ def _income_article_table(
                 break
 
     for entry in row_source:
-        label = _clean_article_label(entry.get("label"))
+        source_label = _clean_article_label(entry.get("label"))
+        label = _article_display_label(source_label, language)
         current = entry.get("current")
         previous = entry.get("previous")
         if current is None:
             continue
-        label_lower = label.lower()
+        label_lower = source_label.lower()
         if "отчет о финансовых результатах" in label_lower:
             continue
         pct_interest = (abs(current) / interest_income_base * 100) if interest_income_base else None
@@ -1955,6 +2083,7 @@ def _income_article_table(
             pct_total = abs(current) / operating_expense_base * 100
         change = current - previous if previous is not None else None
         pct_change = (change / abs(previous) * 100) if previous not in (None, 0) and change is not None else None
+        source_labels.append(source_label)
         rows.append([
             label,
             _format_report_number(current, language),
@@ -1973,9 +2102,26 @@ def _income_article_table(
             "en": "Table 5 — Income statement",
             "uz": "Jadval 5 — Moliyaviy natijalar hisoboti",
         }.get(_normalize_language(language), "Таблица 5 — Отчёт о финансовых результатах"),
-        [labels["line"], current_label, previous_label, labels["change"], labels["change_pct"], "% от проц. дох.", "% от сов. дох."],
+        [
+            labels["line"],
+            current_label,
+            previous_label,
+            labels["change"],
+            labels["change_pct"],
+            {
+                "ru": "% от проц. дох.",
+                "en": "% of interest income",
+                "uz": "Foiz daromadidan %",
+            }.get(_normalize_language(language), "% of interest income"),
+            {
+                "ru": "% от сов. дох.",
+                "en": "% of total income",
+                "uz": "Jami daromaddan %",
+            }.get(_normalize_language(language), "% of total income"),
+        ],
         rows,
         source="openinfo_excel.table_rows",
+        source_labels=source_labels,
     )
 
 
@@ -1993,6 +2139,77 @@ def _ratio_article_table(
     }.get(lang, ["Показатель", "Значение", "Ориентир / норма", "Оценка", "Смысл"])
     metric_rows: list[list[str]] = []
     bank_extra = bank_extra or {}
+    ratio_translations = {
+        "en": {
+            "Итоговый скоринг": "Overall score",
+            "Сводная оценка качества отчётности": "Summary assessment of reporting quality",
+            "LDR — Кредиты / Депозиты": "LDR — Loans / Deposits",
+            "Текущая ликвидность": "Current liquidity",
+            "Активы банка, размещённые в кредитах, vs. клиентская депозитная база": "Bank assets placed in loans vs. the client deposit base",
+            "Способность покрывать краткосрочные обязательства": "Ability to cover short-term liabilities",
+            "Ликвид. активы 1-й линии / Активы": "First-line liquid assets / Assets",
+            "Касса + счёт в ЦБ / итого активов — мгновенная ликвидность": "Cash + Central Bank account / total assets — immediate liquidity",
+            "ROA (аннуализ.)": "ROA, annualized",
+            "Прибыль на активы": "Profit generated by assets",
+            "ROE (аннуализ.)": "ROE, annualized",
+            "Доходность собственного капитала": "Return on equity capital",
+            "NIM — Чистая процентная маржа": "NIM — Net interest margin",
+            "Чистый процентный доход / итого активов": "Net interest income / total assets",
+            "Чистая маржа прибыли": "Net profit margin",
+            "Сколько прибыли остаётся с дохода": "How much profit remains from income",
+            "Резервы / Брутто-кредиты (текущий)": "Loss allowance / gross loans (current)",
+            "Резервы / Брутто-кредиты (предыдущий)": "Loss allowance / gross loans (previous)",
+            "Coverage ratio — покрытие кредитных потерь резервами": "Coverage ratio — loan losses covered by allowances",
+            "Coverage ratio предыдущего периода для сравнения": "Previous-period coverage ratio for comparison",
+            "Нагрузка резервирования": "Provision burden",
+            "Резервы периода / процентные доходы — доля прибыли на покрытие потерь": "Period provisions / interest income — share of income used to cover losses",
+            "Капитал / Активы (CAR упрощ.)": "Capital / Assets (simplified CAR)",
+            "Собственный капитал к активам — приближённая достаточность": "Equity to assets — approximate capital adequacy",
+            "Коэффициент задолженности (D/A)": "Debt ratio (D/A)",
+            "Доля обязательств в активах": "Share of liabilities in assets",
+            "D/E — Долг / Капитал": "D/E — Debt / Equity",
+            "Финансовый рычаг": "Financial leverage",
+            "Операционные расходы / чистый доход": "Operating expenses / net income",
+            "Покрытие % расходов доходами": "Interest expense coverage by income",
+            "Процентные доходы / процентные расходы": "Interest income / interest expense",
+            "Доля непроц. доходов": "Non-interest income share",
+            "Непроцентные доходы / совокупные доходы": "Non-interest income / total income",
+            "Покрытие процентов": "Interest coverage",
+            "Запас прибыли для выплаты процентов": "Profit buffer for interest payments",
+            "Долг / капитал": "Debt / equity",
+            "Во сколько раз долг соотносится с собственным капиталом": "How debt compares with equity capital",
+        }
+    }
+
+    def tr_ratio(text: str) -> str:
+        if lang == "ru":
+            return text
+        translated = (ratio_translations.get(lang) or {}).get(str(text))
+        if translated:
+            return translated
+        if lang == "en":
+            return (
+                str(text)
+                .replace("норм.", "normal")
+                .replace("Норма", "Normal")
+                .replace("банки", "banks")
+                .replace("Базель", "Basel")
+            )
+        return text
+
+    def tr_assessment(text: str) -> str:
+        if lang == "ru" or text in (None, "", "—"):
+            return text
+        if lang == "en":
+            return {
+                "✓ Хорошо": "✓ Good",
+                "~ Умеренно": "~ Moderate",
+                "⚠ Высокий": "⚠ High",
+                "⚠ Слабый": "⚠ Weak",
+                "✓ Норма": "✓ Normal",
+                "~ Вне нормы": "~ Outside normal range",
+            }.get(str(text), tr_ratio(str(text)))
+        return text
 
     def _assess(value, good_threshold, warn_threshold, *, reverse: bool = False, fmt: str = "pct") -> str:
         """Return assessment label based on value vs thresholds. reverse=True: lower is better."""
@@ -2001,16 +2218,16 @@ def _ratio_article_table(
         v = float(value)
         if reverse:
             if v <= good_threshold:
-                return "✓ Хорошо"
+                return tr_assessment("✓ Хорошо")
             if v <= warn_threshold:
-                return "~ Умеренно"
-            return "⚠ Высокий"
+                return tr_assessment("~ Умеренно")
+            return tr_assessment("⚠ Высокий")
         else:
             if v >= good_threshold:
-                return "✓ Хорошо"
+                return tr_assessment("✓ Хорошо")
             if v >= warn_threshold:
-                return "~ Умеренно"
-            return "⚠ Слабый"
+                return tr_assessment("~ Умеренно")
+            return tr_assessment("⚠ Слабый")
 
     def add(
         label: str,
@@ -2031,7 +2248,7 @@ def _ratio_article_table(
             formatted = f"{round(float(value), digits)}{ratio_suffix}"
         else:
             formatted = str(value)
-        metric_rows.append([label, formatted, benchmark, assessment, meaning])
+        metric_rows.append([tr_ratio(label), formatted, tr_ratio(benchmark), tr_assessment(assessment), tr_ratio(meaning)])
 
     quality = (ifrs_snapshot or {}).get("quality") or {}
     balance = (ifrs_snapshot or {}).get("balance_sheet") or {}
@@ -2635,8 +2852,11 @@ def _table_row_by_keywords(table: dict | None, *keywords: str) -> list[str] | No
     if not table:
         return None
     lowered_keywords = [keyword.lower() for keyword in keywords]
-    for row in table.get("rows") or []:
-        label = str(row[0] if row else "").lower()
+    source_labels = table.get("_source_labels") or []
+    for index, row in enumerate(table.get("rows") or []):
+        visible_label = str(row[0] if row else "").lower()
+        source_label = str(source_labels[index] if index < len(source_labels) else "").lower()
+        label = f"{visible_label} {source_label}".strip()
         if all(keyword in label for keyword in lowered_keywords):
             return row
     return None
@@ -2655,7 +2875,13 @@ def _table_label(row: list[str] | None) -> str:
 def _format_bln_sum_from_thousand(value: float | None, language: str = "ru") -> str:
     if value is None:
         return "—"
-    return f"{_format_report_number(value / 1_000_000, language=language, digits=1)} млрд сум"
+    lang = _normalize_language(language)
+    suffix = {
+        "ru": "млрд сум",
+        "en": "bln UZS",
+        "uz": "mlrd so'm",
+    }.get(lang, "bln UZS")
+    return f"{_format_report_number(value / 1_000_000, language=language, digits=1)} {suffix}"
 
 
 def _article_period_label_from_table(table: dict | None) -> str:
@@ -3108,17 +3334,32 @@ def _multi_period_article_trend_table(
 
 
 def _article_indicator_items(signals: dict, language: str) -> list[dict]:
-    if _normalize_language(language) != "ru":
-        return []
+    lang = _normalize_language(language)
 
     items: list[dict] = []
 
     def assessment(tone: str) -> str:
-        return {
-            "good": "Норма / сильная сторона",
-            "warning": "Зона внимания",
-            "danger": "Риск",
-        }.get(tone, "Нейтрально")
+        labels = {
+            "ru": {
+                "good": "Норма / сильная сторона",
+                "warning": "Зона внимания",
+                "danger": "Риск",
+                "neutral": "Нейтрально",
+            },
+            "en": {
+                "good": "Normal / strength",
+                "warning": "Watch zone",
+                "danger": "Risk",
+                "neutral": "Neutral",
+            },
+            "uz": {
+                "good": "Me'yor / kuchli tomon",
+                "warning": "E'tibor zonasi",
+                "danger": "Risk",
+                "neutral": "Neytral",
+            },
+        }
+        return (labels.get(lang) or labels["ru"]).get(tone, (labels.get(lang) or labels["ru"])["neutral"])
 
     def add_pct(
         category: str,
@@ -3192,7 +3433,7 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
             "hint": hint,
             "formula": formula,
             "benchmark": benchmark,
-            "assessment": "Информационно",
+            "assessment": assessment("neutral"),
             "tone": "neutral",
         })
 
@@ -3214,7 +3455,7 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
             "hint": hint,
             "formula": formula,
             "benchmark": benchmark,
-            "assessment": "Информационно",
+            "assessment": assessment("neutral"),
             "tone": "neutral",
         })
 
@@ -3388,6 +3629,43 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
         20,
         10,
     )
+    if lang == "en":
+        categories = {
+            "liquidity": "Liquidity",
+            "profitability": "Profitability",
+            "asset_quality": "Asset quality",
+            "capital": "Capital",
+            "efficiency": "Efficiency",
+        }
+        translations = {
+            "Чистая прибыль": ("Net profit", "Financial result after operating expenses, tax and adjustments", "Final financial result of the period after expenses and tax."),
+            "LDR — кредиты / депозиты": ("LDR — loans / deposits", "(Net loans and leasing / client deposits) x 100", "Shows how much of the loan portfolio is covered by client deposits. A value above 100% means dependence on additional funding."),
+            "Ликвидность первой линии": ("First-line liquidity", "(Cash + Central Bank balances) / assets x 100", "Shows the fast money buffer available without selling loans or securities."),
+            "Покрытие процентных расходов": ("Interest expense coverage", "Interest income / interest expense", "Shows how far interest income covers the cost of funding. The closer it is to 1x, the thinner the margin buffer."),
+            "ROA (аннуализ.)": ("ROA, annualized", "(Net profit / assets) x 4 x 100", "Shows annualized return on assets. Quarterly figures are annualized so they can be compared with banking benchmarks."),
+            "ROE (аннуализ.)": ("ROE, annualized", "(Net profit / equity) x 4 x 100", "Shows annualized return on shareholder capital. Very high ROE should be read together with capitalization and reserve risk."),
+            "NIM (аннуализ.)": ("NIM, annualized", "(Interest income - interest expense) / assets x 4 x 100", "Shows annualized net interest margin relative to assets."),
+            "Чистая маржа прибыли": ("Net profit margin", "Net profit / interest income x 100", "Shows how much net profit remains per 100 UZS of interest income after expenses, provisions and tax."),
+            "Эффективная ставка налога": ("Effective tax rate", "Income tax / profit before tax x 100", "Helps understand how much net profit depends on taxes, tax benefits or one-off tax effects."),
+            "Покрытие брутто-кредитов резервами": ("Gross loan coverage by allowances", "Loss allowance / gross loans x 100", "Shows what part of the loan portfolio is already covered by allowances. A sharp increase weakens profit quality."),
+            "Резервная нагрузка": ("Provision burden", "Provision expenses / interest income x 100", "Shows what share of interest income is used to cover potential credit losses."),
+            "Капитал / активы": ("Capital / assets", "Equity / assets x 100", "Shows the balance-sheet safety buffer above borrowed money."),
+            "Левередж активы / капитал": ("Assets / equity leverage", "Assets / equity", "Shows how many times assets exceed equity. High leverage is normal for banks, but rising leverage reduces the safety buffer."),
+            "Коэффициент задолженности D/A": ("Debt ratio D/A", "Liabilities / assets x 100", "Shows the share of borrowed funds in the balance sheet. For banks a high value is normal, but it must be read together with capital and liquidity."),
+            "D/E — долг / капитал": ("D/E — debt / equity", "Liabilities / equity", "Shows financial leverage: how much liabilities sit on each 1 UZS of equity."),
+            "CIR — расходы / доход": ("CIR — cost / income", "Operating expenses / net income before operating expenses x 100", "Shows how much operating cost consumes pre-tax income. Lower is better for operating efficiency."),
+            "Доля непроцентных доходов": ("Non-interest income share", "Non-interest income / (interest + non-interest income) x 100", "Shows whether profit depends only on the loan-deposit margin."),
+        }
+        for item in items:
+            item["category_label"] = categories.get(item.get("category"), "Metric")
+            translated = translations.get(item.get("label"))
+            if translated:
+                item["label"], item["formula"], item["hint"] = translated
+            item["benchmark"] = (
+                str(item.get("benchmark") or "")
+                .replace("для банков", "for banks")
+                .replace("сравнить со стандартной ставкой", "compare with the standard tax rate")
+            )
     return items
 
 
@@ -3535,9 +3813,7 @@ def _article_ratio_section_blocks(
     income_table: dict | None,
     language: str,
 ) -> list[dict]:
-    if _normalize_language(language) != "ru":
-        return []
-
+    lang = _normalize_language(language)
     signals = _article_table_signals(assets_h, liab_h, income_table)
     items = _article_indicator_items(signals, language)
     blocks: list[dict] = []
@@ -3545,12 +3821,36 @@ def _article_ratio_section_blocks(
     if items:
         blocks.append({"type": "kpi_grid", "items": items[:8]})
 
+    category_titles = {
+        "ru": {
+            "liquidity": "5.1. Анализ ликвидности",
+            "profitability": "5.2. Анализ рентабельности",
+            "asset_quality": "5.3. Анализ качества активов",
+            "capital": "5.4. Достаточность капитала",
+            "efficiency": "5.5. Операционная эффективность",
+        },
+        "en": {
+            "liquidity": "5.1. Liquidity analysis",
+            "profitability": "5.2. Profitability analysis",
+            "asset_quality": "5.3. Asset quality analysis",
+            "capital": "5.4. Capital adequacy",
+            "efficiency": "5.5. Operating efficiency",
+        },
+        "uz": {
+            "liquidity": "5.1. Likvidlik tahlili",
+            "profitability": "5.2. Rentabellik tahlili",
+            "asset_quality": "5.3. Aktivlar sifati tahlili",
+            "capital": "5.4. Kapital yetarliligi",
+            "efficiency": "5.5. Operatsion samaradorlik",
+        },
+    }
+    title_map = category_titles.get(lang) or category_titles["ru"]
     category_order = [
-        ("liquidity", "5.1. Анализ ликвидности"),
-        ("profitability", "5.2. Анализ рентабельности"),
-        ("asset_quality", "5.3. Анализ качества активов"),
-        ("capital", "5.4. Достаточность капитала"),
-        ("efficiency", "5.5. Операционная эффективность"),
+        ("liquidity", title_map["liquidity"]),
+        ("profitability", title_map["profitability"]),
+        ("asset_quality", title_map["asset_quality"]),
+        ("capital", title_map["capital"]),
+        ("efficiency", title_map["efficiency"]),
     ]
     for category, title in category_order:
         category_items = [item for item in items if item.get("category") == category]
@@ -3580,19 +3880,47 @@ def _key_indicators_article_table(
     language: str,
 ) -> dict | None:
     lang = _normalize_language(language)
-    if lang != "ru":
-        return None
     signals = _article_table_signals(assets_h, liab_h, income_table)
     items = _article_indicator_items(signals, language)
+    category_labels = {
+        "ru": {
+            "liquidity": "Ликвидность",
+            "profitability": "Рентабельность",
+            "asset_quality": "Качество активов",
+            "capital": "Капитал",
+            "efficiency": "Эффективность",
+            "fallback": "Показатель",
+        },
+        "en": {
+            "liquidity": "Liquidity",
+            "profitability": "Profitability",
+            "asset_quality": "Asset quality",
+            "capital": "Capital",
+            "efficiency": "Efficiency",
+            "fallback": "Metric",
+        },
+        "uz": {
+            "liquidity": "Likvidlik",
+            "profitability": "Rentabellik",
+            "asset_quality": "Aktivlar sifati",
+            "capital": "Kapital",
+            "efficiency": "Samaradorlik",
+            "fallback": "Ko'rsatkich",
+        },
+    }.get(lang)
+    captions = {
+        "ru": "Таблица 8 — Сводная таблица ключевых показателей",
+        "en": "Table 8 — Key indicator summary",
+        "uz": "Jadval 8 — Asosiy ko'rsatkichlar xulosasi",
+    }
+    headers = {
+        "ru": ["Блок", "Показатель", "Значение", "Ориентир", "Вывод", "Как влияет на анализ"],
+        "en": ["Block", "Metric", "Value", "Benchmark", "Conclusion", "How it affects the analysis"],
+        "uz": ["Blok", "Ko'rsatkich", "Qiymat", "Me'yor", "Xulosa", "Tahlilga ta'siri"],
+    }
     rows = [
         [
-            {
-                "liquidity": "Ликвидность",
-                "profitability": "Рентабельность",
-                "asset_quality": "Качество активов",
-                "capital": "Капитал",
-                "efficiency": "Эффективность",
-            }.get(item.get("category"), "Показатель"),
+            (category_labels or {}).get(item.get("category"), (category_labels or {}).get("fallback", "Metric")),
             item["label"],
             item["value"],
             item["benchmark"],
@@ -3603,8 +3931,8 @@ def _key_indicators_article_table(
     ]
     return _table_from_rows(
         "key_indicators_summary",
-        "Таблица 8 — Сводная таблица ключевых показателей",
-        ["Блок", "Показатель", "Значение", "Ориентир", "Вывод", "Как влияет на анализ"],
+        captions.get(lang, captions["en"]),
+        headers.get(lang, headers["en"]),
         rows,
         source="openinfo_excel.derived_ratios",
     )
@@ -4254,6 +4582,52 @@ def _build_article_report(
     def t(table: dict | None, role: str) -> list[dict]:
         return _table_with_explanation(table, role, lang)
 
+    section_copy = {
+        "overview_fallback": {
+            "ru": "Анализ построен на публичной отчётности, расчетных метриках и доступных Excel-раскрытиях эмитента.",
+            "en": "The analysis is based on public reporting, calculated metrics and available Excel disclosures from the issuer.",
+            "uz": "Tahlil emitentning ommaviy hisobotlari, hisoblangan metrikalari va mavjud Excel ma'lumotlariga asoslanadi.",
+        },
+        "horizontal_fallback": {
+            "ru": "Горизонтальный анализ показывает изменение ключевых строк между текущим и предыдущим периодом.",
+            "en": "Horizontal analysis shows how key reporting lines changed between the current and previous period.",
+            "uz": "Gorizontal tahlil joriy va oldingi davrlar orasida asosiy hisobot satrlari qanday o'zgarganini ko'rsatadi.",
+        },
+        "vertical_intro": {
+            "ru": "Вертикальный анализ показывает, какая часть активов и пассивов приходится на каждую крупную строку отчётности. Это помогает увидеть концентрацию баланса и зависимость от отдельных статей.",
+            "en": "Vertical analysis shows what share of assets and liabilities belongs to each major reporting line. It helps reveal balance-sheet concentration and dependence on individual items.",
+            "uz": "Vertikal tahlil aktiv va passivlarning qaysi ulushi har bir yirik hisobot satriga to'g'ri kelishini ko'rsatadi. Bu balans konsentratsiyasi va alohida moddalarga bog'liqlikni ko'rishga yordam beradi.",
+        },
+        "income_fallback": {
+            "ru": "Раздел сопоставляет доходы, расходы и прибыльность между периодами.",
+            "en": "This section compares income, expenses and profitability between periods.",
+            "uz": "Bu bo'lim davrlar bo'yicha daromad, xarajat va rentabellikni solishtiradi.",
+        },
+        "trend_intro": {
+            "ru": "Этот раздел нужен, чтобы не делать вывод по одному кварталу. Он показывает, повторяется ли тенденция в активах, депозитах, кредитах, капитале, прибыли и банковских коэффициентах.",
+            "en": "This section prevents conclusions from being based on one quarter only. It shows whether the trend repeats across assets, deposits, loans, capital, profit and banking ratios.",
+            "uz": "Bu bo'lim xulosani faqat bitta chorakka asoslamaslik uchun kerak. U aktivlar, depozitlar, kreditlar, kapital, foyda va bank koeffitsiyentlarida trend takrorlanishini ko'rsatadi.",
+        },
+        "ratio_fallback": {
+            "ru": "Коэффициенты дополняют табличный разбор и показывают прибыльность, устойчивость баланса и качество операционной модели.",
+            "en": "Ratios complement the table analysis and show profitability, balance-sheet resilience and operating-model quality.",
+            "uz": "Koeffitsiyentlar jadval tahlilini to'ldiradi va rentabellik, balans barqarorligi hamda operatsion model sifatini ko'rsatadi.",
+        },
+        "key_intro": {
+            "ru": "Эта таблица собирает главные коэффициенты в один слой: показатель, значение, ориентир и прямое влияние на анализ. Её удобно читать перед финальным выводом, потому что здесь видно, какие сигналы усиливают оценку, а какие требуют осторожности.",
+            "en": "This table brings the main ratios into one layer: metric, value, benchmark and direct effect on the analysis. It is useful before the final conclusion because it shows which signals strengthen the assessment and which require caution.",
+            "uz": "Bu jadval asosiy koeffitsiyentlarni bitta qatlamga jamlaydi: ko'rsatkich, qiymat, me'yor va tahlilga bevosita ta'sir. Uni yakuniy xulosadan oldin o'qish qulay, chunki qaysi signallar bahoni kuchaytirishi va qaysilari ehtiyotkorlik talab qilishini ko'rsatadi.",
+        },
+        "conclusion_fallback": {
+            "ru": "Итоговая оценка зависит от качества прибыли, структуры баланса и полноты раскрытых данных.",
+            "en": "The final assessment depends on profit quality, balance-sheet structure and the completeness of disclosed data.",
+            "uz": "Yakuniy baho foyda sifati, balans tuzilmasi va oshkor qilingan ma'lumotlarning to'liqligiga bog'liq.",
+        },
+    }
+
+    def copy(key: str) -> str:
+        return (section_copy.get(key) or {}).get(lang) or (section_copy.get(key) or {}).get("en", "")
+
     appendix_intro = {
         "ru": "\u0414\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0435 XLSX-\u0441\u0442\u0440\u043e\u043a\u0438 \u043d\u0443\u0436\u043d\u044b, \u0447\u0442\u043e\u0431\u044b \u043d\u0435 \u0442\u0435\u0440\u044f\u0442\u044c \u0434\u0430\u043d\u043d\u044b\u0435, \u043a\u043e\u0442\u043e\u0440\u044b\u0435 \u043d\u0435 \u0432\u043e\u0448\u043b\u0438 \u0432 \u043e\u0441\u043d\u043e\u0432\u043d\u044b\u0435 \u0441\u0432\u043e\u0434\u043d\u044b\u0435 \u0442\u0430\u0431\u043b\u0438\u0446\u044b. \u0418\u0445 \u0441\u0442\u043e\u0438\u0442 \u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c \u043a\u0430\u043a \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043e\u0432\u043a\u0443: \u0435\u0441\u043b\u0438 \u0441\u0442\u0440\u043e\u043a\u0430 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0435\u043d\u043d\u0430\u044f, \u043e\u043d\u0430 \u043f\u043e\u043c\u043e\u0433\u0430\u0435\u0442 \u043f\u043e\u043d\u044f\u0442\u044c, \u0438\u0437 \u0447\u0435\u0433\u043e \u0441\u043b\u043e\u0436\u0438\u043b\u0438\u0441\u044c \u0440\u0438\u0441\u043a, \u0434\u043e\u0445\u043e\u0434, \u043b\u0438\u043a\u0432\u0438\u0434\u043d\u043e\u0441\u0442\u044c \u0438\u043b\u0438 \u043a\u0430\u043f\u0438\u0442\u0430\u043b.",
         "en": "Additional XLSX rows are included so the report does not lose data that did not fit into the main summary tables. Read them as detail: material lines help explain what drives risk, income, liquidity or capital.",
@@ -4274,7 +4648,7 @@ def _build_article_report(
                 "uz": "Emitent haqida umumiy ma'lumot va tahlil usuli",
             }.get(lang),
             "blocks": [
-                p(_first_article_paragraph(sections, "ДОСЬЕ") or "Анализ построен на публичной отчётности, расчетных метриках и доступных Excel-раскрытиях эмитента."),
+                p(_first_article_paragraph(sections, "ДОСЬЕ") or copy("overview_fallback")),
                 *([p(str(comparison_selection.get("description")))] if comparison_selection.get("description") else []),
                 *([p(f"Отчётный фокус: {period_phrase}. Сравнение баланса построено по датам {_article_comparison_phrase(assets_h, lang)}, поэтому таблицы показывают не только величины, но и направление изменения за период.")] if period_phrase and lang == "ru" else []),
             ],
@@ -4288,7 +4662,7 @@ def _build_article_report(
                 "uz": "Balansning gorizontal tahlili",
             }.get(lang),
             "blocks": [
-                p(_first_article_paragraph(sections, "ЧТО_С_ДЕНЬГАМИ") or "Горизонтальный анализ показывает изменение ключевых строк между текущим и предыдущим периодом."),
+                p(_first_article_paragraph(sections, "ЧТО_С_ДЕНЬГАМИ") or copy("horizontal_fallback")),
                 *t(assets_h, "assets_horizontal"),
                 *t(liab_h, "liabilities_horizontal"),
             ],
@@ -4302,7 +4676,7 @@ def _build_article_report(
                 "uz": "Balansning vertikal tahlili",
             }.get(lang),
             "blocks": [
-                p("Вертикальный анализ показывает, какая часть активов и пассивов приходится на каждую крупную строку отчётности. Это помогает увидеть концентрацию баланса и зависимость от отдельных статей."),
+                p(copy("vertical_intro")),
                 *t(assets_v, "assets_vertical"),
                 *t(liab_v, "liabilities_vertical"),
             ],
@@ -4316,7 +4690,7 @@ def _build_article_report(
                 "uz": "Moliyaviy natijalar hisoboti tahlili",
             }.get(lang),
             "blocks": [
-                p(_first_article_paragraph(sections, "ТРЕНД", "ЧТО_С_ДЕНЬГАМИ") or "Раздел сопоставляет доходы, расходы и прибыльность между периодами."),
+                p(_first_article_paragraph(sections, "ТРЕНД", "ЧТО_С_ДЕНЬГАМИ") or copy("income_fallback")),
                 *t(income_table, "income_statement"),
             ],
         },
@@ -4329,7 +4703,7 @@ def _build_article_report(
                 "uz": "Asosiy ko'rsatkichlarning ko'p davrli taqqoslanishi",
             }.get(lang),
             "blocks": [
-                p("Этот раздел нужен, чтобы не делать вывод по одному кварталу. Он показывает, повторяется ли тенденция в активах, депозитах, кредитах, капитале, прибыли и банковских коэффициентах."),
+                p(copy("trend_intro")),
                 *t(trend_table, "multi_period_trend"),
             ],
         }] if trend_table else []),
@@ -4342,7 +4716,7 @@ def _build_article_report(
                 "uz": "Koeffitsiyentlar tahlili",
             }.get(lang),
             "blocks": [
-                p(_first_article_paragraph(sections, "ЭФФЕКТИВНОСТЬ", "ОЦЕНКА_ЦЕНЫ") or "Коэффициенты дополняют табличный разбор и показывают прибыльность, устойчивость баланса и качество операционной модели."),
+                p(_first_article_paragraph(sections, "ЭФФЕКТИВНОСТЬ", "ОЦЕНКА_ЦЕНЫ") or copy("ratio_fallback")),
                 *ratio_blocks,
                 *t(ratio_table, "ratio_summary"),
             ],
@@ -4356,7 +4730,7 @@ def _build_article_report(
                 "uz": "Asosiy ko'rsatkichlar xulosasi",
             }.get(lang),
             "blocks": [
-                p("Эта таблица собирает главные коэффициенты в один слой: показатель, значение, ориентир и прямое влияние на анализ. Её удобно читать перед финальным выводом, потому что здесь видно, какие сигналы усиливают оценку, а какие требуют осторожности."),
+                p(copy("key_intro")),
                 *t(key_indicators_table, "key_indicators"),
             ],
         },
@@ -4369,7 +4743,7 @@ def _build_article_report(
                 "uz": "Moliyaviy holat bo'yicha yakuniy baho",
             }.get(lang),
             "blocks": _article_conclusion_blocks(
-                _first_article_paragraph(sections, "ИТОГ", "ВЕРДИКТ") or "Итоговая оценка зависит от качества прибыли, структуры баланса и полноты раскрытых данных.",
+                _first_article_paragraph(sections, "ИТОГ", "ВЕРДИКТ") or copy("conclusion_fallback"),
                 assets_h,
                 liab_h,
                 income_table,
