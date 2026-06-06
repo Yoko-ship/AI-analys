@@ -1949,14 +1949,6 @@ function renderMetrics(metrics = {}) {
     tone: liquidity.liquidity_label === "high" ? "good" : "warning",
   });
 
-  const momentum = metrics.momentum || {};
-  pushCard({
-    label: t("metrics.momentum"),
-    value: momentum.overall || "—",
-    sub: momentum.acceleration || "",
-    tone: momentum.css === "bullish" ? "good" : momentum.css === "bearish" ? "danger" : "warning",
-  });
-
   if (!cards.length) {
     els.metricsGrid.classList.add("empty-state");
     els.metricsGrid.innerHTML = `<p class="empty-copy">${escapeHtml(t("analysis.metricsEmpty"))}</p>`;
