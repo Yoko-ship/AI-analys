@@ -181,11 +181,24 @@ def _normalize_excel_report_limit(value: int | None, include_all: bool = False) 
     return max(0, min(ABSOLUTE_EXCEL_REPORT_LIMIT, parsed))
 
 
+_REPORT_FORM_MAP = {
+    "IFRS": "MSFO",
+    "NAS": "NSBU",
+    "Audit": "Audition",
+}
+
+
+def _normalize_report_form(report_form: str | None) -> str:
+    key = str(report_form or "IFRS").strip()
+    return _REPORT_FORM_MAP.get(key, "MSFO")
+
+
 def _normalize_report_comparison(
     report_analysis_type: str | None = None,
     report_quarter: int | None = None,
     report_current_year: int | None = None,
     report_previous_year: int | None = None,
+    report_form: str | None = None,
 ) -> dict:
     mode = str(report_analysis_type or "latest").strip().lower()
     if mode in {"quarter", "quarterly"}:
@@ -200,6 +213,7 @@ def _normalize_report_comparison(
         "quarter": None,
         "current_year": None,
         "previous_year": None,
+        "report_form": _normalize_report_form(report_form),
     }
     if mode == "latest":
         return comparison
@@ -224,11 +238,13 @@ def _normalize_report_comparison(
 def _comparison_cache_suffix(report_comparison: dict | None) -> str:
     comparison = report_comparison or {}
     mode = comparison.get("mode") or "latest"
+    form = comparison.get("report_form") or "MSFO"
+    form_suffix = f"_{form.lower()}"
     if mode == "quarterly":
-        return f"_quarterly_q{comparison.get('quarter')}_{comparison.get('current_year')}_{comparison.get('previous_year')}"
+        return f"_quarterly_q{comparison.get('quarter')}_{comparison.get('current_year')}_{comparison.get('previous_year')}{form_suffix}"
     if mode == "annual":
-        return f"_annual_{comparison.get('current_year')}_{comparison.get('previous_year')}"
-    return ""
+        return f"_annual_{comparison.get('current_year')}_{comparison.get('previous_year')}{form_suffix}"
+    return form_suffix
 
 
 def _analysis_cache_mode(
@@ -576,10 +592,12 @@ def _first_article_paragraph(sections: dict, *keys: str) -> str:
     return ""
 
 
-def _excel_rows_for_article(company_data: dict | None) -> list[dict]:
+def _excel_rows_for_article(company_data: dict | None, report_form_filter: str | None = None) -> list[dict]:
     if not isinstance(company_data, dict):
         return []
     reports = ((company_data.get("excel_reports") or {}).get("items") or [])
+    if report_form_filter:
+        reports = [r for r in reports if (r.get("report_form") or "") == report_form_filter]
     rows: list[dict] = []
     for report_index, report in enumerate(reports):
         for sheet in report.get("sheets") or []:
@@ -1135,7 +1153,15 @@ def _select_article_comparison_indices(
         return base
 
     if not infos:
-        raise ValueError("В XLSX-отчётах компании нет данных для выбранного сравнения.")
+        form = comparison.get("report_form") or "MSFO"
+        form_label = {"MSFO": "МСФО", "NSBU": "НСБУ", "Audition": "аудиторское заключение"}.get(form, form)
+        if lang == "en":
+            form_label_en = {"MSFO": "IFRS", "NSBU": "NAS", "Audition": "Auditor's Report"}.get(form, form)
+            raise ValueError(f"The {form_label_en} report for the selected period was not found. The company may not have published this type of report for that period.")
+        if lang == "uz":
+            form_label_uz = {"MSFO": "MXHS", "NSBU": "MHBS", "Audition": "auditorlik xulosasi"}.get(form, form)
+            raise ValueError(f"Tanlangan davr uchun {form_label_uz} hisoboti topilmadi. Kompaniya ushbu turdagi hisobotni nashr etmagan bo'lishi mumkin.")
+        raise ValueError(f"Отчёт по форме «{form_label}» за выбранный период не найден. Компания могла не публиковать данный тип отчёта за этот период.")
 
     def find_info(year: int | None, quarter: int | None = None) -> dict | None:
         for info in infos:
@@ -1190,11 +1216,15 @@ def _select_article_comparison_indices(
         for value, found in ((requested_current, current), (requested_previous, previous))
         if not found
     ]
+    form = comparison.get("report_form") or "MSFO"
     if lang == "en":
-        raise ValueError(f"Selected report period was not found: {', '.join(missing)}. {available['text']}")
+        form_label_en = {"MSFO": "IFRS", "NSBU": "NAS", "Audition": "Auditor's Report"}.get(form, form)
+        raise ValueError(f"The {form_label_en} report for {', '.join(missing)} was not found. The company may not have published this type of report for that period. {available['text']}")
     if lang == "uz":
-        raise ValueError(f"Tanlangan hisobot davri topilmadi: {', '.join(missing)}. {available['text']}")
-    raise ValueError(f"Не найден выбранный период отчёта: {', '.join(missing)}. {available['text']}")
+        form_label_uz = {"MSFO": "MXHS", "NSBU": "MHBS", "Audition": "auditorlik xulosasi"}.get(form, form)
+        raise ValueError(f"{form_label_uz} hisoboti {', '.join(missing)} uchun topilmadi. Kompaniya ushbu turdagi hisobotni nashr etmagan bo'lishi mumkin. {available['text']}")
+    form_label_ru = {"MSFO": "МСФО", "NSBU": "НСБУ", "Audition": "аудиторское заключение"}.get(form, form)
+    raise ValueError(f"Отчёт по форме «{form_label_ru}» за {', '.join(missing)} не найден. Компания могла не публиковать данный тип отчёта за этот период. {available['text']}")
 
 
 def _article_report_sort_value(rows: list[dict], report_index: int) -> str:
@@ -4504,7 +4534,9 @@ def _build_article_report(
     report_comparison: dict | None = None,
 ) -> dict:
     lang = _normalize_language(language)
-    excel_rows = _excel_rows_for_article(company_data)
+    comparison = report_comparison or {}
+    report_form_filter = comparison.get("report_form") or None
+    excel_rows = _excel_rows_for_article(company_data, report_form_filter)
     for row in excel_rows:
         row["article_kind"] = _article_row_kind(row)
 
@@ -6743,6 +6775,7 @@ async def run_company_analysis(
     report_quarter: int | None = None,
     report_current_year: int | None = None,
     report_previous_year: int | None = None,
+    report_form: str | None = None,
 ) -> dict:
     company_name = (company_name or "").strip()
     if not company_name:
@@ -6753,6 +6786,7 @@ async def run_company_analysis(
         report_quarter,
         report_current_year,
         report_previous_year,
+        report_form,
     )
     comparison_requires_excel = report_comparison.get("mode") != "latest"
     if comparison_requires_excel:

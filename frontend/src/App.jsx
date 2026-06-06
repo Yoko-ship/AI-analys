@@ -210,6 +210,11 @@ const TEXTS = {
       quarter: "Квартал",
       currentYear: "Сравнить год",
       previousYear: "С годом",
+      reportingForm: "Форма отчётности",
+      reportFormIFRS: "МСФО",
+      reportFormNAS: "НСБУ",
+      reportFormAudit: "Аудиторское заключение",
+      reportFormNotFound: "Компания не опубликовала данный тип отчёта за выбранный период.",
       forceRefresh: "Обновить из источника (обойти кэш)",
       submit: "Анализировать",
       availableTitle: "Доступные компании",
@@ -425,6 +430,11 @@ const TEXTS = {
       quarter: "Quarter",
       currentYear: "Compare year",
       previousYear: "With year",
+      reportingForm: "Reporting form",
+      reportFormIFRS: "IFRS",
+      reportFormNAS: "NAS",
+      reportFormAudit: "Auditor's Report",
+      reportFormNotFound: "The company did not publish this type of report for the selected period.",
       forceRefresh: "Refresh from source (bypass cache)",
       submit: "Analyze",
       availableTitle: "Available companies",
@@ -640,6 +650,11 @@ const TEXTS = {
       quarter: "Chorak",
       currentYear: "Taqqoslanadigan yil",
       previousYear: "Bilan solishtirish",
+      reportingForm: "Hisobot shakli",
+      reportFormIFRS: "MXHS",
+      reportFormNAS: "MHBS",
+      reportFormAudit: "Auditorlik xulosasi",
+      reportFormNotFound: "Kompaniya tanlangan davr uchun ushbu turdagi hisobotni nashr etmagan.",
       forceRefresh: "Manbadan yangilash (keshni chetlab o'tish)",
       submit: "Tahlil qilish",
       availableTitle: "Mavjud kompaniyalar",
@@ -2855,6 +2870,7 @@ function App() {
   const [reportQuarter, setReportQuarter] = useState("1");
   const [reportCurrentYear, setReportCurrentYear] = useState(String(defaultReportYear));
   const [reportPreviousYear, setReportPreviousYear] = useState(String(defaultReportYear - 1));
+  const [reportForm, setReportForm] = useState("IFRS");
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
@@ -3109,6 +3125,7 @@ function App() {
           force_refresh: forceRefresh,
           include_all_excel_reports: includeAllExcelReports,
           report_analysis_type: reportAnalysisType,
+          report_form: reportForm,
           ...(reportAnalysisType !== "latest" ? {
             report_current_year: Number(reportCurrentYear),
             report_previous_year: Number(reportPreviousYear),
@@ -3886,6 +3903,14 @@ function App() {
                         <option value="latest">{t(language, "analysis.fullAnalysis")}</option>
                         <option value="quarterly">{t(language, "analysis.quarterlyReport")}</option>
                         <option value="annual">{t(language, "analysis.annualReport")}</option>
+                      </select>
+                    </div>
+                    <div className="analysis-input-group">
+                      <label>{t(language, "analysis.reportingForm")}</label>
+                      <select value={reportForm} onChange={(event) => setReportForm(event.target.value)}>
+                        <option value="IFRS">{t(language, "analysis.reportFormIFRS")}</option>
+                        <option value="NAS">{t(language, "analysis.reportFormNAS")}</option>
+                        <option value="Audit">{t(language, "analysis.reportFormAudit")}</option>
                       </select>
                     </div>
                     {reportAnalysisType === "quarterly" ? (

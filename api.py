@@ -81,6 +81,7 @@ class AnalyzeRequest(BaseModel):
     report_quarter: int | None = Field(default=None, ge=1, le=4)
     report_current_year: int | None = Field(default=None, ge=1900, le=2100)
     report_previous_year: int | None = Field(default=None, ge=1900, le=2100)
+    report_form: Literal["IFRS", "NAS", "Audit"] = "IFRS"
 
 
 class CompanyDataRequest(BaseModel):
@@ -507,6 +508,7 @@ async def api_analyze(
             report_quarter=payload.report_quarter,
             report_current_year=payload.report_current_year,
             report_previous_year=payload.report_previous_year,
+            report_form=payload.report_form,
         )
     except ValueError as exc:
         logger.exception("Analysis failed with value error for %s", payload.company)
