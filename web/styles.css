@@ -788,6 +788,10 @@ button {
   min-height: 100%;
 }
 
+.sections-panel {
+  grid-column: 1 / -1;
+}
+
 .result-hero {
   display: grid;
   gap: 16px;

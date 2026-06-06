@@ -6922,6 +6922,10 @@ body[data-theme="light"] .sections-panel .section-card .section-content, body[da
   margin-top: 0;
 }
 
+.sections-panel {
+  grid-column: 1 / -1;
+}
+
 /* In-app longform report article */
 .report-article-panel {
   grid-column: 1 / -1;
