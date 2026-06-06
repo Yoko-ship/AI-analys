@@ -210,7 +210,6 @@ const TEXTS = {
       quarter: "Квартал",
       currentYear: "Сравнить год",
       previousYear: "С годом",
-      includeHtml: "Возвращать HTML-отчет",
       forceRefresh: "Обновить из источника (обойти кэш)",
       submit: "Анализировать",
       availableTitle: "Доступные компании",
@@ -425,7 +424,6 @@ const TEXTS = {
       quarter: "Quarter",
       currentYear: "Compare year",
       previousYear: "With year",
-      includeHtml: "Return HTML report",
       forceRefresh: "Refresh from source (bypass cache)",
       submit: "Analyze",
       availableTitle: "Available companies",
@@ -640,7 +638,6 @@ const TEXTS = {
       quarter: "Chorak",
       currentYear: "Taqqoslanadigan yil",
       previousYear: "Bilan solishtirish",
-      includeHtml: "HTML hisobotni qaytarish",
       forceRefresh: "Manbadan yangilash (keshni chetlab o'tish)",
       submit: "Tahlil qilish",
       availableTitle: "Mavjud kompaniyalar",
@@ -2722,7 +2719,6 @@ function App() {
   const [registerForm, setRegisterForm] = useState({ full_name: "", email: "", password: "" });
   const [authMessage, setAuthMessage] = useState("");
   const [analysisCompany, setAnalysisCompany] = useState("");
-  const [includeHtml, setIncludeHtml] = useState(true);
   const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
   const [excelReportLimit, setExcelReportLimit] = useState("");
@@ -2980,7 +2976,6 @@ function App() {
         body: JSON.stringify({
           company,
           language,
-          include_html: includeHtml,
           include_raw: false,
           force_refresh: forceRefresh,
           include_all_excel_reports: includeAllExcelReports,
@@ -3821,10 +3816,6 @@ function App() {
                         <option value="full">{t(language, "analysis.full")}</option>
                       </select>
                     </div>
-                    <label className="analysis-checkbox">
-                      <input type="checkbox" checked={includeHtml} onChange={(event) => setIncludeHtml(event.target.checked)} />
-                      <span>{t(language, "analysis.includeHtml")}</span>
-                    </label>
                     <label className="analysis-checkbox">
                       <input type="checkbox" checked={forceRefresh} onChange={(event) => setForceRefresh(event.target.checked)} />
                       <span>{t(language, "analysis.forceRefresh")}</span>
