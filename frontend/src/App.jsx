@@ -1015,6 +1015,116 @@ function ct(language, key) {
   return COMPARE_TEXTS[lang]?.[key] ?? COMPARE_TEXTS.ru[key] ?? key;
 }
 
+const MARKET_TEXTS = {
+  ru: {
+    nav: "Рынок",
+    title: "Цены акций UZSE",
+    subtitle: "Актуальные цены, дневной диапазон и изменение к предыдущему закрытию",
+    updated: "Обновлено",
+    refresh: "Обновить",
+    loading: "Загружаем котировки...",
+    ready: "Котировки загружены",
+    empty: "Нет данных по выбранному фильтру",
+    search: "Поиск по тикеру или компании",
+    all: "Все",
+    stocks: "Акции",
+    bonds: "Облигации",
+    instruments: "Инструментов",
+    traded: "Сделки сегодня",
+    advancers: "Рост",
+    decliners: "Снижение",
+    topGrowth: "Лидер роста",
+    topDrop: "Лидер снижения",
+    tableTitle: "Биржевые инструменты",
+    showing: "Показано",
+    ticker: "Тикер",
+    company: "Компания",
+    last: "Последняя",
+    change: "Изм.",
+    open: "Открытие",
+    high: "Макс.",
+    low: "Мин.",
+    date: "Дата сделки",
+    type: "Тип",
+    source: "UZSE",
+    analyze: "Анализ",
+    noTrade: "нет сделки",
+  },
+  en: {
+    nav: "Market",
+    title: "UZSE stock prices",
+    subtitle: "Latest prices, daily range, and change versus previous close",
+    updated: "Updated",
+    refresh: "Refresh",
+    loading: "Loading quotes...",
+    ready: "Quotes loaded",
+    empty: "No instruments for this filter",
+    search: "Search ticker or company",
+    all: "All",
+    stocks: "Stocks",
+    bonds: "Bonds",
+    instruments: "Instruments",
+    traded: "Traded today",
+    advancers: "Up",
+    decliners: "Down",
+    topGrowth: "Top gainer",
+    topDrop: "Top decliner",
+    tableTitle: "Market instruments",
+    showing: "Showing",
+    ticker: "Ticker",
+    company: "Company",
+    last: "Last",
+    change: "Chg.",
+    open: "Open",
+    high: "High",
+    low: "Low",
+    date: "Trade date",
+    type: "Type",
+    source: "UZSE",
+    analyze: "Analyze",
+    noTrade: "no trade",
+  },
+  uz: {
+    nav: "Bozor",
+    title: "UZSE aksiya narxlari",
+    subtitle: "So'nggi narxlar, kunlik oraliq va oldingi yopilish bilan farq",
+    updated: "Yangilandi",
+    refresh: "Yangilash",
+    loading: "Kotirovkalar yuklanmoqda...",
+    ready: "Kotirovkalar yuklandi",
+    empty: "Bu filtr bo'yicha ma'lumot yo'q",
+    search: "Ticker yoki kompaniya bo'yicha qidirish",
+    all: "Hammasi",
+    stocks: "Aksiyalar",
+    bonds: "Obligatsiyalar",
+    instruments: "Instrumentlar",
+    traded: "Bugun savdo bo'lgan",
+    advancers: "O'sish",
+    decliners: "Pasayish",
+    topGrowth: "Eng katta o'sish",
+    topDrop: "Eng katta pasayish",
+    tableTitle: "Bozor instrumentlari",
+    showing: "Ko'rsatilgan",
+    ticker: "Ticker",
+    company: "Kompaniya",
+    last: "So'nggi",
+    change: "O'zg.",
+    open: "Ochilish",
+    high: "Maks.",
+    low: "Min.",
+    date: "Savdo sanasi",
+    type: "Tur",
+    source: "UZSE",
+    analyze: "Tahlil",
+    noTrade: "savdo yo'q",
+  },
+};
+
+function mt(language, key) {
+  const lang = normalizeLanguage(language);
+  return MARKET_TEXTS[lang]?.[key] ?? MARKET_TEXTS.ru[key] ?? key;
+}
+
 function safeNumber(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
@@ -1051,6 +1161,75 @@ function formatRatio(value, digits = 2, language = "ru") {
   if (!Number.isFinite(num)) return "—";
   const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
   return new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(num);
+}
+
+function formatMarketNumber(value, language, digits = 2) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: Math.abs(num) < 10 ? 2 : 0,
+    maximumFractionDigits: digits,
+  }).format(num);
+}
+
+function formatMarketTimestamp(value, language) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function marketChange(stock) {
+  const last = safeNumber(stock?.last_price);
+  const close = safeNumber(stock?.close_price);
+  if (last === null || close === null || close === 0) {
+    return { value: null, percent: null };
+  }
+  const value = last - close;
+  return {
+    value,
+    percent: (value / Math.abs(close)) * 100,
+  };
+}
+
+function marketTone(percent) {
+  if (percent === null || percent === undefined || !Number.isFinite(Number(percent))) return "neutral";
+  if (Number(percent) > 0.05) return "good";
+  if (Number(percent) < -0.05) return "danger";
+  return "neutral";
+}
+
+function enrichMarketStock(stock) {
+  const change = marketChange(stock);
+  return {
+    ...stock,
+    lastPrice: safeNumber(stock?.last_price),
+    closePrice: safeNumber(stock?.close_price),
+    openPrice: safeNumber(stock?.open),
+    highPrice: safeNumber(stock?.high),
+    lowPrice: safeNumber(stock?.low),
+    changeValue: change.value,
+    changePercent: change.percent,
+    tone: marketTone(change.percent),
+  };
+}
+
+function buildMarketStats(rows) {
+  const traded = rows.filter((row) => row.lastPrice !== null).length;
+  const advancers = rows.filter((row) => row.changePercent !== null && row.changePercent > 0.05).length;
+  const decliners = rows.filter((row) => row.changePercent !== null && row.changePercent < -0.05).length;
+  const withChange = rows.filter((row) => Number.isFinite(row.changePercent));
+  const topGrowth = withChange.reduce((best, row) => (!best || row.changePercent > best.changePercent ? row : best), null);
+  const topDrop = withChange.reduce((worst, row) => (!worst || row.changePercent < worst.changePercent ? row : worst), null);
+  return { traded, advancers, decliners, topGrowth, topDrop };
 }
 
 const SCORE_EXPLANATION_TEXTS = {
@@ -2844,6 +3023,163 @@ function CompareSummaryText({ summary, language }) {
   );
 }
 
+function MarketStatCard({ label, value, sub, tone = "neutral" }) {
+  return (
+    <article className={`market-stat-card tone-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {sub ? <em>{sub}</em> : null}
+    </article>
+  );
+}
+
+function MarketChangeBadge({ value, percent, language }) {
+  const tone = marketTone(percent);
+  const sign = Number(value) > 0 ? "+" : "";
+  const percentSign = Number(percent) > 0 ? "+" : "";
+  return (
+    <span className={`market-change-badge tone-${tone}`}>
+      {value === null || percent === null
+        ? "—"
+        : `${sign}${formatMarketNumber(value, language)} · ${percentSign}${formatRatio(percent, 2, language)}%`}
+    </span>
+  );
+}
+
+function MarketView({
+  rows,
+  meta,
+  loading,
+  message,
+  query,
+  onQueryChange,
+  type,
+  onTypeChange,
+  onRefresh,
+  onAnalyze,
+  language,
+}) {
+  const lang = normalizeLanguage(language);
+  const prepared = (Array.isArray(rows) ? rows : []).map(enrichMarketStock);
+  const search = String(query || "").trim().toLowerCase();
+  const visibleRows = prepared
+    .filter((row) => {
+      if (!search) return true;
+      return `${row.ticker || ""} ${row.name || ""} ${row.isin || ""}`.toLowerCase().includes(search);
+    })
+    .sort((a, b) => {
+      const aDate = a.last_trade_date || "";
+      const bDate = b.last_trade_date || "";
+      if (aDate !== bDate) return bDate.localeCompare(aDate);
+      return Math.abs(b.changePercent ?? -Infinity) - Math.abs(a.changePercent ?? -Infinity);
+    });
+  const stats = buildMarketStats(prepared);
+  const formatLeader = (row) => row ? `${row.ticker} ${formatRatio(row.changePercent, 2, lang)}%` : "—";
+
+  return (
+    <section className="market-layout">
+      <article className="panel market-hero-panel">
+        <div className="market-hero-copy">
+          <div className="panel-label">{mt(lang, "nav")}</div>
+          <h1>{mt(lang, "title")}</h1>
+          <p>{mt(lang, "subtitle")}</p>
+        </div>
+        <div className="market-hero-actions">
+          <span className="status-badge muted">{mt(lang, "updated")}: {formatMarketTimestamp(meta?.updated_at, lang)}</span>
+          <button className="ghost-btn" type="button" onClick={onRefresh} disabled={loading}>
+            {loading ? mt(lang, "loading") : mt(lang, "refresh")}
+          </button>
+        </div>
+      </article>
+
+      <div className="market-stats-grid">
+        <MarketStatCard label={mt(lang, "instruments")} value={formatRatio(prepared.length || meta?.count || 0, 0, lang)} sub={message || mt(lang, "ready")} />
+        <MarketStatCard label={mt(lang, "traded")} value={formatRatio(stats.traded, 0, lang)} sub={mt(lang, "date")} />
+        <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(stats.advancers, 0, lang)} sub={formatLeader(stats.topGrowth)} tone="good" />
+        <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
+      </div>
+
+      <article className="panel market-board">
+        <div className="market-board-head">
+          <div>
+            <div className="panel-label">{mt(lang, "tableTitle")}</div>
+            <h2>{mt(lang, "tableTitle")}</h2>
+          </div>
+          <span className="status-badge muted">{mt(lang, "showing")}: {visibleRows.length}/{prepared.length}</span>
+        </div>
+
+        <div className="market-controls">
+          <div className="segmented-control market-type-control">
+            {[
+              ["stock", mt(lang, "stocks")],
+              ["bond", mt(lang, "bonds")],
+              ["all", mt(lang, "all")],
+            ].map(([value, label]) => (
+              <button key={value} type="button" className={type === value ? "active" : ""} onClick={() => onTypeChange(value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="market-search">
+            <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={mt(lang, "search")} />
+          </label>
+        </div>
+
+        <div className="market-table-wrap">
+          <table className="market-table">
+            <thead>
+              <tr>
+                <th>{mt(lang, "ticker")}</th>
+                <th>{mt(lang, "company")}</th>
+                <th>{mt(lang, "last")}</th>
+                <th>{mt(lang, "change")}</th>
+                <th>{mt(lang, "open")}</th>
+                <th>{mt(lang, "high")}</th>
+                <th>{mt(lang, "low")}</th>
+                <th>{mt(lang, "date")}</th>
+                <th>{mt(lang, "source")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="9" className="market-empty-cell">{mt(lang, "loading")}</td></tr>
+              ) : visibleRows.length ? (
+                visibleRows.map((row) => (
+                  <tr key={`${row.ticker}-${row.isin}`}>
+                    <td>
+                      <button type="button" className="market-ticker-btn" onClick={() => onAnalyze(row.ticker)}>
+                        {row.ticker || "—"}
+                      </button>
+                      <span>{row.type || "—"}</span>
+                    </td>
+                    <td>
+                      <strong>{row.name || "—"}</strong>
+                      <span>{row.isin || "—"}</span>
+                    </td>
+                    <td className="num">{row.lastPrice === null ? "—" : formatMarketNumber(row.lastPrice, lang)}</td>
+                    <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>
+                    <td className="num">{formatMarketNumber(row.openPrice, lang)}</td>
+                    <td className="num">{formatMarketNumber(row.highPrice, lang)}</td>
+                    <td className="num">{formatMarketNumber(row.lowPrice, lang)}</td>
+                    <td>{row.last_trade_date || mt(lang, "noTrade")}</td>
+                    <td>
+                      {row.url ? (
+                        <a className="market-source-link" href={row.url} target="_blank" rel="noreferrer">{mt(lang, "source")}</a>
+                      ) : "—"}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan="9" className="market-empty-cell">{mt(lang, "empty")}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  );
+}
+
 function App() {
   const defaultReportYear = Math.max(2000, new Date().getFullYear() - 1);
   const reportYearOptions = Array.from({ length: 12 }, (_, index) => String(defaultReportYear + 1 - index));
@@ -2886,6 +3222,12 @@ function App() {
   const [profileAvatarCleared, setProfileAvatarCleared] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [historyMode, setHistoryMode] = useState("all");
+  const [marketRows, setMarketRows] = useState([]);
+  const [marketMeta, setMarketMeta] = useState({ updated_at: null, count: 0 });
+  const [marketType, setMarketType] = useState("stock");
+  const [marketQuery, setMarketQuery] = useState("");
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [marketMessage, setMarketMessage] = useState("");
   const [toasts, setToasts] = useState([]);
 
   useEffect(() => {
@@ -2972,6 +3314,14 @@ function App() {
     setHistorySearch("");
   }, [activeView]);
 
+  useEffect(() => {
+    if (activeView !== "market") return;
+    loadMarketStocks().catch((error) => {
+      addToast(error.message, "error");
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, marketType, language]);
+
   const addToast = (message, tone = "info") => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setToasts((current) => [...current, { id, message, tone }]);
@@ -3008,6 +3358,26 @@ function App() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Could not load companies");
     setCompanies(data.companies || []);
+  };
+
+  const loadMarketStocks = async () => {
+    setMarketLoading(true);
+    setMarketMessage(mt(language, "loading"));
+    try {
+      const params = new URLSearchParams();
+      if (marketType !== "all") params.set("type", marketType);
+      const res = await apiFetch(`/api/market/stocks${params.toString() ? `?${params}` : ""}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Could not load stock prices");
+      setMarketRows(Array.isArray(data.stocks) ? data.stocks : []);
+      setMarketMeta({ updated_at: data.updated_at || null, count: data.count || 0, type: data.type || marketType });
+      setMarketMessage(mt(language, "ready"));
+    } catch (error) {
+      setMarketMessage(error.message);
+      throw error;
+    } finally {
+      setMarketLoading(false);
+    }
   };
 
   const loadProfile = async () => {
@@ -3400,8 +3770,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "profile", "analysis", "compare"]
-    : ["main", "auth", "analysis", "compare"];
+    ? ["main", "market", "profile", "analysis", "compare"]
+    : ["main", "market", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -3449,7 +3819,7 @@ function App() {
           <nav className="topbar-nav">
             {navItems.map((key) => (
               <button key={key} className={`topbar-nav-btn ${activeView === key ? "active" : ""}`} type="button" onClick={() => setActiveView(key)}>
-                {key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
+                {key === "market" ? mt(language, "nav") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
@@ -3563,6 +3933,25 @@ function App() {
                 </div>
               </section>
             </>
+          )}
+
+          {activeView === "market" && (
+            <MarketView
+              rows={marketRows}
+              meta={marketMeta}
+              loading={marketLoading}
+              message={marketMessage}
+              query={marketQuery}
+              onQueryChange={setMarketQuery}
+              type={marketType}
+              onTypeChange={setMarketType}
+              onRefresh={() => loadMarketStocks().catch((error) => addToast(error.message, "error"))}
+              onAnalyze={(ticker) => {
+                setAnalysisCompany(ticker || "");
+                setActiveView("analysis");
+              }}
+              language={language}
+            />
           )}
 
           {activeView === "auth" && (
