@@ -68,6 +68,8 @@ ASSET_DIR = WEB_DIR / "assets" if WEB_DIR == WEB_DIST_DIR else WEB_DIR
 if ASSET_DIR.exists():
     app.mount("/assets", StaticFiles(directory=ASSET_DIR), name="assets")
 
+UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
+
 
 class AnalyzeRequest(BaseModel):
     company: str = Field(..., min_length=1, max_length=200)
@@ -284,6 +286,38 @@ async def api_companies() -> dict[str, Any]:
             for name, ticker in COMPANY_CATALOG.items()
         ],
     }
+
+
+@app.get("/api/market/stocks")
+async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
+    security_type = (type or "").strip().lower()
+    if security_type and security_type not in {"stock", "bond"}:
+        raise HTTPException(status_code=400, detail="type must be stock or bond")
+
+    try:
+        response = requests.get(
+            f"{UZSE_STOCK_API_BASE}/stocks",
+            params={"type": security_type} if security_type else None,
+            timeout=20,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except requests.RequestException as exc:
+        logger.exception("UZSE stock API request failed")
+        raise HTTPException(status_code=502, detail="Could not load stock prices") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="Stock price API returned invalid JSON") from exc
+
+    stocks = payload.get("stocks") if isinstance(payload, dict) else []
+    return _json_safe({
+        "ok": True,
+        "source": "uzse-stock-production",
+        "source_url": f"{UZSE_STOCK_API_BASE}/stocks",
+        "updated_at": payload.get("updated_at") if isinstance(payload, dict) else None,
+        "count": payload.get("count", len(stocks)) if isinstance(payload, dict) else len(stocks),
+        "type": security_type or "all",
+        "stocks": stocks if isinstance(stocks, list) else [],
+    })
 
 
 @app.post("/api/auth/register")
