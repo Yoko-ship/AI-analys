@@ -320,6 +320,33 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
     })
 
 
+@app.get("/api/market/trades")
+async def api_market_trades() -> dict[str, Any]:
+    try:
+        response = requests.get(f"{UZSE_STOCK_API_BASE}/trades", timeout=20)
+        response.raise_for_status()
+        payload = response.json()
+    except requests.RequestException as exc:
+        logger.exception("UZSE trades API request failed")
+        raise HTTPException(status_code=502, detail="Could not load trade data") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="Trades API returned invalid JSON") from exc
+
+    trades = payload.get("trades", []) if isinstance(payload, dict) else []
+    if not isinstance(trades, list):
+        trades = []
+    total_volume = sum((t.get("volume") or 0) for t in trades)
+    total_quantity = sum((t.get("quantity") or 0) for t in trades)
+    total_trade_count = sum((t.get("trade_count") or 0) for t in trades)
+    return _json_safe({
+        "ok": True,
+        "updated_at": payload.get("updated_at") if isinstance(payload, dict) else None,
+        "total_volume": total_volume,
+        "total_quantity": total_quantity,
+        "total_trade_count": total_trade_count,
+    })
+
+
 @app.post("/api/auth/register")
 async def api_register(payload: RegisterRequest) -> dict[str, Any]:
     try:

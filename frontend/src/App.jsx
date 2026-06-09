@@ -1045,10 +1045,15 @@ const MARKET_TEXTS = {
     high: "Макс.",
     low: "Мин.",
     date: "Дата сделки",
+    closeDate: "закр.",
     type: "Тип",
+    ordinary: "обыкн.",
+    preferred: "привил.",
     source: "UZSE",
     analyze: "Анализ",
     noTrade: "нет сделки",
+    volume: "Объём торгов",
+    tradeCount: "сделок",
   },
   en: {
     nav: "Market",
@@ -1079,10 +1084,15 @@ const MARKET_TEXTS = {
     high: "High",
     low: "Low",
     date: "Trade date",
+    closeDate: "close",
     type: "Type",
+    ordinary: "ordinary",
+    preferred: "preferred",
     source: "UZSE",
     analyze: "Analyze",
     noTrade: "no trade",
+    volume: "Volume",
+    tradeCount: "trades",
   },
   uz: {
     nav: "Bozor",
@@ -1113,10 +1123,15 @@ const MARKET_TEXTS = {
     high: "Maks.",
     low: "Min.",
     date: "Savdo sanasi",
+    closeDate: "yop.",
     type: "Tur",
+    ordinary: "oddiy",
+    preferred: "imtiyozli",
     source: "UZSE",
     analyze: "Tahlil",
     noTrade: "savdo yo'q",
+    volume: "Savdo hajmi",
+    tradeCount: "savdo",
   },
 };
 
@@ -1171,6 +1186,15 @@ function formatMarketNumber(value, language, digits = 2) {
     minimumFractionDigits: Math.abs(num) < 10 ? 2 : 0,
     maximumFractionDigits: digits,
   }).format(num);
+}
+
+function formatCompactVolume(value, lang) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+  if (num >= 1e9) return formatRatio(num / 1e9, 1, lang) + "B";
+  if (num >= 1e6) return formatRatio(num / 1e6, 1, lang) + "M";
+  if (num >= 1e3) return formatRatio(num / 1e3, 1, lang) + "K";
+  return formatRatio(num, 0, lang);
 }
 
 function formatMarketTimestamp(value, language) {
@@ -3049,6 +3073,7 @@ function MarketChangeBadge({ value, percent, language }) {
 function MarketView({
   rows,
   meta,
+  trades,
   loading,
   message,
   query,
@@ -3097,6 +3122,7 @@ function MarketView({
         <MarketStatCard label={mt(lang, "traded")} value={formatRatio(stats.traded, 0, lang)} sub={mt(lang, "date")} />
         <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(stats.advancers, 0, lang)} sub={formatLeader(stats.topGrowth)} tone="good" />
         <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
+        {trades && <MarketStatCard label={mt(lang, "volume")} value={formatCompactVolume(trades.total_volume, lang)} sub={trades.total_trade_count ? `${formatRatio(trades.total_trade_count, 0, lang)} ${mt(lang, "tradeCount")}` : null} />}
       </div>
 
       <article className="panel market-board">
@@ -3150,7 +3176,7 @@ function MarketView({
                       <button type="button" className="market-ticker-btn" onClick={() => onAnalyze(row.ticker)}>
                         {row.ticker || "—"}
                       </button>
-                      <span>{row.type || "—"}</span>
+                      <span>{[row.type, row.share_type ? mt(lang, row.share_type) : null].filter(Boolean).join(" · ") || "—"}</span>
                     </td>
                     <td>
                       <strong>{row.name || "—"}</strong>
@@ -3161,7 +3187,10 @@ function MarketView({
                     <td className="num">{formatMarketNumber(row.openPrice, lang)}</td>
                     <td className="num">{formatMarketNumber(row.highPrice, lang)}</td>
                     <td className="num">{formatMarketNumber(row.lowPrice, lang)}</td>
-                    <td>{row.last_trade_date || mt(lang, "noTrade")}</td>
+                    <td>
+                      <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
+                      {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
+                    </td>
                     <td>
                       {row.url ? (
                         <a className="market-source-link" href={row.url} target="_blank" rel="noreferrer">{mt(lang, "source")}</a>
@@ -3224,6 +3253,7 @@ function App() {
   const [historyMode, setHistoryMode] = useState("all");
   const [marketRows, setMarketRows] = useState([]);
   const [marketMeta, setMarketMeta] = useState({ updated_at: null, count: 0 });
+  const [marketTrades, setMarketTrades] = useState(null);
   const [marketType, setMarketType] = useState("stock");
   const [marketQuery, setMarketQuery] = useState("");
   const [marketLoading, setMarketLoading] = useState(false);
@@ -3319,6 +3349,7 @@ function App() {
     loadMarketStocks().catch((error) => {
       addToast(error.message, "error");
     });
+    loadMarketTrades();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, marketType, language]);
 
@@ -3377,6 +3408,16 @@ function App() {
       throw error;
     } finally {
       setMarketLoading(false);
+    }
+  };
+
+  const loadMarketTrades = async () => {
+    try {
+      const res = await apiFetch("/api/market/trades");
+      const data = await res.json();
+      if (res.ok) setMarketTrades(data);
+    } catch {
+      // trades are optional — don't block the page
     }
   };
 
@@ -3939,13 +3980,14 @@ function App() {
             <MarketView
               rows={marketRows}
               meta={marketMeta}
+              trades={marketTrades}
               loading={marketLoading}
               message={marketMessage}
               query={marketQuery}
               onQueryChange={setMarketQuery}
               type={marketType}
               onTypeChange={setMarketType}
-              onRefresh={() => loadMarketStocks().catch((error) => addToast(error.message, "error"))}
+              onRefresh={() => { loadMarketStocks().catch((error) => addToast(error.message, "error")); loadMarketTrades(); }}
               onAnalyze={(ticker) => {
                 setAnalysisCompany(ticker || "");
                 setActiveView("analysis");
