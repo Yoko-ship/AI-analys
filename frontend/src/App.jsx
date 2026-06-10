@@ -1047,8 +1047,8 @@ const MARKET_TEXTS = {
     date: "Дата сделки",
     closeDate: "закр.",
     type: "Тип",
-    ordinary: "обыкн.",
-    preferred: "привил.",
+    ordinary: "обыкновенный",
+    preferred: "привилегированный",
     source: "UZSE",
     analyze: "Анализ",
     noTrade: "нет сделки",
@@ -1086,8 +1086,8 @@ const MARKET_TEXTS = {
     date: "Trade date",
     closeDate: "close",
     type: "Type",
-    ordinary: "ordinary",
-    preferred: "preferred",
+    ordinary: "ordinary share",
+    preferred: "preferred share",
     source: "UZSE",
     analyze: "Analyze",
     noTrade: "no trade",
@@ -1125,8 +1125,8 @@ const MARKET_TEXTS = {
     date: "Savdo sanasi",
     closeDate: "yop.",
     type: "Tur",
-    ordinary: "oddiy",
-    preferred: "imtiyozli",
+    ordinary: "oddiy aksiya",
+    preferred: "imtiyozli aksiya",
     source: "UZSE",
     analyze: "Tahlil",
     noTrade: "savdo yo'q",
@@ -3176,7 +3176,7 @@ function MarketView({
                       <button type="button" className="market-ticker-btn" onClick={() => onAnalyze(row.ticker)}>
                         {row.ticker || "—"}
                       </button>
-                      <span>{[row.type, row.share_type ? mt(lang, row.share_type) : null].filter(Boolean).join(" · ") || "—"}</span>
+                      <span>{row.share_type ? mt(lang, row.share_type) : row.type || "—"}</span>
                     </td>
                     <td>
                       <strong>{row.name || "—"}</strong>
