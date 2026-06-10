@@ -3195,7 +3195,7 @@ function MarketView({
                     <td className="num">{formatMarketNumber(row.highPrice, lang)}</td>
                     <td className="num">{formatMarketNumber(row.lowPrice, lang)}</td>
                     <td className="num">
-                      {row.stockVolume !== null ? formatMarketNumber(row.stockVolume, lang, 0) : "—"}
+                      {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
                       {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт. · {row.stockTradeCount !== null ? formatRatio(row.stockTradeCount, 0, lang) : "—"} {mt(lang, "tradeCount")}</span>}
                     </td>
                     <td>
