@@ -1053,6 +1053,7 @@ const MARKET_TEXTS = {
     analyze: "Анализ",
     noTrade: "нет сделки",
     volume: "Объём торгов",
+    volumeCol: "Объём",
     tradeCount: "сделок",
   },
   en: {
@@ -1092,6 +1093,7 @@ const MARKET_TEXTS = {
     analyze: "Analyze",
     noTrade: "no trade",
     volume: "Volume",
+    volumeCol: "Volume",
     tradeCount: "trades",
   },
   uz: {
@@ -1131,6 +1133,7 @@ const MARKET_TEXTS = {
     analyze: "Tahlil",
     noTrade: "savdo yo'q",
     volume: "Savdo hajmi",
+    volumeCol: "Hajm",
     tradeCount: "savdo",
   },
 };
@@ -1240,6 +1243,8 @@ function enrichMarketStock(stock) {
     openPrice: safeNumber(stock?.open),
     highPrice: safeNumber(stock?.high),
     lowPrice: safeNumber(stock?.low),
+    stockVolume: safeNumber(stock?.volume),
+    stockQuantity: safeNumber(stock?.quantity),
     changeValue: change.value,
     changePercent: change.percent,
     tone: marketTone(change.percent),
@@ -3162,13 +3167,14 @@ function MarketView({
                 <th>{mt(lang, "open")}</th>
                 <th>{mt(lang, "high")}</th>
                 <th>{mt(lang, "low")}</th>
+                <th>{mt(lang, "volumeCol")}</th>
                 <th>{mt(lang, "date")}</th>
                 <th>{mt(lang, "source")}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="9" className="market-empty-cell">{mt(lang, "loading")}</td></tr>
+                <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "loading")}</td></tr>
               ) : visibleRows.length ? (
                 visibleRows.map((row) => (
                   <tr key={`${row.ticker}-${row.isin}`}>
@@ -3187,6 +3193,10 @@ function MarketView({
                     <td className="num">{formatMarketNumber(row.openPrice, lang)}</td>
                     <td className="num">{formatMarketNumber(row.highPrice, lang)}</td>
                     <td className="num">{formatMarketNumber(row.lowPrice, lang)}</td>
+                    <td className="num">
+                      {row.stockVolume !== null ? formatCompactVolume(row.stockVolume, lang) : "—"}
+                      {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт.</span>}
+                    </td>
                     <td>
                       <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
                       {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
@@ -3199,7 +3209,7 @@ function MarketView({
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="9" className="market-empty-cell">{mt(lang, "empty")}</td></tr>
+                <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "empty")}</td></tr>
               )}
             </tbody>
           </table>
