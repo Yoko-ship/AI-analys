@@ -1245,6 +1245,7 @@ function enrichMarketStock(stock) {
     lowPrice: safeNumber(stock?.low),
     stockVolume: safeNumber(stock?.volume),
     stockQuantity: safeNumber(stock?.quantity),
+    stockTradeCount: safeNumber(stock?.trade_count),
     changeValue: change.value,
     changePercent: change.percent,
     tone: marketTone(change.percent),
@@ -3195,7 +3196,7 @@ function MarketView({
                     <td className="num">{formatMarketNumber(row.lowPrice, lang)}</td>
                     <td className="num">
                       {row.stockVolume !== null ? formatCompactVolume(row.stockVolume, lang) : "—"}
-                      {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт.</span>}
+                      {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт. · {row.stockTradeCount !== null ? formatRatio(row.stockTradeCount, 0, lang) : "—"} {mt(lang, "tradeCount")}</span>}
                     </td>
                     <td>
                       <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
