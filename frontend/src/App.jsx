@@ -3145,19 +3145,10 @@ const SECTOR_ORDER = ["finance", "energy", "manufacturing", "telecom", "mining",
 function heatmapTileStyle(changePercent) {
   if (changePercent === null || !Number.isFinite(changePercent)) return {};
   const abs = Math.abs(changePercent);
-  const intensity = Math.min(abs / 5, 1);
-  if (changePercent > 0.05) {
-    const g = Math.round(100 + intensity * 85);
-    const b = Math.round(70 + intensity * 59);
-    const a = (0.35 + intensity * 0.55).toFixed(2);
-    return { background: `rgba(16, ${g}, ${b}, ${a})` };
-  }
-  if (changePercent < -0.05) {
-    const r = Math.round(180 + intensity * 59);
-    const gb = Math.round(70 - intensity * 22);
-    const a = (0.35 + intensity * 0.55).toFixed(2);
-    return { background: `rgba(${r}, ${gb}, ${gb}, ${a})` };
-  }
+  // Lightness 18% (barely changed) → 40% (strongly changed)
+  const lightness = Math.min(18 + (abs / 5) * 22, 42).toFixed(0);
+  if (changePercent > 0.1) return { background: `hsl(142 68% ${lightness}%)` };
+  if (changePercent < -0.1) return { background: `hsl(0 72% ${lightness}%)` };
   return {};
 }
 
@@ -3166,17 +3157,6 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
 
   const companyMap = {};
   (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
-
-  // Compute volume percentiles for tile sizing
-  const volumes = rows.map((r) => r.stockVolume || 0).sort((a, b) => a - b);
-  const volP75 = volumes[Math.floor(volumes.length * 0.75)] || 0;
-  const volP35 = volumes[Math.floor(volumes.length * 0.35)] || 0;
-  const sizeOf = (row) => {
-    const v = row.stockVolume || 0;
-    if (v > 0 && v >= volP75) return "lg";
-    if (v > 0 && v >= volP35) return "md";
-    return "sm";
-  };
 
   // Group rows by sector, sort gainers first within each sector
   const sectorGroups = {};
@@ -3195,21 +3175,21 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
   };
 
   const LEGEND = [
-    { pct: -5.5, label: "−5%+" },
+    { pct: -5.5, label: "≤ −5%" },
     { pct: -2.5, label: "−2%" },
-    { pct: 0, label: "0%" },
-    { pct: 2.5, label: "+2%" },
-    { pct: 5.5, label: "+5%+" },
+    { pct: 0,    label: "0%" },
+    { pct: 2.5,  label: "+2%" },
+    { pct: 5.5,  label: "≥ +5%" },
   ];
 
   return (
     <div className="heatmap-wrap">
       <div className="heatmap-legend">
         {LEGEND.map(({ pct, label }) => {
-          const style = heatmapTileStyle(pct);
+          const s = heatmapTileStyle(pct);
           return (
             <span key={label} className="heatmap-legend-item">
-              <span className="heatmap-legend-swatch" style={style.background ? { background: style.background } : { background: "rgba(100,116,139,0.3)" }} />
+              <span className="heatmap-legend-swatch" style={s.background ? { background: s.background } : undefined} />
               <span>{label}</span>
             </span>
           );
@@ -3219,16 +3199,17 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
       {orderedSectors.map((sector) => {
         const tileRows = sectorGroups[sector];
         const label = sectorLabel(lang, sector);
-        const sectorChange = tileRows.filter((r) => Number.isFinite(r.changePercent));
-        const avgChange = sectorChange.length
-          ? sectorChange.reduce((s, r) => s + r.changePercent, 0) / sectorChange.length
+        const withChange = tileRows.filter((r) => Number.isFinite(r.changePercent));
+        const avgChange = withChange.length
+          ? withChange.reduce((s, r) => s + r.changePercent, 0) / withChange.length
           : null;
+
         return (
           <div key={sector} className="heatmap-sector">
             <div className="heatmap-sector-header">
               <span className="heatmap-sector-label">{label}</span>
               {avgChange !== null && (
-                <span className={`heatmap-sector-avg tone-${avgChange > 0.05 ? "good" : avgChange < -0.05 ? "danger" : "neutral"}`}>
+                <span className={`heatmap-sector-avg tone-${avgChange > 0.1 ? "good" : avgChange < -0.1 ? "danger" : "neutral"}`}>
                   {formatPct(avgChange)}
                 </span>
               )}
@@ -3236,8 +3217,6 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
             <div className="heatmap-sector-tiles">
               {tileRows.map((row) => {
                 const company = companyMap[row.ticker];
-                const logo = company?.logo || "";
-                const size = sizeOf(row);
                 const tileStyle = heatmapTileStyle(row.changePercent);
                 const isNeutral = !tileStyle.background;
                 const pctStr = formatPct(row.changePercent);
@@ -3251,15 +3230,15 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
                   <button
                     key={row.ticker}
                     type="button"
-                    className={`heatmap-tile heatmap-tile-${size}${isNeutral ? " heatmap-tile-neutral" : ""}`}
+                    className={`heatmap-tile${isNeutral ? " heatmap-tile-neutral" : ""}`}
                     style={tileStyle.background ? { background: tileStyle.background } : undefined}
                     onClick={() => onAnalyze(row.ticker)}
                     title={tooltipLines}
                   >
-                    {logo ? (
-                      <img src={logo} className="heatmap-tile-logo" alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                    ) : null}
                     <span className="heatmap-tile-ticker">{row.ticker}</span>
+                    {row.lastPrice !== null && (
+                      <span className="heatmap-tile-price">{formatMarketNumber(row.lastPrice, lang)}</span>
+                    )}
                     <span className="heatmap-tile-pct">{pctStr}</span>
                   </button>
                 );

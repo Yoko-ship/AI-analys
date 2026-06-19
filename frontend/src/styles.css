@@ -6835,95 +6835,100 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 
 /* ── Heatmap ─────────────────────────────────────────────────── */
 .heatmap-wrap {
-  padding: 18px 20px;
+  padding: 20px 22px 26px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
 }
 
+/* Legend */
 .heatmap-legend {
   display: flex;
   align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .heatmap-legend-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: 5px;
+  font-size: 10px;
   color: var(--muted);
   font-family: "IBM Plex Mono", monospace;
 }
 
 .heatmap-legend-swatch {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
   flex-shrink: 0;
+  background: rgba(100, 116, 139, 0.35);
 }
 
+/* Sector rows */
 .heatmap-sector {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .heatmap-sector-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
 }
 
 .heatmap-sector-label {
   font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.13em;
+  letter-spacing: 0.12em;
   color: var(--muted);
   font-family: "IBM Plex Mono", monospace;
 }
 
 .heatmap-sector-avg {
-  font-size: 11px;
+  font-size: 10px;
   font-family: "IBM Plex Mono", monospace;
   font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 5px;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
-.heatmap-sector-avg.tone-good  { color: var(--success); background: var(--success-light); }
-.heatmap-sector-avg.tone-danger { color: var(--danger);  background: var(--danger-light);  }
-.heatmap-sector-avg.tone-neutral { color: var(--muted);  background: rgba(148,163,184,0.12); }
+.heatmap-sector-avg.tone-good    { color: var(--success); background: var(--success-light); }
+.heatmap-sector-avg.tone-danger  { color: var(--danger);  background: var(--danger-light);  }
+.heatmap-sector-avg.tone-neutral { color: var(--muted);   background: rgba(148,163,184,0.1); }
 
+/* Tile grid — fills full width, each row expands evenly */
 .heatmap-sector-tiles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 4px;
 }
 
+/* Individual tile */
 .heatmap-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
+  height: 78px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
   padding: 8px 6px;
   color: #fff;
   text-align: center;
-  position: relative;
-  overflow: hidden;
-  transition: filter 0.15s ease, transform 0.15s ease;
+  transition: filter 0.12s ease, transform 0.12s ease;
   outline: none;
 }
 
 .heatmap-tile:hover {
-  filter: brightness(1.25);
-  transform: scale(1.05);
+  filter: brightness(1.3);
+  transform: scale(1.04);
   z-index: 2;
+  position: relative;
 }
 
 .heatmap-tile:focus-visible {
@@ -6932,48 +6937,42 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 }
 
 .heatmap-tile-neutral {
-  background: rgba(100, 116, 139, 0.28) !important;
-  color: var(--text);
+  background: rgba(71, 85, 105, 0.35) !important;
+  color: var(--muted);
 }
-
-.heatmap-tile-sm { width: 82px;  height: 76px; }
-.heatmap-tile-md { width: 104px; height: 92px; }
-.heatmap-tile-lg { width: 130px; height: 112px; }
-
-.heatmap-tile-logo {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  object-fit: contain;
-  background: rgba(255, 255, 255, 0.14);
-  flex-shrink: 0;
-}
-
-.heatmap-tile-lg .heatmap-tile-logo { width: 28px; height: 28px; }
 
 .heatmap-tile-ticker {
   font-family: "IBM Plex Mono", monospace;
-  font-weight: 800;
-  font-size: 11px;
+  font-weight: 700;
+  font-size: 10px;
   line-height: 1;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
 }
 
-.heatmap-tile-lg .heatmap-tile-ticker { font-size: 13px; }
+.heatmap-tile-price {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
 
 .heatmap-tile-pct {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
-.heatmap-tile-lg .heatmap-tile-pct { font-size: 15px; }
-.heatmap-tile-sm .heatmap-tile-pct { font-size: 11px; }
+.heatmap-tile-neutral .heatmap-tile-pct {
+  font-size: 12px;
+  opacity: 0.6;
+}
 
+/* Light theme adjustments */
 body[data-theme="light"] .heatmap-tile-neutral {
-  background: rgba(100, 116, 139, 0.18) !important;
-  color: var(--text);
+  background: rgba(100, 116, 139, 0.15) !important;
+  color: var(--muted);
 }
 
 body[data-theme="dark"] .market-search input {
