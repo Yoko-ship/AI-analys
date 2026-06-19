@@ -595,9 +595,14 @@ def _first_article_paragraph(sections: dict, *keys: str) -> str:
 def _excel_rows_for_article(company_data: dict | None, report_form_filter: str | None = None) -> list[dict]:
     if not isinstance(company_data, dict):
         return []
-    reports = ((company_data.get("excel_reports") or {}).get("items") or [])
+    all_reports = ((company_data.get("excel_reports") or {}).get("items") or [])
     if report_form_filter:
-        reports = [r for r in reports if (r.get("report_form") or "") == report_form_filter]
+        filtered = [r for r in all_reports if (r.get("report_form") or "") == report_form_filter]
+        # IFRS (MSFO) and Audit (Audition) reports are PDF-only on openinfo.uz and rarely
+        # have Excel files. Fall back to NAS (NSBU) Excel data so the analysis still works.
+        reports = filtered if filtered else [r for r in all_reports if (r.get("report_form") or "") == "NSBU"]
+    else:
+        reports = all_reports
     rows: list[dict] = []
     for report_index, report in enumerate(reports):
         for sheet in report.get("sheets") or []:

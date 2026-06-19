@@ -6421,6 +6421,28 @@ body[data-theme="dark"] .sector-chip.active {
   max-width: 100%;
 }
 
+/* Report form hint + data source note */
+.analysis-form-hint {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+.analysis-source-note {
+  gap: 6px;
+}
+
+.analysis-source-badge {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.analysis-source-badge strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .analysis-hero-header {
