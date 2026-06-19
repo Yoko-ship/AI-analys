@@ -6362,61 +6362,60 @@ body[data-theme="dark"] .sector-chip.active {
 
 .analysis-companies-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
 }
 
 .analysis-company-chip {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  padding: 12px 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
+  gap: 6px;
+  padding: 18px 20px;
+  background: transparent;
+  border: 1.5px solid var(--border);
   border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.18s, transform 0.15s, box-shadow 0.18s;
   text-align: left;
 }
 
 .chip-logo {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
-  border-radius: 6px;
-  margin-bottom: 4px;
-  background: var(--bg-2);
+  border-radius: 10px;
+  margin-bottom: 6px;
 }
 
 .chip-logo-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
   background: var(--accent-light);
   color: var(--accent);
-  font-size: 1rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .analysis-company-chip:hover {
   border-color: var(--accent);
-  background: var(--accent-light);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 24px rgba(255, 157, 0, 0.12);
 }
 
 .analysis-company-chip .chip-ticker {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--accent);
 }
 
 .analysis-company-chip .chip-name {
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -6462,12 +6461,8 @@ body[data-theme="dark"] .analysis-hero-header {
   background: linear-gradient(135deg, rgba(255, 157, 0, 0.1) 0%, transparent 60%);
 }
 
-body[data-theme="dark"] .analysis-company-chip {
-  background: rgba(20, 26, 42, 0.8);
-}
-
 body[data-theme="dark"] .analysis-company-chip:hover {
-  background: rgba(255, 157, 0, 0.15);
+  box-shadow: 0 6px 24px rgba(255, 157, 0, 0.18);
 }
 
 /* Dark theme for analysis page inputs */
