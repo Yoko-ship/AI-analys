@@ -214,6 +214,8 @@ const TEXTS = {
       reportFormIFRS: "МСФО",
       reportFormNAS: "НСБУ",
       reportFormAudit: "Аудиторское заключение",
+      reportFormHint: "Выбор формы влияет только на режим квартального/годового сравнения. НСБУ — единственная форма с Excel-данными на openinfo.uz. МСФО и аудиторские заключения публикуются в PDF-формате без Excel-таблиц.",
+      reportFormLatestNote: "В режиме «Полный анализ» данные берутся из структурированной отчётности НСБУ (форма 1 + форма 2) — форма отчётности применяется только при квартальном/годовом сравнении.",
       reportFormNotFound: "Компания не опубликовала данный тип отчёта за выбранный период.",
       forceRefresh: "Обновить из источника (обойти кэш)",
       submit: "Анализировать",
@@ -434,6 +436,8 @@ const TEXTS = {
       reportFormIFRS: "IFRS",
       reportFormNAS: "NAS",
       reportFormAudit: "Auditor's Report",
+      reportFormHint: "Form selection applies only to quarterly/annual comparison mode. NAS is the only form with Excel data on openinfo.uz. IFRS and audit reports are published as PDF with no Excel tables.",
+      reportFormLatestNote: "In Full analysis mode data is sourced from NAS structured reports (form 1 + form 2). The reporting form only applies to quarterly/annual comparison.",
       reportFormNotFound: "The company did not publish this type of report for the selected period.",
       forceRefresh: "Refresh from source (bypass cache)",
       submit: "Analyze",
@@ -654,6 +658,8 @@ const TEXTS = {
       reportFormIFRS: "MXHS",
       reportFormNAS: "MHBS",
       reportFormAudit: "Auditorlik xulosasi",
+      reportFormHint: "Shakl tanlash faqat choraklik/yillik taqqoslash rejimiga ta'sir qiladi. MHBS — openinfo.uz'da Excel ma'lumotlari mavjud bo'lgan yagona shakl. MXHS va auditorlik xulosalari Excel jadvallarsiz PDF formatida nashr etiladi.",
+      reportFormLatestNote: "«To'liq tahlil» rejimida ma'lumotlar MHBS tizimli hisobotlaridan (forma 1 + forma 2) olinadi. Hisobot shakli faqat choraklik/yillik taqqoslashda qo'llaniladi.",
       reportFormNotFound: "Kompaniya tanlangan davr uchun ushbu turdagi hisobotni nashr etmagan.",
       forceRefresh: "Manbadan yangilash (keshni chetlab o'tish)",
       submit: "Tahlil qilish",
@@ -3305,7 +3311,7 @@ function App() {
   const [reportQuarter, setReportQuarter] = useState("1");
   const [reportCurrentYear, setReportCurrentYear] = useState(String(defaultReportYear));
   const [reportPreviousYear, setReportPreviousYear] = useState(String(defaultReportYear - 1));
-  const [reportForm, setReportForm] = useState("IFRS");
+  const [reportForm, setReportForm] = useState("NAS");
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
@@ -4409,14 +4415,24 @@ function App() {
                         <option value="annual">{t(language, "analysis.annualReport")}</option>
                       </select>
                     </div>
-                    <div className="analysis-input-group">
-                      <label>{t(language, "analysis.reportingForm")}</label>
-                      <select value={reportForm} onChange={(event) => setReportForm(event.target.value)}>
-                        <option value="IFRS">{t(language, "analysis.reportFormIFRS")}</option>
-                        <option value="NAS">{t(language, "analysis.reportFormNAS")}</option>
-                        <option value="Audit">{t(language, "analysis.reportFormAudit")}</option>
-                      </select>
-                    </div>
+                    {reportAnalysisType !== "latest" ? (
+                      <div className="analysis-input-group">
+                        <label>{t(language, "analysis.reportingForm")}</label>
+                        <select value={reportForm} onChange={(event) => setReportForm(event.target.value)}>
+                          <option value="NAS">{t(language, "analysis.reportFormNAS")}</option>
+                          <option value="IFRS">{t(language, "analysis.reportFormIFRS")}</option>
+                        </select>
+                        <span className="analysis-form-hint">{t(language, "analysis.reportFormHint")}</span>
+                      </div>
+                    ) : (
+                      <div className="analysis-input-group analysis-source-note">
+                        <span className="analysis-source-badge">
+                          {language === "en" ? "Data source" : language === "uz" ? "Ma'lumot manbai" : "Источник данных"}:
+                          {" "}<strong>{language === "en" ? "NAS structured reports" : language === "uz" ? "MHBS tizimli hisobotlar" : "НСБУ структурированная отчётность"}</strong>
+                        </span>
+                        <span className="analysis-form-hint">{t(language, "analysis.reportFormLatestNote")}</span>
+                      </div>
+                    )}
                     {reportAnalysisType === "quarterly" ? (
                       <div className="analysis-input-group">
                         <label>{t(language, "analysis.quarter")}</label>
