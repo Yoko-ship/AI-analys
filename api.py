@@ -22,6 +22,19 @@ from web_auth import WebUser, web_auth_store
 
 logger = logging.getLogger(__name__)
 
+_LOGOS_PATH = Path(__file__).with_name("company_logos.json")
+
+
+def _load_logos() -> dict[str, str]:
+    try:
+        import json
+        return json.loads(_LOGOS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+COMPANY_LOGOS: dict[str, str] = _load_logos()
+
 
 def _json_safe(value):
     if isinstance(value, dict):
@@ -282,7 +295,12 @@ async def api_companies() -> dict[str, Any]:
         "ok": True,
         "count": len(COMPANY_CATALOG),
         "companies": [
-            {"company_name": name, "ticker": ticker, "sector": COMPANY_SECTORS.get(ticker, "other")}
+            {
+                "company_name": name,
+                "ticker": ticker,
+                "sector": COMPANY_SECTORS.get(ticker, "other"),
+                "logo": COMPANY_LOGOS.get(ticker, "") or "",
+            }
             for name, ticker in COMPANY_CATALOG.items()
         ],
     }

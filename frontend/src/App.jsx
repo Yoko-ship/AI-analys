@@ -1666,6 +1666,23 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, num));
 }
 
+function CompanyLogo({ logo, name, ticker }) {
+  const [failed, setFailed] = React.useState(false);
+  const letter = (ticker || name || "?")[0].toUpperCase();
+  if (!logo || failed) {
+    return <span className="chip-logo chip-logo-fallback">{letter}</span>;
+  }
+  return (
+    <img
+      className="chip-logo"
+      src={logo}
+      alt={name}
+      onError={() => setFailed(true)}
+      loading="lazy"
+    />
+  );
+}
+
 function ToastStack({ toasts, onDismiss, language }) {
   return (
     <div className="toast-stack" aria-live="polite" aria-atomic="true">
@@ -4512,6 +4529,7 @@ function App() {
                         type="button"
                         onClick={() => setAnalysisCompany(company.ticker)}
                       >
+                        <CompanyLogo logo={company.logo} name={company.company_name} ticker={company.ticker} />
                         <span className="chip-ticker">{company.ticker}</span>
                         <span className="chip-name">{company.company_name}</span>
                       </button>
