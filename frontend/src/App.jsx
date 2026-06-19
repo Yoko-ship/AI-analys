@@ -3145,11 +3145,19 @@ const SECTOR_ORDER = ["finance", "energy", "manufacturing", "telecom", "mining",
 function heatmapTileStyle(changePercent) {
   if (changePercent === null || !Number.isFinite(changePercent)) return {};
   const abs = Math.abs(changePercent);
-  // Lightness 18% (barely changed) → 40% (strongly changed)
-  const lightness = Math.min(18 + (abs / 5) * 22, 42).toFixed(0);
-  if (changePercent > 0.1) return { background: `hsl(142 68% ${lightness}%)` };
-  if (changePercent < -0.1) return { background: `hsl(0 72% ${lightness}%)` };
+  // 0.1% → L 20%; 5%+ → L 42% (TradingView-style vivid HSL)
+  const lightness = Math.min(20 + (abs / 5) * 22, 44).toFixed(0);
+  if (changePercent > 0.1) return { background: `hsl(160 65% ${lightness}%)` };
+  if (changePercent < -0.1) return { background: `hsl(0 70% ${lightness}%)` };
   return {};
+}
+
+function heatmapShortName(name) {
+  if (!name) return "";
+  // Extract content inside quotes: "Hamkorbank" ATB → Hamkorbank
+  const m = name.match(/["""«»]([^"""«»]+)["""«»]/);
+  const base = m ? m[1] : name.replace(/\s+(AJ|ATB|MK|OAJ|XK)\b.*/i, "").trim();
+  return base.length > 13 ? base.slice(0, 12) + "…" : base;
 }
 
 function MarketHeatmap({ rows, companies, language, onAnalyze }) {
@@ -3174,18 +3182,19 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
     return `${pct > 0 ? "+" : ""}${formatRatio(pct, 2, lang)}%`;
   };
 
-  const LEGEND = [
+  const LEGEND_STOPS = [
     { pct: -5.5, label: "≤ −5%" },
-    { pct: -2.5, label: "−2%" },
-    { pct: 0,    label: "0%" },
-    { pct: 2.5,  label: "+2%" },
+    { pct: -2,   label: "−2%" },
+    { pct: 0,    label: "0" },
+    { pct: 2,    label: "+2%" },
     { pct: 5.5,  label: "≥ +5%" },
   ];
 
   return (
     <div className="heatmap-wrap">
+      {/* Legend */}
       <div className="heatmap-legend">
-        {LEGEND.map(({ pct, label }) => {
+        {LEGEND_STOPS.map(({ pct, label }) => {
           const s = heatmapTileStyle(pct);
           return (
             <span key={label} className="heatmap-legend-item">
@@ -3196,6 +3205,7 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
         })}
       </div>
 
+      {/* Sector blocks */}
       {orderedSectors.map((sector) => {
         const tileRows = sectorGroups[sector];
         const label = sectorLabel(lang, sector);
@@ -3204,42 +3214,56 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
           ? withChange.reduce((s, r) => s + r.changePercent, 0) / withChange.length
           : null;
 
+        // Volume-proportional flex weights — high-volume stocks get wider tiles
+        const sectorVol = tileRows.reduce((s, r) => s + Math.max(r.stockVolume || 0, 1), 0);
+        const getWeight = (row) => Math.max(row.stockVolume || 1, 1) / sectorVol * tileRows.length;
+
         return (
           <div key={sector} className="heatmap-sector">
-            <div className="heatmap-sector-header">
+            {/* Sector header strip */}
+            <div className="heatmap-sector-strip">
               <span className="heatmap-sector-label">{label}</span>
+              <span className="heatmap-sector-count">{tileRows.length}</span>
               {avgChange !== null && (
                 <span className={`heatmap-sector-avg tone-${avgChange > 0.1 ? "good" : avgChange < -0.1 ? "danger" : "neutral"}`}>
                   {formatPct(avgChange)}
                 </span>
               )}
             </div>
+
+            {/* Tiles row — proportional width per volume */}
             <div className="heatmap-sector-tiles">
               {tileRows.map((row) => {
                 const company = companyMap[row.ticker];
                 const tileStyle = heatmapTileStyle(row.changePercent);
                 const isNeutral = !tileStyle.background;
                 const pctStr = formatPct(row.changePercent);
-                const tooltipLines = [
+                const weight = getWeight(row);
+                // Size class drives how much text to show
+                const sz = weight < 0.55 ? "xs" : weight < 1.5 ? "sm" : "lg";
+                const shortN = heatmapShortName(company?.company_name || row.name || "");
+                const tooltip = [
                   row.name || company?.company_name || row.ticker,
-                  row.lastPrice !== null ? `${lang === "ru" ? "Цена" : lang === "uz" ? "Narx" : "Price"}: ${formatMarketNumber(row.lastPrice, lang)}` : null,
-                  `${lang === "ru" ? "Изм." : lang === "uz" ? "O'zg." : "Chg."}: ${pctStr}`,
-                  row.stockVolume ? `${lang === "ru" ? "Объём" : lang === "uz" ? "Hajm" : "Vol"}: ${formatCompactVolume(row.stockVolume, lang)}` : null,
+                  row.lastPrice !== null ? `${lang === "ru" ? "Цена" : "Price"}: ${formatMarketNumber(row.lastPrice, lang)}` : null,
+                  `${lang === "ru" ? "Изм." : "Chg."}: ${pctStr}`,
+                  row.stockVolume ? `${lang === "ru" ? "Объём" : "Vol"}: ${formatCompactVolume(row.stockVolume, lang)}` : null,
                 ].filter(Boolean).join("\n");
+
                 return (
                   <button
                     key={row.ticker}
                     type="button"
-                    className={`heatmap-tile${isNeutral ? " heatmap-tile-neutral" : ""}`}
-                    style={tileStyle.background ? { background: tileStyle.background } : undefined}
+                    className={`heatmap-tile heatmap-tile-${sz}${isNeutral ? " heatmap-tile-neutral" : ""}`}
+                    style={{ ...tileStyle, "--vol-weight": weight }}
                     onClick={() => onAnalyze(row.ticker)}
-                    title={tooltipLines}
+                    title={tooltip}
                   >
-                    <span className="heatmap-tile-ticker">{row.ticker}</span>
-                    {row.lastPrice !== null && (
+                    {sz === "lg" && shortN && <span className="heatmap-tile-name">{shortN}</span>}
+                    {sz !== "xs"  && <span className="heatmap-tile-ticker">{row.ticker}</span>}
+                    <span className="heatmap-tile-pct">{pctStr}</span>
+                    {sz === "lg" && row.lastPrice !== null && (
                       <span className="heatmap-tile-price">{formatMarketNumber(row.lastPrice, lang)}</span>
                     )}
-                    <span className="heatmap-tile-pct">{pctStr}</span>
                   </button>
                 );
               })}
@@ -3249,7 +3273,9 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
       })}
 
       {orderedSectors.length === 0 && (
-        <p className="market-empty-cell">{lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}</p>
+        <p className="market-empty-cell">
+          {lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}
+        </p>
       )}
     </div>
   );
