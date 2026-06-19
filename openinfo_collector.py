@@ -477,6 +477,82 @@ def fetch_accounting_bundle(
     return result
 
 
+def fetch_available_periods(
+    org_id: str,
+    session: requests.Session | None = None,
+) -> dict[str, Any]:
+    """Return which annual years and quarterly periods actually exist for this org on openinfo.
+
+    Each top-level record from the accounting-report endpoint has:
+      - reporting_year: int  (e.g. 2026)
+      - period: str          (e.g. "Q1 2026" for quarterly, or "2024" for annual)
+
+    Q4 is never published as a quarterly report — year-end is the annual report only.
+    IFRS/MSFO reports are annual-only PDF documents (no quarterly IFRS exists).
+    """
+    client = session or _make_session()
+    base = f"/reports/accounting-report/{org_id}/"
+
+    try:
+        annual_records = _json_get(client, base, {"accounting_type": "form2", "report_type": "annual"})
+    except Exception:
+        annual_records = []
+    try:
+        quarter_records = _json_get(client, base, {"accounting_type": "form2", "report_type": "quarter"})
+    except Exception:
+        quarter_records = []
+
+    if not isinstance(annual_records, list):
+        annual_records = []
+    if not isinstance(quarter_records, list):
+        quarter_records = []
+
+    # Extract annual years from reporting_year field
+    annual_years: list[int] = []
+    seen_annual: set[int] = set()
+    for r in annual_records:
+        yr = r.get("reporting_year")
+        if isinstance(yr, int) and yr >= 2000 and yr not in seen_annual:
+            seen_annual.add(yr)
+            annual_years.append(yr)
+    annual_years.sort(reverse=True)
+
+    # Parse quarterly periods from "period" string: "Q1 2026" → {year:2026, quarter:1}
+    quarterly: list[dict[str, int]] = []
+    seen_q: set[tuple[int, int]] = set()
+    for r in quarter_records:
+        period_str = str(r.get("period") or "")
+        parts = period_str.split()
+        if len(parts) == 2 and parts[0].startswith("Q"):
+            try:
+                q = int(parts[0][1:])
+                y = int(parts[1])
+                if 1 <= q <= 3 and y >= 2000 and (y, q) not in seen_q:
+                    seen_q.add((y, q))
+                    quarterly.append({"year": y, "quarter": q})
+            except ValueError:
+                continue
+    quarterly.sort(key=lambda x: (x["year"], x["quarter"]), reverse=True)
+
+    return {
+        "annual_years": annual_years,
+        "quarterly": quarterly,
+        "latest_annual_year": annual_years[0] if annual_years else None,
+        "latest_quarterly": quarterly[0] if quarterly else None,
+    }
+
+
+def get_company_periods(query: str) -> dict[str, Any]:
+    """Resolve a company by name/ticker and return its available reporting periods."""
+    session = _make_session()
+    company = resolve_company(query, session=session)
+    org_id = company.get("org_id")
+    if not org_id:
+        raise LookupError(f"No org_id found for {query!r}")
+    periods = fetch_available_periods(org_id, session=session)
+    return {"ok": True, "company": company, "periods": periods}
+
+
 EXCEL_FINANCIAL_KEYWORDS = (
     "выруч", "реализац", "себесто", "валов", "прибыл", "убыт", "доход", "расход",
     "актив", "капитал", "обязательств", "долг", "заем", "денеж", "дебитор", "кредитор",
