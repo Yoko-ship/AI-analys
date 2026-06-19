@@ -1138,6 +1138,47 @@ const MARKET_TEXTS = {
   },
 };
 
+const SECTOR_LABELS = {
+  ru: {
+    all: "Все",
+    finance: "Финансы",
+    manufacturing: "Производство",
+    mining: "Добыча",
+    transport: "Транспорт",
+    telecom: "Телеком",
+    trade: "Торговля",
+    professional: "Услуги",
+    other: "Прочее",
+  },
+  en: {
+    all: "All",
+    finance: "Finance",
+    manufacturing: "Manufacturing",
+    mining: "Mining",
+    transport: "Transport",
+    telecom: "Telecom",
+    trade: "Trade",
+    professional: "Services",
+    other: "Other",
+  },
+  uz: {
+    all: "Hammasi",
+    finance: "Moliya",
+    manufacturing: "Ishlab chiqarish",
+    mining: "Konchilik",
+    transport: "Transport",
+    telecom: "Telekom",
+    trade: "Savdo",
+    professional: "Xizmatlar",
+    other: "Boshqalar",
+  },
+};
+
+function sectorLabel(language, sector) {
+  const lang = normalizeLanguage(language);
+  return SECTOR_LABELS[lang]?.[sector] ?? SECTOR_LABELS.ru[sector] ?? sector;
+}
+
 function mt(language, key) {
   const lang = normalizeLanguage(language);
   return MARKET_TEXTS[lang]?.[key] ?? MARKET_TEXTS.ru[key] ?? key;
@@ -3239,6 +3280,7 @@ function App() {
   const [registerForm, setRegisterForm] = useState({ full_name: "", email: "", password: "" });
   const [authMessage, setAuthMessage] = useState("");
   const [analysisCompany, setAnalysisCompany] = useState("");
+  const [selectedSector, setSelectedSector] = useState(null);
   const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
   const [excelReportLimit, setExcelReportLimit] = useState("");
@@ -3711,13 +3753,16 @@ function App() {
     }
   };
 
+  const availableSectors = [...new Set(companies.map((c) => c.sector).filter(Boolean))];
+
   const filteredCompanies = companies
     .filter((item) => {
       const q = analysisCompany.trim().toLowerCase();
-      if (!q) return true;
-      return item.ticker.toLowerCase().includes(q) || item.company_name.toLowerCase().includes(q);
+      const matchSearch = !q || item.ticker.toLowerCase().includes(q) || item.company_name.toLowerCase().includes(q);
+      const matchSector = !selectedSector || item.sector === selectedSector;
+      return matchSearch && matchSector;
     })
-    .slice(0, 16);
+    .slice(0, 48);
 
   const resolveTicker = (value) => {
     const normalized = String(value || "").trim();
@@ -4438,7 +4483,26 @@ function App() {
                 <div className="analysis-companies-section">
                   <div className="analysis-companies-header">
                     <h3>{t(language, "analysis.availableTitle")}</h3>
-                    <span className="analysis-companies-count">{companies.length} {language === "en" ? "companies" : language === "uz" ? "kompaniya" : "компаний"}</span>
+                    <span className="analysis-companies-count">{filteredCompanies.length} {language === "en" ? "companies" : language === "uz" ? "kompaniya" : "компаний"}</span>
+                  </div>
+                  <div className="sector-filter">
+                    <button
+                      className={`sector-chip${!selectedSector ? " active" : ""}`}
+                      type="button"
+                      onClick={() => setSelectedSector(null)}
+                    >
+                      {sectorLabel(language, "all")}
+                    </button>
+                    {availableSectors.map((sector) => (
+                      <button
+                        key={sector}
+                        className={`sector-chip${selectedSector === sector ? " active" : ""}`}
+                        type="button"
+                        onClick={() => setSelectedSector(selectedSector === sector ? null : sector)}
+                      >
+                        {sectorLabel(language, sector)}
+                      </button>
+                    ))}
                   </div>
                   <div className="analysis-companies-grid">
                     {filteredCompanies.map((company) => (

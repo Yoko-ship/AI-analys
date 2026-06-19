@@ -51,3 +51,55 @@ COMPANY_CATALOG = {
     '"ORGRES" AJ': "ORGS",
     '"TDM" AJ (привилегированные)': "TKDMP",
 }
+
+# Sector classification for each ticker.
+# Keys match COMPANY_CATALOG values (tickers).
+COMPANY_SECTORS: dict[str, str] = {
+    # Finance & Insurance
+    "HMKB": "finance", "HMKBP": "finance",
+    "IPKY": "finance",
+    "IPTB": "finance", "IPTBP": "finance",
+    "AGBA": "finance", "AGBAP": "finance",
+    "SQBN": "finance", "SQBNP": "finance",
+    "TRSB": "finance", "TRSBP": "finance",
+    "TNBN": "finance", "TNBNP": "finance",
+    "ALKB": "finance", "ALKBP": "finance",
+    "GRBK": "finance",
+    "MCBA": "finance", "MCBAP": "finance",
+    "UNVB": "finance",
+    "OCBK": "finance",
+    "BRBN": "finance", "BRNBP": "finance",
+    "KPBA": "finance",
+    "TNGB": "finance",
+    "URTS": "finance",
+    "UZINP": "finance",
+    "ALSM": "finance",
+    "KASUP": "finance",
+    # Manufacturing
+    "UZMK": "manufacturing", "UZMKP": "manufacturing",
+    "KVTS": "manufacturing",
+    "QZSM": "manufacturing",
+    "BECM": "manufacturing", "BECMP": "manufacturing",
+    "UZMT": "manufacturing",
+    "DORI": "manufacturing",
+    "ORGS": "manufacturing",
+    # Mining & Extraction
+    "AGMKP": "mining",
+    "BNGP": "mining", "BNGPP": "mining",
+    "UZNGP": "mining",
+    "MNGM": "mining",
+    "UZGFP": "mining",
+    "NGQS": "mining",
+    "UZIR": "mining",
+    # Transport
+    "UTGAP": "transport",
+    # Telecom & IT
+    "UZTL": "telecom",
+    # Professional Services
+    "BTRL": "professional",
+    # Trade
+    "CBSK": "trade",
+    # Other
+    "JASM": "other",
+    "TKDMP": "other",
+}

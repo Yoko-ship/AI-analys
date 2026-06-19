@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from analysis_service import build_company_comparison, build_summary, run_company_analysis
-from company_catalog import COMPANY_CATALOG
+from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from openinfo_collector import collect_company_data
 from web_auth import WebUser, web_auth_store
 
@@ -282,7 +282,7 @@ async def api_companies() -> dict[str, Any]:
         "ok": True,
         "count": len(COMPANY_CATALOG),
         "companies": [
-            {"company_name": name, "ticker": ticker}
+            {"company_name": name, "ticker": ticker, "sector": COMPANY_SECTORS.get(ticker, "other")}
             for name, ticker in COMPANY_CATALOG.items()
         ],
     }
