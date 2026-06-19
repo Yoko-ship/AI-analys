@@ -6298,6 +6298,45 @@ html body[data-theme="dark"] select {
   background: var(--bg-2);
 }
 
+.sector-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.sector-chip {
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.sector-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sector-chip.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+body[data-theme="dark"] .sector-chip {
+  background: rgba(20, 26, 42, 0.8);
+}
+
+body[data-theme="dark"] .sector-chip.active {
+  color: #fff;
+}
+
 .analysis-companies-header {
   display: flex;
   align-items: center;
