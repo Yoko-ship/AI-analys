@@ -6362,16 +6362,16 @@ body[data-theme="dark"] .sector-chip.active {
 
 .analysis-companies-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
 }
 
 .analysis-company-chip {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  padding: 18px 20px;
+  gap: 10px;
+  padding: 24px 26px;
   background: transparent;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-lg);
@@ -6381,25 +6381,23 @@ body[data-theme="dark"] .sector-chip.active {
 }
 
 .chip-logo {
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   object-fit: contain;
-  border-radius: 10px;
-  margin-bottom: 6px;
+  border-radius: 12px;
 }
 
 .chip-logo-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
   background: var(--accent-light);
   color: var(--accent);
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  margin-bottom: 6px;
 }
 
 .analysis-company-chip:hover {
@@ -6409,13 +6407,13 @@ body[data-theme="dark"] .sector-chip.active {
 }
 
 .analysis-company-chip .chip-ticker {
-  font-size: 1.25rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--accent);
 }
 
 .analysis-company-chip .chip-name {
-  font-size: 0.95rem;
+  font-size: 1rem;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
