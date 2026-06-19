@@ -3215,8 +3215,13 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
           : null;
 
         // Volume-proportional flex weights — high-volume stocks get wider tiles
-        const sectorVol = tileRows.reduce((s, r) => s + Math.max(r.stockVolume || 0, 1), 0);
-        const getWeight = (row) => Math.max(row.stockVolume || 1, 1) / sectorVol * tileRows.length;
+        // Use sqrt to compress extreme volume differences, then clamp to [0.55, 2.2]
+        // so no tile is more than ~4x wider than another
+        const sectorVol = tileRows.reduce((s, r) => s + Math.sqrt(Math.max(r.stockVolume || 0, 1)), 0);
+        const getWeight = (row) => {
+          const raw = Math.sqrt(Math.max(row.stockVolume || 1, 1)) / sectorVol * tileRows.length;
+          return Math.min(Math.max(raw, 0.55), 2.2);
+        };
 
         return (
           <div key={sector} className="heatmap-sector">
@@ -3240,7 +3245,7 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
                 const pctStr = formatPct(row.changePercent);
                 const weight = getWeight(row);
                 // Size class drives how much text to show
-                const sz = weight < 0.55 ? "xs" : weight < 1.5 ? "sm" : "lg";
+                const sz = weight >= 1.5 ? "lg" : "sm";
                 const shortN = heatmapShortName(company?.company_name || row.name || "");
                 const tooltip = [
                   row.name || company?.company_name || row.ticker,
