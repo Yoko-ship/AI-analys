@@ -1,4 +1,5 @@
 COMPANY_CATALOG = {
+    # Finance & Insurance
     '"Hamkorbank" ATB': "HMKB",
     '"Hamkorbank" ATB (привилегированные)': "HMKBP",
     '"Ipak Yuli" ATIB': "IPKY",
@@ -20,35 +21,52 @@ COMPANY_CATALOG = {
     '"Universal Bank" CHAKB': "UNVB",
     '"Oktobank" AJ': "OCBK",
     '"Biznesni rivojlantirish banki" ATB': "BRBN",
-    '"Biznesni rivojlantirish banki" ATB (привилегированные)': "BRNBP",
+    '"Biznesni rivojlantirish banki" ATB (привилегированные)': "BRBNP",
     '"Kapitalbank" AJ': "KPBA",
     '"Tenge Bank" ATB': "TNGB",
     '"O\'zRTXB" AJ': "URTS",
+    '"Kapital sug\'urta" AJ': "KASU",
+    '"Kapital sug\'urta" AJ (привилегированные)': "KASUP",
+    '"ALSKOM sug\'urta" AJ': "ALSM",
+    '"ALSKOM sug\'urta" AJ (привилегированные)': "ALSMP",
+    '"Temiryo\'l-sug\'urta" AJ': "TMYS",
+    # Manufacturing
     '"O\'zmetkombinat" AJ': "UZMK",
     '"O\'zmetkombinat" AJ (привилегированные)': "UZMKP",
     '"Kvarts" AJ': "KVTS",
     '"Qizilqumsement" AJ': "QZSM",
     '"Bekobodsement" AJ': "BECM",
     '"Bekobodsement" AJ (привилегированные)': "BECMP",
-    '"Olmaliq KMK" AJ (привилегированные)': "AGMKP",
     '"UzAuto Motors" AJ': "UZMT",
     '"DORI-DARMON" AJ': "DORI",
+    '"ORGRES" AJ': "ORGS",
+    '"Andijon biokimyo zavodi" AJ': "BIOK",
+    '"O\'zbekkimyomash zavodi" AJ': "UZHM",
+    # Mining & Extraction
+    '"Olmaliq KMK" AJ (привилегированные)': "AGMKP",
     '"Buxoroneftgazparmalash" AJ': "BNGP",
     '"Buxoroneftgazparmalash" AJ (привилегированные)': "BNGPP",
     '"O\'zbekiston neftgaz" AJ (привилегированные)': "UZNGP",
     '"Mubarekneftgazmontaj" AJ': "MNGM",
     '"O\'zbekgeofizika" AJ (привилегированные)': "UZGFP",
-    '"O\'ztransgaz" AJ (привилегированные)': "UTGAP",
     '"Neft va gaz quduqlarini sinash" AJ': "NGQS",
-    '"O\'zbektelekom" AJ': "UZTL",
-    '"Boshtransloyiha" AJ': "BTRL",
     '"O\'zbekko\'mir" AJ': "UZIR",
-    '"O\'zbekinvest EISK" AJ (привилегированные)': "UZINP",
-    '"ALSKOM sug\'urta" AJ': "ALSM",
-    '"Kapital sug\'urta" AJ (привилегированные)': "KASUP",
+    '"O\'zbekko\'mir" AJ (привилегированные)': "UZIRP",
+    '"Portlatishsanoat" AJ': "PLST",
+    '"Sarbon-Neftegaz" AJ': "SANE",
+    # Transport
+    '"O\'ztransgaz" AJ (привилегированные)': "UTGAP",
+    '"Qashqadaryo texnologik transport" AJ': "QATT",
+    '"O\'zbekiston pochtasi" AJ': "UPOS",
+    # Telecom
+    '"O\'zbektelekom" AJ': "UZTL",
+    '"O\'zbektelekom" AJ (привилегированные)': "UZTLP",
+    # Professional Services
+    '"Boshtransloyiha" AJ': "BTRL",
+    # Trade
     '"Chilonzor buyum savdo kompleksi" AJ': "CBSK",
+    # Other
     '"JSM" AJ': "JASM",
-    '"ORGRES" AJ': "ORGS",
     '"TDM" AJ (привилегированные)': "TKDMP",
 }
 
@@ -68,13 +86,13 @@ COMPANY_SECTORS: dict[str, str] = {
     "MCBA": "finance", "MCBAP": "finance",
     "UNVB": "finance",
     "OCBK": "finance",
-    "BRBN": "finance", "BRNBP": "finance",
+    "BRBN": "finance", "BRBNP": "finance",
     "KPBA": "finance",
     "TNGB": "finance",
     "URTS": "finance",
-    "UZINP": "finance",
-    "ALSM": "finance",
-    "KASUP": "finance",
+    "KASU": "finance", "KASUP": "finance",
+    "ALSM": "finance", "ALSMP": "finance",
+    "TMYS": "finance",
     # Manufacturing
     "UZMK": "manufacturing", "UZMKP": "manufacturing",
     "KVTS": "manufacturing",
@@ -83,6 +101,8 @@ COMPANY_SECTORS: dict[str, str] = {
     "UZMT": "manufacturing",
     "DORI": "manufacturing",
     "ORGS": "manufacturing",
+    "BIOK": "manufacturing",
+    "UZHM": "manufacturing",
     # Mining & Extraction
     "AGMKP": "mining",
     "BNGP": "mining", "BNGPP": "mining",
@@ -90,11 +110,15 @@ COMPANY_SECTORS: dict[str, str] = {
     "MNGM": "mining",
     "UZGFP": "mining",
     "NGQS": "mining",
-    "UZIR": "mining",
+    "UZIR": "mining", "UZIRP": "mining",
+    "PLST": "mining",
+    "SANE": "mining",
     # Transport
     "UTGAP": "transport",
+    "QATT": "transport",
+    "UPOS": "transport",
     # Telecom & IT
-    "UZTL": "telecom",
+    "UZTL": "telecom", "UZTLP": "telecom",
     # Professional Services
     "BTRL": "professional",
     # Trade
