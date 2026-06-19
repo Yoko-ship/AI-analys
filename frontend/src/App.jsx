@@ -3312,6 +3312,8 @@ function App() {
   const [reportCurrentYear, setReportCurrentYear] = useState(String(defaultReportYear));
   const [reportPreviousYear, setReportPreviousYear] = useState(String(defaultReportYear - 1));
   const [reportForm, setReportForm] = useState("NAS");
+  const [availablePeriods, setAvailablePeriods] = useState(null);
+  const [periodsLoading, setPeriodsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
@@ -3335,6 +3337,15 @@ function App() {
   const [marketLoading, setMarketLoading] = useState(false);
   const [marketMessage, setMarketMessage] = useState("");
   const [toasts, setToasts] = useState([]);
+
+  // Dynamic year/quarter options: fallback to static list until per-company periods are fetched
+  const annualYearOptions = availablePeriods?.annual_years?.map(String) || reportYearOptions;
+  const quarterlyYearOptions = availablePeriods
+    ? [...new Set(availablePeriods.quarterly.map((q) => q.year))].sort((a, b) => b - a).map(String)
+    : reportYearOptions;
+  const availableQuartersForYear = availablePeriods
+    ? availablePeriods.quarterly.filter((q) => String(q.year) === reportCurrentYear).map((q) => q.quarter).sort((a, b) => a - b)
+    : [1, 2, 3];
 
   useEffect(() => {
     const lang = normalizeLanguage(language);
@@ -3428,6 +3439,44 @@ function App() {
     loadMarketTrades();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, marketType, language]);
+
+  // Fetch available periods whenever the analysis company changes
+  useEffect(() => {
+    const query = analysisCompany.trim();
+    if (!query) {
+      setAvailablePeriods(null);
+      return;
+    }
+    let cancelled = false;
+    setPeriodsLoading(true);
+    setAvailablePeriods(null);
+    fetch(`/api/periods?company=${encodeURIComponent(query)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data.ok || !data.periods) return;
+        setAvailablePeriods(data.periods);
+      })
+      .catch(() => {}) // fail silently — static fallback remains active
+      .finally(() => { if (!cancelled) setPeriodsLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisCompany]);
+
+  // Auto-select the latest available year/quarter when periods arrive for a new company
+  useEffect(() => {
+    if (!availablePeriods) return;
+    if (reportAnalysisType === "quarterly" && availablePeriods.latest_quarterly) {
+      const { year, quarter } = availablePeriods.latest_quarterly;
+      setReportCurrentYear(String(year));
+      setReportQuarter(String(quarter));
+      setReportPreviousYear(String(year - 1));
+    } else if (reportAnalysisType !== "latest" && availablePeriods.latest_annual_year) {
+      const yr = availablePeriods.latest_annual_year;
+      setReportCurrentYear(String(yr));
+      setReportPreviousYear(String(yr - 1));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availablePeriods]);
 
   const addToast = (message, tone = "info") => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -4418,7 +4467,15 @@ function App() {
                     {reportAnalysisType !== "latest" ? (
                       <div className="analysis-input-group">
                         <label>{t(language, "analysis.reportingForm")}</label>
-                        <select value={reportForm} onChange={(event) => setReportForm(event.target.value)}>
+                        <select
+                          value={reportForm}
+                          onChange={(event) => {
+                            setReportForm(event.target.value);
+                            if (event.target.value === "IFRS" && reportAnalysisType === "quarterly") {
+                              setReportAnalysisType("annual");
+                            }
+                          }}
+                        >
                           <option value="NAS">{t(language, "analysis.reportFormNAS")}</option>
                           <option value="IFRS">{t(language, "analysis.reportFormIFRS")}</option>
                         </select>
@@ -4436,28 +4493,37 @@ function App() {
                     {reportAnalysisType === "quarterly" ? (
                       <div className="analysis-input-group">
                         <label>{t(language, "analysis.quarter")}</label>
-                        <select value={reportQuarter} onChange={(event) => setReportQuarter(event.target.value)}>
-                          <option value="1">{language === "en" ? "Q1" : language === "uz" ? "1-chorak" : "1 квартал"}</option>
-                          <option value="2">{language === "en" ? "Q2" : language === "uz" ? "2-chorak" : "2 квартал"}</option>
-                          <option value="3">{language === "en" ? "Q3" : language === "uz" ? "3-chorak" : "3 квартал"}</option>
-                          <option value="4">{language === "en" ? "Q4" : language === "uz" ? "4-chorak" : "4 квартал"}</option>
+                        <select value={reportQuarter} onChange={(event) => setReportQuarter(event.target.value)} disabled={periodsLoading}>
+                          {availableQuartersForYear.length > 0
+                            ? availableQuartersForYear.map((q) => (
+                                <option key={q} value={String(q)}>
+                                  {language === "en" ? `Q${q}` : language === "uz" ? `${q}-chorak` : `${q} квартал`}
+                                </option>
+                              ))
+                            : [1, 2, 3].map((q) => (
+                                <option key={q} value={String(q)}>
+                                  {language === "en" ? `Q${q}` : language === "uz" ? `${q}-chorak` : `${q} квартал`}
+                                </option>
+                              ))}
                         </select>
+                        {periodsLoading && <span className="analysis-periods-loading">{language === "en" ? "Loading periods…" : language === "uz" ? "Davrlar yuklanmoqda…" : "Загрузка периодов…"}</span>}
                       </div>
                     ) : null}
                     {reportAnalysisType !== "latest" ? (
                       <>
                         <div className="analysis-input-group">
                           <label>{t(language, "analysis.currentYear")}</label>
-                          <select value={reportCurrentYear} onChange={(event) => setReportCurrentYear(event.target.value)}>
-                            {reportYearOptions.map((year) => (
+                          <select value={reportCurrentYear} onChange={(event) => setReportCurrentYear(event.target.value)} disabled={periodsLoading}>
+                            {(reportAnalysisType === "quarterly" ? quarterlyYearOptions : annualYearOptions).map((year) => (
                               <option key={`current-${year}`} value={year}>{year}</option>
                             ))}
                           </select>
+                          {periodsLoading && <span className="analysis-periods-loading">{language === "en" ? "Loading periods…" : language === "uz" ? "Davrlar yuklanmoqda…" : "Загрузка периодов…"}</span>}
                         </div>
                         <div className="analysis-input-group">
                           <label>{t(language, "analysis.previousYear")}</label>
-                          <select value={reportPreviousYear} onChange={(event) => setReportPreviousYear(event.target.value)}>
-                            {reportYearOptions.map((year) => (
+                          <select value={reportPreviousYear} onChange={(event) => setReportPreviousYear(event.target.value)} disabled={periodsLoading}>
+                            {annualYearOptions.map((year) => (
                               <option key={`previous-${year}`} value={year}>{year}</option>
                             ))}
                           </select>

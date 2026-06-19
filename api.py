@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from analysis_service import build_company_comparison, build_summary, run_company_analysis
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
-from openinfo_collector import collect_company_data
+from openinfo_collector import collect_company_data, get_company_periods
 from web_auth import WebUser, web_auth_store
 
 logger = logging.getLogger(__name__)
@@ -304,6 +304,29 @@ async def api_companies() -> dict[str, Any]:
             for name, ticker in COMPANY_CATALOG.items()
         ],
     }
+
+
+@app.get("/api/periods")
+async def api_periods(company: str) -> dict[str, Any]:
+    """Return the available annual years and quarterly periods for a specific company.
+
+    Each company on openinfo.uz publishes its own reports independently. This endpoint
+    fetches the actual published records so the frontend shows only periods that exist,
+    not a static global list.
+    """
+    if not company or not company.strip():
+        raise HTTPException(status_code=400, detail="company is required")
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, partial(get_company_periods, company.strip()))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"OpenInfo request failed: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Periods fetch failed for %s", company)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return _json_safe(result)
 
 
 @app.get("/api/market/stocks")

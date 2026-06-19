@@ -6442,6 +6442,12 @@ body[data-theme="dark"] .sector-chip.active {
   color: var(--accent);
   font-weight: 600;
 }
+.analysis-periods-loading {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+  margin-top: 2px;
+}
 
 /* Responsive */
 @media (max-width: 768px) {
