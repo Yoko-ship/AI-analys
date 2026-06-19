@@ -3140,6 +3140,142 @@ function MarketChangeBadge({ value, percent, language }) {
   );
 }
 
+const SECTOR_ORDER = ["finance", "energy", "manufacturing", "telecom", "mining", "transport", "other"];
+
+function heatmapTileStyle(changePercent) {
+  if (changePercent === null || !Number.isFinite(changePercent)) return {};
+  const abs = Math.abs(changePercent);
+  const intensity = Math.min(abs / 5, 1);
+  if (changePercent > 0.05) {
+    const g = Math.round(100 + intensity * 85);
+    const b = Math.round(70 + intensity * 59);
+    const a = (0.35 + intensity * 0.55).toFixed(2);
+    return { background: `rgba(16, ${g}, ${b}, ${a})` };
+  }
+  if (changePercent < -0.05) {
+    const r = Math.round(180 + intensity * 59);
+    const gb = Math.round(70 - intensity * 22);
+    const a = (0.35 + intensity * 0.55).toFixed(2);
+    return { background: `rgba(${r}, ${gb}, ${gb}, ${a})` };
+  }
+  return {};
+}
+
+function MarketHeatmap({ rows, companies, language, onAnalyze }) {
+  const lang = normalizeLanguage(language);
+
+  const companyMap = {};
+  (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
+
+  // Compute volume percentiles for tile sizing
+  const volumes = rows.map((r) => r.stockVolume || 0).sort((a, b) => a - b);
+  const volP75 = volumes[Math.floor(volumes.length * 0.75)] || 0;
+  const volP35 = volumes[Math.floor(volumes.length * 0.35)] || 0;
+  const sizeOf = (row) => {
+    const v = row.stockVolume || 0;
+    if (v > 0 && v >= volP75) return "lg";
+    if (v > 0 && v >= volP35) return "md";
+    return "sm";
+  };
+
+  // Group rows by sector, sort gainers first within each sector
+  const sectorGroups = {};
+  rows.forEach((row) => {
+    const sector = companyMap[row.ticker]?.sector || "other";
+    (sectorGroups[sector] = sectorGroups[sector] || []).push(row);
+  });
+  Object.values(sectorGroups).forEach((group) =>
+    group.sort((a, b) => (b.changePercent ?? -Infinity) - (a.changePercent ?? -Infinity))
+  );
+  const orderedSectors = SECTOR_ORDER.filter((s) => sectorGroups[s]?.length);
+
+  const formatPct = (pct) => {
+    if (pct === null || !Number.isFinite(pct)) return "—";
+    return `${pct > 0 ? "+" : ""}${formatRatio(pct, 2, lang)}%`;
+  };
+
+  const LEGEND = [
+    { pct: -5.5, label: "−5%+" },
+    { pct: -2.5, label: "−2%" },
+    { pct: 0, label: "0%" },
+    { pct: 2.5, label: "+2%" },
+    { pct: 5.5, label: "+5%+" },
+  ];
+
+  return (
+    <div className="heatmap-wrap">
+      <div className="heatmap-legend">
+        {LEGEND.map(({ pct, label }) => {
+          const style = heatmapTileStyle(pct);
+          return (
+            <span key={label} className="heatmap-legend-item">
+              <span className="heatmap-legend-swatch" style={style.background ? { background: style.background } : { background: "rgba(100,116,139,0.3)" }} />
+              <span>{label}</span>
+            </span>
+          );
+        })}
+      </div>
+
+      {orderedSectors.map((sector) => {
+        const tileRows = sectorGroups[sector];
+        const label = sectorLabel(lang, sector);
+        const sectorChange = tileRows.filter((r) => Number.isFinite(r.changePercent));
+        const avgChange = sectorChange.length
+          ? sectorChange.reduce((s, r) => s + r.changePercent, 0) / sectorChange.length
+          : null;
+        return (
+          <div key={sector} className="heatmap-sector">
+            <div className="heatmap-sector-header">
+              <span className="heatmap-sector-label">{label}</span>
+              {avgChange !== null && (
+                <span className={`heatmap-sector-avg tone-${avgChange > 0.05 ? "good" : avgChange < -0.05 ? "danger" : "neutral"}`}>
+                  {formatPct(avgChange)}
+                </span>
+              )}
+            </div>
+            <div className="heatmap-sector-tiles">
+              {tileRows.map((row) => {
+                const company = companyMap[row.ticker];
+                const logo = company?.logo || "";
+                const size = sizeOf(row);
+                const tileStyle = heatmapTileStyle(row.changePercent);
+                const isNeutral = !tileStyle.background;
+                const pctStr = formatPct(row.changePercent);
+                const tooltipLines = [
+                  row.name || company?.company_name || row.ticker,
+                  row.lastPrice !== null ? `${lang === "ru" ? "Цена" : lang === "uz" ? "Narx" : "Price"}: ${formatMarketNumber(row.lastPrice, lang)}` : null,
+                  `${lang === "ru" ? "Изм." : lang === "uz" ? "O'zg." : "Chg."}: ${pctStr}`,
+                  row.stockVolume ? `${lang === "ru" ? "Объём" : lang === "uz" ? "Hajm" : "Vol"}: ${formatCompactVolume(row.stockVolume, lang)}` : null,
+                ].filter(Boolean).join("\n");
+                return (
+                  <button
+                    key={row.ticker}
+                    type="button"
+                    className={`heatmap-tile heatmap-tile-${size}${isNeutral ? " heatmap-tile-neutral" : ""}`}
+                    style={tileStyle.background ? { background: tileStyle.background } : undefined}
+                    onClick={() => onAnalyze(row.ticker)}
+                    title={tooltipLines}
+                  >
+                    {logo ? (
+                      <img src={logo} className="heatmap-tile-logo" alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                    ) : null}
+                    <span className="heatmap-tile-ticker">{row.ticker}</span>
+                    <span className="heatmap-tile-pct">{pctStr}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {orderedSectors.length === 0 && (
+        <p className="market-empty-cell">{lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}</p>
+      )}
+    </div>
+  );
+}
+
 function MarketView({
   rows,
   meta,
@@ -3153,8 +3289,10 @@ function MarketView({
   onRefresh,
   onAnalyze,
   language,
+  companies,
 }) {
   const lang = normalizeLanguage(language);
+  const [viewMode, setViewMode] = useState("table");
   const prepared = (Array.isArray(rows) ? rows : []).map(enrichMarketStock);
   const search = String(query || "").trim().toLowerCase();
   const visibleRows = prepared
@@ -3198,10 +3336,41 @@ function MarketView({
       <article className="panel market-board">
         <div className="market-board-head">
           <div>
-            <div className="panel-label">{mt(lang, "tableTitle")}</div>
-            <h2>{mt(lang, "tableTitle")}</h2>
+            <div className="panel-label">{viewMode === "heatmap" ? (lang === "en" ? "Market Map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка") : mt(lang, "tableTitle")}</div>
+            <h2>{viewMode === "heatmap" ? (lang === "en" ? "Market Map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка") : mt(lang, "tableTitle")}</h2>
           </div>
-          <span className="status-badge muted">{mt(lang, "showing")}: {visibleRows.length}/{prepared.length}</span>
+          <div className="market-board-head-right">
+            <div className="market-view-toggle">
+              <button
+                type="button"
+                className={viewMode === "table" ? "active" : ""}
+                onClick={() => setViewMode("table")}
+                title={lang === "en" ? "Table view" : lang === "uz" ? "Jadval ko'rinishi" : "Таблица"}
+              >
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+                  <rect x="1" y="2" width="13" height="1.8" rx="0.9"/>
+                  <rect x="1" y="6.6" width="13" height="1.8" rx="0.9"/>
+                  <rect x="1" y="11.2" width="13" height="1.8" rx="0.9"/>
+                </svg>
+              </button>
+              <button
+                type="button"
+                className={viewMode === "heatmap" ? "active" : ""}
+                onClick={() => setViewMode("heatmap")}
+                title={lang === "en" ? "Market map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка"}
+              >
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+                  <rect x="1" y="1" width="5.8" height="5.8" rx="1.2"/>
+                  <rect x="8.2" y="1" width="5.8" height="5.8" rx="1.2"/>
+                  <rect x="1" y="8.2" width="5.8" height="5.8" rx="1.2"/>
+                  <rect x="8.2" y="8.2" width="5.8" height="5.8" rx="1.2"/>
+                </svg>
+              </button>
+            </div>
+            {viewMode === "table" && (
+              <span className="status-badge muted">{mt(lang, "showing")}: {visibleRows.length}/{prepared.length}</span>
+            )}
+          </div>
         </div>
 
         <div className="market-controls">
@@ -3216,69 +3385,79 @@ function MarketView({
               </button>
             ))}
           </div>
-          <label className="market-search">
-            <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={mt(lang, "search")} />
-          </label>
+          {viewMode === "table" && (
+            <label className="market-search">
+              <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={mt(lang, "search")} />
+            </label>
+          )}
         </div>
 
-        <div className="market-table-wrap">
-          <table className="market-table">
-            <thead>
-              <tr>
-                <th>{mt(lang, "ticker")}</th>
-                <th>{mt(lang, "company")}</th>
-                <th>{mt(lang, "last")}</th>
-                <th>{mt(lang, "change")}</th>
-                <th>{mt(lang, "open")}</th>
-                <th>{mt(lang, "high")}</th>
-                <th>{mt(lang, "low")}</th>
-                <th>{mt(lang, "volumeCol")}</th>
-                <th>{mt(lang, "date")}</th>
-                <th>{mt(lang, "source")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "loading")}</td></tr>
-              ) : visibleRows.length ? (
-                visibleRows.map((row) => (
-                  <tr key={`${row.ticker}-${row.isin}`}>
-                    <td>
-                      <button type="button" className="market-ticker-btn" onClick={() => onAnalyze(row.ticker)}>
-                        {row.ticker || "—"}
-                      </button>
-                      <span>{row.share_type ? mt(lang, row.share_type) : row.type || "—"}</span>
-                    </td>
-                    <td>
-                      <strong>{row.name || "—"}</strong>
-                      <span>{row.isin || "—"}</span>
-                    </td>
-                    <td className="num">{row.lastPrice === null ? "—" : formatMarketNumber(row.lastPrice, lang)}</td>
-                    <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>
-                    <td className="num">{formatMarketNumber(row.openPrice, lang)}</td>
-                    <td className="num">{formatMarketNumber(row.highPrice, lang)}</td>
-                    <td className="num">{formatMarketNumber(row.lowPrice, lang)}</td>
-                    <td className="num">
-                      {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
-                      {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт. · {row.stockTradeCount !== null ? formatRatio(row.stockTradeCount, 0, lang) : "—"} {mt(lang, "tradeCount")}</span>}
-                    </td>
-                    <td>
-                      <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
-                      {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
-                    </td>
-                    <td>
-                      {row.url ? (
-                        <a className="market-source-link" href={row.url} target="_blank" rel="noreferrer">{mt(lang, "source")}</a>
-                      ) : "—"}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "empty")}</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {viewMode === "heatmap" ? (
+          loading ? (
+            <p className="market-empty-cell">{mt(lang, "loading")}</p>
+          ) : (
+            <MarketHeatmap rows={prepared} companies={companies} language={lang} onAnalyze={onAnalyze} />
+          )
+        ) : (
+          <div className="market-table-wrap">
+            <table className="market-table">
+              <thead>
+                <tr>
+                  <th>{mt(lang, "ticker")}</th>
+                  <th>{mt(lang, "company")}</th>
+                  <th>{mt(lang, "last")}</th>
+                  <th>{mt(lang, "change")}</th>
+                  <th>{mt(lang, "open")}</th>
+                  <th>{mt(lang, "high")}</th>
+                  <th>{mt(lang, "low")}</th>
+                  <th>{mt(lang, "volumeCol")}</th>
+                  <th>{mt(lang, "date")}</th>
+                  <th>{mt(lang, "source")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "loading")}</td></tr>
+                ) : visibleRows.length ? (
+                  visibleRows.map((row) => (
+                    <tr key={`${row.ticker}-${row.isin}`}>
+                      <td>
+                        <button type="button" className="market-ticker-btn" onClick={() => onAnalyze(row.ticker)}>
+                          {row.ticker || "—"}
+                        </button>
+                        <span>{row.share_type ? mt(lang, row.share_type) : row.type || "—"}</span>
+                      </td>
+                      <td>
+                        <strong>{row.name || "—"}</strong>
+                        <span>{row.isin || "—"}</span>
+                      </td>
+                      <td className="num">{row.lastPrice === null ? "—" : formatMarketNumber(row.lastPrice, lang)}</td>
+                      <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>
+                      <td className="num">{formatMarketNumber(row.openPrice, lang)}</td>
+                      <td className="num">{formatMarketNumber(row.highPrice, lang)}</td>
+                      <td className="num">{formatMarketNumber(row.lowPrice, lang)}</td>
+                      <td className="num">
+                        {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
+                        {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт. · {row.stockTradeCount !== null ? formatRatio(row.stockTradeCount, 0, lang) : "—"} {mt(lang, "tradeCount")}</span>}
+                      </td>
+                      <td>
+                        <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
+                        {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
+                      </td>
+                      <td>
+                        {row.url ? (
+                          <a className="market-source-link" href={row.url} target="_blank" rel="noreferrer">{mt(lang, "source")}</a>
+                        ) : "—"}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "empty")}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </article>
     </section>
   );
@@ -4121,6 +4300,7 @@ function App() {
                 setActiveView("analysis");
               }}
               language={language}
+              companies={companies}
             />
           )}
 
