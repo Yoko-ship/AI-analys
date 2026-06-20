@@ -116,6 +116,7 @@ const TEXTS = {
       ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Чистая маржа", debt_ratio: "Debt Ratio", debt_to_equity: "D/E" },
       dynamicsLabels: { revenue: "Выручка", net_income: "Чистая прибыль", total_assets: "Активы", equity: "Капитал", total_liabilities: "Обязательства" },
       pdfReport: "Открыть PDF",
+      exportPdf: "Скачать PDF",
       notifications: "Уведомления",
       notifEmpty: "Нет новых отчётов",
       notifNewReport: "Новый отчёт опубликован",
@@ -382,6 +383,7 @@ const TEXTS = {
       ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Net Margin", debt_ratio: "Debt Ratio", debt_to_equity: "D/E" },
       dynamicsLabels: { revenue: "Revenue", net_income: "Net Income", total_assets: "Total Assets", equity: "Equity", total_liabilities: "Total Liabilities" },
       pdfReport: "Open PDF",
+      exportPdf: "Download PDF",
       notifications: "Notifications",
       notifEmpty: "No new reports",
       notifNewReport: "New report published",
@@ -647,6 +649,7 @@ const TEXTS = {
       ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Sof marja", debt_ratio: "Qarz nisbati", debt_to_equity: "D/E" },
       dynamicsLabels: { revenue: "Daromad", net_income: "Sof foyda", total_assets: "Jami aktiv", equity: "Kapital", total_liabilities: "Majburiyatlar" },
       pdfReport: "PDFni ochish",
+      exportPdf: "PDF yuklab olish",
       notifications: "Bildirishnomalar",
       notifEmpty: "Yangi hisobotlar yo'q",
       notifNewReport: "Yangi hisobot chop etildi",
@@ -4163,12 +4166,16 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
 
               {/* Result */}
               {result && (
-                <article className="panel catalog-result-panel">
+                <article className="panel catalog-result-panel" id="catalog-print-target">
                   <div className="panel-head">
                     <div>
                       <div className="panel-label">{analysisTypesObj[result.analysis_type] || result.analysis_type}</div>
                       <h3>{result.company_name || ticker} · {result.year}{result.quarter > 0 ? ` Q${result.quarter}` : ""}</h3>
                     </div>
+                    <button className="ghost-btn catalog-export-btn no-print" type="button" onClick={() => window.print()}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                      {clg(lang, "exportPdf")}
+                    </button>
                   </div>
                   {renderResult()}
                 </article>
