@@ -540,6 +540,11 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
             pass
 
         for ticker in targets:
+            # Skip preferred share tickers (e.g. AGBAP) — they map to the same
+            # org on openinfo as their base ticker (AGBA) and would duplicate reports.
+            if ticker.endswith("P") and ticker[:-1] in _TICKER_TO_NAME:
+                skipped += 1
+                continue
             name = _TICKER_TO_NAME.get(ticker, ticker)
             try:
                 result = sync_company(ticker, name, force=force)
@@ -669,7 +674,12 @@ def list_companies_with_stats() -> list[dict[str, Any]]:
         """
     ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    # Exclude preferred share tickers that duplicate their base ticker's data
+    base_tickers = {r["ticker"] for r in rows}
+    return [
+        dict(r) for r in rows
+        if not (r["ticker"].endswith("P") and r["ticker"][:-1] in base_tickers)
+    ]
 
 
 def get_catalog_stats() -> dict[str, Any]:
