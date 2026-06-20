@@ -33,6 +33,7 @@ from reports_catalog import (
     sync_company as catalog_sync_company,
     sync_all as catalog_sync_all,
 )
+from securities_catalog import get_securities_map, get_wiki_info, sync_securities
 from web_auth import WebUser, web_auth_store
 
 logger = logging.getLogger(__name__)
@@ -382,14 +383,21 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail="Stock price API returned invalid JSON") from exc
 
     stocks = payload.get("stocks") if isinstance(payload, dict) else []
+    stocks_list = stocks if isinstance(stocks, list) else []
+
+    # Background sync into securities DB (fire-and-forget)
+    if stocks_list:
+        logos = _load_logos()
+        asyncio.get_event_loop().run_in_executor(None, partial(sync_securities, stocks_list, logos))
+
     return _json_safe({
         "ok": True,
         "source": "uzse-stock-production",
         "source_url": f"{UZSE_STOCK_API_BASE}/stocks",
         "updated_at": payload.get("updated_at") if isinstance(payload, dict) else None,
-        "count": payload.get("count", len(stocks)) if isinstance(payload, dict) else len(stocks),
+        "count": payload.get("count", len(stocks_list)) if isinstance(payload, dict) else len(stocks_list),
         "type": security_type or "all",
-        "stocks": stocks if isinstance(stocks, list) else [],
+        "stocks": stocks_list,
     })
 
 
@@ -418,6 +426,39 @@ async def api_market_trades() -> dict[str, Any]:
         "total_quantity": total_quantity,
         "total_trade_count": total_trade_count,
     })
+
+
+@app.get("/api/securities")
+async def api_securities() -> dict[str, Any]:
+    """Return the full securities map {ticker: info}."""
+    try:
+        loop = asyncio.get_running_loop()
+        smap = await loop.run_in_executor(None, get_securities_map)
+        return {"ok": True, "count": len(smap), "securities": smap}
+    except Exception as exc:
+        logger.exception("securities map failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/securities/{ticker}/info")
+async def api_securities_info(ticker: str, language: str = "ru") -> dict[str, Any]:
+    """Return company info including Wikipedia extract for a ticker."""
+    ticker = ticker.upper()
+    try:
+        loop = asyncio.get_running_loop()
+        smap = await loop.run_in_executor(None, get_securities_map)
+        sec = smap.get(ticker)
+        if not sec:
+            raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found in securities")
+        wiki = await loop.run_in_executor(
+            None, partial(get_wiki_info, ticker, sec.get("name") or "", language)
+        )
+        return {"ok": True, "ticker": ticker, "security": sec, "wiki": wiki}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("securities info failed for %s", ticker)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/api/auth/register")
