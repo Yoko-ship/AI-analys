@@ -172,7 +172,15 @@ def _upsert_report(
     object_id: str | None,
 ) -> bool:
     """Insert or update a report row. Returns True if a new row was inserted."""
-    cur = conn.execute(
+    # Check existence first — SQLite upsert always returns rowcount=1 so we
+    # can't distinguish insert vs update from the cursor alone.
+    existing = conn.execute(
+        "SELECT id FROM catalog_reports WHERE ticker=? AND report_form=? AND period_type=? AND year IS ? AND quarter=?",
+        (ticker, report_form, period_type, year, quarter),
+    ).fetchone()
+    is_new = existing is None
+
+    conn.execute(
         """
         INSERT INTO catalog_reports
             (ticker, report_form, period_type, year, quarter, title,
@@ -195,7 +203,6 @@ def _upsert_report(
             openinfo_report_id, object_id,
         ),
     )
-    is_new = cur.lastrowid is not None and cur.rowcount > 0
     if is_new:
         try:
             conn.execute(
