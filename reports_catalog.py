@@ -71,6 +71,19 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_cat_ticker ON catalog_reports(ticker);
         CREATE INDEX IF NOT EXISTS idx_cat_year   ON catalog_reports(year);
+
+        CREATE TABLE IF NOT EXISTS catalog_new_reports (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker      TEXT NOT NULL,
+            report_form TEXT NOT NULL,
+            period_type TEXT NOT NULL,
+            year        INTEGER,
+            quarter     INTEGER NOT NULL DEFAULT 0,
+            title       TEXT,
+            detected_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_cnr_ticker   ON catalog_new_reports(ticker);
+        CREATE INDEX IF NOT EXISTS idx_cnr_detected ON catalog_new_reports(detected_at);
     """)
     conn.commit()
 
@@ -182,7 +195,23 @@ def _upsert_report(
             openinfo_report_id, object_id,
         ),
     )
-    return cur.lastrowid is not None and cur.rowcount > 0
+    is_new = cur.lastrowid is not None and cur.rowcount > 0
+    if is_new:
+        try:
+            conn.execute(
+                "INSERT INTO catalog_new_reports (ticker, report_form, period_type, year, quarter, title) VALUES (?,?,?,?,?,?)",
+                (ticker, report_form, period_type, year, quarter, title),
+            )
+        except Exception:
+            pass
+    return is_new
+
+
+def _cleanup_old_notifications(conn: sqlite3.Connection, days: int = 30) -> None:
+    conn.execute(
+        "DELETE FROM catalog_new_reports WHERE detected_at < datetime('now', ?)",
+        (f"-{days} days",),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +510,14 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
         skipped = 0
         all_errors: list[dict] = []
 
+        try:
+            _conn = get_catalog_conn()
+            _cleanup_old_notifications(_conn)
+            _conn.commit()
+            _conn.close()
+        except Exception:
+            pass
+
         for ticker in targets:
             name = _TICKER_TO_NAME.get(ticker, ticker)
             try:
@@ -639,6 +676,26 @@ def get_catalog_stats() -> dict[str, Any]:
         "audit": totals["audit"] or 0,
         "last_sync": last_sync["ls"] if last_sync else None,
     }
+
+
+def get_new_reports_for_tickers(tickers: list[str], since_days: int = 7) -> list[dict[str, Any]]:
+    """Return recently detected new reports for the given tickers (used for notifications)."""
+    if not tickers:
+        return []
+    conn = get_catalog_conn()
+    placeholders = ",".join("?" * len(tickers))
+    rows = conn.execute(
+        f"""
+        SELECT ticker, report_form, period_type, year, quarter, title, detected_at
+        FROM catalog_new_reports
+        WHERE ticker IN ({placeholders})
+          AND detected_at >= datetime('now', ?)
+        ORDER BY detected_at DESC
+        """,
+        (*tickers, f"-{since_days} days"),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------
