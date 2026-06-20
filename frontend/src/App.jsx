@@ -3421,6 +3421,355 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Company detail page components
+// ---------------------------------------------------------------------------
+
+function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
+  const RANGES = [
+    { label: "1М", months: 1 },
+    { label: "3М", months: 3 },
+    { label: "6М", months: 6 },
+    { label: "1Г", months: 12 },
+    { label: "2Г", months: 24 },
+  ];
+  const rangeBar = (
+    <div className="company-chart-ranges">
+      {RANGES.map((r) => (
+        <button key={r.months} type="button"
+          className={`range-btn ${months === r.months ? "active" : ""}`}
+          onClick={() => onMonthsChange(r.months)}>{r.label}</button>
+      ))}
+    </div>
+  );
+  if (loading) return <div className="chart-loading muted">{lang === "ru" ? "Загрузка..." : lang === "uz" ? "Yuklanmoqda..." : "Loading..."}</div>;
+  const points = (history || []).map((h) => {
+    if (Array.isArray(h)) return { date: h[0], price: Number(h[1]) };
+    return { date: h.date || h.trade_date, price: Number(h.close || h.price || h.close_price || 0) };
+  }).filter((p) => p.price > 0 && p.date);
+  if (points.length < 2) return (
+    <div>
+      {rangeBar}
+      <div className="muted" style={{ padding: "32px 0", textAlign: "center" }}>
+        {lang === "ru" ? "История цен недоступна" : lang === "uz" ? "Narxlar tarixi mavjud emas" : "Price history unavailable"}
+      </div>
+    </div>
+  );
+  const W = 700, H = 260, PAD = { top: 16, right: 16, bottom: 36, left: 72 };
+  const prices = points.map((p) => p.price);
+  const minP = Math.min(...prices), maxP = Math.max(...prices);
+  const rangeP = maxP - minP || 1;
+  const xs = (i) => PAD.left + (i / (points.length - 1)) * (W - PAD.left - PAD.right);
+  const ys = (p) => PAD.top + (1 - (p - minP) / rangeP) * (H - PAD.top - PAD.bottom);
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"}${xs(i).toFixed(1)},${ys(p.price).toFixed(1)}`).join(" ");
+  const areaD = `${pathD} L${xs(points.length - 1).toFixed(1)},${(H - PAD.bottom).toFixed(1)} L${PAD.left},${(H - PAD.bottom).toFixed(1)} Z`;
+  const isUp = points[points.length - 1].price >= points[0].price;
+  const color = isUp ? "#22c55e" : "#ef4444";
+  const yTicks = 4;
+  const yLabels = Array.from({ length: yTicks + 1 }, (_, i) => {
+    const v = minP + (i / yTicks) * rangeP;
+    const label = v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v.toFixed(0);
+    return { y: ys(v), label };
+  });
+  const xStep = Math.max(1, Math.floor(points.length / 5));
+  const xLabels = points
+    .filter((_, i) => i % xStep === 0 || i === points.length - 1)
+    .map((p) => ({
+      x: xs(points.indexOf(p)),
+      label: p.date ? new Date(p.date).toLocaleDateString("ru-RU", { month: "short", day: "numeric" }) : "",
+    }));
+  return (
+    <div>
+      {rangeBar}
+      <svg viewBox={`0 0 ${W} ${H}`} className="company-price-chart-svg" style={{ width: "100%", height: "auto" }}>
+        <defs>
+          <linearGradient id="cpcgrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {yLabels.map((tick, i) => (
+          <line key={i} x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y} stroke="currentColor" strokeOpacity="0.08" />
+        ))}
+        <path d={areaD} fill="url(#cpcgrad)" />
+        <path d={pathD} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+        {yLabels.map((tick, i) => (
+          <text key={i} x={PAD.left - 6} y={tick.y + 4} textAnchor="end" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
+        ))}
+        {xLabels.map((tick, i) => (
+          <text key={i} x={tick.x} y={H - 6} textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
+        ))}
+        <circle cx={xs(points.length - 1)} cy={ys(points[points.length - 1].price)} r="4" fill={color} />
+      </svg>
+    </div>
+  );
+}
+
+function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMonthsChange, companyData, lang, infoLoading }) {
+  const metrics = companyData?.ratios?.metrics || {};
+  const KEY_METRICS = [
+    { key: "ROA", label: "ROA" },
+    { key: "ROE", label: "ROE" },
+    { key: "net_margin", label: lang === "ru" ? "Чистая маржа" : "Net Margin" },
+    { key: "debt_ratio", label: lang === "ru" ? "Долговая нагрузка" : "Debt Ratio" },
+    { key: "debt_to_equity", label: lang === "ru" ? "Долг/Капитал" : "D/E Ratio" },
+  ];
+  return (
+    <div className="company-overview-grid">
+      <div className="company-overview-main">
+        <h3 className="section-heading">{lang === "ru" ? "История цены" : lang === "uz" ? "Narxlar tarixi" : "Price History"}</h3>
+        <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} lang={lang} />
+        {sec.company_description ? (
+          <div style={{ marginTop: 24 }}>
+            <h3 className="section-heading">{lang === "ru" ? "О компании" : lang === "uz" ? "Kompaniya haqida" : "About"}</h3>
+            <p className="company-description-text">{sec.company_description}</p>
+            {sec.source_url && (
+              <a href={sec.source_url} target="_blank" rel="noreferrer" className="wiki-link">
+                {lang === "ru" ? "Читать на Википедии →" : lang === "uz" ? "Vikipediyada o'qish →" : "Read on Wikipedia →"}
+              </a>
+            )}
+          </div>
+        ) : infoLoading ? (
+          <p className="muted" style={{ marginTop: 16, fontSize: 13 }}>{lang === "ru" ? "Загрузка информации о компании..." : "Loading..."}</p>
+        ) : (
+          <p className="muted" style={{ marginTop: 16, fontSize: 13 }}>{lang === "ru" ? "Информация о компании недоступна." : lang === "uz" ? "Kompaniya ma'lumoti mavjud emas." : "Company information is currently unavailable."}</p>
+        )}
+      </div>
+      <div className="company-overview-sidebar">
+        <h3 className="section-heading">{lang === "ru" ? "Ключевые показатели" : "Key Metrics"}</h3>
+        {Object.keys(metrics).length > 0 ? (
+          <div className="company-metrics-list">
+            {KEY_METRICS.filter((m) => metrics[m.key] != null).map((m) => (
+              <div key={m.key} className="company-metric-row">
+                <span className="panel-label">{m.label}</span>
+                <span className="company-metric-val">{typeof metrics[m.key] === "number" ? metrics[m.key].toFixed(2) : metrics[m.key]}</span>
+              </div>
+            ))}
+            {companyData?.ratios?.year && (
+              <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+                {lang === "ru" ? `Данные за ${companyData.ratios.year} г.` : `${companyData.ratios.year} data`}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Нет кешированных данных. Запустите анализ, чтобы заполнить." : "No cached data. Run ratio analysis to populate."}</p>
+        )}
+        <h3 className="section-heading" style={{ marginTop: 24 }}>{lang === "ru" ? "Детали" : "Details"}</h3>
+        <div className="company-metrics-list">
+          {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span style={{ fontFamily: "monospace", fontSize: 12 }}>{sec.isin}</span></div>}
+          {sec.industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : "Sector"}</span><span>{sectorLabel(lang, sec.industry)}</span></div>}
+          {sec.security_type && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип бумаги" : "Type"}</span><span>{sec.security_type === "bond" ? (lang === "ru" ? "Облигация" : "Bond") : (lang === "ru" ? "Акция" : "Stock")}</span></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompanyReportsTab({ reports, lang }) {
+  const forms = [...new Set((reports || []).map((r) => r.report_form))];
+  const [form, setForm] = React.useState(forms[0] || null);
+  React.useEffect(() => {
+    if (forms.length > 0 && !forms.includes(form)) setForm(forms[0]);
+  }, [reports.length]);
+  const visible = form ? reports.filter((r) => r.report_form === form) : reports;
+  const FORM_LABELS = { NSBU: "НСБУ", MSFO: "МСФО", Audition: lang === "ru" ? "Аудит" : "Audit" };
+  return (
+    <div>
+      {forms.length > 1 && (
+        <div className="company-chart-ranges" style={{ marginBottom: 12 }}>
+          {forms.map((f) => (
+            <button key={f} type="button" className={`range-btn ${form === f ? "active" : ""}`} onClick={() => setForm(f)}>{FORM_LABELS[f] || f}</button>
+          ))}
+        </div>
+      )}
+      {visible.length === 0 ? (
+        <div className="panel" style={{ padding: 32, textAlign: "center" }}>
+          <p className="muted">{lang === "ru" ? "Отчётов не найдено" : "No reports found"}</p>
+        </div>
+      ) : (
+        <div className="company-reports-list">
+          {visible.map((r, i) => (
+            <div key={i} className="company-report-row panel">
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{r.title || `${r.report_form} ${r.year || ""} ${r.quarter ? `Q${r.quarter}` : ""}`}</div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {r.period_type} · {r.year}{r.quarter ? ` Q${r.quarter}` : ""} · {r.report_form}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {r.pdf_url && <a href={r.pdf_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>PDF →</a>}
+                {r.excel_url && <a href={r.excel_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>Excel →</a>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompanyFinancialsTab({ ratios, lang }) {
+  const metrics = ratios?.metrics || {};
+  const rows = [
+    { key: "ROA", label: "ROA", group: lang === "ru" ? "Рентабельность" : "Profitability" },
+    { key: "ROE", label: "ROE", group: lang === "ru" ? "Рентабельность" : "Profitability" },
+    { key: "net_margin", label: lang === "ru" ? "Чистая маржа" : "Net Margin", group: lang === "ru" ? "Рентабельность" : "Profitability" },
+    { key: "debt_ratio", label: lang === "ru" ? "Долговая нагрузка" : "Debt Ratio", group: lang === "ru" ? "Долговая нагрузка" : "Leverage" },
+    { key: "debt_to_equity", label: lang === "ru" ? "Долг/Капитал" : "D/E Ratio", group: lang === "ru" ? "Долговая нагрузка" : "Leverage" },
+  ].filter((r) => metrics[r.key] != null);
+  const groups = [...new Set(rows.map((r) => r.group))];
+  if (rows.length === 0) return (
+    <div className="panel" style={{ padding: 32, textAlign: "center" }}>
+      <p className="muted">{lang === "ru" ? "Финансовые показатели не кешированы. Запустите анализ в разделе Каталог." : "No cached financials. Run ratio analysis in Catalog to populate."}</p>
+    </div>
+  );
+  return (
+    <div>
+      {ratios.year && <div className="muted" style={{ marginBottom: 16, fontSize: 13 }}>{lang === "ru" ? `Последние данные: ${ratios.year} г.${ratios.quarter ? ` Q${ratios.quarter}` : ""}` : `Latest: ${ratios.year}${ratios.quarter ? ` Q${ratios.quarter}` : ""}`}</div>}
+      {groups.map((g) => (
+        <div key={g} className="panel" style={{ marginBottom: 12, padding: "16px 20px" }}>
+          <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600 }}>{g}</h4>
+          <div className="company-metrics-list">
+            {rows.filter((r) => r.group === g).map((r) => (
+              <div key={r.key} className="company-metric-row">
+                <span className="panel-label">{r.label}</span>
+                <span className="company-metric-val">{typeof metrics[r.key] === "number" ? metrics[r.key].toFixed(3) : metrics[r.key]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marketRows }) {
+  const lang = normalizeLanguage(language);
+  const [tab, setTab] = React.useState("overview");
+  const [priceHistory, setPriceHistory] = React.useState(null);
+  const [priceMonths, setPriceMonths] = React.useState(12);
+  const [priceLoading, setPriceLoading] = React.useState(false);
+  const [secInfo, setSecInfo] = React.useState((securitiesMap || {})[ticker] || null);
+  const [infoLoading, setInfoLoading] = React.useState(false);
+  const [companyData, setCompanyData] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!ticker) return;
+    setPriceLoading(true);
+    fetch(`/api/price-history/${encodeURIComponent(ticker)}?months=${priceMonths}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setPriceHistory(d.points || []); })
+      .catch(() => {})
+      .finally(() => setPriceLoading(false));
+  }, [ticker, priceMonths]);
+
+  React.useEffect(() => {
+    if (!ticker) return;
+    const local = (securitiesMap || {})[ticker];
+    if (local) setSecInfo(local);
+    setInfoLoading(true);
+    fetch(`/api/securities/${encodeURIComponent(ticker)}/info`)
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setSecInfo(d); })
+      .catch(() => {})
+      .finally(() => setInfoLoading(false));
+  }, [ticker]);
+
+  React.useEffect(() => {
+    if (!ticker) return;
+    fetch(`/api/catalog/company/${encodeURIComponent(ticker)}/reports`)
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setCompanyData(d); })
+      .catch(() => {});
+  }, [ticker]);
+
+  if (!ticker) return null;
+  const sec = secInfo || (securitiesMap || {})[ticker] || {};
+  const marketRow = (marketRows || []).find((r) => (r.ticker || "").toUpperCase() === ticker.toUpperCase());
+  const lastPrice = marketRow?.last_price ?? marketRow?.lastPrice ?? null;
+  const closePrice = marketRow?.close_price ?? marketRow?.closePrice ?? null;
+  const priceChange = (lastPrice != null && closePrice != null && closePrice !== 0)
+    ? { value: lastPrice - closePrice, pct: ((lastPrice - closePrice) / Math.abs(closePrice)) * 100 }
+    : null;
+  const typeLabel = sec.security_type === "bond"
+    ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond")
+    : sec.stock_type === "preferred"
+      ? (lang === "ru" ? "Прив. акция" : lang === "uz" ? "Imtiyozli" : "Preferred")
+      : (lang === "ru" ? "Обыкн. акция" : lang === "uz" ? "Oddiy aksiya" : "Common Share");
+  const TABS = [
+    { key: "overview", label: lang === "ru" ? "Обзор" : lang === "uz" ? "Umumiy" : "Overview" },
+    { key: "chart", label: lang === "ru" ? "История цен" : lang === "uz" ? "Narxlar tarixi" : "Price History" },
+    { key: "reports", label: lang === "ru" ? "Отчёты" : lang === "uz" ? "Hisobotlar" : "Reports" },
+    { key: "financials", label: lang === "ru" ? "Финансы" : lang === "uz" ? "Moliya" : "Financials" },
+  ];
+  return (
+    <div className="company-page">
+      <div className="company-page-header">
+        <button className="company-page-back" type="button" onClick={onBack}>
+          ← {lang === "ru" ? "Назад" : lang === "uz" ? "Orqaga" : "Back"}
+        </button>
+        <div className="company-page-hero">
+          <CompanyLogo logo={sec.company_logo_url} name={sec.company_name || ticker} ticker={ticker} />
+          <div className="company-page-title">
+            <h1>{sec.company_name || ticker}</h1>
+            <div className="company-page-meta">
+              <span className="company-page-ticker">{ticker}</span>
+              {sec.isin && <span className="muted" style={{ fontSize: 12 }}>{sec.isin}</span>}
+              <span className="company-type-badge">{typeLabel}</span>
+              {sec.industry && <span className="sector-chip active" style={{ fontSize: 11, padding: "2px 10px" }}>{sectorLabel(lang, sec.industry)}</span>}
+            </div>
+          </div>
+          <div className="company-page-price">
+            {lastPrice != null ? (
+              <>
+                <div className="company-page-price-val">{Number(lastPrice).toLocaleString("ru-RU")} сум</div>
+                {priceChange && (
+                  <div className={`company-page-price-change ${priceChange.value >= 0 ? "pos" : "neg"}`}>
+                    {priceChange.value >= 0 ? "+" : ""}{priceChange.value.toFixed(2)} ({priceChange.pct >= 0 ? "+" : ""}{priceChange.pct.toFixed(2)}%)
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Нет данных" : "No data"}</div>
+            )}
+            <button className="primary-btn" type="button" style={{ marginTop: 8 }} onClick={() => onAnalyze(ticker)}>
+              {lang === "ru" ? "Запустить анализ" : lang === "uz" ? "Tahlil qilish" : "Run Analysis"}
+            </button>
+          </div>
+        </div>
+        <div className="company-page-tabs">
+          {TABS.map((t) => (
+            <button key={t.key} type="button"
+              className={`company-tab-btn ${tab === t.key ? "active" : ""}`}
+              onClick={() => setTab(t.key)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="company-page-body">
+        {tab === "overview" && (
+          <CompanyOverviewTab sec={sec} priceHistory={priceHistory} priceLoading={priceLoading}
+            priceMonths={priceMonths} onMonthsChange={setPriceMonths}
+            companyData={companyData} lang={lang} infoLoading={infoLoading} />
+        )}
+        {tab === "chart" && (
+          <div className="panel" style={{ padding: 24 }}>
+            <h3 className="section-heading" style={{ marginBottom: 16 }}>{lang === "ru" ? `История цен — ${ticker}` : `Price History — ${ticker}`}</h3>
+            <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={setPriceMonths} lang={lang} />
+          </div>
+        )}
+        {tab === "reports" && (
+          <CompanyReportsTab reports={companyData?.reports || []} lang={lang} />
+        )}
+        {tab === "financials" && (
+          <CompanyFinancialsTab ratios={companyData?.ratios || {}} lang={lang} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CompanyInfoPanel({ ticker, secInfo, wikiInfo, language, onClose, loading }) {
   const lang = normalizeLanguage(language);
   if (!ticker) return null;
@@ -3493,6 +3842,7 @@ function MarketView({
   onTypeChange,
   onRefresh,
   onAnalyze,
+  onOpenCompany,
   language,
   companies,
   securitiesMap,
@@ -3700,7 +4050,9 @@ function MarketView({
                         >ℹ</button>
                       </td>
                       <td>
-                        <strong>{row.name || "—"}</strong>
+                        <button type="button" className="market-company-name-btn" onClick={() => onOpenCompany && onOpenCompany(row.ticker)}>
+                          {row.name || "—"}
+                        </button>
                         <span>{row.isin || "—"}</span>
                       </td>
                       <td className="num">{row.lastPrice === null ? "—" : formatMarketNumber(row.lastPrice, lang)}</td>
@@ -4416,6 +4768,8 @@ function App() {
   const [registerForm, setRegisterForm] = useState({ full_name: "", email: "", password: "" });
   const [authMessage, setAuthMessage] = useState("");
   const [analysisCompany, setAnalysisCompany] = useState("");
+  const [companyTicker, setCompanyTicker] = useState(null);
+  const [prevView, setPrevView] = useState("market");
   const [selectedSector, setSelectedSector] = useState(null);
   const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
@@ -4655,6 +5009,12 @@ function App() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Could not load companies");
     setCompanies(data.companies || []);
+  };
+
+  const openCompanyPage = (ticker) => {
+    setPrevView(activeView);
+    setCompanyTicker(ticker);
+    setActiveView("company");
   };
 
   const loadMarketStocks = async () => {
@@ -5297,6 +5657,17 @@ function App() {
             />
           )}
 
+          {activeView === "company" && companyTicker && (
+            <CompanyPage
+              ticker={companyTicker}
+              securitiesMap={securitiesMap}
+              language={language}
+              marketRows={marketRows}
+              onBack={() => setActiveView(prevView || "market")}
+              onAnalyze={(t) => { setAnalysisCompany(t); setActiveView("analysis"); }}
+            />
+          )}
+
           {activeView === "market" && (
             <MarketView
               rows={marketRows}
@@ -5313,6 +5684,7 @@ function App() {
                 setAnalysisCompany(ticker || "");
                 setActiveView("analysis");
               }}
+              onOpenCompany={openCompanyPage}
               language={language}
               companies={companies}
               securitiesMap={securitiesMap}

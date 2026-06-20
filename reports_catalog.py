@@ -908,6 +908,46 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     return {"metrics": metrics, "source_values": source_rows}
 
 
+def get_company_reports(ticker: str) -> list[dict[str, Any]]:
+    """Return all catalog reports for a ticker, newest first."""
+    conn = get_catalog_conn()
+    rows = conn.execute("""
+        SELECT report_form, period_type, year, quarter, title, pdf_url, excel_url, synced_at
+        FROM catalog_reports
+        WHERE ticker = ?
+        ORDER BY year DESC, quarter DESC, synced_at DESC
+    """, (ticker,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_company_ratios_cached(ticker: str) -> dict[str, Any]:
+    """Return most recent cached ratios for a ticker."""
+    conn = get_catalog_conn()
+    row = conn.execute("""
+        SELECT year, quarter, form, roa, roe, net_margin, debt_ratio, debt_to_equity, updated_at
+        FROM catalog_ratios
+        WHERE ticker = ?
+        ORDER BY year DESC, quarter DESC, updated_at DESC
+        LIMIT 1
+    """, (ticker,)).fetchone()
+    conn.close()
+    if not row:
+        return {}
+    metrics = {}
+    if row["roa"] is not None:
+        metrics["ROA"] = row["roa"]
+    if row["roe"] is not None:
+        metrics["ROE"] = row["roe"]
+    if row["net_margin"] is not None:
+        metrics["net_margin"] = row["net_margin"]
+    if row["debt_ratio"] is not None:
+        metrics["debt_ratio"] = row["debt_ratio"]
+    if row["debt_to_equity"] is not None:
+        metrics["debt_to_equity"] = row["debt_to_equity"]
+    return {"year": row["year"], "quarter": row["quarter"], "form": row["form"], "metrics": metrics}
+
+
 # ---------------------------------------------------------------------------
 # Dynamics time series
 # ---------------------------------------------------------------------------
