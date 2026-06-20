@@ -8806,3 +8806,43 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .catalog-sparkline-change.neg { color: #f87171; font-weight: 600; }
 .catalog-sparkline-period { font-size: 11px; }
 .catalog-sparkline-svg { width: 100%; height: 64px; display: block; border-radius: 4px; }
+
+/* Export PDF button */
+.catalog-export-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+/* Print / PDF export */
+@media print {
+  .no-print { display: none !important; }
+
+  body * { visibility: hidden; }
+  #catalog-print-target,
+  #catalog-print-target * { visibility: visible; }
+
+  #catalog-print-target {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    padding: 32px 40px;
+    background: #fff;
+    color: #111;
+    font-size: 13px;
+    line-height: 1.6;
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  #catalog-print-target h3 { font-size: 18px; margin-bottom: 12px; color: #111; }
+  #catalog-print-target .panel-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #888; margin-bottom: 4px; }
+  #catalog-print-target .catalog-section { margin-bottom: 20px; page-break-inside: avoid; }
+  #catalog-print-target .catalog-section-text { color: #222; }
+  #catalog-print-target .catalog-ratio-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  #catalog-print-target .catalog-ratio-card { border: 1px solid #ddd; padding: 10px; border-radius: 6px; }
+  #catalog-print-target .ratio-value { color: #111; }
+  #catalog-print-target table { border-collapse: collapse; width: 100%; }
+  #catalog-print-target th, #catalog-print-target td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; color: #111; }
+  #catalog-print-target th { background: #f5f5f5; }
+  #catalog-print-target .catalog-sparkline-wrap,
+  #catalog-print-target .panel-head button { display: none; }
+}
