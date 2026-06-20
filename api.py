@@ -453,7 +453,7 @@ async def api_securities_info(ticker: str, language: str = "ru") -> dict[str, An
         if not sec:
             raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found in securities")
         wiki = await loop.run_in_executor(
-            None, partial(get_wiki_info, ticker, sec.get("name") or "", language)
+            None, partial(get_wiki_info, ticker, sec.get("company_name") or sec.get("security_name") or "", language)
         )
         return {"ok": True, "ticker": ticker, "security": sec, "wiki": wiki}
     except HTTPException:

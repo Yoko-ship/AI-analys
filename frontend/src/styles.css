@@ -9042,46 +9042,53 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .ratio-sector-avg { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 
 /* ── Company detail page ─────────────────────────────────────────────────── */
-.company-page { max-width: 1100px; margin: 0 auto; padding: 0 0 64px; }
-.company-page-header { padding: 16px 0 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
-.company-page-back { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; background: none; border: none; cursor: pointer; padding: 4px 0; }
+.company-page { max-width: 1200px; margin: 0 auto; padding: 0 0 48px; }
+.company-page-header { border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.company-page-back { font-size: 12px; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 12px 0 8px; display: block; }
 .company-page-back:hover { color: var(--text-primary); }
-.company-page-hero { display: flex; align-items: flex-start; gap: 16px; padding-bottom: 20px; flex-wrap: wrap; }
-.company-page-title { flex: 1; min-width: 200px; }
-.company-page-title h1 { margin: 0 0 6px; font-size: 22px; font-weight: 700; }
-.company-page-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.company-page-ticker { font-family: monospace; font-size: 14px; font-weight: 700; color: var(--accent); }
-.company-type-badge { background: var(--surface-2); border-radius: 4px; padding: 2px 8px; font-size: 11px; color: var(--text-muted); }
-.company-page-price { text-align: right; min-width: 160px; }
-.company-page-price-val { font-size: 22px; font-weight: 700; }
-.company-page-price-change.pos { color: #22c55e; font-size: 14px; }
-.company-page-price-change.neg { color: #ef4444; font-size: 14px; }
-.company-page-tabs { display: flex; gap: 0; border-top: 1px solid var(--border); margin-top: 4px; }
-.company-tab-btn { background: none; border: none; padding: 12px 20px; font-size: 14px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+.company-page-hero { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; flex-wrap: wrap; }
+.company-page-title { flex: 1; min-width: 180px; }
+.company-page-title h1 { margin: 0 0 4px; font-size: 20px; font-weight: 700; line-height: 1.2; }
+.company-page-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.company-page-ticker { font-family: monospace; font-size: 13px; font-weight: 700; color: var(--accent); }
+.company-type-badge { background: var(--surface-2); border-radius: 4px; padding: 1px 7px; font-size: 11px; color: var(--text-muted); }
+.company-page-price { text-align: right; }
+.company-page-price-val { font-size: 20px; font-weight: 700; line-height: 1.2; }
+.company-page-price-change { font-size: 13px; margin-top: 2px; }
+.company-page-price-change.pos { color: #22c55e; }
+.company-page-price-change.neg { color: #ef4444; }
+.company-page-price .primary-btn { margin-top: 8px; padding: 6px 14px; font-size: 13px; }
+.company-page-tabs { display: flex; gap: 0; margin-top: 2px; }
+.company-tab-btn { background: none; border: none; padding: 10px 18px; font-size: 14px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
 .company-tab-btn:hover { color: var(--text-primary); }
 .company-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 
-/* Overview two-column layout */
-.company-overview-grid { display: grid; grid-template-columns: 1fr 280px; gap: 24px; align-items: start; }
+/* Overview layout */
+.company-overview-layout { display: flex; flex-direction: column; gap: 16px; }
+.company-chart-panel { padding: 16px 20px 12px; }
+.company-overview-grid { display: grid; grid-template-columns: 1fr 250px; gap: 14px; align-items: start; }
 @media (max-width: 768px) { .company-overview-grid { grid-template-columns: 1fr; } }
-.section-heading { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
-.company-description-text { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
-.wiki-link { font-size: 12px; color: var(--accent); text-decoration: none; margin-top: 8px; display: inline-block; }
+.company-overview-main { padding: 16px 20px; background: var(--surface-1); border-radius: 12px; border: 1px solid var(--border); }
+.company-overview-sidebar { display: flex; flex-direction: column; gap: 10px; }
+.co-sidebar-block { background: var(--surface-2); border-radius: 10px; padding: 14px 16px; }
+.co-heading { font-size: 11px; font-weight: 600; margin: 0 0 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.company-description-text { font-size: 14px; line-height: 1.75; color: var(--text-secondary); margin: 0; }
+.wiki-link { font-size: 12px; color: var(--accent); text-decoration: none; margin-top: 10px; display: inline-block; }
 .wiki-link:hover { text-decoration: underline; }
-
-/* Metrics list in sidebar */
 .company-metrics-list { display: flex; flex-direction: column; gap: 0; }
-.company-metric-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.company-metric-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .company-metric-row:last-child { border-bottom: none; }
 .company-metric-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+.isin-mono { font-family: monospace; font-size: 11px; }
+.section-heading { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
 
 /* Price chart */
-.company-chart-ranges { display: flex; gap: 4px; margin-bottom: 12px; }
-.range-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); background: none; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
+.company-chart-ranges { display: flex; gap: 4px; margin-bottom: 10px; }
+.range-btn { padding: 3px 11px; border-radius: 6px; border: 1px solid var(--border); background: none; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
 .range-btn:hover { border-color: var(--accent); color: var(--text-primary); }
 .range-btn.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
 .company-price-chart-svg { display: block; color: var(--text-primary); }
-.chart-loading { padding: 64px 0; text-align: center; }
+.chart-loading { padding: 48px 0; text-align: center; }
 
 /* Reports list */
 .company-reports-list { display: flex; flex-direction: column; gap: 8px; }

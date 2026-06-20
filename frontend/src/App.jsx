@@ -3455,7 +3455,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
       </div>
     </div>
   );
-  const W = 700, H = 260, PAD = { top: 16, right: 16, bottom: 36, left: 72 };
+  const W = 800, H = 300, PAD = { top: 16, right: 16, bottom: 36, left: 72 };
   const prices = points.map((p) => p.price);
   const minP = Math.min(...prices), maxP = Math.max(...prices);
   const rangeP = maxP - minP || 1;
@@ -3511,54 +3511,71 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
     { key: "ROA", label: "ROA" },
     { key: "ROE", label: "ROE" },
     { key: "net_margin", label: lang === "ru" ? "Чистая маржа" : "Net Margin" },
-    { key: "debt_ratio", label: lang === "ru" ? "Долговая нагрузка" : "Debt Ratio" },
-    { key: "debt_to_equity", label: lang === "ru" ? "Долг/Капитал" : "D/E Ratio" },
+    { key: "debt_ratio", label: lang === "ru" ? "Долг/Активы" : "Debt Ratio" },
+    { key: "debt_to_equity", label: lang === "ru" ? "Долг/Капитал" : "D/E" },
   ];
+  const hasMetrics = KEY_METRICS.some((m) => metrics[m.key] != null);
+
   return (
-    <div className="company-overview-grid">
-      <div className="company-overview-main">
-        <h3 className="section-heading">{lang === "ru" ? "История цены" : lang === "uz" ? "Narxlar tarixi" : "Price History"}</h3>
+    <div className="company-overview-layout">
+      {/* Full-width price chart */}
+      <div className="company-chart-panel panel">
         <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} lang={lang} />
-        {sec.company_description ? (
-          <div style={{ marginTop: 24 }}>
-            <h3 className="section-heading">{lang === "ru" ? "О компании" : lang === "uz" ? "Kompaniya haqida" : "About"}</h3>
-            <p className="company-description-text">{sec.company_description}</p>
-            {sec.source_url && (
-              <a href={sec.source_url} target="_blank" rel="noreferrer" className="wiki-link">
-                {lang === "ru" ? "Читать на Википедии →" : lang === "uz" ? "Vikipediyada o'qish →" : "Read on Wikipedia →"}
-              </a>
-            )}
-          </div>
-        ) : infoLoading ? (
-          <p className="muted" style={{ marginTop: 16, fontSize: 13 }}>{lang === "ru" ? "Загрузка информации о компании..." : "Loading..."}</p>
-        ) : (
-          <p className="muted" style={{ marginTop: 16, fontSize: 13 }}>{lang === "ru" ? "Информация о компании недоступна." : lang === "uz" ? "Kompaniya ma'lumoti mavjud emas." : "Company information is currently unavailable."}</p>
-        )}
       </div>
-      <div className="company-overview-sidebar">
-        <h3 className="section-heading">{lang === "ru" ? "Ключевые показатели" : "Key Metrics"}</h3>
-        {Object.keys(metrics).length > 0 ? (
-          <div className="company-metrics-list">
-            {KEY_METRICS.filter((m) => metrics[m.key] != null).map((m) => (
-              <div key={m.key} className="company-metric-row">
-                <span className="panel-label">{m.label}</span>
-                <span className="company-metric-val">{typeof metrics[m.key] === "number" ? metrics[m.key].toFixed(2) : metrics[m.key]}</span>
+
+      {/* Below chart: description + sidebar */}
+      <div className="company-overview-grid">
+        <div className="company-overview-main">
+          {sec.company_description ? (
+            <>
+              <h3 className="co-heading">{lang === "ru" ? "О компании" : lang === "uz" ? "Kompaniya haqida" : "About"}</h3>
+              <p className="company-description-text">{sec.company_description}</p>
+              {sec.source_url && (
+                <a href={sec.source_url} target="_blank" rel="noreferrer" className="wiki-link">
+                  {lang === "ru" ? "Читать на Википедии →" : lang === "uz" ? "Vikipediyada o'qish →" : "Read on Wikipedia →"}
+                </a>
+              )}
+            </>
+          ) : infoLoading ? (
+            <p className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Загрузка информации о компании..." : "Loading..."}</p>
+          ) : (
+            <p className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Информация о компании недоступна." : "Company information is currently unavailable."}</p>
+          )}
+        </div>
+
+        <div className="company-overview-sidebar">
+          {hasMetrics && (
+            <div className="co-sidebar-block">
+              <h3 className="co-heading">{lang === "ru" ? "Ключевые показатели" : "Key Metrics"}</h3>
+              <div className="company-metrics-list">
+                {KEY_METRICS.filter((m) => metrics[m.key] != null).map((m) => (
+                  <div key={m.key} className="company-metric-row">
+                    <span className="panel-label">{m.label}</span>
+                    <span className="company-metric-val">{typeof metrics[m.key] === "number" ? metrics[m.key].toFixed(2) : metrics[m.key]}</span>
+                  </div>
+                ))}
+                {companyData?.ratios?.year && (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+                    {lang === "ru" ? `За ${companyData.ratios.year} г.` : `${companyData.ratios.year}`}
+                  </div>
+                )}
               </div>
-            ))}
-            {companyData?.ratios?.year && (
-              <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
-                {lang === "ru" ? `Данные за ${companyData.ratios.year} г.` : `${companyData.ratios.year} data`}
-              </div>
-            )}
+            </div>
+          )}
+          <div className="co-sidebar-block">
+            <h3 className="co-heading">{lang === "ru" ? "Детали" : "Details"}</h3>
+            <div className="company-metrics-list">
+              {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span className="isin-mono">{sec.isin}</span></div>}
+              {sec.industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : "Sector"}</span><span>{sectorLabel(lang, sec.industry)}</span></div>}
+              {sec.security_type && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип" : "Type"}</span><span>{sec.security_type === "bond" ? (lang === "ru" ? "Облигация" : "Bond") : (lang === "ru" ? "Акция" : "Stock")}</span></div>}
+              {sec.stock_type && sec.security_type !== "bond" && (
+                <div className="company-metric-row">
+                  <span className="panel-label">{lang === "ru" ? "Класс" : "Class"}</span>
+                  <span>{sec.stock_type === "preferred" ? (lang === "ru" ? "Привилегированная" : "Preferred") : (lang === "ru" ? "Обыкновенная" : "Common")}</span>
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          <p className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Нет кешированных данных. Запустите анализ, чтобы заполнить." : "No cached data. Run ratio analysis to populate."}</p>
-        )}
-        <h3 className="section-heading" style={{ marginTop: 24 }}>{lang === "ru" ? "Детали" : "Details"}</h3>
-        <div className="company-metrics-list">
-          {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span style={{ fontFamily: "monospace", fontSize: 12 }}>{sec.isin}</span></div>}
-          {sec.industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : "Sector"}</span><span>{sectorLabel(lang, sec.industry)}</span></div>}
-          {sec.security_type && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип бумаги" : "Type"}</span><span>{sec.security_type === "bond" ? (lang === "ru" ? "Облигация" : "Bond") : (lang === "ru" ? "Акция" : "Stock")}</span></div>}
         </div>
       </div>
     </div>
@@ -3670,7 +3687,14 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
     setInfoLoading(true);
     fetch(`/api/securities/${encodeURIComponent(ticker)}/info`)
       .then((r) => r.json())
-      .then((d) => { if (d.ok) setSecInfo(d); })
+      .then((d) => {
+        if (d.ok) setSecInfo({
+          ...(d.security || {}),
+          company_description: d.wiki?.extract || d.security?.company_description || null,
+          source_url: d.wiki?.page_url || d.security?.source_url || null,
+          wiki_title: d.wiki?.title || null,
+        });
+      })
       .catch(() => {})
       .finally(() => setInfoLoading(false));
   }, [ticker]);
