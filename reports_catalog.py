@@ -208,6 +208,13 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
     try:
         company = resolve_company(company_name, session=session)
         org_id = company.get("org_id")
+        # Preferred share tickers (e.g. AGBAP) share the same org as the base ticker (AGBA).
+        # If resolution failed, retry with the base ticker's company name.
+        if not org_id and ticker.endswith("P"):
+            base_name = _TICKER_TO_NAME.get(ticker[:-1])
+            if base_name and base_name != company_name:
+                company = resolve_company(base_name, session=session)
+                org_id = company.get("org_id")
         if not org_id:
             raise LookupError(f"No org_id for {company_name!r}")
     except Exception as exc:
