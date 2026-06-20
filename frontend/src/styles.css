@@ -8846,3 +8846,17 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
   #catalog-print-target .catalog-sparkline-wrap,
   #catalog-print-target .panel-head button { display: none; }
 }
+
+/* Stale sync badge on nav */
+.nav-catalog-wrap { display: inline-flex; align-items: center; gap: 5px; }
+.nav-stale-dot { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block; flex-shrink: 0; }
+
+/* Trend arrows on ratio cards */
+.ratio-delta { font-size: 12px; margin-top: 4px; }
+.ratio-delta.pos { color: #6ef0c1; }
+.ratio-delta.neg { color: #f87171; }
+.ratio-delta.neutral { color: var(--text-muted); }
+.ratio-delta-label { opacity: 0.7; }
+
+/* Sector average baseline */
+.ratio-sector-avg { font-size: 11px; color: var(--text-muted); margin-top: 3px; }

@@ -27,7 +27,9 @@ from reports_catalog import (
     get_company_index,
     get_new_reports_for_tickers,
     get_report_urls,
+    get_sector_averages,
     list_companies_with_stats,
+    upsert_ratio_cache,
     sync_company as catalog_sync_company,
     sync_all as catalog_sync_all,
 )
@@ -765,15 +767,39 @@ async def api_catalog_analyze(
 
     try:
         if payload.analysis_type == "ratio":
-            excel = await loop.run_in_executor(
-                None,
-                partial(fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter),
+            prev_year = payload.year - 1
+            excel, excel_prev = await asyncio.gather(
+                loop.run_in_executor(None, partial(fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter)),
+                loop.run_in_executor(None, partial(fetch_report_excel_data, ticker, payload.form, prev_year, payload.quarter)),
             )
             if not excel.get("ok"):
                 raise HTTPException(status_code=400, detail=excel.get("error") or "Could not fetch report")
             ratios = compute_financial_ratios(excel.get("income"), excel.get("balance"))
-            return _json_safe({"ok": True, "analysis_type": "ratio", "ticker": ticker,
-                                "year": payload.year, "quarter": payload.quarter, "form": payload.form, **ratios})
+            ratios_prev = compute_financial_ratios(excel_prev.get("income"), excel_prev.get("balance")) if excel_prev.get("ok") else {}
+            # Cache ratios for sector averaging
+            if ratios.get("metrics"):
+                try:
+                    await loop.run_in_executor(None, partial(upsert_ratio_cache, ticker, payload.form, payload.year, payload.quarter, ratios["metrics"]))
+                except Exception:
+                    pass
+            # Sector peers — COMPANY_SECTORS is {ticker: sector_name}
+            sector = COMPANY_SECTORS.get(ticker)
+            sector_peers = [t for t, s in COMPANY_SECTORS.items() if s == sector and t != ticker] if sector else []
+            sector_avg: dict = {}
+            if sector_peers:
+                try:
+                    sector_avg = await loop.run_in_executor(None, partial(get_sector_averages, sector_peers, payload.form, payload.year))
+                except Exception:
+                    pass
+            return _json_safe({
+                "ok": True, "analysis_type": "ratio", "ticker": ticker,
+                "year": payload.year, "quarter": payload.quarter, "form": payload.form,
+                **ratios,
+                "prev_year": prev_year,
+                "prev_metrics": ratios_prev.get("metrics"),
+                "sector": sector,
+                "sector_avg": sector_avg,
+            })
 
         if payload.analysis_type == "dynamics":
             dynamics = await loop.run_in_executor(
