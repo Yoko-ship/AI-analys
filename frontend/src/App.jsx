@@ -3663,24 +3663,50 @@ function clg(language, key) {
 }
 
 function CatalogRatioTable({ result, language }) {
+  const lang = language;
   const metrics = result.metrics || {};
+  const prevMetrics = result.prev_metrics || {};
   const vals = result.source_values || {};
-  const labelMap = (TEXTS[language] || TEXTS.ru).catalog.ratioLabels;
-  const valLabels = (TEXTS[language] || TEXTS.ru).catalog.dynamicsLabels;
-  const fmt = (v) => (v === null || v === undefined ? clg(language, "noValue") : `${v}%`);
+  const labelMap = (TEXTS[lang] || TEXTS.ru).catalog.ratioLabels;
+  const valLabels = (TEXTS[lang] || TEXTS.ru).catalog.dynamicsLabels;
+  const fmt = (v) => (v === null || v === undefined ? clg(lang, "noValue") : `${Number(v).toFixed(1)}%`);
+  const fmtDE = (v) => (v === null || v === undefined ? clg(lang, "noValue") : Number(v).toFixed(2));
   const fmtRaw = (v) => {
-    if (v === null || v === undefined) return clg(language, "noValue");
-    return new Intl.NumberFormat(language === "en" ? "en-US" : "ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(v);
+    if (v === null || v === undefined) return clg(lang, "noValue");
+    return new Intl.NumberFormat(lang === "en" ? "en-US" : "ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(v);
   };
+
+  const renderCard = (k, v) => {
+    const prev = prevMetrics[k];
+    const hasDelta = prev !== null && prev !== undefined && v !== null && v !== undefined;
+    const delta = hasDelta ? (Number(v) - Number(prev)).toFixed(1) : null;
+    const up = delta !== null && Number(delta) > 0;
+    const down = delta !== null && Number(delta) < 0;
+    const sectorVal = result.sector_avg?.[k];
+    return (
+      <div key={k} className="catalog-ratio-card">
+        <span className="ratio-name">{labelMap[k] || k}</span>
+        <strong className="ratio-value">{k === "debt_to_equity" ? fmtDE(v) : fmt(v)}</strong>
+        {delta !== null && (
+          <div className={`ratio-delta ${up ? "pos" : down ? "neg" : "neutral"}`}>
+            {up ? "↑" : down ? "↓" : "→"} {up ? "+" : ""}{delta}{k !== "debt_to_equity" ? "%" : ""}
+            <span className="ratio-delta-label"> vs {result.prev_year}</span>
+          </div>
+        )}
+        {sectorVal !== undefined && sectorVal !== null && (
+          <div className="ratio-sector-avg">
+            ∅ {k === "debt_to_equity" ? fmtDE(sectorVal) : fmt(sectorVal)}
+            {result.sector_avg?.n ? <span className="ratio-delta-label"> ({result.sector_avg.n})</span> : null}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="catalog-result-body">
       <div className="catalog-ratio-grid">
-        {Object.entries(metrics).map(([k, v]) => (
-          <div key={k} className={`catalog-ratio-card ${v !== null && v !== undefined ? (parseFloat(v) > 0 ? "tone-good" : "tone-danger") : ""}`}>
-            <span className="ratio-name">{labelMap[k] || k}</span>
-            <strong className="ratio-value">{k === "debt_to_equity" ? (v !== null ? v : clg(language, "noValue")) : fmt(v)}</strong>
-          </div>
-        ))}
+        {Object.entries(metrics).map(([k, v]) => renderCard(k, v))}
       </div>
       <table className="catalog-source-table">
         <tbody>
@@ -3696,32 +3722,61 @@ function CatalogRatioTable({ result, language }) {
 function CatalogDynamicsTable({ result, language }) {
   const years = result.years || [];
   const series = result.series || {};
+  const quarterly = result.quarterly || [];
   const labels = (TEXTS[language] || TEXTS.ru).catalog.dynamicsLabels;
+  const metricKeys = Object.keys(labels);
   const fmtN = (v) => {
     if (v === null || v === undefined) return "—";
     return new Intl.NumberFormat(language === "en" ? "en-US" : "ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(v);
   };
-  if (!years.length) return <p className="muted">{clg(language, "noReports")}</p>;
+  if (!years.length && !quarterly.length) return <p className="muted">{clg(language, "noReports")}</p>;
   return (
     <div className="catalog-result-body">
-      <div className="catalog-table-wrap">
-        <table className="market-table">
-          <thead>
-            <tr>
-              <th>{language === "ru" ? "Показатель" : language === "uz" ? "Ko'rsatkich" : "Metric"}</th>
-              {years.map((y) => <th key={y} className="num">{y}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(series).map(([key, vals]) => (
-              <tr key={key}>
-                <td>{labels[key] || key}</td>
-                {vals.map((v, i) => <td key={i} className="num">{fmtN(v)}</td>)}
+      {years.length > 0 && (
+        <div className="catalog-table-wrap">
+          <table className="market-table">
+            <thead>
+              <tr>
+                <th>{language === "ru" ? "Показатель" : language === "uz" ? "Ko'rsatkich" : "Metric"}</th>
+                {years.map((y) => <th key={y} className="num">{y}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {Object.entries(series).map(([key, vals]) => (
+                <tr key={key}>
+                  <td>{labels[key] || key}</td>
+                  {vals.map((v, i) => <td key={i} className="num">{fmtN(v)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {quarterly.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div className="panel-label" style={{ marginBottom: 8 }}>
+            {language === "ru" ? "Поквартальная динамика" : language === "uz" ? "Choraklik dinamika" : "Quarterly dynamics"}
+          </div>
+          <div className="catalog-table-wrap">
+            <table className="market-table">
+              <thead>
+                <tr>
+                  <th>{language === "ru" ? "Период" : "Period"}</th>
+                  {metricKeys.map((m) => <th key={m} className="num">{labels[m] || m}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {quarterly.map((row) => (
+                  <tr key={row.label}>
+                    <td>{row.label}</td>
+                    {metricKeys.map((m) => <td key={m} className="num">{fmtN(row[m])}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3785,9 +3840,9 @@ function CatalogCompareTable({ result, language }) {
   );
 }
 
-function CatalogView({ language, companies, token, addToast, onNavigateToAnalysis }) {
+function CatalogView({ language, companies, token, addToast, onNavigateToAnalysis, initialStatus }) {
   const lang = normalizeLanguage(language);
-  const [status, setStatus] = useState(null);
+  const [status, setStatus] = useState(initialStatus || null);
   const [catalogComps, setCatalogComps] = useState([]);
   const [compsLoading, setCompsLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -4031,9 +4086,16 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                   <span className="status-badge muted">{ticker}</span>
                   {index?.last_synced_at && <span className="status-badge muted">{clg(lang, "lastSync")}: {formatMarketTimestamp(index.last_synced_at, lang)}</span>}
                 </div>
-                <button className="ghost-btn" type="button" onClick={() => handleSync(ticker)} disabled={syncing}>
-                  {syncing ? clg(lang, "syncing") : clg(lang, "syncCompany")}
-                </button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button className="ghost-btn" type="button" onClick={() => handleSync(ticker)} disabled={syncing}>
+                    {syncing ? clg(lang, "syncing") : clg(lang, "syncCompany")}
+                  </button>
+                  {onNavigateToAnalysis && (
+                    <button className="ghost-btn" type="button" onClick={() => onNavigateToAnalysis(ticker)}>
+                      {lang === "ru" ? "Открыть в Анализе" : lang === "uz" ? "Tahlilda ochish" : "Open in Analysis"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Price sparkline */}
@@ -4171,6 +4233,7 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                     <div>
                       <div className="panel-label">{analysisTypesObj[result.analysis_type] || result.analysis_type}</div>
                       <h3>{result.company_name || ticker} · {result.year}{result.quarter > 0 ? ` Q${result.quarter}` : ""}</h3>
+                      {result.sector && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{result.sector}</div>}
                     </div>
                     <button className="ghost-btn catalog-export-btn no-print" type="button" onClick={() => window.print()}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -4205,6 +4268,7 @@ function App() {
   const [notifCount, setNotifCount] = useState(0);
   const [notifItems, setNotifItems] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [catalogStatus, setCatalogStatus] = useState(null);
   const [authTab, setAuthTab] = useState("login");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [registerForm, setRegisterForm] = useState({ full_name: "", email: "", password: "" });
@@ -4337,6 +4401,13 @@ function App() {
   useEffect(() => {
     setHistorySearch("");
   }, [activeView]);
+
+  useEffect(() => {
+    apiFetch("/api/catalog/status")
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setCatalogStatus(d); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!token) { setNotifCount(0); setNotifItems([]); return; }
@@ -4908,7 +4979,16 @@ function App() {
           <nav className="topbar-nav">
             {navItems.map((key) => (
               <button key={key} className={`topbar-nav-btn ${activeView === key ? "active" : ""}`} type="button" onClick={() => setActiveView(key)}>
-                {key === "market" ? mt(language, "nav") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
+                {key === "catalog" ? (
+                  <span className="nav-catalog-wrap">
+                    {t(language, "nav.catalog")}
+                    {(() => {
+                      if (!catalogStatus?.last_sync) return null;
+                      const ageH = (Date.now() - new Date(catalogStatus.last_sync).getTime()) / 3600000;
+                      return ageH > 24 ? <span className="nav-stale-dot" title={language === "ru" ? "Каталог устарел" : "Catalog stale"} /> : null;
+                    })()}
+                  </span>
+                ) : key === "market" ? mt(language, "nav") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
@@ -5063,6 +5143,7 @@ function App() {
               token={token}
               addToast={addToast}
               onNavigateToAnalysis={(t) => { setAnalysisCompany(t); setActiveView("analysis"); }}
+              initialStatus={catalogStatus}
             />
           )}
 

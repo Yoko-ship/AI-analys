@@ -84,6 +84,20 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_cnr_ticker   ON catalog_new_reports(ticker);
         CREATE INDEX IF NOT EXISTS idx_cnr_detected ON catalog_new_reports(detected_at);
+
+        CREATE TABLE IF NOT EXISTS catalog_ratios (
+            ticker         TEXT NOT NULL,
+            form           TEXT NOT NULL,
+            year           INTEGER NOT NULL,
+            quarter        INTEGER NOT NULL DEFAULT 0,
+            roa            REAL,
+            roe            REAL,
+            net_margin     REAL,
+            debt_ratio     REAL,
+            debt_to_equity REAL,
+            updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (ticker, form, year, quarter)
+        );
     """)
     conn.commit()
 
@@ -685,6 +699,54 @@ def get_catalog_stats() -> dict[str, Any]:
     }
 
 
+def upsert_ratio_cache(ticker: str, form: str, year: int, quarter: int, metrics: dict[str, Any]) -> None:
+    conn = get_catalog_conn()
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO catalog_ratios
+                (ticker, form, year, quarter, roa, roe, net_margin, debt_ratio, debt_to_equity, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))
+            ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
+                roa=excluded.roa, roe=excluded.roe, net_margin=excluded.net_margin,
+                debt_ratio=excluded.debt_ratio, debt_to_equity=excluded.debt_to_equity,
+                updated_at=datetime('now')
+            """,
+            (ticker, form, year, quarter,
+             metrics.get("ROA"), metrics.get("ROE"), metrics.get("net_margin"),
+             metrics.get("debt_ratio"), metrics.get("debt_to_equity")),
+        )
+    conn.close()
+
+
+def get_sector_averages(sector_tickers: list[str], form: str, year: int) -> dict[str, Any]:
+    if not sector_tickers:
+        return {}
+    conn = get_catalog_conn()
+    placeholders = ",".join("?" * len(sector_tickers))
+    row = conn.execute(
+        f"""
+        SELECT AVG(roa) as roa, AVG(roe) as roe, AVG(net_margin) as net_margin,
+               AVG(debt_ratio) as debt_ratio, AVG(debt_to_equity) as debt_to_equity,
+               COUNT(*) as n
+        FROM catalog_ratios
+        WHERE ticker IN ({placeholders}) AND form=? AND year=? AND quarter=0
+        """,
+        (*sector_tickers, form, year),
+    ).fetchone()
+    conn.close()
+    if not row or not row["n"]:
+        return {}
+    return {
+        "ROA": round(row["roa"], 2) if row["roa"] is not None else None,
+        "ROE": round(row["roe"], 2) if row["roe"] is not None else None,
+        "net_margin": round(row["net_margin"], 2) if row["net_margin"] is not None else None,
+        "debt_ratio": round(row["debt_ratio"], 2) if row["debt_ratio"] is not None else None,
+        "debt_to_equity": round(row["debt_to_equity"], 2) if row["debt_to_equity"] is not None else None,
+        "n": row["n"],
+    }
+
+
 def get_new_reports_for_tickers(tickers: list[str], since_days: int = 7) -> list[dict[str, Any]]:
     """Return recently detected new reports for the given tickers (used for notifications)."""
     if not tickers:
@@ -898,4 +960,48 @@ def build_dynamics_data(ticker: str, form: str = "NSBU") -> dict[str, Any]:
         for key in series:
             series[key].append(vals.get(key))
 
-    return {"ticker": ticker, "form": form, "years": years, "series": series}
+    # --- Quarterly series (last 8 quarters) ----------------------------------
+    conn2 = get_catalog_conn()
+    quarter_rows = conn2.execute(
+        """
+        SELECT year, quarter, excel_url, excel_url_form1
+        FROM catalog_reports
+        WHERE ticker = ? AND report_form = ? AND period_type = 'quarter'
+          AND year IS NOT NULL AND quarter > 0
+        ORDER BY year DESC, quarter DESC
+        LIMIT 8
+        """,
+        (ticker, form),
+    ).fetchall()
+    conn2.close()
+
+    quarterly: list[dict[str, Any]] = []
+    metric_keys = ["revenue", "net_income", "total_assets", "equity", "total_liabilities"]
+    for qrow in reversed(quarter_rows):
+        yr, q = qrow["year"], qrow["quarter"]
+        inc, bal = None, None
+        if qrow["excel_url"]:
+            doc = {"excel_url": qrow["excel_url"], "id": None, "object_id": None,
+                   "published_at": None, "period_type": "quarter", "report_form": form, "title": None}
+            try:
+                p = parse_excel_report_document(session, doc)
+                if p.get("ok"):
+                    inc = p
+            except Exception:
+                pass
+        if qrow["excel_url_form1"]:
+            doc1 = {"excel_url": qrow["excel_url_form1"], "id": None, "object_id": None,
+                    "published_at": None, "period_type": "quarter", "report_form": form, "title": None}
+            try:
+                p1 = parse_excel_report_document(session, doc1)
+                if p1.get("ok"):
+                    bal = p1
+            except Exception:
+                pass
+        vals_q = (compute_financial_ratios(inc, bal).get("source_values") or {})
+        entry: dict[str, Any] = {"label": f"Q{q} {yr}", "year": yr, "quarter": q}
+        for k in metric_keys:
+            entry[k] = vals_q.get(k)
+        quarterly.append(entry)
+
+    return {"ticker": ticker, "form": form, "years": years, "series": series, "quarterly": quarterly}
