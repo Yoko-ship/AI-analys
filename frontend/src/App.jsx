@@ -4036,7 +4036,7 @@ function MarketView({
                           />
                         )}
                         <div className="market-ticker-info">
-                          <button type="button" className="market-ticker-btn" onClick={() => onAnalyze(row.ticker)}>
+                          <button type="button" className="market-ticker-btn" onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}>
                             {row.ticker || "—"}
                           </button>
                           <span>{row.share_type ? mt(lang, row.share_type) : row.type || "—"}</span>
