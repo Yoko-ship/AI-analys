@@ -3860,19 +3860,25 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
 
     // AI analysis: render sections + article_report
     const sections = result.sections || {};
-    const articleReport = result.article_report;
+    const articleSections = result.article_report?.sections || [];
+    const hasArticle = articleSections.length > 0;
+    const sectionEntries = Object.entries(sections).filter(([, v]) => v && typeof v === "string");
     return (
       <div className="catalog-result-body">
-        {articleReport && (
-          <div className="catalog-article-report" dangerouslySetInnerHTML={{ __html: articleReport }} />
-        )}
-        {!articleReport && Object.entries(sections).map(([key, text]) => (
+        {hasArticle ? articleSections.map((section, i) => (
+          <div key={section.id || i} className="catalog-section">
+            <div className="panel-label">{section.title || section.id}</div>
+            <div className="catalog-section-text">
+              <StructuredReportBlocks blocks={section.blocks || []} keyPrefix={`cat-${i}`} />
+            </div>
+          </div>
+        )) : sectionEntries.map(([key, text]) => (
           <div key={key} className="catalog-section">
             <div className="panel-label">{key.replace(/_/g, " ")}</div>
             <div className="catalog-section-text">{text}</div>
           </div>
         ))}
-        {!articleReport && !Object.keys(sections).length && (
+        {!hasArticle && !sectionEntries.length && (
           <p className="muted">{lang === "ru" ? "Нет данных для отображения" : "No data to display"}</p>
         )}
       </div>
