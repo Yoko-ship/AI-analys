@@ -25,6 +25,8 @@ from reports_catalog import (
     fetch_report_excel_data,
     get_catalog_stats,
     get_company_index,
+    get_company_reports,
+    get_company_ratios_cached,
     get_new_reports_for_tickers,
     get_report_urls,
     get_sector_averages,
@@ -903,13 +905,14 @@ async def api_catalog_analyze(
 
 
 @app.get("/api/price-history/{ticker}")
-async def api_price_history(ticker: str) -> dict[str, Any]:
-    """12-month close price history for a ticker via UZSE ISIN lookup."""
+async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
+    """Close price history for a ticker via UZSE ISIN lookup."""
     import os
     import requests as _req
     from openinfo_collector import fetch_price_history
 
     ticker = ticker.upper()
+    months = max(1, min(months, 36))
     loop = asyncio.get_running_loop()
     try:
         uzse_base = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
@@ -918,7 +921,7 @@ async def api_price_history(ticker: str) -> dict[str, Any]:
         isin = next((s["isin"] for s in stocks if s.get("ticker", "").upper() == ticker), None)
         if not isin:
             return {"ok": False, "ticker": ticker, "error": "ISIN not found", "points": []}
-        data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, 12))
+        data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, months))
         points = [
             {"date": p.get("date"), "close": p.get("close")}
             for p in (data.get("points") or [])
@@ -928,6 +931,16 @@ async def api_price_history(ticker: str) -> dict[str, Any]:
     except Exception as exc:
         logger.exception("price-history failed for %s", ticker)
         return {"ok": False, "ticker": ticker, "error": str(exc), "points": []}
+
+
+@app.get("/api/catalog/company/{ticker}/reports")
+async def api_company_reports(ticker: str) -> dict[str, Any]:
+    """Return all catalog reports and cached ratios for a ticker."""
+    ticker = ticker.upper()
+    loop = asyncio.get_running_loop()
+    reports = await loop.run_in_executor(None, partial(get_company_reports, ticker))
+    ratios = await loop.run_in_executor(None, partial(get_company_ratios_cached, ticker))
+    return _json_safe({"ok": True, "ticker": ticker, "reports": reports, "ratios": ratios})
 
 
 @app.get("/api/notifications")
