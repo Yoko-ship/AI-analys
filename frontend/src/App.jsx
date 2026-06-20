@@ -1394,8 +1394,11 @@ function formatMarketTimestamp(value, language) {
 }
 
 function marketChange(stock) {
-  const last = safeNumber(stock?.last_price);
-  const close = safeNumber(stock?.close_price);
+  // last_price is null when no trade happened today; Number(null)=0 so we
+  // must guard on the raw value, not the coerced number.
+  if (stock?.last_price == null) return { value: null, percent: null };
+  const last = safeNumber(stock.last_price);
+  const close = safeNumber(stock.close_price);
   if (last === null || close === null || close === 0) {
     return { value: null, percent: null };
   }
