@@ -116,6 +116,9 @@ const TEXTS = {
       ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Чистая маржа", debt_ratio: "Debt Ratio", debt_to_equity: "D/E" },
       dynamicsLabels: { revenue: "Выручка", net_income: "Чистая прибыль", total_assets: "Активы", equity: "Капитал", total_liabilities: "Обязательства" },
       pdfReport: "Открыть PDF",
+      notifications: "Уведомления",
+      notifEmpty: "Нет новых отчётов",
+      notifNewReport: "Новый отчёт опубликован",
     },
     languageLabel: "Язык",
     languageOptions: { ru: "Русский", en: "English", uz: "O'zbek" },
@@ -379,6 +382,9 @@ const TEXTS = {
       ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Net Margin", debt_ratio: "Debt Ratio", debt_to_equity: "D/E" },
       dynamicsLabels: { revenue: "Revenue", net_income: "Net Income", total_assets: "Total Assets", equity: "Equity", total_liabilities: "Total Liabilities" },
       pdfReport: "Open PDF",
+      notifications: "Notifications",
+      notifEmpty: "No new reports",
+      notifNewReport: "New report published",
     },
     languageLabel: "Language",
     languageOptions: { ru: "Russian", en: "English", uz: "Uzbek" },
@@ -641,6 +647,9 @@ const TEXTS = {
       ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Sof marja", debt_ratio: "Qarz nisbati", debt_to_equity: "D/E" },
       dynamicsLabels: { revenue: "Daromad", net_income: "Sof foyda", total_assets: "Jami aktiv", equity: "Kapital", total_liabilities: "Majburiyatlar" },
       pdfReport: "PDFni ochish",
+      notifications: "Bildirishnomalar",
+      notifEmpty: "Yangi hisobotlar yo'q",
+      notifNewReport: "Yangi hisobot chop etildi",
     },
     languageLabel: "Til",
     languageOptions: { ru: "Ruscha", en: "English", uz: "O'zbek" },
@@ -3594,6 +3603,49 @@ function MarketView({
 }
 
 // ---------------------------------------------------------------------------
+// CatalogView helpers
+// ---------------------------------------------------------------------------
+
+function PriceSparkline({ points, language }) {
+  if (!points || points.length < 2) return null;
+  const closes = points.map((p) => p.close).filter((v) => v != null && v > 0);
+  if (closes.length < 2) return null;
+  const W = 280, H = 64, PAD = 4;
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const range = max - min || 1;
+  const xs = closes.map((_, i) => PAD + (i / (closes.length - 1)) * (W - PAD * 2));
+  const ys = closes.map((v) => PAD + (1 - (v - min) / range) * (H - PAD * 2));
+  const polyline = xs.map((x, i) => `${x},${ys[i]}`).join(" ");
+  const areaPath = `M${xs[0]},${H} ` + xs.map((x, i) => `L${x},${ys[i]}`).join(" ") + ` L${xs[xs.length - 1]},${H} Z`;
+  const first = closes[0], last = closes[closes.length - 1];
+  const pct = ((last - first) / first * 100).toFixed(1);
+  const tone = last >= first ? "pos" : "neg";
+  const color = tone === "pos" ? "#6ef0c1" : "#f87171";
+  const firstDate = points[0]?.date;
+  const lastDate = points[points.length - 1]?.date;
+  return (
+    <div className="catalog-sparkline">
+      <div className="catalog-sparkline-meta">
+        <span className="catalog-sparkline-price">{last.toLocaleString(language === "en" ? "en-US" : "ru-RU")} сум</span>
+        <span className={`catalog-sparkline-change ${tone}`}>{tone === "pos" ? "+" : ""}{pct}%</span>
+        <span className="catalog-sparkline-period muted">{firstDate} – {lastDate}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="catalog-sparkline-svg" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="spk-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#spk-grad)" />
+        <polyline points={polyline} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // CatalogView
 // ---------------------------------------------------------------------------
 
@@ -3749,6 +3801,8 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
   const [result, setResult] = useState(null);
   const [resultLoading, setResultLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [sparkline, setSparkline] = useState(null);
+  const [sparklineLoading, setSparklineLoading] = useState(false);
 
   const apiFetch = (path, options = {}) => {
     const stored = localStorage.getItem(STORAGE_KEY) || "";
@@ -3790,6 +3844,16 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
   useEffect(() => { loadStatus(); loadCatalogComps(); }, []);
   useEffect(() => { if (ticker) loadIndex(ticker); else { setIndex(null); setYear(""); setQuarter(0); setResult(null); } }, [ticker]);
   useEffect(() => { setYear(""); setQuarter(0); setResult(null); }, [form, ticker]);
+  useEffect(() => {
+    if (!ticker) { setSparkline(null); return; }
+    setSparklineLoading(true);
+    setSparkline(null);
+    apiFetch(`/api/price-history/${ticker}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.ok && d.points?.length >= 2) setSparkline(d.points); })
+      .catch(() => {})
+      .finally(() => setSparklineLoading(false));
+  }, [ticker]);
 
   const handleSync = async (specificTicker = null) => {
     if (!token) { addToast(lang === "ru" ? "Войдите для синхронизации" : "Sign in to sync", "error"); return; }
@@ -3969,6 +4033,15 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                 </button>
               </div>
 
+              {/* Price sparkline */}
+              {(sparkline || sparklineLoading) && (
+                <div className="catalog-sparkline-wrap">
+                  {sparklineLoading
+                    ? <div className="catalog-list-loading">{lang === "ru" ? "Загрузка графика..." : "Loading chart..."}</div>
+                    : <PriceSparkline points={sparkline} language={lang} />}
+                </div>
+              )}
+
               {/* Form tabs */}
               <div className="catalog-form-tabs">
                 {["NSBU", "MSFO", "Audition"].map((f) => (
@@ -4122,6 +4195,9 @@ function App() {
   const [profile, setProfile] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [activeView, setActiveView] = useState("main");
+  const [notifCount, setNotifCount] = useState(0);
+  const [notifItems, setNotifItems] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [authTab, setAuthTab] = useState("login");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [registerForm, setRegisterForm] = useState({ full_name: "", email: "", password: "" });
@@ -4254,6 +4330,19 @@ function App() {
   useEffect(() => {
     setHistorySearch("");
   }, [activeView]);
+
+  useEffect(() => {
+    if (!token) { setNotifCount(0); setNotifItems([]); return; }
+    const fetchNotifs = () => {
+      apiFetch("/api/notifications")
+        .then((r) => r.json())
+        .then((d) => { if (d.ok) { setNotifCount(d.count || 0); setNotifItems(d.items || []); } })
+        .catch(() => {});
+    };
+    fetchNotifs();
+    const id = setInterval(fetchNotifs, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [token]);
 
   useEffect(() => {
     if (activeView !== "market") return;
@@ -4816,6 +4905,38 @@ function App() {
               </button>
             ))}
           </nav>
+
+          {token && (
+            <div className="notif-wrap">
+              <button className="notif-bell" type="button" onClick={() => setNotifOpen((o) => !o)} aria-label="Notifications">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                {notifCount > 0 && <span className="notif-badge">{notifCount > 9 ? "9+" : notifCount}</span>}
+              </button>
+              {notifOpen && (
+                <div className="notif-panel panel">
+                  <div className="notif-panel-header">
+                    <span className="panel-label">{clg(language, "notifications")}</span>
+                    <button className="icon-btn" type="button" onClick={() => setNotifOpen(false)}>✕</button>
+                  </div>
+                  {notifItems.length === 0 ? (
+                    <p className="muted notif-empty">{clg(language, "notifEmpty")}</p>
+                  ) : (
+                    <ul className="notif-list">
+                      {notifItems.map((n, i) => (
+                        <li key={i} className="notif-item">
+                          <div className="notif-item-title">{n.ticker} · {n.report_form} · {n.year || "—"}{n.quarter > 0 ? ` Q${n.quarter}` : ""}</div>
+                          <div className="notif-item-sub muted">{n.title || clg(language, "notifNewReport")} · {n.detected_at?.slice(0, 10)}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="topbar-meta">
             <div className="topbar-controls">

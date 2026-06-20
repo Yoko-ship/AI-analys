@@ -8782,3 +8782,27 @@ body[data-theme="light"] .catalog-main { background: #fff; border-color: #e5e7eb
 body[data-theme="light"] .catalog-year-btn, body[data-theme="light"] .catalog-period-btn { background: #f8f9fa; border-color: #e5e7eb; color: #1a1a2e; }
 body[data-theme="light"] .catalog-ratio-card { background: #f8f9fa; border-color: #e5e7eb; }
 body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalog-compare-period-row select { background: #f8f9fa; border-color: #e5e7eb; color: #1a1a2e; }
+
+/* ── Notification bell ───────────────────────────────────────────────────── */
+.notif-wrap { position: relative; }
+.notif-bell { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 6px; border-radius: 8px; display: flex; align-items: center; position: relative; transition: color 0.15s; }
+.notif-bell:hover { color: var(--text-primary); }
+.notif-badge { position: absolute; top: 2px; right: 2px; background: #f59e0b; color: #000; border-radius: 99px; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; padding: 0 3px; line-height: 1; }
+.notif-panel { position: absolute; top: calc(100% + 8px); right: 0; width: 320px; z-index: 200; padding: 0; overflow: hidden; }
+.notif-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.notif-empty { padding: 16px; margin: 0; }
+.notif-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
+.notif-item { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.notif-item:last-child { border-bottom: none; }
+.notif-item-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.notif-item-sub { font-size: 12px; }
+
+/* ── Price sparkline ─────────────────────────────────────────────────────── */
+.catalog-sparkline-wrap { padding: 0 0 12px 0; }
+.catalog-sparkline { display: flex; flex-direction: column; gap: 6px; }
+.catalog-sparkline-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.catalog-sparkline-price { font-size: 15px; font-weight: 700; }
+.catalog-sparkline-change.pos { color: #6ef0c1; font-weight: 600; }
+.catalog-sparkline-change.neg { color: #f87171; font-weight: 600; }
+.catalog-sparkline-period { font-size: 11px; }
+.catalog-sparkline-svg { width: 100%; height: 64px; display: block; border-radius: 4px; }

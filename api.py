@@ -25,6 +25,7 @@ from reports_catalog import (
     fetch_report_excel_data,
     get_catalog_stats,
     get_company_index,
+    get_new_reports_for_tickers,
     get_report_urls,
     list_companies_with_stats,
     sync_company as catalog_sync_company,
@@ -831,4 +832,48 @@ async def api_catalog_analyze(
         raise
     except Exception as exc:
         logger.exception("Catalog analyze failed for %s", ticker)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/price-history/{ticker}")
+async def api_price_history(ticker: str) -> dict[str, Any]:
+    """12-month close price history for a ticker via UZSE ISIN lookup."""
+    import os
+    import requests as _req
+    from openinfo_collector import fetch_price_history
+
+    ticker = ticker.upper()
+    loop = asyncio.get_running_loop()
+    try:
+        uzse_base = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
+        resp = await loop.run_in_executor(None, lambda: _req.get(f"{uzse_base}/stocks", timeout=15))
+        stocks = resp.json().get("stocks", []) if resp.ok else []
+        isin = next((s["isin"] for s in stocks if s.get("ticker", "").upper() == ticker), None)
+        if not isin:
+            return {"ok": False, "ticker": ticker, "error": "ISIN not found", "points": []}
+        data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, 12))
+        points = [
+            {"date": p.get("date"), "close": p.get("close")}
+            for p in (data.get("points") or [])
+            if p.get("date") and p.get("close") is not None
+        ]
+        return {"ok": True, "ticker": ticker, "isin": isin, "points": points}
+    except Exception as exc:
+        logger.exception("price-history failed for %s", ticker)
+        return {"ok": False, "ticker": ticker, "error": str(exc), "points": []}
+
+
+@app.get("/api/notifications")
+async def api_notifications(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
+    """New catalog reports for the user's favorited tickers (last 7 days)."""
+    try:
+        favorites = web_auth_store.list_favorites(current_user.id)
+        tickers = [f["ticker"] for f in favorites]
+        if not tickers:
+            return {"ok": True, "count": 0, "items": []}
+        loop = asyncio.get_running_loop()
+        items = await loop.run_in_executor(None, partial(get_new_reports_for_tickers, tickers, 7))
+        return {"ok": True, "count": len(items), "items": _json_safe(items)}
+    except Exception as exc:
+        logger.exception("notifications failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
