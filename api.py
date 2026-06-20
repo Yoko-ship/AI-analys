@@ -813,6 +813,7 @@ async def api_catalog_analyze(
             report_analysis_type=period_type,
             report_quarter=payload.quarter if payload.quarter > 0 else None,
             report_current_year=payload.year,
+            report_previous_year=payload.year - 1,
             report_form=form_map.get(payload.form, "NAS"),
         )
         return _json_safe({
