@@ -3421,6 +3421,66 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
   );
 }
 
+function CompanyInfoPanel({ ticker, secInfo, wikiInfo, language, onClose, loading }) {
+  const lang = normalizeLanguage(language);
+  if (!ticker) return null;
+  const name = secInfo?.name || ticker;
+  const logo = secInfo?.logo_url;
+  const sector = secInfo?.sector;
+  const isin = secInfo?.isin;
+  const isPreferred = secInfo?.is_preferred;
+  const secType = secInfo?.type;
+
+  const sectorText = sector ? sectorLabel(lang, sector) : null;
+  const typeLabels = { stock: lang === "en" ? "Stock" : lang === "uz" ? "Aksiya" : "Акция", bond: lang === "en" ? "Bond" : lang === "uz" ? "Obligatsiya" : "Облигация" };
+
+  return (
+    <div className="company-panel-overlay" onClick={onClose}>
+      <aside className="company-info-panel" onClick={(e) => e.stopPropagation()}>
+        <button className="company-panel-close" type="button" onClick={onClose}>×</button>
+        <div className="company-panel-header">
+          <CompanyLogo logo={logo} name={name} ticker={ticker} />
+          <div className="company-panel-title">
+            <h2>{name}</h2>
+            <div className="company-panel-meta">
+              <span className="status-badge muted">{ticker}</span>
+              {isin && <span className="status-badge muted">{isin}</span>}
+              {sectorText && <span className="status-badge">{sectorText}</span>}
+              {secType && <span className="status-badge muted">{typeLabels[secType] || secType}</span>}
+              {isPreferred && <span className="status-badge muted">{lang === "en" ? "Preferred" : lang === "uz" ? "Imtiyozli" : "Привилег."}</span>}
+            </div>
+          </div>
+        </div>
+        <div className="company-panel-body">
+          {loading ? (
+            <p className="company-panel-wiki muted">{lang === "en" ? "Loading..." : lang === "uz" ? "Yuklanmoqda..." : "Загрузка..."}</p>
+          ) : wikiInfo?.extract ? (
+            <>
+              <p className="company-panel-wiki">{wikiInfo.extract}</p>
+              {wikiInfo.page_url && (
+                <a href={wikiInfo.page_url} target="_blank" rel="noreferrer" className="company-panel-wiki-link">
+                  {lang === "en" ? "Read on Wikipedia →" : lang === "uz" ? "Vikipediyada o'qish →" : "Читать на Википедии →"}
+                </a>
+              )}
+            </>
+          ) : (
+            <p className="company-panel-wiki muted">
+              {lang === "en" ? "No description available." : lang === "uz" ? "Tavsif mavjud emas." : "Описание недоступно."}
+            </p>
+          )}
+          {secInfo?.last_price != null && (
+            <div className="company-panel-price">
+              <span className="company-panel-price-label">{lang === "en" ? "Last price" : lang === "uz" ? "Oxirgi narx" : "Последняя цена"}</span>
+              <strong className="company-panel-price-value">{Number(secInfo.last_price).toLocaleString(lang === "en" ? "en-US" : "ru-RU")} сум</strong>
+              {secInfo.last_trade_date && <span className="muted">{secInfo.last_trade_date}</span>}
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 function MarketView({
   rows,
   meta,
@@ -3435,13 +3495,36 @@ function MarketView({
   onAnalyze,
   language,
   companies,
+  securitiesMap,
 }) {
   const lang = normalizeLanguage(language);
   const [viewMode, setViewMode] = useState("table");
+  const [marketSector, setMarketSector] = useState(null);
+  const [panelTicker, setPanelTicker] = useState(null);
+  const [panelWiki, setPanelWiki] = useState(null);
+  const [panelWikiLoading, setPanelWikiLoading] = useState(false);
+
+  const openPanel = (ticker) => {
+    setPanelTicker(ticker);
+    setPanelWiki(null);
+    setPanelWikiLoading(true);
+    fetch(`/api/securities/${encodeURIComponent(ticker)}/info?language=${lang}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setPanelWiki(d.wiki); })
+      .catch(() => {})
+      .finally(() => setPanelWikiLoading(false));
+  };
+
+  const smap = securitiesMap || {};
   const prepared = (Array.isArray(rows) ? rows : []).map(enrichMarketStock);
   const search = String(query || "").trim().toLowerCase();
+
+  // Gather sectors present in current data
+  const presentSectors = [...new Set(prepared.map((r) => smap[r.ticker]?.sector).filter(Boolean))].sort();
+
   const visibleRows = prepared
     .filter((row) => {
+      if (marketSector && smap[row.ticker]?.sector !== marketSector) return false;
       if (!search) return true;
       return `${row.ticker || ""} ${row.name || ""} ${row.isin || ""}`.toLowerCase().includes(search);
     })
@@ -3537,6 +3620,28 @@ function MarketView({
           )}
         </div>
 
+        {presentSectors.length > 0 && viewMode === "table" && (
+          <div className="sector-filter market-sector-filter">
+            <button
+              type="button"
+              className={`sector-chip${!marketSector ? " active" : ""}`}
+              onClick={() => setMarketSector(null)}
+            >
+              {sectorLabel(lang, "all")}
+            </button>
+            {presentSectors.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`sector-chip${marketSector === s ? " active" : ""}`}
+                onClick={() => setMarketSector(marketSector === s ? null : s)}
+              >
+                {sectorLabel(lang, s)}
+              </button>
+            ))}
+          </div>
+        )}
+
         {viewMode === "heatmap" ? (
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
@@ -3564,13 +3669,35 @@ function MarketView({
                 {loading ? (
                   <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "loading")}</td></tr>
                 ) : visibleRows.length ? (
-                  visibleRows.map((row) => (
+                  visibleRows.map((row) => {
+                    const sec = smap[row.ticker] || {};
+                    const logo = sec.logo_url;
+                    const isPreferred = sec.is_preferred || row.share_type === "preferred";
+                    return (
                     <tr key={`${row.ticker}-${row.isin}`}>
-                      <td>
-                        <button type="button" className="market-ticker-btn" onClick={() => onAnalyze(row.ticker)}>
-                          {row.ticker || "—"}
-                        </button>
-                        <span>{row.share_type ? mt(lang, row.share_type) : row.type || "—"}</span>
+                      <td className="market-ticker-cell">
+                        {logo && (
+                          <img
+                            className="market-row-logo"
+                            src={logo}
+                            alt={row.ticker}
+                            loading="lazy"
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          />
+                        )}
+                        <div className="market-ticker-info">
+                          <button type="button" className="market-ticker-btn" onClick={() => onAnalyze(row.ticker)}>
+                            {row.ticker || "—"}
+                          </button>
+                          <span>{row.share_type ? mt(lang, row.share_type) : row.type || "—"}</span>
+                          {isPreferred && <span className="market-preferred-badge">{lang === "en" ? "pref" : "прив"}</span>}
+                        </div>
+                        <button
+                          type="button"
+                          className="market-info-btn"
+                          title={lang === "en" ? "Company info" : lang === "uz" ? "Kompaniya ma'lumoti" : "О компании"}
+                          onClick={() => openPanel(row.ticker)}
+                        >ℹ</button>
                       </td>
                       <td>
                         <strong>{row.name || "—"}</strong>
@@ -3595,7 +3722,8 @@ function MarketView({
                         ) : "—"}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 ) : (
                   <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "empty")}</td></tr>
                 )}
@@ -3604,6 +3732,17 @@ function MarketView({
           </div>
         )}
       </article>
+
+      {panelTicker && (
+        <CompanyInfoPanel
+          ticker={panelTicker}
+          secInfo={smap[panelTicker]}
+          wikiInfo={panelWiki}
+          language={language}
+          onClose={() => { setPanelTicker(null); setPanelWiki(null); }}
+          loading={panelWikiLoading}
+        />
+      )}
     </section>
   );
 }
@@ -4310,6 +4449,7 @@ function App() {
   const [marketQuery, setMarketQuery] = useState("");
   const [marketLoading, setMarketLoading] = useState(false);
   const [marketMessage, setMarketMessage] = useState("");
+  const [securitiesMap, setSecuritiesMap] = useState({});
   const [toasts, setToasts] = useState([]);
 
   // Dynamic year/quarter options: fallback to static list until per-company periods are fetched
@@ -4433,6 +4573,13 @@ function App() {
     loadMarketTrades();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, marketType, language]);
+
+  useEffect(() => {
+    apiFetch("/api/securities")
+      .then((r) => r.json())
+      .then((d) => { if (d.ok && d.securities) setSecuritiesMap(d.securities); })
+      .catch(() => {});
+  }, []);
 
   // Fetch available periods whenever the analysis company changes
   useEffect(() => {
@@ -5168,6 +5315,7 @@ function App() {
               }}
               language={language}
               companies={companies}
+              securitiesMap={securitiesMap}
             />
           )}
 

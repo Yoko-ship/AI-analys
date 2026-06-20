@@ -6787,6 +6787,186 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   text-align: center !important;
 }
 
+/* ── Market sector filter ─────────────────────────────────────── */
+.market-sector-filter {
+  padding: 12px 24px 0;
+}
+
+/* ── Market table: logo + ticker cell ────────────────────────── */
+.market-ticker-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.market-row-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.market-ticker-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.market-preferred-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.03em;
+}
+
+.market-info-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s, color 0.15s;
+  margin-left: auto;
+}
+
+.market-info-btn:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* ── Company info panel (slide-in drawer) ─────────────────────── */
+.company-panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+}
+
+.company-info-panel {
+  position: relative;
+  width: min(420px, 96vw);
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-2);
+  border-left: 1px solid var(--border);
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: panel-slide-in 0.22s ease;
+}
+
+@keyframes panel-slide-in {
+  from { transform: translateX(40px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.company-panel-close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.company-panel-close:hover {
+  color: var(--text);
+  background: var(--border);
+}
+
+.company-panel-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding-right: 32px;
+}
+
+.company-panel-header .chip-logo,
+.company-panel-header .chip-logo-fallback {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+}
+
+.company-panel-title h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.company-panel-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.company-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.company-panel-wiki {
+  font-size: 0.93rem;
+  line-height: 1.65;
+  color: var(--text);
+  margin: 0;
+}
+
+.company-panel-wiki.muted {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.company-panel-wiki-link {
+  font-size: 0.87rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.company-panel-price {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.company-panel-price-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.company-panel-price-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
 /* ── Market view toggle ──────────────────────────────────────── */
 .market-board-head {
   flex-wrap: wrap;
