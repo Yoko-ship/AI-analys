@@ -18,6 +18,18 @@ from pydantic import BaseModel, Field
 from analysis_service import build_company_comparison, build_summary, run_company_analysis
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from openinfo_collector import collect_company_data, get_company_periods
+from reports_catalog import (
+    _TICKER_TO_NAME,
+    build_dynamics_data,
+    compute_financial_ratios,
+    fetch_report_excel_data,
+    get_catalog_stats,
+    get_company_index,
+    get_report_urls,
+    list_companies_with_stats,
+    sync_company as catalog_sync_company,
+    sync_all as catalog_sync_all,
+)
 from web_auth import WebUser, web_auth_store
 
 logger = logging.getLogger(__name__)
@@ -136,6 +148,23 @@ class ProfileUpdateRequest(BaseModel):
 class FavoriteToggleRequest(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=40)
     company_name: str | None = Field(default=None, max_length=240)
+
+
+class CatalogSyncRequest(BaseModel):
+    ticker: str | None = Field(default=None, max_length=40)
+    force: bool = False
+
+
+class CatalogAnalyzeRequest(BaseModel):
+    ticker: str = Field(..., min_length=1, max_length=40)
+    year: int = Field(..., ge=2000, le=2100)
+    quarter: int = Field(default=0, ge=0, le=3)
+    form: Literal["NSBU", "MSFO", "Audition"] = "NSBU"
+    analysis_type: str = Field(default="financial", max_length=40)
+    language: Literal["ru", "en", "uz"] = "ru"
+    compare_ticker: str | None = Field(default=None, max_length=40)
+    compare_year: int | None = Field(default=None, ge=2000, le=2100)
+    compare_quarter: int | None = Field(default=None, ge=0, le=3)
 
 
 def _auth_payload(user: WebUser, token: str) -> dict[str, Any]:
@@ -661,3 +690,144 @@ async def api_analyze(
         logger.warning("Failed to record analysis history for user %s: %s", current_user.id, exc)
 
     return _json_safe(response)
+
+
+# ---------------------------------------------------------------------------
+# Report Catalog endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/catalog/status")
+async def api_catalog_status() -> dict[str, Any]:
+    try:
+        return {"ok": True, **get_catalog_stats()}
+    except Exception as exc:
+        logger.exception("Catalog status failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/catalog/companies")
+async def api_catalog_companies() -> dict[str, Any]:
+    try:
+        companies = list_companies_with_stats()
+        return {"ok": True, "count": len(companies), "companies": companies}
+    except Exception as exc:
+        logger.exception("Catalog companies list failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/catalog/index/{ticker}")
+async def api_catalog_index(ticker: str) -> dict[str, Any]:
+    try:
+        index = get_company_index(ticker.upper())
+        return {"ok": True, **index}
+    except Exception as exc:
+        logger.exception("Catalog index failed for %s", ticker)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/catalog/sync")
+async def api_catalog_sync(
+    payload: CatalogSyncRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> dict[str, Any]:
+    loop = asyncio.get_running_loop()
+    try:
+        if payload.ticker:
+            ticker = payload.ticker.upper()
+            company_name = _TICKER_TO_NAME.get(ticker)
+            if not company_name:
+                raise HTTPException(status_code=404, detail=f"Unknown ticker: {ticker}")
+            result = await loop.run_in_executor(
+                None, partial(catalog_sync_company, ticker, company_name, force=payload.force)
+            )
+        else:
+            result = await loop.run_in_executor(
+                None, partial(catalog_sync_all, force=payload.force)
+            )
+        return {"ok": True, **_json_safe(result)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Catalog sync failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/catalog/analyze")
+async def api_catalog_analyze(
+    payload: CatalogAnalyzeRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> dict[str, Any]:
+    ticker = payload.ticker.upper()
+    company_name = _TICKER_TO_NAME.get(ticker, ticker)
+    loop = asyncio.get_running_loop()
+    form_map = {"NSBU": "NAS", "MSFO": "IFRS", "Audition": "Audit"}
+
+    try:
+        if payload.analysis_type == "ratio":
+            excel = await loop.run_in_executor(
+                None,
+                partial(fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter),
+            )
+            if not excel.get("ok"):
+                raise HTTPException(status_code=400, detail=excel.get("error") or "Could not fetch report")
+            ratios = compute_financial_ratios(excel.get("income"), excel.get("balance"))
+            return _json_safe({"ok": True, "analysis_type": "ratio", "ticker": ticker,
+                                "year": payload.year, "quarter": payload.quarter, "form": payload.form, **ratios})
+
+        if payload.analysis_type == "dynamics":
+            dynamics = await loop.run_in_executor(
+                None, partial(build_dynamics_data, ticker, payload.form)
+            )
+            return _json_safe({"ok": True, "analysis_type": "dynamics", "ticker": ticker, **dynamics})
+
+        if payload.analysis_type in ("quarter_compare", "annual_compare"):
+            q2 = payload.compare_quarter if payload.compare_quarter is not None else payload.quarter
+            y2 = payload.compare_year or (payload.year - 1)
+            excel1, excel2 = await asyncio.gather(
+                loop.run_in_executor(None, partial(fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter)),
+                loop.run_in_executor(None, partial(fetch_report_excel_data, ticker, payload.form, y2, q2)),
+            )
+            ratios1 = compute_financial_ratios(excel1.get("income"), excel1.get("balance")) if excel1.get("ok") else {}
+            ratios2 = compute_financial_ratios(excel2.get("income"), excel2.get("balance")) if excel2.get("ok") else {}
+            return _json_safe({
+                "ok": True, "analysis_type": payload.analysis_type, "ticker": ticker,
+                "period1": {"year": payload.year, "quarter": payload.quarter, "form": payload.form, **ratios1},
+                "period2": {"year": y2, "quarter": q2, "form": payload.form, **ratios2},
+            })
+
+        if payload.analysis_type == "multi_company":
+            compare_ticker = (payload.compare_ticker or "").upper()
+            compare_name = _TICKER_TO_NAME.get(compare_ticker, compare_ticker)
+            if not compare_name:
+                raise HTTPException(status_code=400, detail="compare_ticker is required")
+            result = await loop.run_in_executor(
+                None, partial(build_company_comparison, [company_name, compare_name], payload.language, True)
+            )
+            return _json_safe({"ok": True, "analysis_type": "multi_company", **result})
+
+        # AI-based: financial / swot / recommendation
+        period_type = "quarterly" if payload.quarter > 0 else "annual"
+        result = await run_company_analysis(
+            company_name,
+            language=payload.language,
+            report_analysis_type=period_type,
+            report_quarter=payload.quarter if payload.quarter > 0 else None,
+            report_current_year=payload.year,
+            report_form=form_map.get(payload.form, "NAS"),
+        )
+        return _json_safe({
+            "ok": True, "analysis_type": payload.analysis_type, "ticker": ticker,
+            "company_name": result.get("company_name"),
+            "year": payload.year, "quarter": payload.quarter, "language": payload.language,
+            "sections": result.get("sections", {}),
+            "metrics": result.get("metrics"),
+            "summary": build_summary(result),
+            "article_report": result.get("article_report"),
+            "report_tables": result.get("report_tables"),
+        })
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Catalog analyze failed for %s", ticker)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -1,0 +1,750 @@
+from __future__ import annotations
+
+import logging
+import os
+import re
+import sqlite3
+import threading
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from company_catalog import COMPANY_CATALOG
+from db import APP_DATA_DIR, sqlite_connect
+from openinfo_collector import (
+    OPENINFO_API_BASE,
+    _build_report_document,
+    _json_get,
+    _make_session,
+    parse_excel_report_document,
+    resolve_company,
+)
+
+logger = logging.getLogger(__name__)
+
+CATALOG_SYNC_TTL_HOURS = int(os.getenv("CATALOG_SYNC_TTL_HOURS", "6"))
+_SYNC_LOCK = threading.Lock()
+
+# Inverted catalog: ticker → company_name (take first match if duplicates)
+_TICKER_TO_NAME: dict[str, str] = {}
+for _name, _ticker in COMPANY_CATALOG.items():
+    if _ticker not in _TICKER_TO_NAME:
+        _TICKER_TO_NAME[_ticker] = _name
+
+
+# ---------------------------------------------------------------------------
+# DB bootstrap
+# ---------------------------------------------------------------------------
+
+def _catalog_db_path() -> str:
+    path = APP_DATA_DIR / "reports_catalog.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)
+
+
+def _init_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS catalog_companies (
+            ticker          TEXT PRIMARY KEY,
+            company_name    TEXT NOT NULL,
+            org_id          TEXT,
+            last_synced_at  TEXT,
+            sync_error      TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS catalog_reports (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker              TEXT NOT NULL,
+            report_form         TEXT NOT NULL,
+            period_type         TEXT NOT NULL,
+            year                INTEGER,
+            quarter             INTEGER NOT NULL DEFAULT 0,
+            title               TEXT,
+            published_at        TEXT,
+            pdf_url             TEXT,
+            excel_url           TEXT,
+            excel_url_form1     TEXT,
+            openinfo_report_id  TEXT,
+            object_id           TEXT,
+            synced_at           TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(ticker, report_form, period_type, year, quarter)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cat_ticker ON catalog_reports(ticker);
+        CREATE INDEX IF NOT EXISTS idx_cat_year   ON catalog_reports(year);
+    """)
+    conn.commit()
+
+
+def get_catalog_conn() -> sqlite3.Connection:
+    conn = sqlite_connect(_catalog_db_path())
+    _init_schema(conn)
+    return conn
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _extract_year(report: dict[str, Any]) -> int | None:
+    props = report.get("properties") or {}
+    for field in ("reporting_year", "year"):
+        v = props.get(field)
+        if v is not None:
+            try:
+                yr = int(v)
+                if 2000 <= yr <= 2100:
+                    return yr
+            except (TypeError, ValueError):
+                pass
+    title = str(props.get("report_title") or "")
+    m = re.search(r"\b(20[12]\d)\b", title)
+    if m:
+        return int(m.group(1))
+    pub = str(report.get("pub_date") or "")
+    if len(pub) >= 4:
+        try:
+            yr = int(pub[:4])
+            pt = str(props.get("report_type") or "annual").lower()
+            return yr - 1 if pt == "annual" else yr
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def _extract_quarter(period_str: str) -> int | None:
+    """Parse quarter number from strings like 'Q1 2024' or 'I квартал 2024'."""
+    m = re.search(r"Q([1-3])", period_str, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"([1-3])\s*квартал", period_str, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    roman = {"I": 1, "II": 2, "III": 3}
+    m = re.search(r"\b(III|II|I)\b\s*квартал", period_str, re.IGNORECASE)
+    if m:
+        return roman.get(m.group(1).upper())
+    return None
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _is_fresh(last_synced_at: str | None) -> bool:
+    if not last_synced_at:
+        return False
+    try:
+        ts = datetime.fromisoformat(last_synced_at.replace("Z", "+00:00"))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) - ts < timedelta(hours=CATALOG_SYNC_TTL_HOURS)
+    except (ValueError, TypeError):
+        return False
+
+
+def _upsert_report(
+    conn: sqlite3.Connection,
+    ticker: str,
+    *,
+    report_form: str,
+    period_type: str,
+    year: int | None,
+    quarter: int,
+    title: str | None,
+    published_at: str | None,
+    pdf_url: str | None,
+    excel_url: str | None,
+    excel_url_form1: str | None,
+    openinfo_report_id: str | None,
+    object_id: str | None,
+) -> bool:
+    """Insert or update a report row. Returns True if a new row was inserted."""
+    cur = conn.execute(
+        """
+        INSERT INTO catalog_reports
+            (ticker, report_form, period_type, year, quarter, title,
+             published_at, pdf_url, excel_url, excel_url_form1,
+             openinfo_report_id, object_id, synced_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+        ON CONFLICT(ticker, report_form, period_type, year, quarter) DO UPDATE SET
+            title               = excluded.title,
+            published_at        = excluded.published_at,
+            pdf_url             = COALESCE(excluded.pdf_url, pdf_url),
+            excel_url           = COALESCE(excluded.excel_url, excel_url),
+            excel_url_form1     = COALESCE(excluded.excel_url_form1, excel_url_form1),
+            openinfo_report_id  = COALESCE(excluded.openinfo_report_id, openinfo_report_id),
+            object_id           = COALESCE(excluded.object_id, object_id),
+            synced_at           = datetime('now')
+        """,
+        (
+            ticker, report_form, period_type, year, quarter, title,
+            published_at, pdf_url, excel_url, excel_url_form1,
+            openinfo_report_id, object_id,
+        ),
+    )
+    return cur.lastrowid is not None and cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Sync — one company
+# ---------------------------------------------------------------------------
+
+def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict[str, Any]:
+    conn = get_catalog_conn()
+
+    # Check freshness unless forced
+    if not force:
+        row = conn.execute(
+            "SELECT last_synced_at FROM catalog_companies WHERE ticker = ?", (ticker,)
+        ).fetchone()
+        if row and _is_fresh(row["last_synced_at"]):
+            conn.close()
+            return {"ticker": ticker, "skipped": True}
+
+    session = _make_session()
+    errors: list[str] = []
+    added = 0
+
+    try:
+        company = resolve_company(company_name, session=session)
+        org_id = company.get("org_id")
+        if not org_id:
+            raise LookupError(f"No org_id for {company_name!r}")
+    except Exception as exc:
+        err = str(exc)
+        errors.append(err)
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO catalog_companies (ticker, company_name, last_synced_at, sync_error)
+                VALUES (?,?,datetime('now'),?)
+                ON CONFLICT(ticker) DO UPDATE SET sync_error=excluded.sync_error, last_synced_at=datetime('now')
+                """,
+                (ticker, company_name, err),
+            )
+        conn.close()
+        return {"ticker": ticker, "org_id": None, "added": 0, "errors": errors}
+
+    base = f"/reports/accounting-report/{org_id}/"
+
+    # ---- NSBU annual -------------------------------------------------------
+    try:
+        form2_annual = _json_get(session, base, {"accounting_type": "form2", "report_type": "annual"})
+        if not isinstance(form2_annual, list):
+            form2_annual = []
+    except Exception as exc:
+        form2_annual = []
+        errors.append(f"NSBU annual form2: {exc}")
+
+    try:
+        form1_annual = _json_get(session, base, {"accounting_type": "form1", "report_type": "annual"})
+        if not isinstance(form1_annual, list):
+            form1_annual = []
+    except Exception as exc:
+        form1_annual = []
+        errors.append(f"NSBU annual form1: {exc}")
+
+    # Index form1 by reporting_year for quick lookup
+    form1_annual_by_year: dict[int, dict] = {}
+    for rec in form1_annual:
+        yr = rec.get("reporting_year")
+        if isinstance(yr, int):
+            doc = _build_report_document(rec)
+            form1_annual_by_year[yr] = doc
+
+    with conn:
+        for rec in form2_annual:
+            yr = rec.get("reporting_year")
+            if not isinstance(yr, int):
+                continue
+            doc2 = _build_report_document(rec)
+            doc1 = form1_annual_by_year.get(yr)
+            new = _upsert_report(
+                conn, ticker,
+                report_form="NSBU",
+                period_type="annual",
+                year=yr,
+                quarter=0,
+                title=doc2.get("title"),
+                published_at=doc2.get("published_at"),
+                pdf_url=doc2.get("pdf_url"),
+                excel_url=doc2.get("excel_url"),
+                excel_url_form1=doc1.get("excel_url") if doc1 else None,
+                openinfo_report_id=str(doc2.get("id") or ""),
+                object_id=str(doc2.get("object_id") or ""),
+            )
+            if new:
+                added += 1
+
+    # ---- NSBU quarterly ----------------------------------------------------
+    try:
+        form2_quarter = _json_get(session, base, {"accounting_type": "form2", "report_type": "quarter"})
+        if not isinstance(form2_quarter, list):
+            form2_quarter = []
+    except Exception as exc:
+        form2_quarter = []
+        errors.append(f"NSBU quarter form2: {exc}")
+
+    try:
+        form1_quarter = _json_get(session, base, {"accounting_type": "form1", "report_type": "quarter"})
+        if not isinstance(form1_quarter, list):
+            form1_quarter = []
+    except Exception as exc:
+        form1_quarter = []
+        errors.append(f"NSBU quarter form1: {exc}")
+
+    # Index form1 quarterly by (year, quarter)
+    form1_quarter_by_yq: dict[tuple[int, int], dict] = {}
+    for rec in form1_quarter:
+        period_str = str(rec.get("period") or "")
+        yr = rec.get("reporting_year")
+        q = _extract_quarter(period_str)
+        if isinstance(yr, int) and q:
+            doc = _build_report_document(rec)
+            form1_quarter_by_yq[(yr, q)] = doc
+
+    with conn:
+        for rec in form2_quarter:
+            period_str = str(rec.get("period") or "")
+            yr = rec.get("reporting_year")
+            q = _extract_quarter(period_str)
+            if not isinstance(yr, int) or not q:
+                continue
+            doc2 = _build_report_document(rec)
+            doc1 = form1_quarter_by_yq.get((yr, q))
+            new = _upsert_report(
+                conn, ticker,
+                report_form="NSBU",
+                period_type="quarter",
+                year=yr,
+                quarter=q,
+                title=doc2.get("title"),
+                published_at=doc2.get("published_at"),
+                pdf_url=doc2.get("pdf_url"),
+                excel_url=doc2.get("excel_url"),
+                excel_url_form1=doc1.get("excel_url") if doc1 else None,
+                openinfo_report_id=str(doc2.get("id") or ""),
+                object_id=str(doc2.get("object_id") or ""),
+            )
+            if new:
+                added += 1
+
+    # ---- MSFO + Audition from /reports/main/ --------------------------------
+    try:
+        payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, "search": company_name})
+        main_results = list(payload.get("results") or []) if isinstance(payload, dict) else []
+        # Filter by org_id and target forms
+        main_results = [
+            r for r in main_results
+            if str(r.get("organization")) == str(org_id)
+            and r.get("report_type") in {"MSFO", "Audition"}
+        ]
+    except Exception as exc:
+        main_results = []
+        errors.append(f"MSFO/Audition: {exc}")
+
+    with conn:
+        for rec in main_results:
+            doc = _build_report_document(rec)
+            form = doc.get("report_form") or rec.get("report_type")
+            if form not in ("MSFO", "Audition"):
+                continue
+            pt = str(doc.get("period_type") or "annual").lower()
+            yr = _extract_year(rec)
+            q = 0
+            if pt == "quarter":
+                props = rec.get("properties") or {}
+                period_str = str(props.get("report_title") or "")
+                q = _extract_quarter(period_str) or 0
+            new = _upsert_report(
+                conn, ticker,
+                report_form=form,
+                period_type=pt if pt in ("annual", "quarter") else "annual",
+                year=yr,
+                quarter=q,
+                title=doc.get("title"),
+                published_at=doc.get("published_at"),
+                pdf_url=doc.get("pdf_url"),
+                excel_url=doc.get("excel_url"),
+                excel_url_form1=None,
+                openinfo_report_id=str(doc.get("id") or ""),
+                object_id=str(doc.get("object_id") or ""),
+            )
+            if new:
+                added += 1
+
+    # ---- Update company row -------------------------------------------------
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO catalog_companies (ticker, company_name, org_id, last_synced_at, sync_error)
+            VALUES (?,?,?,datetime('now'),NULL)
+            ON CONFLICT(ticker) DO UPDATE SET
+                company_name   = excluded.company_name,
+                org_id         = excluded.org_id,
+                last_synced_at = datetime('now'),
+                sync_error     = NULL
+            """,
+            (ticker, company_name, org_id),
+        )
+
+    conn.close()
+    return {"ticker": ticker, "org_id": org_id, "added": added, "errors": errors}
+
+
+# ---------------------------------------------------------------------------
+# Sync — all companies
+# ---------------------------------------------------------------------------
+
+def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[str, Any]:
+    with _SYNC_LOCK:
+        targets = tickers if tickers else list(_TICKER_TO_NAME.keys())
+        total = len(targets)
+        synced = 0
+        skipped = 0
+        all_errors: list[dict] = []
+
+        for ticker in targets:
+            name = _TICKER_TO_NAME.get(ticker, ticker)
+            try:
+                result = sync_company(ticker, name, force=force)
+                if result.get("skipped"):
+                    skipped += 1
+                else:
+                    synced += 1
+                    if result.get("errors"):
+                        all_errors.append({"ticker": ticker, "errors": result["errors"]})
+            except Exception as exc:
+                all_errors.append({"ticker": ticker, "errors": [str(exc)]})
+
+        return {
+            "total": total,
+            "synced": synced,
+            "skipped": skipped,
+            "errors": all_errors,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Query
+# ---------------------------------------------------------------------------
+
+def get_company_index(ticker: str) -> dict[str, Any]:
+    conn = get_catalog_conn()
+    company_row = conn.execute(
+        "SELECT company_name, org_id, last_synced_at FROM catalog_companies WHERE ticker = ?",
+        (ticker,),
+    ).fetchone()
+
+    reports = conn.execute(
+        """
+        SELECT report_form, period_type, year, quarter, pdf_url, excel_url, excel_url_form1
+        FROM catalog_reports
+        WHERE ticker = ?
+        ORDER BY year DESC, quarter DESC
+        """,
+        (ticker,),
+    ).fetchall()
+    conn.close()
+
+    availability: dict[str, dict[str, list]] = {
+        "NSBU": {"annual": [], "quarter": []},
+        "MSFO": {"annual": [], "quarter": []},
+        "Audition": {"annual": [], "quarter": []},
+    }
+    years_seen: set[int] = set()
+
+    for r in reports:
+        form = r["report_form"]
+        pt = r["period_type"]
+        yr = r["year"]
+        if yr:
+            years_seen.add(yr)
+        entry = {
+            "year": yr,
+            "quarter": r["quarter"],
+            "has_pdf": bool(r["pdf_url"]),
+            "has_excel": bool(r["excel_url"]),
+            "has_excel_form1": bool(r["excel_url_form1"]),
+        }
+        bucket = availability.setdefault(form, {"annual": [], "quarter": []})
+        bucket.setdefault(pt, []).append(entry)
+
+    return {
+        "ticker": ticker,
+        "company_name": company_row["company_name"] if company_row else _TICKER_TO_NAME.get(ticker, ticker),
+        "org_id": company_row["org_id"] if company_row else None,
+        "last_synced_at": company_row["last_synced_at"] if company_row else None,
+        "availability": availability,
+        "years": sorted(years_seen, reverse=True),
+        "report_count": len(reports),
+    }
+
+
+def get_report_urls(ticker: str, form: str, year: int, quarter: int) -> dict[str, Any] | None:
+    conn = get_catalog_conn()
+    row = conn.execute(
+        """
+        SELECT pdf_url, excel_url, excel_url_form1, title, published_at, period_type
+        FROM catalog_reports
+        WHERE ticker = ? AND report_form = ? AND year = ? AND quarter = ?
+        """,
+        (ticker, form, year, quarter),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        "pdf_url": row["pdf_url"],
+        "excel_url": row["excel_url"],
+        "excel_url_form1": row["excel_url_form1"],
+        "title": row["title"],
+        "published_at": row["published_at"],
+        "period_type": row["period_type"],
+    }
+
+
+def list_companies_with_stats() -> list[dict[str, Any]]:
+    conn = get_catalog_conn()
+    rows = conn.execute(
+        """
+        SELECT
+            c.ticker,
+            c.company_name,
+            c.org_id,
+            c.last_synced_at,
+            SUM(CASE WHEN r.report_form = 'NSBU'      THEN 1 ELSE 0 END) AS nsbu_count,
+            SUM(CASE WHEN r.report_form = 'MSFO'      THEN 1 ELSE 0 END) AS msfo_count,
+            SUM(CASE WHEN r.report_form = 'Audition'  THEN 1 ELSE 0 END) AS audit_count,
+            COUNT(r.id) AS total_count
+        FROM catalog_companies c
+        LEFT JOIN catalog_reports r ON r.ticker = c.ticker
+        GROUP BY c.ticker
+        ORDER BY c.ticker
+        """
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_catalog_stats() -> dict[str, Any]:
+    conn = get_catalog_conn()
+    totals = conn.execute(
+        """
+        SELECT
+            COUNT(DISTINCT ticker) AS companies_synced,
+            COUNT(*) AS total_reports,
+            SUM(CASE WHEN report_form = 'NSBU'     THEN 1 ELSE 0 END) AS nsbu,
+            SUM(CASE WHEN report_form = 'MSFO'     THEN 1 ELSE 0 END) AS msfo,
+            SUM(CASE WHEN report_form = 'Audition' THEN 1 ELSE 0 END) AS audit
+        FROM catalog_reports
+        """
+    ).fetchone()
+    last_sync = conn.execute(
+        "SELECT MAX(last_synced_at) AS ls FROM catalog_companies"
+    ).fetchone()
+    conn.close()
+    return {
+        "companies_synced": totals["companies_synced"] or 0,
+        "total_reports": totals["total_reports"] or 0,
+        "nsbu": totals["nsbu"] or 0,
+        "msfo": totals["msfo"] or 0,
+        "audit": totals["audit"] or 0,
+        "last_sync": last_sync["ls"] if last_sync else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Excel data access
+# ---------------------------------------------------------------------------
+
+def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int) -> dict[str, Any]:
+    urls = get_report_urls(ticker, form, year, quarter)
+    if not urls:
+        return {"ok": False, "income": None, "balance": None, "error": "Report not found in catalog"}
+
+    session = _make_session()
+    income: dict | None = None
+    balance: dict | None = None
+    errors: list[str] = []
+
+    if urls.get("excel_url"):
+        doc = {"excel_url": urls["excel_url"], "id": None, "object_id": None,
+               "published_at": urls.get("published_at"), "period_type": urls.get("period_type"),
+               "report_form": form, "title": urls.get("title")}
+        try:
+            parsed = parse_excel_report_document(session, doc)
+            if parsed.get("ok"):
+                income = parsed
+            else:
+                errors.append(f"income/main: {parsed.get('error')}")
+        except Exception as exc:
+            errors.append(f"income/main: {exc}")
+
+    if urls.get("excel_url_form1"):
+        doc1 = {"excel_url": urls["excel_url_form1"], "id": None, "object_id": None,
+                "published_at": urls.get("published_at"), "period_type": urls.get("period_type"),
+                "report_form": form, "title": urls.get("title")}
+        try:
+            parsed1 = parse_excel_report_document(session, doc1)
+            if parsed1.get("ok"):
+                balance = parsed1
+            else:
+                errors.append(f"balance: {parsed1.get('error')}")
+        except Exception as exc:
+            errors.append(f"balance: {exc}")
+
+    ok = income is not None or balance is not None
+    return {
+        "ok": ok,
+        "income": income,
+        "balance": balance,
+        "error": "; ".join(errors) if errors and not ok else None,
+        "warnings": errors if ok and errors else [],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Financial ratio computation
+# ---------------------------------------------------------------------------
+
+_LABEL_PATTERNS: dict[str, list[str]] = {
+    "revenue": ["выруч", "реализац", "revenue", "sales", "daromad", "tushum"],
+    "net_income": ["чистая прибыл", "чистый доход", "чистый убыт",
+                   "net income", "net profit", "net loss", "sof foyda"],
+    "total_assets": ["итого актив", "total asset", "всего актив", "jami aktiv"],
+    "equity": ["собственный капитал", "итого капитал", "капитал и резерв",
+               "total equity", "equity", "o'z kapitali", "kapital"],
+    "total_liabilities": ["итого обязательств", "всего обязательств",
+                          "total liabilit", "majburiyat"],
+}
+
+
+def _extract_metric(rows: list[dict], key: str) -> float | None:
+    patterns = _LABEL_PATTERNS.get(key, [])
+    for row in rows:
+        label = str(row.get("label") or "").lower()
+        if any(p in label for p in patterns):
+            nums = row.get("numeric_values") or []
+            for n in nums:
+                try:
+                    v = float(n)
+                    if abs(v) > 0.0001:
+                        return v
+                except (TypeError, ValueError):
+                    continue
+    return None
+
+
+def _gather_rows(excel_data: dict | None) -> list[dict]:
+    if not excel_data:
+        return []
+    rows: list[dict] = []
+    for sheet in (excel_data.get("sheets") or []):
+        rows.extend(sheet.get("table_rows") or [])
+    return rows
+
+
+def compute_financial_ratios(income_data: dict | None, balance_data: dict | None) -> dict[str, Any]:
+    income_rows = _gather_rows(income_data)
+    balance_rows = _gather_rows(balance_data)
+    all_rows = income_rows + balance_rows
+
+    revenue = _extract_metric(income_rows or all_rows, "revenue")
+    net_income = _extract_metric(income_rows or all_rows, "net_income")
+    total_assets = _extract_metric(balance_rows or all_rows, "total_assets")
+    equity = _extract_metric(balance_rows or all_rows, "equity")
+    total_liabilities = _extract_metric(balance_rows or all_rows, "total_liabilities")
+
+    def _safe_ratio(num: float | None, den: float | None) -> float | None:
+        if num is None or den is None or den == 0:
+            return None
+        return round(num / den * 100, 2)
+
+    def _safe_div(num: float | None, den: float | None) -> float | None:
+        if num is None or den is None or den == 0:
+            return None
+        return round(num / den, 4)
+
+    metrics: dict[str, Any] = {
+        "ROA": _safe_ratio(net_income, total_assets),
+        "ROE": _safe_ratio(net_income, equity),
+        "net_margin": _safe_ratio(net_income, revenue),
+        "debt_ratio": _safe_ratio(total_liabilities, total_assets),
+        "debt_to_equity": _safe_div(total_liabilities, equity),
+    }
+
+    source_rows: dict[str, Any] = {
+        "revenue": revenue,
+        "net_income": net_income,
+        "total_assets": total_assets,
+        "equity": equity,
+        "total_liabilities": total_liabilities,
+    }
+
+    return {"metrics": metrics, "source_values": source_rows}
+
+
+# ---------------------------------------------------------------------------
+# Dynamics time series
+# ---------------------------------------------------------------------------
+
+def build_dynamics_data(ticker: str, form: str = "NSBU") -> dict[str, Any]:
+    conn = get_catalog_conn()
+    annual_rows = conn.execute(
+        """
+        SELECT year, excel_url, excel_url_form1
+        FROM catalog_reports
+        WHERE ticker = ? AND report_form = ? AND period_type = 'annual' AND year IS NOT NULL
+        ORDER BY year ASC
+        """,
+        (ticker, form),
+    ).fetchall()
+    conn.close()
+
+    if not annual_rows:
+        return {"ticker": ticker, "form": form, "years": [], "series": {}}
+
+    session = _make_session()
+    years: list[int] = []
+    series: dict[str, list[float | None]] = {
+        "revenue": [],
+        "net_income": [],
+        "total_assets": [],
+        "equity": [],
+        "total_liabilities": [],
+    }
+
+    for row in annual_rows:
+        yr = row["year"]
+        years.append(yr)
+
+        income_data: dict | None = None
+        balance_data: dict | None = None
+
+        if row["excel_url"]:
+            doc = {"excel_url": row["excel_url"], "id": None, "object_id": None,
+                   "published_at": None, "period_type": "annual", "report_form": form, "title": None}
+            try:
+                p = parse_excel_report_document(session, doc)
+                if p.get("ok"):
+                    income_data = p
+            except Exception:
+                pass
+
+        if row["excel_url_form1"]:
+            doc1 = {"excel_url": row["excel_url_form1"], "id": None, "object_id": None,
+                    "published_at": None, "period_type": "annual", "report_form": form, "title": None}
+            try:
+                p1 = parse_excel_report_document(session, doc1)
+                if p1.get("ok"):
+                    balance_data = p1
+            except Exception:
+                pass
+
+        ratios = compute_financial_ratios(income_data, balance_data)
+        vals = ratios.get("source_values") or {}
+        for key in series:
+            series[key].append(vals.get(key))
+
+    return {"ticker": ticker, "form": form, "years": years, "series": series}

@@ -76,7 +76,47 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "Платформа для анализа компаний Узбекистана",
-    nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ" },
+    nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ", catalog: "Каталог" },
+    catalog: {
+      title: "Каталог отчётности",
+      subtitle: "Все доступные отчёты листинговых компаний с openinfo.uz",
+      searchPlaceholder: "Поиск по тикеру или названию...",
+      syncAll: "Синхронизировать всё",
+      syncCompany: "Обновить",
+      syncing: "Синхронизация...",
+      syncDone: "Обновлено",
+      empty: "Каталог пуст — нажмите «Синхронизировать всё»",
+      selectCompany: "Выберите компанию из списка",
+      noReports: "Отчёты не найдены",
+      notPublished: "За выбранный период данный тип отчёта не был опубликован",
+      available: "Отчёт опубликован",
+      loading: "Загрузка...",
+      reports: "отчётов",
+      companies: "компаний",
+      totalReports: "отчётов в базе",
+      lastSync: "Последнее обновление",
+      forms: { NSBU: "НСБУ", MSFO: "МСФО", Audition: "Аудит" },
+      periods: { annual: "Годовой", q1: "Q1", q2: "Q2", q3: "Q3" },
+      analysisLabel: "Тип аналитики",
+      runAnalysis: "Запустить анализ",
+      analysisLoading: "Анализируем...",
+      analysisTypes: {
+        financial: "Финансовый анализ",
+        ratio: "Коэффициенты (ROA, ROE, Debt...)",
+        dynamics: "Динамика показателей",
+        quarter_compare: "Сравнение кварталов",
+        annual_compare: "Сравнение годовых отчётов",
+        swot: "SWOT-анализ",
+        recommendation: "Инвестиционная рекомендация",
+        multi_company: "Сравнение компаний",
+      },
+      compareWith: "Сравнить с:",
+      comparePeriod: "Период для сравнения:",
+      noValue: "Нет данных",
+      ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Чистая маржа", debt_ratio: "Debt Ratio", debt_to_equity: "D/E" },
+      dynamicsLabels: { revenue: "Выручка", net_income: "Чистая прибыль", total_assets: "Активы", equity: "Капитал", total_liabilities: "Обязательства" },
+      pdfReport: "Открыть PDF",
+    },
     languageLabel: "Язык",
     languageOptions: { ru: "Русский", en: "English", uz: "O'zbek" },
     theme: { label: "Тема", light: "Светлая", dark: "Тёмная" },
@@ -299,7 +339,47 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "Company analysis platform for Uzbekistan",
-    nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis" },
+    nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis", catalog: "Catalog" },
+    catalog: {
+      title: "Report Catalog",
+      subtitle: "All available reports of listed companies from openinfo.uz",
+      searchPlaceholder: "Search by ticker or name...",
+      syncAll: "Sync all",
+      syncCompany: "Refresh",
+      syncing: "Syncing...",
+      syncDone: "Updated",
+      empty: "Catalog is empty — click \"Sync all\"",
+      selectCompany: "Select a company from the list",
+      noReports: "No reports found",
+      notPublished: "This report type was not published for the selected period",
+      available: "Report is available",
+      loading: "Loading...",
+      reports: "reports",
+      companies: "companies",
+      totalReports: "reports in database",
+      lastSync: "Last updated",
+      forms: { NSBU: "NAS", MSFO: "IFRS", Audition: "Audit" },
+      periods: { annual: "Annual", q1: "Q1", q2: "Q2", q3: "Q3" },
+      analysisLabel: "Analysis type",
+      runAnalysis: "Run analysis",
+      analysisLoading: "Analyzing...",
+      analysisTypes: {
+        financial: "Financial analysis",
+        ratio: "Ratios (ROA, ROE, Debt...)",
+        dynamics: "Metrics dynamics",
+        quarter_compare: "Quarter comparison",
+        annual_compare: "Annual comparison",
+        swot: "SWOT analysis",
+        recommendation: "Investment recommendation",
+        multi_company: "Company comparison",
+      },
+      compareWith: "Compare with:",
+      comparePeriod: "Period to compare:",
+      noValue: "No data",
+      ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Net Margin", debt_ratio: "Debt Ratio", debt_to_equity: "D/E" },
+      dynamicsLabels: { revenue: "Revenue", net_income: "Net Income", total_assets: "Total Assets", equity: "Equity", total_liabilities: "Total Liabilities" },
+      pdfReport: "Open PDF",
+    },
     languageLabel: "Language",
     languageOptions: { ru: "Russian", en: "English", uz: "Uzbek" },
     theme: { label: "Theme", light: "Light", dark: "Dark" },
@@ -521,7 +601,47 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "O'zbekiston kompaniyalarini tahlil qilish platformasi",
-    nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil" },
+    nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil", catalog: "Katalog" },
+    catalog: {
+      title: "Hisobotlar katalogi",
+      subtitle: "openinfo.uz'dan barcha ro'yxatga olingan kompaniyalarning hisobotlari",
+      searchPlaceholder: "Ticker yoki nomi bo'yicha qidirish...",
+      syncAll: "Hammasini sinxronlash",
+      syncCompany: "Yangilash",
+      syncing: "Sinxronlanmoqda...",
+      syncDone: "Yangilandi",
+      empty: "Katalog bo'sh — «Hammasini sinxronlash» ni bosing",
+      selectCompany: "Ro'yxatdan kompaniyani tanlang",
+      noReports: "Hisobotlar topilmadi",
+      notPublished: "Tanlangan davr uchun bu turdagi hisobot e'lon qilinmagan",
+      available: "Hisobot mavjud",
+      loading: "Yuklanmoqda...",
+      reports: "hisobot",
+      companies: "kompaniya",
+      totalReports: "bazadagi hisobotlar",
+      lastSync: "Oxirgi yangilanish",
+      forms: { NSBU: "NSBU", MSFO: "MHXS", Audition: "Audit" },
+      periods: { annual: "Yillik", q1: "Q1", q2: "Q2", q3: "Q3" },
+      analysisLabel: "Tahlil turi",
+      runAnalysis: "Tahlilni ishga tushirish",
+      analysisLoading: "Tahlil qilinmoqda...",
+      analysisTypes: {
+        financial: "Moliyaviy tahlil",
+        ratio: "Koeffitsientlar (ROA, ROE...)",
+        dynamics: "Ko'rsatkichlar dinamikasi",
+        quarter_compare: "Choraklar taqqoslash",
+        annual_compare: "Yillik hisobotlar taqqoslash",
+        swot: "SWOT tahlili",
+        recommendation: "Investitsiya tavsiyasi",
+        multi_company: "Kompaniyalar taqqoslash",
+      },
+      compareWith: "Bilan solishtiring:",
+      comparePeriod: "Taqqoslash davri:",
+      noValue: "Ma'lumot yo'q",
+      ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Sof marja", debt_ratio: "Qarz nisbati", debt_to_equity: "D/E" },
+      dynamicsLabels: { revenue: "Daromad", net_income: "Sof foyda", total_assets: "Jami aktiv", equity: "Kapital", total_liabilities: "Majburiyatlar" },
+      pdfReport: "PDFni ochish",
+    },
     languageLabel: "Til",
     languageOptions: { ru: "Ruscha", en: "English", uz: "O'zbek" },
     theme: { label: "Mavzu", light: "Yorug'", dark: "Qorong'i" },
@@ -1287,9 +1407,9 @@ function enrichMarketStock(stock) {
     ...stock,
     lastPrice: safeNumber(stock?.last_price),
     closePrice: safeNumber(stock?.close_price),
-    openPrice: safeNumber(stock?.open),
-    highPrice: safeNumber(stock?.high),
-    lowPrice: safeNumber(stock?.low),
+    openPrice: safeNumber(stock?.open) || null,
+    highPrice: safeNumber(stock?.high) || null,
+    lowPrice: safeNumber(stock?.low) || null,
     stockVolume: safeNumber(stock?.volume),
     stockQuantity: safeNumber(stock?.quantity),
     stockTradeCount: safeNumber(stock?.trade_count),
@@ -3443,9 +3563,9 @@ function MarketView({
                       </td>
                       <td className="num">{row.lastPrice === null ? "—" : formatMarketNumber(row.lastPrice, lang)}</td>
                       <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>
-                      <td className="num">{formatMarketNumber(row.openPrice, lang)}</td>
-                      <td className="num">{formatMarketNumber(row.highPrice, lang)}</td>
-                      <td className="num">{formatMarketNumber(row.lowPrice, lang)}</td>
+                      <td className="num">{row.openPrice === null ? "—" : formatMarketNumber(row.openPrice, lang)}</td>
+                      <td className="num">{row.highPrice === null ? "—" : formatMarketNumber(row.highPrice, lang)}</td>
+                      <td className="num">{row.lowPrice === null ? "—" : formatMarketNumber(row.lowPrice, lang)}</td>
                       <td className="num">
                         {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
                         {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт. · {row.stockTradeCount !== null ? formatRatio(row.stockTradeCount, 0, lang) : "—"} {mt(lang, "tradeCount")}</span>}
@@ -3469,6 +3589,515 @@ function MarketView({
           </div>
         )}
       </article>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CatalogView
+// ---------------------------------------------------------------------------
+
+function clg(language, key) {
+  const parts = key.split(".");
+  let cur = (TEXTS[language] || TEXTS.ru).catalog;
+  for (const part of parts) {
+    if (!cur || typeof cur !== "object") return key;
+    cur = cur[part];
+  }
+  return cur !== undefined ? cur : key;
+}
+
+function CatalogRatioTable({ result, language }) {
+  const metrics = result.metrics || {};
+  const vals = result.source_values || {};
+  const labelMap = (TEXTS[language] || TEXTS.ru).catalog.ratioLabels;
+  const valLabels = (TEXTS[language] || TEXTS.ru).catalog.dynamicsLabels;
+  const fmt = (v) => (v === null || v === undefined ? clg(language, "noValue") : `${v}%`);
+  const fmtRaw = (v) => {
+    if (v === null || v === undefined) return clg(language, "noValue");
+    return new Intl.NumberFormat(language === "en" ? "en-US" : "ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(v);
+  };
+  return (
+    <div className="catalog-result-body">
+      <div className="catalog-ratio-grid">
+        {Object.entries(metrics).map(([k, v]) => (
+          <div key={k} className={`catalog-ratio-card ${v !== null && v !== undefined ? (parseFloat(v) > 0 ? "tone-good" : "tone-danger") : ""}`}>
+            <span className="ratio-name">{labelMap[k] || k}</span>
+            <strong className="ratio-value">{k === "debt_to_equity" ? (v !== null ? v : clg(language, "noValue")) : fmt(v)}</strong>
+          </div>
+        ))}
+      </div>
+      <table className="catalog-source-table">
+        <tbody>
+          {Object.entries(vals).filter(([, v]) => v !== null).map(([k, v]) => (
+            <tr key={k}><td>{valLabels[k] || k}</td><td className="num">{fmtRaw(v)}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CatalogDynamicsTable({ result, language }) {
+  const years = result.years || [];
+  const series = result.series || {};
+  const labels = (TEXTS[language] || TEXTS.ru).catalog.dynamicsLabels;
+  const fmtN = (v) => {
+    if (v === null || v === undefined) return "—";
+    return new Intl.NumberFormat(language === "en" ? "en-US" : "ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(v);
+  };
+  if (!years.length) return <p className="muted">{clg(language, "noReports")}</p>;
+  return (
+    <div className="catalog-result-body">
+      <div className="catalog-table-wrap">
+        <table className="market-table">
+          <thead>
+            <tr>
+              <th>{language === "ru" ? "Показатель" : language === "uz" ? "Ko'rsatkich" : "Metric"}</th>
+              {years.map((y) => <th key={y} className="num">{y}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(series).map(([key, vals]) => (
+              <tr key={key}>
+                <td>{labels[key] || key}</td>
+                {vals.map((v, i) => <td key={i} className="num">{fmtN(v)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CatalogCompareTable({ result, language }) {
+  const p1 = result.period1 || {};
+  const p2 = result.period2 || {};
+  const m1 = p1.metrics || {};
+  const m2 = p2.metrics || {};
+  const v1 = p1.source_values || {};
+  const v2 = p2.source_values || {};
+  const ratioLabels = (TEXTS[language] || TEXTS.ru).catalog.ratioLabels;
+  const valLabels = (TEXTS[language] || TEXTS.ru).catalog.dynamicsLabels;
+  const periodLabel = (p) => p.quarter > 0 ? `Q${p.quarter} ${p.year}` : `${p.year}`;
+  const fmt = (v, isPercent = true) => (v === null || v === undefined ? "—" : isPercent ? `${v}%` : String(v));
+  const fmtN = (v) => {
+    if (v === null || v === undefined) return "—";
+    return new Intl.NumberFormat(language === "en" ? "en-US" : "ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(v);
+  };
+  const diff = (a, b) => {
+    if (a === null || b === null || a === undefined || b === undefined) return null;
+    return Math.round((a - b) * 100) / 100;
+  };
+  return (
+    <div className="catalog-result-body">
+      <div className="catalog-table-wrap">
+        <table className="market-table">
+          <thead>
+            <tr>
+              <th>{language === "ru" ? "Показатель" : "Metric"}</th>
+              <th className="num">{periodLabel(p1)}</th>
+              <th className="num">{periodLabel(p2)}</th>
+              <th className="num">{language === "ru" ? "Изменение" : "Change"}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.keys({ ...v1, ...v2 }).map((k) => (
+              <tr key={k}>
+                <td>{valLabels[k] || k}</td>
+                <td className="num">{fmtN(v1[k])}</td>
+                <td className="num">{fmtN(v2[k])}</td>
+                <td className={`num ${diff(v1[k], v2[k]) > 0 ? "tone-good" : diff(v1[k], v2[k]) < 0 ? "tone-danger" : ""}`}>
+                  {diff(v1[k], v2[k]) !== null ? fmtN(diff(v1[k], v2[k])) : "—"}
+                </td>
+              </tr>
+            ))}
+            {Object.entries(ratioLabels).map(([k]) => (
+              <tr key={`r-${k}`}>
+                <td>{ratioLabels[k]}</td>
+                <td className="num">{fmt(m1[k], k !== "debt_to_equity")}</td>
+                <td className="num">{fmt(m2[k], k !== "debt_to_equity")}</td>
+                <td className={`num ${diff(m1[k], m2[k]) > 0 ? "tone-good" : diff(m1[k], m2[k]) < 0 ? "tone-danger" : ""}`}>
+                  {diff(m1[k], m2[k]) !== null ? `${diff(m1[k], m2[k])}${k !== "debt_to_equity" ? "%" : ""}` : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CatalogView({ language, companies, token, addToast, onNavigateToAnalysis }) {
+  const lang = normalizeLanguage(language);
+  const [status, setStatus] = useState(null);
+  const [catalogComps, setCatalogComps] = useState([]);
+  const [compsLoading, setCompsLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [ticker, setTicker] = useState("");
+  const [index, setIndex] = useState(null);
+  const [indexLoading, setIndexLoading] = useState(false);
+  const [form, setForm] = useState("NSBU");
+  const [year, setYear] = useState("");
+  const [quarter, setQuarter] = useState(0);
+  const [analysisType, setAnalysisType] = useState("financial");
+  const [compareTicker, setCompareTicker] = useState("");
+  const [compareYear, setCompareYear] = useState("");
+  const [compareQuarter, setCompareQuarter] = useState(0);
+  const [result, setResult] = useState(null);
+  const [resultLoading, setResultLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const apiFetch = (path, options = {}) => {
+    const stored = localStorage.getItem(STORAGE_KEY) || "";
+    return fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(stored ? { Authorization: `Bearer ${stored}` } : {}), ...(options.headers || {}) } });
+  };
+
+  const loadStatus = async () => {
+    try {
+      const res = await apiFetch("/api/catalog/status");
+      const data = await res.json();
+      if (res.ok) setStatus(data);
+    } catch { /* optional */ }
+  };
+
+  const loadCatalogComps = async () => {
+    setCompsLoading(true);
+    try {
+      const res = await apiFetch("/api/catalog/companies");
+      const data = await res.json();
+      if (res.ok) setCatalogComps(data.companies || []);
+    } catch { /* ignore */ }
+    finally { setCompsLoading(false); }
+  };
+
+  const loadIndex = async (t) => {
+    setIndexLoading(true);
+    setIndex(null);
+    setYear("");
+    setQuarter(0);
+    setResult(null);
+    try {
+      const res = await apiFetch(`/api/catalog/index/${t}`);
+      const data = await res.json();
+      if (res.ok) setIndex(data);
+    } catch { /* ignore */ }
+    finally { setIndexLoading(false); }
+  };
+
+  useEffect(() => { loadStatus(); loadCatalogComps(); }, []);
+  useEffect(() => { if (ticker) loadIndex(ticker); else { setIndex(null); setYear(""); setQuarter(0); setResult(null); } }, [ticker]);
+  useEffect(() => { setYear(""); setQuarter(0); setResult(null); }, [form, ticker]);
+
+  const handleSync = async (specificTicker = null) => {
+    if (!token) { addToast(lang === "ru" ? "Войдите для синхронизации" : "Sign in to sync", "error"); return; }
+    setSyncing(true);
+    try {
+      const body = { force: true, ...(specificTicker ? { ticker: specificTicker } : {}) };
+      const res = await apiFetch("/api/catalog/sync", { method: "POST", body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Sync failed");
+      addToast(clg(lang, "syncDone"), "success");
+      loadStatus();
+      loadCatalogComps();
+      if (ticker) loadIndex(ticker);
+    } catch (err) { addToast(err.message, "error"); }
+    finally { setSyncing(false); }
+  };
+
+  const handleRunAnalysis = async () => {
+    if (!token) { addToast(lang === "ru" ? "Войдите для анализа" : "Sign in to analyze", "error"); return; }
+    if (!ticker || !year) return;
+    setResultLoading(true);
+    setResult(null);
+    try {
+      const body = {
+        ticker, year: parseInt(year), quarter, form, analysis_type: analysisType, language: lang,
+        ...(compareTicker ? { compare_ticker: compareTicker } : {}),
+        ...(compareYear ? { compare_year: parseInt(compareYear), compare_quarter: compareQuarter } : {}),
+      };
+      const res = await apiFetch("/api/catalog/analyze", { method: "POST", body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Analysis failed");
+      setResult(data);
+    } catch (err) { addToast(err.message, "error"); }
+    finally { setResultLoading(false); }
+  };
+
+  // Derived availability helpers
+  const avail = index?.availability || {};
+  const formAvail = avail[form] || { annual: [], quarter: [] };
+  const availYears = [...new Set([...(formAvail.annual || []), ...(formAvail.quarter || [])].map((r) => r.year))].filter(Boolean).sort((a, b) => b - a);
+  const availQuarters = year ? (formAvail.quarter || []).filter((r) => r.year === parseInt(year)).map((r) => r.quarter).sort() : [];
+  const isAnnualAvail = year ? (formAvail.annual || []).some((r) => r.year === parseInt(year)) : false;
+  const isCurrentAvail = year ? (quarter === 0 ? isAnnualAvail : (formAvail.quarter || []).some((r) => r.year === parseInt(year) && r.quarter === quarter)) : false;
+  const currentReport = year ? (quarter === 0
+    ? (formAvail.annual || []).find((r) => r.year === parseInt(year))
+    : (formAvail.quarter || []).find((r) => r.year === parseInt(year) && r.quarter === quarter)
+  ) : null;
+
+  const needsComparePeriod = ["quarter_compare", "annual_compare"].includes(analysisType);
+  const needsCompareTicker = analysisType === "multi_company";
+
+  const filteredComps = catalogComps.filter((c) => {
+    const q = search.toLowerCase();
+    return !q || c.ticker.toLowerCase().includes(q) || (c.company_name || "").toLowerCase().includes(q);
+  });
+
+  const analysisTypesObj = (TEXTS[lang] || TEXTS.ru).catalog.analysisTypes;
+  const formsObj = (TEXTS[lang] || TEXTS.ru).catalog.forms;
+  const periodsObj = (TEXTS[lang] || TEXTS.ru).catalog.periods;
+
+  const renderResult = () => {
+    if (!result) return null;
+    const type = result.analysis_type;
+
+    if (type === "ratio") return <CatalogRatioTable result={result} language={lang} />;
+    if (type === "dynamics") return <CatalogDynamicsTable result={result} language={lang} />;
+    if (type === "quarter_compare" || type === "annual_compare") return <CatalogCompareTable result={result} language={lang} />;
+
+    // AI analysis: render sections + article_report
+    const sections = result.sections || {};
+    const articleReport = result.article_report;
+    return (
+      <div className="catalog-result-body">
+        {articleReport && (
+          <div className="catalog-article-report" dangerouslySetInnerHTML={{ __html: articleReport }} />
+        )}
+        {!articleReport && Object.entries(sections).map(([key, text]) => (
+          <div key={key} className="catalog-section">
+            <div className="panel-label">{key.replace(/_/g, " ")}</div>
+            <div className="catalog-section-text">{text}</div>
+          </div>
+        ))}
+        {!articleReport && !Object.keys(sections).length && (
+          <p className="muted">{lang === "ru" ? "Нет данных для отображения" : "No data to display"}</p>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <section className="catalog-layout">
+      {/* Status bar */}
+      <article className="panel catalog-header">
+        <div className="catalog-header-copy">
+          <div className="panel-label">{clg(lang, "title")}</div>
+          <p className="muted">{clg(lang, "subtitle")}</p>
+        </div>
+        <div className="catalog-header-stats">
+          {status ? (
+            <>
+              <span className="status-badge">{status.companies_synced} {clg(lang, "companies")} · {status.total_reports} {clg(lang, "totalReports")}</span>
+              {status.last_sync && <span className="status-badge muted">{clg(lang, "lastSync")}: {formatMarketTimestamp(status.last_sync, lang)}</span>}
+            </>
+          ) : <span className="status-badge muted">{clg(lang, "loading")}</span>}
+          <button className="ghost-btn" type="button" onClick={() => handleSync()} disabled={syncing}>
+            {syncing ? clg(lang, "syncing") : clg(lang, "syncAll")}
+          </button>
+        </div>
+      </article>
+
+      <div className="catalog-body">
+        {/* Sidebar: company list */}
+        <aside className="catalog-sidebar">
+          <input
+            className="search-input"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={clg(lang, "searchPlaceholder")}
+          />
+          {compsLoading ? (
+            <div className="catalog-list-loading">{clg(lang, "loading")}</div>
+          ) : filteredComps.length === 0 ? (
+            <div className="catalog-list-empty">
+              {catalogComps.length === 0 ? clg(lang, "empty") : clg(lang, "noReports")}
+            </div>
+          ) : (
+            <div className="catalog-company-list">
+              {filteredComps.map((c) => (
+                <button
+                  key={c.ticker}
+                  type="button"
+                  className={`catalog-company-item ${ticker === c.ticker ? "active" : ""}`}
+                  onClick={() => setTicker(c.ticker)}
+                >
+                  <div className="catalog-company-item-head">
+                    <strong>{c.ticker}</strong>
+                    <em>{c.total_count || 0} {clg(lang, "reports")}</em>
+                  </div>
+                  <span className="catalog-company-name">{c.company_name}</span>
+                  {c.total_count > 0 && (
+                    <div className="catalog-company-badges">
+                      {c.nsbu_count > 0 && <span className="catalog-form-badge">{formsObj.NSBU} {c.nsbu_count}</span>}
+                      {c.msfo_count > 0 && <span className="catalog-form-badge">{formsObj.MSFO} {c.msfo_count}</span>}
+                      {c.audit_count > 0 && <span className="catalog-form-badge">{formsObj.Audition} {c.audit_count}</span>}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </aside>
+
+        {/* Main area */}
+        <main className="catalog-main">
+          {!ticker ? (
+            <div className="empty-state"><p className="empty-copy">{clg(lang, "selectCompany")}</p></div>
+          ) : indexLoading ? (
+            <div className="catalog-loading">{clg(lang, "loading")}</div>
+          ) : (
+            <>
+              {/* Company header */}
+              <div className="catalog-company-header">
+                <div>
+                  <h2>{index?.company_name || ticker}</h2>
+                  <span className="status-badge muted">{ticker}</span>
+                  {index?.last_synced_at && <span className="status-badge muted">{clg(lang, "lastSync")}: {formatMarketTimestamp(index.last_synced_at, lang)}</span>}
+                </div>
+                <button className="ghost-btn" type="button" onClick={() => handleSync(ticker)} disabled={syncing}>
+                  {syncing ? clg(lang, "syncing") : clg(lang, "syncCompany")}
+                </button>
+              </div>
+
+              {/* Form tabs */}
+              <div className="catalog-form-tabs">
+                {["NSBU", "MSFO", "Audition"].map((f) => (
+                  <button key={f} type="button" className={`tab-btn ${form === f ? "active" : ""}`} onClick={() => setForm(f)}>
+                    {formsObj[f]}
+                  </button>
+                ))}
+              </div>
+
+              {/* Year selector */}
+              {availYears.length > 0 ? (
+                <div className="catalog-year-row">
+                  {availYears.map((y) => (
+                    <button key={y} type="button"
+                      className={`catalog-year-btn ${year === String(y) ? "active" : ""}`}
+                      onClick={() => { setYear(String(y)); setQuarter(0); setResult(null); }}>
+                      {y}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted catalog-no-form">{clg(lang, "notPublished")}</p>
+              )}
+
+              {/* Quarter selector for NSBU */}
+              {year && form === "NSBU" && (
+                <div className="catalog-quarter-row">
+                  <button type="button"
+                    className={`catalog-period-btn ${quarter === 0 ? "active" : ""} ${isAnnualAvail ? "" : "unavailable"}`}
+                    onClick={() => { setQuarter(0); setResult(null); }}>
+                    {periodsObj.annual}
+                  </button>
+                  {[1, 2, 3].map((q) => {
+                    const qAvail = availQuarters.includes(q);
+                    return (
+                      <button key={q} type="button"
+                        className={`catalog-period-btn ${quarter === q ? "active" : ""} ${qAvail ? "" : "unavailable"}`}
+                        onClick={() => { if (qAvail) { setQuarter(q); setResult(null); } }}>
+                        {periodsObj[`q${q}`]}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Availability indicator */}
+              {year && (
+                <div className={`catalog-avail ${isCurrentAvail ? "avail-yes" : "avail-no"}`}>
+                  {isCurrentAvail ? (
+                    <>
+                      <span>{clg(lang, "available")}</span>
+                      {currentReport?.has_pdf && (
+                        <a className="ghost-btn catalog-pdf-btn" href={index ? undefined : "#"} target="_blank" rel="noreferrer"
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            const res = await apiFetch(`/api/catalog/index/${ticker}`);
+                            const data = await res.json();
+                            const a = (data.availability?.[form]?.[quarter === 0 ? "annual" : "quarter"] || [])
+                              .find((r) => r.year === parseInt(year) && r.quarter === quarter);
+                            if (a?.pdf_url) window.open(a.pdf_url, "_blank");
+                          }}>
+                          {clg(lang, "pdfReport")}
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <span>{clg(lang, "notPublished")}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Analysis controls */}
+              {year && isCurrentAvail && (
+                <div className="catalog-analysis-controls">
+                  <label className="catalog-field">
+                    <span>{clg(lang, "analysisLabel")}</span>
+                    <select value={analysisType} onChange={(e) => { setAnalysisType(e.target.value); setResult(null); }}>
+                      {Object.entries(analysisTypesObj).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {needsCompareTicker && (
+                    <label className="catalog-field">
+                      <span>{clg(lang, "compareWith")}</span>
+                      <select value={compareTicker} onChange={(e) => setCompareTicker(e.target.value)}>
+                        <option value="">—</option>
+                        {filteredComps.filter((c) => c.ticker !== ticker).map((c) => (
+                          <option key={c.ticker} value={c.ticker}>{c.ticker} — {c.company_name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {needsComparePeriod && (
+                    <div className="catalog-compare-period">
+                      <span>{clg(lang, "comparePeriod")}</span>
+                      <div className="catalog-compare-period-row">
+                        <select value={compareYear} onChange={(e) => setCompareYear(e.target.value)}>
+                          <option value="">—</option>
+                          {availYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                        {form === "NSBU" && (
+                          <select value={compareQuarter} onChange={(e) => setCompareQuarter(parseInt(e.target.value))}>
+                            <option value={0}>{periodsObj.annual}</option>
+                            {[1, 2, 3].map((q) => <option key={q} value={q}>{periodsObj[`q${q}`]}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <button className="primary-btn" type="button" onClick={handleRunAnalysis} disabled={resultLoading}>
+                    {resultLoading ? clg(lang, "analysisLoading") : clg(lang, "runAnalysis")}
+                  </button>
+                </div>
+              )}
+
+              {/* Result */}
+              {result && (
+                <article className="panel catalog-result-panel">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-label">{analysisTypesObj[result.analysis_type] || result.analysis_type}</div>
+                      <h3>{result.company_name || ticker} · {result.year}{result.quarter > 0 ? ` Q${result.quarter}` : ""}</h3>
+                    </div>
+                  </div>
+                  {renderResult()}
+                </article>
+              )}
+            </>
+          )}
+        </main>
+      </div>
     </section>
   );
 }
@@ -4128,8 +4757,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "profile", "analysis", "compare"]
-    : ["main", "market", "auth", "analysis", "compare"];
+    ? ["main", "market", "catalog", "profile", "analysis", "compare"]
+    : ["main", "market", "catalog", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -4291,6 +4920,16 @@ function App() {
                 </div>
               </section>
             </>
+          )}
+
+          {activeView === "catalog" && (
+            <CatalogView
+              language={language}
+              companies={companies}
+              token={token}
+              addToast={addToast}
+              onNavigateToAnalysis={(t) => { setAnalysisCompany(t); setActiveView("analysis"); }}
+            />
           )}
 
           {activeView === "market" && (
