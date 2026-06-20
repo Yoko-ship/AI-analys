@@ -400,6 +400,76 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
 
 
 # ---------------------------------------------------------------------------
+# Sync — audition reports (separate endpoint, no org_id filter supported)
+# ---------------------------------------------------------------------------
+
+def _sync_auditions(conn: sqlite3.Connection, session: Any) -> int:
+    """Fetch all /reports/audition/ records and upsert for known org_ids."""
+    from openinfo_collector import OPENINFO_WEB_BASE
+
+    # Build reverse map: org_id (str) → ticker from already-synced companies
+    org_to_ticker: dict[str, str] = {
+        str(row["org_id"]): row["ticker"]
+        for row in conn.execute(
+            "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL"
+        ).fetchall()
+    }
+    if not org_to_ticker:
+        return 0
+
+    added = 0
+    page = 1
+    while True:
+        try:
+            payload = _json_get(session, "/reports/audition/", {"page": page, "page_size": 200})
+        except Exception as exc:
+            logger.warning("audition page %d failed: %s", page, exc)
+            break
+        results = payload.get("results") or []
+        if not results:
+            break
+        with conn:
+            for rec in results:
+                org_id_str = str(rec.get("organization") or "")
+                ticker = org_to_ticker.get(org_id_str)
+                if not ticker:
+                    continue
+                pdf_file = rec.get("pdf_file") or ""
+                pdf_url = f"{OPENINFO_WEB_BASE}/media/{pdf_file}" if pdf_file else None
+                title_raw = rec.get("title") or ""
+                yr = None
+                m = re.search(r"\b(20[12]\d)\b", title_raw)
+                if m:
+                    yr = int(m.group(1))
+                elif rec.get("pub_date"):
+                    try:
+                        yr = int(str(rec["pub_date"])[:4]) - 1
+                    except (TypeError, ValueError):
+                        pass
+                new = _upsert_report(
+                    conn, ticker,
+                    report_form="Audition",
+                    period_type="annual",
+                    year=yr,
+                    quarter=0,
+                    title=title_raw,
+                    published_at=rec.get("pub_date"),
+                    pdf_url=pdf_url,
+                    excel_url=None,
+                    excel_url_form1=None,
+                    openinfo_report_id=str(rec.get("id") or ""),
+                    object_id=None,
+                )
+                if new:
+                    added += 1
+        if len(results) < 200:
+            break
+        page += 1
+
+    return added
+
+
+# ---------------------------------------------------------------------------
 # Sync — all companies
 # ---------------------------------------------------------------------------
 
@@ -423,6 +493,16 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
                         all_errors.append({"ticker": ticker, "errors": result["errors"]})
             except Exception as exc:
                 all_errors.append({"ticker": ticker, "errors": [str(exc)]})
+
+        # Sync audit reports globally (endpoint has no org_id filter)
+        try:
+            conn = get_catalog_conn()
+            session = _make_session()
+            audit_added = _sync_auditions(conn, session)
+            conn.close()
+            logger.info("Audition sync added %d records", audit_added)
+        except Exception as exc:
+            all_errors.append({"ticker": "_audition", "errors": [str(exc)]})
 
         return {
             "total": total,
