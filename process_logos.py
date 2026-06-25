@@ -1,4 +1,4 @@
-"""Build self-hosted transparent logo icon-marks under logos/.
+"""Build self-hosted logo assets under logos/.
 
 The Google favicon icon-marks read well, but several have a baked-in white
 (or dark) background that looks like an ugly square when the logo floats on
@@ -6,33 +6,56 @@ the app's dark catalog rows. This script downloads those favicons and flood-
 fills a solid white/dark background to transparent (colored brand tiles are
 left intact), then autocrops so the mark fills the frame.
 
-Only the companies whose mark looks good *floating* on a dark surface are
-processed here; the rest keep a light "plate" in the UI (see CompanyLogo).
+Some favicons are too low-res (16–40px) and look blurry when scaled up, so a
+handful of logos are pulled directly from the company site as crisp SVG /
+high-res PNG instead (CRISP_FLOAT / CRISP_PLATE below).
+
+Layout:
+  logos/<T>.{png,svg}        -> floats transparently on the dark surface
+  logos/plate/<T>.{png,svg}  -> kept on a light plate (wordmark / dark logo)
+
 Re-run with:  python process_logos.py
 """
 from __future__ import annotations
 from collections import deque, Counter
 from pathlib import Path
+from io import BytesIO
+import shutil
 import requests
 from PIL import Image
-from io import BytesIO
 
-OUT = Path(__file__).with_name("logos")
+ROOT = Path(__file__).with_name("logos")
+PLATE = ROOT / "plate"
+H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
-# Companies whose brand icon-mark looks good floating on a dark background.
+# Favicon icon-marks that look good floating once a solid bg is stripped.
 FLOAT_DOMAINS = {
-    "AGBA": "agrobank.uz", "AGMKP": "agmk.uz", "ALKB": "aloqabank.uz",
-    "ALSM": "alskom.uz", "BRBN": "brb.uz", "DORI": "doridarmon.uz",
-    "HMKB": "hamkorbank.uz", "KPBA": "kapitalbank.uz", "MCBA": "mikrokreditbank.uz",
-    "SQBN": "sqb.uz", "TNGB": "tengebank.uz",
-    "UNVB": "universalbank.uz", "UZNGP": "ung.uz", "UZTL": "uztelecom.uz",
+    "AGBA": "agrobank.uz", "ALKB": "aloqabank.uz", "DORI": "doridarmon.uz",
+    "HMKB": "hamkorbank.uz", "MCBA": "mikrokreditbank.uz", "TNGB": "tengebank.uz",
+    "UZNGP": "ung.uz", "UZTL": "uztelecom.uz",
 }
 
-def favicon_bytes(domain: str) -> bytes:
-    url = f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
-    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+# Crisp logos pulled straight from the company site (favicon was too low-res).
+# strip=True flood-fills a white background to transparent.
+CRISP_FLOAT = {
+    "AGMKP": ("https://agmk.uz/assets/public/images/logo1.svg", False),
+    "BRBN":  ("https://brb.uz/assets/logo/korotkii-logotip-brb.svg", False),
+    "SQBN":  ("https://sqb.uz/upload/img/sqbMobile.svg", False),
+    "UNVB":  ("https://universalbank.uz/apple-touch-icon.png", True),
+}
+# Wordmark / dark logos that need a light plate to stay legible.
+CRISP_PLATE = {
+    "ALSM": "https://alskom.uz/local/templates/alskom/img/alskom_logo.svg",
+    "KPBA": "https://kapitalbank.uz/upload/media/images/Kapitalbank_new.png",
+}
+
+def fetch(url: str) -> bytes:
+    r = requests.get(url, headers=H, timeout=20)
     r.raise_for_status()
     return r.content
+
+def favicon_bytes(domain: str) -> bytes:
+    return fetch(f"https://www.google.com/s2/favicons?domain={domain}&sz=128")
 
 def strip_solid_bg(im: Image.Image, tol: int = 40) -> Image.Image:
     """Make a connected solid white/dark background transparent; keep colored tiles."""
@@ -64,16 +87,42 @@ def strip_solid_bg(im: Image.Image, tol: int = 40) -> Image.Image:
     bbox = im.getbbox()
     return im.crop(bbox) if bbox else im
 
+def save_raster(data: bytes, dst: Path, strip: bool) -> None:
+    im = Image.open(BytesIO(data))
+    (strip_solid_bg(im) if strip else im).save(dst)
+
 def main() -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
+    ROOT.mkdir(parents=True, exist_ok=True)
+    PLATE.mkdir(parents=True, exist_ok=True)
+
     for ticker, domain in FLOAT_DOMAINS.items():
         try:
-            im = Image.open(BytesIO(favicon_bytes(domain)))
-            strip_solid_bg(im).save(OUT / f"{ticker}.png")
-            print(f"  {ticker} <- {domain}")
+            save_raster(favicon_bytes(domain), ROOT / f"{ticker}.png", strip=True)
+            print(f"  float  {ticker} <- favicon {domain}")
         except Exception as exc:
-            print(f"  ERROR {ticker} ({domain}): {exc}")
-    print(f"Done -> {OUT}")
+            print(f"  ERROR  {ticker} ({domain}): {exc}")
+
+    for ticker, (url, strip) in CRISP_FLOAT.items():
+        try:
+            data = fetch(url)
+            if url.lower().split("?")[0].endswith(".svg"):
+                (ROOT / f"{ticker}.svg").write_bytes(data)
+            else:
+                save_raster(data, ROOT / f"{ticker}.png", strip=strip)
+            print(f"  float  {ticker} <- {url}")
+        except Exception as exc:
+            print(f"  ERROR  {ticker}: {exc}")
+
+    for ticker, url in CRISP_PLATE.items():
+        try:
+            data = fetch(url)
+            ext = "svg" if url.lower().split("?")[0].endswith(".svg") else "png"
+            (PLATE / f"{ticker}.{ext}").write_bytes(data)
+            print(f"  plate  {ticker} <- {url}")
+        except Exception as exc:
+            print(f"  ERROR  {ticker}: {exc}")
+
+    print(f"Done -> {ROOT}")
 
 if __name__ == "__main__":
     main()
