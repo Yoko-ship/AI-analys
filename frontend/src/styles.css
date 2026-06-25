@@ -6410,10 +6410,11 @@ body[data-theme="dark"] .sector-chip.active {
    full wordmark logo contained (see catalog note). */
 .analysis-company-chip .chip-logo,
 .analysis-company-chip .chip-logo-fallback {
-  width: 120px;
-  height: 56px;
-  border-radius: 12px;
+  width: 148px;
+  height: 72px;
+  border-radius: 14px;
   box-sizing: border-box;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
 }
 
 .analysis-company-chip .chip-logo {
@@ -6421,7 +6422,7 @@ body[data-theme="dark"] .sector-chip.active {
   border: 1px solid var(--border);
   object-fit: contain;
   object-position: center;
-  padding: 8px;
+  padding: 12px 16px;
 }
 
 .analysis-company-chip .chip-ticker {
@@ -8793,12 +8794,12 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s, background 0.15s;
@@ -8821,11 +8822,12 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
    the full logo contained reads far better than a tiny circle. */
 .catalog-company-item .chip-logo,
 .catalog-company-item .chip-logo-fallback {
-  width: 72px;
-  height: 44px;
-  border-radius: 9px;
+  width: 104px;
+  height: 60px;
+  border-radius: 12px;
   flex-shrink: 0;
   box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .catalog-company-item .chip-logo {
@@ -8833,11 +8835,11 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
   border: 1px solid var(--border);
   object-fit: contain;
   object-position: center;
-  padding: 5px;
+  padding: 9px 12px;
 }
 
 .catalog-company-item .chip-logo-fallback {
-  font-size: 1.15rem;
+  font-size: 1.7rem;
 }
 
 .catalog-company-item-head {
@@ -8847,7 +8849,7 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
   gap: 8px;
 }
 
-.catalog-company-item-head strong { font-size: 0.85rem; color: var(--accent); }
+.catalog-company-item-head strong { font-size: 0.92rem; color: var(--accent); }
 .catalog-company-item-head em { font-size: 0.75rem; color: var(--muted); font-style: normal; }
 .catalog-company-name {
   font-size: 0.75rem;
