@@ -6406,19 +6406,22 @@ body[data-theme="dark"] .sector-chip.active {
   box-shadow: 0 6px 24px rgba(255, 157, 0, 0.12);
 }
 
-/* Circular company logo in the analysis grid (matches screener style) */
+/* Company logo badge in the analysis grid — white rounded-rect with the
+   full wordmark logo contained (see catalog note). */
 .analysis-company-chip .chip-logo,
 .analysis-company-chip .chip-logo-fallback {
-  border-radius: 50%;
+  width: 120px;
+  height: 56px;
+  border-radius: 12px;
+  box-sizing: border-box;
 }
 
 .analysis-company-chip .chip-logo {
   background: #fff;
   border: 1px solid var(--border);
-  /* Crop wide wordmark logos to the left brand mark (see catalog note). */
-  object-fit: cover;
-  object-position: left center;
-  padding: 0;
+  object-fit: contain;
+  object-position: center;
+  padding: 8px;
 }
 
 .analysis-company-chip .chip-ticker {
@@ -8813,27 +8816,28 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
   min-width: 0;
 }
 
-/* Circular company logo in the catalog list (matches screener style) */
+/* Company logo badge in the catalog list. Source logos are wide
+   wordmarks (icon + company name), so a white rounded-rect badge with
+   the full logo contained reads far better than a tiny circle. */
 .catalog-company-item .chip-logo,
 .catalog-company-item .chip-logo-fallback {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: 72px;
+  height: 44px;
+  border-radius: 9px;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .catalog-company-item .chip-logo {
   background: #fff;
   border: 1px solid var(--border);
-  /* Source logos are wide wordmarks (icon on the left + company name);
-     crop to the left brand mark so it reads as a circular icon. */
-  object-fit: cover;
-  object-position: left center;
-  padding: 0;
+  object-fit: contain;
+  object-position: center;
+  padding: 5px;
 }
 
 .catalog-company-item .chip-logo-fallback {
-  font-size: 1rem;
+  font-size: 1.15rem;
 }
 
 .catalog-company-item-head {
