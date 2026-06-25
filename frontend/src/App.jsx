@@ -4571,18 +4571,21 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                   className={`catalog-company-item ${ticker === c.ticker ? "active" : ""}`}
                   onClick={() => setTicker(c.ticker)}
                 >
-                  <div className="catalog-company-item-head">
-                    <strong>{c.ticker}</strong>
-                    <em>{c.total_count || 0} {clg(lang, "reports")}</em>
-                  </div>
-                  <span className="catalog-company-name">{c.company_name}</span>
-                  {c.total_count > 0 && (
-                    <div className="catalog-company-badges">
-                      {c.nsbu_count > 0 && <span className="catalog-form-badge">{formsObj.NSBU} {c.nsbu_count}</span>}
-                      {c.msfo_count > 0 && <span className="catalog-form-badge">{formsObj.MSFO} {c.msfo_count}</span>}
-                      {c.audit_count > 0 && <span className="catalog-form-badge">{formsObj.Audition} {c.audit_count}</span>}
+                  <CompanyLogo logo={c.logo} name={c.company_name} ticker={c.ticker} />
+                  <div className="catalog-company-item-body">
+                    <div className="catalog-company-item-head">
+                      <strong>{c.ticker}</strong>
+                      <em>{c.total_count || 0} {clg(lang, "reports")}</em>
                     </div>
-                  )}
+                    <span className="catalog-company-name">{c.company_name}</span>
+                    {c.total_count > 0 && (
+                      <div className="catalog-company-badges">
+                        {c.nsbu_count > 0 && <span className="catalog-form-badge">{formsObj.NSBU} {c.nsbu_count}</span>}
+                        {c.msfo_count > 0 && <span className="catalog-form-badge">{formsObj.MSFO} {c.msfo_count}</span>}
+                        {c.audit_count > 0 && <span className="catalog-form-badge">{formsObj.Audition} {c.audit_count}</span>}
+                      </div>
+                    )}
+                  </div>
                 </button>
               ))}
             </div>
