@@ -6415,7 +6415,10 @@ body[data-theme="dark"] .sector-chip.active {
 .analysis-company-chip .chip-logo {
   background: #fff;
   border: 1px solid var(--border);
-  padding: 8px;
+  /* Crop wide wordmark logos to the left brand mark (see catalog note). */
+  object-fit: cover;
+  object-position: left center;
+  padding: 0;
 }
 
 .analysis-company-chip .chip-ticker {
@@ -8822,7 +8825,11 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
 .catalog-company-item .chip-logo {
   background: #fff;
   border: 1px solid var(--border);
-  padding: 4px;
+  /* Source logos are wide wordmarks (icon on the left + company name);
+     crop to the left brand mark so it reads as a circular icon. */
+  object-fit: cover;
+  object-position: left center;
+  padding: 0;
 }
 
 .catalog-company-item .chip-logo-fallback {
