@@ -4067,8 +4067,7 @@ function MarketView({
                           <button type="button" className="market-ticker-btn" onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}>
                             {row.ticker || "—"}
                           </button>
-                          <span>{row.share_type ? mt(lang, row.share_type) : row.type || "—"}</span>
-                          {isPreferred && <span className="market-preferred-badge">{lang === "en" ? "pref" : "прив"}</span>}
+                          <span>{isPreferred ? mt(lang, "preferred") : (row.share_type ? mt(lang, row.share_type) : (row.type || "—"))}</span>
                         </div>
                         <button
                           type="button"
