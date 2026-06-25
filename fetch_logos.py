@@ -7,6 +7,31 @@ from company_catalog import COMPANY_CATALOG
 OPENINFO_API = "https://new-api.openinfo.uz/api/v2"
 OUT = Path("company_logos.json")
 
+# Curated domain overrides. The openinfo.uz logos are wide horizontal
+# wordmarks (icon + company name) that shrink to a fuzzy, unreadable strip
+# in a small badge. Google's favicon service returns the crisp square
+# brand icon-mark instead, which reads far better. Keyed by ticker; applied
+# to the preferred-share (…P) sibling too.
+DOMAIN_OVERRIDES = {
+    "AGBA": "agrobank.uz", "AGMKP": "agmk.uz", "ALKB": "aloqabank.uz",
+    "ALSM": "alskom.uz", "BRBN": "brb.uz", "DORI": "doridarmon.uz",
+    "GRBK": "garantbank.uz", "HMKB": "hamkorbank.uz", "IPKY": "ipakyulibank.uz",
+    "IPTB": "ipotekabank.uz", "KPBA": "kapitalbank.uz", "MCBA": "mikrokreditbank.uz",
+    "SQBN": "sqb.uz", "TNBN": "turonbank.uz", "TNGB": "tengebank.uz",
+    "TRSB": "trustbank.uz", "UNVB": "universalbank.uz", "UZNGP": "ung.uz",
+    "UZTL": "uztelecom.uz",
+}
+
+def favicon_url(domain: str) -> str:
+    return f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
+
+def override_for(ticker: str) -> str | None:
+    base = ticker[:-1] if ticker.endswith("P") else ticker
+    for cand in (ticker, base):
+        if cand in DOMAIN_OVERRIDES:
+            return favicon_url(DOMAIN_OVERRIDES[cand])
+    return None
+
 def autofill(session: requests.Session, name: str) -> list[dict]:
     try:
         r = session.get(f"{OPENINFO_API}/home/autofill/", params={"name": name}, timeout=15)
@@ -37,6 +62,11 @@ def main() -> None:
     print(f"Fetching logos for {len(companies)} companies...")
 
     for i, (name, ticker) in enumerate(companies, 1):
+        override = override_for(ticker)
+        if override:
+            logos[ticker] = override
+            print(f"  [{i}/{len(companies)}] {ticker} — override {override}")
+            continue
         if ticker in existing:
             logos[ticker] = existing[ticker]
             print(f"  [{i}/{len(companies)}] {ticker} — cached")
