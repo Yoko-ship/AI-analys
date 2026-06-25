@@ -1814,8 +1814,9 @@ function CompanyLogo({ logo, name, ticker }) {
     return <span className="chip-logo chip-logo-fallback">{letter}</span>;
   }
   // Self-hosted icon-marks (/logos/*) are transparent and float directly on the
-  // surface; remote wordmark/dark logos keep a light plate for legibility.
-  const isFloat = typeof logo === "string" && logo.startsWith("/logos/");
+  // surface; remote and /logos/plate/* (wordmark/dark) logos keep a light plate.
+  const isFloat = typeof logo === "string"
+    && logo.startsWith("/logos/") && !logo.startsWith("/logos/plate/");
   return (
     <img
       className={`chip-logo${isFloat ? " chip-logo--float" : ""}`}
