@@ -1813,9 +1813,12 @@ function CompanyLogo({ logo, name, ticker }) {
   if (!logo || failed) {
     return <span className="chip-logo chip-logo-fallback">{letter}</span>;
   }
+  // Self-hosted icon-marks (/logos/*) are transparent and float directly on the
+  // surface; remote wordmark/dark logos keep a light plate for legibility.
+  const isFloat = typeof logo === "string" && logo.startsWith("/logos/");
   return (
     <img
-      className="chip-logo"
+      className={`chip-logo${isFloat ? " chip-logo--float" : ""}`}
       src={logo}
       alt={name}
       onError={() => setFailed(true)}

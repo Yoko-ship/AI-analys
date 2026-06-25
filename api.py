@@ -99,6 +99,10 @@ ASSET_DIR = WEB_DIR / "assets" if WEB_DIR == WEB_DIST_DIR else WEB_DIR
 if ASSET_DIR.exists():
     app.mount("/assets", StaticFiles(directory=ASSET_DIR), name="assets")
 
+LOGO_DIR = Path(__file__).with_name("logos")
+if LOGO_DIR.exists():
+    app.mount("/logos", StaticFiles(directory=LOGO_DIR), name="logos")
+
 UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
 
 

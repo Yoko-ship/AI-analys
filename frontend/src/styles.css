@@ -8842,6 +8842,16 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
   font-size: 1.7rem;
 }
 
+/* Self-hosted transparent icon-marks float on the surface: no plate, no
+   shadow, no padding, so the mark reads bigger and sits cleanly on dark. */
+.catalog-company-item .chip-logo--float,
+.analysis-company-chip .chip-logo--float {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
 .catalog-company-item-head {
   display: flex;
   justify-content: space-between;
