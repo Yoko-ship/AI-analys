@@ -6825,12 +6825,12 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
    slots so every ticker column stays aligned. */
 .market-ticker-cell .chip-logo,
 .market-ticker-cell .chip-logo-fallback {
-  width: 56px;
-  height: 34px;
-  border-radius: 8px;
+  width: 104px;
+  height: 66px;
+  border-radius: 12px;
   flex-shrink: 0;
   box-sizing: border-box;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .market-ticker-cell .chip-logo {
@@ -6838,11 +6838,11 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   border: 1px solid var(--border);
   object-fit: contain;
   object-position: center;
-  padding: 4px;
+  padding: 5px;
 }
 
 .market-ticker-cell .chip-logo-fallback {
-  font-size: 1rem;
+  font-size: 1.7rem;
 }
 
 /* Self-hosted transparent icon-marks float: no plate, no shadow, no padding. */
