@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import time
 from datetime import datetime, timezone
@@ -128,6 +129,17 @@ def _init_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+# Bonds trade under series codes (BFMT3V2, ACMT2B4, UZUMS3B) rather than the
+# issuer's stock ticker, so they never match company_logos.json. Map the
+# leading-letter issuer prefix to the issuer's logo instead.
+BOND_ISSUER_LOGOS: dict[str, str] = {
+    "BFMT": "/logos/plate/BFMT.jpg",  # BIZNES FINANS (self-hosted wordmark)
+    "ACMT": "https://www.google.com/s2/favicons?domain=agatcredit.uz&sz=128",  # AGAT CREDIT
+    "CTFB": "https://www.google.com/s2/favicons?domain=contactfinance.uz&sz=128",  # CONTACT FINANCE
+    "UZUMS": "https://www.google.com/s2/favicons?domain=uzumsarmoya.uz&sz=128",  # UZUM SARMOYA
+}
+
+
 def resolve_logo(ticker: str, logos: dict[str, str]) -> str | None:
     """Resolve a ticker's logo, sharing it across common/preferred share pairs.
 
@@ -135,6 +147,8 @@ def resolve_logo(ticker: str, logos: dict[str, str]) -> str | None:
     When a ticker has no logo of its own, borrow its sibling's: the common share
     falls back to the preferred logo (``TKDM`` -> ``TKDMP``) and vice versa, since
     both are the same issuer. This avoids blank fallbacks for one half of a pair.
+
+    Bonds (series codes like ``BFMT3V2``) fall back to their issuer-prefix logo.
     """
     ticker = (ticker or "").upper().strip()
     if not ticker:
@@ -143,7 +157,13 @@ def resolve_logo(ticker: str, logos: dict[str, str]) -> str | None:
     if direct:
         return direct
     sibling = ticker[:-1] if ticker.endswith("P") else ticker + "P"
-    return logos.get(sibling) or None
+    sib = logos.get(sibling)
+    if sib:
+        return sib
+    prefix = re.match(r"^[A-Z]+", ticker)
+    if prefix:
+        return BOND_ISSUER_LOGOS.get(prefix.group(0)) or None
+    return None
 
 
 def sync_securities(stocks: list[dict], logos: dict[str, str]) -> int:
