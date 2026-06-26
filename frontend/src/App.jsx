@@ -3299,21 +3299,82 @@ function heatmapShortName(name) {
   return base.length > 13 ? base.slice(0, 12) + "…" : base;
 }
 
+// Squarified treemap (Bruls/Huizing/van Wijk): pack items so each tile's AREA
+// is proportional to its value while keeping aspect ratios near-square.
+// Returns each input item with an absolute rect {x, y, w, h}.
+function heatmapWorst(row, length) {
+  const sum = row.reduce((s, r) => s + r.area, 0);
+  if (sum <= 0) return Infinity;
+  let max = -Infinity, min = Infinity;
+  for (const r of row) { if (r.area > max) max = r.area; if (r.area < min) min = r.area; }
+  const sum2 = sum * sum, l2 = length * length;
+  return Math.max((l2 * max) / sum2, sum2 / (l2 * min));
+}
+
+function squarifyTreemap(items, x, y, w, h) {
+  const out = [];
+  const total = items.reduce((s, d) => s + d.value, 0);
+  if (total <= 0 || w <= 0 || h <= 0) return out;
+  const scale = (w * h) / total;
+  const data = items.map((d) => ({ ...d, area: d.value * scale }));
+  let rect = { x, y, w, h };
+  let i = 0;
+  while (i < data.length) {
+    const length = Math.min(rect.w, rect.h);
+    let row = [data[i]];
+    let j = i + 1;
+    while (j < data.length) {
+      const cand = row.concat(data[j]);
+      if (heatmapWorst(cand, length) <= heatmapWorst(row, length)) { row = cand; j++; } else break;
+    }
+    const rowArea = row.reduce((s, r) => s + r.area, 0);
+    if (rect.w <= rect.h) {
+      const rowH = rowArea / rect.w;
+      let cx = rect.x;
+      for (const r of row) { const rw = r.area / rowH; out.push({ ...r, x: cx, y: rect.y, w: rw, h: rowH }); cx += rw; }
+      rect = { x: rect.x, y: rect.y + rowH, w: rect.w, h: rect.h - rowH };
+    } else {
+      const rowW = rowArea / rect.h;
+      let cy = rect.y;
+      for (const r of row) { const rh = r.area / rowW; out.push({ ...r, x: rect.x, y: cy, w: rowW, h: rh }); cy += rh; }
+      rect = { x: rect.x + rowW, y: rect.y, w: rect.w - rowW, h: rect.h };
+    }
+    i = j;
+  }
+  return out;
+}
+
 function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) {
   const lang = normalizeLanguage(language);
+  const wrapRef = React.useRef(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return undefined;
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    let ro;
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(measure); ro.observe(el); }
+    else window.addEventListener("resize", measure);
+    return () => { if (ro) ro.disconnect(); else window.removeEventListener("resize", measure); };
+  }, []);
 
   const companyMap = {};
   (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
+  const sectorOf = (t) => companyMap[t]?.sector || securitiesMap?.[t]?.sector || "other";
 
-  // Group rows by sector, sort gainers first within each sector
+  // Group rows by sector
   const sectorGroups = {};
-  rows.forEach((row) => {
-    const sector = companyMap[row.ticker]?.sector || "other";
-    (sectorGroups[sector] = sectorGroups[sector] || []).push(row);
-  });
-  Object.values(sectorGroups).forEach((group) =>
-    group.sort((a, b) => (b.changePercent ?? -Infinity) - (a.changePercent ?? -Infinity))
-  );
+  rows.forEach((row) => { (sectorGroups[sectorOf(row.ticker)] ||= []).push(row); });
+
+  // Tile weight = compressed (sqrt) volume, floored so thin movers stay visible
+  const rawWeight = (r) => Math.sqrt(Math.max(r.stockVolume || 0, 1));
+  const maxRaw = Math.max(1, ...rows.map(rawWeight));
+  const floor = maxRaw * 0.05;
+  const weight = (r) => Math.max(rawWeight(r), floor);
+
+  Object.values(sectorGroups).forEach((g) => g.sort((a, b) => weight(b) - weight(a)));
   const orderedSectors = SECTOR_ORDER.filter((s) => sectorGroups[s]?.length);
 
   const formatPct = (pct) => {
@@ -3321,6 +3382,28 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
     return `${pct > 0 ? "+" : ""}${formatRatio(pct, 2, lang)}%`;
   };
 
+  // Two-level squarified layout: sectors fill the canvas, stocks fill each sector.
+  let layout = [];
+  if (size.w > 12 && size.h > 12) {
+    const sectorItems = orderedSectors.map((s) => ({
+      sector: s,
+      rows: sectorGroups[s],
+      value: sectorGroups[s].reduce((sum, r) => sum + weight(r), 0),
+    }));
+    const sectorRects = squarifyTreemap(sectorItems, 0, 0, size.w, size.h);
+    const HEADER = 17;
+    layout = sectorRects.map((sr) => {
+      const header = sr.h > 48 && sr.w > 64;
+      const hdr = header ? HEADER : 0;
+      const stocks = squarifyTreemap(
+        sr.rows.map((r) => ({ row: r, value: weight(r) })),
+        sr.x, sr.y + hdr, sr.w, Math.max(sr.h - hdr, 0)
+      );
+      return { sector: sr.sector, rect: sr, header, headerH: HEADER, stocks };
+    });
+  }
+
+  const GAP = 1.5;
   const LEGEND_STOPS = [
     { pct: -5.5, label: "≤ −5%" },
     { pct: -2,   label: "−2%" },
@@ -3331,7 +3414,6 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
 
   return (
     <div className="heatmap-wrap">
-      {/* Legend */}
       <div className="heatmap-legend">
         {LEGEND_STOPS.map(({ pct, label }) => {
           const s = heatmapTileStyle(pct);
@@ -3344,87 +3426,48 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
         })}
       </div>
 
-      {/* Sector blocks */}
-      {orderedSectors.map((sector) => {
-        const tileRows = sectorGroups[sector];
-        const label = sectorLabel(lang, sector);
-        const withChange = tileRows.filter((r) => Number.isFinite(r.changePercent));
-        const avgChange = withChange.length
-          ? withChange.reduce((s, r) => s + r.changePercent, 0) / withChange.length
-          : null;
-
-        // Volume-proportional flex weights — high-volume stocks get wider tiles
-        // Use sqrt to compress extreme volume differences, then clamp to [0.55, 2.2]
-        // so no tile is more than ~4x wider than another
-        const sectorVol = tileRows.reduce((s, r) => s + Math.sqrt(Math.max(r.stockVolume || 0, 1)), 0);
-        const getWeight = (row) => {
-          const raw = Math.sqrt(Math.max(row.stockVolume || 1, 1)) / sectorVol * tileRows.length;
-          return Math.min(Math.max(raw, 0.55), 2.2);
-        };
-
-        return (
-          <div key={sector} className="heatmap-sector">
-            {/* Sector header strip */}
-            <div className="heatmap-sector-strip">
-              <span className="heatmap-sector-label">{label}</span>
-              <span className="heatmap-sector-count">{tileRows.length}</span>
-              {avgChange !== null && (
-                <span className={`heatmap-sector-avg tone-${avgChange > 0.1 ? "good" : avgChange < -0.1 ? "danger" : "neutral"}`}>
-                  {formatPct(avgChange)}
-                </span>
+      <div className="heatmap-tree" ref={wrapRef}>
+        {layout.map((sec) => {
+          const label = sectorLabel(lang, sec.sector);
+          const withChange = sec.stocks.filter((s) => Number.isFinite(s.row.changePercent));
+          const avg = withChange.length ? withChange.reduce((a, s) => a + s.row.changePercent, 0) / withChange.length : null;
+          return (
+            <React.Fragment key={sec.sector}>
+              {sec.header && (
+                <div className="heatmap-tree-label" style={{ left: sec.rect.x, top: sec.rect.y, width: sec.rect.w, height: sec.headerH }}>
+                  <span>{label}</span>
+                  {avg !== null && (
+                    <span className={`htl-avg tone-${avg > 0.1 ? "good" : avg < -0.1 ? "danger" : "neutral"}`}>{formatPct(avg)}</span>
+                  )}
+                </div>
               )}
-            </div>
-
-            {/* Tiles row — proportional width per volume */}
-            <div className="heatmap-sector-tiles">
-              {tileRows.map((row) => {
-                const company = companyMap[row.ticker];
-                const logo = securitiesMap?.[row.ticker]?.logo_url || company?.logo;
+              {sec.stocks.map((st) => {
+                const row = st.row;
                 const tileStyle = heatmapTileStyle(row.changePercent);
                 const isNeutral = !tileStyle.background;
-                const pctStr = formatPct(row.changePercent);
-                const weight = getWeight(row);
-                // Size class drives how much text to show
-                const sz = weight >= 1.5 ? "lg" : "sm";
-                const shortN = heatmapShortName(company?.company_name || row.name || "");
-                const tooltip = [
-                  row.name || company?.company_name || row.ticker,
-                  row.lastPrice !== null ? `${lang === "ru" ? "Цена" : "Price"}: ${formatMarketNumber(row.lastPrice, lang)}` : null,
-                  `${lang === "ru" ? "Изм." : "Chg."}: ${pctStr}`,
-                  row.stockVolume ? `${lang === "ru" ? "Объём" : "Vol"}: ${formatCompactVolume(row.stockVolume, lang)}` : null,
-                ].filter(Boolean).join("\n");
-
+                const w = st.w - GAP, h = st.h - GAP;
+                if (w < 1 || h < 1) return null;
+                const tickerSize = Math.max(8, Math.min(Math.min(w, h) / 2.9, w / 4.4, 19));
+                const showTicker = w > 22 && h > 15;
+                const showPct = w > 34 && h > 32;
                 return (
                   <button
                     key={row.ticker}
                     type="button"
-                    className={`heatmap-tile heatmap-tile-${sz}${isNeutral ? " heatmap-tile-neutral" : ""}`}
-                    style={{ ...tileStyle, "--vol-weight": weight }}
+                    className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}`}
+                    style={{ left: st.x + GAP / 2, top: st.y + GAP / 2, width: w, height: h, ...tileStyle }}
                     onClick={() => onAnalyze(row.ticker)}
-                    title={tooltip}
+                    title={`${row.name || companyMap[row.ticker]?.company_name || row.ticker}\n${formatPct(row.changePercent)}${row.lastPrice != null ? ` · ${formatMarketNumber(row.lastPrice, lang)}` : ""}`}
                   >
-                    {logo && (
-                      <img
-                        className="heatmap-tile-logo"
-                        src={logo}
-                        alt=""
-                        loading="lazy"
-                        onError={(e) => { e.currentTarget.style.display = "none"; }}
-                      />
-                    )}
-                    {sz === "lg" && shortN && <span className="heatmap-tile-name">{shortN}</span>}
-                    {sz !== "xs"  && <span className="heatmap-tile-ticker">{row.ticker}</span>}
-                    <span className="heatmap-tile-pct">{pctStr}</span>
-                    {sz === "lg" && row.lastPrice !== null && (
-                      <span className="heatmap-tile-price">{formatMarketNumber(row.lastPrice, lang)}</span>
-                    )}
+                    {showTicker && <span className="htt-ticker" style={{ fontSize: tickerSize }}>{row.ticker}</span>}
+                    {showPct && <span className="htt-pct" style={{ fontSize: tickerSize * 0.76 }}>{formatPct(row.changePercent)}</span>}
                   </button>
                 );
               })}
-            </div>
-          </div>
-        );
-      })}
+            </React.Fragment>
+          );
+        })}
+      </div>
 
       {orderedSectors.length === 0 && (
         <p className="market-empty-cell">
