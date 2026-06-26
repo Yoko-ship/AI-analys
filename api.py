@@ -963,3 +963,22 @@ async def api_notifications(current_user: WebUser = Depends(_require_user)) -> d
     except Exception as exc:
         logger.exception("notifications failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str) -> FileResponse:
+    """Serve the SPA shell for client-side routes (/market, /heatmap, /catalog…).
+
+    Registered last so real API and static routes match first; unknown /api
+    paths still resolve to a JSON 404 instead of the HTML shell.
+    """
+    if full_path == "api" or full_path.startswith(("api/", "assets/", "logos/")) or full_path == "health":
+        raise HTTPException(status_code=404, detail="Not found")
+    index_path = WEB_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="Frontend is not built yet")
+    return FileResponse(
+        index_path,
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "no-store"},
+    )
