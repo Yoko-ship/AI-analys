@@ -3299,7 +3299,7 @@ function heatmapShortName(name) {
   return base.length > 13 ? base.slice(0, 12) + "…" : base;
 }
 
-function MarketHeatmap({ rows, companies, language, onAnalyze }) {
+function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) {
   const lang = normalizeLanguage(language);
 
   const companyMap = {};
@@ -3379,6 +3379,7 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
             <div className="heatmap-sector-tiles">
               {tileRows.map((row) => {
                 const company = companyMap[row.ticker];
+                const logo = securitiesMap?.[row.ticker]?.logo_url || company?.logo;
                 const tileStyle = heatmapTileStyle(row.changePercent);
                 const isNeutral = !tileStyle.background;
                 const pctStr = formatPct(row.changePercent);
@@ -3402,6 +3403,15 @@ function MarketHeatmap({ rows, companies, language, onAnalyze }) {
                     onClick={() => onAnalyze(row.ticker)}
                     title={tooltip}
                   >
+                    {logo && (
+                      <img
+                        className="heatmap-tile-logo"
+                        src={logo}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    )}
                     {sz === "lg" && shortN && <span className="heatmap-tile-name">{shortN}</span>}
                     {sz !== "xs"  && <span className="heatmap-tile-ticker">{row.ticker}</span>}
                     <span className="heatmap-tile-pct">{pctStr}</span>
@@ -4024,7 +4034,7 @@ function MarketView({
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
           ) : (
-            <MarketHeatmap rows={prepared} companies={companies} language={lang} onAnalyze={onAnalyze} />
+            <MarketHeatmap rows={prepared} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} />
           )
         ) : (
           <div className="market-table-wrap">
