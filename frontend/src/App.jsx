@@ -2,6 +2,32 @@ import React, { useEffect, useState } from "react";
 import heroImage from "./assets/hero-image.png";
 import logoIcon from "./assets/icon.png";
 
+// --- Client-side routing: each view maps to a real URL path ------------------
+const VIEW_PATHS = {
+  main: "/",
+  market: "/market",
+  heatmap: "/heatmap",
+  catalog: "/catalog",
+  analysis: "/analysis",
+  compare: "/compare",
+  profile: "/profile",
+  auth: "/login",
+};
+
+function viewToPath(view, ticker) {
+  if (view === "company" && ticker) return `/company/${encodeURIComponent(ticker)}`;
+  return VIEW_PATHS[view] || "/";
+}
+
+function pathToView(pathname) {
+  const clean = (pathname || "/").replace(/\/+$/, "") || "/";
+  if (clean.startsWith("/company/")) {
+    return { view: "company", ticker: decodeURIComponent(clean.slice("/company/".length)) };
+  }
+  const found = Object.entries(VIEW_PATHS).find(([, p]) => p === clean);
+  return { view: found ? found[0] : "main", ticker: null };
+}
+
 const STORAGE_KEY = "uz_stock_analyzer_token";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
 const THEME_KEY = "uz_stock_analyzer_theme";
@@ -3927,9 +3953,13 @@ function MarketView({
   language,
   companies,
   securitiesMap,
+  viewMode: viewModeProp,
+  onViewModeChange,
 }) {
   const lang = normalizeLanguage(language);
-  const [viewMode, setViewMode] = useState("table");
+  // viewMode is driven by the route (table = /market, heatmap = /heatmap).
+  const viewMode = viewModeProp || "table";
+  const setViewMode = onViewModeChange || (() => {});
   const [marketSector, setMarketSector] = useState(null);
   const [panelTicker, setPanelTicker] = useState(null);
   const [panelWiki, setPanelWiki] = useState(null);
@@ -4833,7 +4863,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [companies, setCompanies] = useState([]);
-  const [activeView, setActiveView] = useState("main");
+  const [activeView, setActiveView] = useState(() => pathToView(window.location.pathname).view);
   const [notifCount, setNotifCount] = useState(0);
   const [notifItems, setNotifItems] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -4843,7 +4873,7 @@ function App() {
   const [registerForm, setRegisterForm] = useState({ full_name: "", email: "", password: "" });
   const [authMessage, setAuthMessage] = useState("");
   const [analysisCompany, setAnalysisCompany] = useState("");
-  const [companyTicker, setCompanyTicker] = useState(null);
+  const [companyTicker, setCompanyTicker] = useState(() => pathToView(window.location.pathname).ticker);
   const [prevView, setPrevView] = useState("market");
   const [selectedSector, setSelectedSector] = useState(null);
   const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
@@ -4974,6 +5004,25 @@ function App() {
     setHistorySearch("");
   }, [activeView]);
 
+  // Keep the browser URL in sync with the active view (push a history entry).
+  useEffect(() => {
+    const target = viewToPath(activeView, companyTicker);
+    if (window.location.pathname !== target) {
+      window.history.pushState({ view: activeView }, "", target);
+    }
+  }, [activeView, companyTicker]);
+
+  // React to browser back/forward by restoring the view from the URL.
+  useEffect(() => {
+    const onPop = () => {
+      const { view, ticker } = pathToView(window.location.pathname);
+      if (ticker) setCompanyTicker(ticker);
+      setActiveView(view);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   useEffect(() => {
     apiFetch("/api/catalog/status")
       .then((r) => r.json())
@@ -4995,7 +5044,7 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    if (activeView !== "market") return;
+    if (activeView !== "market" && activeView !== "heatmap") return;
     loadMarketStocks().catch((error) => {
       addToast(error.message, "error");
     });
@@ -5515,8 +5564,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "catalog", "profile", "analysis", "compare"]
-    : ["main", "market", "catalog", "auth", "analysis", "compare"];
+    ? ["main", "market", "heatmap", "catalog", "profile", "analysis", "compare"]
+    : ["main", "market", "heatmap", "catalog", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -5573,7 +5622,7 @@ function App() {
                       return ageH > 24 ? <span className="nav-stale-dot" title={language === "ru" ? "Каталог устарел" : "Catalog stale"} /> : null;
                     })()}
                   </span>
-                ) : key === "market" ? mt(language, "nav") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
+                ) : key === "market" ? mt(language, "nav") : key === "heatmap" ? (language === "ru" ? "Карта рынка" : language === "uz" ? "Bozor xaritasi" : "Market Map") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
@@ -5743,7 +5792,7 @@ function App() {
             />
           )}
 
-          {activeView === "market" && (
+          {(activeView === "market" || activeView === "heatmap") && (
             <MarketView
               rows={marketRows}
               meta={marketMeta}
@@ -5763,6 +5812,8 @@ function App() {
               language={language}
               companies={companies}
               securitiesMap={securitiesMap}
+              viewMode={activeView === "heatmap" ? "heatmap" : "table"}
+              onViewModeChange={(m) => setActiveView(m === "heatmap" ? "heatmap" : "market")}
             />
           )}
 
