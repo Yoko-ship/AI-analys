@@ -4054,15 +4054,7 @@ function MarketView({
                     return (
                     <tr key={`${row.ticker}-${row.isin}`}>
                       <td className="market-ticker-cell">
-                        {logo && (
-                          <img
-                            className="market-row-logo"
-                            src={logo}
-                            alt={row.ticker}
-                            loading="lazy"
-                            onError={(e) => { e.currentTarget.style.display = "none"; }}
-                          />
-                        )}
+                        <CompanyLogo logo={logo} name={row.name || row.ticker} ticker={row.ticker} />
                         <div className="market-ticker-info">
                           <button type="button" className="market-ticker-btn" onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}>
                             {row.ticker || "—"}
