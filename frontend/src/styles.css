@@ -6819,12 +6819,38 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   white-space: nowrap;
 }
 
-.market-row-logo {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-  border-radius: 6px;
+/* Company logo in the market table — same white-plate wordmark treatment as
+   the catalog (transparent icon-marks float, wordmarks get a light plate),
+   scaled down to keep row height uniform. The letter fallback fills empty
+   slots so every ticker column stays aligned. */
+.market-ticker-cell .chip-logo,
+.market-ticker-cell .chip-logo-fallback {
+  width: 56px;
+  height: 34px;
+  border-radius: 8px;
   flex-shrink: 0;
+  box-sizing: border-box;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.market-ticker-cell .chip-logo {
+  background: #fff;
+  border: 1px solid var(--border);
+  object-fit: contain;
+  object-position: center;
+  padding: 4px;
+}
+
+.market-ticker-cell .chip-logo-fallback {
+  font-size: 1rem;
+}
+
+/* Self-hosted transparent icon-marks float: no plate, no shadow, no padding. */
+.market-ticker-cell .chip-logo--float {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 .market-ticker-info {
