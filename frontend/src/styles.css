@@ -6841,8 +6841,16 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   padding: 4px;
 }
 
+/* No-logo fallback: an intentional accent-tinted chip with a bold, readable
+   letter — not a blank white plate. Overrides the white .chip-logo plate the
+   fallback span also carries. */
 .market-ticker-cell .chip-logo-fallback {
-  font-size: 1.2rem;
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 1.35rem;
+  font-weight: 800;
+  box-shadow: none;
 }
 
 /* Self-hosted transparent icon-marks float: no plate, no shadow, no padding. */

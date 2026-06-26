@@ -35,7 +35,7 @@ from reports_catalog import (
     sync_company as catalog_sync_company,
     sync_all as catalog_sync_all,
 )
-from securities_catalog import get_securities_map, get_wiki_info, sync_securities
+from securities_catalog import get_securities_map, get_wiki_info, resolve_logo, sync_securities
 from web_auth import WebUser, web_auth_store
 
 logger = logging.getLogger(__name__)
@@ -338,7 +338,7 @@ async def api_companies() -> dict[str, Any]:
                 "company_name": name,
                 "ticker": ticker,
                 "sector": COMPANY_SECTORS.get(ticker, "other"),
-                "logo": COMPANY_LOGOS.get(ticker, "") or "",
+                "logo": resolve_logo(ticker, COMPANY_LOGOS) or "",
             }
             for name, ticker in COMPANY_CATALOG.items()
         ],
@@ -760,7 +760,7 @@ async def api_catalog_companies() -> dict[str, Any]:
     try:
         companies = list_companies_with_stats()
         for c in companies:
-            c["logo"] = COMPANY_LOGOS.get(c.get("ticker", ""), "") or ""
+            c["logo"] = resolve_logo(c.get("ticker", ""), COMPANY_LOGOS) or ""
         return {"ok": True, "count": len(companies), "companies": companies}
     except Exception as exc:
         logger.exception("Catalog companies list failed")
