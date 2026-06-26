@@ -6759,7 +6759,11 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 74px;
+  /* Don't stretch to the column width (set by the share-type label below), so
+     every badge is the same size whether the label is "обыкновенный" or the
+     longer "привилегированный". 88px fits every ≤5-char ticker uniformly. */
+  align-self: flex-start;
+  min-width: 88px;
   padding: 7px 10px;
   border: 1px solid rgba(255, 157, 0, 0.28);
   border-radius: 8px;
