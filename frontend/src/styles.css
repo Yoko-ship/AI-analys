@@ -7167,29 +7167,32 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   flex: var(--vol-weight, 1);
   min-width: 64px;
   max-width: 220px;
-  height: 108px;
+  height: 110px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 4px;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
   cursor: pointer;
-  padding: 10px 8px;
+  padding: 12px 8px;
   color: #fff;
   text-align: center;
-  transition: filter 0.12s ease, transform 0.12s ease;
+  transition: filter 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
   outline: none;
   position: relative;
   overflow: hidden;
+  /* Glassy depth: top highlight + soft bottom vignette over the flat color */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -14px 26px rgba(0, 0, 0, 0.14);
 }
 
 .heatmap-tile:hover {
-  filter: brightness(1.35);
-  transform: scale(1.05);
+  filter: brightness(1.16) saturate(1.06);
+  transform: translateY(-2px) scale(1.04);
   z-index: 10;
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .heatmap-tile:focus-visible {
@@ -7204,16 +7207,25 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   border-color: rgba(255, 255, 255, 0.04) !important;
 }
 
-/* Company logo — small white chip so it reads on green/red/neutral tiles */
+/* Company logo — clean white badge, legible on green/red/neutral tiles.
+   Sized to the tile: larger on wide (lg) tiles. */
 .heatmap-tile-logo {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
   border-radius: 6px;
   background: #fff;
-  padding: 2px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  padding: 3px;
+  margin-bottom: 1px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5), 0 2px 5px rgba(0, 0, 0, 0.32);
   flex-shrink: 0;
+}
+
+.heatmap-tile-lg .heatmap-tile-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  padding: 4px;
 }
 
 /* Company short name — only on wide (lg) tiles */
@@ -7234,7 +7246,8 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   font-size: 11px;
   line-height: 1;
   letter-spacing: 0.04em;
-  opacity: 0.88;
+  opacity: 0.92;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 
 /* % change — hero text */
@@ -7243,10 +7256,16 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.02em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
+.heatmap-tile-lg .heatmap-tile-pct { font-size: 20px; }
 .heatmap-tile-xs .heatmap-tile-pct { font-size: 13px; }
-.heatmap-tile-neutral .heatmap-tile-pct { font-size: 12px; opacity: 0.5; }
+.heatmap-tile-neutral .heatmap-tile-pct { font-size: 12px; opacity: 0.5; text-shadow: none; }
+
+/* Crisp text on bright tiles */
+.heatmap-tile-name,
+.heatmap-tile-price { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
 
 /* Price — only on wide (lg) tiles */
 .heatmap-tile-price {
