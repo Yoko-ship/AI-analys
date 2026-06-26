@@ -128,6 +128,24 @@ def _init_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def resolve_logo(ticker: str, logos: dict[str, str]) -> str | None:
+    """Resolve a ticker's logo, sharing it across common/preferred share pairs.
+
+    Preferred shares end in ``P`` (the same heuristic used for ``is_preferred``).
+    When a ticker has no logo of its own, borrow its sibling's: the common share
+    falls back to the preferred logo (``TKDM`` -> ``TKDMP``) and vice versa, since
+    both are the same issuer. This avoids blank fallbacks for one half of a pair.
+    """
+    ticker = (ticker or "").upper().strip()
+    if not ticker:
+        return None
+    direct = logos.get(ticker)
+    if direct:
+        return direct
+    sibling = ticker[:-1] if ticker.endswith("P") else ticker + "P"
+    return logos.get(sibling) or None
+
+
 def sync_securities(stocks: list[dict], logos: dict[str, str]) -> int:
     """Upsert all UZSE stocks into the securities table. Returns count of rows upserted."""
     conn = _get_conn()
@@ -167,7 +185,7 @@ def sync_securities(stocks: list[dict], logos: dict[str, str]) -> int:
                 s.get("type", "stock"),
                 s.get("share_type"),
                 sector,
-                logos.get(ticker),
+                resolve_logo(ticker, logos),
                 is_preferred,
                 s.get("last_price"),
                 s.get("close_price"),
