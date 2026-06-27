@@ -6098,14 +6098,16 @@ function App() {
                 {profile?.favorites?.length ? (
                   <div className="favorites-list">
                     {profile.favorites.map((item) => (
-                      <div className="favorite-item" key={`${item.ticker}-${item.created_at}`}>
-                        <button type="button" className="favorite-main favorite-main-btn"
-                          title={language === "en" ? "Open company" : language === "uz" ? "Kompaniyani ochish" : "Открыть компанию"}
-                          onClick={() => openCompanyPage(item.ticker)}>
+                      <div className="favorite-item favorite-item--clickable" key={`${item.ticker}-${item.created_at}`}
+                        role="button" tabIndex={0}
+                        title={language === "en" ? "Open company" : language === "uz" ? "Kompaniyani ochish" : "Открыть компанию"}
+                        onClick={() => openCompanyPage(item.ticker)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCompanyPage(item.ticker); } }}>
+                        <div className="favorite-main">
                           <strong>{item.company_name || item.ticker}</strong>
                           <span>{item.ticker} · {formatDateLabel(item.created_at, language)}</span>
-                        </button>
-                        <button className="ghost-btn" type="button" onClick={() => handleToggleFavorite(item.ticker, item.company_name)}>
+                        </div>
+                        <button className="ghost-btn" type="button" onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.ticker, item.company_name); }}>
                           {t(language, "profile.remove")}
                         </button>
                       </div>
