@@ -6883,6 +6883,57 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 }
 .market-fav-filter .fav-star { color: #f5b301; font-size: 1.05rem; line-height: 1; }
 
+/* Column-settings (gear) menu in the market toolbar. */
+.market-cols-wrap { position: relative; display: inline-flex; }
+.market-cols-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.market-cols-btn:hover { color: var(--text); }
+.market-cols-btn.active { background: var(--panel-elevated); color: var(--text); box-shadow: var(--shadow-sm); }
+.market-cols-backdrop { position: fixed; inset: 0; z-index: 40; }
+.market-cols-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 41;
+  min-width: 200px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-elevated);
+  box-shadow: var(--shadow-lg);
+}
+.market-cols-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 6px 10px 8px;
+}
+.market-cols-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.market-cols-row:hover { background: var(--bg-2); }
+.market-cols-row input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+
 /* Company logo in the market table — same white-plate wordmark treatment as
    the catalog (transparent icon-marks float, wordmarks get a light plate),
    scaled down to keep row height uniform. The letter fallback fills empty

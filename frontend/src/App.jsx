@@ -3991,6 +3991,25 @@ function MarketView({
   const [panelWikiLoading, setPanelWikiLoading] = useState(false);
   const hasFav = (t) => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase());
 
+  // User-configurable quote columns (ticker/company/last are always shown).
+  const MARKET_COLS = [
+    ["change", mt(lang, "change")],
+    ["open", mt(lang, "open")],
+    ["high", mt(lang, "high")],
+    ["low", mt(lang, "low")],
+    ["volume", mt(lang, "volumeCol")],
+    ["date", mt(lang, "date")],
+    ["source", mt(lang, "source")],
+  ];
+  const [visibleCols, setVisibleCols] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem("uz_market_cols")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
+    return new Set(["change", "open", "high", "low", "volume", "date", "source"]);
+  });
+  const [colsOpen, setColsOpen] = useState(false);
+  useEffect(() => { try { localStorage.setItem("uz_market_cols", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
+  const toggleCol = (k) => setVisibleCols((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const colSpan = 3 + visibleCols.size;
+
   const openPanel = (ticker) => {
     setPanelTicker(ticker);
     setPanelWiki(null);
@@ -4118,6 +4137,33 @@ function MarketView({
               <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={mt(lang, "search")} />
             </label>
           )}
+          {viewMode === "table" && (
+            <div className="market-cols-wrap">
+              <button
+                type="button"
+                className={`market-cols-btn ${colsOpen ? "active" : ""}`}
+                aria-haspopup="true" aria-expanded={colsOpen}
+                onClick={() => setColsOpen((o) => !o)}
+                title={lang === "en" ? "Columns" : lang === "uz" ? "Ustunlar" : "Колонки"}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </button>
+              {colsOpen && (
+                <>
+                  <div className="market-cols-backdrop" onClick={() => setColsOpen(false)} />
+                  <div className="market-cols-dropdown" role="menu">
+                    <div className="market-cols-title">{lang === "en" ? "Visible columns" : lang === "uz" ? "Ko'rinadigan ustunlar" : "Видимые колонки"}</div>
+                    {MARKET_COLS.map(([k, label]) => (
+                      <label key={k} className="market-cols-row">
+                        <input type="checkbox" checked={visibleCols.has(k)} onChange={() => toggleCol(k)} />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {presentSectors.length > 0 && viewMode === "table" && (
@@ -4156,18 +4202,18 @@ function MarketView({
                   <th>{mt(lang, "ticker")}</th>
                   <th>{mt(lang, "company")}</th>
                   <th>{mt(lang, "last")}</th>
-                  <th>{mt(lang, "change")}</th>
-                  <th>{mt(lang, "open")}</th>
-                  <th>{mt(lang, "high")}</th>
-                  <th>{mt(lang, "low")}</th>
-                  <th>{mt(lang, "volumeCol")}</th>
-                  <th>{mt(lang, "date")}</th>
-                  <th>{mt(lang, "source")}</th>
+                  {visibleCols.has("change") && <th>{mt(lang, "change")}</th>}
+                  {visibleCols.has("open") && <th>{mt(lang, "open")}</th>}
+                  {visibleCols.has("high") && <th>{mt(lang, "high")}</th>}
+                  {visibleCols.has("low") && <th>{mt(lang, "low")}</th>}
+                  {visibleCols.has("volume") && <th>{mt(lang, "volumeCol")}</th>}
+                  {visibleCols.has("date") && <th>{mt(lang, "date")}</th>}
+                  {visibleCols.has("source") && <th>{mt(lang, "source")}</th>}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "loading")}</td></tr>
+                  <tr><td colSpan={colSpan} className="market-empty-cell">{mt(lang, "loading")}</td></tr>
                 ) : visibleRows.length ? (
                   visibleRows.map((row) => {
                     const sec = smap[row.ticker] || {};
@@ -4209,28 +4255,34 @@ function MarketView({
                         <span>{row.isin || "—"}</span>
                       </td>
                       <td className="num">{row.lastPrice === null ? "—" : formatMarketNumber(row.lastPrice, lang)}</td>
-                      <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>
-                      <td className="num">{row.openPrice === null ? "—" : formatMarketNumber(row.openPrice, lang)}</td>
-                      <td className="num">{row.highPrice === null ? "—" : formatMarketNumber(row.highPrice, lang)}</td>
-                      <td className="num">{row.lowPrice === null ? "—" : formatMarketNumber(row.lowPrice, lang)}</td>
-                      <td className="num">
-                        {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
-                        {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт. · {row.stockTradeCount !== null ? formatRatio(row.stockTradeCount, 0, lang) : "—"} {mt(lang, "tradeCount")}</span>}
-                      </td>
-                      <td>
-                        <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
-                        {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
-                      </td>
-                      <td>
-                        {row.url ? (
-                          <a className="market-source-link" href={row.url} target="_blank" rel="noreferrer">{mt(lang, "source")}</a>
-                        ) : "—"}
-                      </td>
+                      {visibleCols.has("change") && <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>}
+                      {visibleCols.has("open") && <td className="num">{row.openPrice === null ? "—" : formatMarketNumber(row.openPrice, lang)}</td>}
+                      {visibleCols.has("high") && <td className="num">{row.highPrice === null ? "—" : formatMarketNumber(row.highPrice, lang)}</td>}
+                      {visibleCols.has("low") && <td className="num">{row.lowPrice === null ? "—" : formatMarketNumber(row.lowPrice, lang)}</td>}
+                      {visibleCols.has("volume") && (
+                        <td className="num">
+                          {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
+                          {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт. · {row.stockTradeCount !== null ? formatRatio(row.stockTradeCount, 0, lang) : "—"} {mt(lang, "tradeCount")}</span>}
+                        </td>
+                      )}
+                      {visibleCols.has("date") && (
+                        <td>
+                          <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
+                          {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
+                        </td>
+                      )}
+                      {visibleCols.has("source") && (
+                        <td>
+                          {row.url ? (
+                            <a className="market-source-link" href={row.url} target="_blank" rel="noreferrer">{mt(lang, "source")}</a>
+                          ) : "—"}
+                        </td>
+                      )}
                     </tr>
                     );
                   })
                 ) : (
-                  <tr><td colSpan="10" className="market-empty-cell">{favOnly
+                  <tr><td colSpan={colSpan} className="market-empty-cell">{favOnly
                     ? (lang === "en" ? "No favorites yet — tap ☆ next to a company to track it."
                        : lang === "uz" ? "Hali tanlanganlar yo'q — kuzatish uchun kompaniya yonidagi ☆ ni bosing."
                        : "Пока нет избранного — нажмите ☆ рядом с компанией, чтобы следить за ней.")
