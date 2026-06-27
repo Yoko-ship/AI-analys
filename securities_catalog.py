@@ -67,6 +67,14 @@ _TICKER_SECTORS: dict[str, str] = {
     "CBSK": "trade",
     "JASM": "other",
     "TKDMP": "other",
+    # Added companies
+    "KFSK": "finance", "KFSKP": "finance",
+    "UZAS": "finance", "UZASP": "finance",
+    "KSCM": "manufacturing", "KSCMP": "manufacturing",
+    "NGQT": "mining", "YGSY": "mining",
+    "UTYK": "transport", "UVGT": "transport",
+    "METQ": "other", "UQEQ": "other",
+    "TGPG": "professional",
 }
 
 # Wikipedia search titles for known tickers
