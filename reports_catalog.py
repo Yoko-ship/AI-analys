@@ -7,11 +7,13 @@ import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlencode
 
 from company_catalog import COMPANY_CATALOG
 from db import APP_DATA_DIR, sqlite_connect
 from openinfo_collector import (
     OPENINFO_API_BASE,
+    OPENINFO_WEB_BASE,
     _build_report_document,
     _json_get,
     _make_session,
@@ -239,6 +241,29 @@ def _cleanup_old_notifications(conn: sqlite3.Connection, days: int = 30) -> None
 # Sync — one company
 # ---------------------------------------------------------------------------
 
+def _nsbu_export_urls(report_id: Any, period_type: str, org_type: str | None) -> tuple[str | None, str | None]:
+    """Build (pdf_url, excel_url) for an NSBU accounting-report from its id.
+
+    NSBU records come from the ``/reports/accounting-report/`` endpoint, whose
+    shape carries the financial line-items but no document URLs — so
+    ``_build_report_document`` (written for the ``/reports/main/`` shape) returns
+    nothing and the download buttons never appear. openinfo serves the PDF at
+    ``/ru/reports/to_pdf<id>/`` and the Excel via the export-excel API, which also
+    needs the period type and the issuer's ``org_type`` (e.g. "bank", "jsc").
+    Without a correct org_type the Excel export returns HTTP 400, so excel_url is
+    omitted when org_type is unknown (the PDF link still works).
+    """
+    if not report_id:
+        return None, None
+    pdf_url = f"{OPENINFO_WEB_BASE}/ru/reports/to_pdf{report_id}/"
+    excel_url = None
+    if org_type:
+        excel_url = f"{OPENINFO_API_BASE}/reports/export-excel/?" + urlencode(
+            {"report_type": period_type, "org_type": org_type, "report_id": report_id, "lang": "ru"}
+        )
+    return pdf_url, excel_url
+
+
 def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict[str, Any]:
     conn = get_catalog_conn()
 
@@ -284,6 +309,23 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
 
     base = f"/reports/accounting-report/{org_id}/"
 
+    # Fetch the /reports/main/ listing up front: it supplies the issuer's
+    # org_type (needed to build NSBU Excel export URLs) and the MSFO/Audition
+    # records consumed further below.
+    try:
+        payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, "search": company_name})
+        main_results = list(payload.get("results") or []) if isinstance(payload, dict) else []
+        main_results = [r for r in main_results if str(r.get("organization")) == str(org_id)]
+    except Exception as exc:
+        main_results = []
+        errors.append(f"reports/main: {exc}")
+    org_type: str | None = None
+    for _r in main_results:
+        _ot = (_r.get("properties") or {}).get("org_type")
+        if _ot:
+            org_type = _ot
+            break
+
     # ---- NSBU annual -------------------------------------------------------
     try:
         form2_annual = _json_get(session, base, {"accounting_type": "form2", "report_type": "annual"})
@@ -316,6 +358,8 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
                 continue
             doc2 = _build_report_document(rec)
             doc1 = form1_annual_by_year.get(yr)
+            pdf_url, excel_url = _nsbu_export_urls(doc2.get("id"), "annual", org_type)
+            excel_url_form1 = _nsbu_export_urls(doc1.get("id"), "annual", org_type)[1] if doc1 else None
             new = _upsert_report(
                 conn, ticker,
                 report_form="NSBU",
@@ -324,9 +368,9 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
                 quarter=0,
                 title=doc2.get("title"),
                 published_at=doc2.get("published_at"),
-                pdf_url=doc2.get("pdf_url"),
-                excel_url=doc2.get("excel_url"),
-                excel_url_form1=doc1.get("excel_url") if doc1 else None,
+                pdf_url=pdf_url,
+                excel_url=excel_url,
+                excel_url_form1=excel_url_form1,
                 openinfo_report_id=str(doc2.get("id") or ""),
                 object_id=str(doc2.get("object_id") or ""),
             )
@@ -369,6 +413,8 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
                 continue
             doc2 = _build_report_document(rec)
             doc1 = form1_quarter_by_yq.get((yr, q))
+            pdf_url, excel_url = _nsbu_export_urls(doc2.get("id"), "quarter", org_type)
+            excel_url_form1 = _nsbu_export_urls(doc1.get("id"), "quarter", org_type)[1] if doc1 else None
             new = _upsert_report(
                 conn, ticker,
                 report_form="NSBU",
@@ -377,31 +423,19 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
                 quarter=q,
                 title=doc2.get("title"),
                 published_at=doc2.get("published_at"),
-                pdf_url=doc2.get("pdf_url"),
-                excel_url=doc2.get("excel_url"),
-                excel_url_form1=doc1.get("excel_url") if doc1 else None,
+                pdf_url=pdf_url,
+                excel_url=excel_url,
+                excel_url_form1=excel_url_form1,
                 openinfo_report_id=str(doc2.get("id") or ""),
                 object_id=str(doc2.get("object_id") or ""),
             )
             if new:
                 added += 1
 
-    # ---- MSFO + Audition from /reports/main/ --------------------------------
-    try:
-        payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, "search": company_name})
-        main_results = list(payload.get("results") or []) if isinstance(payload, dict) else []
-        # Filter by org_id and target forms
-        main_results = [
-            r for r in main_results
-            if str(r.get("organization")) == str(org_id)
-            and r.get("report_type") in {"MSFO", "Audition"}
-        ]
-    except Exception as exc:
-        main_results = []
-        errors.append(f"MSFO/Audition: {exc}")
-
+    # ---- MSFO + Audition from the /reports/main/ listing fetched above -------
+    msfo_results = [r for r in main_results if r.get("report_type") in {"MSFO", "Audition"}]
     with conn:
-        for rec in main_results:
+        for rec in msfo_results:
             doc = _build_report_document(rec)
             form = doc.get("report_form") or rec.get("report_type")
             if form not in ("MSFO", "Audition"):
