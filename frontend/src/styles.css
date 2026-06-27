@@ -771,6 +771,19 @@ img {
   align-items: flex-start;
 }
 
+/* Favorite name is a button that opens the company page. */
+.favorite-main-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.favorite-main-btn:hover strong { color: var(--accent); }
+
 .favorite-main strong,
 .history-title {
   font-size: 1.1rem;
@@ -6848,28 +6861,31 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 .market-fav-btn:hover { color: #f5b301; transform: scale(1.18); }
 .market-fav-btn.is-fav { color: #f5b301; }
 
-/* "Favorites only" filter toggle in the market toolbar. */
+/* "Favorites only" filter toggle in the market toolbar — matches the segmented
+   control / search box (neutral pill); only the star carries the gold accent. */
 .market-fav-filter {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
+  gap: 7px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  font-size: 13px;
+  background: var(--bg-2);
+  color: var(--muted);
   font-weight: 600;
+  font-size: 0.9rem;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
-.market-fav-filter:hover { border-color: #f5b301; color: var(--text-primary); }
+.market-fav-filter:hover { color: var(--text); }
 .market-fav-filter.active {
-  border-color: #f5b301;
-  background: rgba(245, 179, 1, 0.12);
-  color: #f5b301;
+  background: var(--panel-elevated);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
 }
+.market-fav-filter .fav-star { color: #f5b301; font-size: 1.05rem; line-height: 1; }
 
 /* Company logo in the market table — same white-plate wordmark treatment as
    the catalog (transparent icon-marks float, wordmarks get a light plate),

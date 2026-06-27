@@ -4109,7 +4109,8 @@ function MarketView({
               onClick={() => setFavOnly((v) => !v)}
               title={lang === "en" ? "Show favorites only" : lang === "uz" ? "Faqat tanlanganlar" : "Только избранное"}
             >
-              {favOnly ? "★" : "☆"} {lang === "en" ? "Favorites" : lang === "uz" ? "Tanlanganlar" : "Избранное"}
+              <span className="fav-star">{favOnly ? "★" : "☆"}</span>
+              {lang === "en" ? "Favorites" : lang === "uz" ? "Tanlanganlar" : "Избранное"}
             </button>
           )}
           {viewMode === "table" && (
@@ -6098,10 +6099,12 @@ function App() {
                   <div className="favorites-list">
                     {profile.favorites.map((item) => (
                       <div className="favorite-item" key={`${item.ticker}-${item.created_at}`}>
-                        <div className="favorite-main">
+                        <button type="button" className="favorite-main favorite-main-btn"
+                          title={language === "en" ? "Open company" : language === "uz" ? "Kompaniyani ochish" : "Открыть компанию"}
+                          onClick={() => openCompanyPage(item.ticker)}>
                           <strong>{item.company_name || item.ticker}</strong>
                           <span>{item.ticker} · {formatDateLabel(item.created_at, language)}</span>
-                        </div>
+                        </button>
                         <button className="ghost-btn" type="button" onClick={() => handleToggleFavorite(item.ticker, item.company_name)}>
                           {t(language, "profile.remove")}
                         </button>
