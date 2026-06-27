@@ -106,6 +106,43 @@ if LOGO_DIR.exists():
 UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
 
 
+async def _populate_securities_on_startup() -> None:
+    """Seed the securities table after a (re)deploy.
+
+    The catalog table is otherwise only filled as a side effect of
+    ``/api/market/stocks`` (i.e. when the Market view is opened). On Railway the
+    SQLite file is ephemeral, so it is empty on every boot — which makes every
+    ``/company/<ticker>`` page 404 ("no information") until someone loads Market.
+    Pull the stock and bond lists once at startup so the catalog is ready
+    immediately. Runs in the background and swallows errors so a slow or
+    unreachable UZSE API never blocks (or crashes) boot.
+    """
+    loop = asyncio.get_running_loop()
+    logos = _load_logos()
+    for security_type in (None, "bond"):
+        try:
+            params = {"type": security_type} if security_type else None
+            resp = await loop.run_in_executor(
+                None, partial(requests.get, f"{UZSE_STOCK_API_BASE}/stocks", params=params, timeout=20)
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            stocks = payload.get("stocks") if isinstance(payload, dict) else []
+            stocks_list = stocks if isinstance(stocks, list) else []
+            if stocks_list:
+                count = await loop.run_in_executor(None, partial(sync_securities, stocks_list, logos))
+                logger.info("startup securities sync (%s): %d rows", security_type or "all", count)
+        except Exception:
+            logger.exception("startup securities sync failed for type=%s", security_type)
+
+
+@app.on_event("startup")
+async def _on_startup() -> None:
+    # Fire-and-forget: seed the catalog without blocking the server from accepting
+    # requests. The Market endpoint still refreshes it on demand afterwards.
+    asyncio.create_task(_populate_securities_on_startup())
+
+
 class AnalyzeRequest(BaseModel):
     company: str = Field(..., min_length=1, max_length=200)
     language: Literal["ru", "en", "uz"] = "ru"
