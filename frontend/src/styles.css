@@ -6387,6 +6387,10 @@ body[data-theme="dark"] .sector-chip.active {
   border-radius: 12px;
 }
 
+/* No-logo monogram: a designed gradient tile (hue set per-ticker via the inline
+   --mono-h custom property) showing the ticker initials. Reads as an intentional
+   brand mark rather than a broken placeholder, and keeps every logo column
+   aligned because it shares the .chip-logo box in each view. */
 .chip-logo-fallback {
   display: flex;
   align-items: center;
@@ -6394,10 +6398,16 @@ body[data-theme="dark"] .sector-chip.active {
   width: 64px;
   height: 64px;
   border-radius: 12px;
-  background: var(--accent-light);
-  color: var(--accent);
-  font-size: 1.5rem;
+  background: linear-gradient(135deg,
+    hsl(var(--mono-h, 28), 68%, 55%),
+    hsl(calc(var(--mono-h, 28) + 30), 64%, 44%));
+  color: #fff;
+  font-size: 1.25rem;
   font-weight: 700;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .analysis-company-chip:hover {
@@ -6845,16 +6855,13 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   padding: 4px;
 }
 
-/* No-logo fallback: an intentional accent-tinted chip with a bold, readable
-   letter — not a blank white plate. Overrides the white .chip-logo plate the
-   fallback span also carries. */
+/* No-logo monogram in the market table: keep the gradient tile from the base
+   rule, just tune the type to the smaller 70×44 slot. The explicit color beats
+   the `.market-table td span { color: var(--muted) }` cell-muting rule. */
 .market-ticker-cell .chip-logo-fallback {
-  background: var(--accent-light);
-  border: 1px solid var(--border);
-  color: var(--accent);
-  font-size: 1.35rem;
+  color: #fff;
+  font-size: 1.15rem;
   font-weight: 800;
-  box-shadow: none;
 }
 
 /* Self-hosted transparent icon-marks float: no plate, no shadow, no padding. */
