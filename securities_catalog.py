@@ -98,45 +98,9 @@ _WIKI_TITLES: dict[str, dict[str, str]] = {
 # Curated descriptions for issuers that have no Wikipedia article. Used as a
 # fallback when ``_search_wikipedia`` finds nothing, so the company page always
 # shows real information instead of "unavailable". Keyed by the base ticker;
-# preferred/common siblings (e.g. TKDM <-> TKDMP) resolve to the same entry.
-_MANUAL_INFO: dict[str, dict[str, str]] = {
-    "TKDM": {
-        "title": "Toshkentdonmahsulotlari",
-        "url": "https://www.tdm.uz",
-        "ru": (
-            "«Toshkentdonmahsulotlari» (ТДМ) — одно из ведущих предприятий пищевой "
-            "инфраструктуры Ташкента, специализирующееся на переработке зерна. Общество "
-            "производит муку высшего и первого сорта, манную крупу, комбикорма и другие "
-            "крупяные изделия, а также занимается оптовой и розничной торговлей "
-            "хлебопродуктами и кормами. В состав предприятия входят мельничный комплекс, "
-            "элеватор ёмкостью 52 тысячи тонн зерна и комбикормовый завод, введённый в "
-            "эксплуатацию в 1960 году и модернизированный в 2007 году. Предприятие "
-            "расположено в Яшнабадском районе города Ташкента. Привилегированные акции "
-            "общества торгуются на Республиканской фондовой бирже «Тошкент» под тикером TKDMP."
-        ),
-        "en": (
-            "Toshkentdonmahsulotlari (TDM) is one of Tashkent's leading food-industry "
-            "enterprises, specialising in grain processing and milling. The company produces "
-            "premium- and first-grade wheat flour, semolina, compound animal feed and other "
-            "cereal products, and runs both wholesale and retail trade in grain products and "
-            "feed. Its facilities include a flour-milling complex, a grain elevator with a "
-            "capacity of 52,000 tonnes, and a compound-feed plant first commissioned in 1960 "
-            "and modernised in 2007. The enterprise is located in the Yashnabad district of "
-            "Tashkent. Its preferred shares trade on the Republican Stock Exchange "
-            "\"Toshkent\" under the ticker TKDMP."
-        ),
-        "uz": (
-            "«Toshkentdonmahsulotlari» (TDM) — Toshkentning yetakchi oziq-ovqat va don qayta "
-            "ishlash korxonalaridan biri. Korxona oliy va birinchi navli bug'doy uni, manniy "
-            "yormasi, aralash yem (kombikorm) va boshqa yorma mahsulotlarini ishlab chiqaradi, "
-            "shuningdek don mahsulotlari va yemlarni ulgurji va chakana savdo qiladi. Korxona "
-            "tarkibiga un tortish majmuasi, 52 ming tonna g'alla sig'imiga ega elevator va "
-            "1960-yilda ishga tushirilib, 2007-yilda modernizatsiya qilingan kombikorm zavodi "
-            "kiradi. Korxona Toshkent shahrining Yashnobod tumanida joylashgan. Imtiyozli "
-            "aksiyalari «Toshkent» Respublika fond birjasida TKDMP tikeri ostida sotiladi."
-        ),
-    },
-}
+# preferred/common siblings (e.g. TKDM <-> TKDMP) and bond series codes resolve
+# to the same entry. The data lives in its own module to keep this file readable.
+from manual_company_info import MANUAL_INFO as _MANUAL_INFO
 
 
 def _manual_info(ticker: str, language: str) -> dict[str, str] | None:
@@ -150,6 +114,13 @@ def _manual_info(ticker: str, language: str) -> dict[str, str] | None:
         return None
     sibling = ticker[:-1] if ticker.endswith("P") else ticker + "P"
     entry = _MANUAL_INFO.get(ticker) or _MANUAL_INFO.get(sibling)
+    if not entry:
+        # Bonds trade under series codes (BFMT3V2, ACMT2B4) rather than the
+        # issuer's stock ticker; key them by the issuer's leading-letter prefix,
+        # the same way resolve_logo / BOND_ISSUER_LOGOS do.
+        prefix = re.match(r"^[A-Z]+", ticker)
+        if prefix:
+            entry = _MANUAL_INFO.get(prefix.group(0))
     if not entry:
         return None
     text = entry.get(language) or entry.get("ru") or entry.get("en") or entry.get("uz")
