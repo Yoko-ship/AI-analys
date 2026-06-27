@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 
-from company_catalog import COMPANY_CATALOG
+from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from db import APP_DATA_DIR, sqlite_connect
 from openinfo_collector import (
     OPENINFO_API_BASE,
@@ -657,6 +657,7 @@ def get_company_index(ticker: str) -> dict[str, Any]:
     return {
         "ticker": ticker,
         "company_name": company_row["company_name"] if company_row else _TICKER_TO_NAME.get(ticker, ticker),
+        "sector": COMPANY_SECTORS.get(ticker),
         "org_id": company_row["org_id"] if company_row else None,
         "last_synced_at": company_row["last_synced_at"] if company_row else None,
         "availability": availability,

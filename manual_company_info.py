@@ -1142,6 +1142,155 @@ MANUAL_INFO: dict[str, dict[str, Any]] = {
             "birjasida sotiladi."
         ),
     },
+    # ── Insurance ───────────────────────────────────────────────────────────
+    "KFSK": {
+        "title": "Kafolat sug'urta",
+        "url": None,
+        "ru": (
+            "«Kafolat sug'urta» — одна из старейших и крупнейших страховых компаний "
+            "Узбекистана. Общество предоставляет широкий спектр услуг общего страхования для "
+            "населения и бизнеса, включая страхование имущества, транспорта, грузов, "
+            "ответственности и других рисков, через сеть филиалов по всей стране. Акции "
+            "компании торгуются на Республиканской фондовой бирже «Тошкент»."
+        ),
+        "en": (
+            "Kafolat Insurance is one of the oldest and largest insurance companies in "
+            "Uzbekistan. It offers a broad range of general insurance for individuals and "
+            "businesses — property, motor, cargo, liability and other risks — through a "
+            "nationwide branch network. The company's shares trade on the Republican Stock "
+            "Exchange \"Toshkent\"."
+        ),
+        "uz": (
+            "«Kafolat sug'urta» — O'zbekistonning eng eski va yirik sug'urta kompaniyalaridan "
+            "biri. Jamiyat mamlakat bo'ylab filiallar tarmog'i orqali aholi va biznesga "
+            "mol-mulk, transport, yuk, javobgarlik va boshqa xavflar bo'yicha keng umumiy "
+            "sug'urta xizmatlarini taqdim etadi. Kompaniya aksiyalari «Toshkent» Respublika "
+            "fond birjasida sotiladi."
+        ),
+    },
+    # ── Manufacturing ─────────────────────────────────────────────────────────
+    "KSCM": {
+        "title": "Quvasoysement",
+        "url": None,
+        "ru": (
+            "«Quvasoysement» (Кувасайцемент) — производитель цемента, расположенный в городе "
+            "Кувасай Ферганской области. Предприятие выпускает портландцемент и другие "
+            "строительные материалы. Акции предприятия торгуются на Республиканской фондовой "
+            "бирже «Тошкент»."
+        ),
+        "en": (
+            "Quvasoysement is a cement producer located in Quvasoy, in the Fergana region of "
+            "Uzbekistan. The enterprise manufactures Portland cement and other building "
+            "materials. Its shares trade on the Republican Stock Exchange \"Toshkent\"."
+        ),
+        "uz": (
+            "«Quvasoysement» — Farg'ona viloyatining Quvasoy shahrida joylashgan sement ishlab "
+            "chiqaruvchi korxona. Korxona portlandsement va boshqa qurilish materiallarini "
+            "ishlab chiqaradi. Korxona aksiyalari «Toshkent» Respublika fond birjasida sotiladi."
+        ),
+    },
+    # ── Oil, gas & energy construction ────────────────────────────────────────
+    "NGQT": {
+        "title": "Neftgazqurilishta'mir",
+        "url": None,
+        "ru": (
+            "«Neftgazqurilishta'mir» — предприятие Узбекистана, специализирующееся на "
+            "строительстве и ремонте объектов нефтегазовой отрасли. Акции предприятия "
+            "торгуются на Республиканской фондовой бирже «Тошкент»."
+        ),
+        "en": (
+            "Neftgazqurilishta'mir is an Uzbek enterprise specialising in the construction and "
+            "repair of oil and gas industry facilities. Its shares trade on the Republican "
+            "Stock Exchange \"Toshkent\"."
+        ),
+        "uz": (
+            "«Neftgazqurilishta'mir» — neft-gaz tarmog'i obyektlarini qurish va ta'mirlashga "
+            "ixtisoslashgan O'zbekiston korxonasi. Korxona aksiyalari «Toshkent» Respublika "
+            "fond birjasida sotiladi."
+        ),
+    },
+    "YGSY": {
+        "title": "Yuggazstroy",
+        "url": None,
+        "ru": (
+            "«Yuggazstroy» (Юггазстрой) — строительное предприятие Узбекистана, выполняющее "
+            "строительно-монтажные работы для газовой отрасли, включая сооружение "
+            "газопроводов и объектов газовой инфраструктуры. Акции предприятия торгуются на "
+            "Республиканской фондовой бирже «Тошкент»."
+        ),
+        "en": (
+            "Yuggazstroy is an Uzbek construction enterprise carrying out construction and "
+            "assembly works for the gas industry, including gas pipelines and gas-"
+            "infrastructure facilities. Its shares trade on the Republican Stock Exchange "
+            "\"Toshkent\"."
+        ),
+        "uz": (
+            "«Yuggazstroy» — gaz tarmog'i uchun qurilish-montaj ishlarini, jumladan gaz "
+            "quvurlari va gaz infratuzilmasi obyektlarini bunyod etuvchi O'zbekiston qurilish "
+            "korxonasi. Korxona aksiyalari «Toshkent» Respublika fond birjasida sotiladi."
+        ),
+    },
+    # ── Power-grid & engineering construction ─────────────────────────────────
+    "METQ": {
+        "title": "Maxsuselektrtarmoqqurilish",
+        "url": None,
+        "ru": (
+            "«Maxsuselektrtarmoqqurilish» — предприятие Узбекистана, специализирующееся на "
+            "строительстве и монтаже специальных электрических сетей и линий "
+            "электропередачи. Акции предприятия торгуются на Республиканской фондовой бирже "
+            "«Тошкент»."
+        ),
+        "en": (
+            "Maxsuselektrtarmoqqurilish is an Uzbek enterprise specialising in the "
+            "construction and installation of special electrical grids and power-transmission "
+            "lines. Its shares trade on the Republican Stock Exchange \"Toshkent\"."
+        ),
+        "uz": (
+            "«Maxsuselektrtarmoqqurilish» — maxsus elektr tarmoqlari va elektr uzatish "
+            "liniyalarini qurish va montaj qilishga ixtisoslashgan O'zbekiston korxonasi. "
+            "Korxona aksiyalari «Toshkent» Respublika fond birjasida sotiladi."
+        ),
+    },
+    "UQEQ": {
+        "title": "O'zqishloqelektrqurilish",
+        "url": None,
+        "ru": (
+            "«O'zqishloqelektrqurilish» — предприятие Узбекистана, выполняющее строительство "
+            "электросетей и электрификацию сельских районов. Акции предприятия торгуются на "
+            "Республиканской фондовой бирже «Тошкент»."
+        ),
+        "en": (
+            "O'zqishloqelektrqurilish is an Uzbek enterprise that builds electrical grids and "
+            "carries out rural electrification. Its shares trade on the Republican Stock "
+            "Exchange \"Toshkent\"."
+        ),
+        "uz": (
+            "«O'zqishloqelektrqurilish» — qishloq hududlarida elektr tarmoqlari qurilishi va "
+            "elektrlashtirish ishlarini bajaruvchi O'zbekiston korxonasi. Korxona aksiyalari "
+            "«Toshkent» Respublika fond birjasida sotiladi."
+        ),
+    },
+    # ── Design & engineering ──────────────────────────────────────────────────
+    "TGPG": {
+        "title": "Tashgiprogor",
+        "url": None,
+        "ru": (
+            "«Tashgiprogor» (ТАШГИПРОГОР) — проектный институт Узбекистана, специализирующийся "
+            "на градостроительном проектировании, разработке генеральных планов городов и "
+            "проектов планировки территорий. Акции института торгуются на Республиканской "
+            "фондовой бирже «Тошкент»."
+        ),
+        "en": (
+            "Tashgiprogor is an Uzbek design institute specialising in urban planning — master "
+            "plans for cities and territorial-planning projects. Its shares trade on the "
+            "Republican Stock Exchange \"Toshkent\"."
+        ),
+        "uz": (
+            "«Tashgiprogor» — shaharsozlik loyihalash, shaharlarning bosh rejalari va "
+            "hududlarni rejalashtirish loyihalarini ishlab chiqishga ixtisoslashgan O'zbekiston "
+            "loyiha instituti. Institut aksiyalari «Toshkent» Respublika fond birjasida sotiladi."
+        ),
+    },
     # ── Microfinance & fintech (bond issuers) ───────────────────────────────
     "ACMT": {
         "title": "Agat Credit",

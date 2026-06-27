@@ -4738,6 +4738,7 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                 <div>
                   <h2>{index?.company_name || ticker}</h2>
                   <span className="status-badge muted">{ticker}</span>
+                  {index?.sector && <span className="status-badge">{sectorLabel(lang, index.sector)}</span>}
                   {index?.last_synced_at && <span className="status-badge muted">{clg(lang, "lastSync")}: {formatMarketTimestamp(index.last_synced_at, lang)}</span>}
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

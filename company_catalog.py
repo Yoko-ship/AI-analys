@@ -19,7 +19,8 @@ COMPANY_CATALOG = {
     '"Mikrokreditbank" ATB': "MCBA",
     '"Mikrokreditbank" ATB (привилегированные)': "MCBAP",
     '"Universal Bank" CHAKB': "UNVB",
-    '"Oktobank" AJ': "OCBK",
+    '"Octobank" AJ': "OCBK",
+    '"Kafolat sug\'urta kompaniyasi" AJ': "KFSK",
     '"Biznesni rivojlantirish banki" ATB': "BRBN",
     '"Biznesni rivojlantirish banki" ATB (привилегированные)': "BRBNP",
     '"Kapitalbank" AJ': "KPBA",
@@ -65,6 +66,23 @@ COMPANY_CATALOG = {
     '"Boshtransloyiha" AJ': "BTRL",
     # Trade
     '"Chilonzor buyum savdo kompleksi" AJ': "CBSK",
+    # Insurance (added)
+    '"O\'zagrosug\'urta" AJ': "UZAS",
+    '"O\'zagrosug\'urta" AJ (привилегированные)': "UZASP",
+    '"Kafolat sug\'urta kompaniyasi" AJ (привилегированные)': "KFSKP",
+    # Manufacturing (added)
+    '"Quvasoycement" AJ': "KSCM",
+    '"Quvasoycement" AJ (привилегированные)': "KSCMP",
+    # Mining / oil & gas (added)
+    '"Neftgazqurilishta\'mir" AJ': "NGQT",
+    '"Yuggazstroy" AJ': "YGSY",
+    # Transport (added)
+    '"O\'ztemiryolkonteyner" AJ': "UTYK",
+    '"O\'zvagonta\'mir" AJ': "UVGT",
+    # Construction / engineering (added)
+    '"Maxsuselektrtarmoqqurilish" AJ': "METQ",
+    '"O\'zqishloqelektrqurilish" AJ': "UQEQ",
+    '"Tashgiprogor" AJ': "TGPG",
     # Other
     '"JSM" AJ': "JASM",
     '"TDM" AJ (привилегированные)': "TKDMP",
@@ -123,6 +141,17 @@ COMPANY_SECTORS: dict[str, str] = {
     "BTRL": "professional",
     # Trade
     "CBSK": "trade",
+    # Added companies
+    "KFSK": "finance", "KFSKP": "finance",
+    "UZAS": "finance", "UZASP": "finance",
+    "KSCM": "manufacturing", "KSCMP": "manufacturing",
+    "NGQT": "mining",
+    "YGSY": "mining",
+    "UTYK": "transport",
+    "UVGT": "transport",
+    "METQ": "other",
+    "UQEQ": "other",
+    "TGPG": "professional",
     # Other
     "JASM": "other",
     "TKDMP": "other",
