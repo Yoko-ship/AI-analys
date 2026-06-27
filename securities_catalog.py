@@ -91,6 +91,69 @@ _WIKI_TITLES: dict[str, dict[str, str]] = {
 }
 
 
+# Curated descriptions for issuers that have no Wikipedia article. Used as a
+# fallback when ``_search_wikipedia`` finds nothing, so the company page always
+# shows real information instead of "unavailable". Keyed by the base ticker;
+# preferred/common siblings (e.g. TKDM <-> TKDMP) resolve to the same entry.
+_MANUAL_INFO: dict[str, dict[str, str]] = {
+    "TKDM": {
+        "title": "Toshkentdonmahsulotlari",
+        "url": "https://www.tdm.uz",
+        "ru": (
+            "«Toshkentdonmahsulotlari» (ТДМ) — одно из ведущих предприятий пищевой "
+            "инфраструктуры Ташкента, специализирующееся на переработке зерна. Общество "
+            "производит муку высшего и первого сорта, манную крупу, комбикорма и другие "
+            "крупяные изделия, а также занимается оптовой и розничной торговлей "
+            "хлебопродуктами и кормами. В состав предприятия входят мельничный комплекс, "
+            "элеватор ёмкостью 52 тысячи тонн зерна и комбикормовый завод, введённый в "
+            "эксплуатацию в 1960 году и модернизированный в 2007 году. Предприятие "
+            "расположено в Яшнабадском районе города Ташкента. Привилегированные акции "
+            "общества торгуются на Республиканской фондовой бирже «Тошкент» под тикером TKDMP."
+        ),
+        "en": (
+            "Toshkentdonmahsulotlari (TDM) is one of Tashkent's leading food-industry "
+            "enterprises, specialising in grain processing and milling. The company produces "
+            "premium- and first-grade wheat flour, semolina, compound animal feed and other "
+            "cereal products, and runs both wholesale and retail trade in grain products and "
+            "feed. Its facilities include a flour-milling complex, a grain elevator with a "
+            "capacity of 52,000 tonnes, and a compound-feed plant first commissioned in 1960 "
+            "and modernised in 2007. The enterprise is located in the Yashnabad district of "
+            "Tashkent. Its preferred shares trade on the Republican Stock Exchange "
+            "\"Toshkent\" under the ticker TKDMP."
+        ),
+        "uz": (
+            "«Toshkentdonmahsulotlari» (TDM) — Toshkentning yetakchi oziq-ovqat va don qayta "
+            "ishlash korxonalaridan biri. Korxona oliy va birinchi navli bug'doy uni, manniy "
+            "yormasi, aralash yem (kombikorm) va boshqa yorma mahsulotlarini ishlab chiqaradi, "
+            "shuningdek don mahsulotlari va yemlarni ulgurji va chakana savdo qiladi. Korxona "
+            "tarkibiga un tortish majmuasi, 52 ming tonna g'alla sig'imiga ega elevator va "
+            "1960-yilda ishga tushirilib, 2007-yilda modernizatsiya qilingan kombikorm zavodi "
+            "kiradi. Korxona Toshkent shahrining Yashnobod tumanida joylashgan. Imtiyozli "
+            "aksiyalari «Toshkent» Respublika fond birjasida TKDMP tikeri ostida sotiladi."
+        ),
+    },
+}
+
+
+def _manual_info(ticker: str, language: str) -> dict[str, str] | None:
+    """Return a curated description for a ticker, or None.
+
+    Tries the ticker as-is, then its preferred/common sibling, so both ``TKDM``
+    and ``TKDMP`` resolve to the same entry. Falls back ru -> en -> uz for text.
+    """
+    ticker = (ticker or "").upper().strip()
+    if not ticker:
+        return None
+    sibling = ticker[:-1] if ticker.endswith("P") else ticker + "P"
+    entry = _MANUAL_INFO.get(ticker) or _MANUAL_INFO.get(sibling)
+    if not entry:
+        return None
+    text = entry.get(language) or entry.get("ru") or entry.get("en") or entry.get("uz")
+    if not text:
+        return None
+    return {"title": entry.get("title"), "text": text, "url": entry.get("url")}
+
+
 def _get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
@@ -234,6 +297,24 @@ def get_securities_map() -> dict[str, dict]:
     return result
 
 
+def _build_info(ticker: str, language: str, title, extract, page_url) -> dict:
+    """Assemble the info payload, falling back to a curated description.
+
+    When Wikipedia has no article (``extract`` empty), substitute the manually
+    curated description so the company page always shows real information. The
+    ``source`` field lets the UI label the link ("Wikipedia" vs official site).
+    """
+    if extract:
+        return {"ticker": ticker, "title": title, "extract": extract,
+                "page_url": page_url, "source": "wikipedia"}
+    manual = _manual_info(ticker, language)
+    if manual:
+        return {"ticker": ticker, "title": manual["title"], "extract": manual["text"],
+                "page_url": manual["url"], "source": "official"}
+    return {"ticker": ticker, "title": title, "extract": extract,
+            "page_url": page_url, "source": None}
+
+
 def get_wiki_info(ticker: str, company_name: str, language: str = "ru") -> dict:
     """Fetch and cache Wikipedia summary for a ticker. Cache TTL = 30 days."""
     conn = _get_conn()
@@ -247,7 +328,7 @@ def get_wiki_info(ticker: str, company_name: str, language: str = "ru") -> dict:
         age_days = (time.time() - datetime.fromisoformat(fetched).timestamp()) / 86400
         if age_days < 30:
             conn.close()
-            return {"ticker": ticker, "title": row["title"], "extract": row["extract"], "page_url": row["page_url"]}
+            return _build_info(ticker, language, row["title"], row["extract"], row["page_url"])
 
     # Try to find a Wikipedia article
     extract, title, page_url = _search_wikipedia(ticker, company_name, language)
@@ -264,7 +345,7 @@ def get_wiki_info(ticker: str, company_name: str, language: str = "ru") -> dict:
     )
     conn.commit()
     conn.close()
-    return {"ticker": ticker, "title": title, "extract": extract, "page_url": page_url}
+    return _build_info(ticker, language, title, extract, page_url)
 
 
 def _search_wikipedia(ticker: str, company_name: str, language: str) -> tuple[str | None, str | None, str | None]:
