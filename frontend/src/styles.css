@@ -6833,6 +6833,44 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   white-space: nowrap;
 }
 
+/* Watchlist star: toggles the company as a favorite straight from the quotes. */
+.market-fav-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: color 0.15s ease, transform 0.1s ease;
+}
+.market-fav-btn:hover { color: #f5b301; transform: scale(1.18); }
+.market-fav-btn.is-fav { color: #f5b301; }
+
+/* "Favorites only" filter toggle in the market toolbar. */
+.market-fav-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.market-fav-filter:hover { border-color: #f5b301; color: var(--text-primary); }
+.market-fav-filter.active {
+  border-color: #f5b301;
+  background: rgba(245, 179, 1, 0.12);
+  color: #f5b301;
+}
+
 /* Company logo in the market table — same white-plate wordmark treatment as
    the catalog (transparent icon-marks float, wordmarks get a light plate),
    scaled down to keep row height uniform. The letter fallback fills empty

@@ -3975,6 +3975,8 @@ function MarketView({
   language,
   companies,
   securitiesMap,
+  favoriteTickers,
+  onToggleFavorite,
   viewMode: viewModeProp,
   onViewModeChange,
 }) {
@@ -3983,9 +3985,11 @@ function MarketView({
   const viewMode = viewModeProp || "table";
   const setViewMode = onViewModeChange || (() => {});
   const [marketSector, setMarketSector] = useState(null);
+  const [favOnly, setFavOnly] = useState(false);
   const [panelTicker, setPanelTicker] = useState(null);
   const [panelWiki, setPanelWiki] = useState(null);
   const [panelWikiLoading, setPanelWikiLoading] = useState(false);
+  const hasFav = (t) => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase());
 
   const openPanel = (ticker) => {
     setPanelTicker(ticker);
@@ -4007,6 +4011,7 @@ function MarketView({
 
   const visibleRows = prepared
     .filter((row) => {
+      if (favOnly && !hasFav(row.ticker)) return false;
       if (marketSector && smap[row.ticker]?.sector !== marketSector) return false;
       if (!search) return true;
       return `${row.ticker || ""} ${row.name || ""} ${row.isin || ""}`.toLowerCase().includes(search);
@@ -4097,6 +4102,17 @@ function MarketView({
             ))}
           </div>
           {viewMode === "table" && (
+            <button
+              type="button"
+              className={`market-fav-filter ${favOnly ? "active" : ""}`}
+              aria-pressed={favOnly}
+              onClick={() => setFavOnly((v) => !v)}
+              title={lang === "en" ? "Show favorites only" : lang === "uz" ? "Faqat tanlanganlar" : "Только избранное"}
+            >
+              {favOnly ? "★" : "☆"} {lang === "en" ? "Favorites" : lang === "uz" ? "Tanlanganlar" : "Избранное"}
+            </button>
+          )}
+          {viewMode === "table" && (
             <label className="market-search">
               <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={mt(lang, "search")} />
             </label>
@@ -4156,9 +4172,21 @@ function MarketView({
                     const sec = smap[row.ticker] || {};
                     const logo = sec.logo_url;
                     const isPreferred = sec.is_preferred || row.share_type === "preferred";
+                    const isFav = hasFav(row.ticker);
                     return (
                     <tr key={`${row.ticker}-${row.isin}`}>
                       <td className="market-ticker-cell">
+                        <button
+                          type="button"
+                          className={`market-fav-btn ${isFav ? "is-fav" : ""}`}
+                          aria-pressed={isFav}
+                          title={isFav
+                            ? (lang === "en" ? "Remove from favorites" : lang === "uz" ? "Tanlanganlardan olib tashlash" : "Убрать из избранного")
+                            : (lang === "en" ? "Add to favorites" : lang === "uz" ? "Tanlanganlarga qo'shish" : "В избранное")}
+                          onClick={(e) => { e.stopPropagation(); onToggleFavorite && onToggleFavorite(row.ticker, row.name); }}
+                        >
+                          {isFav ? "★" : "☆"}
+                        </button>
                         <CompanyLogo logo={logo} name={row.name || row.ticker} ticker={row.ticker} />
                         <div className="market-ticker-info">
                           <button type="button" className="market-ticker-btn" onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}>
@@ -4201,7 +4229,11 @@ function MarketView({
                     );
                   })
                 ) : (
-                  <tr><td colSpan="10" className="market-empty-cell">{mt(lang, "empty")}</td></tr>
+                  <tr><td colSpan="10" className="market-empty-cell">{favOnly
+                    ? (lang === "en" ? "No favorites yet — tap ☆ next to a company to track it."
+                       : lang === "uz" ? "Hali tanlanganlar yo'q — kuzatish uchun kompaniya yonidagi ☆ ni bosing."
+                       : "Пока нет избранного — нажмите ☆ рядом с компанией, чтобы следить за ней.")
+                    : mt(lang, "empty")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -5834,6 +5866,8 @@ function App() {
               language={language}
               companies={companies}
               securitiesMap={securitiesMap}
+              favoriteTickers={favoriteTickers}
+              onToggleFavorite={handleToggleFavorite}
               viewMode={activeView === "heatmap" ? "heatmap" : "table"}
               onViewModeChange={(m) => setActiveView(m === "heatmap" ? "heatmap" : "market")}
             />
