@@ -3555,11 +3555,14 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
     return { y: ys(v), label };
   });
   const xStep = Math.max(1, Math.floor(points.length / 5));
+  // uz-UZ renders months as "M01"/"M02"; keep the app's Russian month names for
+  // both ru and uz, and only switch English to its own locale.
+  const dateLocale = lang === "en" ? "en-US" : "ru-RU";
   const xLabels = points
     .filter((_, i) => i % xStep === 0 || i === points.length - 1)
     .map((p) => ({
       x: xs(points.indexOf(p)),
-      label: p.date ? new Date(p.date).toLocaleDateString("ru-RU", { month: "short", day: "numeric" }) : "",
+      label: p.date ? new Date(p.date).toLocaleDateString(dateLocale, { month: "short", day: "numeric" }) : "",
     }));
   return (
     <div>
@@ -3588,7 +3591,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   );
 }
 
-function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMonthsChange, companyData, lang, infoLoading }) {
+function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMonthsChange, companyData, lang, infoLoading, securityType, isPreferred, industry }) {
   const metrics = companyData?.ratios?.metrics || {};
   const KEY_METRICS = [
     { key: "ROA", label: "ROA" },
@@ -3609,20 +3612,24 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
       {/* Below chart: description + sidebar */}
       <div className="company-overview-grid">
         <div className="company-overview-main">
+          <h3 className="co-heading">{lang === "ru" ? "О компании" : lang === "uz" ? "Kompaniya haqida" : "About the company"}</h3>
           {sec.company_description ? (
             <>
-              <h3 className="co-heading">{lang === "ru" ? "О компании" : lang === "uz" ? "Kompaniya haqida" : "About"}</h3>
               <p className="company-description-text">{sec.company_description}</p>
               {sec.source_url && (
                 <a href={sec.source_url} target="_blank" rel="noreferrer" className="wiki-link">
-                  {lang === "ru" ? "Читать на Википедии →" : lang === "uz" ? "Vikipediyada o'qish →" : "Read on Wikipedia →"}
+                  {sec.info_source === "wikipedia"
+                    ? (lang === "ru" ? "Читать на Википедии →" : lang === "uz" ? "Vikipediyada o'qish →" : "Read on Wikipedia →")
+                    : (lang === "ru" ? "Официальный сайт →" : lang === "uz" ? "Rasmiy sayt →" : "Official website →")}
                 </a>
               )}
             </>
           ) : infoLoading ? (
-            <p className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Загрузка информации о компании..." : "Loading..."}</p>
+            <div className="company-desc-skeleton" aria-hidden="true">
+              <span /><span /><span /><span style={{ width: "62%" }} />
+            </div>
           ) : (
-            <p className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Информация о компании недоступна." : "Company information is currently unavailable."}</p>
+            <p className="muted" style={{ fontSize: 14 }}>{lang === "ru" ? "Информация о компании недоступна." : lang === "uz" ? "Kompaniya haqida ma'lumot mavjud emas." : "Company information is currently unavailable."}</p>
           )}
         </div>
 
@@ -3649,12 +3656,12 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
             <h3 className="co-heading">{lang === "ru" ? "Детали" : "Details"}</h3>
             <div className="company-metrics-list">
               {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span className="isin-mono">{sec.isin}</span></div>}
-              {sec.industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : "Sector"}</span><span>{sectorLabel(lang, sec.industry)}</span></div>}
-              {sec.security_type && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип" : "Type"}</span><span>{sec.security_type === "bond" ? (lang === "ru" ? "Облигация" : "Bond") : (lang === "ru" ? "Акция" : "Stock")}</span></div>}
-              {sec.stock_type && sec.security_type !== "bond" && (
+              {industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : lang === "uz" ? "Soha" : "Sector"}</span><span>{sectorLabel(lang, industry)}</span></div>}
+              {securityType && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип" : lang === "uz" ? "Turi" : "Type"}</span><span>{securityType === "bond" ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond") : (lang === "ru" ? "Акция" : lang === "uz" ? "Aksiya" : "Stock")}</span></div>}
+              {securityType !== "bond" && (
                 <div className="company-metric-row">
-                  <span className="panel-label">{lang === "ru" ? "Класс" : "Class"}</span>
-                  <span>{sec.stock_type === "preferred" ? (lang === "ru" ? "Привилегированная" : "Preferred") : (lang === "ru" ? "Обыкновенная" : "Common")}</span>
+                  <span className="panel-label">{lang === "ru" ? "Класс" : lang === "uz" ? "Sinf" : "Class"}</span>
+                  <span>{isPreferred ? (lang === "ru" ? "Привилегированная" : lang === "uz" ? "Imtiyozli" : "Preferred") : (lang === "ru" ? "Обыкновенная" : lang === "uz" ? "Oddiy" : "Common")}</span>
                 </div>
               )}
             </div>
@@ -3768,7 +3775,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
     const local = (securitiesMap || {})[ticker];
     if (local) setSecInfo(local);
     setInfoLoading(true);
-    fetch(`/api/securities/${encodeURIComponent(ticker)}/info`)
+    fetch(`/api/securities/${encodeURIComponent(ticker)}/info?language=${lang}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.ok) setSecInfo({
@@ -3776,11 +3783,12 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
           company_description: d.wiki?.extract || d.security?.company_description || null,
           source_url: d.wiki?.page_url || d.security?.source_url || null,
           wiki_title: d.wiki?.title || null,
+          info_source: d.wiki?.source || (d.wiki?.extract ? "wikipedia" : null),
         });
       })
       .catch(() => {})
       .finally(() => setInfoLoading(false));
-  }, [ticker]);
+  }, [ticker, lang]);
 
   React.useEffect(() => {
     if (!ticker) return;
@@ -3793,14 +3801,19 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
   if (!ticker) return null;
   const sec = secInfo || (securitiesMap || {})[ticker] || {};
   const marketRow = (marketRows || []).find((r) => (r.ticker || "").toUpperCase() === ticker.toUpperCase());
-  const lastPrice = marketRow?.last_price ?? marketRow?.lastPrice ?? null;
-  const closePrice = marketRow?.close_price ?? marketRow?.closePrice ?? null;
+  const lastPrice = marketRow?.last_price ?? marketRow?.lastPrice ?? sec.last_price ?? null;
+  const closePrice = marketRow?.close_price ?? marketRow?.closePrice ?? sec.close_price ?? null;
   const priceChange = (lastPrice != null && closePrice != null && closePrice !== 0)
     ? { value: lastPrice - closePrice, pct: ((lastPrice - closePrice) / Math.abs(closePrice)) * 100 }
     : null;
-  const typeLabel = sec.security_type === "bond"
+  // The securities map uses `type`/`share_type`/`is_preferred`/`sector`; some
+  // callers pass `security_type`/`stock_type`/`industry`. Accept both shapes.
+  const securityType = sec.security_type || sec.type;
+  const isPreferred = sec.stock_type === "preferred" || sec.share_type === "preferred" || sec.is_preferred === true;
+  const industry = sec.industry || sec.sector;
+  const typeLabel = securityType === "bond"
     ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond")
-    : sec.stock_type === "preferred"
+    : isPreferred
       ? (lang === "ru" ? "Прив. акция" : lang === "uz" ? "Imtiyozli" : "Preferred")
       : (lang === "ru" ? "Обыкн. акция" : lang === "uz" ? "Oddiy aksiya" : "Common Share");
   const TABS = [
@@ -3816,14 +3829,14 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
           ← {lang === "ru" ? "Назад" : lang === "uz" ? "Orqaga" : "Back"}
         </button>
         <div className="company-page-hero">
-          <CompanyLogo logo={sec.company_logo_url} name={sec.company_name || ticker} ticker={ticker} />
+          <CompanyLogo logo={sec.company_logo_url || sec.logo_url} name={sec.company_name || sec.name || ticker} ticker={ticker} />
           <div className="company-page-title">
-            <h1>{sec.company_name || ticker}</h1>
+            <h1>{sec.company_name || sec.name || ticker}</h1>
             <div className="company-page-meta">
               <span className="company-page-ticker">{ticker}</span>
               {sec.isin && <span className="muted" style={{ fontSize: 12 }}>{sec.isin}</span>}
               <span className="company-type-badge">{typeLabel}</span>
-              {sec.industry && <span className="sector-chip active" style={{ fontSize: 11, padding: "2px 10px" }}>{sectorLabel(lang, sec.industry)}</span>}
+              {industry && <span className="sector-chip active" style={{ fontSize: 11, padding: "2px 10px" }}>{sectorLabel(lang, industry)}</span>}
             </div>
           </div>
           <div className="company-page-price">
@@ -3858,6 +3871,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
         {tab === "overview" && (
           <CompanyOverviewTab sec={sec} priceHistory={priceHistory} priceLoading={priceLoading}
             priceMonths={priceMonths} onMonthsChange={setPriceMonths}
+            securityType={securityType} isPreferred={isPreferred} industry={industry}
             companyData={companyData} lang={lang} infoLoading={infoLoading} />
         )}
         {tab === "chart" && (
@@ -3915,7 +3929,9 @@ function CompanyInfoPanel({ ticker, secInfo, wikiInfo, language, onClose, loadin
               <p className="company-panel-wiki">{wikiInfo.extract}</p>
               {wikiInfo.page_url && (
                 <a href={wikiInfo.page_url} target="_blank" rel="noreferrer" className="company-panel-wiki-link">
-                  {lang === "en" ? "Read on Wikipedia →" : lang === "uz" ? "Vikipediyada o'qish →" : "Читать на Википедии →"}
+                  {wikiInfo.source === "wikipedia"
+                    ? (lang === "en" ? "Read on Wikipedia →" : lang === "uz" ? "Vikipediyada o'qish →" : "Читать на Википедии →")
+                    : (lang === "en" ? "Official website →" : lang === "uz" ? "Rasmiy sayt →" : "Официальный сайт →")}
                 </a>
               )}
             </>
