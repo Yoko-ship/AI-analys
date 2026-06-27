@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import sqlite3
 import time
@@ -14,7 +15,10 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = Path(__file__).parent / "securities.db"
+# Railway's container filesystem is ephemeral, so the default path is wiped on
+# every redeploy. Point SECURITIES_DB_PATH at a mounted persistent volume (e.g.
+# /app/data/securities.db) to keep the catalog and Wikipedia cache across deploys.
+DB_PATH = Path(os.getenv("SECURITIES_DB_PATH") or (Path(__file__).parent / "securities.db"))
 
 # Sector mapping for tickers known from company_catalog
 _TICKER_SECTORS: dict[str, str] = {
