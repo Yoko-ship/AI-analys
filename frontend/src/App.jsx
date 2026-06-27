@@ -3992,18 +3992,20 @@ function MarketView({
   const hasFav = (t) => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase());
 
   // User-configurable quote columns (ticker/company/last are always shown).
+  const recordLabel = lang === "en" ? "Record turnover" : lang === "uz" ? "Rekord aylanma" : "Рекорд оборота";
   const MARKET_COLS = [
     ["change", mt(lang, "change")],
     ["open", mt(lang, "open")],
     ["high", mt(lang, "high")],
     ["low", mt(lang, "low")],
     ["volume", mt(lang, "volumeCol")],
+    ["record", recordLabel],
     ["date", mt(lang, "date")],
     ["source", mt(lang, "source")],
   ];
   const [visibleCols, setVisibleCols] = useState(() => {
     try { const s = JSON.parse(localStorage.getItem("uz_market_cols")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
-    return new Set(["change", "open", "high", "low", "volume", "date", "source"]);
+    return new Set(["change", "open", "high", "low", "volume", "record", "date", "source"]);
   });
   const [colsOpen, setColsOpen] = useState(false);
   useEffect(() => { try { localStorage.setItem("uz_market_cols", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
@@ -4207,6 +4209,7 @@ function MarketView({
                   {visibleCols.has("high") && <th>{mt(lang, "high")}</th>}
                   {visibleCols.has("low") && <th>{mt(lang, "low")}</th>}
                   {visibleCols.has("volume") && <th>{mt(lang, "volumeCol")}</th>}
+                  {visibleCols.has("record") && <th>{recordLabel}</th>}
                   {visibleCols.has("date") && <th>{mt(lang, "date")}</th>}
                   {visibleCols.has("source") && <th>{mt(lang, "source")}</th>}
                 </tr>
@@ -4263,6 +4266,12 @@ function MarketView({
                         <td className="num">
                           {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
                           {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт. · {row.stockTradeCount !== null ? formatRatio(row.stockTradeCount, 0, lang) : "—"} {mt(lang, "tradeCount")}</span>}
+                        </td>
+                      )}
+                      {visibleCols.has("record") && (
+                        <td className="num">
+                          {sec.max_volume ? formatRatio(sec.max_volume, 0, lang) : "—"}
+                          {sec.max_volume_date && <span>{sec.max_volume_date}</span>}
                         </td>
                       )}
                       {visibleCols.has("date") && (
