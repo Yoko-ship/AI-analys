@@ -35,7 +35,7 @@ from reports_catalog import (
     sync_company as catalog_sync_company,
     sync_all as catalog_sync_all,
 )
-from securities_catalog import get_securities_map, get_wiki_info, resolve_logo, sync_securities
+from securities_catalog import get_securities_map, get_wiki_info, record_volume, resolve_logo, sync_securities
 from web_auth import WebUser, web_auth_store
 
 logger = logging.getLogger(__name__)
@@ -131,6 +131,7 @@ async def _populate_securities_on_startup() -> None:
             stocks_list = stocks if isinstance(stocks, list) else []
             if stocks_list:
                 count = await loop.run_in_executor(None, partial(sync_securities, stocks_list, logos))
+                await loop.run_in_executor(None, partial(record_volume, stocks_list))
                 logger.info("startup securities sync (%s): %d rows", security_type or "all", count)
         except Exception:
             logger.exception("startup securities sync failed for type=%s", security_type)
@@ -431,7 +432,10 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
     # Background sync into securities DB (fire-and-forget)
     if stocks_list:
         logos = _load_logos()
-        asyncio.get_event_loop().run_in_executor(None, partial(sync_securities, stocks_list, logos))
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, partial(sync_securities, stocks_list, logos))
+        # Track the record (largest) daily turnover per stock over time.
+        loop.run_in_executor(None, partial(record_volume, stocks_list))
 
     return _json_safe({
         "ok": True,

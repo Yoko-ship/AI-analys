@@ -171,8 +171,57 @@ def _init_db(conn: sqlite3.Connection) -> None:
             page_url     TEXT,
             fetched_at   TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS volume_records (
+            ticker          TEXT PRIMARY KEY,
+            max_volume      REAL,
+            max_volume_date TEXT,
+            max_quantity    REAL,
+            updated_at      TEXT
+        );
     """)
     conn.commit()
+
+
+def record_volume(stocks: list[dict]) -> int:
+    """Track the largest single-day turnover ever seen per ticker.
+
+    The UZSE feed only exposes per-stock daily aggregates (no individual trades),
+    so the closest thing to "the biggest deal" is the record trading day. Each
+    sync we compare the day's volume against the stored max and keep the larger,
+    along with the trade date it occurred on. Returns the number of records
+    updated/created. To persist across deploys, point SECURITIES_DB_PATH at a
+    mounted volume (the table otherwise resets with the ephemeral container).
+    """
+    conn = _get_conn()
+    _init_db(conn)
+    now = datetime.now(timezone.utc).isoformat()
+    changed = 0
+    for s in stocks:
+        ticker = (s.get("ticker") or "").upper().strip()
+        try:
+            vol = float(s.get("volume") or 0)
+        except (TypeError, ValueError):
+            vol = 0.0
+        if not ticker or vol <= 0:
+            continue
+        date = s.get("last_trade_date")
+        qty = s.get("quantity")
+        row = conn.execute("SELECT max_volume FROM volume_records WHERE ticker=?", (ticker,)).fetchone()
+        if row is None:
+            conn.execute(
+                "INSERT INTO volume_records (ticker, max_volume, max_volume_date, max_quantity, updated_at) VALUES (?,?,?,?,?)",
+                (ticker, vol, date, qty, now),
+            )
+            changed += 1
+        elif vol > (row["max_volume"] or 0):
+            conn.execute(
+                "UPDATE volume_records SET max_volume=?, max_volume_date=?, max_quantity=?, updated_at=? WHERE ticker=?",
+                (vol, date, qty, now, ticker),
+            )
+            changed += 1
+    conn.commit()
+    conn.close()
+    return changed
 
 
 # Bonds trade under series codes (BFMT3V2, ACMT2B4, UZUMS3B) rather than the
@@ -271,11 +320,18 @@ def get_securities_map() -> dict[str, dict]:
     conn = _get_conn()
     _init_db(conn)
     rows = conn.execute("SELECT * FROM securities ORDER BY ticker").fetchall()
+    vrows = conn.execute("SELECT ticker, max_volume, max_volume_date, max_quantity FROM volume_records").fetchall()
     conn.close()
+    records = {v["ticker"]: v for v in vrows}
     result: dict[str, dict] = {}
     for row in rows:
         d = dict(row)
         d["is_preferred"] = bool(d.get("is_preferred"))
+        vr = records.get(d["ticker"])
+        if vr:
+            d["max_volume"] = vr["max_volume"]
+            d["max_volume_date"] = vr["max_volume_date"]
+            d["max_quantity"] = vr["max_quantity"]
         result[d["ticker"]] = d
     return result
 
