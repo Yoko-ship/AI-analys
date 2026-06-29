@@ -4874,16 +4874,8 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                   {isCurrentAvail ? (
                     <>
                       <span>{clg(lang, "available")}</span>
-                      {currentReport?.has_pdf && (
-                        <a className="ghost-btn catalog-pdf-btn" href={index ? undefined : "#"} target="_blank" rel="noreferrer"
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            const res = await apiFetch(`/api/catalog/index/${ticker}`);
-                            const data = await res.json();
-                            const a = (data.availability?.[form]?.[quarter === 0 ? "annual" : "quarter"] || [])
-                              .find((r) => r.year === parseInt(year) && r.quarter === quarter);
-                            if (a?.pdf_url) window.open(a.pdf_url, "_blank");
-                          }}>
+                      {currentReport?.pdf_url && (
+                        <a className="ghost-btn catalog-pdf-btn" href={currentReport.pdf_url} target="_blank" rel="noreferrer">
                           {clg(lang, "pdfReport")}
                         </a>
                       )}

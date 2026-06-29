@@ -650,6 +650,9 @@ def get_company_index(ticker: str) -> dict[str, Any]:
             "has_pdf": bool(r["pdf_url"]),
             "has_excel": bool(r["excel_url"]),
             "has_excel_form1": bool(r["excel_url_form1"]),
+            "pdf_url": r["pdf_url"],
+            "excel_url": r["excel_url"],
+            "excel_url_form1": r["excel_url_form1"],
         }
         bucket = availability.setdefault(form, {"annual": [], "quarter": []})
         bucket.setdefault(pt, []).append(entry)
