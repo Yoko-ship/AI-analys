@@ -6763,6 +6763,18 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   font-variant-numeric: tabular-nums;
 }
 
+.market-table th.market-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s, background 0.15s;
+}
+.market-table th.market-th-sortable:hover { color: var(--text); background: rgba(148, 163, 184, 0.16); }
+.market-table th.market-th-sortable.sorted { color: var(--accent); }
+.market-th-inner { display: inline-flex; align-items: center; gap: 5px; }
+.market-sort-caret { font-size: 9px; opacity: 0.35; }
+.market-table th.market-th-sortable.sorted .market-sort-caret { opacity: 1; }
+.market-table th.market-th-sortable:hover .market-sort-caret { opacity: 0.7; }
+
 .market-table td strong,
 .market-table td span {
   display: block;
