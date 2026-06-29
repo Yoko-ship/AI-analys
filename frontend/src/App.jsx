@@ -4216,6 +4216,15 @@ function MarketView({
                   <div className="market-cols-backdrop" onClick={() => setColsOpen(false)} />
                   <div className="market-cols-dropdown" role="menu">
                     <div className="market-cols-title">{lang === "en" ? "Visible columns" : lang === "uz" ? "Ko'rinadigan ustunlar" : "Видимые колонки"}</div>
+                    <label className="market-cols-row market-cols-all">
+                      <input
+                        type="checkbox"
+                        checked={MARKET_COLS.every(([k]) => visibleCols.has(k))}
+                        ref={(el) => { if (el) el.indeterminate = MARKET_COLS.some(([k]) => visibleCols.has(k)) && !MARKET_COLS.every(([k]) => visibleCols.has(k)); }}
+                        onChange={() => setVisibleCols(MARKET_COLS.every(([k]) => visibleCols.has(k)) ? new Set() : new Set(MARKET_COLS.map(([k]) => k)))}
+                      />
+                      <span>{lang === "en" ? "All" : lang === "uz" ? "Hammasi" : "Все"}</span>
+                    </label>
                     {MARKET_COLS.map(([k, label]) => (
                       <label key={k} className="market-cols-row">
                         <input type="checkbox" checked={visibleCols.has(k)} onChange={() => toggleCol(k)} />
