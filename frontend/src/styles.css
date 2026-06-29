@@ -6945,6 +6945,7 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 }
 .market-cols-row:hover { background: var(--bg-2); }
 .market-cols-row input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+.market-cols-all { font-weight: 600; border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; margin-bottom: 4px; padding-bottom: 10px; }
 
 /* Company logo in the market table — same white-plate wordmark treatment as
    the catalog (transparent icon-marks float, wordmarks get a light plate),
