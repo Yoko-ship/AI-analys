@@ -4016,11 +4016,20 @@ function MarketView({
     ["date", mt(lang, "date")],
     ["source", mt(lang, "source")],
   ];
+  // Core columns are always shown — listed in the settings panel as locked rows.
+  const CORE_COLS = [
+    ["ticker", mt(lang, "ticker")],
+    ["company", mt(lang, "company")],
+    ["last", mt(lang, "last")],
+  ];
+  const ALL_FIELDS = [...CORE_COLS.map(([k, l]) => [k, l, true]), ...MARKET_COLS.map(([k, l]) => [k, l, false])];
   const [visibleCols, setVisibleCols] = useState(() => {
     try { const s = JSON.parse(localStorage.getItem("uz_market_cols")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
     return new Set(["change", "open", "high", "low", "volume", "record", "date", "source"]);
   });
   const [colsOpen, setColsOpen] = useState(false);
+  const [colsSearch, setColsSearch] = useState("");
+  const [screenerOpen, setScreenerOpen] = useState(true);
   useEffect(() => { try { localStorage.setItem("uz_market_cols", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
   const toggleCol = (k) => setVisibleCols((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const colSpan = 3 + visibleCols.size;
@@ -4215,22 +4224,69 @@ function MarketView({
                 <>
                   <div className="market-cols-backdrop" onClick={() => setColsOpen(false)} />
                   <div className="market-cols-dropdown" role="menu">
-                    <div className="market-cols-title">{lang === "en" ? "Visible columns" : lang === "uz" ? "Ko'rinadigan ustunlar" : "Видимые колонки"}</div>
-                    <label className="market-cols-row market-cols-all">
+                    <div className="market-cols-search">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                       <input
-                        type="checkbox"
-                        checked={MARKET_COLS.every(([k]) => visibleCols.has(k))}
-                        ref={(el) => { if (el) el.indeterminate = MARKET_COLS.some(([k]) => visibleCols.has(k)) && !MARKET_COLS.every(([k]) => visibleCols.has(k)); }}
-                        onChange={() => setVisibleCols(MARKET_COLS.every(([k]) => visibleCols.has(k)) ? new Set() : new Set(MARKET_COLS.map(([k]) => k)))}
+                        type="text"
+                        value={colsSearch}
+                        onChange={(e) => setColsSearch(e.target.value)}
+                        placeholder={lang === "en" ? "Search" : lang === "uz" ? "Qidirish" : "Поиск"}
                       />
-                      <span>{lang === "en" ? "All" : lang === "uz" ? "Hammasi" : "Все"}</span>
-                    </label>
-                    {MARKET_COLS.map(([k, label]) => (
-                      <label key={k} className="market-cols-row">
-                        <input type="checkbox" checked={visibleCols.has(k)} onChange={() => toggleCol(k)} />
-                        <span>{label}</span>
-                      </label>
-                    ))}
+                    </div>
+                    {(() => {
+                      const q = colsSearch.trim().toLowerCase();
+                      const fields = ALL_FIELDS.filter(([, label]) => !q || label.toLowerCase().includes(q));
+                      const allOptOn = MARKET_COLS.every(([k]) => visibleCols.has(k));
+                      const someOptOn = MARKET_COLS.some(([k]) => visibleCols.has(k));
+                      return (
+                        <div className="market-cols-group">
+                          <button
+                            type="button"
+                            className="market-cols-group-head"
+                            onClick={() => setScreenerOpen((v) => !v)}
+                            aria-expanded={screenerOpen}
+                          >
+                            <span className="market-cols-group-title">{lang === "en" ? "AI screener overview" : lang === "uz" ? "AI-skrener sharhi" : "Обзор AI-скринер"}</span>
+                            <span className="market-cols-group-meta">
+                              <span className="market-cols-group-badge">{CORE_COLS.length + visibleCols.size}</span>
+                              <span
+                                className="market-cols-group-info"
+                                title={lang === "en" ? "Columns shown in the market quotes table. Ticker, company and last price are always on." : lang === "uz" ? "Bozor jadvalidagi ustunlar. Tiker, kompaniya va oxirgi narx doim yoqilgan." : "Колонки таблицы котировок. Тикер, компания и последняя цена показаны всегда."}
+                              >ⓘ</span>
+                              <span className={`market-cols-group-chevron${screenerOpen ? " open" : ""}`}>›</span>
+                            </span>
+                          </button>
+                          {screenerOpen && (
+                            <div className="market-cols-group-body">
+                              {!q && (
+                                <label className="market-cols-row market-cols-all">
+                                  <input
+                                    type="checkbox"
+                                    checked={allOptOn}
+                                    ref={(el) => { if (el) el.indeterminate = someOptOn && !allOptOn; }}
+                                    onChange={() => setVisibleCols(allOptOn ? new Set() : new Set(MARKET_COLS.map(([k]) => k)))}
+                                  />
+                                  <span>{lang === "en" ? "All" : lang === "uz" ? "Hammasi" : "Все"}</span>
+                                </label>
+                              )}
+                              {fields.length ? fields.map(([k, label, locked]) => (
+                                <label key={k} className={`market-cols-row${locked ? " market-cols-row-locked" : ""}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={locked ? true : visibleCols.has(k)}
+                                    disabled={locked}
+                                    onChange={() => { if (!locked) toggleCol(k); }}
+                                  />
+                                  <span>{label}</span>
+                                </label>
+                              )) : (
+                                <div className="market-cols-empty">{lang === "en" ? "Nothing found" : lang === "uz" ? "Hech narsa topilmadi" : "Ничего не найдено"}</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </>
               )}
