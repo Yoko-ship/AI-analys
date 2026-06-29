@@ -9114,6 +9114,7 @@ body[data-theme="light"] .catalog-company-item { background: #fff; border-color:
 body[data-theme="light"] .catalog-company-item.active { background: #fffbf0; border-color: var(--accent); }
 body[data-theme="light"] .catalog-main { background: #fff; border-color: #e5e7eb; }
 body[data-theme="light"] .catalog-year-btn, body[data-theme="light"] .catalog-period-btn { background: #f8f9fa; border-color: #e5e7eb; color: #1a1a2e; }
+body[data-theme="light"] .catalog-year-btn.active, body[data-theme="light"] .catalog-period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 body[data-theme="light"] .catalog-ratio-card { background: #f8f9fa; border-color: #e5e7eb; }
 body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalog-compare-period-row select { background: #f8f9fa; border-color: #e5e7eb; color: #1a1a2e; }
 
