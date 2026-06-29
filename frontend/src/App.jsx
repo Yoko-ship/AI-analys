@@ -3991,6 +3991,19 @@ function MarketView({
   const [panelWikiLoading, setPanelWikiLoading] = useState(false);
   const hasFav = (t) => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase());
 
+  // Column sorting. sortKey === null falls back to the default (date desc, then |change|).
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("desc");
+  const onSort = (key) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      // text columns read best ascending, numeric/date columns descending
+      setSortDir(["ticker", "company"].includes(key) ? "asc" : "desc");
+    }
+  };
+
   // User-configurable quote columns (ticker/company/last are always shown).
   const recordLabel = lang === "en" ? "Record turnover" : lang === "uz" ? "Rekord aylanma" : "Рекорд оборота";
   const MARKET_COLS = [
@@ -4030,6 +4043,21 @@ function MarketView({
   // Gather sectors present in current data
   const presentSectors = [...new Set(prepared.map((r) => smap[r.ticker]?.sector).filter(Boolean))].sort();
 
+  // Value read for each sortable column. ticker/company/date are strings, the rest numeric.
+  const sortAccessors = {
+    ticker: (r) => r.ticker || "",
+    company: (r) => r.name || "",
+    last: (r) => r.lastPrice,
+    change: (r) => r.changePercent,
+    open: (r) => r.openPrice,
+    high: (r) => r.highPrice,
+    low: (r) => r.lowPrice,
+    volume: (r) => r.stockVolume,
+    record: (r) => smap[r.ticker]?.max_volume,
+    date: (r) => r.last_trade_date || "",
+    source: (r) => r.url || "",
+  };
+
   const visibleRows = prepared
     .filter((row) => {
       if (favOnly && !hasFav(row.ticker)) return false;
@@ -4038,13 +4066,46 @@ function MarketView({
       return `${row.ticker || ""} ${row.name || ""} ${row.isin || ""}`.toLowerCase().includes(search);
     })
     .sort((a, b) => {
-      const aDate = a.last_trade_date || "";
-      const bDate = b.last_trade_date || "";
-      if (aDate !== bDate) return bDate.localeCompare(aDate);
-      return Math.abs(b.changePercent ?? -Infinity) - Math.abs(a.changePercent ?? -Infinity);
+      if (!sortKey) {
+        const aDate = a.last_trade_date || "";
+        const bDate = b.last_trade_date || "";
+        if (aDate !== bDate) return bDate.localeCompare(aDate);
+        return Math.abs(b.changePercent ?? -Infinity) - Math.abs(a.changePercent ?? -Infinity);
+      }
+      const acc = sortAccessors[sortKey] || (() => null);
+      const av = acc(a);
+      const bv = acc(b);
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (typeof av === "string" || typeof bv === "string") {
+        return dir * String(av).localeCompare(String(bv));
+      }
+      // Empty values (no trade / missing) always sink to the bottom, regardless of direction.
+      const aEmpty = av === null || av === undefined || Number.isNaN(av);
+      const bEmpty = bv === null || bv === undefined || Number.isNaN(bv);
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;
+      if (bEmpty) return -1;
+      return dir * (av - bv);
     });
   const stats = buildMarketStats(prepared);
   const formatLeader = (row) => row ? `${row.ticker} ${formatRatio(row.changePercent, 2, lang)}%` : "—";
+
+  const sortTh = (key, label) => (
+    <th
+      key={key}
+      className={`market-th-sortable${sortKey === key ? " sorted" : ""}`}
+      onClick={() => onSort(key)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(key); } }}
+      role="button"
+      tabIndex={0}
+      aria-sort={sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <span className="market-th-inner">
+        <span>{label}</span>
+        <span className="market-sort-caret">{sortKey === key ? (sortDir === "asc" ? "▲" : "▼") : "↕"}</span>
+      </span>
+    </th>
+  );
 
   return (
     <section className="market-layout">
@@ -4201,17 +4262,17 @@ function MarketView({
             <table className="market-table">
               <thead>
                 <tr>
-                  <th>{mt(lang, "ticker")}</th>
-                  <th>{mt(lang, "company")}</th>
-                  <th>{mt(lang, "last")}</th>
-                  {visibleCols.has("change") && <th>{mt(lang, "change")}</th>}
-                  {visibleCols.has("open") && <th>{mt(lang, "open")}</th>}
-                  {visibleCols.has("high") && <th>{mt(lang, "high")}</th>}
-                  {visibleCols.has("low") && <th>{mt(lang, "low")}</th>}
-                  {visibleCols.has("volume") && <th>{mt(lang, "volumeCol")}</th>}
-                  {visibleCols.has("record") && <th>{recordLabel}</th>}
-                  {visibleCols.has("date") && <th>{mt(lang, "date")}</th>}
-                  {visibleCols.has("source") && <th>{mt(lang, "source")}</th>}
+                  {sortTh("ticker", mt(lang, "ticker"))}
+                  {sortTh("company", mt(lang, "company"))}
+                  {sortTh("last", mt(lang, "last"))}
+                  {visibleCols.has("change") && sortTh("change", mt(lang, "change"))}
+                  {visibleCols.has("open") && sortTh("open", mt(lang, "open"))}
+                  {visibleCols.has("high") && sortTh("high", mt(lang, "high"))}
+                  {visibleCols.has("low") && sortTh("low", mt(lang, "low"))}
+                  {visibleCols.has("volume") && sortTh("volume", mt(lang, "volumeCol"))}
+                  {visibleCols.has("record") && sortTh("record", recordLabel)}
+                  {visibleCols.has("date") && sortTh("date", mt(lang, "date"))}
+                  {visibleCols.has("source") && sortTh("source", mt(lang, "source"))}
                 </tr>
               </thead>
               <tbody>
