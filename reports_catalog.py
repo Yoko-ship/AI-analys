@@ -241,6 +241,62 @@ def _cleanup_old_notifications(conn: sqlite3.Connection, days: int = 30) -> None
 # Sync — one company
 # ---------------------------------------------------------------------------
 
+# Legal-form tokens that openinfo's /reports/main/ search does NOT match well
+# when appended to the brand name (e.g. '"Aloqabank" ATB' → 0 hits, but
+# 'Aloqabank' → 54 hits). Stripping them is what lets org_type (and therefore
+# the NSBU Excel export URL) resolve for banks/insurers/JSCs.
+_LEGAL_FORM_TOKENS = {
+    "atb", "aj", "ak", "ato", "mchj", "qmj", "xk", "uk", "ooo", "aytb",
+    "ао", "оао", "зао", "акб", "хк", "ук", "чп", "ип", "atb.", "aj.",
+}
+
+
+def _org_search_terms(company_name: str) -> list[str]:
+    """Best-first candidate queries for openinfo's /reports/main/ search.
+
+    openinfo's search engine fails on the full legal name (quotes + legal-form
+    suffix), so we also try the de-quoted name and the bare brand token(s).
+    """
+    name = (company_name or "").strip()
+    terms: list[str] = []
+    if name:
+        terms.append(name)
+    cleaned = re.sub(r"""["«»“”'`]""", " ", name)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if cleaned and cleaned not in terms:
+        terms.append(cleaned)
+    tokens = [t for t in cleaned.split(" ") if t]
+    brand = [t for t in tokens if t.lower().strip(".") not in _LEGAL_FORM_TOKENS]
+    phrase = " ".join(brand).strip()
+    if phrase and phrase not in terms:
+        terms.append(phrase)
+    if brand and brand[0] not in terms:
+        terms.append(brand[0])
+    return terms
+
+
+def _fetch_main_results(session: Any, company_name: str, org_id: Any) -> tuple[list[dict], str | None]:
+    """Return (org-filtered /reports/main/ records, org_type) for a company.
+
+    Tries progressively cleaner search terms until one returns records for this
+    org_id — openinfo's search misses the full legal name for many issuers.
+    """
+    for query in _org_search_terms(company_name):
+        try:
+            payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, "search": query})
+        except Exception:
+            continue
+        results = list(payload.get("results") or []) if isinstance(payload, dict) else []
+        filtered = [r for r in results if str(r.get("organization")) == str(org_id)]
+        if filtered:
+            org_type = next(
+                ((r.get("properties") or {}).get("org_type") for r in filtered if (r.get("properties") or {}).get("org_type")),
+                None,
+            )
+            return filtered, org_type
+    return [], None
+
+
 def _nsbu_export_urls(report_id: Any, period_type: str, org_type: str | None) -> tuple[str | None, str | None]:
     """Build (pdf_url, excel_url) for an NSBU accounting-report from its id.
 
@@ -311,20 +367,13 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
 
     # Fetch the /reports/main/ listing up front: it supplies the issuer's
     # org_type (needed to build NSBU Excel export URLs) and the MSFO/Audition
-    # records consumed further below.
+    # records consumed further below. openinfo's search misses the full legal
+    # name for many issuers, so _fetch_main_results retries with cleaner terms.
     try:
-        payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, "search": company_name})
-        main_results = list(payload.get("results") or []) if isinstance(payload, dict) else []
-        main_results = [r for r in main_results if str(r.get("organization")) == str(org_id)]
+        main_results, org_type = _fetch_main_results(session, company_name, org_id)
     except Exception as exc:
-        main_results = []
+        main_results, org_type = [], None
         errors.append(f"reports/main: {exc}")
-    org_type: str | None = None
-    for _r in main_results:
-        _ot = (_r.get("properties") or {}).get("org_type")
-        if _ot:
-            org_type = _ot
-            break
 
     # ---- NSBU annual -------------------------------------------------------
     try:
@@ -950,7 +999,7 @@ def get_company_reports(ticker: str) -> list[dict[str, Any]]:
     """Return all catalog reports for a ticker, newest first."""
     conn = get_catalog_conn()
     rows = conn.execute("""
-        SELECT report_form, period_type, year, quarter, title, pdf_url, excel_url, synced_at
+        SELECT report_form, period_type, year, quarter, title, pdf_url, excel_url, excel_url_form1, synced_at
         FROM catalog_reports
         WHERE ticker = ?
         ORDER BY year DESC, quarter DESC, synced_at DESC

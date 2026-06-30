@@ -142,6 +142,9 @@ const TEXTS = {
       ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Чистая маржа", debt_ratio: "Debt Ratio", debt_to_equity: "D/E" },
       dynamicsLabels: { revenue: "Выручка", net_income: "Чистая прибыль", total_assets: "Активы", equity: "Капитал", total_liabilities: "Обязательства" },
       pdfReport: "Открыть PDF",
+      excelIncome: "Excel — фин. результаты",
+      excelBalance: "Excel — баланс",
+      excelReport: "Скачать Excel",
       exportPdf: "Скачать PDF",
       notifications: "Уведомления",
       notifEmpty: "Нет новых отчётов",
@@ -409,6 +412,9 @@ const TEXTS = {
       ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Net Margin", debt_ratio: "Debt Ratio", debt_to_equity: "D/E" },
       dynamicsLabels: { revenue: "Revenue", net_income: "Net Income", total_assets: "Total Assets", equity: "Equity", total_liabilities: "Total Liabilities" },
       pdfReport: "Open PDF",
+      excelIncome: "Excel — income statement",
+      excelBalance: "Excel — balance sheet",
+      excelReport: "Download Excel",
       exportPdf: "Download PDF",
       notifications: "Notifications",
       notifEmpty: "No new reports",
@@ -675,6 +681,9 @@ const TEXTS = {
       ratioLabels: { ROA: "ROA", ROE: "ROE", net_margin: "Sof marja", debt_ratio: "Qarz nisbati", debt_to_equity: "D/E" },
       dynamicsLabels: { revenue: "Daromad", net_income: "Sof foyda", total_assets: "Jami aktiv", equity: "Kapital", total_liabilities: "Majburiyatlar" },
       pdfReport: "PDFni ochish",
+      excelIncome: "Excel — moliyaviy natija",
+      excelBalance: "Excel — balans",
+      excelReport: "Excel yuklab olish",
       exportPdf: "PDF yuklab olish",
       notifications: "Bildirishnomalar",
       notifEmpty: "Yangi hisobotlar yo'q",
@@ -3856,8 +3865,9 @@ function CompanyReportsTab({ reports, lang }) {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                {r.pdf_url && <a href={r.pdf_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>PDF →</a>}
                 {r.excel_url && <a href={r.excel_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>Excel →</a>}
+                {r.excel_url_form1 && <a href={r.excel_url_form1} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>{lang === "ru" ? "Баланс →" : lang === "uz" ? "Balans →" : "Balance →"}</a>}
+                {r.pdf_url && !r.pdf_url.includes("/reports/to_pdf") && <a href={r.pdf_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>PDF →</a>}
               </div>
             </div>
           ))}
@@ -5265,7 +5275,22 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                   {isCurrentAvail ? (
                     <>
                       <span>{clg(lang, "available")}</span>
-                      {currentReport?.pdf_url && (
+                      {/* openinfo's /reports/to_pdf{id} route is keyed on an id space
+                          that doesn't match the accounting-report id, so NSBU PDFs
+                          often resolve to the wrong company or 500. The export-excel
+                          API is correct (verified per company), so prefer Excel and
+                          only show a PDF when it's a real document URL (MSFO/Audit). */}
+                      {currentReport?.excel_url && (
+                        <a className="ghost-btn catalog-pdf-btn" href={currentReport.excel_url} target="_blank" rel="noreferrer">
+                          {currentReport?.excel_url_form1 ? clg(lang, "excelIncome") : clg(lang, "excelReport")}
+                        </a>
+                      )}
+                      {currentReport?.excel_url_form1 && (
+                        <a className="ghost-btn catalog-pdf-btn" href={currentReport.excel_url_form1} target="_blank" rel="noreferrer">
+                          {clg(lang, "excelBalance")}
+                        </a>
+                      )}
+                      {currentReport?.pdf_url && !currentReport.pdf_url.includes("/reports/to_pdf") && (
                         <a className="ghost-btn catalog-pdf-btn" href={currentReport.pdf_url} target="_blank" rel="noreferrer">
                           {clg(lang, "pdfReport")}
                         </a>
