@@ -3866,7 +3866,7 @@ function CompanyReportsTab({ reports, lang }) {
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 {r.excel_url && <a href={r.excel_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>Excel →</a>}
-                {r.excel_url_form1 && <a href={r.excel_url_form1} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>{lang === "ru" ? "Баланс →" : lang === "uz" ? "Balans →" : "Balance →"}</a>}
+                {r.excel_url_form1 && r.excel_url_form1 !== r.excel_url && <a href={r.excel_url_form1} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>{lang === "ru" ? "Баланс →" : lang === "uz" ? "Balans →" : "Balance →"}</a>}
                 {r.pdf_url && !r.pdf_url.includes("/reports/to_pdf") && <a href={r.pdf_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>PDF →</a>}
               </div>
             </div>
@@ -5280,12 +5280,15 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                           often resolve to the wrong company or 500. The export-excel
                           API is correct (verified per company), so prefer Excel and
                           only show a PDF when it's a real document URL (MSFO/Audit). */}
+                      {/* openinfo's export-excel returns the full NSBU report (balance +
+                          income) in one workbook, so form1/form2 ids are usually identical.
+                          Show the second link only if it's genuinely a different file. */}
                       {currentReport?.excel_url && (
                         <a className="ghost-btn catalog-pdf-btn" href={currentReport.excel_url} target="_blank" rel="noreferrer">
-                          {currentReport?.excel_url_form1 ? clg(lang, "excelIncome") : clg(lang, "excelReport")}
+                          {(currentReport?.excel_url_form1 && currentReport.excel_url_form1 !== currentReport.excel_url) ? clg(lang, "excelIncome") : clg(lang, "excelReport")}
                         </a>
                       )}
-                      {currentReport?.excel_url_form1 && (
+                      {currentReport?.excel_url_form1 && currentReport.excel_url_form1 !== currentReport.excel_url && (
                         <a className="ghost-btn catalog-pdf-btn" href={currentReport.excel_url_form1} target="_blank" rel="noreferrer">
                           {clg(lang, "excelBalance")}
                         </a>
