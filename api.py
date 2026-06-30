@@ -970,7 +970,16 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
             return {"ok": False, "ticker": ticker, "error": "ISIN not found", "points": []}
         data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, months))
         points = [
-            {"date": p.get("date"), "close": p.get("close")}
+            {
+                "date": p.get("date"),
+                "open": p.get("open"),
+                "high": p.get("high"),
+                "low": p.get("low"),
+                "close": p.get("close"),
+                "change": p.get("change"),
+                "volume": p.get("trading_volume"),
+                "value": p.get("trading_value"),
+            }
             for p in (data.get("points") or [])
             if p.get("date") and p.get("close") is not None
         ]
@@ -978,6 +987,56 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
     except Exception as exc:
         logger.exception("price-history failed for %s", ticker)
         return {"ok": False, "ticker": ticker, "error": str(exc), "points": []}
+
+
+def _normalize_dividends(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Map raw openinfo dividend-calendar rows to a stable frontend shape."""
+    def _num(value: Any) -> float | None:
+        try:
+            if value in (None, "", "-"):
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    rows = []
+    for item in items:
+        rows.append({
+            "decision_date": item.get("decision_date"),
+            "pub_date": item.get("pub_date"),
+            "organization": item.get("organization"),
+            "ordinary_amount": _num(item.get("common_share_amount")),
+            "ordinary_percent": _num(item.get("common_share_percent")),
+            "ordinary_start": item.get("common_share_start_date"),
+            "ordinary_end": item.get("common_share_end_date"),
+            "preferred_amount": _num(item.get("priviliged_share_amount")),
+            "preferred_percent": _num(item.get("priviliged_share_percent")),
+            "preferred_start": item.get("priviliged_share_start_date"),
+            "preferred_end": item.get("priviliged_share_end_date"),
+            "link": item.get("link"),
+        })
+    rows.sort(key=lambda r: str(r.get("decision_date") or ""), reverse=True)
+    return rows
+
+
+@app.get("/api/dividends/{ticker}")
+async def api_dividends(ticker: str) -> dict[str, Any]:
+    """Dividend history for a ticker, resolved via the company's legal name."""
+    from openinfo_collector import resolve_company, fetch_dividends
+
+    ticker = ticker.upper()
+    loop = asyncio.get_running_loop()
+    try:
+        company = await loop.run_in_executor(None, partial(resolve_company, ticker))
+        company_name = (company or {}).get("company_name") or ticker
+        data = await loop.run_in_executor(None, partial(fetch_dividends, company_name, None, 50))
+        if not data.get("count") and company_name != ticker:
+            data = await loop.run_in_executor(None, partial(fetch_dividends, ticker, None, 50))
+        items = _normalize_dividends(data.get("items") or [])
+        return {"ok": True, "ticker": ticker, "company_name": company_name, "count": len(items), "items": items}
+    except Exception as exc:
+        logger.exception("dividends failed for %s", ticker)
+        return {"ok": False, "ticker": ticker, "error": str(exc), "items": []}
 
 
 @app.get("/api/catalog/company/{ticker}/reports")
