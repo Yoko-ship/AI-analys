@@ -9310,8 +9310,40 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .range-btn { padding: 3px 11px; border-radius: 6px; border: 1px solid var(--border); background: none; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
 .range-btn:hover { border-color: var(--accent); color: var(--text-primary); }
 .range-btn.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
-.company-price-chart-svg { display: block; color: var(--text-primary); }
+.company-price-chart-svg { display: block; color: var(--text-primary); cursor: crosshair; }
 .chart-loading { padding: 48px 0; text-align: center; }
+
+/* Interactive price chart */
+.company-chart-wrap { position: relative; }
+.company-chart-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.company-chart-opts { display: flex; gap: 4px; align-items: center; }
+.chart-opt-btn { padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border); background: none; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
+.chart-opt-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
+.chart-opt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chart-opt-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
+.chart-opt-btn.chart-ma-ma20.active { background: #f59e0b; border-color: #f59e0b; color: #000; }
+.chart-opt-btn.chart-ma-ma50.active { background: #a855f7; border-color: #a855f7; color: #fff; }
+.chart-opt-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+.cpc-tooltip { position: absolute; top: 8px; z-index: 5; min-width: 132px; padding: 8px 10px; border-radius: 9px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 6px 22px rgba(0,0,0,0.35); font-size: 11px; pointer-events: none; backdrop-filter: blur(6px); }
+.cpc-tt-date { font-weight: 700; font-size: 11px; margin-bottom: 5px; color: var(--text-primary); }
+.cpc-tt-row { display: flex; justify-content: space-between; gap: 14px; line-height: 1.55; }
+.cpc-tt-row span { color: var(--text-muted); }
+.cpc-tt-row b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+/* Dividend center */
+.company-dividends { display: flex; flex-direction: column; gap: 14px; }
+.dividend-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.dividend-card { padding: 16px 18px; border-radius: 14px; }
+.dividend-card-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.dividend-card-val { font-size: 24px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.dividend-card-unit { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.dividend-table-wrap { padding: 4px 4px; overflow-x: auto; }
+.dividend-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dividend-table th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.dividend-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
+.dividend-table tbody tr:last-child td { border-bottom: none; }
+.dividend-table tbody tr:hover { background: var(--surface-2); }
+.dividend-table .dividend-num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Reports list */
 .company-reports-list { display: flex; flex-direction: column; gap: 8px; }

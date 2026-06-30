@@ -3522,6 +3522,11 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
     { label: "1Г", months: 12 },
     { label: "2Г", months: 24 },
   ];
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [hover, setHover] = React.useState(null);
+  const [chartType, setChartType] = React.useState("line"); // line | candle
+  const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
+
   const rangeBar = (
     <div className="company-chart-ranges">
       {RANGES.map((r) => (
@@ -3531,68 +3536,209 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
       ))}
     </div>
   );
-  if (loading) return <div className="chart-loading muted">{lang === "ru" ? "Загрузка..." : lang === "uz" ? "Yuklanmoqda..." : "Loading..."}</div>;
+
+  if (loading) return <div className="chart-loading muted">{t("Загрузка...", "Yuklanmoqda...", "Loading...")}</div>;
+
   const points = (history || []).map((h) => {
-    if (Array.isArray(h)) return { date: h[0], price: Number(h[1]) };
-    return { date: h.date || h.trade_date, price: Number(h.close || h.price || h.close_price || 0) };
-  }).filter((p) => p.price > 0 && p.date);
+    if (Array.isArray(h)) return { date: h[0], close: Number(h[1]) || 0, volume: 0, change: null };
+    return {
+      date: h.date || h.trade_date,
+      open: h.open != null ? Number(h.open) : null,
+      high: h.high != null ? Number(h.high) : null,
+      low: h.low != null ? Number(h.low) : null,
+      close: Number(h.close ?? h.price ?? h.close_price ?? 0),
+      volume: Number(h.volume ?? h.trading_volume ?? 0) || 0,
+      change: h.change != null ? Number(h.change) : null,
+    };
+  }).filter((p) => p.close > 0 && p.date);
+
   if (points.length < 2) return (
     <div>
-      {rangeBar}
+      <div className="company-chart-toolbar">{rangeBar}</div>
       <div className="muted" style={{ padding: "32px 0", textAlign: "center" }}>
-        {lang === "ru" ? "История цен недоступна" : lang === "uz" ? "Narxlar tarixi mavjud emas" : "Price history unavailable"}
+        {t("История цен недоступна", "Narxlar tarixi mavjud emas", "Price history unavailable")}
       </div>
     </div>
   );
-  const W = 800, H = 300, PAD = { top: 16, right: 16, bottom: 36, left: 72 };
-  const prices = points.map((p) => p.price);
-  const minP = Math.min(...prices), maxP = Math.max(...prices);
+
+  // uz-UZ renders months as "M01"/"M02"; keep Russian month names for ru+uz.
+  const dateLocale = lang === "en" ? "en-US" : "ru-RU";
+  const fmtDate = (d, withYear) => d
+    ? new Date(d).toLocaleDateString(dateLocale, withYear ? { year: "2-digit", month: "short", day: "numeric" } : { month: "short", day: "numeric" })
+    : "";
+  const abbrev = (v) => v == null ? "—" : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : `${Math.round(v)}`;
+  const fmtFull = (v) => v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 });
+
+  const W = 820, H = 360;
+  const PAD = { top: 14, right: 14, bottom: 40, left: 64 };
+  const VOL_H = 46;
+  const priceTop = PAD.top;
+  const priceBot = H - PAD.bottom - VOL_H - 10;
+  const volTop = H - PAD.bottom - VOL_H;
+  const volBot = H - PAD.bottom;
+  const innerW = W - PAD.left - PAD.right;
+
+  const hasOHLC = points.every((p) => p.open > 0 && p.high > 0 && p.low > 0);
+  const canCandle = hasOHLC && points.length <= 180;
+  const showCandles = chartType === "candle" && canCandle;
+  const lows = hasOHLC ? points.map((p) => p.low) : points.map((p) => p.close);
+  const highs = hasOHLC ? points.map((p) => p.high) : points.map((p) => p.close);
+  const minP = Math.min(...lows), maxP = Math.max(...highs);
   const rangeP = maxP - minP || 1;
-  const xs = (i) => PAD.left + (i / (points.length - 1)) * (W - PAD.left - PAD.right);
-  const ys = (p) => PAD.top + (1 - (p - minP) / rangeP) * (H - PAD.top - PAD.bottom);
-  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"}${xs(i).toFixed(1)},${ys(p.price).toFixed(1)}`).join(" ");
-  const areaD = `${pathD} L${xs(points.length - 1).toFixed(1)},${(H - PAD.bottom).toFixed(1)} L${PAD.left},${(H - PAD.bottom).toFixed(1)} Z`;
-  const isUp = points[points.length - 1].price >= points[0].price;
+  const maxVol = Math.max(...points.map((p) => p.volume), 1);
+
+  const xs = (i) => PAD.left + (i / (points.length - 1)) * innerW;
+  const ys = (p) => priceTop + (1 - (p - minP) / rangeP) * (priceBot - priceTop);
+  const vy = (v) => volBot - (v / maxVol) * (volBot - volTop);
+  const candleW = Math.max(1.5, Math.min(13, (innerW / points.length) * 0.62));
+
+  const lineD = points.map((p, i) => `${i === 0 ? "M" : "L"}${xs(i).toFixed(1)},${ys(p.close).toFixed(1)}`).join(" ");
+  const areaD = `${lineD} L${xs(points.length - 1).toFixed(1)},${priceBot.toFixed(1)} L${xs(0).toFixed(1)},${priceBot.toFixed(1)} Z`;
+  const isUp = points[points.length - 1].close >= points[0].close;
   const color = isUp ? "#22c55e" : "#ef4444";
+
+  const sma = (n) => points.map((_, i) => {
+    if (i < n - 1) return null;
+    let s = 0;
+    for (let j = i - n + 1; j <= i; j++) s += points[j].close;
+    return s / n;
+  });
+  const maPath = (arr) => {
+    let d = "", started = false;
+    arr.forEach((v, i) => {
+      if (v == null) return;
+      d += `${started ? "L" : "M"}${xs(i).toFixed(1)},${ys(v).toFixed(1)}`;
+      started = true;
+    });
+    return d;
+  };
+  const ma20 = maOn.ma20 && points.length >= 20 ? sma(20) : null;
+  const ma50 = maOn.ma50 && points.length >= 50 ? sma(50) : null;
+
   const yTicks = 4;
   const yLabels = Array.from({ length: yTicks + 1 }, (_, i) => {
     const v = minP + (i / yTicks) * rangeP;
-    const label = v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v.toFixed(0);
-    return { y: ys(v), label };
+    return { y: ys(v), label: abbrev(v) };
   });
-  const xStep = Math.max(1, Math.floor(points.length / 5));
-  // uz-UZ renders months as "M01"/"M02"; keep the app's Russian month names for
-  // both ru and uz, and only switch English to its own locale.
-  const dateLocale = lang === "en" ? "en-US" : "ru-RU";
+  const xStep = Math.max(1, Math.floor(points.length / 6));
   const xLabels = points
-    .filter((_, i) => i % xStep === 0 || i === points.length - 1)
-    .map((p) => ({
-      x: xs(points.indexOf(p)),
-      label: p.date ? new Date(p.date).toLocaleDateString(dateLocale, { month: "short", day: "numeric" }) : "",
-    }));
+    .map((p, i) => ({ i, p }))
+    .filter(({ i }) => i % xStep === 0 || i === points.length - 1)
+    .map(({ i, p }) => ({ x: xs(i), label: fmtDate(p.date) }));
+
+  const onMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width) return;
+    const relX = ((e.clientX - rect.left) / rect.width) * W;
+    let i = Math.round(((relX - PAD.left) / innerW) * (points.length - 1));
+    i = Math.max(0, Math.min(points.length - 1, i));
+    setHover(i);
+  };
+
+  const hp = hover != null ? points[hover] : null;
+  const hx = hover != null ? xs(hover) : 0;
+  const ttRight = hover != null && hx > W * 0.62;
+
   return (
-    <div>
-      {rangeBar}
-      <svg viewBox={`0 0 ${W} ${H}`} className="company-price-chart-svg" style={{ width: "100%", height: "auto" }}>
+    <div className="company-chart-wrap">
+      <div className="company-chart-toolbar">
+        {rangeBar}
+        <div className="company-chart-opts">
+          <button type="button" className={`chart-opt-btn ${!showCandles ? "active" : ""}`} onClick={() => setChartType("line")}>{t("Линия", "Chiziq", "Line")}</button>
+          {canCandle && (
+            <button type="button" className={`chart-opt-btn ${showCandles ? "active" : ""}`} onClick={() => setChartType("candle")}>{t("Свечи", "Shamlar", "Candles")}</button>
+          )}
+          <span className="chart-opt-sep" />
+          <button type="button" className={`chart-opt-btn chart-ma-ma20 ${maOn.ma20 ? "active" : ""}`} disabled={points.length < 20} onClick={() => setMaOn((s) => ({ ...s, ma20: !s.ma20 }))}>MA20</button>
+          <button type="button" className={`chart-opt-btn chart-ma-ma50 ${maOn.ma50 ? "active" : ""}`} disabled={points.length < 50} onClick={() => setMaOn((s) => ({ ...s, ma50: !s.ma50 }))}>MA50</button>
+        </div>
+      </div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} className="company-price-chart-svg" style={{ width: "100%", height: "auto" }}
+        onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
         <defs>
           <linearGradient id="cpcgrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
             <stop offset="100%" stopColor={color} stopOpacity="0.02" />
           </linearGradient>
         </defs>
+
         {yLabels.map((tick, i) => (
           <line key={i} x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y} stroke="currentColor" strokeOpacity="0.08" />
         ))}
-        <path d={areaD} fill="url(#cpcgrad)" />
-        <path d={pathD} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+
+        {/* Volume bars */}
+        {points.map((p, i) => {
+          const up = hasOHLC ? p.close >= p.open : (i > 0 ? p.close >= points[i - 1].close : true);
+          const vh = Math.max(0.5, volBot - vy(p.volume));
+          return <rect key={`v${i}`} x={xs(i) - candleW / 2} y={vy(p.volume)} width={candleW} height={vh}
+            fill={up ? "#22c55e" : "#ef4444"} opacity={hover === i ? 0.9 : 0.32} />;
+        })}
+
+        {/* Price series */}
+        {showCandles ? (
+          points.map((p, i) => {
+            const up = p.close >= p.open;
+            const c = up ? "#22c55e" : "#ef4444";
+            const x = xs(i);
+            const yO = ys(p.open), yC = ys(p.close);
+            const bodyTop = Math.min(yO, yC), bodyH = Math.max(1, Math.abs(yC - yO));
+            return (
+              <g key={`c${i}`}>
+                <line x1={x} y1={ys(p.high)} x2={x} y2={ys(p.low)} stroke={c} strokeWidth="1" />
+                <rect x={x - candleW / 2} y={bodyTop} width={candleW} height={bodyH} fill={c} />
+              </g>
+            );
+          })
+        ) : (
+          <>
+            <path d={areaD} fill="url(#cpcgrad)" />
+            <path d={lineD} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+          </>
+        )}
+
+        {ma20 && <path d={maPath(ma20)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeOpacity="0.9" />}
+        {ma50 && <path d={maPath(ma50)} fill="none" stroke="#a855f7" strokeWidth="1.5" strokeOpacity="0.9" />}
+
         {yLabels.map((tick, i) => (
-          <text key={i} x={PAD.left - 6} y={tick.y + 4} textAnchor="end" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
+          <text key={`yl${i}`} x={PAD.left - 6} y={tick.y + 4} textAnchor="end" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
         ))}
         {xLabels.map((tick, i) => (
-          <text key={i} x={tick.x} y={H - 6} textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
+          <text key={`xl${i}`} x={tick.x} y={H - 6} textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
         ))}
-        <circle cx={xs(points.length - 1)} cy={ys(points[points.length - 1].price)} r="4" fill={color} />
+
+        {!showCandles && <circle cx={xs(points.length - 1)} cy={ys(points[points.length - 1].close)} r="4" fill={color} />}
+
+        {/* Crosshair */}
+        {hover != null && (
+          <>
+            <line x1={hx} y1={priceTop} x2={hx} y2={volBot} stroke="currentColor" strokeOpacity="0.38" strokeDasharray="3 3" />
+            <circle cx={hx} cy={ys(points[hover].close)} r="3.6" fill={color} stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
+          </>
+        )}
       </svg>
+
+      {hp && (
+        <div className="cpc-tooltip" style={ttRight
+          ? { right: `calc(${((W - hx) / W) * 100}% + 12px)` }
+          : { left: `calc(${(hx / W) * 100}% + 12px)` }}>
+          <div className="cpc-tt-date">{fmtDate(hp.date, true)}</div>
+          <div className="cpc-tt-row"><span>{t("Закрытие", "Yopilish", "Close")}</span><b>{fmtFull(hp.close)}</b></div>
+          {hasOHLC && (
+            <>
+              <div className="cpc-tt-row"><span>{t("Откр.", "Ochil.", "Open")}</span><b>{fmtFull(hp.open)}</b></div>
+              <div className="cpc-tt-row"><span>{t("Макс.", "Maks.", "High")}</span><b>{fmtFull(hp.high)}</b></div>
+              <div className="cpc-tt-row"><span>{t("Мин.", "Min.", "Low")}</span><b>{fmtFull(hp.low)}</b></div>
+            </>
+          )}
+          <div className="cpc-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span><b>{abbrev(hp.volume)}</b></div>
+          {hp.change != null && (
+            <div className="cpc-tt-row"><span>{t("Изм.", "O'zg.", "Chg")}</span>
+              <b style={{ color: hp.change >= 0 ? "#22c55e" : "#ef4444" }}>{hp.change >= 0 ? "+" : ""}{fmtFull(hp.change)}</b>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -3756,6 +3902,83 @@ function CompanyFinancialsTab({ ratios, lang }) {
   );
 }
 
+function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const locale = lang === "en" ? "en-US" : "ru-RU";
+  const fmt = (v) => v == null ? "—" : Number(v).toLocaleString(locale, { maximumFractionDigits: 2 });
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" }) : "—";
+
+  if (loading) return <div className="chart-loading muted">{t("Загрузка...", "Yuklanmoqda...", "Loading...")}</div>;
+  const rows = items || [];
+  if (rows.length === 0) return (
+    <div className="panel" style={{ padding: 32, textAlign: "center" }}>
+      <p className="muted">{t("Дивиденды не объявлялись", "Dividendlar e'lon qilinmagan", "No dividends on record")}</p>
+    </div>
+  );
+
+  const amtKey = isPreferred ? "preferred_amount" : "ordinary_amount";
+  const latest = rows.find((r) => (r[amtKey] || 0) > 0) || rows[0];
+  const latestAmt = latest ? latest[amtKey] : null;
+  const yieldPct = (latestAmt && lastPrice) ? (latestAmt / lastPrice) * 100 : null;
+  const payouts = rows.filter((r) => (r.ordinary_amount || 0) > 0 || (r.preferred_amount || 0) > 0).length;
+
+  return (
+    <div className="company-dividends">
+      <div className="dividend-cards">
+        <div className="dividend-card panel">
+          <div className="dividend-card-label">{t("Последний дивиденд", "Oxirgi dividend", "Latest dividend")}</div>
+          <div className="dividend-card-val">{fmt(latestAmt)} <span className="dividend-card-unit">{t("сум/акц.", "so'm/aksiya", "UZS/sh")}</span></div>
+          {latest && <div className="muted" style={{ fontSize: 12 }}>{fmtDate(latest.decision_date)}</div>}
+        </div>
+        {yieldPct != null && (
+          <div className="dividend-card panel">
+            <div className="dividend-card-label">{t("Дивидендная доходность", "Dividend daromadliligi", "Dividend yield")}</div>
+            <div className="dividend-card-val">{yieldPct.toFixed(2)}%</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("к текущей цене", "joriy narxga", "to current price")}</div>
+          </div>
+        )}
+        <div className="dividend-card panel">
+          <div className="dividend-card-label">{t("Выплат в истории", "Tarixdagi to'lovlar", "Payouts on record")}</div>
+          <div className="dividend-card-val">{payouts}</div>
+        </div>
+      </div>
+      <div className="dividend-table-wrap panel">
+        <table className="dividend-table">
+          <thead>
+            <tr>
+              <th>{t("Дата решения", "Qaror sanasi", "Decision date")}</th>
+              <th className="dividend-num">{t("Обыкн., сум", "Oddiy, so'm", "Ordinary, UZS")}</th>
+              <th className="dividend-num">%</th>
+              <th className="dividend-num">{t("Прив., сум", "Imtiyozli, so'm", "Preferred, UZS")}</th>
+              <th className="dividend-num">%</th>
+              <th>{t("Реестр / выплата", "Reyestr / to'lov", "Record / payment")}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i}>
+                <td>{fmtDate(r.decision_date)}</td>
+                <td className="dividend-num">{r.ordinary_amount ? fmt(r.ordinary_amount) : "—"}</td>
+                <td className="dividend-num muted">{r.ordinary_percent ? `${fmt(r.ordinary_percent)}%` : "—"}</td>
+                <td className="dividend-num">{r.preferred_amount ? fmt(r.preferred_amount) : "—"}</td>
+                <td className="dividend-num muted">{r.preferred_percent ? `${fmt(r.preferred_percent)}%` : "—"}</td>
+                <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{(r.ordinary_start || r.ordinary_end) ? `${fmtDate(r.ordinary_start)} – ${fmtDate(r.ordinary_end)}` : "—"}</td>
+                <td>{r.link && <a href={r.link} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>→</a>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {yieldPct != null && (
+        <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>
+          {t("Доходность рассчитана по последней цене и без учёта даты закрытия реестра.", "Daromadlilik oxirgi narx bo'yicha hisoblangan.", "Yield is computed against the latest price, before the record date.")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marketRows }) {
   const lang = normalizeLanguage(language);
   const [tab, setTab] = React.useState("overview");
@@ -3765,6 +3988,8 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
   const [secInfo, setSecInfo] = React.useState((securitiesMap || {})[ticker] || null);
   const [infoLoading, setInfoLoading] = React.useState(false);
   const [companyData, setCompanyData] = React.useState(null);
+  const [dividends, setDividends] = React.useState(null);
+  const [divLoading, setDivLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (!ticker) return;
@@ -3775,6 +4000,18 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
       .catch(() => {})
       .finally(() => setPriceLoading(false));
   }, [ticker, priceMonths]);
+
+  // Reset dividends when the ticker changes; fetched lazily on first tab open.
+  React.useEffect(() => { setDividends(null); }, [ticker]);
+  React.useEffect(() => {
+    if (!ticker || tab !== "dividends" || dividends !== null) return;
+    setDivLoading(true);
+    fetch(`/api/dividends/${encodeURIComponent(ticker)}`)
+      .then((r) => r.json())
+      .then((d) => setDividends(d.ok ? (d.items || []) : []))
+      .catch(() => setDividends([]))
+      .finally(() => setDivLoading(false));
+  }, [ticker, tab, dividends]);
 
   React.useEffect(() => {
     if (!ticker) return;
@@ -3825,6 +4062,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
   const TABS = [
     { key: "overview", label: lang === "ru" ? "Обзор" : lang === "uz" ? "Umumiy" : "Overview" },
     { key: "chart", label: lang === "ru" ? "История цен" : lang === "uz" ? "Narxlar tarixi" : "Price History" },
+    ...(securityType !== "bond" ? [{ key: "dividends", label: lang === "ru" ? "Дивиденды" : lang === "uz" ? "Dividendlar" : "Dividends" }] : []),
     { key: "reports", label: lang === "ru" ? "Отчёты" : lang === "uz" ? "Hisobotlar" : "Reports" },
     { key: "financials", label: lang === "ru" ? "Финансы" : lang === "uz" ? "Moliya" : "Financials" },
   ];
@@ -3885,6 +4123,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
             <h3 className="section-heading" style={{ marginBottom: 16 }}>{lang === "ru" ? `История цен — ${ticker}` : `Price History — ${ticker}`}</h3>
             <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={setPriceMonths} lang={lang} />
           </div>
+        )}
+        {tab === "dividends" && (
+          <CompanyDividendsTab items={dividends} loading={divLoading} lang={lang} isPreferred={isPreferred} lastPrice={lastPrice} />
         )}
         {tab === "reports" && (
           <CompanyReportsTab reports={companyData?.reports || []} lang={lang} />
@@ -4818,25 +5059,49 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
     if (type === "dynamics") return <CatalogDynamicsTable result={result} language={lang} />;
     if (type === "quarter_compare" || type === "annual_compare") return <CatalogCompareTable result={result} language={lang} />;
 
-    // AI analysis: render sections + article_report
+    // AI analysis — three distinct lenses on one computed report:
+    //   financial      → полный финансовый разбор (статья с таблицами)
+    //   swot           → сильные/слабые стороны и катализаторы
+    //   recommendation → скоринг, оценка цены и итоговый вердикт
     const sections = result.sections || {};
-    const articleSections = result.article_report?.sections || [];
+    const TYPE_SECTIONS = {
+      financial: ["ДОСЬЕ", "ЧТО_С_ДЕНЬГАМИ", "ТРЕНД", "ЭФФЕКТИВНОСТЬ", "ОЦЕНКА_ЦЕНЫ", "РЫНОЧНЫЕ_ДАННЫЕ"],
+      swot: ["СИЛЬНЫЕ_СТОРОНЫ", "СЛАБЫЕ_СТОРОНЫ", "КАТАЛИЗАТОРЫ"],
+      recommendation: ["СКОРИНГ", "ОЦЕНКА_ЦЕНЫ", "ВЕРДИКТ", "ИТОГ"],
+    };
+    const wanted = TYPE_SECTIONS[type] || null;
+
+    // SWOT & recommendation: curated raw sections rendered as expandable cards.
+    if (wanted && type !== "financial") {
+      const picked = wanted.filter((k) => typeof sections[k] === "string" && sections[k].trim());
+      if (picked.length) {
+        return (
+          <div className="catalog-result-body">
+            {picked.map((k, i) => (
+              <SectionCard key={k} title={getSectionTitle(lang, k)} body={sections[k]} index={i} open language={lang} />
+            ))}
+          </div>
+        );
+      }
+    }
+
+    // financial (and fallback): article report with tables, filtered to the lens.
+    const allArticle = result.article_report?.sections || [];
+    const articleSections = wanted ? allArticle.filter((s) => wanted.includes(s.id)) : allArticle;
     const hasArticle = articleSections.length > 0;
-    const sectionEntries = Object.entries(sections).filter(([, v]) => v && typeof v === "string");
+    const allEntries = Object.entries(sections).filter(([, v]) => v && typeof v === "string");
+    const sectionEntries = wanted ? allEntries.filter(([k]) => wanted.includes(k)) : allEntries;
     return (
       <div className="catalog-result-body">
         {hasArticle ? articleSections.map((section, i) => (
           <div key={section.id || i} className="catalog-section">
-            <div className="panel-label">{section.title || section.id}</div>
+            <div className="panel-label">{section.title || getSectionTitle(lang, section.id)}</div>
             <div className="catalog-section-text">
               <StructuredReportBlocks blocks={section.blocks || []} keyPrefix={`cat-${i}`} />
             </div>
           </div>
-        )) : sectionEntries.map(([key, text]) => (
-          <div key={key} className="catalog-section">
-            <div className="panel-label">{key.replace(/_/g, " ")}</div>
-            <div className="catalog-section-text">{text}</div>
-          </div>
+        )) : sectionEntries.map(([key, text], i) => (
+          <SectionCard key={key} title={getSectionTitle(lang, key)} body={text} index={i} open language={lang} />
         ))}
         {!hasArticle && !sectionEntries.length && (
           <p className="muted">{lang === "ru" ? "Нет данных для отображения" : "No data to display"}</p>
