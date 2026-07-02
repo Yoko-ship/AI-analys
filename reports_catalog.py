@@ -1007,7 +1007,13 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
 
 def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
                     tickers: list[str] | None) -> list[dict[str, Any]]:
-    """Tickers with an annual report but no fresh financials cache, newest report first."""
+    """Best parseable report per ticker lacking a fresh cache.
+
+    Considers only reports that have an Excel export (PDF-only issuers can't be
+    parsed). An annual report is preferred; if a ticker has none with Excel, its
+    latest quarter with Excel is used (e.g. GRBK files only quarterly Excel).
+    Returns ``[{ticker, year, quarter}]``, newest first.
+    """
     ticker_filter = ""
     if tickers:
         placeholders = ",".join("?" * len(tickers))
@@ -1017,20 +1023,24 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
     params = [f"-{ttl_days} days", form, *(tickers or [])]
     rows = conn.execute(
         f"""
-        SELECT r.ticker, MAX(r.year) AS year
+        SELECT r.ticker, r.period_type, r.year, r.quarter
         FROM catalog_reports r
         LEFT JOIN catalog_financials f
           ON f.ticker = r.ticker AND f.form = r.report_form
          AND f.updated_at >= datetime('now', ?)
-        WHERE r.report_form = ? AND r.period_type = 'annual'
+        WHERE r.report_form = ? AND r.excel_url IS NOT NULL
           AND r.year IS NOT NULL {ticker_filter}
           AND f.ticker IS NULL
-        GROUP BY r.ticker
-        ORDER BY year DESC
         """,
         params,
     ).fetchall()
-    return [dict(r) for r in rows]
+    best: dict[str, tuple] = {}
+    for r in rows:
+        t = r["ticker"]
+        key = (1 if r["period_type"] == "annual" else 0, r["year"], r["quarter"] or 0)
+        if t not in best or key > best[t][0]:
+            best[t] = (key, {"ticker": t, "year": r["year"], "quarter": r["quarter"] or 0})
+    return [v[1] for v in sorted(best.values(), key=lambda x: x[0], reverse=True)]
 
 
 def _sync_missing_companies(form: str, sync_limit: int) -> int:
@@ -1090,16 +1100,16 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
         candidates = _fin_candidates(conn, form, ttl_days, tickers)
         conn.close()
         for cand in candidates[:limit]:
-            ticker, year = cand["ticker"], cand["year"]
+            ticker, year, quarter = cand["ticker"], cand["year"], cand["quarter"]
             processed += 1
             try:
-                data = fetch_report_excel_data(ticker, form, year, 0)
+                data = fetch_report_excel_data(ticker, form, year, quarter)
                 if not data.get("ok"):
                     continue
                 vals = (compute_financial_ratios(data.get("income"),
                                                  data.get("balance")).get("source_values") or {})
                 if any(vals.get(k) is not None for k in _FINANCIAL_KEYS):
-                    upsert_financials_cache(ticker, form, year, 0, vals)
+                    upsert_financials_cache(ticker, form, year, quarter, vals)
                     filled += 1
             except Exception:
                 logger.exception("financials refresh failed for %s", ticker)
