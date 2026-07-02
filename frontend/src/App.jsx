@@ -4383,6 +4383,13 @@ function MarketView({
 
   const smap = securitiesMap || {};
   const fmap = financials || {};
+  // Financials are company-level, so a preferred share shares its common
+  // sibling's figures (and vice versa) — mirror the logo sibling fallback
+  // (TKDM <-> TKDMP) so both halves of a pair show data from one cached row.
+  const finOf = (ticker) => {
+    const t = String(ticker || "").toUpperCase();
+    return fmap[t] || fmap[t.endsWith("P") ? t.slice(0, -1) : `${t}P`] || null;
+  };
   const prepared = (Array.isArray(rows) ? rows : []).map(enrichMarketStock);
   const search = String(query || "").trim().toLowerCase();
 
@@ -4404,12 +4411,12 @@ function MarketView({
     avgTrade: (r) => avgTradeValue(r),
     volShare: (r) => r.stockVolume,
     record: (r) => smap[r.ticker]?.max_volume,
-    finRevenue: (r) => fmap[r.ticker]?.revenue,
-    finGross: (r) => fmap[r.ticker]?.gross_profit,
-    finCash: (r) => fmap[r.ticker]?.cash,
-    finLiab: (r) => fmap[r.ticker]?.total_liabilities,
-    finNet: (r) => fmap[r.ticker]?.net_income,
-    finOperating: (r) => fmap[r.ticker]?.operating_income,
+    finRevenue: (r) => finOf(r.ticker)?.revenue,
+    finGross: (r) => finOf(r.ticker)?.gross_profit,
+    finCash: (r) => finOf(r.ticker)?.cash,
+    finLiab: (r) => finOf(r.ticker)?.total_liabilities,
+    finNet: (r) => finOf(r.ticker)?.net_income,
+    finOperating: (r) => finOf(r.ticker)?.operating_income,
     date: (r) => r.last_trade_date || "",
     source: (r) => r.url || "",
   };
@@ -4828,12 +4835,12 @@ function MarketView({
                       {visibleCols.has("volShare") && (
                         <td className="num">{Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—"}</td>
                       )}
-                      {visibleCols.has("finRevenue") && <td className="num">{finValue(fmap[row.ticker]?.revenue, lang)}</td>}
-                      {visibleCols.has("finGross") && <td className="num">{finValue(fmap[row.ticker]?.gross_profit, lang)}</td>}
-                      {visibleCols.has("finCash") && <td className="num">{finValue(fmap[row.ticker]?.cash, lang)}</td>}
-                      {visibleCols.has("finLiab") && <td className="num">{finValue(fmap[row.ticker]?.total_liabilities, lang)}</td>}
-                      {visibleCols.has("finNet") && <td className="num">{finValue(fmap[row.ticker]?.net_income, lang)}</td>}
-                      {visibleCols.has("finOperating") && <td className="num">{finValue(fmap[row.ticker]?.operating_income, lang)}</td>}
+                      {visibleCols.has("finRevenue") && <td className="num">{finValue(finOf(row.ticker)?.revenue, lang)}</td>}
+                      {visibleCols.has("finGross") && <td className="num">{finValue(finOf(row.ticker)?.gross_profit, lang)}</td>}
+                      {visibleCols.has("finCash") && <td className="num">{finValue(finOf(row.ticker)?.cash, lang)}</td>}
+                      {visibleCols.has("finLiab") && <td className="num">{finValue(finOf(row.ticker)?.total_liabilities, lang)}</td>}
+                      {visibleCols.has("finNet") && <td className="num">{finValue(finOf(row.ticker)?.net_income, lang)}</td>}
+                      {visibleCols.has("finOperating") && <td className="num">{finValue(finOf(row.ticker)?.operating_income, lang)}</td>}
                       {visibleCols.has("date") && (
                         <td>
                           <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
