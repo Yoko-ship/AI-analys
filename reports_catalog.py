@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -869,12 +870,59 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
     conn.close()
 
 
+# Snapshot committed to the repo, generated where openinfo.uz is reachable. Lets
+# environments that can't reach openinfo (e.g. a datacenter IP openinfo blocks)
+# still serve financials instead of empty "—" columns.
+_FINANCIALS_SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "financials_seed.json")
+_seed_lock = threading.Lock()
+_seeded = False
+
+
+def _maybe_seed_financials(conn: sqlite3.Connection, form: str = "NSBU") -> None:
+    """Bootstrap catalog_financials from the bundled snapshot when it's empty.
+
+    Only fills when no rows exist for the form — never overwrites values produced
+    by a live sync. Guarded so it runs at most once per process.
+    """
+    global _seeded
+    if _seeded:
+        return
+    with _seed_lock:
+        if _seeded:
+            return
+        try:
+            n = conn.execute("SELECT COUNT(*) FROM catalog_financials WHERE form=?", (form,)).fetchone()[0]
+            if not n and os.path.exists(_FINANCIALS_SEED_PATH):
+                with open(_FINANCIALS_SEED_PATH, encoding="utf-8") as f:
+                    rows = (json.load(f) or {}).get("rows") or []
+                with conn:
+                    for r in rows:
+                        conn.execute(
+                            """
+                            INSERT OR IGNORE INTO catalog_financials
+                                (ticker, form, year, quarter, revenue, gross_profit, cash,
+                                 total_liabilities, net_income, operating_income, updated_at)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                            """,
+                            (r.get("ticker"), r.get("form") or form, r.get("year") or 0,
+                             r.get("quarter") or 0, r.get("revenue"), r.get("gross_profit"),
+                             r.get("cash"), r.get("total_liabilities"), r.get("net_income"),
+                             r.get("operating_income")),
+                        )
+                logger.info("Seeded catalog_financials from snapshot: %d rows", len(rows))
+        except Exception:
+            logger.exception("financials seed failed")
+        finally:
+            _seeded = True
+
+
 def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     """Return the most recent cached indicators per ticker: {ticker: {...}}.
 
     Picks the latest period (year, then quarter) available for each ticker.
     """
     conn = get_catalog_conn()
+    _maybe_seed_financials(conn, form)
     rows = conn.execute(
         """
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
