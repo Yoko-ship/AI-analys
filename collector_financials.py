@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import reports_catalog as rc  # noqa: E402  (after load_dotenv)
+import trade_stats as ts  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("collector")
@@ -62,41 +63,64 @@ def collect_rows() -> list[dict]:
     return rows
 
 
-def push(rows: list[dict]) -> int:
+def _post(path: str, body: dict) -> int:
     secret = os.getenv("ADMIN_API_SECRET", "").strip()
     if not secret:
         log.error("ADMIN_API_SECRET is not set — cannot push")
         return 2
-    url = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/") + "/api/admin/financials"
-    log.info("pushing %d rows -> %s", len(rows), url)
-    resp = requests.post(url, json={"form": "NSBU", "rows": rows},
-                         headers={"X-Admin-Secret": secret}, timeout=90)
+    url = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/") + path
+    resp = requests.post(url, json=body, headers={"X-Admin-Secret": secret}, timeout=120)
     if resp.status_code != 200:
-        log.error("push failed: HTTP %s %s", resp.status_code, resp.text[:300])
+        log.error("push %s failed: HTTP %s %s", path, resp.status_code, resp.text[:300])
         return 1
-    log.info("push ok: %s", resp.json())
+    log.info("push %s ok: %s", path, resp.json())
     return 0
+
+
+def push(rows: list[dict]) -> int:
+    log.info("pushing %d financials rows", len(rows))
+    return _post("/api/admin/financials", {"form": "NSBU", "rows": rows})
+
+
+def push_trade_stats() -> int:
+    """Fetch the latest-day per-trade stats from UZSE and push to prod."""
+    log.info("fetching UZSE trade stats (latest day) ...")
+    data = ts.fetch_trade_stats()
+    rows = list((data.get("stats") or {}).values())
+    log.info("trade stats: %d securities for %s", len(rows), data.get("trade_date"))
+    if not rows:
+        log.warning("no trade stats fetched")
+        return 1
+    return _post("/api/admin/trade-stats", {"trade_date": data.get("trade_date"), "rows": rows})
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--push-only", action="store_true", help="skip refresh, push current cache")
+    ap.add_argument("--push-only", action="store_true", help="skip financials refresh, push current cache")
     ap.add_argument("--no-push", action="store_true", help="refresh locally, do not push")
+    ap.add_argument("--no-financials", action="store_true", help="skip the financials step")
+    ap.add_argument("--no-trades", action="store_true", help="skip the trade-stats step")
+    ap.add_argument("--trades-only", action="store_true", help="only fetch+push trade stats")
     args = ap.parse_args()
 
-    if not args.push_only:
-        refresh_local()
+    rc_status = 0
+    if not (args.no_financials or args.trades_only):
+        if not args.push_only:
+            refresh_local()
+        rows = collect_rows()
+        filled = sum(1 for r in rows if all(r[k] is not None for k in ("revenue", "net_income", "cash")))
+        log.info("collected %d companies (%d full non-bank)", len(rows), filled)
+        if rows and not args.no_push:
+            rc_status = push(rows) or rc_status
 
-    rows = collect_rows()
-    filled = sum(1 for r in rows if all(r[k] is not None for k in ("revenue", "net_income", "cash")))
-    log.info("collected %d companies (%d full non-bank)", len(rows), filled)
-    if not rows:
-        log.error("no rows to push")
-        return 1
+    if not (args.no_trades or args.no_push):
+        try:
+            rc_status = push_trade_stats() or rc_status
+        except Exception:
+            log.exception("trade-stats step failed")
+            rc_status = rc_status or 1
 
-    if args.no_push:
-        return 0
-    return push(rows)
+    return rc_status
 
 
 if __name__ == "__main__":

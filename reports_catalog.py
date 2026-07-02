@@ -125,6 +125,20 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (ticker, form, year, quarter)
         );
         CREATE INDEX IF NOT EXISTS idx_cat_fin_ticker ON catalog_financials(ticker);
+
+        CREATE TABLE IF NOT EXISTS catalog_trade_stats (
+            isin              TEXT PRIMARY KEY,
+            trade_date        TEXT,
+            total_value       REAL,
+            total_qty         REAL,
+            trade_count       INTEGER,
+            avg_price         REAL,
+            largest_qty       REAL,
+            largest_value     REAL,
+            largest_pct_value REAL,
+            largest_pct_qty   REAL,
+            updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
 
@@ -963,6 +977,64 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
     finally:
         conn.close()
     return n
+
+
+_TRADE_STAT_KEYS = ("total_value", "total_qty", "trade_count", "avg_price",
+                    "largest_qty", "largest_value", "largest_pct_value", "largest_pct_qty")
+
+
+def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> int:
+    """Overwrite the latest-day per-ISIN trade statistics cache."""
+    def _num(v: Any) -> float | None:
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    conn = get_catalog_conn()
+    n = 0
+    try:
+        with conn:
+            for r in rows or []:
+                isin = str(r.get("isin") or "").strip().upper()
+                if not isin:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO catalog_trade_stats
+                        (isin, trade_date, total_value, total_qty, trade_count, avg_price,
+                         largest_qty, largest_value, largest_pct_value, largest_pct_qty, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    ON CONFLICT(isin) DO UPDATE SET
+                        trade_date=excluded.trade_date, total_value=excluded.total_value,
+                        total_qty=excluded.total_qty, trade_count=excluded.trade_count,
+                        avg_price=excluded.avg_price, largest_qty=excluded.largest_qty,
+                        largest_value=excluded.largest_value,
+                        largest_pct_value=excluded.largest_pct_value,
+                        largest_pct_qty=excluded.largest_pct_qty, updated_at=datetime('now')
+                    """,
+                    (isin, str(r.get("trade_date") or trade_date or ""),
+                     _num(r.get("total_value")), _num(r.get("total_qty")),
+                     int(_num(r.get("trade_count")) or 0), _num(r.get("avg_price")),
+                     _num(r.get("largest_qty")), _num(r.get("largest_value")),
+                     _num(r.get("largest_pct_value")), _num(r.get("largest_pct_qty"))),
+                )
+                n += 1
+    finally:
+        conn.close()
+    return n
+
+
+def get_all_trade_stats() -> dict[str, dict[str, Any]]:
+    """Return the cached latest-day trade statistics per ISIN: {isin: {...}}."""
+    conn = get_catalog_conn()
+    rows = conn.execute(
+        """SELECT isin, trade_date, total_value, total_qty, trade_count, avg_price,
+                  largest_qty, largest_value, largest_pct_value, largest_pct_qty, updated_at
+           FROM catalog_trade_stats"""
+    ).fetchall()
+    conn.close()
+    return {r["isin"]: dict(r) for r in rows}
 
 
 def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
