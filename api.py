@@ -30,6 +30,8 @@ from reports_catalog import (
     get_company_ratios_cached,
     get_all_financials,
     bulk_upsert_financials,
+    get_all_trade_stats,
+    bulk_upsert_trade_stats,
     refresh_financials_cache,
     get_new_reports_for_tickers,
     get_report_urls,
@@ -218,6 +220,11 @@ class CatalogAnalyzeRequest(BaseModel):
 
 class AdminFinancialsRequest(BaseModel):
     form: Literal["NSBU", "MSFO", "Audition"] = "NSBU"
+    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+
+
+class AdminTradeStatsRequest(BaseModel):
+    trade_date: str | None = Field(default=None, max_length=16)
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
     compare_ticker: str | None = Field(default=None, max_length=40)
     compare_year: int | None = Field(default=None, ge=2000, le=2100)
@@ -513,6 +520,34 @@ async def api_market_financials() -> dict[str, Any]:
         "count": len(financials),
         "financials": financials,
     })
+
+
+@app.get("/api/market/trade-stats")
+async def api_market_trade_stats() -> dict[str, Any]:
+    """Per-ISIN latest-day trade statistics (turnover, avg price, largest trade)."""
+    loop = asyncio.get_running_loop()
+    try:
+        stats = await loop.run_in_executor(None, get_all_trade_stats)
+    except Exception as exc:
+        logger.exception("trade-stats cache read failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return _json_safe({"ok": True, "count": len(stats), "stats": stats})
+
+
+@app.post("/api/admin/trade-stats")
+async def api_admin_trade_stats(
+    payload: AdminTradeStatsRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Overwrite the trade-statistics cache from an externally-computed batch."""
+    loop = asyncio.get_running_loop()
+    try:
+        n = await loop.run_in_executor(
+            None, partial(bulk_upsert_trade_stats, payload.rows, payload.trade_date))
+    except Exception as exc:
+        logger.exception("admin trade-stats upsert failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "upserted": n}
 
 
 @app.post("/api/admin/financials")
