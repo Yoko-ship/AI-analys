@@ -135,6 +135,18 @@
    "operating_income": 1156581.2
   },
   {
+   "ticker": "GRBK",
+   "form": "NSBU",
+   "year": 2022,
+   "quarter": 2,
+   "revenue": 6203742.67,
+   "gross_profit": 4320062.27,
+   "cash": 7088097.54,
+   "total_liabilities": 9036236.17,
+   "net_income": 1041688.87,
+   "operating_income": 100990.08
+  },
+  {
    "ticker": "HMKB",
    "form": "NSBU",
    "year": 2024,
@@ -229,6 +241,18 @@
    "total_liabilities": 1090.0,
    "net_income": 270.0,
    "operating_income": 100.0
+  },
+  {
+   "ticker": "KVTS",
+   "form": "NSBU",
+   "year": 2024,
+   "quarter": 0,
+   "revenue": 46435853.0,
+   "gross_profit": 24833752.0,
+   "cash": 411326.0,
+   "total_liabilities": 29671134.0,
+   "net_income": 2433962.0,
+   "operating_income": 6365714.0
   },
   {
    "ticker": "MCBA",

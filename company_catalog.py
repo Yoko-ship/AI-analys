@@ -34,7 +34,7 @@ COMPANY_CATALOG = {
     # Manufacturing
     '"O\'zmetkombinat" AJ': "UZMK",
     '"O\'zmetkombinat" AJ (привилегированные)': "UZMKP",
-    '"Kvarts" AJ': "KVTS",
+    'Акционерное общество «Кварц»': "KVTS",  # openinfo indexes it under the Cyrillic name, not "Kvarts"
     '"Qizilqumsement" AJ': "QZSM",
     '"Bekobodsement" AJ': "BECM",
     '"Bekobodsement" AJ (привилегированные)': "BECMP",
