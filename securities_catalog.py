@@ -13,12 +13,16 @@ from typing import Any
 
 import requests
 
+from db import APP_DATA_DIR
+
 logger = logging.getLogger(__name__)
 
 # Railway's container filesystem is ephemeral, so the default path is wiped on
-# every redeploy. Point SECURITIES_DB_PATH at a mounted persistent volume (e.g.
-# /app/data/securities.db) to keep the catalog and Wikipedia cache across deploys.
-DB_PATH = Path(os.getenv("SECURITIES_DB_PATH") or (Path(__file__).parent / "securities.db"))
+# every redeploy. This DB (securities + volume_records) defaults under
+# APP_DATA_DIR, which db.py resolves to RAILWAY_VOLUME_MOUNT_PATH when a volume is
+# mounted — so mounting a volume persists it across deploys with no extra config.
+# SECURITIES_DB_PATH still overrides the location explicitly if set.
+DB_PATH = Path(os.getenv("SECURITIES_DB_PATH") or (APP_DATA_DIR / "securities.db"))
 
 # Sector mapping for tickers known from company_catalog
 _TICKER_SECTORS: dict[str, str] = {
