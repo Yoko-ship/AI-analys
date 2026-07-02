@@ -1228,6 +1228,21 @@ const MARKET_TEXTS = {
     volume: "Объём торгов",
     volumeCol: "Объём",
     tradeCount: "сделок",
+    volQty: "Объём (шт)",
+    avgSharePrice: "Ср. цена акции",
+    avgTradePrice: "Ср. сумма сделки",
+    volShare: "% объёма",
+    grpOverview: "Обзор AI-скринер",
+    grpVolumes: "Объёмы",
+    grpFinancials: "Фин. показатели",
+    topGainers: "Топ роста",
+    topLosers: "Топ падения",
+    finRevenue: "Выручка",
+    finGross: "Валовая прибыль",
+    finCash: "Наличность в кассе",
+    finLiab: "Общие обязательства",
+    finNet: "Чистая прибыль",
+    finOperating: "Операц. доход",
   },
   en: {
     nav: "Market",
@@ -1268,6 +1283,21 @@ const MARKET_TEXTS = {
     volume: "Volume",
     volumeCol: "Volume",
     tradeCount: "trades",
+    volQty: "Volume (units)",
+    avgSharePrice: "Avg share price",
+    avgTradePrice: "Avg trade size",
+    volShare: "% of volume",
+    grpOverview: "AI screener overview",
+    grpVolumes: "Volumes",
+    grpFinancials: "Financials",
+    topGainers: "Top gainers",
+    topLosers: "Top losers",
+    finRevenue: "Revenue",
+    finGross: "Gross profit",
+    finCash: "Cash on hand",
+    finLiab: "Total liabilities",
+    finNet: "Net profit",
+    finOperating: "Operating income",
   },
   uz: {
     nav: "Bozor",
@@ -1308,6 +1338,21 @@ const MARKET_TEXTS = {
     volume: "Savdo hajmi",
     volumeCol: "Hajm",
     tradeCount: "savdo",
+    volQty: "Hajm (dona)",
+    avgSharePrice: "O'rt. aksiya narxi",
+    avgTradePrice: "O'rt. bitim summasi",
+    volShare: "Hajm %",
+    grpOverview: "AI-skrener sharhi",
+    grpVolumes: "Hajmlar",
+    grpFinancials: "Moliyaviy ko'rsatkichlar",
+    topGainers: "Eng ko'p o'sganlar",
+    topLosers: "Eng ko'p tushganlar",
+    finRevenue: "Tushum",
+    finGross: "Yalpi foyda",
+    finCash: "Kassadagi naqd",
+    finLiab: "Jami majburiyatlar",
+    finNet: "Sof foyda",
+    finOperating: "Operatsion daromad",
   },
 };
 
@@ -1469,6 +1514,23 @@ function enrichMarketStock(stock) {
   };
 }
 
+// Average execution price per share = turnover (sums) / shares traded.
+function avgSharePrice(row) {
+  const vol = row?.stockVolume, qty = row?.stockQuantity;
+  return Number.isFinite(vol) && Number.isFinite(qty) && qty > 0 ? vol / qty : null;
+}
+
+// Average value per trade = turnover (sums) / number of trades.
+function avgTradeValue(row) {
+  const vol = row?.stockVolume, n = row?.stockTradeCount;
+  return Number.isFinite(vol) && Number.isFinite(n) && n > 0 ? vol / n : null;
+}
+
+// Financial indicator cell: compact sums (e.g. "1,2 млрд"), em-dash when absent.
+function finValue(v, lang) {
+  return Number.isFinite(v) ? formatCompactNumber(v, lang) : "—";
+}
+
 function buildMarketStats(rows) {
   const traded = rows.filter((row) => row.lastPrice !== null).length;
   const advancers = rows.filter((row) => row.changePercent !== null && row.changePercent > 0.05).length;
@@ -1476,7 +1538,10 @@ function buildMarketStats(rows) {
   const withChange = rows.filter((row) => Number.isFinite(row.changePercent));
   const topGrowth = withChange.reduce((best, row) => (!best || row.changePercent > best.changePercent ? row : best), null);
   const topDrop = withChange.reduce((worst, row) => (!worst || row.changePercent < worst.changePercent ? row : worst), null);
-  return { traded, advancers, decliners, topGrowth, topDrop };
+  const topGainers = withChange.filter((r) => r.changePercent > 0).sort((a, b) => b.changePercent - a.changePercent).slice(0, 5);
+  const topLosers = withChange.filter((r) => r.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, 5);
+  const totalVolume = rows.reduce((s, r) => s + (Number.isFinite(r.stockVolume) ? r.stockVolume : 0), 0);
+  return { traded, advancers, decliners, topGrowth, topDrop, topGainers, topLosers, totalVolume };
 }
 
 const SCORE_EXPLANATION_TEXTS = {
@@ -4226,6 +4291,7 @@ function MarketView({
   language,
   companies,
   securitiesMap,
+  financials,
   favoriteTickers,
   onToggleFavorite,
   viewMode: viewModeProp,
@@ -4257,30 +4323,49 @@ function MarketView({
 
   // User-configurable quote columns (ticker/company/last are always shown).
   const recordLabel = lang === "en" ? "Record turnover" : lang === "uz" ? "Rekord aylanma" : "Рекорд оборота";
-  const MARKET_COLS = [
-    ["change", mt(lang, "change")],
-    ["open", mt(lang, "open")],
-    ["high", mt(lang, "high")],
-    ["low", mt(lang, "low")],
-    ["volume", mt(lang, "volumeCol")],
-    ["record", recordLabel],
-    ["date", mt(lang, "date")],
-    ["source", mt(lang, "source")],
+  // Quote columns grouped into collapsible sections in the settings dropdown.
+  // Each section is a sibling of "AI screener overview" (not nested under it).
+  const COL_GROUPS = [
+    { key: "overview", title: mt(lang, "grpOverview"), cols: [
+      ["change", mt(lang, "change")],
+      ["open", mt(lang, "open")],
+      ["high", mt(lang, "high")],
+      ["low", mt(lang, "low")],
+      ["date", mt(lang, "date")],
+      ["source", mt(lang, "source")],
+    ] },
+    { key: "volumes", title: mt(lang, "grpVolumes"), cols: [
+      ["volume", mt(lang, "volumeCol")],
+      ["volQty", mt(lang, "volQty")],
+      ["avgShare", mt(lang, "avgSharePrice")],
+      ["avgTrade", mt(lang, "avgTradePrice")],
+      ["record", recordLabel],
+      ["volShare", mt(lang, "volShare")],
+    ] },
+    { key: "financials", title: mt(lang, "grpFinancials"), cols: [
+      ["finRevenue", mt(lang, "finRevenue")],
+      ["finGross", mt(lang, "finGross")],
+      ["finCash", mt(lang, "finCash")],
+      ["finLiab", mt(lang, "finLiab")],
+      ["finNet", mt(lang, "finNet")],
+      ["finOperating", mt(lang, "finOperating")],
+    ] },
   ];
+  const MARKET_COLS = COL_GROUPS.flatMap((g) => g.cols);
   // Core columns are always shown — listed in the settings panel as locked rows.
   const CORE_COLS = [
     ["ticker", mt(lang, "ticker")],
     ["company", mt(lang, "company")],
     ["last", mt(lang, "last")],
   ];
-  const ALL_FIELDS = [...CORE_COLS.map(([k, l]) => [k, l, true]), ...MARKET_COLS.map(([k, l]) => [k, l, false])];
   const [visibleCols, setVisibleCols] = useState(() => {
     try { const s = JSON.parse(localStorage.getItem("uz_market_cols")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
     return new Set(["change", "open", "high", "low", "volume", "record", "date", "source"]);
   });
   const [colsOpen, setColsOpen] = useState(false);
   const [colsSearch, setColsSearch] = useState("");
-  const [screenerOpen, setScreenerOpen] = useState(true);
+  const [openGroups, setOpenGroups] = useState(() => new Set(["overview", "volumes", "financials"]));
+  const toggleGroup = (k) => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   useEffect(() => { try { localStorage.setItem("uz_market_cols", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
   const toggleCol = (k) => setVisibleCols((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const colSpan = 3 + visibleCols.size;
@@ -4297,6 +4382,7 @@ function MarketView({
   };
 
   const smap = securitiesMap || {};
+  const fmap = financials || {};
   const prepared = (Array.isArray(rows) ? rows : []).map(enrichMarketStock);
   const search = String(query || "").trim().toLowerCase();
 
@@ -4313,7 +4399,17 @@ function MarketView({
     high: (r) => r.highPrice,
     low: (r) => r.lowPrice,
     volume: (r) => r.stockVolume,
+    volQty: (r) => r.stockQuantity,
+    avgShare: (r) => avgSharePrice(r),
+    avgTrade: (r) => avgTradeValue(r),
+    volShare: (r) => r.stockVolume,
     record: (r) => smap[r.ticker]?.max_volume,
+    finRevenue: (r) => fmap[r.ticker]?.revenue,
+    finGross: (r) => fmap[r.ticker]?.gross_profit,
+    finCash: (r) => fmap[r.ticker]?.cash,
+    finLiab: (r) => fmap[r.ticker]?.total_liabilities,
+    finNet: (r) => fmap[r.ticker]?.net_income,
+    finOperating: (r) => fmap[r.ticker]?.operating_income,
     date: (r) => r.last_trade_date || "",
     source: (r) => r.url || "",
   };
@@ -4390,6 +4486,41 @@ function MarketView({
         <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
         {trades && <MarketStatCard label={mt(lang, "volume")} value={formatCompactVolume(trades.total_volume, lang)} sub={trades.total_trade_count ? `${formatRatio(trades.total_trade_count, 0, lang)} ${mt(lang, "tradeCount")}` : null} />}
       </div>
+
+      {viewMode === "table" && (stats.topGainers.length > 0 || stats.topLosers.length > 0) && (
+        <div className="market-top-movers">
+          {[
+            { key: "up", title: mt(lang, "topGainers"), rows: stats.topGainers },
+            { key: "down", title: mt(lang, "topLosers"), rows: stats.topLosers },
+          ].map((col) => (
+            <article className={`panel market-movers-col ${col.key}`} key={col.key}>
+              <div className="market-movers-head">
+                <span className={`market-movers-dot ${col.key}`} />
+                <h3>{col.title}</h3>
+              </div>
+              <ul className="market-movers-list">
+                {col.rows.length ? col.rows.map((r) => (
+                  <li key={r.ticker}>
+                    <button
+                      type="button"
+                      className="market-movers-item"
+                      onClick={() => onOpenCompany ? onOpenCompany(r.ticker) : onAnalyze(r.ticker)}
+                    >
+                      <span className="market-movers-tk">
+                        <CompanyLogo logo={smap[r.ticker]?.logo_url} name={r.name || r.ticker} ticker={r.ticker} />
+                        <span className="market-movers-name">{r.ticker}</span>
+                      </span>
+                      <span className={`market-movers-chg ${col.key}`}>
+                        {col.key === "up" ? "+" : ""}{formatRatio(r.changePercent, 2, lang)}%
+                      </span>
+                    </button>
+                  </li>
+                )) : <li className="market-movers-empty">—</li>}
+              </ul>
+            </article>
+          ))}
+        </div>
+      )}
 
       <article className="panel market-board">
         <div className="market-board-head">
@@ -4486,56 +4617,80 @@ function MarketView({
                     </div>
                     {(() => {
                       const q = colsSearch.trim().toLowerCase();
-                      const fields = ALL_FIELDS.filter(([, label]) => !q || label.toLowerCase().includes(q));
-                      const allOptOn = MARKET_COLS.every(([k]) => visibleCols.has(k));
-                      const someOptOn = MARKET_COLS.some(([k]) => visibleCols.has(k));
+                      const matches = (label) => !q || label.toLowerCase().includes(q);
+                      const anyMatch = CORE_COLS.some(([, l]) => matches(l)) || MARKET_COLS.some(([, l]) => matches(l));
+                      if (!anyMatch) {
+                        return <div className="market-cols-empty">{lang === "en" ? "Nothing found" : lang === "uz" ? "Hech narsa topilmadi" : "Ничего не найдено"}</div>;
+                      }
                       return (
-                        <div className="market-cols-group">
-                          <button
-                            type="button"
-                            className="market-cols-group-head"
-                            onClick={() => setScreenerOpen((v) => !v)}
-                            aria-expanded={screenerOpen}
-                          >
-                            <span className="market-cols-group-title">{lang === "en" ? "AI screener overview" : lang === "uz" ? "AI-skrener sharhi" : "Обзор AI-скринер"}</span>
-                            <span className="market-cols-group-meta">
-                              <span className="market-cols-group-badge">{CORE_COLS.length + visibleCols.size}</span>
-                              <span
-                                className="market-cols-group-info"
-                                title={lang === "en" ? "Columns shown in the market quotes table. Ticker, company and last price are always on." : lang === "uz" ? "Bozor jadvalidagi ustunlar. Tiker, kompaniya va oxirgi narx doim yoqilgan." : "Колонки таблицы котировок. Тикер, компания и последняя цена показаны всегда."}
-                              >ⓘ</span>
-                              <span className={`market-cols-group-chevron${screenerOpen ? " open" : ""}`}>›</span>
-                            </span>
-                          </button>
-                          {screenerOpen && (
-                            <div className="market-cols-group-body">
-                              {!q && (
-                                <label className="market-cols-row market-cols-all">
-                                  <input
-                                    type="checkbox"
-                                    checked={allOptOn}
-                                    ref={(el) => { if (el) el.indeterminate = someOptOn && !allOptOn; }}
-                                    onChange={() => setVisibleCols(allOptOn ? new Set() : new Set(MARKET_COLS.map(([k]) => k)))}
-                                  />
-                                  <span>{lang === "en" ? "All" : lang === "uz" ? "Hammasi" : "Все"}</span>
-                                </label>
-                              )}
-                              {fields.length ? fields.map(([k, label, locked]) => (
-                                <label key={k} className={`market-cols-row${locked ? " market-cols-row-locked" : ""}`}>
-                                  <input
-                                    type="checkbox"
-                                    checked={locked ? true : visibleCols.has(k)}
-                                    disabled={locked}
-                                    onChange={() => { if (!locked) toggleCol(k); }}
-                                  />
-                                  <span>{label}</span>
-                                </label>
-                              )) : (
-                                <div className="market-cols-empty">{lang === "en" ? "Nothing found" : lang === "uz" ? "Hech narsa topilmadi" : "Ничего не найдено"}</div>
-                              )}
+                        <>
+                          {!q && (
+                            <div className="market-cols-group">
+                              <div className="market-cols-group-body">
+                                {CORE_COLS.map(([k, label]) => (
+                                  <label key={k} className="market-cols-row market-cols-row-locked">
+                                    <input type="checkbox" checked disabled readOnly />
+                                    <span>{label}</span>
+                                  </label>
+                                ))}
+                              </div>
                             </div>
                           )}
-                        </div>
+                          {COL_GROUPS.map((group) => {
+                            const cols = group.cols.filter(([, label]) => matches(label));
+                            if (!cols.length) return null;
+                            const open = q ? true : openGroups.has(group.key);
+                            const allOn = group.cols.every(([k]) => visibleCols.has(k));
+                            const someOn = group.cols.some(([k]) => visibleCols.has(k));
+                            const shownInGroup = group.cols.filter(([k]) => visibleCols.has(k)).length;
+                            const setGroupAll = () => setVisibleCols((prev) => {
+                              const n = new Set(prev);
+                              group.cols.forEach(([k]) => { if (allOn) n.delete(k); else n.add(k); });
+                              return n;
+                            });
+                            return (
+                              <div className="market-cols-group" key={group.key}>
+                                <button
+                                  type="button"
+                                  className="market-cols-group-head"
+                                  onClick={() => toggleGroup(group.key)}
+                                  aria-expanded={open}
+                                >
+                                  <span className="market-cols-group-title">{group.title}</span>
+                                  <span className="market-cols-group-meta">
+                                    <span className="market-cols-group-badge">{shownInGroup}</span>
+                                    <span className={`market-cols-group-chevron${open ? " open" : ""}`}>›</span>
+                                  </span>
+                                </button>
+                                {open && (
+                                  <div className="market-cols-group-body">
+                                    {!q && (
+                                      <label className="market-cols-row market-cols-all">
+                                        <input
+                                          type="checkbox"
+                                          checked={allOn}
+                                          ref={(el) => { if (el) el.indeterminate = someOn && !allOn; }}
+                                          onChange={setGroupAll}
+                                        />
+                                        <span>{lang === "en" ? "All" : lang === "uz" ? "Hammasi" : "Все"}</span>
+                                      </label>
+                                    )}
+                                    {cols.map(([k, label]) => (
+                                      <label key={k} className="market-cols-row">
+                                        <input
+                                          type="checkbox"
+                                          checked={visibleCols.has(k)}
+                                          onChange={() => toggleCol(k)}
+                                        />
+                                        <span>{label}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </>
                       );
                     })()}
                   </div>
@@ -4586,7 +4741,17 @@ function MarketView({
                   {visibleCols.has("high") && sortTh("high", mt(lang, "high"))}
                   {visibleCols.has("low") && sortTh("low", mt(lang, "low"))}
                   {visibleCols.has("volume") && sortTh("volume", mt(lang, "volumeCol"))}
+                  {visibleCols.has("volQty") && sortTh("volQty", mt(lang, "volQty"))}
+                  {visibleCols.has("avgShare") && sortTh("avgShare", mt(lang, "avgSharePrice"))}
+                  {visibleCols.has("avgTrade") && sortTh("avgTrade", mt(lang, "avgTradePrice"))}
                   {visibleCols.has("record") && sortTh("record", recordLabel)}
+                  {visibleCols.has("volShare") && sortTh("volShare", mt(lang, "volShare"))}
+                  {visibleCols.has("finRevenue") && sortTh("finRevenue", mt(lang, "finRevenue"))}
+                  {visibleCols.has("finGross") && sortTh("finGross", mt(lang, "finGross"))}
+                  {visibleCols.has("finCash") && sortTh("finCash", mt(lang, "finCash"))}
+                  {visibleCols.has("finLiab") && sortTh("finLiab", mt(lang, "finLiab"))}
+                  {visibleCols.has("finNet") && sortTh("finNet", mt(lang, "finNet"))}
+                  {visibleCols.has("finOperating") && sortTh("finOperating", mt(lang, "finOperating"))}
                   {visibleCols.has("date") && sortTh("date", mt(lang, "date"))}
                   {visibleCols.has("source") && sortTh("source", mt(lang, "source"))}
                 </tr>
@@ -4642,8 +4807,17 @@ function MarketView({
                       {visibleCols.has("volume") && (
                         <td className="num">
                           {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
-                          {row.stockQuantity !== null && <span>{formatRatio(row.stockQuantity, 0, lang)} шт. · {row.stockTradeCount !== null ? formatRatio(row.stockTradeCount, 0, lang) : "—"} {mt(lang, "tradeCount")}</span>}
+                          {row.stockTradeCount !== null && <span>{formatRatio(row.stockTradeCount, 0, lang)} {mt(lang, "tradeCount")}</span>}
                         </td>
+                      )}
+                      {visibleCols.has("volQty") && (
+                        <td className="num">{row.stockQuantity !== null ? formatRatio(row.stockQuantity, 0, lang) : "—"}</td>
+                      )}
+                      {visibleCols.has("avgShare") && (
+                        <td className="num">{avgSharePrice(row) !== null ? formatMarketNumber(avgSharePrice(row), lang) : "—"}</td>
+                      )}
+                      {visibleCols.has("avgTrade") && (
+                        <td className="num">{avgTradeValue(row) !== null ? formatRatio(avgTradeValue(row), 0, lang) : "—"}</td>
                       )}
                       {visibleCols.has("record") && (
                         <td className="num">
@@ -4651,6 +4825,15 @@ function MarketView({
                           {sec.max_volume_date && <span>{sec.max_volume_date}</span>}
                         </td>
                       )}
+                      {visibleCols.has("volShare") && (
+                        <td className="num">{Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—"}</td>
+                      )}
+                      {visibleCols.has("finRevenue") && <td className="num">{finValue(fmap[row.ticker]?.revenue, lang)}</td>}
+                      {visibleCols.has("finGross") && <td className="num">{finValue(fmap[row.ticker]?.gross_profit, lang)}</td>}
+                      {visibleCols.has("finCash") && <td className="num">{finValue(fmap[row.ticker]?.cash, lang)}</td>}
+                      {visibleCols.has("finLiab") && <td className="num">{finValue(fmap[row.ticker]?.total_liabilities, lang)}</td>}
+                      {visibleCols.has("finNet") && <td className="num">{finValue(fmap[row.ticker]?.net_income, lang)}</td>}
+                      {visibleCols.has("finOperating") && <td className="num">{finValue(fmap[row.ticker]?.operating_income, lang)}</td>}
                       {visibleCols.has("date") && (
                         <td>
                           <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
@@ -5437,6 +5620,7 @@ function App() {
   const [marketLoading, setMarketLoading] = useState(false);
   const [marketMessage, setMarketMessage] = useState("");
   const [securitiesMap, setSecuritiesMap] = useState({});
+  const [marketFinancials, setMarketFinancials] = useState({});
   const [toasts, setToasts] = useState([]);
 
   // Dynamic year/quarter options: fallback to static list until per-company periods are fetched
@@ -5586,6 +5770,16 @@ function App() {
       .then((d) => { if (d.ok && d.securities) setSecuritiesMap(d.securities); })
       .catch(() => {});
   }, []);
+
+  // NSBU headline indicators (cached, all companies). Refetched when entering the
+  // market view so the progressively-filled cache stays reasonably current.
+  useEffect(() => {
+    if (activeView !== "market" && activeView !== "heatmap") return;
+    apiFetch("/api/market/financials")
+      .then((r) => r.json())
+      .then((d) => { if (d.ok && d.financials) setMarketFinancials(d.financials); })
+      .catch(() => {});
+  }, [activeView]);
 
   // Fetch available periods whenever the analysis company changes
   useEffect(() => {
@@ -6340,6 +6534,7 @@ function App() {
               language={language}
               companies={companies}
               securitiesMap={securitiesMap}
+              financials={marketFinancials}
               favoriteTickers={favoriteTickers}
               onToggleFavorite={handleToggleFavorite}
               viewMode={activeView === "heatmap" ? "heatmap" : "table"}

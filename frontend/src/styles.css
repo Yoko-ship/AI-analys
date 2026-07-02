@@ -6675,6 +6675,106 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   line-height: 1.45;
 }
 
+.market-top-movers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.market-movers-col {
+  padding: 16px 18px;
+}
+
+.market-movers-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.market-movers-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.market-movers-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.market-movers-dot.up { background: var(--success); }
+.market-movers-dot.down { background: var(--danger); }
+
+.market-movers-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.market-movers-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background 0.12s ease;
+}
+.market-movers-item:hover { background: var(--bg-2); }
+
+.market-movers-tk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.market-movers-tk .chip-logo,
+.market-movers-tk .chip-logo-fallback {
+  width: 22px;
+  height: 22px;
+  font-size: 10px;
+  flex: none;
+}
+
+.market-movers-name {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.market-movers-chg {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.market-movers-chg.up { color: var(--success); }
+.market-movers-chg.down { color: var(--danger); }
+
+.market-movers-empty {
+  padding: 8px;
+  text-align: center;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .market-top-movers { grid-template-columns: 1fr; }
+}
+
 .market-board {
   padding: 0;
   overflow: hidden;
