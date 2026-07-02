@@ -30,6 +30,9 @@ _SYNC_LOCK = threading.Lock()
 _FIN_LOCK = threading.Lock()
 FINANCIALS_TTL_DAYS = int(os.getenv("FINANCIALS_TTL_DAYS", "14"))
 FINANCIALS_BATCH = int(os.getenv("FINANCIALS_BATCH", "12"))
+# How many not-yet-catalogued companies the financials warmup syncs per call, so a
+# fresh backend self-populates progressively without a manual full catalog sync.
+FINANCIALS_SYNC_BATCH = int(os.getenv("FINANCIALS_SYNC_BATCH", "8"))
 
 # Inverted catalog: ticker → company_name (take first match if duplicates)
 _TICKER_TO_NAME: dict[str, str] = {}
@@ -933,24 +936,59 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
     return [dict(r) for r in rows]
 
 
+def _sync_missing_companies(form: str, sync_limit: int) -> int:
+    """Sync a bounded batch of companies that have no catalog reports yet.
+
+    Lets a fresh backend bootstrap its catalog (and therefore financials)
+    progressively over successive market loads, so the columns fill in without a
+    manual ``sync_all``. Returns the number of companies synced this call.
+    """
+    if sync_limit <= 0:
+        return 0
+    conn = get_catalog_conn()
+    have = {r["ticker"] for r in conn.execute("SELECT DISTINCT ticker FROM catalog_reports").fetchall()}
+    conn.close()
+    pending = [
+        t for t in _TICKER_TO_NAME
+        if t not in have and not (t.endswith("P") and t[:-1] in _TICKER_TO_NAME)
+    ]
+    synced = 0
+    for ticker in pending[:sync_limit]:
+        try:
+            sync_company(ticker, _TICKER_TO_NAME.get(ticker, ticker))
+            synced += 1
+        except Exception:
+            logger.exception("warmup catalog sync failed for %s", ticker)
+    return synced
+
+
 def refresh_financials_cache(tickers: list[str] | None = None, *,
                              form: str = "NSBU",
                              limit: int | None = None,
-                             ttl_days: int | None = None) -> dict[str, Any]:
+                             ttl_days: int | None = None,
+                             sync_missing: bool = True,
+                             sync_limit: int | None = None) -> dict[str, Any]:
     """Lazily fill the financials cache for stale/missing tickers, in batches.
 
     Parses the latest annual NSBU report (form 1 + form 2) for each candidate and
-    stores the six headline indicators. Non-blocking: if another refresh is
-    already running, returns immediately. Safe to call fire-and-forget on every
-    market load — it only processes up to ``limit`` companies per call.
+    stores the six headline indicators. When ``sync_missing`` is set and no ticker
+    filter is given, first syncs a small batch of not-yet-catalogued companies so a
+    fresh backend self-populates over successive calls. Non-blocking: if another
+    refresh is already running, returns immediately. Safe to call fire-and-forget
+    on every market load — it only processes up to ``limit`` companies per call.
     """
     limit = limit or FINANCIALS_BATCH
     ttl_days = ttl_days if ttl_days is not None else FINANCIALS_TTL_DAYS
+    sync_limit = FINANCIALS_SYNC_BATCH if sync_limit is None else sync_limit
     if not _FIN_LOCK.acquire(blocking=False):
         return {"ok": True, "skipped": "already running", "processed": 0}
     processed = 0
     filled = 0
+    synced = 0
     try:
+        # Bootstrap the catalog on a fresh backend (only when scanning all tickers).
+        if sync_missing and not tickers:
+            synced = _sync_missing_companies(form, sync_limit)
         conn = get_catalog_conn()
         candidates = _fin_candidates(conn, form, ttl_days, tickers)
         conn.close()
@@ -968,7 +1006,8 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                     filled += 1
             except Exception:
                 logger.exception("financials refresh failed for %s", ticker)
-        return {"ok": True, "candidates": len(candidates), "processed": processed, "filled": filled}
+        return {"ok": True, "synced": synced, "candidates": len(candidates),
+                "processed": processed, "filled": filled}
     finally:
         _FIN_LOCK.release()
 
