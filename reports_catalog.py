@@ -1263,11 +1263,20 @@ def _row_value(nums: list) -> float | None:
             continue
     if not vals:
         return None
-    if len(vals) > 1 and float(vals[0]).is_integer() and 0 < vals[0] < 100000:
-        rest_max = max((abs(v) for v in vals[1:]), default=0.0)
-        if rest_max > vals[0] * 100:
-            vals = vals[1:]
-    for v in vals:
+    # Detect a leading NSBU line-code cell (010, 030, 320 …): a small integer.
+    # In the multi-column commercial layout (code + income/expense + prior year)
+    # the first cell is ALWAYS the code, so drop it even when the amounts are
+    # zero (e.g. a fund with no revenue → [10,0,0,0,0], must not return "10").
+    # In a 2-cell layout it's ambiguous, so only drop when the code is dwarfed
+    # by the value that follows.
+    first_is_code = (
+        len(vals) >= 2
+        and float(vals[0]).is_integer()
+        and 0 < vals[0] < 10000
+        and (len(vals) >= 3 or abs(vals[1]) > abs(vals[0]) * 100)
+    )
+    candidates = vals[1:] if first_is_code else vals
+    for v in candidates:
         if abs(v) > 0.0001:
             return v
     return None
