@@ -86,6 +86,15 @@ COMPANY_CATALOG = {
     # Other
     '"JSM" AJ': "JASM",
     '"TDM" AJ (привилегированные)': "TKDMP",
+    # Additional UZSE issuers (names resolved via openinfo autofill)
+    '"Minora qurish ekspeditsiyasi" aksiyadorlik jamiyati': "MIQE",
+    '"O\'zagrolizing" aksiyadorlik jamiyati': "UZAL",
+    '"93-maxsus trest" aksiyadorlik jamiyati': "MXUS",
+    '"Ohangaron don" aksiyadorlik jamiyati': "OHDN",
+    '"O\'ztransgaz" aksiyadorlik jamiyati': "UTGA",
+    '"Yo\'lreftrans" aksiyadorlik jamiyati': "YRFS",
+    '"UzMED-lizing" aksiyadorlik jamiyati lizing kompaniyasi': "UZML",
+    'O\'zbekiston Respublikasi Milliy Investitsiya jamg\'armasi aksiyadorlik jamiyati': "UZNF",
 }
 
 # Sector classification for each ticker.

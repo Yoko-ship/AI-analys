@@ -46,7 +46,7 @@
    "revenue": 153293049.05,
    "gross_profit": 7810153.86,
    "cash": 8975558.3,
-   "total_liabilities": 47875488.0,
+   "total_liabilities": 47874758.0,
    "net_income": 3463883.9,
    "operating_income": 9714917.33
   },
@@ -82,7 +82,7 @@
    "revenue": 63382212.0,
    "gross_profit": 14630359.0,
    "cash": 2937.0,
-   "total_liabilities": 16224933.0,
+   "total_liabilities": 16224443.0,
    "net_income": 2339927.0,
    "operating_income": 3238442.0
   },
@@ -106,7 +106,7 @@
    "revenue": 38838105.0,
    "gross_profit": 6221787.0,
    "cash": 2213893.0,
-   "total_liabilities": 3260438.0,
+   "total_liabilities": 3259948.0,
    "net_income": 886381.0,
    "operating_income": 1123853.0
   },
@@ -118,7 +118,7 @@
    "revenue": 77468288.0,
    "gross_profit": 77468288.0,
    "cash": 2110179.0,
-   "total_liabilities": 12016989.0,
+   "total_liabilities": 12016499.0,
    "net_income": 30522283.0,
    "operating_income": 38454826.0
   },
@@ -250,9 +250,33 @@
    "revenue": 65888762.0,
    "gross_profit": 10663711.0,
    "cash": 5152283.0,
-   "total_liabilities": 22981361.0,
+   "total_liabilities": 22980871.0,
    "net_income": 1218009.0,
    "operating_income": 2408702.0
+  },
+  {
+   "ticker": "MIQE",
+   "form": "NSBU",
+   "year": 2025,
+   "quarter": 0,
+   "revenue": 105015082.0,
+   "gross_profit": 19012209.0,
+   "cash": 2894484.0,
+   "total_liabilities": 10932714.0,
+   "net_income": 4448761.0,
+   "operating_income": 5845523.0
+  },
+  {
+   "ticker": "MXUS",
+   "form": "NSBU",
+   "year": 2025,
+   "quarter": 0,
+   "revenue": 208319.8,
+   "gross_profit": 474324.2,
+   "cash": 319.6,
+   "total_liabilities": 2750557.3,
+   "net_income": 1724.9,
+   "operating_income": 6156.0
   },
   {
    "ticker": "NGQS",
@@ -262,7 +286,7 @@
    "revenue": 35440669.0,
    "gross_profit": 9434451.0,
    "cash": 122380.0,
-   "total_liabilities": 44686211.0,
+   "total_liabilities": 44685721.0,
    "net_income": 661813.0,
    "operating_income": 1043129.0
   },
@@ -274,7 +298,7 @@
    "revenue": 12334840.2,
    "gross_profit": 5699723.7,
    "cash": 51549.0,
-   "total_liabilities": 17907843.0,
+   "total_liabilities": 17907353.0,
    "net_income": 599159.7,
    "operating_income": 170001.0
   },
@@ -291,13 +315,25 @@
    "operating_income": null
   },
   {
+   "ticker": "OHDN",
+   "form": "NSBU",
+   "year": 2025,
+   "quarter": 0,
+   "revenue": 92299432.0,
+   "gross_profit": 13188349.0,
+   "cash": 590382.0,
+   "total_liabilities": 189948431.0,
+   "net_income": 1375559.0,
+   "operating_income": 33900.0
+  },
+  {
    "ticker": "ORGS",
    "form": "NSBU",
    "year": 2024,
    "quarter": 0,
    "revenue": 1985958.0,
    "gross_profit": 221159.0,
-   "cash": 320.0,
+   "cash": 18062.0,
    "total_liabilities": 7944038.0,
    "net_income": 675816.0,
    "operating_income": 681271.0
@@ -310,7 +346,7 @@
    "revenue": 1117780.82,
    "gross_profit": 829728.35,
    "cash": 31719.0,
-   "total_liabilities": 5770022.0,
+   "total_liabilities": 5769532.0,
    "net_income": 1145161.82,
    "operating_income": 1145161.82
   },
@@ -322,7 +358,7 @@
    "revenue": 48271254.0,
    "gross_profit": 16293486.0,
    "cash": 606493.0,
-   "total_liabilities": 6541076.0,
+   "total_liabilities": 6540586.0,
    "net_income": 1186529.0,
    "operating_income": 2202850.0
   },
@@ -346,7 +382,7 @@
    "revenue": 657935.0,
    "gross_profit": 2187998.0,
    "cash": 5656.0,
-   "total_liabilities": 736304.0,
+   "total_liabilities": 735814.0,
    "net_income": 280388.0,
    "operating_income": 334188.0
   },
@@ -370,7 +406,7 @@
    "revenue": 13144056.0,
    "gross_profit": 6503422.81,
    "cash": 653525.94,
-   "total_liabilities": 1061157.3,
+   "total_liabilities": 1060667.3,
    "net_income": 94187.71,
    "operating_income": 78142.72
   },
@@ -394,7 +430,7 @@
    "revenue": 164068647.99,
    "gross_profit": 16970140.45,
    "cash": 7556363.06,
-   "total_liabilities": 38441600.5,
+   "total_liabilities": 38440870.5,
    "net_income": 11721298.99,
    "operating_income": 5456105.58
   },
@@ -466,9 +502,21 @@
    "revenue": 427646023.0,
    "gross_profit": 378541878.0,
    "cash": 3252045808.0,
-   "total_liabilities": 3708713311.0,
+   "total_liabilities": 3708712821.0,
    "net_income": 319663825.0,
    "operating_income": 231691115.0
+  },
+  {
+   "ticker": "UTGA",
+   "form": "NSBU",
+   "year": 2023,
+   "quarter": 0,
+   "revenue": 16588381470.0,
+   "gross_profit": 635587410.0,
+   "cash": 587514848.0,
+   "total_liabilities": 42249547033.0,
+   "net_income": 2168379019.0,
+   "operating_income": 433681924.0
   },
   {
    "ticker": "UTYK",
@@ -478,7 +526,7 @@
    "revenue": 235010453.0,
    "gross_profit": 160811354.0,
    "cash": 29000362.0,
-   "total_liabilities": 67833978.99,
+   "total_liabilities": 67833488.99,
    "net_income": 119289419.0,
    "operating_income": 132232380.0
   },
@@ -490,9 +538,21 @@
    "revenue": 97252969.0,
    "gross_profit": 15962617.0,
    "cash": 2344361.0,
-   "total_liabilities": 22046851.0,
+   "total_liabilities": 22046361.0,
    "net_income": 1438847.0,
    "operating_income": 2012127.0
+  },
+  {
+   "ticker": "UZAL",
+   "form": "NSBU",
+   "year": 2025,
+   "quarter": 0,
+   "revenue": 323372110.8,
+   "gross_profit": 323372110.8,
+   "cash": 160029767.5,
+   "total_liabilities": 3968834940.9,
+   "net_income": 20063684.4,
+   "operating_income": 219121084.9
   },
   {
    "ticker": "UZAS",
@@ -531,6 +591,18 @@
    "operating_income": 212526707.0
   },
   {
+   "ticker": "UZML",
+   "form": "NSBU",
+   "year": 2025,
+   "quarter": 0,
+   "revenue": 304633.71,
+   "gross_profit": 304633.71,
+   "cash": 791429.98,
+   "total_liabilities": 117948.93,
+   "net_income": -275224.94,
+   "operating_income": -338826.42
+  },
+  {
    "ticker": "UZMT",
    "form": "NSBU",
    "year": 2019,
@@ -543,6 +615,18 @@
    "operating_income": 1589221031.0
   },
   {
+   "ticker": "UZNF",
+   "form": "NSBU",
+   "year": 2025,
+   "quarter": 0,
+   "revenue": null,
+   "gross_profit": null,
+   "cash": 32730000.0,
+   "total_liabilities": 425002000.0,
+   "net_income": 1403150000.0,
+   "operating_income": 1459050000.0
+  },
+  {
    "ticker": "YGSY",
    "form": "NSBU",
    "year": 2025,
@@ -553,6 +637,18 @@
    "total_liabilities": 38619738.0,
    "net_income": 693092.0,
    "operating_income": 1951178.0
+  },
+  {
+   "ticker": "YRFS",
+   "form": "NSBU",
+   "year": 2024,
+   "quarter": 0,
+   "revenue": 34256075.0,
+   "gross_profit": 14002594.0,
+   "cash": 754819.0,
+   "total_liabilities": 44931244.0,
+   "net_income": 3686265.0,
+   "operating_income": 4229800.0
   }
  ]
 }
