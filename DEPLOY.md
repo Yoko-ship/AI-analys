@@ -45,11 +45,18 @@ docker compose up -d --build
 
 No separate DB server is required for the bot runtime.
 
-The bot stores runtime files in `./data`:
+Runtime files live under `APP_DATA_DIR` (defaults to `./data`, and to the
+Railway volume mount when one is attached — see below):
 - `users.db`
 - `analysis_cache.db`
+- `securities.db` — securities catalog + `volume_records` (record turnover)
+- `reports_catalog.db` — report catalog, cached ratios, and the NSBU
+  financials cache (`catalog_financials`) shown in the market table
 - `org_cache.json`
 - `report.html`
+
+All of these resolve under `APP_DATA_DIR`, so a single mounted volume persists
+everything across deploys.
 
 ## Recommended VPS
 
@@ -114,7 +121,24 @@ If you want to run the website API as a separate Railway service:
 2. Set `APP_MODE=api`.
 3. Add `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5.4-mini`, `DATABASE_URL` and `CORS_ORIGINS`.
 4. If you want Google login, also add `GOOGLE_REDIRECT_URI`, `PUBLIC_BASE_URL`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-5. Attach the same kind of Volume if you want cache persistence.
+5. **Attach a Volume and mount it at `/app/data`** (set `APP_DATA_DIR=/app/data`).
+   Without it the securities, report catalog, and NSBU **financials** caches
+   reset on every redeploy and must be rebuilt from scratch.
+
+### Market financials cache
+
+The market table's "Financials" columns are served from `catalog_financials`,
+filled from NSBU Excel reports. On a fresh backend the cache is empty and
+**populates itself progressively**: each visit to the market view triggers a
+bounded, lock-guarded background pass that syncs a few companies into the report
+catalog and extracts their indicators (no Selenium required — the sync path is
+pure HTTP). Full coverage of ~55 companies is reached after a handful of visits.
+
+To warm it up in one shot instead of waiting, call `POST /api/catalog/sync`
+once after deploy, then open the market view.
+
+Tunable via env (optional): `FINANCIALS_TTL_DAYS` (default 14),
+`FINANCIALS_BATCH` (12), `FINANCIALS_SYNC_BATCH` (8).
 
 Note: keep `ANTHROPIC_API_KEY` for the Telegram bot service; the API service uses OpenAI and Railway Postgres for website users.
 

@@ -23,7 +23,7 @@ jobs:
         run: pip install -r requirements-server.txt
 
       - name: Compile Python files
-        run: python -m compileall bot.py main.py analyzer.py cache.py db.py users.py uzse_parser.py
+        run: python -m compileall api.py reports_catalog.py securities_catalog.py openinfo_collector.py bot.py main.py analyzer.py cache.py db.py users.py uzse_parser.py
 
       - name: Build Docker image
         run: docker build -t uz-stock-bot .
