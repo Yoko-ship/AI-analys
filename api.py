@@ -27,6 +27,8 @@ from reports_catalog import (
     get_company_index,
     get_company_reports,
     get_company_ratios_cached,
+    get_all_financials,
+    refresh_financials_cache,
     get_new_reports_for_tickers,
     get_report_urls,
     get_sector_averages,
@@ -472,6 +474,28 @@ async def api_market_trades() -> dict[str, Any]:
         "total_volume": total_volume,
         "total_quantity": total_quantity,
         "total_trade_count": total_trade_count,
+    })
+
+
+@app.get("/api/market/financials")
+async def api_market_financials() -> dict[str, Any]:
+    """Return cached NSBU headline indicators per ticker: {ticker: {...}}.
+
+    Reads the pre-computed cache instantly and kicks a fire-and-forget background
+    refresh so the cache fills/refreshes progressively as the market is browsed.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        financials = await loop.run_in_executor(None, get_all_financials)
+    except Exception as exc:
+        logger.exception("financials cache read failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    # Progressive background fill (non-blocking; self-throttled and lock-guarded).
+    loop.run_in_executor(None, refresh_financials_cache)
+    return _json_safe({
+        "ok": True,
+        "count": len(financials),
+        "financials": financials,
     })
 
 
