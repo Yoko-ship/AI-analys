@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 import os
 from functools import partial
@@ -28,6 +29,7 @@ from reports_catalog import (
     get_company_reports,
     get_company_ratios_cached,
     get_all_financials,
+    bulk_upsert_financials,
     refresh_financials_cache,
     get_new_reports_for_tickers,
     get_report_urls,
@@ -212,6 +214,11 @@ class CatalogAnalyzeRequest(BaseModel):
     form: Literal["NSBU", "MSFO", "Audition"] = "NSBU"
     analysis_type: str = Field(default="financial", max_length=40)
     language: Literal["ru", "en", "uz"] = "ru"
+
+
+class AdminFinancialsRequest(BaseModel):
+    form: Literal["NSBU", "MSFO", "Audition"] = "NSBU"
+    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
     compare_ticker: str | None = Field(default=None, max_length=40)
     compare_year: int | None = Field(default=None, ge=2000, le=2100)
     compare_quarter: int | None = Field(default=None, ge=0, le=3)
@@ -242,6 +249,15 @@ def _require_user(authorization: str | None = Header(default=None)) -> WebUser:
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return user
+
+
+def _require_admin(x_admin_secret: str | None = Header(default=None)) -> None:
+    """Guard for machine-to-machine admin pushes via a shared secret header."""
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail="Admin API is not configured")
+    if not x_admin_secret or not hmac.compare_digest(x_admin_secret.strip(), secret):
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
 
 
 def _extract_bearer_token(authorization: str | None) -> str:
@@ -497,6 +513,26 @@ async def api_market_financials() -> dict[str, Any]:
         "count": len(financials),
         "financials": financials,
     })
+
+
+@app.post("/api/admin/financials")
+async def api_admin_financials(
+    payload: AdminFinancialsRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Overwrite the NSBU financials cache from an externally-computed batch.
+
+    Lets a collector running where openinfo.uz is reachable refresh this
+    deployment (whose datacenter IP openinfo blocks). Authenticated via the
+    ADMIN_API_SECRET shared secret in the X-Admin-Secret header.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        n = await loop.run_in_executor(None, partial(bulk_upsert_financials, payload.rows, payload.form))
+    except Exception as exc:
+        logger.exception("admin financials upsert failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "upserted": n}
 
 
 @app.get("/api/securities")

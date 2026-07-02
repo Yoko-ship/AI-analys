@@ -916,6 +916,55 @@ def _maybe_seed_financials(conn: sqlite3.Connection, form: str = "NSBU") -> None
             _seeded = True
 
 
+def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
+    """Overwrite the financials cache from an externally-computed batch.
+
+    Used by the admin push endpoint so a collector running where openinfo IS
+    reachable can refresh prod (whose datacenter IP openinfo blocks). Unlike the
+    seed loader, this overwrites existing values (ON CONFLICT DO UPDATE).
+    """
+    def _num(v: Any) -> float | None:
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    conn = get_catalog_conn()
+    n = 0
+    try:
+        with conn:
+            for r in rows or []:
+                ticker = str(r.get("ticker") or "").strip().upper()
+                if not ticker:
+                    continue
+                try:
+                    year = int(r.get("year") or 0)
+                    quarter = int(r.get("quarter") or 0)
+                except (TypeError, ValueError):
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO catalog_financials
+                        (ticker, form, year, quarter, revenue, gross_profit, cash,
+                         total_liabilities, net_income, operating_income, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
+                        revenue=excluded.revenue, gross_profit=excluded.gross_profit,
+                        cash=excluded.cash, total_liabilities=excluded.total_liabilities,
+                        net_income=excluded.net_income, operating_income=excluded.operating_income,
+                        updated_at=datetime('now')
+                    """,
+                    (ticker, str(r.get("form") or form), year, quarter,
+                     _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
+                     _num(r.get("total_liabilities")), _num(r.get("net_income")),
+                     _num(r.get("operating_income"))),
+                )
+                n += 1
+    finally:
+        conn.close()
+    return n
+
+
 def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     """Return the most recent cached indicators per ticker: {ticker: {...}}.
 
