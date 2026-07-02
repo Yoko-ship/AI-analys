@@ -1232,6 +1232,8 @@ const MARKET_TEXTS = {
     avgSharePrice: "Ср. цена акции",
     avgTradePrice: "Ср. сумма сделки",
     volShare: "% объёма",
+    bigTrade: "Крупнейшая сделка",
+    tradeQtyUnit: "шт",
     grpOverview: "Обзор AI-скринер",
     grpVolumes: "Объёмы",
     grpFinancials: "Фин. показатели",
@@ -1287,6 +1289,8 @@ const MARKET_TEXTS = {
     avgSharePrice: "Avg share price",
     avgTradePrice: "Avg trade size",
     volShare: "% of volume",
+    bigTrade: "Largest trade",
+    tradeQtyUnit: "units",
     grpOverview: "AI screener overview",
     grpVolumes: "Volumes",
     grpFinancials: "Financials",
@@ -1342,6 +1346,8 @@ const MARKET_TEXTS = {
     avgSharePrice: "O'rt. aksiya narxi",
     avgTradePrice: "O'rt. bitim summasi",
     volShare: "Hajm %",
+    bigTrade: "Eng katta bitim",
+    tradeQtyUnit: "dona",
     grpOverview: "AI-skrener sharhi",
     grpVolumes: "Hajmlar",
     grpFinancials: "Moliyaviy ko'rsatkichlar",
@@ -4292,6 +4298,7 @@ function MarketView({
   companies,
   securitiesMap,
   financials,
+  tradeStats,
   favoriteTickers,
   onToggleFavorite,
   viewMode: viewModeProp,
@@ -4339,6 +4346,7 @@ function MarketView({
       ["volQty", mt(lang, "volQty")],
       ["avgShare", mt(lang, "avgSharePrice")],
       ["avgTrade", mt(lang, "avgTradePrice")],
+      ["bigTrade", mt(lang, "bigTrade")],
       ["record", recordLabel],
       ["volShare", mt(lang, "volShare")],
     ] },
@@ -4390,7 +4398,29 @@ function MarketView({
     const t = String(ticker || "").toUpperCase();
     return fmap[t] || fmap[t.endsWith("P") ? t.slice(0, -1) : `${t}P`] || null;
   };
-  const prepared = (Array.isArray(rows) ? rows : []).map(enrichMarketStock);
+  const tmap = tradeStats || {};
+  // Per-trade stats (UZSE) are the complete, correct daily totals — the plain
+  // /stocks snapshot can be stale. When present, override turnover/qty/trades
+  // with them, expose the average trade price, and recompute the change from
+  // that average price (vs previous close) instead of the last single trade.
+  const prepared = (Array.isArray(rows) ? rows : []).map(enrichMarketStock).map((r) => {
+    const t = tmap[r.isin] || tmap[(r.isin || "").toUpperCase()];
+    if (!t) return r;
+    const out = { ...r, ts: t };
+    if (Number.isFinite(t.total_value)) out.stockVolume = t.total_value;
+    if (Number.isFinite(t.total_qty)) out.stockQuantity = t.total_qty;
+    if (Number.isFinite(t.trade_count)) out.stockTradeCount = t.trade_count;
+    if (Number.isFinite(t.avg_price)) {
+      out.avgPrice = t.avg_price;
+      if (Number.isFinite(r.closePrice) && r.closePrice > 0) {
+        const v = t.avg_price - r.closePrice;
+        out.changeValue = v;
+        out.changePercent = (v / Math.abs(r.closePrice)) * 100;
+        out.tone = marketTone(out.changePercent);
+      }
+    }
+    return out;
+  });
   const search = String(query || "").trim().toLowerCase();
 
   // Gather sectors present in current data
@@ -4407,8 +4437,9 @@ function MarketView({
     low: (r) => r.lowPrice,
     volume: (r) => r.stockVolume,
     volQty: (r) => r.stockQuantity,
-    avgShare: (r) => avgSharePrice(r),
+    avgShare: (r) => (Number.isFinite(r.avgPrice) ? r.avgPrice : avgSharePrice(r)),
     avgTrade: (r) => avgTradeValue(r),
+    bigTrade: (r) => r.ts?.largest_value,
     volShare: (r) => r.stockVolume,
     record: (r) => smap[r.ticker]?.max_volume,
     finRevenue: (r) => finOf(r.ticker)?.revenue,
@@ -4751,6 +4782,7 @@ function MarketView({
                   {visibleCols.has("volQty") && sortTh("volQty", mt(lang, "volQty"))}
                   {visibleCols.has("avgShare") && sortTh("avgShare", mt(lang, "avgSharePrice"))}
                   {visibleCols.has("avgTrade") && sortTh("avgTrade", mt(lang, "avgTradePrice"))}
+                  {visibleCols.has("bigTrade") && sortTh("bigTrade", mt(lang, "bigTrade"))}
                   {visibleCols.has("record") && sortTh("record", recordLabel)}
                   {visibleCols.has("volShare") && sortTh("volShare", mt(lang, "volShare"))}
                   {visibleCols.has("finRevenue") && sortTh("finRevenue", mt(lang, "finRevenue"))}
@@ -4820,11 +4852,25 @@ function MarketView({
                       {visibleCols.has("volQty") && (
                         <td className="num">{row.stockQuantity !== null ? formatRatio(row.stockQuantity, 0, lang) : "—"}</td>
                       )}
-                      {visibleCols.has("avgShare") && (
-                        <td className="num">{avgSharePrice(row) !== null ? formatMarketNumber(avgSharePrice(row), lang) : "—"}</td>
-                      )}
+                      {visibleCols.has("avgShare") && (() => {
+                        const v = Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row);
+                        return <td className="num">{v === null || v === undefined ? "—" : formatMarketNumber(v, lang)}</td>;
+                      })()}
                       {visibleCols.has("avgTrade") && (
                         <td className="num">{avgTradeValue(row) !== null ? formatRatio(avgTradeValue(row), 0, lang) : "—"}</td>
+                      )}
+                      {visibleCols.has("bigTrade") && (
+                        <td className="num">
+                          {row.ts && Number.isFinite(row.ts.largest_value) ? (
+                            <>
+                              {formatRatio(row.ts.largest_value, 0, lang)}
+                              <span>
+                                {Number.isFinite(row.ts.largest_qty) ? `${formatRatio(row.ts.largest_qty, 0, lang)} ${mt(lang, "tradeQtyUnit")}` : ""}
+                                {Number.isFinite(row.ts.largest_pct_value) ? ` · ${formatRatio(row.ts.largest_pct_value, 1, lang)}%` : ""}
+                              </span>
+                            </>
+                          ) : "—"}
+                        </td>
                       )}
                       {visibleCols.has("record") && (
                         <td className="num">
@@ -5628,6 +5674,7 @@ function App() {
   const [marketMessage, setMarketMessage] = useState("");
   const [securitiesMap, setSecuritiesMap] = useState({});
   const [marketFinancials, setMarketFinancials] = useState({});
+  const [marketTradeStats, setMarketTradeStats] = useState({});
   const [toasts, setToasts] = useState([]);
 
   // Dynamic year/quarter options: fallback to static list until per-company periods are fetched
@@ -5785,6 +5832,10 @@ function App() {
     apiFetch("/api/market/financials")
       .then((r) => r.json())
       .then((d) => { if (d.ok && d.financials) setMarketFinancials(d.financials); })
+      .catch(() => {});
+    apiFetch("/api/market/trade-stats")
+      .then((r) => r.json())
+      .then((d) => { if (d.ok && d.stats) setMarketTradeStats(d.stats); })
       .catch(() => {});
   }, [activeView]);
 
@@ -6542,6 +6593,7 @@ function App() {
               companies={companies}
               securitiesMap={securitiesMap}
               financials={marketFinancials}
+              tradeStats={marketTradeStats}
               favoriteTickers={favoriteTickers}
               onToggleFavorite={handleToggleFavorite}
               viewMode={activeView === "heatmap" ? "heatmap" : "table"}
