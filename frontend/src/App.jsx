@@ -4329,7 +4329,6 @@ function MarketView({
   };
 
   // User-configurable quote columns (ticker/company/last are always shown).
-  const recordLabel = lang === "en" ? "Record turnover" : lang === "uz" ? "Rekord aylanma" : "Рекорд оборота";
   // Quote columns grouped into collapsible sections in the settings dropdown.
   // Each section is a sibling of "AI screener overview" (not nested under it).
   const COL_GROUPS = [
@@ -4347,7 +4346,6 @@ function MarketView({
       ["avgShare", mt(lang, "avgSharePrice")],
       ["avgTrade", mt(lang, "avgTradePrice")],
       ["bigTrade", mt(lang, "bigTrade")],
-      ["record", recordLabel],
       ["volShare", mt(lang, "volShare")],
     ] },
     { key: "financials", title: mt(lang, "grpFinancials"), cols: [
@@ -4368,7 +4366,7 @@ function MarketView({
   ];
   const [visibleCols, setVisibleCols] = useState(() => {
     try { const s = JSON.parse(localStorage.getItem("uz_market_cols")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
-    return new Set(["change", "open", "high", "low", "volume", "record", "date", "source"]);
+    return new Set(["change", "open", "high", "low", "volume", "date", "source"]);
   });
   const [colsOpen, setColsOpen] = useState(false);
   const [colsSearch, setColsSearch] = useState("");
@@ -4441,7 +4439,6 @@ function MarketView({
     avgTrade: (r) => avgTradeValue(r),
     bigTrade: (r) => r.ts?.largest_value,
     volShare: (r) => r.stockVolume,
-    record: (r) => smap[r.ticker]?.max_volume,
     finRevenue: (r) => finOf(r.ticker)?.revenue,
     finGross: (r) => finOf(r.ticker)?.gross_profit,
     finCash: (r) => finOf(r.ticker)?.cash,
@@ -4783,7 +4780,6 @@ function MarketView({
                   {visibleCols.has("avgShare") && sortTh("avgShare", mt(lang, "avgSharePrice"))}
                   {visibleCols.has("avgTrade") && sortTh("avgTrade", mt(lang, "avgTradePrice"))}
                   {visibleCols.has("bigTrade") && sortTh("bigTrade", mt(lang, "bigTrade"))}
-                  {visibleCols.has("record") && sortTh("record", recordLabel)}
                   {visibleCols.has("volShare") && sortTh("volShare", mt(lang, "volShare"))}
                   {visibleCols.has("finRevenue") && sortTh("finRevenue", mt(lang, "finRevenue"))}
                   {visibleCols.has("finGross") && sortTh("finGross", mt(lang, "finGross"))}
@@ -4870,12 +4866,6 @@ function MarketView({
                               </span>
                             </>
                           ) : "—"}
-                        </td>
-                      )}
-                      {visibleCols.has("record") && (
-                        <td className="num">
-                          {sec.max_volume ? formatRatio(sec.max_volume, 0, lang) : "—"}
-                          {sec.max_volume_date && <span>{sec.max_volume_date}</span>}
                         </td>
                       )}
                       {visibleCols.has("volShare") && (
