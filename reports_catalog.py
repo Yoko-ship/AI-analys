@@ -1326,42 +1326,65 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
 def _row_value(nums: list) -> float | None:
     """Pick the reporting-period amount from a parsed row's numeric cells.
 
-    Two NSBU Excel layouts occur in the wild:
-      * bank/vertical forms → ``[amount]`` (the line number lives in the label);
-      * standard commercial forms → ``[line_code, cur_income, cur_expense,
-        prev_income, prev_expense]`` where the first cell is the NSBU line code
-        (010, 030, 090 …), NOT money.
+    Several NSBU Excel layouts occur in the wild, but they all lay their period
+    columns out OLDEST → NEWEST left-to-right, exactly as openinfo exports them:
+      * bank/vertical forms → ``[amount]`` (single period; the line number lives
+        in the label) or ``[prior, current]`` (begin-of-year | end-of-period);
+      * commercial form №1 (balance) → ``[line_code, begin, end]``
+        (header: «На начало отчётного периода» | «На конец отчётного периода»);
+      * commercial form №2 (fin. results) → ``[line_code, prev_income,
+        prev_expense, cur_income, cur_expense]``
+        (header: «За соответствующий период прошлого года» | «За отчётный период»).
 
-    A naive "first numeric" grab returns the line code (010 → 10) for the second
-    layout, so we drop a leading cell that is clearly a code — a small integer
-    dwarfed (>100×) by a real value that follows — then return the first non-zero
-    amount (handles the income/expense column pair, where one side is 0).
+    The reporting-period figure is therefore the LATER column-group, never the
+    first. A naive "first numeric after the code" grab returns last year's / the
+    opening balance — the exact off-by-one-period bug this guards against.
+
+    We drop a leading cell that is clearly a line code (a small integer, either
+    dwarfed >100× by the value after it or sitting ahead of ≥2 more cells), then,
+    when the remaining cells split into two equal period halves, read the first
+    non-zero amount from the SECOND (reporting) half. We fall back to the first
+    half only when the reporting half is entirely zero (e.g. a period that has
+    not been reported yet).
     """
     vals: list[float] = []
     for n in nums:
         try:
-            vals.append(float(n))
+            f = float(n)
         except (TypeError, ValueError):
             continue
+        if f != f:  # NaN (blank cell captured as NaN) — skip so it can't shift the split
+            continue
+        vals.append(f)
     if not vals:
         return None
     # Detect a leading NSBU line-code cell (010, 030, 320 …): a small integer.
-    # In the multi-column commercial layout (code + income/expense + prior year)
-    # the first cell is ALWAYS the code, so drop it even when the amounts are
-    # zero (e.g. a fund with no revenue → [10,0,0,0,0], must not return "10").
-    # In a 2-cell layout it's ambiguous, so only drop when the code is dwarfed
-    # by the value that follows.
+    # In the multi-column commercial layout (code + period pairs) the first cell
+    # is ALWAYS the code, so drop it even when the amounts are zero (e.g. a fund
+    # with no revenue → [10,0,0,0,0], must not return "10"). In a 2-cell layout
+    # it's ambiguous, so only drop when the code is dwarfed by the value after it.
     first_is_code = (
         len(vals) >= 2
-        and float(vals[0]).is_integer()
+        and vals[0].is_integer()
         and 0 < vals[0] < 10000
         and (len(vals) >= 3 or abs(vals[1]) > abs(vals[0]) * 100)
     )
-    candidates = vals[1:] if first_is_code else vals
-    for v in candidates:
-        if abs(v) > 0.0001:
-            return v
-    return None
+    rest = vals[1:] if first_is_code else vals
+
+    def _first_nonzero(seq: list[float]) -> float | None:
+        for v in seq:
+            if abs(v) > 0.0001:
+                return v
+        return None
+
+    # Period columns run oldest → newest, so the reporting period is the second
+    # half of the value cells (form №2 prior|current income/expense pairs; form №1
+    # and bank forms begin|end / prior|current). Prefer it; fall back if it's zero.
+    if len(rest) >= 2 and len(rest) % 2 == 0:
+        reporting = _first_nonzero(rest[len(rest) // 2:])
+        if reporting is not None:
+            return reporting
+    return _first_nonzero(rest)
 
 
 def _extract_metric(rows: list[dict], key: str) -> float | None:
