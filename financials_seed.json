@@ -135,6 +135,18 @@
    "operating_income": 1020213.89
   },
   {
+   "ticker": "FRAZP",
+   "form": "NSBU",
+   "year": 2024,
+   "quarter": 0,
+   "revenue": 2127003173.0,
+   "gross_profit": 686055818.0,
+   "cash": 63382418.0,
+   "total_liabilities": 452641439.0,
+   "net_income": 76246272.0,
+   "operating_income": 124406448.0
+  },
+  {
    "ticker": "GRBK",
    "form": "NSBU",
    "year": 2022,
