@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import heroImage from "./assets/hero-image.png";
 import logoIcon from "./assets/icon.png";
 
@@ -3625,7 +3626,9 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
         const left = Math.max(8, Math.min(hover.x + 16, vw - TT_W - 8));
         const top = Math.max(8, Math.min(hover.y + 16, vh - TT_H - 8));
         const tone = marketTone(r.changePercent);
-        return (
+        // Portal to <body> so an ancestor's backdrop-filter/transform doesn't turn
+        // position:fixed into a clipped, mispositioned box.
+        return createPortal(
           <div className="heatmap-tt" style={{ left, top, width: TT_W }}>
             <div className="heatmap-tt-head">
               <span className="heatmap-tt-ticker">{r.ticker}</span>
@@ -3638,7 +3641,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
                 <div className="heatmap-tt-row" key={k}><span>{k}</span><span>{v}</span></div>
               ))}
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
     </div>
