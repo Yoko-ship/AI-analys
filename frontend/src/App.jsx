@@ -3474,6 +3474,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
   const lang = normalizeLanguage(language);
   const wrapRef = React.useRef(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const [hover, setHover] = useState(null); // { ticker, row, x, y } — rich hover tooltip
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -3583,7 +3584,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
                     className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}`}
                     style={{ left: st.x + GAP / 2, top: st.y + GAP / 2, width: w, height: h, ...tileStyle }}
                     onClick={() => onAnalyze(row.ticker)}
-                    title={`${row.name || companyMap[row.ticker]?.company_name || row.ticker}\n${formatPct(row.changePercent)}${row.lastPrice != null ? ` · ${formatMarketNumber(row.lastPrice, lang)}` : ""}`}
+                    onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
+                    onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
                   >
                     {showTicker && <span className="htt-ticker" style={{ fontSize: tickerSize }}>{row.ticker}</span>}
                     {showPct && <span className="htt-pct" style={{ fontSize: tickerSize * 0.76 }}>{formatPct(row.changePercent)}</span>}
@@ -3600,6 +3602,45 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
           {lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}
         </p>
       )}
+
+      {hover && (() => {
+        const r = hover.row;
+        const name = r.name || companyMap[r.ticker]?.company_name || r.ticker;
+        const price = marketDisplayPrice(r);
+        const avgShare = Number.isFinite(r.avgPrice) ? r.avgPrice : avgSharePrice(r);
+        const avgTrade = avgTradeValue(r);
+        const largest = r.ts && Number.isFinite(r.ts.largest_value) ? r.ts.largest_value : null;
+        const num = (v, d = 0) => (Number.isFinite(v) && v > 0 ? formatRatio(v, d, lang) : "—");
+        const stats = [
+          [mt(lang, "volumeCol"), num(r.stockVolume)],
+          [mt(lang, "volQty"), num(r.stockQuantity)],
+          [mt(lang, "avgSharePrice"), Number.isFinite(avgShare) && avgShare > 0 ? formatMarketNumber(avgShare, lang) : "—"],
+          [mt(lang, "avgTradePrice"), num(avgTrade)],
+          [mt(lang, "bigTrade"), num(largest)],
+        ];
+        // position: fixed at the cursor, clamped inside the viewport
+        const TT_W = 236, TT_H = 210;
+        const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
+        const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+        const left = Math.max(8, Math.min(hover.x + 16, vw - TT_W - 8));
+        const top = Math.max(8, Math.min(hover.y + 16, vh - TT_H - 8));
+        const tone = marketTone(r.changePercent);
+        return (
+          <div className="heatmap-tt" style={{ left, top, width: TT_W }}>
+            <div className="heatmap-tt-head">
+              <span className="heatmap-tt-ticker">{r.ticker}</span>
+              <span className={`heatmap-tt-pct tone-${tone}`}>{formatPct(r.changePercent)}</span>
+            </div>
+            <div className="heatmap-tt-name">{name}</div>
+            {price != null && <div className="heatmap-tt-price">{formatMarketNumber(price, lang)}</div>}
+            <div className="heatmap-tt-stats">
+              {stats.map(([k, v]) => (
+                <div className="heatmap-tt-row" key={k}><span>{k}</span><span>{v}</span></div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
