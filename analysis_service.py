@@ -690,13 +690,19 @@ def _article_amount_cells(row: dict) -> list[dict]:
 
 
 def _article_amount_pair(row: dict) -> tuple[float, float] | None:
+    """Return ``(current, prior)`` amounts for a row's period columns.
+
+    openinfo lays period columns out OLDEST → NEWEST left-to-right (prior year /
+    opening balance first, reporting period / closing balance last), so the
+    reporting-period figure is the LAST value cell and the comparison the first.
+    """
     cells = _article_amount_cells(row)
     large = [cell for cell in cells if abs(cell["value"]) >= 1000]
     source = large if len(large) >= 2 else cells
     if len(source) < 2:
         return None
     source = sorted(source, key=lambda item: item["index"])
-    return source[0]["value"], source[1]["value"]
+    return source[-1]["value"], source[0]["value"]
 
 
 def _article_current_amount(row: dict) -> float | None:
@@ -1013,7 +1019,13 @@ def _article_preferred_value_cell_index(rows: list[dict], report_index: int | No
         return None
 
     repeated_indices = [index for index, count in counts.items() if count >= 2]
-    return min(repeated_indices or counts)
+    # Period columns run oldest → newest, so the reporting-period value lives in
+    # the later half of the value columns (form №2 prior|current income/expense
+    # pairs; form №1/bank forms begin|end). Return that group's leftmost (primary)
+    # column, NOT the overall leftmost — which would be last year / the opening.
+    candidates = sorted(repeated_indices or counts)
+    reporting = candidates[len(candidates) // 2:]
+    return reporting[0] if reporting else None
 
 
 def _article_apply_preferred_value_cell(rows: list[dict], report_index: int | None) -> None:
