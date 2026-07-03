@@ -95,6 +95,7 @@ COMPANY_CATALOG = {
     '"Yo\'lreftrans" aksiyadorlik jamiyati': "YRFS",
     '"UzMED-lizing" aksiyadorlik jamiyati lizing kompaniyasi': "UZML",
     'O\'zbekiston Respublikasi Milliy Investitsiya jamg\'armasi aksiyadorlik jamiyati': "UZNF",
+    '"Farg\'onaazot" aksiyadorlik jamiyati': "FRAZP",  # openinfo org 460; only the preferred (FRAZP) is UZSE-listed
 }
 
 # Sector classification for each ticker.
@@ -168,4 +169,6 @@ COMPANY_SECTORS: dict[str, str] = {
     # Other
     "JASM": "other",
     "TKDMP": "other",
+    # Chemicals (manufacturing)
+    "FRAZP": "manufacturing",  # Farg'onaazot — nitrogen fertilizers / chemicals
 }
