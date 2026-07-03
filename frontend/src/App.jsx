@@ -1532,6 +1532,20 @@ function avgTradeValue(row) {
   return Number.isFinite(vol) && Number.isFinite(n) && n > 0 ? vol / n : null;
 }
 
+// Price to show in the quote column. UZSE sometimes reports last_price=null even
+// for a security that traded today (e.g. UZAS: null price but real turnover), and
+// Number(null)===0 would render a misleading "0,00". So: use the last trade price
+// when present; otherwise, only if the security actually traded, fall back to the
+// average trade price (turnover/shares) or the close; else null → em-dash.
+function marketDisplayPrice(row) {
+  if (row?.last_price != null && Number.isFinite(row.lastPrice)) return row.lastPrice;
+  const traded = row?.stockTradeCount > 0 || row?.stockVolume > 0 || row?.stockQuantity > 0;
+  if (!traded) return null;
+  const avg = Number.isFinite(row?.avgPrice) && row.avgPrice > 0 ? row.avgPrice : avgSharePrice(row);
+  if (Number.isFinite(avg) && avg > 0) return avg;
+  return Number.isFinite(row?.closePrice) && row.closePrice > 0 ? row.closePrice : null;
+}
+
 // Financial indicator cell: compact sums (e.g. "1,2 млрд"), em-dash when absent.
 function finValue(v, lang) {
   return Number.isFinite(v) ? formatCompactNumber(v, lang) : "—";
@@ -4428,7 +4442,7 @@ function MarketView({
   const sortAccessors = {
     ticker: (r) => r.ticker || "",
     company: (r) => r.name || "",
-    last: (r) => r.lastPrice,
+    last: (r) => marketDisplayPrice(r),
     change: (r) => r.changePercent,
     open: (r) => r.openPrice,
     high: (r) => r.highPrice,
@@ -4834,7 +4848,7 @@ function MarketView({
                         </button>
                         <span>{row.isin || "—"}</span>
                       </td>
-                      <td className="num">{row.lastPrice === null ? "—" : formatMarketNumber(row.lastPrice, lang)}</td>
+                      <td className="num">{(() => { const p = marketDisplayPrice(row); return p == null ? "—" : formatMarketNumber(p, lang); })()}</td>
                       {visibleCols.has("change") && <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>}
                       {visibleCols.has("open") && <td className="num">{row.openPrice === null ? "—" : formatMarketNumber(row.openPrice, lang)}</td>}
                       {visibleCols.has("high") && <td className="num">{row.highPrice === null ? "—" : formatMarketNumber(row.highPrice, lang)}</td>}
