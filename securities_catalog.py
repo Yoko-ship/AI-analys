@@ -65,7 +65,7 @@ _TICKER_SECTORS: dict[str, str] = {
     "SANE": "mining",
     "UTGAP": "transport",
     "QATT": "transport",
-    "UPOS": "transport",
+    "UPOS": "transport", "UPOSP": "transport",
     "UZTL": "telecom", "UZTLP": "telecom",
     "BTRL": "professional",
     "CBSK": "trade",

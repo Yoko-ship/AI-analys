@@ -96,6 +96,7 @@ COMPANY_CATALOG = {
     '"UzMED-lizing" aksiyadorlik jamiyati lizing kompaniyasi': "UZML",
     'O\'zbekiston Respublikasi Milliy Investitsiya jamg\'armasi aksiyadorlik jamiyati': "UZNF",
     '"Farg\'onaazot" aksiyadorlik jamiyati': "FRAZP",  # openinfo org 460; only the preferred (FRAZP) is UZSE-listed
+    '"O\'zbekinvest" eksport-import sug\'urta kompaniyasi': "UZINP",  # openinfo org 835; only the preferred (UZINP) is UZSE-listed
 }
 
 # Sector classification for each ticker.
@@ -144,7 +145,7 @@ COMPANY_SECTORS: dict[str, str] = {
     # Transport
     "UTGAP": "transport",
     "QATT": "transport",
-    "UPOS": "transport",
+    "UPOS": "transport", "UPOSP": "transport",
     # Telecom & IT
     "UZTL": "telecom", "UZTLP": "telecom",
     # Professional Services
