@@ -615,6 +615,18 @@
    "operating_income": 14023874.0
   },
   {
+   "ticker": "UZINP",
+   "form": "NSBU",
+   "year": 2025,
+   "quarter": 0,
+   "revenue": 570813184.0,
+   "gross_profit": 80581214.0,
+   "cash": 77823662.0,
+   "total_liabilities": 680484716.0,
+   "net_income": 55135175.0,
+   "operating_income": 27249457.0
+  },
+  {
    "ticker": "UZIR",
    "form": "NSBU",
    "year": 2024,
