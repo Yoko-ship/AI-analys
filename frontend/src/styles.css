@@ -7472,6 +7472,95 @@ body[data-theme="light"] .heatmap-tree-tile.is-neutral {
   color: var(--muted);
 }
 
+/* Rich hover tooltip over a heatmap tile — fixed to the viewport so it escapes
+   the tree's overflow:hidden. */
+.heatmap-tt {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.heatmap-tt-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.heatmap-tt-ticker {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.heatmap-tt-pct { font-weight: 700; font-size: 12px; }
+.heatmap-tt-pct.tone-good   { color: var(--success); }
+.heatmap-tt-pct.tone-danger { color: var(--danger); }
+.heatmap-tt-pct.tone-neutral{ color: var(--muted); }
+
+.heatmap-tt-name {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heatmap-tt-price {
+  margin-top: 4px;
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.heatmap-tt-stats {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 3px;
+}
+
+.heatmap-tt-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.heatmap-tt-row span:first-child {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.heatmap-tt-row span:last-child {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+body[data-theme="light"] .heatmap-tt {
+  background: rgba(255, 255, 255, 0.98);
+  color: #0f1c30;
+}
+body[data-theme="light"] .heatmap-tt-ticker,
+body[data-theme="light"] .heatmap-tt-price,
+body[data-theme="light"] .heatmap-tt-row span:last-child { color: #0f1c30; }
+
 body[data-theme="dark"] .market-search input {
   background: rgba(10, 15, 26, 0.95);
   border-color: rgba(255, 255, 255, 0.1);
