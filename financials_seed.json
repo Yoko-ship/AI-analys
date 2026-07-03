@@ -245,14 +245,14 @@
   {
    "ticker": "KSCM",
    "form": "NSBU",
-   "year": 2021,
-   "quarter": 0,
-   "revenue": 10.0,
-   "gross_profit": 30.0,
-   "cash": 320.0,
-   "total_liabilities": 1090.0,
-   "net_income": 270.0,
-   "operating_income": 100.0
+   "year": 2026,
+   "quarter": 1,
+   "revenue": 36422795.0,
+   "gross_profit": 3746828.0,
+   "cash": 652568.3,
+   "total_liabilities": 311707727.7,
+   "net_income": 451225.0,
+   "operating_income": 2171002.0
   },
   {
    "ticker": "KVTS",

@@ -1141,6 +1141,34 @@ def _sync_missing_companies(form: str, sync_limit: int) -> int:
     return synced
 
 
+def _latest_excel_report(ticker: str, form: str,
+                         exclude: tuple[int, int] | None = None) -> dict[str, int] | None:
+    """Newest report (any period type) with an Excel export, for a fallback.
+
+    ``_fin_candidates`` prefers the latest *annual* report, but some issuers only
+    have an old annual (sometimes an empty filing) plus recent quarterly data
+    (e.g. KSCM: newest annual is 2021, but 2026 Q1 has real figures). When the
+    preferred report yields nothing, we retry with the most recent report that
+    exists so those companies still populate.
+    """
+    conn = get_catalog_conn()
+    rows = conn.execute(
+        """
+        SELECT year, quarter FROM catalog_reports
+        WHERE ticker = ? AND report_form = ? AND excel_url IS NOT NULL AND year IS NOT NULL
+        ORDER BY year DESC, quarter DESC
+        """,
+        (ticker, form),
+    ).fetchall()
+    conn.close()
+    for r in rows:
+        yq = (r["year"], r["quarter"] or 0)
+        if exclude and yq == exclude:
+            continue
+        return {"year": yq[0], "quarter": yq[1]}
+    return None
+
+
 def refresh_financials_cache(tickers: list[str] | None = None, *,
                              form: str = "NSBU",
                              limit: int | None = None,
@@ -1176,10 +1204,19 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
             processed += 1
             try:
                 data = fetch_report_excel_data(ticker, form, year, quarter)
-                if not data.get("ok"):
-                    continue
                 vals = (compute_financial_ratios(data.get("income"),
-                                                 data.get("balance")).get("source_values") or {})
+                                                 data.get("balance")).get("source_values") or {}) if data.get("ok") else {}
+                if not any(vals.get(k) is not None for k in _FINANCIAL_KEYS):
+                    # Preferred (annual) report had no usable data — e.g. an old
+                    # empty filing. Fall back to the ticker's most recent report.
+                    alt = _latest_excel_report(ticker, form, exclude=(year, quarter or 0))
+                    if alt:
+                        alt_data = fetch_report_excel_data(ticker, form, alt["year"], alt["quarter"])
+                        if alt_data.get("ok"):
+                            alt_vals = (compute_financial_ratios(alt_data.get("income"),
+                                                                 alt_data.get("balance")).get("source_values") or {})
+                            if any(alt_vals.get(k) is not None for k in _FINANCIAL_KEYS):
+                                year, quarter, vals = alt["year"], alt["quarter"], alt_vals
                 if any(vals.get(k) is not None for k in _FINANCIAL_KEYS):
                     upsert_financials_cache(ticker, form, year, quarter, vals)
                     filled += 1
