@@ -153,6 +153,10 @@ COMPANY_SECTORS: dict[str, str] = {
     # Added companies
     "KFSK": "finance", "KFSKP": "finance",
     "UZAS": "finance", "UZASP": "finance",
+    # Insurance / leasing (financial sector)
+    "UZINP": "finance",  # O'zbekinvest — national export-import insurer
+    "UZAL": "finance",   # O'zagrolizing — leasing
+    "UZML": "finance",   # UzMED-lizing — medical-equipment leasing
     "KSCM": "manufacturing", "KSCMP": "manufacturing",
     "NGQT": "mining",
     "YGSY": "mining",
