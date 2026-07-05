@@ -94,6 +94,32 @@ def push_trade_stats() -> int:
     return _post("/api/admin/trade-stats", {"trade_date": data.get("trade_date"), "rows": rows})
 
 
+def collect_and_push_facts() -> int:
+    """Run every registered source adapter locally, then push the fact store to prod.
+
+    This is the extensible half of the pipeline: any adapter registered in
+    data_sources (financial_indicators today, shareholder structure / news /
+    ratings tomorrow) is picked up automatically and its facts propagate.
+    """
+    import data_sources as ds
+
+    log.info("running source adapters (fact store) ...")
+    res = ds.run_all()
+    log.info("adapters: %s", res.get("collectors"))
+    facts = rc.get_facts()
+    rows = [{
+        "entity_id": f["entity_id"], "dataset": f["dataset"], "field": f["field"],
+        "period": f["period"],
+        "value": f["value_num"] if f["value_num"] is not None else f["value_text"],
+        "unit": f["unit"], "source": f["source"], "source_url": f["source_url"],
+    } for f in facts]
+    if not rows:
+        log.warning("no facts collected")
+        return 1
+    log.info("pushing %d facts", len(rows))
+    return _post("/api/admin/facts", {"rows": rows})
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--push-only", action="store_true", help="skip financials refresh, push current cache")
@@ -101,10 +127,12 @@ def main() -> int:
     ap.add_argument("--no-financials", action="store_true", help="skip the financials step")
     ap.add_argument("--no-trades", action="store_true", help="skip the trade-stats step")
     ap.add_argument("--trades-only", action="store_true", help="only fetch+push trade stats")
+    ap.add_argument("--no-facts", action="store_true", help="skip the source-adapter fact step")
+    ap.add_argument("--facts-only", action="store_true", help="only run+push the source-adapter facts")
     args = ap.parse_args()
 
     rc_status = 0
-    if not (args.no_financials or args.trades_only):
+    if not (args.no_financials or args.trades_only or args.facts_only):
         if not args.push_only:
             refresh_local()
         rows = collect_rows()
@@ -113,11 +141,18 @@ def main() -> int:
         if rows and not args.no_push:
             rc_status = push(rows) or rc_status
 
-    if not (args.no_trades or args.no_push):
+    if not (args.no_trades or args.no_push or args.facts_only):
         try:
             rc_status = push_trade_stats() or rc_status
         except Exception:
             log.exception("trade-stats step failed")
+            rc_status = rc_status or 1
+
+    if not (args.no_facts or args.no_push or args.trades_only):
+        try:
+            rc_status = collect_and_push_facts() or rc_status
+        except Exception:
+            log.exception("facts step failed")
             rc_status = rc_status or 1
 
     return rc_status

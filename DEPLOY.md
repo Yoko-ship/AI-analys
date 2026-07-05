@@ -142,6 +142,57 @@ Tunable via env (optional): `FINANCIALS_TTL_DAYS` (default 14),
 
 Note: keep `ANTHROPIC_API_KEY` for the Telegram bot service; the API service uses OpenAI and Railway Postgres for website users.
 
+## Data pipeline (self-discovering ingestion)
+
+The market/financials data is now driven by the **UZSE feed as the source of
+truth** rather than a hardcoded company list:
+
+- `entity_resolver.resolve_all()` discovers every listed security and resolves it
+  to an openinfo issuer `org_id` (autofill on the feed name, with
+  `company_catalog.COMPANY_CATALOG` as an override and preferred→ordinary
+  inheritance). A newly-listed company is picked up automatically — no code change.
+- `reports_catalog.sync_all()` (default path) discovers + upserts every ticker,
+  then syncs one report set per distinct issuer org. Preferred shares and bonds
+  inherit their issuer's financials via `get_all_financials`.
+- `data_sources.py` is a **source-adapter registry**: each source is a small
+  `Collector` that lands generic *facts* `(entity, dataset, field, period, value,
+  source)` in the `facts` table. Adding a source (or a new field on an existing
+  source) needs no schema change or core edit — it flows in automatically.
+  Surfaced at `GET /api/facts/{ticker}`.
+- `GET /api/coverage` reports, per listed security, which datasets are filled
+  (price / volume / financials / reports) + resolution status + any sync error —
+  so gaps are visible, never silent.
+
+### Reaching openinfo from a blocked host (proxy)
+
+The Railway datacenter IP is blocked by openinfo. Set **`OPENINFO_PROXY`** (or the
+standard `HTTPS_PROXY`) to a UZ-reachable relay so any host — the API service or a
+scheduled job — can fetch openinfo directly:
+
+```env
+OPENINFO_PROXY=http://user:pass@your-uz-relay:8080
+```
+
+### Scheduling the collector
+
+`collector_financials.py` runs the full pipeline in one invocation (financials +
+trade-stats + adapter facts) and pushes to prod via the admin endpoints
+(`/api/admin/financials`, `/api/admin/trade-stats`, `/api/admin/facts`, all
+authenticated with `ADMIN_API_SECRET`). Run it on a host that can reach openinfo
+(directly, or via `OPENINFO_PROXY`):
+
+```bash
+python collector_financials.py                # full pipeline + push
+python collector_financials.py --facts-only   # only re-run source adapters
+python collector_financials.py --no-facts     # financials + trade-stats only
+```
+
+Schedule it however suits the host:
+- **Windows** — Task Scheduler running `run_collector.bat` (e.g. daily 06:00).
+- **Linux/VPS** — cron: `0 6 * * * cd /app && python collector_financials.py`.
+- **Cloud-native** — with `OPENINFO_PROXY` set, the API service can run the same
+  entrypoint on a Railway cron so ingestion no longer depends on any local PC.
+
 OAuth redirect URI to register in Google:
 
 - `https://YOUR-RAILWAY-API-URL/api/auth/oauth/google/callback`

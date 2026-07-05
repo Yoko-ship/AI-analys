@@ -40,6 +40,12 @@ if not VERIFY_SSL and InsecureRequestWarning is not None:
     requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 
+# Optional proxy so a host whose IP openinfo blocks (e.g. the Railway datacenter)
+# can still reach it through a UZ-reachable relay. OPENINFO_PROXY takes precedence
+# over the standard HTTPS_PROXY/HTTP_PROXY env vars.
+OPENINFO_PROXY = (os.getenv("OPENINFO_PROXY") or os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or "").strip()
+
+
 def _make_session() -> requests.Session:
     session = requests.Session()
     session.headers.update({
@@ -47,6 +53,8 @@ def _make_session() -> requests.Session:
         "User-Agent": "Mozilla/5.0",
     })
     session.verify = VERIFY_SSL
+    if OPENINFO_PROXY:
+        session.proxies.update({"http": OPENINFO_PROXY, "https": OPENINFO_PROXY})
     return session
 
 
