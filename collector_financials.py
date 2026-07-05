@@ -48,6 +48,12 @@ def refresh_local() -> None:
     log.info("recomputing financials for all annual reports ...")
     res = rc.refresh_financials_cache(ttl_days=0, sync_missing=False, limit=1000)
     log.info("financials refresh: %s", res)
+    log.info("filling remaining gaps from report PDFs (broken-Excel issuers) ...")
+    try:
+        pdf = rc.refresh_financials_from_pdf()
+        log.info("pdf fallback: %s", {k: pdf.get(k) for k in ("candidates", "updated")})
+    except Exception:
+        log.exception("pdf fallback failed")
 
 
 def collect_rows() -> list[dict]:
