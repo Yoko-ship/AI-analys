@@ -35,8 +35,9 @@ UZSE_STOCK_API_BASE = os.getenv(
 # reports (org 953, the one UZMK already uses). Applied everywhere org resolution
 # happens, including the financials read path.
 ORG_OVERRIDES: dict[str, str] = {
-    "UZMK": "953",
-    "UZMKP": "953",
+    "UZMK": "953", "UZMKP": "953",     # O'zmetkombinat (autofill hits O'zmarkazimpeks 568)
+    "KVTS": "445",                      # Кварц (UZSE "Kvarts AJ" hits a payment processor 1001)
+    "GRBK": "11",                       # Garant bank (catalog carried a stale org)
 }
 
 # ticker -> curated openinfo name (reverse of COMPANY_CATALOG), used as an override
