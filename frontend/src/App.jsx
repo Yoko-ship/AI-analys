@@ -1808,9 +1808,13 @@ function avgTradeValue(row) {
 function marketDisplayPrice(row) {
   if (row?.last_price != null && Number.isFinite(row.lastPrice)) return row.lastPrice;
   const traded = row?.stockTradeCount > 0 || row?.stockVolume > 0 || row?.stockQuantity > 0;
-  if (!traded) return null;
-  const avg = Number.isFinite(row?.avgPrice) && row.avgPrice > 0 ? row.avgPrice : avgSharePrice(row);
-  if (Number.isFinite(avg) && avg > 0) return avg;
+  if (traded) {
+    const avg = Number.isFinite(row?.avgPrice) && row.avgPrice > 0 ? row.avgPrice : avgSharePrice(row);
+    if (Number.isFinite(avg) && avg > 0) return avg;
+  }
+  // Last known price: fall back to the close price (the UI already marks these
+  // rows "закр." / "нет сделки") even when the security did not trade today, so
+  // illiquid names show a real price instead of an em-dash.
   return Number.isFinite(row?.closePrice) && row.closePrice > 0 ? row.closePrice : null;
 }
 
