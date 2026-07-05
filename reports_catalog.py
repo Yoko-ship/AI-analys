@@ -1196,8 +1196,58 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "updated_at": r["updated_at"],
         }
     _inherit_financials_by_org(conn, out)
+    _enrich_financials_from_facts(conn, out)
     conn.close()
     return out
+
+
+def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[str, Any]]) -> None:
+    """Fill headline fields that NSBU parsing leaves null from the fact store.
+
+    Banks report interest income, not «выручка»/«валовая прибыль», so the NSBU
+    form-2 parser finds no revenue for them and those market-table columns render
+    an em-dash. The financial_indicators adapter does expose net_revenue /
+    net_profit / total_liabilities per issuer, so use them as a fallback.
+    """
+    srcs = ("net_revenue", "net_profit", "total_liabilities")
+    try:
+        comp = conn.execute(
+            "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != ''"
+        ).fetchall()
+        rows = conn.execute(
+            "SELECT entity_id, field, period, value_num FROM facts "
+            "WHERE dataset='financial_indicators' AND value_num IS NOT NULL "
+            f"AND field IN ({','.join('?' * len(srcs))})",
+            srcs,
+        ).fetchall()
+    except Exception:
+        return
+    ticker_org = {r["ticker"]: str(r["org_id"]) for r in comp}
+    best: dict[tuple[str, str], tuple[str, float]] = {}  # latest value per (org, field)
+    for r in rows:
+        key = (str(r["entity_id"]), r["field"])
+        period = str(r["period"] or "")
+        cur = best.get(key)
+        if cur is None or period > cur[0]:
+            best[key] = (period, r["value_num"])
+    for ticker, fin in out.items():
+        org = ticker_org.get(ticker)
+        if not org:
+            continue
+        # A null NSBU revenue means a bank-style filer (reports interest income,
+        # not «выручка»); for those the form-2 parser also mislabels net profit, so
+        # the clean financial_indicators figures are preferred. Non-banks keep
+        # their correctly-parsed NSBU values and only get nulls filled.
+        is_bank = fin.get("revenue") is None
+        rev = best.get((org, "net_revenue"))
+        if fin.get("revenue") is None and rev:
+            fin["revenue"] = rev[1]
+        npf = best.get((org, "net_profit"))
+        if npf and (is_bank or fin.get("net_income") is None):
+            fin["net_income"] = npf[1]
+        tl = best.get((org, "total_liabilities"))
+        if fin.get("total_liabilities") is None and tl:
+            fin["total_liabilities"] = tl[1]
 
 
 def upsert_facts(rows: list[dict[str, Any]]) -> int:
