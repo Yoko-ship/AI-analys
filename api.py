@@ -27,6 +27,7 @@ from reports_catalog import (
     get_catalog_coverage,
     get_catalog_stats,
     get_company_index,
+    get_facts,
     get_company_reports,
     get_company_ratios_cached,
     get_all_financials,
@@ -579,6 +580,28 @@ async def api_coverage() -> dict[str, Any]:
     }
     items.sort(key=lambda r: (r["has_financials"], r["resolved"], r["ticker"]))
     return _json_safe({"ok": True, "total": len(items), "summary": summary, "securities": items})
+
+
+@app.get("/api/facts/{ticker}")
+async def api_facts(ticker: str, dataset: str | None = None) -> dict[str, Any]:
+    """Generic fact store for a ticker's issuer (adapter-landed data).
+
+    Resolves the ticker to its issuer org and returns every stored fact, grouped
+    by dataset/field. New source adapters surface here automatically.
+    """
+    ticker = ticker.strip().upper()
+    loop = asyncio.get_running_loop()
+    index = await loop.run_in_executor(None, partial(get_company_index, ticker))
+    org_id = (index or {}).get("org_id")
+    if not org_id:
+        return {"ok": True, "ticker": ticker, "org_id": None, "facts": []}
+    facts = await loop.run_in_executor(None, partial(get_facts, org_id, dataset))
+    grouped: dict[str, dict[str, list]] = {}
+    for f in facts:
+        grouped.setdefault(f["dataset"], {}).setdefault(f["field"], []).append(
+            {"period": f["period"], "value": f["value_num"] if f["value_num"] is not None else f["value_text"], "unit": f["unit"], "source": f["source"]}
+        )
+    return _json_safe({"ok": True, "ticker": ticker, "org_id": org_id, "count": len(facts), "datasets": grouped})
 
 
 @app.get("/api/market/trade-stats")
