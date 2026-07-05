@@ -520,6 +520,43 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
             if new:
                 added += 1
 
+    # ---- NSBU fallback from /reports/main/ ---------------------------------
+    # Some issuers (microfinance MCHJ, some LLCs) file NSBU but the structured
+    # /reports/accounting-report/{org}/ endpoint returns 400 for them. Their NSBU
+    # documents still appear in /reports/main/ with a usable Excel export, so when
+    # the structured path yielded nothing we harvest NSBU straight from the listing.
+    if not form2_annual and not form2_quarter:
+        nsbu_main = [r for r in main_results if r.get("report_type") == "NSBU"]
+        with conn:
+            for rec in nsbu_main:
+                doc = _build_report_document(rec)
+                yr = _extract_year(rec)
+                if not isinstance(yr, int):
+                    continue
+                pt = str(doc.get("period_type") or "annual").lower()
+                if pt not in ("annual", "quarter"):
+                    pt = "annual"
+                q = 0
+                if pt == "quarter":
+                    props = rec.get("properties") or {}
+                    q = _extract_quarter(str(props.get("report_title") or "")) or 0
+                new = _upsert_report(
+                    conn, ticker,
+                    report_form="NSBU",
+                    period_type=pt,
+                    year=yr,
+                    quarter=q,
+                    title=doc.get("title"),
+                    published_at=doc.get("published_at"),
+                    pdf_url=doc.get("pdf_url"),
+                    excel_url=doc.get("excel_url"),
+                    excel_url_form1=None,
+                    openinfo_report_id=str(doc.get("id") or ""),
+                    object_id=str(doc.get("object_id") or ""),
+                )
+                if new:
+                    added += 1
+
     # ---- MSFO + Audition from the /reports/main/ listing fetched above -------
     msfo_results = [r for r in main_results if r.get("report_type") in {"MSFO", "Audition"}]
     with conn:
@@ -645,9 +682,72 @@ def _sync_auditions(conn: sqlite3.Connection, session: Any) -> int:
 # Sync — all companies
 # ---------------------------------------------------------------------------
 
+def discover_and_upsert_securities() -> dict[str, Any]:
+    """Discover every UZSE-listed security and record its resolved issuer org.
+
+    This is the self-discovering replacement for iterating the hardcoded
+    COMPANY_CATALOG: it upserts a catalog_companies row (ticker -> org_id) for
+    *every* listed security — ordinary, preferred and bond — so downstream
+    financials inheritance can reach all of them. Existing sync state is
+    preserved (org_id/name are only filled, never overwritten).
+    """
+    import entity_resolver as er
+
+    session = _make_session()
+    recs = er.resolve_all(session=session)
+    conn = get_catalog_conn()
+    upserted = 0
+    with conn:
+        for rec in recs:
+            org_id = rec.get("org_id")
+            name = rec.get("org_name") or rec.get("name") or rec["ticker"]
+            conn.execute(
+                """
+                INSERT INTO catalog_companies (ticker, company_name, org_id)
+                VALUES (?,?,?)
+                ON CONFLICT(ticker) DO UPDATE SET
+                    org_id = COALESCE(catalog_companies.org_id, excluded.org_id),
+                    company_name = COALESCE(NULLIF(catalog_companies.company_name, ''), excluded.company_name)
+                """,
+                (rec["ticker"], name, org_id),
+            )
+            upserted += 1
+    conn.close()
+    resolved = sum(1 for r in recs if r.get("org_id"))
+    orgs = {r["org_id"] for r in recs if r.get("org_id")}
+    return {"discovered": len(recs), "resolved": resolved, "distinct_orgs": len(orgs),
+            "upserted": upserted, "records": recs}
+
+
 def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[str, Any]:
     with _SYNC_LOCK:
-        targets = tickers if tickers else list(_TICKER_TO_NAME.keys())
+        discovered_recs: list[dict[str, Any]] = []
+        if tickers:
+            targets = tickers
+        else:
+            # Self-discovering path: resolve every listed security, then sync one
+            # representative ticker per distinct issuer org (prefs/bonds inherit via
+            # get_all_financials, so we don't re-fetch the same issuer per ticker).
+            try:
+                disc = discover_and_upsert_securities()
+                discovered_recs = disc.get("records") or []
+                logger.info("Discovery: %s", {k: disc[k] for k in ("discovered", "resolved", "distinct_orgs")})
+            except Exception:
+                logger.exception("Security discovery failed; falling back to COMPANY_CATALOG")
+            if discovered_recs:
+                seen_orgs: set[str] = set()
+                reps: list[str] = []
+                # Prefer the name-resolved (ordinary) ticker as the org representative.
+                for rec in sorted(discovered_recs, key=lambda r: r.get("resolved_by") == "base_ticker"):
+                    org = rec.get("org_id")
+                    if not org or org in seen_orgs:
+                        continue
+                    seen_orgs.add(org)
+                    reps.append(rec["ticker"])
+                targets = reps or list(_TICKER_TO_NAME.keys())
+            else:
+                targets = list(_TICKER_TO_NAME.keys())
+
         total = len(targets)
         synced = 0
         skipped = 0
@@ -661,13 +761,16 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
         except Exception:
             pass
 
+        # ticker -> name from discovery (falls back to the curated catalog name).
+        disc_name = {r["ticker"]: (r.get("org_name") or r.get("name")) for r in discovered_recs}
+
         for ticker in targets:
             # Skip preferred share tickers (e.g. AGBAP) — they map to the same
             # org on openinfo as their base ticker (AGBA) and would duplicate reports.
             if ticker.endswith("P") and ticker[:-1] in _TICKER_TO_NAME:
                 skipped += 1
                 continue
-            name = _TICKER_TO_NAME.get(ticker, ticker)
+            name = disc_name.get(ticker) or _TICKER_TO_NAME.get(ticker, ticker)
             try:
                 result = sync_company(ticker, name, force=force)
                 if result.get("skipped"):
@@ -1060,7 +1163,6 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         """,
         (form, form),
     ).fetchall()
-    conn.close()
     out: dict[str, dict[str, Any]] = {}
     for r in rows:
         out[r["ticker"]] = {
@@ -1074,7 +1176,51 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "operating_income": r["operating_income"],
             "updated_at": r["updated_at"],
         }
+    _inherit_financials_by_org(conn, out)
+    conn.close()
     return out
+
+
+def _inherit_financials_by_org(conn: sqlite3.Connection, out: dict[str, dict[str, Any]]) -> None:
+    """Let every listed ticker inherit its issuer's financials (ТЗ data pipeline).
+
+    Preferred shares (HMKBP) share the issuer org of the ordinary share (HMKB);
+    bonds share the issuer that files the statements. Financials are computed per
+    issuer (org_id) but stored under whatever ticker was synced, so a pref/bond
+    ends up with an org resolved but no financials row. This maps every ticker in
+    catalog_companies to its org's financials when it has none of its own — the
+    values are identical because it is the same legal entity.
+    """
+    try:
+        comp = conn.execute(
+            "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != ''"
+        ).fetchall()
+    except Exception:
+        return
+    ticker_org: dict[str, str] = {r["ticker"]: str(r["org_id"]) for r in comp}
+    # One financials payload per org (any ticker of that org that already has one).
+    org_fin: dict[str, dict[str, Any]] = {}
+    for ticker, fin in out.items():
+        org = ticker_org.get(ticker)
+        if org and org not in org_fin:
+            org_fin[org] = fin
+    # Assign to sibling tickers that have an org but no financials of their own.
+    for ticker, org in ticker_org.items():
+        if ticker in out:
+            continue
+        source = org_fin.get(org)
+        if source:
+            out[ticker] = {**source, "inherited_from_org": org}
+
+    # Preferred shares also inherit directly from their ordinary ticker, even when
+    # openinfo indexes them under a different org record (duplicate org entries for
+    # the same issuer, e.g. UZMK/UZMKP). Same legal entity → same financials.
+    for ticker in list(ticker_org.keys()):
+        if ticker in out or not ticker.endswith("P"):
+            continue
+        base = ticker[:-1]
+        if base in out:
+            out[ticker] = {**out[base], "inherited_from_ticker": base}
 
 
 def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
