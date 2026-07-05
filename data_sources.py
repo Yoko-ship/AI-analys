@@ -41,6 +41,36 @@ def registry() -> dict[str, "Collector"]:
     return dict(_REGISTRY)
 
 
+# Absolute figures that must reconcile before we trust them; ratios are always
+# safe to store (they are the source of truth we validate against).
+_ABSOLUTE_INDICATOR_FIELDS = {
+    "net_revenue", "net_profit", "total_assets", "total_liabilites",
+    "total_liabilities", "total_equity",
+}
+
+
+def reconciles_indicators(rec: dict[str, Any], tol: float = 0.6) -> bool:
+    """True if an indicator record is internally consistent.
+
+    net_profit is cross-checked against the published ROE (net_profit/equity) and
+    ROA (net_profit/assets). This is the automated guard: if the absolute figures
+    do not reproduce the ratios the source itself reports, they are untrustworthy
+    (e.g. revenue mislabelled as profit) and must not be shipped. When there is no
+    ratio to check against, we cannot invalidate, so it passes (fail-open).
+    """
+    npf = rec.get("net_profit")
+    equity = rec.get("total_equity")
+    assets = rec.get("total_assets")
+    roe = rec.get("return_on_equity")
+    roa = rec.get("return_on_assets")
+    checks: list[bool] = []
+    if npf is not None and equity not in (None, 0) and roe is not None:
+        checks.append(abs(npf / equity * 100 - roe) <= tol)
+    if npf is not None and assets not in (None, 0) and roa is not None:
+        checks.append(abs(npf / assets * 100 - roa) <= tol)
+    return all(checks) if checks else True
+
+
 class FinancialIndicatorsCollector:
     """openinfo ``/reports/financial_indicators/`` — structured issuer indicators.
 
@@ -52,6 +82,7 @@ class FinancialIndicatorsCollector:
 
     name = "openinfo_financial_indicators"
     dataset = "financial_indicators"
+    dropped = 0  # records whose absolute figures failed reconciliation
 
     # openinfo key -> (fact field, unit). Unmapped keys are still stored verbatim
     # so future indicators are never dropped.
@@ -89,10 +120,21 @@ class FinancialIndicatorsCollector:
                 period = str(year or "")
                 if quarter not in (None, 0, "0", ""):
                     period += f"Q{quarter}"
+                # Guard: only trust the absolute figures if they reconcile with the
+                # ratios the source reports. Ratios are always kept.
+                trust_absolutes = reconciles_indicators(rec)
+                if not trust_absolutes:
+                    logger.warning(
+                        "financial_indicators org=%s %s failed ROE/ROA reconciliation "
+                        "— dropping absolute figures", org, period,
+                    )
+                    self.dropped += 1
                 for key, raw in rec.items():
                     if key in self._SKIP or raw is None:
                         continue
                     field, unit = self.FIELD_MAP.get(key, (key, None))
+                    if not trust_absolutes and key in _ABSOLUTE_INDICATOR_FIELDS:
+                        continue
                     facts.append({
                         "entity_id": org, "dataset": self.dataset, "field": field,
                         "period": period, "value": raw, "unit": unit,
