@@ -24,6 +24,7 @@ from reports_catalog import (
     build_dynamics_data,
     compute_financial_ratios,
     fetch_report_excel_data,
+    get_catalog_coverage,
     get_catalog_stats,
     get_company_index,
     get_company_reports,
@@ -520,6 +521,64 @@ async def api_market_financials() -> dict[str, Any]:
         "count": len(financials),
         "financials": financials,
     })
+
+
+@app.get("/api/coverage")
+async def api_coverage() -> dict[str, Any]:
+    """Data-coverage report: for every listed security, which datasets are filled.
+
+    Shows price / volume / financials / reports coverage + resolution status and
+    any sync error per ticker, plus a per-dataset summary — so gaps are visible
+    and actionable instead of silent (ТЗ scalable-pipeline observability).
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        response = await loop.run_in_executor(
+            None, partial(requests.get, f"{UZSE_STOCK_API_BASE}/stocks", timeout=20)
+        )
+        response.raise_for_status()
+        stocks = (response.json() or {}).get("stocks") or []
+    except Exception as exc:
+        logger.exception("coverage: UZSE feed failed")
+        raise HTTPException(status_code=502, detail="Could not load the securities feed") from exc
+
+    coverage = await loop.run_in_executor(None, get_catalog_coverage)
+
+    items: list[dict[str, Any]] = []
+    counts = {"price": 0, "volume": 0, "financials": 0, "reports": 0, "resolved": 0}
+    for stock in stocks:
+        ticker = str(stock.get("ticker") or "").upper()
+        cov = coverage.get(ticker, {})
+        has_price = bool(stock.get("last_price") or stock.get("close_price"))
+        has_volume = bool(stock.get("volume"))
+        has_fin = bool(cov.get("has_financials"))
+        has_reports = int(cov.get("reports") or 0) > 0
+        resolved = bool(cov.get("org_id"))
+        counts["price"] += has_price
+        counts["volume"] += has_volume
+        counts["financials"] += has_fin
+        counts["reports"] += has_reports
+        counts["resolved"] += resolved
+        items.append({
+            "ticker": ticker,
+            "name": stock.get("name"),
+            "type": stock.get("type"),
+            "org_id": cov.get("org_id"),
+            "resolved": resolved,
+            "has_price": has_price,
+            "has_volume": has_volume,
+            "has_financials": has_fin,
+            "reports": int(cov.get("reports") or 0),
+            "sync_error": cov.get("sync_error"),
+        })
+
+    total = len(items) or 1
+    summary = {
+        key: {"filled": val, "total": len(items), "pct": round(val / total * 100)}
+        for key, val in counts.items()
+    }
+    items.sort(key=lambda r: (r["has_financials"], r["resolved"], r["ticker"]))
+    return _json_safe({"ok": True, "total": len(items), "summary": summary, "securities": items})
 
 
 @app.get("/api/market/trade-stats")

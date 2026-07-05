@@ -1181,6 +1181,46 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     return out
 
 
+def get_catalog_coverage(form: str = "NSBU") -> dict[str, dict[str, Any]]:
+    """Per-ticker data coverage from the catalog DB (for /api/coverage).
+
+    Returns {ticker: {org_id, reports, has_financials, sync_error, last_synced_at}}
+    so the API can show, for every listed security, whether each dataset is
+    filled / empty / failed — no openinfo access required (reads the local cache).
+    """
+    conn = get_catalog_conn()
+    comp = {
+        r["ticker"]: {
+            "org_id": r["org_id"],
+            "sync_error": r["sync_error"],
+            "last_synced_at": r["last_synced_at"],
+        }
+        for r in conn.execute(
+            "SELECT ticker, org_id, sync_error, last_synced_at FROM catalog_companies"
+        ).fetchall()
+    }
+    rep_counts = {
+        r["ticker"]: r["c"]
+        for r in conn.execute(
+            "SELECT ticker, COUNT(*) AS c FROM catalog_reports GROUP BY ticker"
+        ).fetchall()
+    }
+    conn.close()
+    fin = get_all_financials(form)
+    out: dict[str, dict[str, Any]] = {}
+    tickers = set(comp) | set(rep_counts) | set(fin)
+    for tk in tickers:
+        info = comp.get(tk, {})
+        out[tk] = {
+            "org_id": info.get("org_id"),
+            "sync_error": info.get("sync_error"),
+            "last_synced_at": info.get("last_synced_at"),
+            "reports": rep_counts.get(tk, 0),
+            "has_financials": tk in fin,
+        }
+    return out
+
+
 def _inherit_financials_by_org(conn: sqlite3.Connection, out: dict[str, dict[str, Any]]) -> None:
     """Let every listed ticker inherit its issuer's financials (ТЗ data pipeline).
 
