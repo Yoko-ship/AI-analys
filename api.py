@@ -12,11 +12,11 @@ from typing import Any, Literal
 import requests
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from analysis_service import build_company_comparison, build_summary, run_company_analysis
+from analysis_service import build_analysis_excel, build_company_comparison, build_summary, run_company_analysis
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from openinfo_collector import collect_company_data, get_company_periods
 from reports_catalog import (
@@ -177,7 +177,7 @@ class CompanyDataRequest(BaseModel):
 
 
 class CompareRequest(BaseModel):
-    companies: list[str] = Field(..., min_length=2, max_length=3)
+    companies: list[str] = Field(..., min_length=2, max_length=5)
     language: Literal["ru", "en", "uz"] = "ru"
     include_market_context: bool = False
     include_ai_summary: bool = True
@@ -807,6 +807,38 @@ async def api_compare(
 
     result["requested_by"] = current_user.to_public_dict()
     return _json_safe(result)
+
+
+class ExcelExportRequest(BaseModel):
+    result: dict[str, Any]
+    language: str = "ru"
+
+
+@app.post("/api/analyze/export/excel")
+async def api_export_excel(
+    payload: ExcelExportRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> Response:
+    """Export a completed analysis result to .xlsx (ТЗ §3.13)."""
+    from datetime import datetime
+
+    try:
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(
+            None,
+            partial(build_analysis_excel, payload.result, payload.language, datetime.now()),
+        )
+    except Exception as exc:
+        logger.exception("excel export failed")
+        raise HTTPException(status_code=500, detail="Could not build the Excel file") from exc
+
+    company = payload.result.get("company_name") or payload.result.get("input") or "analysis"
+    safe = "".join(ch for ch in str(company) if ch.isalnum() or ch in "-_")[:40] or "analysis"
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{safe}_analysis.xlsx"'},
+    )
 
 
 @app.post("/api/analyze")

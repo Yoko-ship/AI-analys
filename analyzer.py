@@ -514,10 +514,19 @@ def detect_industry(company_name: str, web_research: str = "", profile: str = ""
     return {"sector": best, **INDUSTRY_BENCHMARKS[best]}
 
 
+# 4-level debt-load indicator (ТЗ Блок 2: Низкая / Умеренная / Высокая / Критическая)
+DEBT_BURDEN_LEVELS = {
+    "good":     {"ru": "Низкая",     "en": "Low",      "uz": "Past"},
+    "ok":       {"ru": "Умеренная",  "en": "Moderate", "uz": "O'rtacha"},
+    "weak":     {"ru": "Высокая",    "en": "High",     "uz": "Yuqori"},
+    "critical": {"ru": "Критическая","en": "Critical", "uz": "Kritik"},
+}
+
+
 def compare_to_industry(metrics: dict, industry: dict) -> dict:
     """
     Сравнивает ключевые метрики компании с отраслевыми бенчмарками.
-    Возвращает dict с оценкой каждого показателя: weak / ok / good.
+    Возвращает dict с оценкой каждого показателя: weak / ok / good / critical (долг).
     """
     latest = {}
     # Из piotroski details берём roa approx через altman components
@@ -542,8 +551,13 @@ def compare_to_industry(metrics: dict, industry: dict) -> dict:
     de     = parse_pct(de_str)
     growth = parse_pct(growth_str)
 
-    def rate(val, bench, higher_is_better=True):
-        """Оцениваем показатель относительно бенчмарков."""
+    def rate(val, bench, higher_is_better=True, four_level=False):
+        """Оцениваем показатель относительно бенчмарков.
+
+        four_level=True добавляет уровень "critical" для долговой нагрузки
+        (ТЗ Блок 2: Низкая / Умеренная / Высокая / Критическая), используя
+        отраслевой порог bench["weak"] как границу критической зоны.
+        """
         if higher_is_better:
             if val >= bench["good"]: return "good"
             if val >= bench["ok"]:   return "ok"
@@ -551,13 +565,15 @@ def compare_to_industry(metrics: dict, industry: dict) -> dict:
         else:  # для долга — чем меньше, тем лучше
             if val <= bench["good"]: return "good"
             if val <= bench["ok"]:   return "ok"
+            if four_level and val > bench["weak"]: return "critical"
             return "weak"
 
+    debt_rating = rate(de, industry["debt_equity"], higher_is_better=False, four_level=True)
     ratings = {
         "net_margin":     {"value": round(margin,1), "rating": rate(margin, industry["net_margin"])},
         "roe":            {"value": round(roe,1),    "rating": rate(roe,    industry["roe"])},
         "roa":            {"value": round(roa*100,1),"rating": rate(roa*100, industry["roa"])},
-        "debt_equity":    {"value": round(de,2),     "rating": rate(de,    industry["debt_equity"], higher_is_better=False)},
+        "debt_equity":    {"value": round(de,2),     "rating": debt_rating, "burden": DEBT_BURDEN_LEVELS.get(debt_rating, DEBT_BURDEN_LEVELS["weak"])},
         "revenue_growth": {"value": round(growth,1), "rating": rate(growth, industry["revenue_growth"])},
     }
 
