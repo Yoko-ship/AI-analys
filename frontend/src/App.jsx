@@ -1486,6 +1486,7 @@ const MARKET_TEXTS = {
     analyze: "Анализ",
     noTrade: "нет сделки",
     volume: "Объём торгов",
+    marketCap: "Капитализация",
     volumeCol: "Объём",
     tradeCount: "сделок",
     volQty: "Объём (шт)",
@@ -1544,6 +1545,7 @@ const MARKET_TEXTS = {
     analyze: "Analyze",
     noTrade: "no trade",
     volume: "Volume",
+    marketCap: "Market cap",
     volumeCol: "Volume",
     tradeCount: "trades",
     volQty: "Volume (units)",
@@ -1602,6 +1604,7 @@ const MARKET_TEXTS = {
     analyze: "Tahlil",
     noTrade: "savdo yo'q",
     volume: "Savdo hajmi",
+    marketCap: "Kapitalizatsiya",
     volumeCol: "Hajm",
     tradeCount: "savdo",
     volQty: "Hajm (dona)",
@@ -1776,6 +1779,9 @@ function enrichMarketStock(stock) {
     stockVolume: safeNumber(stock?.volume),
     stockQuantity: safeNumber(stock?.quantity),
     stockTradeCount: safeNumber(stock?.trade_count),
+    marketCap: safeNumber(stock?.market_cap) || null,
+    nominal: safeNumber(stock?.nominal) || null,
+    sharesOutstanding: safeNumber(stock?.shares_outstanding) || null,
     changeValue: change.value,
     changePercent: change.percent,
     tone: marketTone(change.percent),
@@ -1824,7 +1830,8 @@ function buildMarketStats(rows) {
   const topGainers = withChange.filter((r) => r.changePercent > 0).sort((a, b) => b.changePercent - a.changePercent).slice(0, 5);
   const topLosers = withChange.filter((r) => r.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, 5);
   const totalVolume = rows.reduce((s, r) => s + (Number.isFinite(r.stockVolume) ? r.stockVolume : 0), 0);
-  return { traded, advancers, decliners, unchanged, topGrowth, topDrop, topGainers, topLosers, totalVolume };
+  const totalMarketCap = rows.reduce((s, r) => s + (Number.isFinite(r.marketCap) && r.marketCap > 0 ? r.marketCap : 0), 0);
+  return { traded, advancers, decliners, unchanged, topGrowth, topDrop, topGainers, topLosers, totalVolume, totalMarketCap };
 }
 
 const SCORE_EXPLANATION_TEXTS = {
@@ -4284,7 +4291,9 @@ function PriceStatsStrip({ history, lang }) {
   );
 }
 
-function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMonthsChange, companyData, lang, infoLoading, securityType, isPreferred, industry }) {
+function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMonthsChange, companyData, lang, infoLoading, securityType, isPreferred, industry, marketRow }) {
+  const marketCapVal = safeNumber(marketRow?.market_cap ?? marketRow?.marketCap) || null;
+  const nominalVal = safeNumber(marketRow?.nominal) || null;
   const metrics = companyData?.ratios?.metrics || {};
   const KEY_METRICS = [
     { key: "ROA", label: "ROA" },
@@ -4350,6 +4359,8 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
             <h3 className="co-heading">{lang === "ru" ? "Детали" : "Details"}</h3>
             <div className="company-metrics-list">
               {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span className="isin-mono">{sec.isin}</span></div>}
+              {marketCapVal && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Капитализация" : lang === "uz" ? "Kapitalizatsiya" : "Market cap"}</span><span>{formatCompactVolume(marketCapVal, lang)} UZS</span></div>}
+              {nominalVal && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Номинал" : lang === "uz" ? "Nominal" : "Nominal"}</span><span>{formatMarketNumber(nominalVal, lang)} UZS</span></div>}
               {industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : lang === "uz" ? "Soha" : "Sector"}</span><span>{sectorLabel(lang, industry)}</span></div>}
               {securityType && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип" : lang === "uz" ? "Turi" : "Type"}</span><span>{securityType === "bond" ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond") : (lang === "ru" ? "Акция" : lang === "uz" ? "Aksiya" : "Stock")}</span></div>}
               {securityType !== "bond" && (
@@ -4659,7 +4670,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
           <CompanyOverviewTab sec={sec} priceHistory={priceHistory} priceLoading={priceLoading}
             priceMonths={priceMonths} onMonthsChange={setPriceMonths}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
-            companyData={companyData} lang={lang} infoLoading={infoLoading} />
+            marketRow={marketRow} companyData={companyData} lang={lang} infoLoading={infoLoading} />
         )}
         {tab === "chart" && (
           <div className="panel" style={{ padding: 24 }}>
@@ -4982,6 +4993,7 @@ function MarketView({
         <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(stats.advancers, 0, lang)} sub={formatLeader(stats.topGrowth)} tone="good" />
         <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
         <MarketStatCard label={mt(lang, "unchanged")} value={formatRatio(stats.unchanged, 0, lang)} sub={mt(lang, "date")} />
+        {stats.totalMarketCap > 0 && <MarketStatCard label={mt(lang, "marketCap")} value={formatCompactVolume(stats.totalMarketCap, lang)} sub="UZS" />}
         {trades && <MarketStatCard label={mt(lang, "volume")} value={formatCompactVolume(trades.total_volume, lang)} sub={trades.total_trade_count ? `${formatRatio(trades.total_trade_count, 0, lang)} ${mt(lang, "tradeCount")}` : null} />}
       </div>
 
