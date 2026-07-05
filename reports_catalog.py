@@ -139,6 +139,25 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             largest_pct_qty   REAL,
             updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        -- Generic, forward-compatible fact store (scalable-pipeline design).
+        -- Any source (adapter) can land any (entity, dataset, field, period) value
+        -- without a schema change, so new datasets/fields published in the future
+        -- flow in automatically. entity_id is the openinfo org_id (issuer).
+        CREATE TABLE IF NOT EXISTS facts (
+            entity_id   TEXT NOT NULL,
+            dataset     TEXT NOT NULL,
+            field       TEXT NOT NULL,
+            period      TEXT NOT NULL DEFAULT '',
+            value_num   REAL,
+            value_text  TEXT,
+            unit        TEXT,
+            source      TEXT NOT NULL,
+            source_url  TEXT,
+            fetched_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (entity_id, dataset, field, period, source)
+        );
+        CREATE INDEX IF NOT EXISTS idx_facts_entity ON facts(entity_id, dataset);
     """)
     conn.commit()
 
@@ -1179,6 +1198,57 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     _inherit_financials_by_org(conn, out)
     conn.close()
     return out
+
+
+def upsert_facts(rows: list[dict[str, Any]]) -> int:
+    """Upsert generic facts from any source adapter (forward-compatible storage).
+
+    Each row: ``entity_id, dataset, field, value`` (+ optional ``period, unit,
+    source, source_url``). Numeric values land in ``value_num``, others in
+    ``value_text``. New datasets/fields require no schema change.
+    """
+    if not rows:
+        return 0
+    conn = get_catalog_conn()
+    written = 0
+    with conn:
+        for r in rows:
+            value = r.get("value")
+            vnum = float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+            vtext = None if vnum is not None else (str(value) if value is not None else None)
+            conn.execute(
+                """
+                INSERT INTO facts (entity_id, dataset, field, period, value_num, value_text, unit, source, source_url, fetched_at)
+                VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))
+                ON CONFLICT(entity_id, dataset, field, period, source) DO UPDATE SET
+                    value_num  = excluded.value_num,
+                    value_text = excluded.value_text,
+                    unit       = excluded.unit,
+                    source_url = excluded.source_url,
+                    fetched_at = datetime('now')
+                """,
+                (str(r["entity_id"]), r["dataset"], r["field"], str(r.get("period", "")),
+                 vnum, vtext, r.get("unit"), r.get("source", "unknown"), r.get("source_url")),
+            )
+            written += 1
+    conn.close()
+    return written
+
+
+def get_facts(entity_id: Any = None, dataset: str | None = None) -> list[dict[str, Any]]:
+    """Query the fact store, optionally filtered by entity (org_id) and dataset."""
+    conn = get_catalog_conn()
+    query = "SELECT * FROM facts WHERE 1=1"
+    params: list[Any] = []
+    if entity_id is not None:
+        query += " AND entity_id = ?"
+        params.append(str(entity_id))
+    if dataset:
+        query += " AND dataset = ?"
+        params.append(dataset)
+    rows = [dict(r) for r in conn.execute(query, params).fetchall()]
+    conn.close()
+    return rows
 
 
 def get_catalog_coverage(form: str = "NSBU") -> dict[str, dict[str, Any]]:
