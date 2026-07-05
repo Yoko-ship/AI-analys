@@ -24,6 +24,7 @@ from reports_catalog import (
     build_dynamics_data,
     compute_financial_ratios,
     fetch_report_excel_data,
+    audit_financials_consistency,
     get_catalog_coverage,
     get_catalog_stats,
     get_company_index,
@@ -584,7 +585,16 @@ async def api_coverage() -> dict[str, Any]:
         for key, val in counts.items()
     }
     items.sort(key=lambda r: (r["has_financials"], r["resolved"], r["ticker"]))
-    return _json_safe({"ok": True, "total": len(items), "summary": summary, "securities": items})
+    # Consistency guard: net_income that disagrees with openinfo's own net_profit.
+    try:
+        flags = await loop.run_in_executor(None, audit_financials_consistency)
+    except Exception:
+        logger.exception("financials consistency audit failed")
+        flags = []
+    return _json_safe({
+        "ok": True, "total": len(items), "summary": summary,
+        "financials_flags": flags, "securities": items,
+    })
 
 
 @app.get("/api/facts/{ticker}")

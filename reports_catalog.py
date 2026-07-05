@@ -1301,6 +1301,50 @@ def get_facts(entity_id: Any = None, dataset: str | None = None) -> list[dict[st
     return rows
 
 
+def audit_financials_consistency(form: str = "NSBU", tol: float = 0.05) -> list[dict[str, Any]]:
+    """Reconcile served net_income against the authoritative fact-store net_profit.
+
+    Flags any issuer whose stored/served net income differs by more than ``tol``
+    from openinfo's own net_profit for the same entity — catching mislabels
+    (revenue booked as profit) or stale NSBU parses before they mislead a user.
+    """
+    served = get_all_financials(form)
+    conn = get_catalog_conn()
+    try:
+        comp = {
+            r["ticker"]: str(r["org_id"])
+            for r in conn.execute(
+                "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != ''"
+            ).fetchall()
+        }
+        rows = conn.execute(
+            "SELECT entity_id, period, value_num FROM facts "
+            "WHERE dataset='financial_indicators' AND field='net_profit' AND value_num IS NOT NULL"
+        ).fetchall()
+    except Exception:
+        conn.close()
+        return []
+    conn.close()
+    best: dict[str, tuple[str, float]] = {}
+    for r in rows:
+        key = str(r["entity_id"])
+        period = str(r["period"] or "")
+        if key not in best or period > best[key][0]:
+            best[key] = (period, r["value_num"])
+    flags: list[dict[str, Any]] = []
+    for ticker, fin in served.items():
+        ni = fin.get("net_income")
+        org = comp.get(ticker)
+        if ni is None or not org:
+            continue
+        hit = best.get(org)
+        if not hit or not hit[1]:
+            continue
+        if abs(ni - hit[1]) / max(abs(hit[1]), 1.0) > tol:
+            flags.append({"ticker": ticker, "stored_net_income": ni, "authoritative_net_profit": hit[1]})
+    return flags
+
+
 def get_catalog_coverage(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     """Per-ticker data coverage from the catalog DB (for /api/coverage).
 
