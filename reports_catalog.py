@@ -1241,9 +1241,10 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         if best.get(key) is None or period > best[key][0]:
             best[key] = (period, r["value_num"])
     for ticker, fin in out.items():
-        # is_bank is judged on the ORIGINAL NSBU revenue (banks report none), before
-        # any blanking — otherwise a blanked absurd value would masquerade as a bank.
-        is_bank = fin.get("revenue") is None
+        # is_bank is judged on the issuer's sector — a stable signal. (Using
+        # "revenue is None" would misfire after blanking or on a re-read of already
+        # enriched-and-pushed data, making a blanked value look like a bank.)
+        is_bank = COMPANY_SECTORS.get(ticker) == "finance"
         for key in ("revenue", "total_liabilities", "net_income"):
             val = fin.get(key)
             if val is not None and 0 < abs(val) < _MIN_PLAUSIBLE:
