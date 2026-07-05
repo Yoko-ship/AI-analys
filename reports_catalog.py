@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
-from entity_resolver import ORG_OVERRIDES
+from entity_resolver import ORG_OVERRIDES, UNRELIABLE_FINANCIALS
 from db import APP_DATA_DIR, sqlite_connect
 from openinfo_collector import (
     OPENINFO_API_BASE,
@@ -1202,7 +1202,11 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     return out
 
 
-_MIN_PLAUSIBLE = 100_000  # a listed issuer cannot have ~0 UZS revenue / liabilities
+# Below this a value is a parse error even for a micro-cap (e.g. O'zbekneftgaz's
+# revenue=10). Genuinely tiny issuers (UzMED-lizing ~186k) sit well above it and
+# are kept — a magnitude floor, not a size judgement.
+_MIN_PLAUSIBLE = 10_000
+_FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income", "operating_income")
 
 
 def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[str, Any]]) -> None:
@@ -1241,11 +1245,17 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         if best.get(key) is None or period > best[key][0]:
             best[key] = (period, r["value_num"])
     for ticker, fin in out.items():
+        # Tickers whose only openinfo match is a different company: blank rather
+        # than show another entity's figures.
+        if ticker in UNRELIABLE_FINANCIALS:
+            for key in _FIN_FIELDS:
+                fin[key] = None
+            continue
         # is_bank is judged on the issuer's sector — a stable signal. (Using
         # "revenue is None" would misfire after blanking or on a re-read of already
         # enriched-and-pushed data, making a blanked value look like a bank.)
         is_bank = COMPANY_SECTORS.get(ticker) == "finance"
-        for key in ("revenue", "total_liabilities", "net_income"):
+        for key in _FIN_FIELDS:
             val = fin.get(key)
             if val is not None and 0 < abs(val) < _MIN_PLAUSIBLE:
                 fin[key] = None
