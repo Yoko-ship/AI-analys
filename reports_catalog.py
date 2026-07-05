@@ -1562,6 +1562,80 @@ def _latest_excel_report(ticker: str, form: str,
     return None
 
 
+def refresh_financials_from_pdf(tickers: list[str] | None = None, limit: int = 80) -> dict[str, Any]:
+    """Fill financials from the NSBU report PDF for issuers whose Excel export is
+    broken on openinfo (microfinance MCHJ and similar).
+
+    Targets tickers that have an NSBU pdf_url but no cached financials, parsing the
+    latest report (annual preferred). This is the last-resort source after the
+    structured accounting-report and Excel paths.
+    """
+    from openinfo_collector import fetch_report_documents, parse_nsbu_pdf_financials
+
+    conn = get_catalog_conn()
+    ticker_filter = ""
+    params: list[Any] = []
+    if tickers:
+        placeholders = ",".join("?" * len(tickers))
+        ticker_filter = f"AND r.ticker IN ({placeholders})"
+        params = list(tickers)
+    rows = conn.execute(
+        f"""
+        SELECT r.ticker, c.company_name, r.period_type, r.year, r.quarter
+        FROM catalog_reports r
+        JOIN catalog_companies c ON c.ticker = r.ticker
+        LEFT JOIN catalog_financials f ON f.ticker = r.ticker AND f.form = 'NSBU'
+        WHERE r.report_form = 'NSBU' AND r.year IS NOT NULL AND f.ticker IS NULL {ticker_filter}
+        """,
+        params,
+    ).fetchall()
+    conn.close()
+
+    best: dict[str, tuple] = {}  # newest report per ticker (annual beats quarter)
+    for r in rows:
+        rank = (1 if r["period_type"] == "annual" else 0, r["year"], r["quarter"] or 0)
+        if r["ticker"] not in best or rank > best[r["ticker"]][0]:
+            best[r["ticker"]] = (rank, r)
+
+    session = _make_session()
+    updated = 0
+    errors: list[dict] = []
+    for ticker, (_, r) in list(best.items())[:limit]:
+        try:
+            # The stored pdf_url can carry a wrong report id for microfinance, so
+            # fetch the live report list to get the current, correct PDF link.
+            docs = fetch_report_documents(r["company_name"] or ticker, session=session)
+            nsbu = [d for d in docs["items"] if d.get("report_form") == "NSBU" and d.get("pdf_url")]
+            if not nsbu:
+                continue
+            nsbu.sort(key=lambda d: (d.get("period_type") == "annual", str(d.get("published_at") or "")), reverse=True)
+            fin = parse_nsbu_pdf_financials(session, nsbu[0]["pdf_url"])
+        except Exception as exc:  # noqa: BLE001
+            errors.append({"ticker": ticker, "error": str(exc)})
+            continue
+        if fin.get("net_income") is None and fin.get("revenue") is None:
+            continue
+        c = get_catalog_conn()
+        with c:
+            c.execute(
+                """
+                INSERT INTO catalog_financials
+                    (ticker, form, year, quarter, revenue, gross_profit, cash,
+                     total_liabilities, net_income, operating_income)
+                VALUES (?, 'NSBU', ?, ?, ?, NULL, ?, ?, ?, NULL)
+                ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
+                    revenue = excluded.revenue, cash = excluded.cash,
+                    total_liabilities = excluded.total_liabilities,
+                    net_income = excluded.net_income, updated_at = datetime('now')
+                """,
+                (ticker, r["year"], r["quarter"] or 0, fin.get("revenue"),
+                 fin.get("cash"), fin.get("total_liabilities"), fin.get("net_income")),
+            )
+        c.close()
+        updated += 1
+    return {"ok": True, "candidates": len(best), "updated": updated, "errors": errors[:10]}
+
+
 def refresh_financials_cache(tickers: list[str] | None = None, *,
                              form: str = "NSBU",
                              limit: int | None = None,

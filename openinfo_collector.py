@@ -854,6 +854,58 @@ def fetch_excel_report_snapshots(
     }
 
 
+def parse_nsbu_pdf_financials(session: requests.Session, pdf_url: str) -> dict[str, Any]:
+    """Extract headline financials from an NSBU report PDF.
+
+    Fallback for issuers (microfinance MCHJ, some LLCs) whose Excel export is
+    broken on openinfo but whose PDF carries the standard NSBU tables. Matches by
+    the stable NSBU line codes first, then by Russian label, and rejects values
+    below the plausibility floor (line codes like 180/280 misread as amounts).
+    """
+    import pdfplumber
+
+    response = session.get(pdf_url, timeout=REQUEST_TIMEOUT)
+    response.raise_for_status()
+
+    rows: list[dict[str, Any]] = []
+    with pdfplumber.open(BytesIO(response.content)) as pdf:
+        for page in pdf.pages:
+            for table in page.extract_tables():
+                for raw in table:
+                    cells = [str(c).replace("\n", " ").strip() if c else "" for c in raw]
+                    label = next((c for c in cells if re.search(r"[А-Яа-я]{4}", c)), "")
+                    if not label:
+                        continue
+                    code = next((c for c in cells if re.fullmatch(r"\d{2,4}", c.strip())), None)
+                    nums = [_safe_report_number(c) for c in cells]
+                    nums = [n for n in nums if n is not None and abs(n) >= 10_000]
+                    rows.append({"label": label.lower(), "code": code, "value": nums[-1] if nums else None})
+
+    def by_code(code: str) -> float | None:
+        for r in rows:
+            if r["code"] == code and r["value"] is not None:
+                return r["value"]
+        return None
+
+    def by_label(patterns: tuple[str, ...], exclude: tuple[str, ...] = ()) -> float | None:
+        hit = None
+        for r in rows:  # last match wins (final totals come after subtotals)
+            if r["value"] is None:
+                continue
+            if any(p in r["label"] for p in patterns) and not any(e in r["label"] for e in exclude):
+                hit = r["value"]
+        return hit
+
+    return {
+        "net_income": by_code("1200") or by_label(("чистая прибыль (убыток)", "чистая прибыль(убыток)"))
+        or by_label(("чистая прибыль", "чистый убыток"), exclude=("до ", "процент", "операц")),
+        "total_liabilities": by_code("280") or by_label(("итого обязательства",), exclude=("капитал",)),
+        "revenue": by_code("180") or by_label(("всего процентных доходов",))
+        or by_label(("чистая выручка", "выручка от реализац")),
+        "cash": by_code("010") or by_label(("денежные средства",)),
+    }
+
+
 def preview_pdf_url(session: requests.Session, url: str, max_pages: int = 2, max_chars: int = 3000) -> dict[str, Any]:
     import pdfplumber
 
