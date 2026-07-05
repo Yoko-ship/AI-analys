@@ -1807,7 +1807,11 @@ function avgTradeValue(row) {
 // average trade price (turnover/shares) or the close; else null → em-dash.
 function marketDisplayPrice(row) {
   if (row?.last_price != null && Number.isFinite(row.lastPrice)) return row.lastPrice;
-  const traded = row?.stockTradeCount > 0 || row?.stockVolume > 0 || row?.stockQuantity > 0;
+  // A security can trade with its data only in the trade-stats feed (avgPrice),
+  // while the /stocks feed reports null volume (e.g. MIQE). Treat a real trade
+  // average as proof it traded so we show the price instead of an em-dash.
+  const traded = row?.stockTradeCount > 0 || row?.stockVolume > 0 || row?.stockQuantity > 0
+    || (Number.isFinite(row?.avgPrice) && row.avgPrice > 0);
   if (traded) {
     const avg = Number.isFinite(row?.avgPrice) && row.avgPrice > 0 ? row.avgPrice : avgSharePrice(row);
     if (Number.isFinite(avg) && avg > 0) return avg;
@@ -5314,10 +5318,10 @@ function MarketView({
                         <span>{row.isin || "—"}</span>
                       </td>
                       <td className="num">{(() => { const p = marketDisplayPrice(row); return p == null ? "—" : formatMarketNumber(p, lang); })()}</td>
-                      {visibleCols.has("change") && <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>}
-                      {visibleCols.has("open") && <td className="num">{row.openPrice === null ? "—" : formatMarketNumber(row.openPrice, lang)}</td>}
-                      {visibleCols.has("high") && <td className="num">{row.highPrice === null ? "—" : formatMarketNumber(row.highPrice, lang)}</td>}
-                      {visibleCols.has("low") && <td className="num">{row.lowPrice === null ? "—" : formatMarketNumber(row.lowPrice, lang)}</td>}
+                      {visibleCols.has("change") && <td className="num"><MarketChangeBadge value={row.changeValue != null ? row.changeValue : (row.closePrice > 0 ? 0 : null)} percent={row.changePercent != null ? row.changePercent : (row.closePrice > 0 ? 0 : null)} language={lang} /></td>}
+                      {visibleCols.has("open") && <td className="num">{(() => { const v = row.openPrice !== null ? row.openPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>}
+                      {visibleCols.has("high") && <td className="num">{(() => { const v = row.highPrice !== null ? row.highPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>}
+                      {visibleCols.has("low") && <td className="num">{(() => { const v = row.lowPrice !== null ? row.lowPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>}
                       {visibleCols.has("volume") && (
                         <td className="num">
                           {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
