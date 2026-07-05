@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import os
 import re
@@ -52,6 +53,8 @@ if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY is required for the API service")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+logger = logging.getLogger(__name__)
 
 WEB_RESEARCH_NOTE = (
     "Веб-поиск отключён для этой версии API. "
@@ -5502,6 +5505,61 @@ def api_call_with_retry(fn, max_retries: int = 6):
             time.sleep(wait)
 
 
+# ── Compliance post-processing (ТЗ §3.3, §3.6, §3.11) ──────────────────────
+# The prompt already forbids buy/sell/hold wording; this is the mandatory
+# second layer that neutralizes any directive recommendation phrasing that
+# slips through, before the text ever reaches the user. Patterns are curated
+# to target recommendation CONSTRUCTS (e.g. "рекомендуем купить") and avoid
+# false positives on factual statements (e.g. "компания продала активы").
+_FORBIDDEN_PATTERNS: list[tuple[str, str]] = [
+    # Russian — directive recommendations (tolerate up to 2 words in between)
+    (r"рекоменду\w*\s+(?:\w+\s+){0,2}?(?:купить|покупать)", "по данным анализа факторы выглядят позитивно"),
+    (r"рекоменду\w*\s+(?:\w+\s+){0,2}?(?:продать|продавать)", "по данным анализа факторы выглядят негативно"),
+    (r"рекоменду\w*\s+(?:\w+\s+){0,2}?(?:держать|удерживать)", "по данным анализа факторы выглядят нейтрально"),
+    (r"(?:советуе\w*|стоит|следует|целесообразно)\s+(?:купить|покупать)", "позитивные факторы преобладают"),
+    (r"(?:советуе\w*|стоит|следует|целесообразно)\s+(?:продать|продавать)", "негативные факторы преобладают"),
+    (r"рекомендаци\w*\s*[:——-]?\s*(?:покупать|купить)", "аналитический вывод: позитивный"),
+    (r"рекомендаци\w*\s*[:——-]?\s*(?:продавать|продать)", "аналитический вывод: негативный"),
+    (r"рекомендаци\w*\s*[:——-]?\s*(?:держать|удерживать)", "аналитический вывод: нейтральный"),
+    (r"сигнал\s+(?:на\s+)?(?:покупку|продажу)", "аналитический сигнал"),
+    # English — directive recommendations
+    (r"\b(?:recommend|advise|suggest)\w*\s+(?:to\s+)?buy\b", "the factors look positive"),
+    (r"\b(?:recommend|advise|suggest)\w*\s+(?:to\s+)?sell\b", "the factors look negative"),
+    (r"\b(?:recommend|advise|suggest)\w*\s+(?:to\s+)?hold\b", "the factors look neutral"),
+    (r"\b(?:buy|sell|hold)\s+(?:rating|recommendation|signal)\b", "analytical assessment"),
+    (r"\b(?:strong\s+)?(?:buy|sell|hold)\s+(?:the\s+)?(?:stock|shares)\b", "analytical assessment"),
+    # Uzbek — directive recommendations (tolerate intervening words)
+    (r"tavsiya[\w'\s:.,—-]{0,18}?sotib\s+ol\w*", "omillar ijobiy ko'rinadi"),
+    (r"tavsiya[\w'\s:.,—-]{0,18}?sotish\w*", "omillar salbiy ko'rinadi"),
+    (r"tavsiya[\w'\s:.,—-]{0,18}?ushlab\s+tur\w*", "omillar neytral ko'rinadi"),
+]
+_FORBIDDEN_COMPILED = [(re.compile(pat, re.IGNORECASE), repl) for pat, repl in _FORBIDDEN_PATTERNS]
+
+
+def _sanitize_ai_text(text: str) -> str:
+    """Neutralize any buy/sell/hold recommendation phrasing in generated output."""
+    if not text:
+        return text
+    hits = 0
+    cleaned = text
+    for pattern, replacement in _FORBIDDEN_COMPILED:
+        cleaned, n = pattern.subn(replacement, cleaned)
+        hits += n
+    if hits:
+        logger.warning("AI output sanitizer neutralized %d forbidden recommendation phrase(s)", hits)
+    return cleaned
+
+
+def _cap_words(text: str, max_words: int = 200) -> str:
+    """Enforce the ТЗ AI-summary word cap; only truncates when clearly exceeded."""
+    if not text:
+        return text
+    words = text.split()
+    if len(words) <= max_words:
+        return text
+    return " ".join(words[:max_words]).rstrip(" ,;:") + "…"
+
+
 def _responses_text(prompt: str, instructions: str, max_output_tokens: int) -> tuple[str, object]:
     def _call():
         return client.responses.create(
@@ -5516,6 +5574,7 @@ def _responses_text(prompt: str, instructions: str, max_output_tokens: int) -> t
     text = (getattr(response, "output_text", "") or "").strip()
     if not text:
         raise ValueError("OpenAI returned an empty response")
+    text = _sanitize_ai_text(text)
     return text, response
 
 
@@ -5528,7 +5587,7 @@ def build_summary(result: dict) -> dict:
     itog = sections.get("ИТОГ") or sections.get("CONCLUSION") or sections.get("ВЫВОД") or ""
 
     return {
-        "verdict": verdict,
+        "verdict": _cap_words(verdict, 200),
         "itog": itog,
         "score": score.get("score"),
         "grade": score.get("grade"),
@@ -5540,6 +5599,164 @@ def build_summary(result: dict) -> dict:
         "from_cache": bool(result.get("from_cache")),
         "model": result.get("model", OPENAI_MODEL),
     }
+
+
+_EXCEL_DISCLAIMER = {
+    "ru": (
+        "Аналитические материалы, прогнозы и оценки, представленные на платформе, носят исключительно "
+        "информационный характер и подготовлены на основе публично доступных данных. Они не являются "
+        "инвестиционными рекомендациями, офертой или призывом к совершению каких-либо операций с ценными "
+        "бумагами. Платформа не несёт ответственности за инвестиционные решения, принятые пользователями."
+    ),
+    "en": (
+        "The analytical materials, forecasts, and assessments provided on the platform are for informational "
+        "purposes only and are based on publicly available data. They do not constitute investment advice, an "
+        "offer, or a solicitation to conduct any transactions with securities. The platform bears no "
+        "responsibility for investment decisions made by users."
+    ),
+    "uz": (
+        "Platformada taqdim etilgan tahliliy materiallar, prognozlar va baholar faqat ma'lumot berish maqsadida "
+        "tayyorlangan. Ular investitsiya tavsiyasi, taklif yoki qimmatli qog'ozlar bilan operatsiya qilishga "
+        "undov hisoblanmaydi. Platforma foydalanuvchilar qarorlari uchun javobgar emas."
+    ),
+}
+
+
+def _excel_number(value):
+    """Return a float if value is numeric-like, else None (so numbers export as numbers)."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace("\xa0", "").replace(" ", "").replace("%", "").replace("×", "").replace("x", "")
+    text = text.replace(",", ".")
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def build_analysis_excel(result: dict, language: str = "ru", generated_at=None) -> bytes:
+    """Export an analysis result to .xlsx (ТЗ §3.13): sheet 1 = disclaimer + meta,
+    following sheets = data. Numbers are written as numbers, dates as Excel dates."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment
+
+    lang = (language or "ru").lower()
+    if lang not in ("ru", "en", "uz"):
+        lang = "ru"
+    L = {
+        "ru": {"info": "Информация", "metrics": "Показатели", "sections": "Разделы",
+               "title": "Аналитический отчёт", "company": "Компания", "generated": "Дата формирования",
+               "annual": "Годовой период", "quarter": "Квартальный период", "model": "Модель",
+               "disclaimer": "Дисклеймер", "metric": "Показатель", "value": "Значение", "section": "Раздел", "text": "Текст"},
+        "en": {"info": "Info", "metrics": "Metrics", "sections": "Sections",
+               "title": "Analytical report", "company": "Company", "generated": "Generated at",
+               "annual": "Annual period", "quarter": "Quarterly period", "model": "Model",
+               "disclaimer": "Disclaimer", "metric": "Metric", "value": "Value", "section": "Section", "text": "Text"},
+        "uz": {"info": "Ma'lumot", "metrics": "Ko'rsatkichlar", "sections": "Bo'limlar",
+               "title": "Tahliliy hisobot", "company": "Kompaniya", "generated": "Shakllantirilgan sana",
+               "annual": "Yillik davr", "quarter": "Choraklik davr", "model": "Model",
+               "disclaimer": "Ogohlantirish", "metric": "Ko'rsatkich", "value": "Qiymat", "section": "Bo'lim", "text": "Matn"},
+    }[lang]
+    bold = Font(bold=True)
+
+    wb = Workbook()
+    # ── Sheet 1: Info + disclaimer ──
+    ws = wb.active
+    ws.title = L["info"]
+    ws["A1"] = L["title"]
+    ws["A1"].font = Font(bold=True, size=14)
+    meta = [
+        (L["company"], result.get("company_name") or result.get("input") or "—"),
+        (L["generated"], generated_at),
+        (L["annual"], result.get("annual_period") or "—"),
+        (L["quarter"], result.get("quarterly_period") or "—"),
+        (L["model"], result.get("model") or OPENAI_MODEL),
+    ]
+    row = 3
+    for label, val in meta:
+        ws.cell(row=row, column=1, value=label).font = bold
+        cell = ws.cell(row=row, column=2, value=val)
+        if label == L["generated"] and generated_at is not None:
+            cell.number_format = "yyyy-mm-dd hh:mm"
+        row += 1
+    row += 1
+    ws.cell(row=row, column=1, value=L["disclaimer"]).font = bold
+    dcell = ws.cell(row=row + 1, column=1, value=_EXCEL_DISCLAIMER[lang])
+    dcell.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.merge_cells(start_row=row + 1, start_column=1, end_row=row + 6, end_column=6)
+    ws.column_dimensions["A"].width = 34
+    ws.column_dimensions["B"].width = 46
+
+    # ── Sheet 2: Metrics (numbers as numbers) ──
+    ws2 = wb.create_sheet(L["metrics"])
+    ws2.cell(row=1, column=1, value=L["metric"]).font = bold
+    ws2.cell(row=1, column=2, value=L["value"]).font = bold
+    metrics = result.get("metrics") or {}
+    r = 2
+
+    def put(label, raw):
+        nonlocal r
+        if raw is None or raw == "":
+            return
+        num = _excel_number(raw)
+        ws2.cell(row=r, column=1, value=str(label))
+        ws2.cell(row=r, column=2, value=num if num is not None else str(raw))
+        r += 1
+
+    if isinstance(metrics, dict):
+        score = metrics.get("total_score") or {}
+        if isinstance(score, dict):
+            put("Score / Итоговый скор", score.get("score"))
+            put("Grade / Класс", score.get("grade"))
+        for key in ("piotroski_f_score", "altman_z_score", "graham_number", "dcf"):
+            val = metrics.get(key)
+            if isinstance(val, dict):
+                put(key, val.get("score") if val.get("score") is not None else val.get("value") or val.get("intrinsic_value_bn"))
+            elif val is not None:
+                put(key, val)
+        liq = metrics.get("market_liquidity") or {}
+        if isinstance(liq, dict):
+            put("Liquidity / Ликвидность", liq.get("liquidity_label"))
+            put("Trade days / Дней с торгами", liq.get("trade_days"))
+            put("Avg trade value / Средний оборот", liq.get("avg_trade_value"))
+        ind = metrics.get("industry") or {}
+        if isinstance(ind, dict):
+            put("Sector / Отрасль", ind.get("sector_name"))
+            put("Good indicators / Хороших", ind.get("good_count"))
+            put("Weak indicators / Слабых", ind.get("weak_count"))
+            de = ind.get("debt_equity") or {}
+            if isinstance(de, dict):
+                put("D/E", de.get("value"))
+                burden = de.get("burden") or {}
+                if isinstance(burden, dict):
+                    put("Debt load / Долговая нагрузка", burden.get(lang) or burden.get("ru"))
+    ws2.column_dimensions["A"].width = 40
+    ws2.column_dimensions["B"].width = 24
+
+    # ── Sheet 3: Text sections ──
+    sections = result.get("sections") or {}
+    if isinstance(sections, dict) and sections:
+        ws3 = wb.create_sheet(L["sections"])
+        ws3.cell(row=1, column=1, value=L["section"]).font = bold
+        ws3.cell(row=1, column=2, value=L["text"]).font = bold
+        rr = 2
+        for key, val in sections.items():
+            text = val if isinstance(val, str) else json.dumps(val, ensure_ascii=False)
+            if not text:
+                continue
+            ws3.cell(row=rr, column=1, value=str(key)).font = bold
+            c = ws3.cell(row=rr, column=2, value=text[:4000])
+            c.alignment = Alignment(wrap_text=True, vertical="top")
+            rr += 1
+        ws3.column_dimensions["A"].width = 30
+        ws3.column_dimensions["B"].width = 90
+
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 COMPARISON_FIELDS = [

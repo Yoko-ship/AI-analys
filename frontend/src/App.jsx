@@ -11,6 +11,7 @@ const VIEW_PATHS = {
   catalog: "/catalog",
   analysis: "/analysis",
   compare: "/compare",
+  reference: "/reference",
   profile: "/profile",
   auth: "/login",
 };
@@ -32,6 +33,251 @@ function pathToView(pathname) {
 const STORAGE_KEY = "uz_stock_analyzer_token";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
 const THEME_KEY = "uz_stock_analyzer_theme";
+
+// Mandatory legal disclaimer (ТЗ §3.2) — shown on every page and forced into every report.
+const DISCLAIMER = {
+  ru: "Аналитические материалы, прогнозы и оценки, представленные на платформе, носят исключительно информационный характер и подготовлены на основе публично доступных данных. Они не являются инвестиционными рекомендациями, офертой или призывом к совершению каких-либо операций с ценными бумагами. Платформа не несёт ответственности за инвестиционные решения, принятые пользователями на основе представленной информации.",
+  uz: "Platformada taqdim etilgan tahliliy materiallar, prognozlar va baholar faqat ma'lumot berish maqsadida tayyorlangan bo'lib, ommaviy ma'lumotlar asosida shakllantirilgan. Ular investitsiya tavsiyasi, taklif yoki qimmatli qog'ozlar bilan biron-bir operatsiyani amalga oshirishga undov hisoblanmaydi. Platforma foydalanuvchilar tomonidan taqdim etilgan ma'lumotlar asosida qabul qilingan investitsiya qarorlari uchun javobgar emas.",
+  en: "The analytical materials, forecasts, and assessments provided on the platform are for informational purposes only and are based on publicly available data. They do not constitute investment advice, an offer, or a solicitation to conduct any transactions with securities. The platform bears no responsibility for investment decisions made by users based on the information provided.",
+};
+
+function DisclaimerNote({ language, variant = "footer" }) {
+  const text = DISCLAIMER[language] || DISCLAIMER.ru;
+  const label = language === "uz" ? "Ogohlantirish" : language === "en" ? "Disclaimer" : "Дисклеймер";
+  return (
+    <div className={`disclaimer-note disclaimer-note--${variant}`} role="note">
+      <span className="disclaimer-note__label">{label}</span>
+      <p className="disclaimer-note__text">{text}</p>
+    </div>
+  );
+}
+
+// ── Reference content (ТЗ §3.2: термины, тарифы, режимы торгов) ─────────────
+const GLOSSARY = [
+  {
+    group: "Рыночные термины",
+    terms: [
+      { term: "Тикер", def: "Короткий буквенный или числовой код бумаги на бирже. Например, Hamkorbank — HMKB, его префы — HMKBP." },
+      { term: "Bid", def: "Цена, по которой покупатель готов купить акцию прямо сейчас." },
+      { term: "Ask", def: "Цена, по которой продавец готов продать акцию прямо сейчас." },
+      { term: "Спред bid/ask", def: "Разница между Ask и Bid. Чем уже спред — тем выше ликвидность; широкий спред означает, что войти и выйти дорого." },
+      { term: "VWAP", def: "Средневзвешенная по объёму цена за период. Учитывает, сколько акций куплено по каждой цене — профессиональный ориентир «справедливой» цены дня." },
+      { term: "Free-float", def: "Доля акций, реально торгующихся на бирже. Чем ниже free-float — тем ниже ликвидность и тем легче двигать цену." },
+      { term: "Концентрация владения", def: "Мера того, насколько акции сосредоточены у небольшого числа акционеров. Высокая концентрация = риск резкого движения цены при выходе крупного держателя." },
+      { term: "Ликвидность", def: "Свойство бумаги быть быстро купленной или проданной по цене близкой к рыночной, без существенных потерь и при узком спреде." },
+      { term: "Волатильность", def: "Мера того, насколько резко и быстро меняется цена. Высокая — цена скачет, низкая — движется плавно." },
+    ],
+  },
+  {
+    group: "Периоды и сравнения",
+    terms: [
+      { term: "QoQ (Quarter over Quarter)", def: "Изменение показателя относительно предыдущего квартала." },
+      { term: "YoY (Year over Year)", def: "Изменение относительно того же периода прошлого года. Устраняет сезонный эффект." },
+      { term: "YTD (Year to Date)", def: "Изменение с начала текущего года по сегодняшний день." },
+      { term: "Скользящее среднее", def: "Среднее значение за последние N периодов, пересчитываемое каждый день." },
+    ],
+  },
+  {
+    group: "Финансовые показатели",
+    terms: [
+      { term: "Выручка", def: "Все деньги, полученные компанией от продажи товаров или услуг за период, без вычета расходов. Первая строчка отчёта." },
+      { term: "EBITDA", def: "Прибыль до вычета процентов, налогов и амортизации. Показывает, сколько компания зарабатывает от операционной деятельности." },
+      { term: "Чистая прибыль", def: "То, что осталось после всех расходов: себестоимости, операционных затрат, процентов и налогов. Итоговая строчка отчёта." },
+      { term: "ROE (Return on Equity)", def: "Рентабельность собственного капитала — сколько чистой прибыли компания зарабатывает на каждый сум вложенного акционерами капитала." },
+      { term: "ROA (Return on Assets)", def: "Рентабельность активов — сколько прибыли компания получает на каждый сум всех своих активов." },
+      { term: "Маржа чистой прибыли", def: "Доля чистой прибыли в выручке. Показывает, сколько прибыли остаётся с каждого заработанного сума." },
+      { term: "D/E (Debt to Equity)", def: "Соотношение общего долга к собственному капиталу. D/E = 2 означает 2 сума заёмных на каждый сум собственных." },
+      { term: "Долг/EBITDA", def: "Сколько лет нужно работать, чтобы выплатить весь долг из операционной прибыли. До 2× — низкая нагрузка, выше 4× — высокая." },
+      { term: "Покрытие процентов", def: "Соотношение EBITDA к годовым процентным платежам. Ниже 2× — тревожный сигнал." },
+      { term: "Коэффициент текущей ликвидности", def: "Оборотные активы / краткосрочные обязательства. Норма — выше 1,5." },
+      { term: "Коэффициент быстрой ликвидности", def: "То же, но без учёта запасов — более консервативная оценка платёжеспособности." },
+    ],
+  },
+  {
+    group: "Мультипликаторы",
+    terms: [
+      { term: "P/E (Price to Earnings)", def: "Цена акции / прибыль на акцию. Низкий P/E относительно отрасли — возможный признак недооценки, высокий — переоценки или ожиданий роста." },
+      { term: "P/B (Price to Book)", def: "Цена акции / балансовая стоимость акции. P/B < 1 означает, что рынок оценивает компанию дешевле её собственного капитала." },
+      { term: "EV/EBITDA", def: "Стоимость бизнеса (включая долг) / EBITDA. Более полный аналог P/E, учитывающий долговую нагрузку." },
+    ],
+  },
+  {
+    group: "Инструменты и корпоративные события",
+    terms: [
+      { term: "Акция", def: "Ценная бумага, дающая владельцу долю в компании (статус совладельца / акционера)." },
+      { term: "Привилегированные акции (префы)", def: "Дают приоритет по дивидендам, но обычно без права голоса. На бирже обозначаются буквой P (например HMKBP)." },
+      { term: "Облигация", def: "Долговая бумага: даёте компании или государству в долг, они возвращают номинал и купонный доход в срок." },
+      { term: "Эмитент", def: "Юрлицо, выпускающее ценные бумаги и несущее по ним обязательства перед владельцами." },
+      { term: "Листинг", def: "Включение ценных бумаг в официальный список биржи, после чего ими можно торговать." },
+      { term: "Делистинг", def: "Исключение ценных бумаг из биржевого списка (по инициативе компании или биржи)." },
+      { term: "Дивиденды", def: "Часть прибыли, распределяемая компанией между акционерами." },
+    ],
+  },
+];
+
+const TARIFFS = {
+  source: "uzse.uz/exchange/rates",
+  note: "Комиссия взимается и с покупателя, и с продавца. Маркет-мейкеры освобождаются. Данные приведены справочно — актуальные тарифы уточняйте на сайте биржи.",
+  groups: [
+    {
+      title: "Рынок акций (секции листинга)",
+      rows: [
+        { name: "Основной борд (-G1-)", rate: "0,36% (до 10 млрд сум) / 0,26% (свыше 10 млрд)" },
+        { name: "Переговорный борд (-T1-)", rate: "0,26% (до 100 млрд) / 0,16% (свыше 100 млрд)" },
+        { name: "Борд FoP (-NC-)", rate: "0,1%" },
+        { name: "Репо-борд (-R1-)", rate: "0,045%" },
+      ],
+    },
+    {
+      title: "Рынок облигаций (секции листинга)",
+      rows: [
+        { name: "Основной борд (-G1-)", rate: "0,0555%" },
+        { name: "Переговорный борд (-T1-)", rate: "0,0555%" },
+        { name: "Репо-борд (-R1-)", rate: "0,0155%" },
+      ],
+    },
+    {
+      title: "Внелистинговая площадка (акции)",
+      rows: [
+        { name: "Основной борд", rate: "0,48% (до 10 млрд) / 0,38% (свыше 10 млрд)" },
+        { name: "Переговорный борд", rate: "0,48% (до 100 млрд) / 0,38% (свыше 100 млрд)" },
+        { name: "Репо-борд", rate: "0,105%" },
+      ],
+    },
+    {
+      title: "Внелистинговая площадка (облигации) и IPO/SPO",
+      rows: [
+        { name: "Облигации: основной / переговорный борд", rate: "0,131%" },
+        { name: "Облигации: репо-борд", rate: "0,091%" },
+        { name: "Размещение акций (IPO/SPO/PO)", rate: "0,30%" },
+      ],
+    },
+  ],
+};
+
+const TRADING_SCHEDULE = {
+  source: "uzse.uz/exchange/schedule",
+  markets: [
+    {
+      title: "Акции (STK) — основная сессия",
+      rows: [
+        { time: "09:30", event: "Начало аукциона открытия" },
+        { time: "10:00", event: "Исполнение аукциона открытия; старт торгов по множественной цене" },
+        { time: "11:00", event: "Начало режима переговорных сделок (РПС)" },
+        { time: "15:30", event: "Окончание торгов по множественной цене; аукцион закрытия" },
+        { time: "16:00", event: "Окончание аукционных торгов; завершение РПС" },
+        { time: "16:02", event: "Завершение торгов" },
+      ],
+    },
+    {
+      title: "Облигации (BND) и РЕПО",
+      rows: [
+        { time: "10:00", event: "Старт торгов по множественной цене" },
+        { time: "11:00", event: "Начало переговорных сделок" },
+        { time: "16:00", event: "Возобновление сессии по множественной цене; завершение переговорных сделок" },
+      ],
+    },
+  ],
+  modes: [
+    "Основная сессия — торги по множественной цене (аукцион спроса и предложения).",
+    "Аукцион открытия и закрытия — сбор заявок и расчёт единой цены.",
+    "Режим переговорных сделок (РПС) — адресные сделки между участниками.",
+    "Режим РЕПО — сделки с обратным выкупом.",
+    "Типы заявок: лимитные, рыночные (только для акций) и переговорные.",
+  ],
+};
+
+function ReferenceView({ language }) {
+  const [tab, setTab] = React.useState("glossary");
+  const [search, setSearch] = React.useState("");
+  const tabs = [
+    { key: "glossary", label: language === "uz" ? "Atamalar" : language === "en" ? "Glossary" : "Термины" },
+    { key: "tariffs", label: language === "uz" ? "Tariflar" : language === "en" ? "Tariffs" : "Тарифы" },
+    { key: "schedule", label: language === "uz" ? "Savdo rejimi" : language === "en" ? "Trading modes" : "Режимы торгов" },
+  ];
+  const q = search.trim().toLowerCase();
+  const filteredGlossary = GLOSSARY.map((g) => ({
+    ...g,
+    terms: g.terms.filter((it) => !q || it.term.toLowerCase().includes(q) || it.def.toLowerCase().includes(q)),
+  })).filter((g) => g.terms.length);
+
+  return (
+    <section className="reference-view">
+      <div className="reference-hero panel">
+        <div className="panel-label">{language === "uz" ? "Ma'lumotnoma" : language === "en" ? "Reference" : "Справочник"}</div>
+        <h1 className="reference-title">{language === "uz" ? "Fond bozori ma'lumotnomasi" : language === "en" ? "Stock market reference" : "Справочник фондового рынка"}</h1>
+        <p className="muted">{language === "uz" ? "Atamalar, birja tariflari va savdo rejimlari." : language === "en" ? "Terms, exchange tariffs and trading modes." : "Термины, биржевые тарифы и режимы торгов."}</p>
+        <div className="reference-tabs">
+          {tabs.map((tb) => (
+            <button key={tb.key} type="button" className={`reference-tab ${tab === tb.key ? "active" : ""}`} onClick={() => setTab(tb.key)}>{tb.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "glossary" && (
+        <div className="reference-panel panel">
+          <input className="reference-search" placeholder={language === "uz" ? "Atama qidirish…" : language === "en" ? "Search terms…" : "Поиск термина…"} value={search} onChange={(e) => setSearch(e.target.value)} />
+          {filteredGlossary.length ? filteredGlossary.map((g) => (
+            <div key={g.group} className="glossary-group">
+              <h3 className="glossary-group-title">{g.group}</h3>
+              <dl className="glossary-list">
+                {g.terms.map((it) => (
+                  <div key={it.term} className="glossary-item">
+                    <dt>{it.term}</dt>
+                    <dd>{it.def}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )) : <p className="muted">{language === "en" ? "Nothing found." : "Ничего не найдено."}</p>}
+        </div>
+      )}
+
+      {tab === "tariffs" && (
+        <div className="reference-panel panel">
+          {TARIFFS.groups.map((grp) => (
+            <div key={grp.title} className="tariff-group">
+              <h3 className="glossary-group-title">{grp.title}</h3>
+              <table className="reference-table">
+                <tbody>
+                  {grp.rows.map((r) => (
+                    <tr key={r.name}><td>{r.name}</td><td className="reference-table-val">{r.rate}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          <p className="reference-source">{TARIFFS.note}</p>
+          <p className="reference-source">{language === "en" ? "Source" : "Источник"}: {TARIFFS.source}</p>
+        </div>
+      )}
+
+      {tab === "schedule" && (
+        <div className="reference-panel panel">
+          {TRADING_SCHEDULE.markets.map((m) => (
+            <div key={m.title} className="tariff-group">
+              <h3 className="glossary-group-title">{m.title}</h3>
+              <table className="reference-table">
+                <tbody>
+                  {m.rows.map((r) => (
+                    <tr key={r.time + r.event}><td className="reference-table-time">{r.time}</td><td>{r.event}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          <div className="tariff-group">
+            <h3 className="glossary-group-title">{language === "uz" ? "Savdo rejimlari" : language === "en" ? "Trading modes" : "Режимы торгов"}</h3>
+            <ul className="reference-modes">
+              {TRADING_SCHEDULE.modes.map((m) => <li key={m}>{m}</li>)}
+            </ul>
+          </div>
+          <p className="reference-source">{language === "en" ? "Source" : "Источник"}: {TRADING_SCHEDULE.source}</p>
+        </div>
+      )}
+    </section>
+  );
+}
 
 // Modern SVG Icons for landing page
 const Icons = {
@@ -103,7 +349,7 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "Платформа для анализа компаний Узбекистана",
-    nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ", catalog: "Каталог" },
+    nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ", catalog: "Каталог", reference: "Справочник" },
     catalog: {
       title: "Каталог отчётности",
       subtitle: "Все доступные отчёты листинговых компаний с openinfo.uz",
@@ -134,7 +380,7 @@ const TEXTS = {
         quarter_compare: "Сравнение кварталов",
         annual_compare: "Сравнение годовых отчётов",
         swot: "SWOT-анализ",
-        recommendation: "Инвестиционная рекомендация",
+        recommendation: "Аналитический вывод",
         multi_company: "Сравнение компаний",
       },
       compareWith: "Сравнить с:",
@@ -180,17 +426,17 @@ const TEXTS = {
       title: "Платформа для инвестиционного анализа",
       copy: "Получайте профессиональный анализ узбекских компаний за секунды. Оценка финансового здоровья, риски и потенциал роста.",
       features: [
-        { icon: "chart", title: "Глубокий анализ", copy: "DCF-оценка, отраслевые сигналы, динамика выручки и прибыли" },
-        { icon: "zap", title: "Мгновенный результат", copy: "Полный отчет с графиками и рекомендациями за несколько секунд" },
+        { icon: "chart", title: "Глубокий анализ", copy: "Финансовые коэффициенты, динамика выручки и прибыли, структура баланса" },
+        { icon: "zap", title: "Мгновенный результат", copy: "Полный отчёт с графиками и разбором отчётности за несколько секунд" },
         { icon: "shield", title: "Надежные данные", copy: "Актуальная финансовая отчетность напрямую с Узбекской биржи" },
-        { icon: "target", title: "Точные прогнозы", copy: "Анализ трендов, катализаторов и рыночных сигналов" },
+        { icon: "target", title: "Ключевые метрики", copy: "Ликвидность, волатильность, рентабельность и долговая нагрузка" },
       ],
       howItWorks: {
         title: "Как это работает",
         steps: [
           { num: "01", title: "Выберите компанию", copy: "Введите тикер или выберите из каталога доступных компаний" },
           { num: "02", title: "Запустите анализ", copy: "Система соберет данные и проведет комплексный финансовый анализ" },
-          { num: "03", title: "Получите отчет", copy: "Изучите оценку, графики, метрики и инвестиционные рекомендации" },
+          { num: "03", title: "Получите отчет", copy: "Изучите оценку, графики и метрики с аналитическими выводами" },
         ],
       },
       stats: {
@@ -219,7 +465,7 @@ const TEXTS = {
       rightCards: [
         { title: "Оценка", copy: "Общий скор по компании." },
         { title: "Вердикт", copy: "Краткое итоговое заключение." },
-        { title: "Метрики", copy: "DCF, отраслевые сигналы, ликвидность и динамика." },
+        { title: "Метрики", copy: "Ликвидность, рентабельность, долговая нагрузка и динамика." },
         { title: "История", copy: "Сохраненные анализы и избранные компании." },
       ],
     },
@@ -255,6 +501,7 @@ const TEXTS = {
       statsTitle: "Активность",
       favoritesTitle: "Избранное",
       historyTitle: "История анализов",
+      repeat: "Повторить",
       stats: {
         totalAnalyses: "Всего анализов",
         analyses7d: "За 7 дней",
@@ -333,14 +580,14 @@ const TEXTS = {
       АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ: "Анализ отчёта о финансовых результатах",
       КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Коэффициентный анализ",
       СВОДНАЯ_ТАБЛИЦА: "Сводная таблица ключевых показателей",
-      ЗАКЛЮЧЕНИЕ: "Итоговая оценка и инвестиционная рекомендация",
+      ЗАКЛЮЧЕНИЕ: "Итоговая оценка",
       СКОРИНГ: "Общая оценка и скоринг эмитента",
       ДОСЬЕ: "Краткое досье эмитента",
       ЧТО_С_ДЕНЬГАМИ: "Финансовая выжимка",
       ТРЕНД: "Анализ трендов и динамики показателей",
       ЭФФЕКТИВНОСТЬ: "Операционная эффективность и оборачиваемость",
       ТЕХНИЧЕСКИЙ_АНАЛИЗ: "Технический анализ (RSI, Фибоначчи, объёмы)",
-      ОЦЕНКА_СТОИМОСТИ: "Оценка справедливой стоимости",
+      ОЦЕНКА_СТОИМОСТИ: "Оценка стоимости по показателям",
       ФИБОНАЧЧИ: "Технический анализ (уровни Фибоначчи)",
       ОЦЕНКА_ЦЕНЫ: "Оценка инвестиционной привлекательности",
       КАТАЛИЗАТОРЫ: "Факторы влияния на стоимость акций",
@@ -349,9 +596,9 @@ const TEXTS = {
       СЛАБЫЕ_СТОРОНЫ: "Риски и слабые стороны",
       ВОЗМОЖНОСТИ: "Возможности роста",
       УГРОЗЫ: "Угрозы и внешние риски",
-      ПРОГНОЗ: "Прогноз развития компании",
-      ВЕРДИКТ: "Инвестиционный вердикт",
-      СОВЕТЫ: "Рекомендации инвестору",
+      ПРОГНОЗ: "Аналитический обзор динамики",
+      ВЕРДИКТ: "Итоговая оценка",
+      СОВЕТЫ: "На что обратить внимание",
       ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА: "Ограничения анализа",
       ИТОГ: "Резюме для инвестора",
       ЗЕЛЕНЫЕ_ФЛАГИ: "Позитивные сигналы",
@@ -363,9 +610,10 @@ const TEXTS = {
       altman_z_score: "Altman Z-Score",
       buffett_criteria: "Критерии Баффетта",
       graham_number: "Стоимость Грэма",
-      dcf: "DCF-оценка",
+      dcf: "Оценка стоимости",
       industry: "Отрасль",
       market_liquidity: "Ликвидность",
+      debt_burden: "Долговая нагрузка",
       momentum: "Тренд",
     },
   },
@@ -373,7 +621,7 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "Company analysis platform for Uzbekistan",
-    nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis", catalog: "Catalog" },
+    nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis", catalog: "Catalog", reference: "Reference" },
     catalog: {
       title: "Report Catalog",
       subtitle: "All available reports of listed companies from openinfo.uz",
@@ -404,7 +652,7 @@ const TEXTS = {
         quarter_compare: "Quarter comparison",
         annual_compare: "Annual comparison",
         swot: "SWOT analysis",
-        recommendation: "Investment recommendation",
+        recommendation: "Analytical conclusion",
         multi_company: "Company comparison",
       },
       compareWith: "Compare with:",
@@ -449,17 +697,17 @@ const TEXTS = {
       title: "Investment Analysis Platform",
       copy: "Get professional analysis of Uzbek companies in seconds. Financial health assessment, risks, and growth potential.",
       features: [
-        { icon: "chart", title: "Deep Analysis", copy: "DCF valuation, sector signals, revenue and profit dynamics" },
-        { icon: "zap", title: "Instant Results", copy: "Complete report with charts and recommendations in seconds" },
+        { icon: "chart", title: "Deep Analysis", copy: "Financial ratios, revenue and profit dynamics, balance-sheet structure" },
+        { icon: "zap", title: "Instant Results", copy: "Complete report with charts and statement breakdown in seconds" },
         { icon: "shield", title: "Reliable Data", copy: "Up-to-date financial statements directly from Uzbek Stock Exchange" },
-        { icon: "target", title: "Accurate Forecasts", copy: "Trend analysis, catalysts, and market signals" },
+        { icon: "target", title: "Key Metrics", copy: "Liquidity, volatility, profitability and debt load" },
       ],
       howItWorks: {
         title: "How It Works",
         steps: [
           { num: "01", title: "Select Company", copy: "Enter ticker or choose from the available companies catalog" },
           { num: "02", title: "Run Analysis", copy: "System collects data and performs comprehensive financial analysis" },
-          { num: "03", title: "Get Report", copy: "Review score, charts, metrics and investment recommendations" },
+          { num: "03", title: "Get Report", copy: "Review score, charts and metrics with analytical conclusions" },
         ],
       },
       stats: {
@@ -487,8 +735,8 @@ const TEXTS = {
       rightTitle: "What the user gets",
       rightCards: [
         { title: "Score", copy: "One main score for quick orientation." },
-        { title: "Verdict", copy: "A short final recommendation." },
-        { title: "Metrics", copy: "DCF, sector signals, liquidity, and trend dynamics." },
+        { title: "Verdict", copy: "A short final assessment." },
+        { title: "Metrics", copy: "Liquidity, profitability, debt load, and trend dynamics." },
         { title: "History", copy: "Saved analyses and favorite companies." },
       ],
     },
@@ -524,6 +772,7 @@ const TEXTS = {
       statsTitle: "Activity",
       favoritesTitle: "Favorites",
       historyTitle: "Analysis history",
+      repeat: "Repeat",
       stats: {
         totalAnalyses: "Total analyses",
         analyses7d: "Last 7 days",
@@ -602,14 +851,14 @@ const TEXTS = {
       АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ: "Income Statement Analysis",
       КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Financial Ratio Analysis",
       СВОДНАЯ_ТАБЛИЦА: "Summary Table of Key Metrics",
-      ЗАКЛЮЧЕНИЕ: "Final Assessment and Investment Recommendation",
+      ЗАКЛЮЧЕНИЕ: "Final Assessment",
       СКОРИНГ: "Overall Assessment and Scoring",
       ДОСЬЕ: "Company Snapshot",
       ЧТО_С_ДЕНЬГАМИ: "Financial Position Brief",
       ТРЕНД: "Trend and Dynamics Analysis",
       ЭФФЕКТИВНОСТЬ: "Operational Efficiency and Turnover",
       ТЕХНИЧЕСКИЙ_АНАЛИЗ: "Technical Analysis (RSI, Fibonacci, Volume)",
-      ОЦЕНКА_СТОИМОСТИ: "Fair Value Assessment",
+      ОЦЕНКА_СТОИМОСТИ: "Indicator-Based Valuation",
       ФИБОНАЧЧИ: "Technical Analysis (Fibonacci Levels)",
       ОЦЕНКА_ЦЕНЫ: "Investment Attractiveness",
       КАТАЛИЗАТОРЫ: "Stock Price Catalysts",
@@ -618,9 +867,9 @@ const TEXTS = {
       СЛАБЫЕ_СТОРОНЫ: "Risks and Weaknesses",
       ВОЗМОЖНОСТИ: "Growth Opportunities",
       УГРОЗЫ: "Threats and External Risks",
-      ПРОГНОЗ: "Company Development Forecast",
-      ВЕРДИКТ: "Investment Verdict",
-      СОВЕТЫ: "Investor Recommendations",
+      ПРОГНОЗ: "Analytical Overview of Dynamics",
+      ВЕРДИКТ: "Final Assessment",
+      СОВЕТЫ: "What to Pay Attention To",
       ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА: "Analysis Limitations",
       ИТОГ: "Executive Summary",
       ЗЕЛЕНЫЕ_ФЛАГИ: "Positive Signals",
@@ -632,9 +881,10 @@ const TEXTS = {
       altman_z_score: "Altman Z-Score",
       buffett_criteria: "Buffett criteria",
       graham_number: "Graham value",
-      dcf: "DCF valuation",
+      dcf: "Value assessment",
       industry: "Industry",
       market_liquidity: "Liquidity",
+      debt_burden: "Debt load",
       momentum: "Trend",
     },
   },
@@ -642,7 +892,7 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "O'zbekiston kompaniyalarini tahlil qilish platformasi",
-    nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil", catalog: "Katalog" },
+    nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil", catalog: "Katalog", reference: "Ma'lumotnoma" },
     catalog: {
       title: "Hisobotlar katalogi",
       subtitle: "openinfo.uz'dan barcha ro'yxatga olingan kompaniyalarning hisobotlari",
@@ -673,7 +923,7 @@ const TEXTS = {
         quarter_compare: "Choraklar taqqoslash",
         annual_compare: "Yillik hisobotlar taqqoslash",
         swot: "SWOT tahlili",
-        recommendation: "Investitsiya tavsiyasi",
+        recommendation: "Tahliliy xulosa",
         multi_company: "Kompaniyalar taqqoslash",
       },
       compareWith: "Bilan solishtiring:",
@@ -718,17 +968,17 @@ const TEXTS = {
       title: "Investitsion tahlil platformasi",
       copy: "O'zbek kompaniyalarining professional tahlilini soniyalar ichida oling. Moliyaviy salomatlik, xavflar va o'sish imkoniyatlari.",
       features: [
-        { icon: "chart", title: "Chuqur tahlil", copy: "DCF baholash, sektor signallari, daromad va foyda dinamikasi" },
-        { icon: "zap", title: "Tezkor natija", copy: "Grafik va tavsiyalar bilan to'liq hisobot soniyalar ichida" },
+        { icon: "chart", title: "Chuqur tahlil", copy: "Moliyaviy koeffitsientlar, daromad va foyda dinamikasi, balans tuzilishi" },
+        { icon: "zap", title: "Tezkor natija", copy: "Grafik va hisobot tahlili bilan to'liq hisobot soniyalar ichida" },
         { icon: "shield", title: "Ishonchli ma'lumot", copy: "O'zbekiston birjasidan to'g'ridan-to'g'ri yangilangan moliyaviy hisobotlar" },
-        { icon: "target", title: "Aniq bashoratlar", copy: "Trend, katalizatorlar va bozor signallari tahlili" },
+        { icon: "target", title: "Asosiy metrikalar", copy: "Likvidlik, volatillik, rentabellik va qarz yuki" },
       ],
       howItWorks: {
         title: "Qanday ishlaydi",
         steps: [
           { num: "01", title: "Kompaniyani tanlang", copy: "Ticker kiriting yoki mavjud kompaniyalar katalogidan tanlang" },
           { num: "02", title: "Tahlilni boshlang", copy: "Tizim ma'lumotlarni yig'adi va keng qamrovli moliyaviy tahlil o'tkazadi" },
-          { num: "03", title: "Hisobotni oling", copy: "Baho, grafik, metrikalar va investitsion tavsiyalarni ko'rib chiqing" },
+          { num: "03", title: "Hisobotni oling", copy: "Baho, grafik va metrikalarni tahliliy xulosalar bilan ko'rib chiqing" },
         ],
       },
       stats: {
@@ -756,8 +1006,8 @@ const TEXTS = {
       rightTitle: "Foydalanuvchi nimani oladi",
       rightCards: [
         { title: "Baho", copy: "Tez orientatsiya uchun yagona ko'rsatkich." },
-        { title: "Xulosa", copy: "Qisqa yakuniy tavsiya." },
-        { title: "Metrikalar", copy: "DCF, sektor signallari, likvidlik va trend dinamikasi." },
+        { title: "Xulosa", copy: "Qisqa yakuniy baho." },
+        { title: "Metrikalar", copy: "Likvidlik, rentabellik, qarz yuki va trend dinamikasi." },
         { title: "Tarix", copy: "Saqlangan tahlillar va tanlangan kompaniyalar." },
       ],
     },
@@ -793,6 +1043,7 @@ const TEXTS = {
       statsTitle: "Faollik",
       favoritesTitle: "Tanlanganlar",
       historyTitle: "Tahlillar tarixi",
+      repeat: "Takrorlash",
       stats: {
         totalAnalyses: "Jami tahlillar",
         analyses7d: "7 kun ichida",
@@ -871,14 +1122,14 @@ const TEXTS = {
       АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ: "Moliyaviy natijalar hisoboti tahlili",
       КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Moliyaviy koeffitsientlar tahlili",
       СВОДНАЯ_ТАБЛИЦА: "Asosiy ko'rsatkichlarning umumlashtirilgan jadvali",
-      ЗАКЛЮЧЕНИЕ: "Yakuniy baho va investitsion tavsiya",
+      ЗАКЛЮЧЕНИЕ: "Yakuniy baho",
       СКОРИНГ: "Umumiy baholash va skoringi",
       ДОСЬЕ: "Emitent haqida qisqacha ma'lumot",
       ЧТО_С_ДЕНЬГАМИ: "Moliyaviy holat qisqacha",
       ТРЕНД: "Trendlar va dinamika tahlili",
       ЭФФЕКТИВНОСТЬ: "Operatsion samaradorlik va aylanma",
       ТЕХНИЧЕСКИЙ_АНАЛИЗ: "Texnik tahlil (RSI, Fibonachchi, hajmlar)",
-      ОЦЕНКА_СТОИМОСТИ: "Adolatli qiymatni baholash",
+      ОЦЕНКА_СТОИМОСТИ: "Ko'rsatkichlar asosida baholash",
       ФИБОНАЧЧИ: "Texnik tahlil (Fibonachchi darajalari)",
       ОЦЕНКА_ЦЕНЫ: "Investitsion jozibadorlikni baholash",
       КАТАЛИЗАТОРЫ: "Aksiya narxiga ta'sir qiluvchi omillar",
@@ -887,9 +1138,9 @@ const TEXTS = {
       СЛАБЫЕ_СТОРОНЫ: "Xavflar va zaif tomonlar",
       ВОЗМОЖНОСТИ: "O'sish imkoniyatlari",
       УГРОЗЫ: "Tahdidlar va tashqi xavflar",
-      ПРОГНОЗ: "Kompaniya rivojlanishi prognozi",
-      ВЕРДИКТ: "Investitsion xulosa",
-      СОВЕТЫ: "Investorga tavsiyalar",
+      ПРОГНОЗ: "Dinamikaning tahliliy sharhi",
+      ВЕРДИКТ: "Yakuniy baho",
+      СОВЕТЫ: "Nimaga e'tibor berish kerak",
       ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА: "Tahlil cheklovlari",
       ИТОГ: "Investor uchun xulosa",
       ЗЕЛЕНЫЕ_ФЛАГИ: "Ijobiy signallar",
@@ -901,9 +1152,10 @@ const TEXTS = {
       altman_z_score: "Altman Z-Score",
       buffett_criteria: "Baffet mezonlari",
       graham_number: "Grem qiymati",
-      dcf: "DCF baholash",
+      dcf: "Qiymat bahosi",
       industry: "Sektor",
       market_liquidity: "Likvidlik",
+      debt_burden: "Qarz yuki",
       momentum: "Trend",
     },
   },
@@ -1089,10 +1341,12 @@ const COMPARE_TEXTS = {
   ru: {
     nav: "Сравнение",
     title: "Сравнение эмитентов",
-    subtitle: "Сравните 2-3 компании по МСФО, рыночной ликвидности, отчетам и нормализованным показателям 0-100.",
+    subtitle: "Сравните 2-5 компаний по МСФО, рыночной ликвидности, отчетам и нормализованным показателям 0-100.",
     company1: "Компания 1",
     company2: "Компания 2",
     company3: "Компания 3",
+    company4: "Компания 4",
+    company5: "Компания 5",
     placeholder: "Тикер или название компании",
     optional: "необязательно",
     includeAi: "Сформировать comparative AI summary",
@@ -1111,7 +1365,7 @@ const COMPARE_TEXTS = {
     normalizedRanking: "Нормализованный рейтинг",
     normalizedNote: "Все разнородные метрики приведены к шкале 0-100: чем выше, тем сильнее позиция компании.",
     noData: "Нет данных",
-    empty: "Добавьте 2-3 компании и запустите сравнение.",
+    empty: "Добавьте 2-5 компаний и запустите сравнение.",
     quick: "Быстрый выбор",
     errors: "Предупреждения",
     raw: "значение",
@@ -1121,10 +1375,12 @@ const COMPARE_TEXTS = {
   en: {
     nav: "Compare",
     title: "Issuer comparison",
-    subtitle: "Compare 2-3 companies by IFRS metrics, market liquidity, reports, and normalized 0-100 indicators.",
+    subtitle: "Compare 2-5 companies by IFRS metrics, market liquidity, reports, and normalized 0-100 indicators.",
     company1: "Company 1",
     company2: "Company 2",
     company3: "Company 3",
+    company4: "Company 4",
+    company5: "Company 5",
     placeholder: "Ticker or company name",
     optional: "optional",
     includeAi: "Generate comparative AI summary",
@@ -1143,7 +1399,7 @@ const COMPARE_TEXTS = {
     normalizedRanking: "Normalized ranking",
     normalizedNote: "Different metrics are normalized to a 0-100 scale: higher means a stronger relative position.",
     noData: "No data",
-    empty: "Add 2-3 companies and run comparison.",
+    empty: "Add 2-5 companies and run comparison.",
     quick: "Quick pick",
     errors: "Warnings",
     raw: "value",
@@ -1153,10 +1409,12 @@ const COMPARE_TEXTS = {
   uz: {
     nav: "Taqqoslash",
     title: "Emitentlarni taqqoslash",
-    subtitle: "2-3 kompaniyani IFRS ko'rsatkichlari, bozor likvidligi, hisobotlar va 0-100 normalizatsiya bo'yicha solishtiring.",
+    subtitle: "2-5 kompaniyani IFRS ko'rsatkichlari, bozor likvidligi, hisobotlar va 0-100 normalizatsiya bo'yicha solishtiring.",
     company1: "Kompaniya 1",
     company2: "Kompaniya 2",
     company3: "Kompaniya 3",
+    company4: "Kompaniya 4",
+    company5: "Kompaniya 5",
     placeholder: "Ticker yoki kompaniya nomi",
     optional: "ixtiyoriy",
     includeAi: "Comparative AI summary yaratish",
@@ -1175,7 +1433,7 @@ const COMPARE_TEXTS = {
     normalizedRanking: "Normalizatsiya reytingi",
     normalizedNote: "Turli metrikalar 0-100 shkalasiga keltiriladi: yuqori qiymat nisbatan kuchliroq pozitsiyani bildiradi.",
     noData: "Ma'lumot yo'q",
-    empty: "2-3 kompaniya qo'shing va taqqoslashni boshlang.",
+    empty: "2-5 kompaniya qo'shing va taqqoslashni boshlang.",
     quick: "Tez tanlash",
     errors: "Ogohlantirishlar",
     raw: "qiymat",
@@ -1207,6 +1465,7 @@ const MARKET_TEXTS = {
     traded: "Сделки сегодня",
     advancers: "Рост",
     decliners: "Снижение",
+    unchanged: "Без изменений",
     topGrowth: "Лидер роста",
     topDrop: "Лидер снижения",
     tableTitle: "Биржевые инструменты",
@@ -1264,6 +1523,7 @@ const MARKET_TEXTS = {
     traded: "Traded today",
     advancers: "Up",
     decliners: "Down",
+    unchanged: "Unchanged",
     topGrowth: "Top gainer",
     topDrop: "Top decliner",
     tableTitle: "Market instruments",
@@ -1321,6 +1581,7 @@ const MARKET_TEXTS = {
     traded: "Bugun savdo bo'lgan",
     advancers: "O'sish",
     decliners: "Pasayish",
+    unchanged: "O'zgarishsiz",
     topGrowth: "Eng katta o'sish",
     topDrop: "Eng katta pasayish",
     tableTitle: "Bozor instrumentlari",
@@ -1556,13 +1817,14 @@ function buildMarketStats(rows) {
   const traded = rows.filter((row) => row.lastPrice !== null).length;
   const advancers = rows.filter((row) => row.changePercent !== null && row.changePercent > 0.05).length;
   const decliners = rows.filter((row) => row.changePercent !== null && row.changePercent < -0.05).length;
+  const unchanged = rows.filter((row) => Number.isFinite(row.changePercent) && row.changePercent >= -0.05 && row.changePercent <= 0.05).length;
   const withChange = rows.filter((row) => Number.isFinite(row.changePercent));
   const topGrowth = withChange.reduce((best, row) => (!best || row.changePercent > best.changePercent ? row : best), null);
   const topDrop = withChange.reduce((worst, row) => (!worst || row.changePercent < worst.changePercent ? row : worst), null);
   const topGainers = withChange.filter((r) => r.changePercent > 0).sort((a, b) => b.changePercent - a.changePercent).slice(0, 5);
   const topLosers = withChange.filter((r) => r.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, 5);
   const totalVolume = rows.reduce((s, r) => s + (Number.isFinite(r.stockVolume) ? r.stockVolume : 0), 0);
-  return { traded, advancers, decliners, topGrowth, topDrop, topGainers, topLosers, totalVolume };
+  return { traded, advancers, decliners, unchanged, topGrowth, topDrop, topGainers, topLosers, totalVolume };
 }
 
 const SCORE_EXPLANATION_TEXTS = {
@@ -3322,10 +3584,48 @@ function CompareChartCard({ chart, language }) {
   );
 }
 
+function compareCellSortValue(raw) {
+  const v = raw && typeof raw === "object" ? (raw.normalized ?? raw.value ?? raw.raw) : raw;
+  if (typeof v === "number") return { num: v, str: String(v) };
+  const n = parseFloat(String(v ?? "").replace(/[^\d.\-]/g, ""));
+  return { num: Number.isFinite(n) ? n : null, str: String(v ?? "") };
+}
+
 function CompareTable({ table, title, language }) {
   const columns = Array.isArray(table?.columns) ? table.columns : [];
   const rows = Array.isArray(table?.rows) ? table.rows : [];
+  const [sort, setSort] = React.useState({ key: null, dir: 1 });
   if (!columns.length || !rows.length) return null;
+
+  const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: 1 }));
+  const sortedRows = React.useMemo(() => {
+    if (!sort.key) return rows;
+    return [...rows].sort((a, b) => {
+      const av = compareCellSortValue(a[sort.key]);
+      const bv = compareCellSortValue(b[sort.key]);
+      if (av.num !== null && bv.num !== null) return (av.num - bv.num) * sort.dir;
+      if (av.num !== null) return -1;
+      if (bv.num !== null) return 1;
+      return av.str.localeCompare(bv.str) * sort.dir;
+    });
+  }, [rows, sort]);
+
+  // "Среднее по сравнению" row — averages each numeric metric across the compared issuers (ТЗ §3.6).
+  const avgRow = React.useMemo(() => {
+    const out = {};
+    let hasAny = false;
+    columns.forEach((column) => {
+      const nums = rows.map((r) => compareCellSortValue(r[column.key]).num).filter((n) => n !== null);
+      if (nums.length >= 2) {
+        out[column.key] = nums.reduce((a, b) => a + b, 0) / nums.length;
+        hasAny = true;
+      } else {
+        out[column.key] = null;
+      }
+    });
+    return hasAny ? out : null;
+  }, [rows, columns]);
+  const avgLabel = language === "en" ? "Average" : language === "uz" ? "O'rtacha" : "Среднее";
 
   return (
     <article className="compare-table-card">
@@ -3338,12 +3638,15 @@ function CompareTable({ table, title, language }) {
           <thead>
             <tr>
               {columns.map((column) => (
-                <th key={column.key}>{column.label || column.key}</th>
+                <th key={column.key} className="compare-th-sortable" onClick={() => toggleSort(column.key)}>
+                  {column.label || column.key}
+                  {sort.key === column.key ? <span className="compare-sort-arrow">{sort.dir === 1 ? " ▲" : " ▼"}</span> : null}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, rowIndex) => (
+            {sortedRows.map((row, rowIndex) => (
               <tr key={`${title}-${row.company_name || row.ticker || rowIndex}`}>
                 {columns.map((column) => {
                   const cell = formatCompareCell(row[column.key], column, language);
@@ -3359,6 +3662,21 @@ function CompareTable({ table, title, language }) {
                 })}
               </tr>
             ))}
+            {avgRow && (
+              <tr className="compare-avg-row">
+                {columns.map((column, ci) => (
+                  <td key={column.key}>
+                    {ci === 0 ? (
+                      <strong>{avgLabel}</strong>
+                    ) : avgRow[column.key] !== null ? (
+                      <strong>{formatCompareValue(avgRow[column.key], language, "")}</strong>
+                    ) : (
+                      <span>—</span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -3882,6 +4200,90 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   );
 }
 
+// Derived price statistics from loaded history (ТЗ §3.4: VWAP, волатильность, QoQ/YoY/YTD).
+function computePriceStats(history) {
+  const pts = (history || []).map((h) => {
+    if (Array.isArray(h)) return { date: h[0], close: Number(h[1]) || 0, high: null, low: null, volume: 0 };
+    return {
+      date: h.date || h.trade_date,
+      close: Number(h.close ?? h.price ?? h.close_price ?? 0),
+      high: h.high != null ? Number(h.high) : null,
+      low: h.low != null ? Number(h.low) : null,
+      volume: Number(h.volume ?? h.trading_volume ?? 0) || 0,
+    };
+  }).filter((p) => p.close > 0 && p.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (pts.length < 2) return null;
+  const last = pts[pts.length - 1];
+  const lastDate = new Date(last.date);
+
+  let pv = 0, vv = 0;
+  pts.forEach((p) => { if (p.volume > 0) { pv += p.close * p.volume; vv += p.volume; } });
+  const vwap = vv > 0 ? pv / vv : null;
+
+  const recent = pts.slice(-21);
+  const rets = [];
+  for (let i = 1; i < recent.length; i++) {
+    if (recent[i - 1].close > 0) rets.push((recent[i].close - recent[i - 1].close) / recent[i - 1].close);
+  }
+  let vol = null;
+  if (rets.length >= 2) {
+    const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+    const variance = rets.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (rets.length - 1);
+    vol = Math.sqrt(variance) * 100;
+  }
+
+  let maxRange = null;
+  pts.forEach((p) => {
+    if (p.high != null && p.low != null && p.close > 0) {
+      const r = ((p.high - p.low) / p.close) * 100;
+      if (maxRange == null || r > maxRange) maxRange = r;
+    }
+  });
+
+  const changeFrom = (days) => {
+    const target = new Date(lastDate);
+    target.setDate(target.getDate() - days);
+    let base = null;
+    for (const p of pts) { if (new Date(p.date) <= target) base = p; }
+    if (!base || base.close <= 0 || base === last) return null;
+    return ((last.close - base.close) / base.close) * 100;
+  };
+
+  let ytdBase = null;
+  const yr = lastDate.getFullYear();
+  for (const p of pts) { if (new Date(p.date).getFullYear() === yr) { ytdBase = p; break; } }
+  const ytd = ytdBase && ytdBase.close > 0 && ytdBase !== last
+    ? ((last.close - ytdBase.close) / ytdBase.close) * 100 : null;
+
+  return { vwap, vol, maxRange, qoq: changeFrom(90), yoy: changeFrom(365), ytd };
+}
+
+function PriceStatsStrip({ history, lang }) {
+  const stats = React.useMemo(() => computePriceStats(history), [history]);
+  if (!stats) return null;
+  const fmtPct = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`);
+  const fmtNum = (v) => (v == null ? "—" : v.toLocaleString(lang === "en" ? "en-US" : "ru-RU", { maximumFractionDigits: 2 }));
+  const tone = (v) => (v == null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "");
+  const items = [
+    { label: "VWAP", value: fmtNum(stats.vwap) },
+    { label: lang === "en" ? "Volatility (20d)" : lang === "uz" ? "Volatillik (20k)" : "Волатильность (20д)", value: stats.vol == null ? "—" : `${stats.vol.toFixed(2)}%` },
+    { label: lang === "en" ? "Max daily range" : lang === "uz" ? "Maks. kunlik diapazon" : "Макс. дневной диапазон", value: stats.maxRange == null ? "—" : `${stats.maxRange.toFixed(2)}%` },
+    { label: "QoQ", value: fmtPct(stats.qoq), tone: tone(stats.qoq) },
+    { label: "YoY", value: fmtPct(stats.yoy), tone: tone(stats.yoy) },
+    { label: "YTD", value: fmtPct(stats.ytd), tone: tone(stats.ytd) },
+  ];
+  return (
+    <div className="price-stats-strip">
+      {items.map((it) => (
+        <div className="price-stat" key={it.label}>
+          <span className="price-stat-label">{it.label}</span>
+          <span className={`price-stat-value ${it.tone || ""}`}>{it.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMonthsChange, companyData, lang, infoLoading, securityType, isPreferred, industry }) {
   const metrics = companyData?.ratios?.metrics || {};
   const KEY_METRICS = [
@@ -3898,6 +4300,7 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
       {/* Full-width price chart */}
       <div className="company-chart-panel panel">
         <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} lang={lang} />
+        <PriceStatsStrip history={priceHistory} lang={lang} />
       </div>
 
       {/* Below chart: description + sidebar */}
@@ -4578,6 +4981,7 @@ function MarketView({
         <MarketStatCard label={mt(lang, "traded")} value={formatRatio(stats.traded, 0, lang)} sub={mt(lang, "date")} />
         <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(stats.advancers, 0, lang)} sub={formatLeader(stats.topGrowth)} tone="good" />
         <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
+        <MarketStatCard label={mt(lang, "unchanged")} value={formatRatio(stats.unchanged, 0, lang)} sub={mt(lang, "date")} />
         {trades && <MarketStatCard label={mt(lang, "volume")} value={formatCompactVolume(trades.total_volume, lang)} sub={trades.total_trade_count ? `${formatRatio(trades.total_trade_count, 0, lang)} ${mt(lang, "tradeCount")}` : null} />}
       </div>
 
@@ -5702,7 +6106,7 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
-  const [compareCompanies, setCompareCompanies] = useState(["", "", ""]);
+  const [compareCompanies, setCompareCompanies] = useState(["", "", "", "", ""]);
   const [compareResult, setCompareResult] = useState(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareMessage, setCompareMessage] = useState("");
@@ -6086,9 +6490,9 @@ function App() {
     addToast(t(language, "auth.messages.logoutOk"), "info");
   };
 
-  const handleAnalysisSubmit = async (event) => {
-    event.preventDefault();
-    const company = analysisCompany.trim();
+  const handleAnalysisSubmit = async (event, companyOverride) => {
+    if (event && event.preventDefault) event.preventDefault();
+    const company = (typeof companyOverride === "string" ? companyOverride : analysisCompany).trim();
     if (!token) {
       addToast(t(language, "auth.messages.authRequired"), "error");
       setActiveView("auth");
@@ -6138,6 +6542,46 @@ function App() {
     } finally {
       setAnalysisLoading(false);
     }
+  };
+
+  // Export the current analysis result to .xlsx (ТЗ §3.13).
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const handleExportExcel = async () => {
+    if (!analysisResult) return;
+    setExportingExcel(true);
+    try {
+      const res = await apiFetch("/api/analyze/export/excel", {
+        method: "POST",
+        body: JSON.stringify({ result: analysisResult, language }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const name = (analysisResult.company_name || analysisResult.input || "analysis").replace(/[^\w-]/g, "_").slice(0, 40);
+      link.download = `${name}_analysis.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      addToast(error.message, "error");
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  // Re-run a stored history query with fresh data (ТЗ Блок 5: «Повторить запрос»).
+  const handleRepeatAnalysis = (item) => {
+    const company = (item?.ticker || item?.company_input || item?.company_name || "").trim();
+    if (!company) return;
+    setAnalysisCompany(company);
+    setActiveView("analysis");
+    handleAnalysisSubmit(null, company);
   };
 
   const updateCompareCompany = (index, value) => {
@@ -6190,7 +6634,7 @@ function App() {
       const res = await apiFetch("/api/compare", {
         method: "POST",
         body: JSON.stringify({
-          companies: cleaned.slice(0, 3),
+          companies: cleaned.slice(0, 5),
           language,
           include_market_context: false,
           include_ai_summary: compareAiSummary,
@@ -6332,6 +6776,16 @@ function App() {
       [industry.verdict || "", `${industry.good_count ?? 0} / ${industry.weak_count ?? 0}`].filter(Boolean).join(" · "),
       industry.good_count > industry.weak_count ? "good" : "warning"
     );
+    const debtEq = industry.debt_equity || {};
+    if (debtEq.value !== undefined && debtEq.value !== null) {
+      const burden = debtEq.burden || {};
+      push(
+        t(language, "metrics.debt_burden"),
+        burden[language] || burden.ru || "—",
+        `D/E: ${debtEq.value}×`,
+        debtEq.rating === "good" ? "good" : debtEq.rating === "ok" ? "warning" : "danger"
+      );
+    }
     const liquidity = metrics.market_liquidity || {};
     push(
       t(language, "metrics.market_liquidity"),
@@ -6393,8 +6847,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "heatmap", "catalog", "profile", "analysis", "compare"]
-    : ["main", "market", "heatmap", "catalog", "auth", "analysis", "compare"];
+    ? ["main", "market", "heatmap", "catalog", "reference", "profile", "analysis", "compare"]
+    : ["main", "market", "heatmap", "catalog", "reference", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -6609,6 +7063,8 @@ function App() {
               initialStatus={catalogStatus}
             />
           )}
+
+          {activeView === "reference" && <ReferenceView language={language} />}
 
           {activeView === "company" && companyTicker && (
             <CompanyPage
@@ -6933,7 +7389,15 @@ function App() {
                           </div>
                           <div className="history-meta">
                             <span>{formatDateLabel(item.created_at, language)}</span>
-                            <span>{item.verdict || ""}</span>
+                            <button
+                              type="button"
+                              className="history-repeat-btn"
+                              onClick={() => handleRepeatAnalysis(item)}
+                              disabled={analysisLoading}
+                              title={t(language, "profile.repeat")}
+                            >
+                              ↻ {t(language, "profile.repeat")}
+                            </button>
                           </div>
                         </article>
                       ))}
@@ -7193,6 +7657,16 @@ function App() {
                       >
                         {analysisTicker && favoriteTickers.has(String(analysisTicker).trim().toUpperCase()) ? t(language, "analysis.favoriteRemove") : t(language, "analysis.favoriteAdd")}
                       </button>
+                      <button
+                        className="ghost-btn result-export-btn no-print"
+                        type="button"
+                        onClick={handleExportExcel}
+                        disabled={exportingExcel || !analysisResult}
+                      >
+                        {exportingExcel
+                          ? (language === "en" ? "Preparing…" : language === "uz" ? "Tayyorlanmoqda…" : "Готовим…")
+                          : (language === "en" ? "⤓ Download Excel" : language === "uz" ? "⤓ Excel yuklab olish" : "⤓ Скачать Excel")}
+                      </button>
                     </div>
                   </>
                 )}
@@ -7305,7 +7779,7 @@ function App() {
                       <div className="analysis-input-group" key={index}>
                         <label>
                           {ct(language, `company${index + 1}`)}
-                          {index === 2 && <span className="optional-tag">{ct(language, "optional")}</span>}
+                          {index >= 2 && <span className="optional-tag">{ct(language, "optional")}</span>}
                         </label>
                         <div className="analysis-input-wrapper">
                           <span className="analysis-input-icon">{Icons.target}</span>
@@ -7470,6 +7944,10 @@ function App() {
             </section>
           )}
         </main>
+
+        <footer className="app-footer">
+          <DisclaimerNote language={language} variant="footer" />
+        </footer>
       </div>
 
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} language={language} />
