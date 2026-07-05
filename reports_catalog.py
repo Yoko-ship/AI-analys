@@ -1202,13 +1202,23 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     return out
 
 
-def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[str, Any]]) -> None:
-    """Fill headline fields that NSBU parsing leaves null from the fact store.
+_MIN_PLAUSIBLE = 100_000  # a listed issuer cannot have ~0 UZS revenue / liabilities
 
-    Banks report interest income, not «выручка»/«валовая прибыль», so the NSBU
-    form-2 parser finds no revenue for them and those market-table columns render
-    an em-dash. The financial_indicators adapter does expose net_revenue /
-    net_profit / total_liabilities per issuer, so use them as a fallback.
+
+def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[str, Any]]) -> None:
+    """Conservatively correct NSBU headline figures from the fact store.
+
+    openinfo's financial_indicators are cleaner than the NSBU form-2 parse, but the
+    ticker→org resolution is ambiguous for some issuers (openinfo carries duplicate
+    org records and UZSE names fuzzy-match unrelated entities), so a fact could be
+    for the *wrong* company. We therefore only apply changes we can trust:
+      - banks (null NSBU revenue): fill revenue and take net_profit;
+      - sign flips: NSBU net_income of the same magnitude but opposite sign to the
+        fact — unambiguously the same company, a parser sign error;
+      - fill genuinely-null revenue / total_liabilities;
+      - blank implausibly small NSBU values (clear parse errors).
+    Large magnitude disagreements are left as flags (see audit_financials_consistency)
+    rather than "corrected" with possibly-wrong-org data.
     """
     srcs = ("net_revenue", "net_profit", "total_liabilities")
     try:
@@ -1224,40 +1234,52 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
     except Exception:
         return
     ticker_org = {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in comp}
-    best: dict[tuple[str, str], tuple[str, float]] = {}  # latest value per (org, field)
+    best: dict[tuple[str, str], tuple[str, float]] = {}
     for r in rows:
         key = (str(r["entity_id"]), r["field"])
         period = str(r["period"] or "")
-        cur = best.get(key)
-        if cur is None or period > cur[0]:
+        if best.get(key) is None or period > best[key][0]:
             best[key] = (period, r["value_num"])
     for ticker, fin in out.items():
+        # is_bank is judged on the ORIGINAL NSBU revenue (banks report none), before
+        # any blanking — otherwise a blanked absurd value would masquerade as a bank.
+        is_bank = fin.get("revenue") is None
+        for key in ("revenue", "total_liabilities", "net_income"):
+            val = fin.get(key)
+            if val is not None and 0 < abs(val) < _MIN_PLAUSIBLE:
+                fin[key] = None
         org = ticker_org.get(ticker)
         if not org:
             continue
-        # A null NSBU revenue means a bank-style filer (reports interest income,
-        # not «выручка»); for those the form-2 parser also mislabels net profit, so
-        # the clean financial_indicators figures are preferred. Non-banks keep
-        # their correctly-parsed NSBU values and only get nulls filled.
-        is_bank = fin.get("revenue") is None
         rev = best.get((org, "net_revenue"))
-        if fin.get("revenue") is None and rev:
-            fin["revenue"] = rev[1]
-        # net_income: banks always take the clean net_profit; other issuers take it
-        # only when the NSBU value materially disagrees AND the fact is at least as
-        # recent — this corrects mislabels/sign errors (e.g. a loss booked as a
-        # profit) without overriding correctly-parsed, agreeing figures.
         npf = best.get((org, "net_profit"))
-        if npf and npf[1] is not None:
-            stored = fin.get("net_income")
-            fact_year = int(npf[0][:4]) if npf[0][:4].isdigit() else 0
-            cat_year = int(fin.get("year") or 0)
-            disagrees = stored is None or abs(stored - npf[1]) / max(abs(npf[1]), 1.0) > 0.05
-            if is_bank or (disagrees and fact_year >= cat_year):
-                fin["net_income"] = npf[1]
         tl = best.get((org, "total_liabilities"))
-        if fin.get("total_liabilities") is None and tl:
-            fin["total_liabilities"] = tl[1]
+        rev_v = rev[1] if rev and rev[1] not in (None, 0) else None
+        npf_v = npf[1] if npf and npf[1] is not None else None
+        tl_v = tl[1] if tl and tl[1] not in (None, 0) else None
+
+        if ticker in ORG_OVERRIDES:
+            # Org is human-verified, so openinfo's clean figures are authoritative.
+            if npf_v is not None:
+                fin["net_income"] = npf_v
+            if rev_v is not None:
+                fin["revenue"] = rev_v
+            if tl_v is not None:
+                fin["total_liabilities"] = tl_v
+            continue
+
+        if fin.get("revenue") is None and rev_v is not None:
+            fin["revenue"] = rev_v
+        if npf_v is not None:
+            stored = fin.get("net_income")
+            if is_bank and npf_v != 0:
+                fin["net_income"] = npf_v
+            elif stored is not None:
+                same_magnitude = abs(abs(stored) - abs(npf_v)) / max(abs(npf_v), 1.0) < 0.05
+                if same_magnitude and (stored < 0) != (npf_v < 0):
+                    fin["net_income"] = npf_v  # sign flip — same company, fix sign
+        if fin.get("total_liabilities") is None and tl_v is not None:
+            fin["total_liabilities"] = tl_v
 
 
 def upsert_facts(rows: list[dict[str, Any]]) -> int:
