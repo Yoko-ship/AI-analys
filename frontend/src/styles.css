@@ -9544,35 +9544,35 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 
 /* ── Legal disclaimer (ТЗ §3.2) ─────────────────────────────── */
 .app-footer { margin-top: 32px; padding: 20px 0 8px; }
-.disclaimer-note { border-top: 1px solid var(--border, rgba(255,255,255,0.08)); border-radius: 12px; padding: 14px 16px; background: var(--panel-2, rgba(255,255,255,0.02)); }
+.disclaimer-note { border-top: 1px solid var(--border, rgba(255,255,255,0.08)); border-radius: 12px; padding: 14px 16px; background: var(--panel); }
 .disclaimer-note--footer { max-width: 1180px; margin: 0 auto; }
 .disclaimer-note--report { margin: 16px 0 4px; }
 .disclaimer-note__label { display: inline-block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent, #f5a623); font-weight: 700; margin-bottom: 6px; }
-.disclaimer-note__text { margin: 0; font-size: 12px; line-height: 1.55; color: var(--text-muted, rgba(255,255,255,0.55)); }
+.disclaimer-note__text { margin: 0; font-size: 12px; line-height: 1.55; color: var(--muted); }
 
 /* ── Reference view (glossary / tariffs / trading modes) ─────── */
 .reference-view { display: flex; flex-direction: column; gap: 20px; }
 .reference-hero { padding: 24px 28px; }
 .reference-title { margin: 6px 0 4px; font-size: 26px; font-weight: 700; }
 .reference-tabs { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-.reference-tab { padding: 8px 18px; border-radius: 999px; border: 1px solid var(--border, rgba(255,255,255,0.1)); background: transparent; color: var(--text-muted, #9aa4b2); cursor: pointer; font-size: 14px; font-weight: 600; }
+.reference-tab { padding: 8px 18px; border-radius: 999px; border: 1px solid var(--border, rgba(255,255,255,0.1)); background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 600; }
 .reference-tab.active { background: var(--accent, #f5a623); color: #1a1200; border-color: transparent; }
 .reference-panel { padding: 24px 28px; }
-.reference-search { width: 100%; max-width: 420px; padding: 10px 14px; margin-bottom: 20px; border-radius: 10px; border: 1px solid var(--border, rgba(255,255,255,0.1)); background: var(--panel-2, rgba(255,255,255,0.03)); color: var(--text-primary, #fff); font-size: 14px; }
+.reference-search { width: 100%; max-width: 420px; padding: 10px 14px; margin-bottom: 20px; border-radius: 10px; border: 1px solid var(--border, rgba(255,255,255,0.1)); background: var(--panel); color: var(--text); font-size: 14px; }
 .glossary-group { margin-bottom: 26px; }
 .glossary-group-title { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent, #f5a623); margin: 0 0 12px; font-weight: 700; }
 .glossary-list { margin: 0; display: grid; gap: 12px; }
 .glossary-item { display: grid; grid-template-columns: 220px 1fr; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.06)); }
-.glossary-item dt { font-weight: 700; color: var(--text-primary, #fff); font-size: 14px; }
-.glossary-item dd { margin: 0; color: var(--text-muted, #9aa4b2); font-size: 14px; line-height: 1.55; }
+.glossary-item dt { font-weight: 700; color: var(--text); font-size: 14px; }
+.glossary-item dd { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .tariff-group { margin-bottom: 22px; }
 .reference-table { width: 100%; border-collapse: collapse; }
-.reference-table td { padding: 10px 12px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.06)); font-size: 14px; color: var(--text-primary, #fff); vertical-align: top; }
-.reference-table-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-muted, #cfd6df); white-space: nowrap; }
+.reference-table td { padding: 10px 12px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.06)); font-size: 14px; color: var(--text); vertical-align: top; }
+.reference-table-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
 .reference-table-time { width: 72px; font-weight: 700; color: var(--accent, #f5a623); font-variant-numeric: tabular-nums; }
 .reference-modes { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
-.reference-modes li { color: var(--text-muted, #9aa4b2); font-size: 14px; line-height: 1.5; }
-.reference-source { font-size: 12px; color: var(--text-muted, #78828f); margin: 8px 0 0; }
+.reference-modes li { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.reference-source { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 @media (max-width: 640px) {
   .glossary-item { grid-template-columns: 1fr; gap: 4px; }
 }
@@ -9586,15 +9586,15 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .compare-th-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .compare-th-sortable:hover { color: var(--accent, #f5a623); }
 .compare-sort-arrow { font-size: 10px; color: var(--accent, #f5a623); }
-.compare-avg-row { background: var(--panel-2, rgba(245,166,35,0.06)); }
+.compare-avg-row { background: var(--panel); }
 .compare-avg-row td { border-top: 2px solid var(--accent, rgba(245,166,35,0.4)); }
 .compare-avg-row td strong { color: var(--accent, #f5a623); }
 
 /* Price statistics strip (ТЗ §3.4: VWAP, volatility, QoQ/YoY/YTD) */
 .price-stats-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border, rgba(255,255,255,0.08)); }
 .price-stat { display: flex; flex-direction: column; gap: 4px; }
-.price-stat-label { font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted, #78828f); }
-.price-stat-value { font-size: 16px; font-weight: 700; color: var(--text-primary, #fff); font-variant-numeric: tabular-nums; }
+.price-stat-label { font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--muted); }
+.price-stat-value { font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .price-stat-value.pos { color: #34d399; }
 .price-stat-value.neg { color: #f87171; }
 @media (max-width: 760px) { .price-stats-strip { grid-template-columns: repeat(3, 1fr); } }
