@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
+from entity_resolver import ORG_OVERRIDES
 from db import APP_DATA_DIR, sqlite_connect
 from openinfo_collector import (
     OPENINFO_API_BASE,
@@ -1222,7 +1223,7 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         ).fetchall()
     except Exception:
         return
-    ticker_org = {r["ticker"]: str(r["org_id"]) for r in comp}
+    ticker_org = {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in comp}
     best: dict[tuple[str, str], tuple[str, float]] = {}  # latest value per (org, field)
     for r in rows:
         key = (str(r["entity_id"]), r["field"])
@@ -1242,9 +1243,18 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         rev = best.get((org, "net_revenue"))
         if fin.get("revenue") is None and rev:
             fin["revenue"] = rev[1]
+        # net_income: banks always take the clean net_profit; other issuers take it
+        # only when the NSBU value materially disagrees AND the fact is at least as
+        # recent — this corrects mislabels/sign errors (e.g. a loss booked as a
+        # profit) without overriding correctly-parsed, agreeing figures.
         npf = best.get((org, "net_profit"))
-        if npf and (is_bank or fin.get("net_income") is None):
-            fin["net_income"] = npf[1]
+        if npf and npf[1] is not None:
+            stored = fin.get("net_income")
+            fact_year = int(npf[0][:4]) if npf[0][:4].isdigit() else 0
+            cat_year = int(fin.get("year") or 0)
+            disagrees = stored is None or abs(stored - npf[1]) / max(abs(npf[1]), 1.0) > 0.05
+            if is_bank or (disagrees and fact_year >= cat_year):
+                fin["net_income"] = npf[1]
         tl = best.get((org, "total_liabilities"))
         if fin.get("total_liabilities") is None and tl:
             fin["total_liabilities"] = tl[1]
@@ -1312,7 +1322,7 @@ def audit_financials_consistency(form: str = "NSBU", tol: float = 0.05) -> list[
     conn = get_catalog_conn()
     try:
         comp = {
-            r["ticker"]: str(r["org_id"])
+            r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"]))
             for r in conn.execute(
                 "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != ''"
             ).fetchall()
@@ -1401,7 +1411,7 @@ def _inherit_financials_by_org(conn: sqlite3.Connection, out: dict[str, dict[str
         ).fetchall()
     except Exception:
         return
-    ticker_org: dict[str, str] = {r["ticker"]: str(r["org_id"]) for r in comp}
+    ticker_org: dict[str, str] = {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in comp}
     # One financials payload per org (any ticker of that org that already has one).
     org_fin: dict[str, dict[str, Any]] = {}
     for ticker, fin in out.items():

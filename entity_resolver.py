@@ -29,6 +29,16 @@ UZSE_STOCK_API_BASE = os.getenv(
     "UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app"
 ).rstrip("/")
 
+# Explicit ticker -> org_id overrides for issuers where openinfo autofill picks the
+# wrong duplicate org. e.g. the UZSE name "O'zmetkombinat AJ" fuzzy-matches
+# "O'zmarkazimpeks" (org 568) instead of the entity that files O'zmetkombinat's
+# reports (org 953, the one UZMK already uses). Applied everywhere org resolution
+# happens, including the financials read path.
+ORG_OVERRIDES: dict[str, str] = {
+    "UZMK": "953",
+    "UZMKP": "953",
+}
+
 # ticker -> curated openinfo name (reverse of COMPANY_CATALOG), used as an override
 # query when the UZSE-provided name does not resolve.
 _TICKER_TO_CURATED_NAME: dict[str, str] = {}
@@ -81,6 +91,10 @@ def resolve_security(
     ticker = (sec.get("ticker") or "").upper()
     name = (sec.get("name") or "").strip()
     all_tickers = all_tickers or set()
+
+    # 0. explicit override for known wrong-autofill cases.
+    if ticker in ORG_OVERRIDES:
+        return {"ticker": ticker, "org_id": ORG_OVERRIDES[ticker], "resolved_by": "override", "name": name}
 
     # 1. preferred share inherits its ordinary share's org (no network call).
     if resolved_orgs:
