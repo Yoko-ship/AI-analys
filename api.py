@@ -28,6 +28,7 @@ from reports_catalog import (
     get_catalog_stats,
     get_company_index,
     get_facts,
+    upsert_facts,
     get_company_reports,
     get_company_ratios_cached,
     get_all_financials,
@@ -230,6 +231,10 @@ class AdminTradeStatsRequest(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
     compare_ticker: str | None = Field(default=None, max_length=40)
     compare_year: int | None = Field(default=None, ge=2000, le=2100)
+
+
+class AdminFactsRequest(BaseModel):
+    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=20000)
     compare_quarter: int | None = Field(default=None, ge=0, le=3)
 
 
@@ -648,6 +653,26 @@ async def api_admin_financials(
         n = await loop.run_in_executor(None, partial(bulk_upsert_financials, payload.rows, payload.form))
     except Exception as exc:
         logger.exception("admin financials upsert failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "upserted": n}
+
+
+@app.post("/api/admin/facts")
+async def api_admin_facts(
+    payload: AdminFactsRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Ingest generic facts from an external collector (adapter output).
+
+    Lets the ingestion job — running where openinfo is reachable (a UZ host or a
+    proxy) — push the fact store to this deployment, which openinfo blocks.
+    Authenticated via ADMIN_API_SECRET in the X-Admin-Secret header.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        n = await loop.run_in_executor(None, partial(upsert_facts, payload.rows))
+    except Exception as exc:
+        logger.exception("admin facts upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True, "upserted": n}
 
