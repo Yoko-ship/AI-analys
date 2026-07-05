@@ -40,6 +40,12 @@ ORG_OVERRIDES: dict[str, str] = {
     "GRBK": "11",                       # Garant bank (catalog carried a stale org)
 }
 
+# Tickers with no correct openinfo entity — the only match is a *different* company,
+# so their financials cannot be trusted and are shown blank rather than wrong.
+UNRELIABLE_FINANCIALS: set[str] = {
+    "UTYK",  # O'ztemiryo'lkonteyner — only fuzzy-matches O'zmarkazimpeks (org 568)
+}
+
 # ticker -> curated openinfo name (reverse of COMPANY_CATALOG), used as an override
 # query when the UZSE-provided name does not resolve.
 _TICKER_TO_CURATED_NAME: dict[str, str] = {}
