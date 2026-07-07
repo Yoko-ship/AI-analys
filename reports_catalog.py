@@ -142,6 +142,29 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- Exchange-listing registry for issuers that are listed on RFB Tashkent
+        -- (openinfo info_rfb.isin_codes) but absent from the live uzse-stock feed
+        -- because they have not traded recently. Carries the last-known trade
+        -- (from /iuzse/conclusions/) plus shares outstanding so these securities
+        -- can still appear on the market board / company page, tagged inactive.
+        CREATE TABLE IF NOT EXISTS catalog_listings (
+            ticker             TEXT PRIMARY KEY,
+            isin               TEXT,
+            name               TEXT,
+            share_type         TEXT,
+            listing_date       TEXT,
+            shares_outstanding REAL,
+            reference_price    REAL,
+            last_price         REAL,
+            last_trade_date    TEXT,
+            open_price         REAL,
+            high_price         REAL,
+            low_price          REAL,
+            volume             REAL,
+            market_cap         REAL,
+            updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         -- Generic, forward-compatible fact store (scalable-pipeline design).
         -- Any source (adapter) can land any (entity, dataset, field, period) value
         -- without a schema change, so new datasets/fields published in the future
@@ -1203,6 +1226,75 @@ def get_all_trade_stats() -> dict[str, dict[str, Any]]:
     ).fetchall()
     conn.close()
     return {r["isin"]: dict(r) for r in rows}
+
+
+_LISTING_COLS = (
+    "ticker", "isin", "name", "share_type", "listing_date", "shares_outstanding",
+    "reference_price", "last_price", "last_trade_date", "open_price", "high_price",
+    "low_price", "volume", "market_cap",
+)
+
+
+def bulk_upsert_listings(rows: list[dict]) -> int:
+    """Overwrite the exchange-listing registry from an externally-computed batch.
+
+    Pushed by the collector (where openinfo is reachable) so prod can show
+    listed-but-inactive issuers on the market board even though they are missing
+    from the live uzse-stock feed. Keyed by security ticker (ordinary + preferred
+    lines are distinct rows, e.g. KSCM / KSCMP).
+    """
+    def _num(v: Any) -> float | None:
+        try:
+            return None if v is None or v == "" else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    conn = get_catalog_conn()
+    n = 0
+    try:
+        with conn:
+            for r in rows or []:
+                ticker = str(r.get("ticker") or "").strip().upper()
+                if not ticker:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO catalog_listings
+                        (ticker, isin, name, share_type, listing_date, shares_outstanding,
+                         reference_price, last_price, last_trade_date, open_price, high_price,
+                         low_price, volume, market_cap, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    ON CONFLICT(ticker) DO UPDATE SET
+                        isin=excluded.isin, name=excluded.name, share_type=excluded.share_type,
+                        listing_date=excluded.listing_date,
+                        shares_outstanding=excluded.shares_outstanding,
+                        reference_price=excluded.reference_price, last_price=excluded.last_price,
+                        last_trade_date=excluded.last_trade_date, open_price=excluded.open_price,
+                        high_price=excluded.high_price, low_price=excluded.low_price,
+                        volume=excluded.volume, market_cap=excluded.market_cap,
+                        updated_at=datetime('now')
+                    """,
+                    (ticker, str(r.get("isin") or "") or None, str(r.get("name") or "") or None,
+                     str(r.get("share_type") or "") or None, str(r.get("listing_date") or "") or None,
+                     _num(r.get("shares_outstanding")), _num(r.get("reference_price")),
+                     _num(r.get("last_price")), str(r.get("last_trade_date") or "") or None,
+                     _num(r.get("open_price")), _num(r.get("high_price")), _num(r.get("low_price")),
+                     _num(r.get("volume")), _num(r.get("market_cap"))),
+                )
+                n += 1
+    finally:
+        conn.close()
+    return n
+
+
+def get_all_listings() -> dict[str, dict[str, Any]]:
+    """Return the cached exchange-listing registry per ticker: {ticker: {...}}."""
+    conn = get_catalog_conn()
+    rows = conn.execute(
+        f"SELECT {', '.join(_LISTING_COLS)}, updated_at FROM catalog_listings"
+    ).fetchall()
+    conn.close()
+    return {r["ticker"]: dict(r) for r in rows}
 
 
 def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:

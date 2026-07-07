@@ -36,6 +36,8 @@ from reports_catalog import (
     bulk_upsert_financials,
     get_all_trade_stats,
     bulk_upsert_trade_stats,
+    get_all_listings,
+    bulk_upsert_listings,
     refresh_financials_cache,
     get_new_reports_for_tickers,
     get_report_urls,
@@ -239,6 +241,10 @@ class AdminFactsRequest(BaseModel):
     compare_quarter: int | None = Field(default=None, ge=0, le=3)
 
 
+class AdminListingsRequest(BaseModel):
+    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+
+
 def _auth_payload(user: WebUser, token: str) -> dict[str, Any]:
     return {
         "ok": True,
@@ -439,6 +445,39 @@ async def api_periods(company: str) -> dict[str, Any]:
     return _json_safe(result)
 
 
+def _listing_to_stock(lst: dict[str, Any]) -> dict[str, Any]:
+    """Shape a stored RFB listing as a market-feed stock record, tagged inactive.
+
+    Used to surface issuers that are listed on openinfo but absent from the live
+    uzse-stock feed (no recent trades). Price falls back to the registry reference
+    when no trade history exists.
+    """
+    price = lst.get("last_price")
+    if price is None:
+        price = lst.get("reference_price")
+    return {
+        "isin": lst.get("isin"),
+        "ticker": lst.get("ticker"),
+        "name": lst.get("name"),
+        "type": "stock",
+        "share_type": lst.get("share_type") or "ordinary",
+        "close_price": price,
+        "close_date": lst.get("last_trade_date"),
+        "last_price": price,
+        "last_trade_date": lst.get("last_trade_date"),
+        "open": lst.get("open_price"),
+        "high": lst.get("high_price"),
+        "low": lst.get("low_price"),
+        "volume": lst.get("volume"),
+        "quantity": None,
+        "trade_count": None,
+        "security_type_text": None,
+        "shares_outstanding": lst.get("shares_outstanding"),
+        "market_cap": lst.get("market_cap"),
+        "inactive": True,
+    }
+
+
 @app.get("/api/market/stocks")
 async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
     security_type = (type or "").strip().lower()
@@ -462,22 +501,46 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
     stocks = payload.get("stocks") if isinstance(payload, dict) else []
     stocks_list = stocks if isinstance(stocks, list) else []
 
-    # Background sync into securities DB (fire-and-forget)
+    # Background sync into securities DB (fire-and-forget). Copy the list so the
+    # inactive-listing merge below cannot leak synthetic rows into the executor.
     if stocks_list:
         logos = _load_logos()
         loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, partial(sync_securities, stocks_list, logos))
+        loop.run_in_executor(None, partial(sync_securities, list(stocks_list), logos))
         # Track the record (largest) daily turnover per stock over time.
-        loop.run_in_executor(None, partial(record_volume, stocks_list))
+        loop.run_in_executor(None, partial(record_volume, list(stocks_list)))
+
+    # Merge in listed-but-inactive issuers (openinfo RFB registry, pushed by the
+    # collector) that the live feed omits, so they still show on the market board —
+    # tagged inactive with their last-known trade. Equities only (skip for bonds).
+    merged = list(stocks_list)
+    added_inactive = 0
+    if security_type != "bond":
+        feed_tickers = {str(s.get("ticker") or "").upper() for s in stocks_list}
+        feed_isins = {str(s.get("isin") or "").upper() for s in stocks_list if s.get("isin")}
+        try:
+            listings = get_all_listings()
+        except Exception:
+            logger.exception("market/stocks: listings merge read failed")
+            listings = {}
+        for tk, lst in listings.items():
+            if tk in feed_tickers:
+                continue
+            isin = str(lst.get("isin") or "").upper()
+            if isin and isin in feed_isins:
+                continue
+            merged.append(_listing_to_stock(lst))
+            added_inactive += 1
 
     return _json_safe({
         "ok": True,
         "source": "uzse-stock-production",
         "source_url": f"{UZSE_STOCK_API_BASE}/stocks",
         "updated_at": payload.get("updated_at") if isinstance(payload, dict) else None,
-        "count": payload.get("count", len(stocks_list)) if isinstance(payload, dict) else len(stocks_list),
+        "count": len(merged),
+        "inactive_listings": added_inactive,
         "type": security_type or "all",
-        "stocks": stocks_list,
+        "stocks": merged,
     })
 
 
@@ -683,6 +746,26 @@ async def api_admin_facts(
         n = await loop.run_in_executor(None, partial(upsert_facts, payload.rows))
     except Exception as exc:
         logger.exception("admin facts upsert failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "upserted": n}
+
+
+@app.post("/api/admin/listings")
+async def api_admin_listings(
+    payload: AdminListingsRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Overwrite the exchange-listing registry from an externally-computed batch.
+
+    Lets the collector (where openinfo is reachable) push listed-but-inactive
+    issuers — the ones absent from the live uzse-stock feed — so they still appear
+    on the market board. Authenticated via ADMIN_API_SECRET in X-Admin-Secret.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        n = await loop.run_in_executor(None, partial(bulk_upsert_listings, payload.rows))
+    except Exception as exc:
+        logger.exception("admin listings upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True, "upserted": n}
 
