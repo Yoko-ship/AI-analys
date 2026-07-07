@@ -16,6 +16,7 @@ from db import APP_DATA_DIR, sqlite_connect
 from openinfo_collector import (
     OPENINFO_API_BASE,
     OPENINFO_WEB_BASE,
+    REQUEST_TIMEOUT,
     _build_report_document,
     _json_get,
     _make_session,
@@ -379,6 +380,39 @@ def _nsbu_export_urls(report_id: Any, period_type: str, org_type: str | None) ->
     return pdf_url, excel_url
 
 
+_ORG_TYPE_CANDIDATES = ("jsc", "bank", "insurance", "microfinance")
+
+
+def _probe_org_type(session: Any, form2_records: list[dict], period_type: str) -> str | None:
+    """Discover an issuer's org_type by probing the Excel export endpoint.
+
+    openinfo's /reports/main/ search misses some issuers outright — names that
+    tokenize to a single useless letter (e.g. "O'zqishloqelektrqurilish" → "O")
+    return no org-matched records, so _fetch_main_results yields org_type=None and
+    no NSBU Excel URL can be built (financials then stay empty). The export itself
+    works once the right org_type label is supplied, so we try each candidate
+    against a real report id and keep the first that returns a genuine .xlsx
+    (HTTP 200 + spreadsheet content-type; a wrong org_type returns HTTP 400).
+    """
+    report_id = next(
+        (doc.get("id") for rec in form2_records if (doc := _build_report_document(rec)).get("id")),
+        None,
+    )
+    if not report_id:
+        return None
+    for org_type in _ORG_TYPE_CANDIDATES:
+        url = _nsbu_export_urls(report_id, period_type, org_type)[1]
+        try:
+            resp = session.get(url, stream=True, timeout=REQUEST_TIMEOUT)
+            ctype = (resp.headers.get("content-type") or "").lower()
+            resp.close()
+        except Exception:  # noqa: BLE001 — any transport error just means "try next"
+            continue
+        if resp.status_code == 200 and ("spreadsheet" in ctype or "officedocument" in ctype):
+            return org_type
+    return None
+
+
 def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict[str, Any]:
     conn = get_catalog_conn()
 
@@ -459,6 +493,12 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
             doc = _build_report_document(rec)
             form1_annual_by_year[yr] = doc
 
+    # The /reports/main/ search couldn't resolve org_type for this issuer, so the
+    # NSBU Excel URLs below would all come out empty (→ no financials). Recover it
+    # by probing the export endpoint against a real report id.
+    if org_type is None and form2_annual:
+        org_type = _probe_org_type(session, form2_annual, "annual")
+
     with conn:
         for rec in form2_annual:
             yr = rec.get("reporting_year")
@@ -511,6 +551,11 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
         if isinstance(yr, int) and q:
             doc = _build_report_document(rec)
             form1_quarter_by_yq[(yr, q)] = doc
+
+    # Fall back to a quarterly report id if the issuer files no annuals but the
+    # org_type still hasn't been resolved.
+    if org_type is None and form2_quarter:
+        org_type = _probe_org_type(session, form2_quarter, "quarter")
 
     with conn:
         for rec in form2_quarter:
