@@ -118,6 +118,24 @@ def push_listings() -> int:
     return _post("/api/admin/listings", {"rows": rows})
 
 
+def push_financials_aliases() -> int:
+    """Copy each issuer's financials onto its sibling tickers, then push to prod.
+
+    A company's financials are issuer-level, but the board keys them by ticker —
+    so preferred lines, issuer bonds, and ordinary/preferred variants (AGMK vs
+    AGMKP, KSCMP vs KSCM) showed blank. This fills them from the sibling that has
+    them.
+    """
+    import listings_collector as lc
+
+    log.info("collecting issuer financials aliases (openinfo info_rfb) ...")
+    rows = lc.collect_financials_aliases()
+    log.info("financials aliases: %d sibling tickers", len(rows))
+    if not rows:
+        return 0
+    return _post("/api/admin/financials", {"form": "NSBU", "rows": rows})
+
+
 def collect_and_push_facts() -> int:
     """Run every registered source adapter locally, then push the fact store to prod.
 
@@ -166,6 +184,13 @@ def main() -> int:
         log.info("collected %d companies (%d full non-bank)", len(rows), filled)
         if rows and not args.no_push:
             rc_status = push(rows) or rc_status
+
+    if not (args.no_financials or args.no_push or args.trades_only or args.facts_only or args.listings_only):
+        try:
+            rc_status = push_financials_aliases() or rc_status
+        except Exception:
+            log.exception("financials aliases step failed")
+            rc_status = rc_status or 1
 
     if not (args.no_trades or args.no_push or args.facts_only or args.listings_only):
         try:

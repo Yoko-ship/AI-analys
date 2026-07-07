@@ -42,9 +42,9 @@ ORG_OVERRIDES: dict[str, str] = {
 
 # Tickers with no correct openinfo entity — the only match is a *different* company,
 # so their financials cannot be trusted and are shown blank rather than wrong.
-UNRELIABLE_FINANCIALS: set[str] = {
-    "UTYK",  # O'ztemiryo'lkonteyner — only fuzzy-matches O'zmarkazimpeks (org 568)
-}
+# UTYK was here (mis-matched O'zmarkazimpeks org 568) but now resolves correctly to
+# org 528 ("O'ZTEMIRYOLKONTEYNER", ISIN UZ7051720009), so its figures are trusted.
+UNRELIABLE_FINANCIALS: set[str] = set()
 
 # ticker -> curated openinfo name (reverse of COMPANY_CATALOG), used as an override
 # query when the UZSE-provided name does not resolve.
