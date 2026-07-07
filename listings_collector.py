@@ -121,6 +121,21 @@ def collect_listing_rows() -> list[dict[str, Any]]:
                 "market_cap": (shares * price_for_cap) if (shares and price_for_cap) else None,
             })
 
+        # Issuer listed on openinfo but with no tradable RFB security (empty
+        # isin_codes — e.g. an inactive exchange registration like NGQT): still
+        # surface it on the board (financials only, no price) so curated catalog
+        # companies stay visible instead of vanishing. Keyed by our catalog ticker.
+        if not (rfb.get("isin_codes") or []) and ticker not in seen_tickers:
+            seen_tickers.add(ticker)
+            rows.append({
+                "ticker": ticker, "isin": None, "name": name,
+                "share_type": "ordinary", "listing_date": None,
+                "shares_outstanding": None, "reference_price": None,
+                "last_price": None, "last_trade_date": None,
+                "open_price": None, "high_price": None, "low_price": None,
+                "volume": None, "market_cap": None,
+            })
+
     log.info("collected %d listing rows from %d orgs", len(rows), len(org_detail_cache))
     return rows
 
