@@ -27,6 +27,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# The collector is the only place org/fact enrichment is correct (openinfo is
+# reachable, org mapping is fresh). Enrich here, then push final values; the
+# deployment serves them as-is (see reports_catalog._financials_enrich_enabled).
+os.environ.setdefault("FINANCIALS_ENRICH_ON_READ", "1")
+
 import reports_catalog as rc  # noqa: E402  (after load_dotenv)
 import trade_stats as ts  # noqa: E402
 

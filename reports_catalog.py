@@ -1297,10 +1297,26 @@ def get_all_listings() -> dict[str, dict[str, Any]]:
     return {r["ticker"]: dict(r) for r in rows}
 
 
+def _financials_enrich_enabled() -> bool:
+    """Whether to apply org/fact enrichment when reading financials.
+
+    Enrichment (fact-store corrections, cross-ticker inheritance) must run in the
+    collector — where openinfo is reachable and the org mapping is fresh — before
+    it pushes the final values. It must NOT run when serving on the deployment:
+    prod's catalog_companies/org map is stale (openinfo is blocked there, so it
+    never re-syncs), and re-enriching would re-inject a *different* entity's
+    numbers over the clean pushed values (the org-1001 → OCBK/MNGM bug). Default
+    off; the collector sets FINANCIALS_ENRICH_ON_READ=1.
+    """
+    return os.getenv("FINANCIALS_ENRICH_ON_READ", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     """Return the most recent cached indicators per ticker: {ticker: {...}}.
 
-    Picks the latest period (year, then quarter) available for each ticker.
+    Picks the latest period (year, then quarter) available for each ticker. Org/
+    fact enrichment runs only when ``_financials_enrich_enabled()`` (collector),
+    so the deployment serves exactly what the collector pushed.
     """
     conn = get_catalog_conn()
     _maybe_seed_financials(conn, form)
@@ -1333,8 +1349,9 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "operating_income": r["operating_income"],
             "updated_at": r["updated_at"],
         }
-    _inherit_financials_by_org(conn, out)
-    _enrich_financials_from_facts(conn, out)
+    if _financials_enrich_enabled():
+        _inherit_financials_by_org(conn, out)
+        _enrich_financials_from_facts(conn, out)
     conn.close()
     return out
 
