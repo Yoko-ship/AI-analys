@@ -100,6 +100,24 @@ def push_trade_stats() -> int:
     return _post("/api/admin/trade-stats", {"trade_date": data.get("trade_date"), "rows": rows})
 
 
+def push_listings() -> int:
+    """Collect the RFB listing registry (openinfo) and push it to prod.
+
+    Surfaces issuers that are listed on RFB Tashkent but missing from the live
+    uzse-stock feed (no recent trades on the main board), so they still appear on
+    the market board with their last-known price and market cap.
+    """
+    import listings_collector as lc
+
+    log.info("collecting exchange-listing registry (openinfo info_rfb) ...")
+    rows = lc.collect_listing_rows()
+    log.info("listings: %d securities", len(rows))
+    if not rows:
+        log.warning("no listings collected")
+        return 1
+    return _post("/api/admin/listings", {"rows": rows})
+
+
 def collect_and_push_facts() -> int:
     """Run every registered source adapter locally, then push the fact store to prod.
 
@@ -135,10 +153,12 @@ def main() -> int:
     ap.add_argument("--trades-only", action="store_true", help="only fetch+push trade stats")
     ap.add_argument("--no-facts", action="store_true", help="skip the source-adapter fact step")
     ap.add_argument("--facts-only", action="store_true", help="only run+push the source-adapter facts")
+    ap.add_argument("--no-listings", action="store_true", help="skip the exchange-listing registry step")
+    ap.add_argument("--listings-only", action="store_true", help="only collect+push the listing registry")
     args = ap.parse_args()
 
     rc_status = 0
-    if not (args.no_financials or args.trades_only or args.facts_only):
+    if not (args.no_financials or args.trades_only or args.facts_only or args.listings_only):
         if not args.push_only:
             refresh_local()
         rows = collect_rows()
@@ -147,18 +167,25 @@ def main() -> int:
         if rows and not args.no_push:
             rc_status = push(rows) or rc_status
 
-    if not (args.no_trades or args.no_push or args.facts_only):
+    if not (args.no_trades or args.no_push or args.facts_only or args.listings_only):
         try:
             rc_status = push_trade_stats() or rc_status
         except Exception:
             log.exception("trade-stats step failed")
             rc_status = rc_status or 1
 
-    if not (args.no_facts or args.no_push or args.trades_only):
+    if not (args.no_facts or args.no_push or args.trades_only or args.listings_only):
         try:
             rc_status = collect_and_push_facts() or rc_status
         except Exception:
             log.exception("facts step failed")
+            rc_status = rc_status or 1
+
+    if not (args.no_listings or args.no_push or args.trades_only or args.facts_only):
+        try:
+            rc_status = push_listings() or rc_status
+        except Exception:
+            log.exception("listings step failed")
             rc_status = rc_status or 1
 
     return rc_status

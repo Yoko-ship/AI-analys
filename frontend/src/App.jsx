@@ -5303,6 +5303,17 @@ function MarketView({
                             {row.ticker || "—"}
                           </button>
                           <span>{isPreferred ? mt(lang, "preferred") : (row.share_type ? mt(lang, row.share_type) : (row.type || "—"))}</span>
+                          {row.inactive && (
+                            <span
+                              className="market-inactive-badge"
+                              style={{ fontSize: "0.7em", padding: "1px 5px", borderRadius: "6px", background: "rgba(148,163,184,0.2)", color: "#94a3b8", whiteSpace: "nowrap", alignSelf: "flex-start" }}
+                              title={lang === "en" ? "Listed on RFB Tashkent but not in the live feed — last-known trade shown"
+                                : lang === "uz" ? "RFB Toshkentda ro'yxatda, lekin jonli lentada yo'q — oxirgi savdo ko'rsatilgan"
+                                : "В листинге РФБ «Тошкент», но вне живой ленты — показана последняя сделка"}
+                            >
+                              {lang === "en" ? "inactive" : lang === "uz" ? "nofaol" : "неактивна"}
+                            </span>
+                          )}
                         </div>
                         <button
                           type="button"
