@@ -140,6 +140,67 @@ def collect_listing_rows() -> list[dict[str, Any]]:
     return rows
 
 
+_FIN_VALUE_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
+                   "net_income", "operating_income")
+
+
+def _org_to_tickers(session: Any) -> dict[str, set[str]]:
+    """org_id → every security ticker of that issuer (catalog + info_rfb)."""
+    org_ids = _org_ids()
+    mapping: dict[str, set[str]] = {}
+    detail_cache: dict[str, dict] = {}
+    for ticker, org_id in org_ids.items():
+        detail = detail_cache.get(org_id)
+        if detail is None:
+            try:
+                resp = session.get(f"{OPENINFO_API_BASE}/home/organizations/{org_id}/", timeout=30)
+                resp.raise_for_status()
+                detail = resp.json()
+            except Exception:  # noqa: BLE001
+                detail = {}
+            detail_cache[org_id] = detail
+        rfb = (detail.get("info_rfb") or {}) if isinstance(detail, dict) else {}
+        bucket = mapping.setdefault(org_id, set())
+        bucket.add(ticker.upper())
+        for ic in rfb.get("isin_codes") or []:
+            tk = str(ic.get("ticker") or "").strip().upper()
+            if tk:
+                bucket.add(tk)
+    return mapping
+
+
+def collect_financials_aliases() -> list[dict[str, Any]]:
+    """Financials rows copied onto every security ticker of the same issuer.
+
+    A company's financials are issuer-level, but the market board keys them by
+    ticker — so an issuer's preferred line, bonds, or ordinary/preferred variant
+    (AGMK vs AGMKP, KSCMP vs KSCM, a bank's bonds) showed blank financials even
+    though the issuer's numbers exist. For each org, copy the financials of a
+    ticker that has them onto its siblings that don't.
+    """
+    session = _make_session()
+    fin = {t.upper(): f for t, f in rc.get_all_financials().items()}
+    rows: list[dict[str, Any]] = []
+    for org_id, tickers in _org_to_tickers(session).items():
+        source = next(
+            (fin[t] for t in tickers
+             if t in fin and any(fin[t].get(k) is not None for k in _FIN_VALUE_KEYS)),
+            None,
+        )
+        if not source:
+            continue
+        for tk in tickers:
+            if tk in fin:
+                continue  # already carries its own financials
+            rows.append({
+                "ticker": tk, "form": "NSBU",
+                "year": source.get("year"), "quarter": source.get("quarter") or 0,
+                **{k: source.get(k) for k in _FIN_VALUE_KEYS},
+            })
+    log.info("financials aliases: %d sibling tickers", len(rows))
+    return rows
+
+
 if __name__ == "__main__":
     import json
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

@@ -48,7 +48,7 @@ COMPANY_CATALOG = {
     '"Buxoroneftgazparmalash" AJ': "BNGP",
     '"Buxoroneftgazparmalash" AJ (привилегированные)': "BNGPP",
     '"O\'zbekiston neftgaz" AJ (привилегированные)': "UZNGP",
-    '"Mubarekneftgazmontaj" AJ': "MNGM",
+    '"Muborakneftgazmontaj" AJ': "MNGM",  # openinfo org 226 (autofill matches "Muborak", not the mis-spelled "Mubarek")
     '"O\'zbekgeofizika" AJ (привилегированные)': "UZGFP",
     '"Neft va gaz quduqlarini sinash" AJ': "NGQS",
     '"O\'zbekko\'mir" AJ': "UZIR",
