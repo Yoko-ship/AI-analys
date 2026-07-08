@@ -1439,7 +1439,12 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
                 fin["total_liabilities"] = tl_v
             continue
 
-        if fin.get("revenue") is None and rev_v is not None:
+        # Finance issuers (banks and insurers): openinfo's net_revenue is the
+        # authoritative top line. Banks have no NSBU revenue line at all; insurers
+        # do (gross written premiums), but we show the net-of-reinsurance indicator
+        # to stay consistent with how bank revenue is sourced. Non-finance keep the
+        # NSBU figure and only fall back to the indicator when it is blank.
+        if rev_v is not None and (is_bank or fin.get("revenue") is None):
             fin["revenue"] = rev_v
         if npf_v is not None:
             stored = fin.get("net_income")
