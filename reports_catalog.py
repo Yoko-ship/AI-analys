@@ -1393,11 +1393,17 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         return
     ticker_org = {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in comp}
     best: dict[tuple[str, str], tuple[str, float]] = {}
+    # net_profit indexed by annual year, so a sign-flip check compares against the
+    # SAME year the board displays — not merely the newest indicator on file (which
+    # can be a later annual than the parsed NSBU set, defeating the magnitude test).
+    npf_by_year: dict[tuple[str, int], float] = {}
     for r in rows:
         key = (str(r["entity_id"]), r["field"])
         period = str(r["period"] or "")
         if best.get(key) is None or period > best[key][0]:
             best[key] = (period, r["value_num"])
+        if r["field"] == "net_profit" and period.isdigit() and len(period) == 4:
+            npf_by_year[(str(r["entity_id"]), int(period))] = r["value_num"]
     for ticker, fin in out.items():
         # Tickers whose only openinfo match is a different company: blank rather
         # than show another entity's figures.
@@ -1440,9 +1446,13 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
             if is_bank and npf_v != 0:
                 fin["net_income"] = npf_v
             elif stored is not None:
-                same_magnitude = abs(abs(stored) - abs(npf_v)) / max(abs(npf_v), 1.0) < 0.05
-                if same_magnitude and (stored < 0) != (npf_v < 0):
-                    fin["net_income"] = npf_v  # sign flip — same company, fix sign
+                year = fin.get("year")
+                cmp_v = npf_by_year.get((org, year)) if year else None
+                if cmp_v is None:
+                    cmp_v = npf_v
+                same_magnitude = abs(abs(stored) - abs(cmp_v)) / max(abs(cmp_v), 1.0) < 0.05
+                if same_magnitude and (stored < 0) != (cmp_v < 0):
+                    fin["net_income"] = cmp_v  # sign flip — same company, fix sign
         if fin.get("total_liabilities") is None and tl_v is not None:
             fin["total_liabilities"] = tl_v
 
