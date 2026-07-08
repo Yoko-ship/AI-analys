@@ -153,7 +153,26 @@ def run_all(collectors: list[str] | None = None, session: Any = None) -> dict[st
     """
     session = session or _make_session()
     recs = resolve_all(session=session)
-    orgs = sorted({r["org_id"] for r in recs if r.get("org_id")})
+    orgs = {r["org_id"] for r in recs if r.get("org_id")}
+    # The live-feed resolver misses report-only or awkwardly-named issuers
+    # (Octobank 27, Kapitalbank 29, Tenge Bank 815 all resolved to nothing),
+    # so their indicators were never collected — leaving their revenue blank and
+    # their net-income showing the revenue figure. Union in every org from the
+    # synced local catalog, whose ticker->org mapping is authoritative.
+    try:
+        conn = rc.get_catalog_conn()
+        catalog_orgs = {
+            str(row["org_id"])
+            for row in conn.execute(
+                "SELECT DISTINCT org_id FROM catalog_companies "
+                "WHERE org_id IS NOT NULL AND org_id != ''"
+            ).fetchall()
+        }
+        conn.close()
+        orgs |= catalog_orgs
+    except Exception:  # noqa: BLE001 — catalog union is best-effort
+        logger.exception("failed to union catalog orgs into fact collection")
+    orgs = sorted(orgs)
     result: dict[str, Any] = {}
     for name, collector in registry().items():
         if collectors and name not in collectors:
