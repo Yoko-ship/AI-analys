@@ -1225,7 +1225,14 @@ def get_all_trade_stats() -> dict[str, dict[str, Any]]:
            FROM catalog_trade_stats"""
     ).fetchall()
     conn.close()
-    return {r["isin"]: dict(r) for r in rows}
+    out: dict[str, dict[str, Any]] = {}
+    for r in rows:
+        d = dict(r)
+        # VWAP on read (ТЗ §3.4/§3.8): volume-weighted price = turnover / quantity.
+        tv, tq = d.get("total_value"), d.get("total_qty")
+        d["vwap"] = round(tv / tq, 2) if (tv and tq) else None
+        out[r["isin"]] = d
+    return out
 
 
 _LISTING_COLS = (
@@ -2242,7 +2249,7 @@ def build_dynamics_data(ticker: str, form: str = "NSBU") -> dict[str, Any]:
         WHERE ticker = ? AND report_form = ? AND period_type = 'quarter'
           AND year IS NOT NULL AND quarter > 0
         ORDER BY year DESC, quarter DESC
-        LIMIT 8
+        LIMIT 16
         """,
         (ticker, form),
     ).fetchall()
@@ -2277,4 +2284,23 @@ def build_dynamics_data(ticker: str, form: str = "NSBU") -> dict[str, Any]:
             entry[k] = vals_q.get(k)
         quarterly.append(entry)
 
-    return {"ticker": ticker, "form": form, "years": years, "series": series, "quarterly": quarterly}
+    # --- Seasonality (ТЗ §3.5): average a headline metric by quarter across years.
+    # Needs ≥3 years of history; otherwise flagged insufficient rather than shown.
+    season_metric = "revenue"
+    by_q: dict[int, list[float]] = {1: [], 2: [], 3: [], 4: []}
+    years_seen: set[int] = set()
+    for e in quarterly:
+        v = e.get(season_metric)
+        q = e.get("quarter")
+        if isinstance(v, (int, float)) and q in by_q:
+            by_q[q].append(float(v))
+            years_seen.add(e.get("year"))
+    seasonality = {
+        "metric": season_metric,
+        "years_covered": len(years_seen),
+        "insufficient": len(years_seen) < 3,
+        "quarter_avg": {q: (round(sum(vals) / len(vals), 2) if vals else None) for q, vals in by_q.items()},
+    }
+
+    return {"ticker": ticker, "form": form, "years": years, "series": series,
+            "quarterly": quarterly, "seasonality": seasonality}

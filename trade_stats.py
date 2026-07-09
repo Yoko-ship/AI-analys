@@ -91,6 +91,7 @@ def fetch_trade_stats(max_pages: int = 400, session: requests.Session | None = N
             "total_qty": total_qty,
             "trade_count": len(lst),
             "avg_price": round(sum(prices) / len(prices), 2) if prices else None,
+            "vwap": round(total_value / total_qty, 2) if total_qty else None,
             "largest_qty": bq,
             "largest_value": round(bv, 2),
             "largest_pct_value": round(bv / total_value * 100, 2) if total_value else None,

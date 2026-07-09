@@ -2304,17 +2304,12 @@ def _ratio_article_table(
     balance = (ifrs_snapshot or {}).get("balance_sheet") or {}
     income = (ifrs_snapshot or {}).get("income_statement") or {}
     bank = (ifrs_snapshot or {}).get("bank") or {}
-    total_score = (metrics or {}).get("total_score") or {}
     is_bank = bool(bank.get("is_bank"))
 
     # ── Scoring ────────────────────────────────────────────────────────────
-    add(
-        "Итоговый скоринг",
-        total_score.get("score"),
-        total_score.get("summary") or total_score.get("grade") or "Сводная оценка качества отчётности",
-        benchmark="≥ 60",
-        assessment=_assess(total_score.get("score"), 70, 45),
-    )
+    # Composite "Итоговый скоринг" row removed for ТЗ compliance (2026-07-09):
+    # a single attractiveness grade reads as a forbidden «балл привлекательности».
+    # The underlying factual metrics below are kept and shown on their own.
 
     # ── Liquidity ──────────────────────────────────────────────────────────
     ldr = bank.get("ldr_pct")
@@ -5522,12 +5517,23 @@ _FORBIDDEN_PATTERNS: list[tuple[str, str]] = [
     (r"рекомендаци\w*\s*[:——-]?\s*(?:продавать|продать)", "аналитический вывод: негативный"),
     (r"рекомендаци\w*\s*[:——-]?\s*(?:держать|удерживать)", "аналитический вывод: нейтральный"),
     (r"сигнал\s+(?:на\s+)?(?:покупку|продажу)", "аналитический сигнал"),
+    # Russian — trade-execution / return-promise constructs (mirror the prompt bans:
+    # целевая цена / стоп-лосс / размер позиции / ожидаемая доходность). Valuation
+    # labels (недооценена/переоценена) are intentionally NOT neutralized — ТЗ §3.3
+    # permits them in the closed contour beside the numbers with a disclaimer.
+    (r"целев\w*\s+цен\w*", "оценка стоимости по показателям"),
+    (r"стоп[-\s]?лосс\w*", "исторический ценовой уровень"),
+    (r"(?:набира\w*|наращ\w*|нараст\w*|сократ\w*|уменьш\w*|открыва\w*|закрыва\w*|размер\w*)\s+позици\w*", "динамику показателей"),
+    (r"ожидаем\w*\s+доходность\w*", "историческую доходность"),
     # English — directive recommendations
     (r"\b(?:recommend|advise|suggest)\w*\s+(?:to\s+)?buy\b", "the factors look positive"),
     (r"\b(?:recommend|advise|suggest)\w*\s+(?:to\s+)?sell\b", "the factors look negative"),
     (r"\b(?:recommend|advise|suggest)\w*\s+(?:to\s+)?hold\b", "the factors look neutral"),
     (r"\b(?:buy|sell|hold)\s+(?:rating|recommendation|signal)\b", "analytical assessment"),
     (r"\b(?:strong\s+)?(?:buy|sell|hold)\s+(?:the\s+)?(?:stock|shares)\b", "analytical assessment"),
+    (r"\bstop[-\s]?loss\b", "historical price level"),
+    (r"\btarget\s+price\b", "valuation estimate"),
+    (r"\bposition\s+siz\w*\b", "the metric dynamics"),
     # Uzbek — directive recommendations (tolerate intervening words)
     (r"tavsiya[\w'\s:.,—-]{0,18}?sotib\s+ol\w*", "omillar ijobiy ko'rinadi"),
     (r"tavsiya[\w'\s:.,—-]{0,18}?sotish\w*", "omillar salbiy ko'rinadi"),
@@ -5620,6 +5626,17 @@ _EXCEL_DISCLAIMER = {
         "undov hisoblanmaydi. Platforma foydalanuvchilar qarorlari uchun javobgar emas."
     ),
 }
+
+# Public alias + accessor: the ТЗ disclaimer is a mandatory, non-removable element of
+# every report (ТЗ §3.3 «Дисклеймер — обязательный элемент… вставляется принудительно»).
+# Exposed so the API can attach it to every analysis payload, not only the Excel export.
+REPORT_DISCLAIMER = _EXCEL_DISCLAIMER
+
+
+def report_disclaimer(language: str = "ru") -> str:
+    """Return the mandatory report disclaimer text for the given language (fallback ru)."""
+    lang = (language or "ru").strip().lower()[:2]
+    return REPORT_DISCLAIMER.get(lang, REPORT_DISCLAIMER["ru"])
 
 
 def _excel_number(value):
