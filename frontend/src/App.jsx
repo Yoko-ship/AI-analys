@@ -190,10 +190,19 @@ const TRADING_SCHEDULE = {
 function ReferenceView({ language }) {
   const [tab, setTab] = React.useState("glossary");
   const [search, setSearch] = React.useState("");
+  const [listingFeed, setListingFeed] = React.useState(null);
+  React.useEffect(() => {
+    if (tab !== "listing" || listingFeed) return;
+    fetch("/api/listings/feed")
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setListingFeed(d); })
+      .catch(() => {});
+  }, [tab, listingFeed]);
   const tabs = [
     { key: "glossary", label: language === "uz" ? "Atamalar" : language === "en" ? "Glossary" : "Термины" },
     { key: "tariffs", label: language === "uz" ? "Tariflar" : language === "en" ? "Tariffs" : "Тарифы" },
     { key: "schedule", label: language === "uz" ? "Savdo rejimi" : language === "en" ? "Trading modes" : "Режимы торгов" },
+    { key: "listing", label: language === "uz" ? "Listing / delisting" : language === "en" ? "Listing / delisting" : "Листинг / делистинг" },
   ];
   const q = search.trim().toLowerCase();
   const filteredGlossary = GLOSSARY.map((g) => ({
@@ -273,6 +282,52 @@ function ReferenceView({ language }) {
             </ul>
           </div>
           <p className="reference-source">{language === "en" ? "Source" : "Источник"}: {TRADING_SCHEDULE.source}</p>
+        </div>
+      )}
+
+      {tab === "listing" && (
+        <div className="reference-panel panel">
+          {!listingFeed ? (
+            <p className="muted">{language === "en" ? "Loading…" : language === "uz" ? "Yuklanmoqda…" : "Загрузка…"}</p>
+          ) : (
+            <>
+              <div className="tariff-group">
+                <h3 className="glossary-group-title">{language === "uz" ? "Yaqinda ro'yxatga olingan" : language === "en" ? "Recently listed" : "Недавно листингованы"}</h3>
+                {listingFeed.listed?.length ? (
+                  <table className="reference-table">
+                    <tbody>
+                      {listingFeed.listed.slice(0, 40).map((it) => (
+                        <tr key={`l-${it.ticker}-${it.isin}`}>
+                          <td><strong>{it.ticker}</strong>{it.name ? ` · ${it.name}` : ""}</td>
+                          <td className="reference-table-val">{it.listing_date || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : <p className="muted">{language === "en" ? "No data." : "Нет данных."}</p>}
+              </div>
+              <div className="tariff-group">
+                <h3 className="glossary-group-title">{language === "uz" ? "Nofaol / delisting ehtimoli" : language === "en" ? "Inactive / possible delisting" : "Неактивны / возможный делистинг"}</h3>
+                {listingFeed.inactive?.length ? (
+                  <table className="reference-table">
+                    <tbody>
+                      {listingFeed.inactive.slice(0, 40).map((it) => (
+                        <tr key={`i-${it.ticker}-${it.isin}`}>
+                          <td><strong>{it.ticker}</strong>{it.name ? ` · ${it.name}` : ""}</td>
+                          <td className="reference-table-val">{language === "en" ? "last trade" : "посл. сделка"}: {it.last_trade_date || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : <p className="muted">{language === "en" ? "No data." : "Нет данных."}</p>}
+              </div>
+              <p className="reference-source">
+                {language === "en"
+                  ? `Source: RFB listing registry (openinfo). Inactive = no trades in ${listingFeed.inactive_days} days.`
+                  : `Источник: реестр листинга РФБ (openinfo). Неактивны = без сделок ${listingFeed.inactive_days} дн.`}
+              </p>
+            </>
+          )}
         </div>
       )}
     </section>
@@ -581,7 +636,7 @@ const TEXTS = {
       КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Коэффициентный анализ",
       СВОДНАЯ_ТАБЛИЦА: "Сводная таблица ключевых показателей",
       ЗАКЛЮЧЕНИЕ: "Итоговая оценка",
-      СКОРИНГ: "Общая оценка и скоринг эмитента",
+      СКОРИНГ: "Ключевые наблюдения по отчётности",
       ДОСЬЕ: "Краткое досье эмитента",
       ЧТО_С_ДЕНЬГАМИ: "Финансовая выжимка",
       ТРЕНД: "Анализ трендов и динамики показателей",
@@ -589,7 +644,7 @@ const TEXTS = {
       ТЕХНИЧЕСКИЙ_АНАЛИЗ: "Технический анализ (RSI, Фибоначчи, объёмы)",
       ОЦЕНКА_СТОИМОСТИ: "Оценка стоимости по показателям",
       ФИБОНАЧЧИ: "Технический анализ (уровни Фибоначчи)",
-      ОЦЕНКА_ЦЕНЫ: "Оценка инвестиционной привлекательности",
+      ОЦЕНКА_ЦЕНЫ: "Оценка стоимости и качества цены",
       КАТАЛИЗАТОРЫ: "Факторы влияния на стоимость акций",
       РЫНОЧНЫЕ_ДАННЫЕ: "Рыночные данные и ликвидность",
       СИЛЬНЫЕ_СТОРОНЫ: "Сильные стороны и конкурентные преимущества",
@@ -852,7 +907,7 @@ const TEXTS = {
       КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Financial Ratio Analysis",
       СВОДНАЯ_ТАБЛИЦА: "Summary Table of Key Metrics",
       ЗАКЛЮЧЕНИЕ: "Final Assessment",
-      СКОРИНГ: "Overall Assessment and Scoring",
+      СКОРИНГ: "Key observations from the report",
       ДОСЬЕ: "Company Snapshot",
       ЧТО_С_ДЕНЬГАМИ: "Financial Position Brief",
       ТРЕНД: "Trend and Dynamics Analysis",
@@ -860,7 +915,7 @@ const TEXTS = {
       ТЕХНИЧЕСКИЙ_АНАЛИЗ: "Technical Analysis (RSI, Fibonacci, Volume)",
       ОЦЕНКА_СТОИМОСТИ: "Indicator-Based Valuation",
       ФИБОНАЧЧИ: "Technical Analysis (Fibonacci Levels)",
-      ОЦЕНКА_ЦЕНЫ: "Investment Attractiveness",
+      ОЦЕНКА_ЦЕНЫ: "Valuation and price quality",
       КАТАЛИЗАТОРЫ: "Stock Price Catalysts",
       РЫНОЧНЫЕ_ДАННЫЕ: "Market Data and Liquidity",
       СИЛЬНЫЕ_СТОРОНЫ: "Strengths and Competitive Advantages",
@@ -1123,7 +1178,7 @@ const TEXTS = {
       КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ: "Moliyaviy koeffitsientlar tahlili",
       СВОДНАЯ_ТАБЛИЦА: "Asosiy ko'rsatkichlarning umumlashtirilgan jadvali",
       ЗАКЛЮЧЕНИЕ: "Yakuniy baho",
-      СКОРИНГ: "Umumiy baholash va skoringi",
+      СКОРИНГ: "Hisobot bo'yicha asosiy kuzatuvlar",
       ДОСЬЕ: "Emitent haqida qisqacha ma'lumot",
       ЧТО_С_ДЕНЬГАМИ: "Moliyaviy holat qisqacha",
       ТРЕНД: "Trendlar va dinamika tahlili",
@@ -1131,7 +1186,7 @@ const TEXTS = {
       ТЕХНИЧЕСКИЙ_АНАЛИЗ: "Texnik tahlil (RSI, Fibonachchi, hajmlar)",
       ОЦЕНКА_СТОИМОСТИ: "Ko'rsatkichlar asosida baholash",
       ФИБОНАЧЧИ: "Texnik tahlil (Fibonachchi darajalari)",
-      ОЦЕНКА_ЦЕНЫ: "Investitsion jozibadorlikni baholash",
+      ОЦЕНКА_ЦЕНЫ: "Qiymat va narx sifatini baholash",
       КАТАЛИЗАТОРЫ: "Aksiya narxiga ta'sir qiluvchi omillar",
       РЫНОЧНЫЕ_ДАННЫЕ: "Bozor ma'lumotlari va likvidlik",
       СИЛЬНЫЕ_СТОРОНЫ: "Kuchli tomonlar va raqobatbardosh ustunliklar",
@@ -2720,7 +2775,7 @@ function TldrCard({ tldr, language = "ru", variant = "default" }) {
       <div className="tldr-card__head">
         <span className="tldr-card__tone-icon" aria-hidden="true">{TONE_ICONS[tldr.tone] || "~"}</span>
         <span className="tldr-card__tone-label">{tldrCardTitle(language, tldr.tone)}</span>
-        {tldr.score && <span className="tldr-card__score">{tldr.score}</span>}
+        {/* Numeric score removed for ТЗ compliance (2026-07-09). */}
       </div>
       {tldr.summary && <p className="tldr-card__summary">{tldr.summary}</p>}
       <div className="tldr-card__body">
@@ -2794,7 +2849,7 @@ function HeroVerdictBlock({ analysisResult, language = "ru" }) {
     <article className={`hero-verdict hero-verdict--${tone}`}>
       <div className="hero-verdict__crown">
         <span className="hero-verdict__crown-label">{headline.lead}</span>
-        {score && <span className="hero-verdict__crown-score">{score}</span>}
+        {/* Composite attractiveness score removed for ТЗ compliance (2026-07-09). */}
       </div>
       <div className="hero-verdict__headline">
         <span className="hero-verdict__icon" aria-hidden="true">{TONE_ICONS[tone] || "~"}</span>
@@ -3610,6 +3665,7 @@ function CompareTable({ table, title, language }) {
   const columns = Array.isArray(table?.columns) ? table.columns : [];
   const rows = Array.isArray(table?.rows) ? table.rows : [];
   const [sort, setSort] = React.useState({ key: null, dir: 1 });
+  const [transposed, setTransposed] = React.useState(false);
   if (!columns.length || !rows.length) return null;
 
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: 1 }));
@@ -3641,59 +3697,108 @@ function CompareTable({ table, title, language }) {
     return hasAny ? out : null;
   }, [rows, columns]);
   const avgLabel = language === "en" ? "Average" : language === "uz" ? "O'rtacha" : "Среднее";
+  const labelCol = columns[0];
+  const metricCols = columns.slice(1);
+  const transposeLabel = language === "en" ? "Transpose" : language === "uz" ? "Transpoze" : "Транспонировать";
+  const rowHeader = (row, i) => {
+    const c = labelCol ? formatCompareCell(row[labelCol.key], labelCol, language).value : null;
+    return c || row.company_name || row.ticker || `#${i + 1}`;
+  };
 
   return (
     <article className="compare-table-card">
       <div className="section-title-row">
         <h3>{title}</h3>
-        <span className="muted">{rows.length}</span>
+        <div className="compare-table-tools">
+          <button type="button" className="ghost-btn compare-transpose-btn" onClick={() => setTransposed((v) => !v)}>
+            ⇄ {transposeLabel}
+          </button>
+          <span className="muted">{rows.length}</span>
+        </div>
       </div>
       <div className="compare-table-scroll">
-        <table className="compare-table">
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th key={column.key} className="compare-th-sortable" onClick={() => toggleSort(column.key)}>
-                  {column.label || column.key}
-                  {sort.key === column.key ? <span className="compare-sort-arrow">{sort.dir === 1 ? " ▲" : " ▼"}</span> : null}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sortedRows.map((row, rowIndex) => (
-              <tr key={`${title}-${row.company_name || row.ticker || rowIndex}`}>
-                {columns.map((column) => {
-                  const cell = formatCompareCell(row[column.key], column, language);
-                  return (
-                    <td key={column.key}>
-                      <strong>{cell.value}</strong>
-                      {cell.normalized !== null && cell.normalized !== undefined ? (
-                        <span>{ct(language, "normalized")}: {formatCompareValue(cell.normalized, language, "/100")}</span>
-                      ) : null}
-                      {cell.rank ? <em>#{cell.rank}</em> : null}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-            {avgRow && (
-              <tr className="compare-avg-row">
-                {columns.map((column, ci) => (
-                  <td key={column.key}>
-                    {ci === 0 ? (
-                      <strong>{avgLabel}</strong>
-                    ) : avgRow[column.key] !== null ? (
-                      <strong>{formatCompareValue(avgRow[column.key], language, "")}</strong>
-                    ) : (
-                      <span>—</span>
-                    )}
-                  </td>
+        {!transposed ? (
+          <table className="compare-table">
+            <thead>
+              <tr>
+                {columns.map((column) => (
+                  <th key={column.key} className="compare-th-sortable" onClick={() => toggleSort(column.key)}>
+                    {column.label || column.key}
+                    {sort.key === column.key ? <span className="compare-sort-arrow">{sort.dir === 1 ? " ▲" : " ▼"}</span> : null}
+                  </th>
                 ))}
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sortedRows.map((row, rowIndex) => (
+                <tr key={`${title}-${row.company_name || row.ticker || rowIndex}`}>
+                  {columns.map((column) => {
+                    const cell = formatCompareCell(row[column.key], column, language);
+                    return (
+                      <td key={column.key}>
+                        <strong>{cell.value}</strong>
+                        {cell.normalized !== null && cell.normalized !== undefined ? (
+                          <span>{ct(language, "normalized")}: {formatCompareValue(cell.normalized, language, "/100")}</span>
+                        ) : null}
+                        {cell.rank ? <em>#{cell.rank}</em> : null}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {avgRow && (
+                <tr className="compare-avg-row">
+                  {columns.map((column, ci) => (
+                    <td key={column.key}>
+                      {ci === 0 ? (
+                        <strong>{avgLabel}</strong>
+                      ) : avgRow[column.key] !== null ? (
+                        <strong>{formatCompareValue(avgRow[column.key], language, "")}</strong>
+                      ) : (
+                        <span>—</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              )}
+            </tbody>
+          </table>
+        ) : (
+          <table className="compare-table">
+            <thead>
+              <tr>
+                <th>{labelCol?.label || ""}</th>
+                {sortedRows.map((row, i) => (
+                  <th key={i}>{rowHeader(row, i)}</th>
+                ))}
+                {avgRow && <th className="compare-avg-col">{avgLabel}</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {metricCols.map((column) => (
+                <tr key={column.key}>
+                  <td><strong>{column.label || column.key}</strong></td>
+                  {sortedRows.map((row, i) => {
+                    const cell = formatCompareCell(row[column.key], column, language);
+                    return (
+                      <td key={i}>
+                        <strong>{cell.value}</strong>
+                        {cell.rank ? <em>#{cell.rank}</em> : null}
+                      </td>
+                    );
+                  })}
+                  {avgRow && (
+                    <td className="compare-avg-col">
+                      {avgRow[column.key] !== null && avgRow[column.key] !== undefined
+                        ? <strong>{formatCompareValue(avgRow[column.key], language, "")}</strong>
+                        : <span>—</span>}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </article>
   );
@@ -4270,7 +4375,17 @@ function computePriceStats(history) {
   const ytd = ytdBase && ytdBase.close > 0 && ytdBase !== last
     ? ((last.close - ytdBase.close) / ytdBase.close) * 100 : null;
 
-  return { vwap, vol, maxRange, qoq: changeFrom(90), yoy: changeFrom(365), ytd };
+  let periodHigh = null, periodLow = null, sumClose = 0;
+  pts.forEach((p) => {
+    const hi = p.high != null ? p.high : p.close;
+    const lo = p.low != null ? p.low : p.close;
+    if (periodHigh == null || hi > periodHigh) periodHigh = hi;
+    if (periodLow == null || lo < periodLow) periodLow = lo;
+    sumClose += p.close;
+  });
+  const periodAvg = pts.length ? sumClose / pts.length : null;
+
+  return { vwap, vol, maxRange, qoq: changeFrom(90), yoy: changeFrom(365), ytd, periodHigh, periodLow, periodAvg };
 }
 
 function PriceStatsStrip({ history, lang }) {
@@ -4281,6 +4396,9 @@ function PriceStatsStrip({ history, lang }) {
   const tone = (v) => (v == null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "");
   const items = [
     { label: "VWAP", value: fmtNum(stats.vwap) },
+    { label: lang === "en" ? "Period high" : lang === "uz" ? "Davr maks." : "Макс. за период", value: fmtNum(stats.periodHigh) },
+    { label: lang === "en" ? "Period low" : lang === "uz" ? "Davr min." : "Мин. за период", value: fmtNum(stats.periodLow) },
+    { label: lang === "en" ? "Period avg" : lang === "uz" ? "Davr o'rtacha" : "Средняя за период", value: fmtNum(stats.periodAvg) },
     { label: lang === "en" ? "Volatility (20d)" : lang === "uz" ? "Volatillik (20k)" : "Волатильность (20д)", value: stats.vol == null ? "—" : `${stats.vol.toFixed(2)}%` },
     { label: lang === "en" ? "Max daily range" : lang === "uz" ? "Maks. kunlik diapazon" : "Макс. дневной диапазон", value: stats.maxRange == null ? "—" : `${stats.maxRange.toFixed(2)}%` },
     { label: "QoQ", value: fmtPct(stats.qoq), tone: tone(stats.qoq) },
@@ -4299,7 +4417,7 @@ function PriceStatsStrip({ history, lang }) {
   );
 }
 
-function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMonthsChange, companyData, lang, infoLoading, securityType, isPreferred, industry, marketRow }) {
+function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow }) {
   const marketCapVal = safeNumber(marketRow?.market_cap ?? marketRow?.marketCap) || null;
   const nominalVal = safeNumber(marketRow?.nominal) || null;
   const metrics = companyData?.ratios?.metrics || {};
@@ -4311,6 +4429,15 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
     { key: "debt_to_equity", label: lang === "ru" ? "Долг/Капитал" : "D/E" },
   ];
   const hasMetrics = KEY_METRICS.some((m) => metrics[m.key] != null);
+  // Multipliers (ТЗ §3.2/§3.4). P/E = market cap / net income (both full sum, same scale).
+  // P/B = P/E × ROE (identity: ROE = net income / equity), avoiding a separate equity feed.
+  // ТЗ permits raw current multipliers in the public contour ("P/E сейчас = 8x") with no
+  // interpretation label; no «недооценена/переоценена» here. Global disclaimer applies.
+  const netIncome = safeNumber(financials?.net_income);
+  const roePct = safeNumber(metrics.ROE);
+  const peVal = (marketCapVal && netIncome && netIncome > 0) ? marketCapVal / netIncome : null;
+  const pbVal = (peVal != null && roePct != null && roePct > 0) ? peVal * (roePct / 100) : null;
+  const hasValuation = peVal != null || pbVal != null;
 
   return (
     <div className="company-overview-layout">
@@ -4345,7 +4472,7 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
         </div>
 
         <div className="company-overview-sidebar">
-          {hasMetrics && (
+          {(hasMetrics || hasValuation) && (
             <div className="co-sidebar-block">
               <h3 className="co-heading">{lang === "ru" ? "Ключевые показатели" : "Key Metrics"}</h3>
               <div className="company-metrics-list">
@@ -4355,6 +4482,12 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
                     <span className="company-metric-val">{typeof metrics[m.key] === "number" ? metrics[m.key].toFixed(2) : metrics[m.key]}</span>
                   </div>
                 ))}
+                {peVal != null && (
+                  <div className="company-metric-row"><span className="panel-label">P/E</span><span className="company-metric-val">{peVal.toFixed(2)}×</span></div>
+                )}
+                {pbVal != null && (
+                  <div className="company-metric-row"><span className="panel-label">P/B</span><span className="company-metric-val">{pbVal.toFixed(2)}×</span></div>
+                )}
                 {companyData?.ratios?.year && (
                   <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
                     {lang === "ru" ? `За ${companyData.ratios.year} г.` : `${companyData.ratios.year}`}
@@ -4541,7 +4674,7 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
   );
 }
 
-function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marketRows }) {
+function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marketRows, financials }) {
   const lang = normalizeLanguage(language);
   const [tab, setTab] = React.useState("overview");
   const [priceHistory, setPriceHistory] = React.useState(null);
@@ -4606,6 +4739,12 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
   if (!ticker) return null;
   const sec = secInfo || (securitiesMap || {})[ticker] || {};
   const marketRow = (marketRows || []).find((r) => (r.ticker || "").toUpperCase() === ticker.toUpperCase());
+  // Company-level financials for P/E and P/B; mirror the preferred-sibling fallback (TKDM <-> TKDMP).
+  const companyFin = (() => {
+    const f = financials || {};
+    const up = ticker.toUpperCase();
+    return f[up] || f[up.endsWith("P") ? up.slice(0, -1) : `${up}P`] || null;
+  })();
   const lastPrice = marketRow?.last_price ?? marketRow?.lastPrice ?? sec.last_price ?? null;
   const closePrice = marketRow?.close_price ?? marketRow?.closePrice ?? sec.close_price ?? null;
   const priceChange = (lastPrice != null && closePrice != null && closePrice !== 0)
@@ -4678,7 +4817,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
           <CompanyOverviewTab sec={sec} priceHistory={priceHistory} priceLoading={priceLoading}
             priceMonths={priceMonths} onMonthsChange={setPriceMonths}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
-            marketRow={marketRow} companyData={companyData} lang={lang} infoLoading={infoLoading} />
+            marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading} />
         )}
         {tab === "chart" && (
           <div className="panel" style={{ padding: 24 }}>
@@ -4898,6 +5037,7 @@ function MarketView({
         out.tone = marketTone(out.changePercent);
       }
     }
+    if (Number.isFinite(t.vwap)) out.vwap = t.vwap;
     return out;
   });
   const search = String(query || "").trim().toLowerCase();
@@ -5573,6 +5713,33 @@ function CatalogDynamicsTable({ result, language }) {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+      {result.seasonality && (
+        <div style={{ marginTop: 20 }}>
+          <div className="panel-label" style={{ marginBottom: 8 }}>
+            {language === "ru" ? "Сезонность (выручка по кварталам)" : language === "uz" ? "Mavsumiylik (choraklar bo'yicha daromad)" : "Seasonality (revenue by quarter)"}
+          </div>
+          {result.seasonality.insufficient ? (
+            <p className="muted">
+              {language === "ru"
+                ? "Недостаточно данных для сезонного анализа (требуется ≥3 лет истории)."
+                : language === "uz"
+                ? "Mavsumiy tahlil uchun ma'lumot yetarli emas (≥3 yil tarix kerak)."
+                : "Insufficient data for seasonal analysis (≥3 years of history required)."}
+            </p>
+          ) : (
+            <div className="catalog-table-wrap">
+              <table className="market-table">
+                <thead>
+                  <tr>{[1, 2, 3, 4].map((q) => <th key={q} className="num">Q{q}</th>)}</tr>
+                </thead>
+                <tbody>
+                  <tr>{[1, 2, 3, 4].map((q) => <td key={q} className="num">{fmtN(result.seasonality.quarter_avg?.[q])}</td>)}</tr>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -6301,7 +6468,7 @@ function App() {
   // NSBU headline indicators (cached, all companies). Refetched when entering the
   // market view so the progressively-filled cache stays reasonably current.
   useEffect(() => {
-    if (activeView !== "market" && activeView !== "heatmap") return;
+    if (activeView !== "market" && activeView !== "heatmap" && activeView !== "company") return;
     apiFetch("/api/market/financials")
       .then((r) => r.json())
       .then((d) => { if (d.ok && d.financials) setMarketFinancials(d.financials); })
@@ -6785,8 +6952,7 @@ function App() {
       cards.push({ label, value, sub, tone });
     };
 
-    const total = metrics.total_score || {};
-    push(t(language, "metrics.total_score"), total.score ?? "—", buildScoreExplanation(total, metrics, language), scoreTone(total.score));
+    // Composite total_score / attractiveness grade removed for ТЗ compliance (2026-07-09).
     const dcf = metrics.dcf || {};
     push(t(language, "metrics.dcf"), dcf.intrinsic_value_bn ?? "—", dcf.verdict || dcf.signal || "", dcf.signal === "bullish" ? "good" : dcf.signal === "bearish" ? "danger" : "warning");
     const industry = metrics.industry || {};
@@ -7092,6 +7258,7 @@ function App() {
               securitiesMap={securitiesMap}
               language={language}
               marketRows={marketRows}
+              financials={marketFinancials}
               onBack={() => setActiveView(prevView || "market")}
               onAnalyze={(t) => { setAnalysisCompany(t); setActiveView("analysis"); }}
             />
@@ -7405,7 +7572,7 @@ function App() {
                                 {item.ticker || "—"} · {item.from_cache ? t(language, "analysis.resultCacheHit") : t(language, "analysis.resultFresh")}
                               </div>
                             </div>
-                            <div className="history-score">{item.score ?? "—"}</div>
+                            {/* Composite score removed for ТЗ compliance (2026-07-09). */}
                           </div>
                           <div className="history-meta">
                             <span>{formatDateLabel(item.created_at, language)}</span>
@@ -7687,6 +7854,14 @@ function App() {
                           ? (language === "en" ? "Preparing…" : language === "uz" ? "Tayyorlanmoqda…" : "Готовим…")
                           : (language === "en" ? "⤓ Download Excel" : language === "uz" ? "⤓ Excel yuklab olish" : "⤓ Скачать Excel")}
                       </button>
+                      <button
+                        className="ghost-btn result-export-btn no-print"
+                        type="button"
+                        onClick={() => window.print()}
+                        disabled={!analysisResult}
+                      >
+                        {language === "en" ? "⤓ Download PDF" : language === "uz" ? "⤓ PDF yuklab olish" : "⤓ Скачать PDF"}
+                      </button>
                     </div>
                   </>
                 )}
@@ -7776,6 +7951,8 @@ function App() {
                   </div>
                 )}
               </article>
+
+              {analysisResult && <DisclaimerNote language={language} variant="report" />}
             </section>
           )}
 
@@ -7865,6 +8042,11 @@ function App() {
                       <h2>{compareResult ? ct(language, "ready") : ct(language, "empty")}</h2>
                     </div>
                     {compareMessage ? <span className="status-badge muted">{compareMessage}</span> : null}
+                    {compareResult && !compareLoading && (
+                      <button className="ghost-btn result-export-btn no-print" type="button" onClick={() => window.print()}>
+                        {language === "en" ? "⤓ Download PDF" : language === "uz" ? "⤓ PDF yuklab olish" : "⤓ Скачать PDF"}
+                      </button>
+                    )}
                   </div>
 
                   {compareLoading ? (

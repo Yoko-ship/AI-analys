@@ -1030,6 +1030,17 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 # ─────────────────────────────────────────────────────────
 
 def main():
+    # ── DECOMMISSIONED — ТЗ compliance (product decision 2026-07-09) ──────────
+    # This Telegram bot emitted buy/sell/hold recommendations, stop-loss levels and
+    # valuation verdicts that the ТЗ forbids ("Купить/Продать/Держать" запрещено даже
+    # в закрытом контуре). It is retired: it no longer starts or serves analysis.
+    # No code is deleted (analyzer.py compute helpers are still used by the web path);
+    # set BOT_ENABLED=1 only to run the legacy bot locally for debugging.
+    if os.getenv("BOT_ENABLED", "0") != "1":
+        print("⛔ Telegram bot decommissioned for ТЗ compliance — not starting. "
+              "Set BOT_ENABLED=1 to override (legacy/debug only).")
+        return
+
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
     async def post_init(application):

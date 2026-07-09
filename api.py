@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from analysis_service import build_analysis_excel, build_company_comparison, build_summary, run_company_analysis
+from analysis_service import build_analysis_excel, build_company_comparison, build_summary, report_disclaimer, run_company_analysis
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from openinfo_collector import collect_company_data, get_company_periods
 from reports_catalog import (
@@ -694,6 +694,43 @@ async def api_market_trade_stats() -> dict[str, Any]:
     return _json_safe({"ok": True, "count": len(stats), "stats": stats})
 
 
+@app.get("/api/listings/feed")
+async def api_listings_feed(inactive_days: int = 30) -> dict[str, Any]:
+    """Listing / delisting feed (ТЗ §3.2, item 7): who recently appeared on the
+    exchange and who has gone quiet (off the live feed → possible delisting). Data
+    is the RFB listing registry (catalog_listings), pushed by the collector."""
+    from datetime import datetime, timedelta
+
+    loop = asyncio.get_running_loop()
+    try:
+        listings = await loop.run_in_executor(None, get_all_listings)
+    except Exception as exc:
+        logger.exception("listings feed read failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    def _mk(tk: str, lst: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "ticker": tk,
+            "name": lst.get("name"),
+            "isin": lst.get("isin"),
+            "share_type": lst.get("share_type"),
+            "listing_date": lst.get("listing_date") or None,
+            "last_trade_date": lst.get("last_trade_date") or None,
+            "market_cap": lst.get("market_cap"),
+        }
+
+    items = [_mk(tk, lst) for tk, lst in (listings or {}).items()]
+    # Recently listed — those with a known listing date, newest first (ISO dates sort lexically).
+    listed = sorted((i for i in items if i["listing_date"]), key=lambda i: i["listing_date"], reverse=True)
+    # Delisting candidates — no trades within the window (off the live feed).
+    cutoff = (datetime.now() - timedelta(days=max(1, inactive_days))).strftime("%Y-%m-%d")
+    inactive = sorted(
+        (i for i in items if not i["last_trade_date"] or i["last_trade_date"] < cutoff),
+        key=lambda i: (i["last_trade_date"] or ""),
+    )
+    return _json_safe({"ok": True, "count": len(items), "listed": listed, "inactive": inactive, "inactive_days": inactive_days})
+
+
 @app.post("/api/admin/trade-stats")
 async def api_admin_trade_stats(
     payload: AdminTradeStatsRequest,
@@ -1094,6 +1131,8 @@ async def api_analyze(
         "report_comparison": result.get("report_comparison"),
         "analysis_policy_version": result.get("analysis_policy_version"),
         "analysis_policy": result.get("analysis_policy"),
+        # ТЗ §3.3: mandatory, non-removable disclaimer travels inside every report payload.
+        "disclaimer": report_disclaimer(result.get("language", payload.language)),
         "requested_by": current_user.to_public_dict(),
     }
 
