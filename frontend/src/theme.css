@@ -1,0 +1,172 @@
+/* ============================================================================
+   theme.css — Fresh Finam-inspired design-token layer (light + dark)
+   ----------------------------------------------------------------------------
+   Imported AFTER styles.css so it re-skins the whole app. Existing components
+   are token-driven (var(--accent), var(--panel)…), so redefining the core
+   tokens here cascades a cohesive clean-fintech look onto reused renderers.
+
+   Specificity note: the winning light tokens in styles.css live on `:root`
+   (0,1,0) and dark on `body[data-theme="dark"]` (0,1,1). We define tokens on
+   `html[data-theme=…]` (0,1,1) placed LAST, so we win in both themes.
+   index.html sets data-theme on BOTH <html> and <body> at boot.
+   ========================================================================== */
+
+/* ---- LIGHT (default) ------------------------------------------------------ */
+:root,
+html[data-theme="light"],
+html[data-theme="light"] body {
+  --bg: #f5f7fa;
+  --bg-2: #eceff4;
+  --bg-glass: rgba(255, 255, 255, 0.72);
+  --surface-2: #f1f4f9;
+
+  --panel: #ffffff;
+  --panel-strong: #ffffff;
+  --panel-elevated: #ffffff;
+
+  --border: rgba(15, 23, 42, 0.10);
+  --border-hover: rgba(15, 23, 42, 0.18);
+  --border-focus: rgba(31, 111, 235, 0.5);
+
+  --text: #0f172a;
+  --text-secondary: #334155;
+  --muted: #566579;
+  --muted-light: #8a97a8;
+
+  --accent: #1f6feb;
+  --accent-hover: #195ac9;
+  --accent-light: rgba(31, 111, 235, 0.08);
+  --accent-glow: rgba(31, 111, 235, 0.16);
+  --accent-2: #12a150;
+
+  --success: #12a150;
+  --success-light: rgba(18, 161, 80, 0.10);
+  --success-glow: rgba(18, 161, 80, 0.14);
+  --warning: #d97706;
+  --warning-light: rgba(217, 119, 6, 0.10);
+  --danger: #dc2626;
+  --danger-light: rgba(220, 38, 38, 0.09);
+
+  --chart-primary: #1f6feb;
+  --chart-secondary: #12a150;
+  --chart-tertiary: #7c3aed;
+  --chart-grid: rgba(148, 163, 184, 0.18);
+
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 14px 40px rgba(15, 23, 42, 0.10);
+  --shadow-xl: 0 24px 60px rgba(15, 23, 42, 0.12);
+  --shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  --shadow-glow: 0 0 0 4px rgba(31, 111, 235, 0.14);
+  --shadow-success-glow: 0 8px 24px rgba(18, 161, 80, 0.18);
+  --shadow-accent-glow: 0 8px 24px rgba(31, 111, 235, 0.18);
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+  --radius-full: 9999px;
+  --radius: 16px;
+
+  --ease-out: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --duration-fast: 0.13s;
+  --duration-normal: 0.2s;
+  --duration-slow: 0.36s;
+
+  color-scheme: light;
+}
+
+/* ---- DARK ----------------------------------------------------------------- */
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+body[data-theme="dark"] {
+  --bg: #0a0e16;
+  --bg-2: #0e1420;
+  --bg-glass: rgba(14, 20, 32, 0.72);
+  --surface-2: #121a27;
+
+  --panel: #141b28;
+  --panel-strong: #10161f;
+  --panel-elevated: #182131;
+
+  --border: rgba(255, 255, 255, 0.09);
+  --border-hover: rgba(255, 255, 255, 0.17);
+  --border-focus: rgba(96, 141, 239, 0.6);
+
+  --text: #e7edf7;
+  --text-secondary: #c2cdde;
+  --muted: #94a2b8;
+  --muted-light: #647184;
+
+  --accent: #5b8cf0;
+  --accent-hover: #7aa3f5;
+  --accent-light: rgba(91, 140, 240, 0.14);
+  --accent-glow: rgba(91, 140, 240, 0.24);
+  --accent-2: #34d399;
+
+  --success: #34d399;
+  --success-light: rgba(52, 211, 153, 0.14);
+  --success-glow: rgba(52, 211, 153, 0.20);
+  --warning: #fbbf24;
+  --warning-light: rgba(251, 191, 36, 0.14);
+  --danger: #f87171;
+  --danger-light: rgba(248, 113, 113, 0.14);
+
+  --chart-primary: #5b8cf0;
+  --chart-secondary: #34d399;
+  --chart-tertiary: #a78bfa;
+  --chart-grid: rgba(255, 255, 255, 0.07);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.42);
+  --shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
+  --shadow-glow: 0 0 0 4px rgba(91, 140, 240, 0.22);
+  --shadow-success-glow: 0 8px 24px rgba(52, 211, 153, 0.22);
+  --shadow-accent-glow: 0 8px 24px rgba(91, 140, 240, 0.28);
+
+  color-scheme: dark;
+}
+
+/* keep the legacy dark-only alias tokens coherent */
+html[data-theme="dark"] { --accent-2: #34d399; }
+
+/* ---- Base surface --------------------------------------------------------- */
+/* Replace the old radial-glow gradient body background with a calm flat wash. */
+html[data-theme="light"] body,
+html[data-theme="dark"] body,
+body[data-theme="light"],
+body[data-theme="dark"] {
+  background: var(--bg) !important;
+  color: var(--text);
+}
+
+/* Neutralize the heavy blurred glow orbs from the old shell if present. */
+.bg-glow { display: none !important; }
+
+/* Global niceties ----------------------------------------------------------- */
+* { -webkit-tap-highlight-color: transparent; }
+
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection { background: var(--accent-light); color: var(--text); }
+
+/* Numeric figures read better with tabular figures */
+.tabnum { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
