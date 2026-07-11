@@ -1368,6 +1368,56 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
 # are kept — a magnitude floor, not a size judgement.
 _MIN_PLAUSIBLE = 10_000
 _FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income", "operating_income")
+_RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_ratio", "total_equity", "total_assets")
+
+
+def get_all_ratios() -> dict[str, dict[str, Any]]:
+    """Latest per-ticker financial ratios and equity from the fact store
+    (openinfo ``financial_indicators``), keyed by ticker.
+
+    Feeds the market-wide multiplier columns (P/E, P/B) and ratio coefficients
+    (ТЗ §3.8). Ratios are served exactly as openinfo reports them; equity/assets
+    are absolute sums used to derive P/B (= market_cap / equity). Unreliable
+    ticker→org matches are skipped, mirroring the financials enrichment.
+    """
+    conn = get_catalog_conn()
+    try:
+        comp = conn.execute(
+            "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != ''"
+        ).fetchall()
+        rows = conn.execute(
+            "SELECT entity_id, field, period, value_num FROM facts "
+            "WHERE dataset='financial_indicators' AND value_num IS NOT NULL "
+            f"AND field IN ({','.join('?' * len(_RATIO_FIELDS))})",
+            _RATIO_FIELDS,
+        ).fetchall()
+    except Exception:
+        conn.close()
+        return {}
+    ticker_org = {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in comp}
+    best: dict[tuple[str, str], tuple[str, float]] = {}
+    for r in rows:
+        key = (str(r["entity_id"]), r["field"])
+        period = str(r["period"] or "")
+        if best.get(key) is None or period > best[key][0]:
+            best[key] = (period, r["value_num"])
+    out: dict[str, dict[str, Any]] = {}
+    for ticker, org in ticker_org.items():
+        if ticker in UNRELIABLE_FINANCIALS:
+            continue
+        entry: dict[str, Any] = {}
+        latest_period = None
+        for field in _RATIO_FIELDS:
+            hit = best.get((org, field))
+            if hit is not None:
+                entry[field] = hit[1]
+                if latest_period is None or hit[0] > latest_period:
+                    latest_period = hit[0]
+        if entry:
+            entry["period"] = latest_period
+            out[ticker] = entry
+    conn.close()
+    return out
 
 
 def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[str, Any]]) -> None:

@@ -33,6 +33,7 @@ from reports_catalog import (
     get_company_reports,
     get_company_ratios_cached,
     get_all_financials,
+    get_all_ratios,
     bulk_upsert_financials,
     get_all_trade_stats,
     bulk_upsert_trade_stats,
@@ -591,6 +592,20 @@ async def api_market_financials() -> dict[str, Any]:
         "count": len(financials),
         "financials": financials,
     })
+
+
+@app.get("/api/market/ratios")
+async def api_market_ratios() -> dict[str, Any]:
+    """Per-ticker financial ratios & equity (openinfo financial_indicators),
+    keyed by ticker. Feeds the market-wide multiplier columns (P/E, P/B) and
+    ratio coefficients of the §3.8 tabular reports."""
+    loop = asyncio.get_running_loop()
+    try:
+        ratios = await loop.run_in_executor(None, get_all_ratios)
+    except Exception as exc:
+        logger.exception("ratios cache read failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return _json_safe({"ok": True, "count": len(ratios), "ratios": ratios})
 
 
 @app.get("/api/coverage")
