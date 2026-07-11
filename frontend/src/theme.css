@@ -196,3 +196,18 @@ body[data-theme="dark"] {
 }
 .risk-drivers li { font-size: 12.5px; line-height: 1.4; color: var(--bm-text-muted, var(--muted)); }
 @media (max-width: 760px) { .risk-profile-grid { grid-template-columns: 1fr; } }
+
+/* ── Statistical observations (§3.5) ───────────────────────────────────────── */
+.observations-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.observation-item {
+  padding: 10px 14px;
+  border-left: 3px solid var(--muted);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.observation-item.tone-danger { border-left-color: var(--danger); }
+.observation-item.tone-warning { border-left-color: var(--warning); }
+.observation-item.tone-good { border-left-color: var(--success); }

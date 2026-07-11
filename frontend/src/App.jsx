@@ -7951,6 +7951,8 @@ function App() {
 
                     <RiskProfilePanel analysisResult={analysisResult} language={language} />
 
+                    <ObservationsPanel analysisResult={analysisResult} language={language} />
+
                     <div className="meta-grid">
                       <button
                         id="resultFavoriteBtn"
@@ -8395,6 +8397,31 @@ function RiskProfilePanel({ analysisResult, language }) {
           </div>
         ))}
       </div>
+    </article>
+  );
+}
+
+const OBS_TITLE = { ru: "Статистические наблюдения", en: "Statistical observations", uz: "Statistik kuzatuvlar" };
+
+// ТЗ §3.5 — factual statistical observations (anomaly vs own history, joint
+// multi-metric shift, sector deviation). Facts, not diagnoses. Hidden if empty.
+function ObservationsPanel({ analysisResult, language }) {
+  const obs = analysisResult?.observations;
+  if (!Array.isArray(obs) || !obs.length) return null;
+  const title = OBS_TITLE[language] || OBS_TITLE.ru;
+  return (
+    <article className="panel observations-panel">
+      <div className="panel-head">
+        <div>
+          <div className="panel-label">{title}</div>
+          <h3>{title}</h3>
+        </div>
+      </div>
+      <ul className="observations-list">
+        {obs.map((o, i) => (
+          <li key={i} className={`observation-item tone-${o.tone || "neutral"}`}>{o.text}</li>
+        ))}
+      </ul>
     </article>
   );
 }
