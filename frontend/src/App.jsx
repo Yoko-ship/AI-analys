@@ -7949,6 +7949,8 @@ function App() {
 
                     <FinancialVisuals result={analysisResult} language={language} score={resultScore} />
 
+                    <RiskProfilePanel analysisResult={analysisResult} language={language} />
+
                     <div className="meta-grid">
                       <button
                         id="resultFavoriteBtn"
@@ -8357,6 +8359,41 @@ function BankMetricsPanel({ analysisResult, language }) {
         <BankMetricCell label={lbl.nim} value={fmt(bank.nim_pct)} tone={tones.nim_pct} note={notes.nim_pct} language={language} />
         <BankMetricCell label={lbl.ldr} value={fmt(bank.ldr_pct)} tone={tones.ldr_pct} note={notes.ldr_pct} language={language} />
         <BankMetricCell label={lbl.cir} value={fmt(bank.cir_pct)} tone={tones.cir_pct} note={notes.cir_pct} language={language} />
+      </div>
+    </article>
+  );
+}
+
+const RISK_PANEL_TITLE = { ru: "Профиль риска", en: "Risk profile", uz: "Risk profili" };
+
+// ТЗ §3.4 — structured 3-axis risk profile (financial / market / informational),
+// each Low/Medium/High with the concrete drivers behind it. Data comes from the
+// backend `risk_profile` field; purely factual, no recommendation.
+function RiskProfilePanel({ analysisResult, language }) {
+  const rp = analysisResult?.risk_profile;
+  if (!rp || !Array.isArray(rp.axes) || !rp.axes.length) return null;
+  const title = RISK_PANEL_TITLE[language] || RISK_PANEL_TITLE.ru;
+  const toneOf = (lvl) => (lvl === "high" ? "danger" : lvl === "medium" ? "warning" : lvl === "low" ? "good" : "neutral");
+  return (
+    <article className="panel bank-metrics-panel risk-profile-panel">
+      <div className="panel-head">
+        <div>
+          <div className="panel-label">{title}</div>
+          <h3>{title}</h3>
+        </div>
+      </div>
+      <div className="bank-metrics-grid risk-profile-grid">
+        {rp.axes.map((ax) => (
+          <div key={ax.key} className={`bank-metric-cell tone-${toneOf(ax.level)}`}>
+            <div className="bank-metric-label">{ax.label}</div>
+            <div className="bank-metric-value">{ax.level_label}</div>
+            {Array.isArray(ax.drivers) && ax.drivers.length > 0 && (
+              <ul className="risk-drivers">
+                {ax.drivers.map((d, i) => <li key={i}>{d}</li>)}
+              </ul>
+            )}
+          </div>
+        ))}
       </div>
     </article>
   );
