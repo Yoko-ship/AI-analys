@@ -8628,3 +8628,24 @@ function ResultSkeleton({ language }) {
 }
 
 export default App;
+
+/* Named exports so the chat-first shell (ChatApp.jsx) can reuse these pure
+   renderers and helpers as inline answer cards. */
+export {
+  // helpers & constants
+  t, vt, ct, mt,
+  TEXTS, VISUAL_TEXTS, COMPARE_TEXTS, MARKET_TEXTS,
+  GLOSSARY, TARIFFS, TRADING_SCHEDULE, DISCLAIMER, Icons,
+  enrichMarketStock,
+  STORAGE_KEY, LANGUAGE_KEY, THEME_KEY,
+  // renderers
+  DisclaimerNote, ReferenceView, ToastStack,
+  HeroVerdictBlock, TldrCard, ReportArticleView, StructuredReportBlocks, SectionCard,
+  CompareLeaderCards, CompareRanking, CompareRadarChart, CompareBarChart,
+  CompareChartCard, CompareTable, CompareSummaryText,
+  MarketView, MarketHeatmap,
+  CompanyPage, CompanyDividendsTab, CompanyOverviewTab,
+  HeroKpiStrip, FinancialVisuals, AnalysisChart, BankMetricsPanel,
+  MetricCard, DashboardMetricCard, ActivityChart, CompanyLogo,
+  MarketStatCard, MarketChangeBadge, ResultSkeleton,
+};
