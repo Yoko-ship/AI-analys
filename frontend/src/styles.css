@@ -9,7 +9,7 @@
   --border: rgba(255, 255, 255, 0.08);
   --text: #eef3ff;
   --muted: #99a8c3;
-  --accent: #f5b84d;
+  --accent: #2f7bf0;
   --accent-2: #6ef0c1;
   --danger: #ff7a7a;
   --shadow: 0 24px 90px rgba(0, 0, 0, 0.38);
@@ -31,7 +31,7 @@ body {
   font-family: Inter, system-ui, sans-serif;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(245, 184, 77, 0.12), transparent 26%),
+    radial-gradient(circle at top left, rgba(47, 123, 240, 0.12), transparent 26%),
     radial-gradient(circle at 85% 20%, rgba(110, 240, 193, 0.1), transparent 30%),
     linear-gradient(180deg, #06101d 0%, #09111d 100%);
 }
@@ -71,7 +71,7 @@ img {
 .bg-glow-a {
   top: -12vw;
   left: -12vw;
-  background: rgba(245, 184, 77, 0.12);
+  background: rgba(47, 123, 240, 0.12);
 }
 
 .bg-glow-b {
@@ -173,7 +173,7 @@ img {
 .side-nav-btn.active {
   color: var(--text);
   border-color: rgba(110, 240, 193, 0.24);
-  background: linear-gradient(135deg, rgba(245, 184, 77, 0.12), rgba(110, 240, 193, 0.08));
+  background: linear-gradient(135deg, rgba(47, 123, 240, 0.12), rgba(110, 240, 193, 0.08));
 }
 
 .side-card {
@@ -217,7 +217,7 @@ img {
 .analysis-form input:focus,
 .analysis-form select:focus,
 .profile-edit-form input:focus {
-  border-color: rgba(245, 184, 77, 0.45);
+  border-color: rgba(47, 123, 240, 0.45);
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -571,7 +571,7 @@ img {
 
 .segmented-control .active {
   color: var(--text);
-  background: linear-gradient(135deg, rgba(245, 184, 77, 0.16), rgba(110, 240, 193, 0.1));
+  background: linear-gradient(135deg, rgba(47, 123, 240, 0.16), rgba(110, 240, 193, 0.1));
 }
 
 .form-grid {
@@ -620,7 +620,7 @@ img {
 
 .primary-btn {
   color: #08101c;
-  background: linear-gradient(135deg, #f5b84d, #ffd98a);
+  background: linear-gradient(135deg, #2f7bf0, #5b93f5);
 }
 
 .ghost-btn {
@@ -929,8 +929,8 @@ body[data-theme="light"] .section-tldr-inline { color: #475569; }
   line-height: 1.55;
   padding: 12px 16px;
   margin-bottom: 14px;
-  background: rgba(245, 184, 77, 0.08);
-  border-left: 3px solid #f5b84d;
+  background: rgba(47, 123, 240, 0.08);
+  border-left: 3px solid #2f7bf0;
   border-radius: 6px;
   font-weight: 500;
   overflow-wrap: anywhere;
@@ -1350,9 +1350,9 @@ body[data-theme="light"] .bank-metric-cell {
   display: grid;
   place-items: center;
   min-height: 158px;
-  border: 1px solid rgba(245, 184, 77, 0.22);
+  border: 1px solid rgba(47, 123, 240, 0.22);
   border-radius: 22px;
-  background: radial-gradient(circle at top, rgba(245, 184, 77, 0.18), rgba(255, 255, 255, 0.02));
+  background: radial-gradient(circle at top, rgba(47, 123, 240, 0.18), rgba(255, 255, 255, 0.02));
 }
 
 .score-value {
@@ -1554,7 +1554,7 @@ body[data-theme="light"] .bank-metric-cell {
 
 .legend-swatch-profit {
   background: var(--accent);
-  box-shadow: 0 0 0 4px rgba(245, 184, 77, 0.12);
+  box-shadow: 0 0 0 4px rgba(47, 123, 240, 0.12);
 }
 
 .legend-swatch-debt {
@@ -1599,7 +1599,7 @@ body[data-theme="light"] .bank-metric-cell {
 
 .mini-market-card[data-tone="warning"] {
   --signal-line: var(--accent);
-  border-color: rgba(245, 184, 77, 0.22);
+  border-color: rgba(47, 123, 240, 0.22);
 }
 
 .mini-market-card[data-tone="danger"] {
@@ -1764,7 +1764,7 @@ body[data-theme="light"] .bank-metric-cell {
 }
 
 .toast-info {
-  border-color: rgba(245, 184, 77, 0.22);
+  border-color: rgba(47, 123, 240, 0.22);
 }
 
 .toast-label {
@@ -2232,7 +2232,7 @@ body[data-theme="light"] .panel-label,
 body[data-theme="light"] .result-hero .panel-head .panel-label,
 body[data-theme="light"] .metrics-panel .panel-label,
 body[data-theme="light"] .sections-panel .panel-label,
-body[data-theme="light"] .bank-metrics-panel .panel-label { color: #b45309; }
+body[data-theme="light"] .bank-metrics-panel .panel-label { color: #1d4ed8; }
 
 .panel-copy,
 .empty-copy,
@@ -4192,7 +4192,7 @@ body[data-theme="dark"] .visual-panel::before {
 }
 
 .compare-form input:focus {
-  border-color: rgba(245, 184, 77, 0.45);
+  border-color: rgba(47, 123, 240, 0.45);
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -8787,7 +8787,7 @@ body[data-theme="dark"] .analysis-table td {
 }
 
 body[data-theme="dark"] .analysis-table tbody tr.total-row {
-  background: rgba(245, 184, 77, 0.08);
+  background: rgba(47, 123, 240, 0.08);
   font-weight: 700;
 }
 
@@ -9136,7 +9136,7 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
 }
 
 .catalog-company-item:hover { border-color: rgba(255,255,255,0.2); }
-.catalog-company-item.active { border-color: var(--accent); background: rgba(245,184,77,0.07); }
+.catalog-company-item.active { border-color: var(--accent); background: rgba(47,123,240,0.07); }
 
 .catalog-company-item-body {
   display: flex;

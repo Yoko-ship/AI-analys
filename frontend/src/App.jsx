@@ -4935,6 +4935,10 @@ function MarketView({
   const [panelWikiLoading, setPanelWikiLoading] = useState(false);
   const hasFav = (t) => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase());
 
+  // Finam-style mini price-history sparklines, fetched lazily and cached per ticker.
+  const [sparklines, setSparklines] = useState({});
+  const sparkReqRef = React.useRef(new Set());
+
   // Column sorting. sortKey === null falls back to the default (date desc, then |change|).
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("desc");
@@ -4994,7 +4998,34 @@ function MarketView({
   const toggleGroup = (k) => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   useEffect(() => { try { localStorage.setItem("uz_market_cols", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
   const toggleCol = (k) => setVisibleCols((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  const colSpan = 3 + visibleCols.size;
+  const colSpan = 4 + visibleCols.size;
+
+  // Fetch a compact price history for each market ticker once, then cache it so
+  // sorting/filtering never refetches. Chunked to avoid a request storm.
+  useEffect(() => {
+    if (viewMode !== "table") return;
+    const tickers = [...new Set((Array.isArray(rows) ? rows : []).map((r) => r && r.ticker).filter(Boolean))];
+    const toFetch = tickers.filter((tk) => !sparkReqRef.current.has(tk));
+    if (!toFetch.length) return;
+    toFetch.forEach((tk) => sparkReqRef.current.add(tk));
+    let alive = true;
+    (async () => {
+      const CHUNK = 6;
+      for (let i = 0; i < toFetch.length && alive; i += CHUNK) {
+        await Promise.all(
+          toFetch.slice(i, i + CHUNK).map(async (tk) => {
+            try {
+              const res = await fetch(`/api/price-history/${encodeURIComponent(tk)}?months=6`);
+              const d = await res.json();
+              const closes = (d.points || []).map((p) => p.close).filter((v) => v != null && v > 0);
+              if (alive && closes.length >= 2) setSparklines((prev) => ({ ...prev, [tk]: closes }));
+            } catch (e) { /* ignore */ }
+          })
+        );
+      }
+    })();
+    return () => { alive = false; };
+  }, [viewMode, rows]);
 
   const openPanel = (ticker) => {
     setPanelTicker(ticker);
@@ -5393,6 +5424,7 @@ function MarketView({
                 <tr>
                   {sortTh("ticker", mt(lang, "ticker"))}
                   {sortTh("company", mt(lang, "company"))}
+                  <th className="market-spark-th">{lang === "en" ? "Trend" : lang === "uz" ? "Trend" : "Тренд"}</th>
                   {sortTh("last", mt(lang, "last"))}
                   {visibleCols.has("change") && sortTh("change", mt(lang, "change"))}
                   {visibleCols.has("open") && sortTh("open", mt(lang, "open"))}
@@ -5456,6 +5488,22 @@ function MarketView({
                           {row.name || "—"}
                         </button>
                         <span>{row.isin || "—"}</span>
+                      </td>
+                      <td className="market-spark-cell">
+                        {(() => {
+                          const vals = sparklines[row.ticker];
+                          const tone = row.changePercent > 0 ? "good" : row.changePercent < 0 ? "danger" : "neutral";
+                          return (
+                            <div className="market-spark-wrap">
+                              {vals && vals.length >= 2
+                                ? <MiniSparkline values={vals} tone={tone} language={lang} />
+                                : <span className="market-spark-skeleton" aria-hidden="true" />}
+                              <span className={`market-trend-arrow tone-${tone}`} aria-hidden="true">
+                                {row.changePercent > 0 ? "▲" : row.changePercent < 0 ? "▼" : "—"}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="num">{(() => { const p = marketDisplayPrice(row); return p == null ? "—" : formatMarketNumber(p, lang); })()}</td>
                       {visibleCols.has("change") && <td className="num"><MarketChangeBadge value={row.changeValue != null ? row.changeValue : (row.closePrice > 0 ? 0 : null)} percent={row.changePercent != null ? row.changePercent : (row.closePrice > 0 ? 0 : null)} language={lang} /></td>}
