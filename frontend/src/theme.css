@@ -211,3 +211,15 @@ body[data-theme="dark"] {
 .observation-item.tone-danger { border-left-color: var(--danger); }
 .observation-item.tone-warning { border-left-color: var(--warning); }
 .observation-item.tone-good { border-left-color: var(--success); }
+
+/* ── Stacked balance-structure chart (§3.4) ────────────────────────────────── */
+.structure-legend { display: flex; gap: 16px; align-items: center; }
+.structure-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.structure-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.structure-swatch--equity { background: var(--accent); }
+.structure-swatch--liab { background: var(--warning); }
+.structure-chart-wrap { overflow-x: auto; margin-top: 6px; }
+.structure-svg { width: 100%; min-width: 320px; height: auto; display: block; }
+.structure-bar-equity { fill: var(--accent); }
+.structure-bar-liab { fill: var(--warning); }
+.structure-year { fill: var(--muted); font-size: 12px; text-anchor: middle; }

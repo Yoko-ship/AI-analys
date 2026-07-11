@@ -34,7 +34,7 @@ const ANALYZE = {
   sections: {},
   ifrs_snapshot: {
     series: { annual: [{ year: 2023, revenue: 8e9, net_income: 1.5e9, equity: 9e9, total_assets: 3e10, net_profit_margin: 18 }, { year: 2024, revenue: 9e9, net_income: 2e9, equity: 1e10, total_assets: 4e10, net_profit_margin: 22 }] },
-    income_statement: { revenue: 9e9, net_income: 2e9, ebit: 2.4e9 },
+    income_statement: { revenue: 9e9, net_income: 2e9, ebit: 2.4e9, ebitda: 2.9e9, net_margin_pct: 22 },
     balance_sheet: { total_assets: 4e10, equity: 1e10, debt_to_equity: 1.5, current_ratio: 1.2 },
     quality: { roe_pct: 20, roa_pct: 5, interest_coverage: 2.2, altman: { zone: "grey" }, piotroski: { score: 5, max: 9 } },
   },
@@ -60,6 +60,7 @@ async function mockApi(page) {
     if (p === "/api/market/financials") return j(FINANCIALS);
     if (p === "/api/market/ratios") return j(RATIOS);
     if (p === "/api/analyze") return j(ANALYZE);
+    if (p === "/api/analyze/export/pdf") return route.fulfill({ status: 200, headers: { "content-type": "application/pdf" }, body: "%PDF-1.4\n%%EOF" });
     if (p.startsWith("/api/periods")) return j(PERIODS);
     if (p === "/api/market/trade-stats") return j({ stats: {} });
     if (p === "/api/market/stocks") return j(STOCKS);
@@ -142,4 +143,12 @@ test("analysis renders the §3.4 risk profile", async ({ page }) => {
   // §3.5 statistical observations
   await expect(page.locator(".observations-panel")).toBeVisible();
   await expect(page.locator(".observations-panel")).toContainText("Одновременное ухудшение");
+  // C1 EBITDA row + C4 stacked structure chart + C5 server PDF
+  await expect(page.locator(".financial-bars")).toContainText("EBITDA");
+  await expect(page.locator(".structure-panel")).toBeVisible();
+  const [pdf] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: /Скачать PDF/ }).first().click(),
+  ]);
+  expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
 });

@@ -1225,6 +1225,7 @@ const VISUAL_TEXTS = {
     scoreAndRisk: "Скоринг и устойчивость",
     scoreAndRiskCopy: "Ключевые индикаторы качества и риска",
     revenue: "Выручка",
+    ebitda: "EBITDA",
     netIncome: "Чистая прибыль",
     assets: "Активы",
     equity: "Капитал",
@@ -1244,6 +1245,7 @@ const VISUAL_TEXTS = {
     scoreAndRisk: "Score and resilience",
     scoreAndRiskCopy: "Core quality and risk indicators",
     revenue: "Revenue",
+    ebitda: "EBITDA",
     netIncome: "Net income",
     assets: "Assets",
     equity: "Equity",
@@ -1263,6 +1265,7 @@ const VISUAL_TEXTS = {
     scoreAndRisk: "Skoring va barqarorlik",
     scoreAndRiskCopy: "Sifat va risk bo'yicha asosiy indikatorlar",
     revenue: "Daromad",
+    ebitda: "EBITDA",
     netIncome: "Sof foyda",
     assets: "Aktivlar",
     equity: "Kapital",
@@ -6876,6 +6879,37 @@ function App() {
     }
   };
 
+  // Server-side PDF export (ТЗ §3.13 / C5) — a generated report, not a browser print.
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const handleExportPdf = async () => {
+    if (!analysisResult) return;
+    setExportingPdf(true);
+    try {
+      const res = await apiFetch("/api/analyze/export/pdf", {
+        method: "POST",
+        body: JSON.stringify({ result: analysisResult, language }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const name = (analysisResult.company_name || analysisResult.input || "analysis").replace(/[^\w-]/g, "_").slice(0, 40);
+      link.download = `${name}_analysis.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      addToast(error.message, "error");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   // Re-run a stored history query with fresh data (ТЗ Блок 5: «Повторить запрос»).
   const handleRepeatAnalysis = (item) => {
     const company = (item?.ticker || item?.company_input || item?.company_name || "").trim();
@@ -7953,6 +7987,8 @@ function App() {
 
                     <ObservationsPanel analysisResult={analysisResult} language={language} />
 
+                    <StructureCharts analysisResult={analysisResult} language={language} />
+
                     <div className="meta-grid">
                       <button
                         id="resultFavoriteBtn"
@@ -7975,10 +8011,12 @@ function App() {
                       <button
                         className="ghost-btn result-export-btn no-print"
                         type="button"
-                        onClick={() => window.print()}
-                        disabled={!analysisResult}
+                        onClick={handleExportPdf}
+                        disabled={exportingPdf || !analysisResult}
                       >
-                        {language === "en" ? "⤓ Download PDF" : language === "uz" ? "⤓ PDF yuklab olish" : "⤓ Скачать PDF"}
+                        {exportingPdf
+                          ? (language === "en" ? "Preparing…" : language === "uz" ? "Tayyorlanmoqda…" : "Готовим…")
+                          : (language === "en" ? "⤓ Download PDF" : language === "uz" ? "⤓ PDF yuklab olish" : "⤓ Скачать PDF")}
                       </button>
                     </div>
                   </>
@@ -8426,6 +8464,69 @@ function ObservationsPanel({ analysisResult, language }) {
   );
 }
 
+const STRUCT_TITLE = { ru: "Структура баланса по годам", en: "Balance structure by year", uz: "Balans tuzilmasi (yillar bo'yicha)" };
+const STRUCT_LEGEND = {
+  ru: { equity: "Капитал", liabilities: "Обязательства" },
+  en: { equity: "Equity", liabilities: "Liabilities" },
+  uz: { equity: "Kapital", liabilities: "Majburiyatlar" },
+};
+
+// ТЗ §3.4 — stacked structural chart: equity + liabilities = assets, per year,
+// so the capital structure's evolution is visible at a glance. Data from the
+// annual series (segment revenue is not collected, so segments are omitted).
+function StructureCharts({ analysisResult, language }) {
+  const annual = analysisResult?.ifrs_snapshot?.series?.annual;
+  if (!Array.isArray(annual) || annual.length < 2) return null;
+  const rows = annual
+    .map((r) => {
+      const assets = safeNumber(r.total_assets ?? r.assets);
+      const equity = safeNumber(r.equity);
+      let liab = safeNumber(r.total_liabilities);
+      if (liab === null && assets !== null && equity !== null) liab = Math.max(0, assets - equity);
+      const total = assets ?? ((equity || 0) + (liab || 0));
+      return { year: r.year, equity: equity || 0, liabilities: liab || 0, total };
+    })
+    .filter((r) => r.total && r.total > 0);
+  if (rows.length < 2) return null;
+  const maxA = Math.max(...rows.map((r) => r.total));
+  const leg = STRUCT_LEGEND[language] || STRUCT_LEGEND.ru;
+  const title = STRUCT_TITLE[language] || STRUCT_TITLE.ru;
+  const W = 640, H = 240, PAD_B = 26, PAD_T = 12;
+  const slot = (W - 20) / rows.length;
+  const bw = Math.min(64, slot - 16);
+  const scale = (H - PAD_B - PAD_T) / maxA;
+  return (
+    <article className="panel structure-panel">
+      <div className="panel-head">
+        <div>
+          <div className="panel-label">{title}</div>
+          <h3>{title}</h3>
+        </div>
+        <div className="structure-legend">
+          <span className="structure-legend-item"><i className="structure-swatch structure-swatch--equity" />{leg.equity}</span>
+          <span className="structure-legend-item"><i className="structure-swatch structure-swatch--liab" />{leg.liabilities}</span>
+        </div>
+      </div>
+      <div className="structure-chart-wrap">
+        <svg viewBox={`0 0 ${W} ${H}`} className="structure-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label={title}>
+          {rows.map((r, i) => {
+            const x = 10 + i * slot + (slot - bw) / 2;
+            const eqH = Math.max(0, r.equity * scale);
+            const liH = Math.max(0, r.liabilities * scale);
+            return (
+              <g key={r.year}>
+                <rect x={x} y={H - PAD_B - eqH} width={bw} height={eqH} className="structure-bar-equity" rx="2" />
+                <rect x={x} y={H - PAD_B - eqH - liH} width={bw} height={liH} className="structure-bar-liab" rx="2" />
+                <text x={x + bw / 2} y={H - PAD_B + 15} className="structure-year">{r.year}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </article>
+  );
+}
+
 function HeroKpiStrip({ analysisResult, chartData, language }) {
   const lbl = HERO_LABELS[language] || HERO_LABELS.ru;
   const ifrs = analysisResult?.ifrs_snapshot || {};
@@ -8525,12 +8626,14 @@ function FinancialVisuals({ result, language, score }) {
   });
 
   const revenue = pickNumber(latestAnnual.revenue, income.revenue, income.sales);
+  const ebitda = pickNumber(income.ebitda);
   const netIncome = pickNumber(latestAnnual.net_income, income.net_income, income.profit);
   const assets = pickNumber(latestAnnual.assets, latestAnnual.total_assets, balance.assets, balance.total_assets);
   const equity = pickNumber(latestAnnual.equity, latestAnnual.total_equity, balance.equity, balance.total_equity);
   const debt = pickNumber(latestAnnual.debt, latestAnnual.total_debt, latestAnnual.total_liabilities, balance.debt, balance.total_debt, balance.total_liabilities);
   const rows = [
     makeRow("revenue", revenue, "good"),
+    makeRow("ebitda", ebitda, "good"),
     makeRow("netIncome", netIncome, netIncome === null ? "neutral" : netIncome >= 0 ? "good" : "danger"),
     makeRow("assets", assets, "neutral"),
     makeRow("equity", equity, "good"),
