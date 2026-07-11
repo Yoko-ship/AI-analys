@@ -152,3 +152,14 @@ test("analysis renders the §3.4 risk profile", async ({ page }) => {
   ]);
   expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
 });
+
+test("mobile: hamburger opens the nav drawer (§3.12)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.goto("/");
+  await expect(page.locator(".topbar-burger")).toBeVisible();
+  await page.locator(".topbar-burger").click();
+  await expect(page.locator(".topbar")).toHaveClass(/is-nav-open/);
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await expect(page.locator(".topbar")).not.toHaveClass(/is-nav-open/);
+  await expect(page.getByText(/Цены акций/)).toBeVisible();
+});
