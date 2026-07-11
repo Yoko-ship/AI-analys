@@ -27,6 +27,26 @@ const STOCKS = { stocks: [
   { ticker: "KVTS", name: "Kvarts", isin: "UZ0003", last_price: 320, close_price: 300, volume: 8e5, quantity: 2500, trade_count: 12, market_cap: 3e9, nominal: 100, sector: "Industry" },
 ] };
 
+const ANALYZE = {
+  company_name: "AGBA Bank", ticker: "AGBA", input: "AGBA", from_cache: false,
+  summary: { score: 60, grade: "B" },
+  metrics: { total_score: { score: 60, grade: "B" } },
+  sections: {},
+  ifrs_snapshot: {
+    series: { annual: [{ year: 2023, revenue: 8e9, net_income: 1.5e9, equity: 9e9, total_assets: 3e10, net_profit_margin: 18 }, { year: 2024, revenue: 9e9, net_income: 2e9, equity: 1e10, total_assets: 4e10, net_profit_margin: 22 }] },
+    income_statement: { revenue: 9e9, net_income: 2e9, ebit: 2.4e9 },
+    balance_sheet: { total_assets: 4e10, equity: 1e10, debt_to_equity: 1.5, current_ratio: 1.2 },
+    quality: { roe_pct: 20, roa_pct: 5, interest_coverage: 2.2, altman: { zone: "grey" }, piotroski: { score: 5, max: 9 } },
+  },
+  article_report: { meta: { company: "AGBA Bank", ticker: "AGBA" }, abstract: "Демо.", sections: [] },
+  risk_profile: { version: 1, axes: [
+    { key: "financial", label: "Финансовый риск", level: "medium", level_label: "Средний", drivers: ["Altman в серой зоне", "Повышенный долг/капитал (1.5)"] },
+    { key: "market", label: "Рыночный риск", level: "low", level_label: "Низкий", drivers: ["Показатели ликвидности в норме"] },
+    { key: "informational", label: "Информационный риск", level: "na", level_label: "Недостаточно данных", drivers: ["Требуется модуль анализа новостей (§3.11)"] },
+  ] },
+};
+const PERIODS = { ok: true, periods: { annual_years: [2024, 2023, 2022], quarterly: ["2024Q2", "2024Q1"], latest_annual_year: 2024, latest_quarterly: "2024Q2" } };
+
 async function mockApi(page) {
   await page.route("**/api/**", (route) => {
     const p = new URL(route.request().url()).pathname;
@@ -35,6 +55,8 @@ async function mockApi(page) {
     if (p === "/api/securities") return j(SECURITIES);
     if (p === "/api/market/financials") return j(FINANCIALS);
     if (p === "/api/market/ratios") return j(RATIOS);
+    if (p === "/api/analyze") return j(ANALYZE);
+    if (p.startsWith("/api/periods")) return j(PERIODS);
     if (p === "/api/market/trade-stats") return j({ stats: {} });
     if (p === "/api/market/stocks") return j(STOCKS);
     if (p === "/api/market/trades") return j({ total_volume: 7.8e6, total_trade_count: 73 });
@@ -100,4 +122,17 @@ test("Рынок shows §3.8 multiplier columns and exports CSV", async ({ page 
     page.locator(".market-export-btn").click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/\.csv$/);
+});
+
+test("analysis renders the §3.4 risk profile", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "e2e-token"));
+  await page.route("**/api/auth/me", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: { full_name: "E2E", email: "e2e@test.uz" } }) }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Анализ", exact: true }).click();
+  await page.locator(".analysis-input-wrapper input").first().fill("AGBA");
+  await page.waitForTimeout(600);
+  await page.getByRole("button", { name: /Анализировать/ }).click();
+  await expect(page.locator(".risk-profile-panel")).toBeVisible({ timeout: 12000 });
+  await expect(page.locator(".risk-profile-panel")).toContainText("Финансовый риск");
+  await expect(page.locator(".risk-profile-panel")).toContainText("§3.11");
 });

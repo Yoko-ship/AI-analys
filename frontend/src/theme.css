@@ -183,3 +183,16 @@ body[data-theme="dark"] {
   ) !important;
   color: #fff !important;
 }
+
+/* ── Risk profile panel (§3.4) ─────────────────────────────────────────────── */
+.risk-profile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.risk-profile-panel .bank-metric-cell { align-items: flex-start; }
+.risk-drivers {
+  margin: 10px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.risk-drivers li { font-size: 12.5px; line-height: 1.4; color: var(--bm-text-muted, var(--muted)); }
+@media (max-width: 760px) { .risk-profile-grid { grid-template-columns: 1fr; } }
