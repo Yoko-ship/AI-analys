@@ -170,29 +170,3 @@ body[data-theme="dark"] {
     scroll-behavior: auto !important;
   }
 }
-
-/* ── Рынок table: Finam-style sparkline + trend column ─────────────────────── */
-.market-spark-th { text-align: left; }
-.market-spark-cell { min-width: 118px; }
-.market-spark-wrap { display: flex; align-items: center; gap: 8px; }
-.market-spark-wrap .mini-sparkline { width: 84px; height: 26px; display: block; flex-shrink: 0; }
-.market-spark-skeleton {
-  display: inline-block;
-  width: 84px;
-  height: 26px;
-  border-radius: 6px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.market-trend-arrow { font-size: 12px; line-height: 1; font-weight: 700; }
-.market-trend-arrow.tone-good { color: var(--success); }
-.market-trend-arrow.tone-danger { color: var(--danger); }
-.market-trend-arrow.tone-neutral { color: var(--muted); }
-/* sparkline stroke follows the day's tone (MiniSparkline emits tone-* classes) */
-.market-spark-wrap .mini-sparkline.tone-good .mini-sparkline-line { stroke: var(--success); }
-.market-spark-wrap .mini-sparkline.tone-good .mini-sparkline-area { fill: var(--success-light); }
-.market-spark-wrap .mini-sparkline.tone-danger .mini-sparkline-line { stroke: var(--danger); }
-.market-spark-wrap .mini-sparkline.tone-danger .mini-sparkline-area { fill: var(--danger-light); }
-.market-spark-wrap .mini-sparkline.tone-neutral .mini-sparkline-line { stroke: var(--muted); }
-.market-spark-wrap .mini-sparkline .mini-sparkline-dot { fill: currentColor; }
