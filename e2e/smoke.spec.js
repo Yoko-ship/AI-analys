@@ -73,6 +73,9 @@ test("navigating to Рынок shows the market board", async ({ page }) => {
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
   await expect(page.getByText(/Цены акций/)).toBeVisible();
   await expect(page.getByText("AGBA Bank").first()).toBeVisible();
+  // Finam-style trend/sparkline column is present
+  await expect(page.locator(".market-spark-th")).toBeVisible();
+  await expect(page.locator(".market-spark-cell").first()).toBeVisible();
 });
 
 test("navigating to Анализ shows the analysis form", async ({ page }) => {
