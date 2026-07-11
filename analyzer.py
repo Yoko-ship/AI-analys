@@ -241,6 +241,16 @@ def _get_field_mapping(title: str) -> str | None:
         mapped = _NORMALIZED_FIELD_MAP.get(normalized)
         if mapped:
             return mapped
+    # Depreciation & amortization *expense* (a P&L / cash-flow flow) → used to
+    # derive EBITDA. Require an expense context and exclude balance-sheet
+    # accumulated depreciation ("накопленный износ", "остаточная стоимость"),
+    # which is a stock, not the period charge.
+    if isinstance(title, str):
+        low = title.lower()
+        if (("амортизац" in low) or ("износ" in low)) \
+           and any(w in low for w in ("расход", "начисл", "деятельн", "себестоим")) \
+           and not any(w in low for w in ("накопл", "остаточн", "первоначальн")):
+            return "depreciation"
     return None
 
 

@@ -5313,6 +5313,14 @@ def _build_ifrs_snapshot(
     elif momentum_block.get("css") == "bearish":
         add_flag(red_flags, "Краткосрочный импульс отрицательный")
 
+    # EBITDA family (ТЗ §3.3). Only when the filing discloses D&A (many NSBU
+    # commercial forms bury it in cost-of-sales); otherwise these stay None and
+    # the UI shows "н/д" rather than a fabricated figure.
+    depreciation = _safe_float(latest.get("depreciation")) if isinstance(latest, dict) else None
+    ebitda = (ebit + depreciation) if (isinstance(ebit, (int, float)) and isinstance(depreciation, (int, float))) else None
+    ebitda_margin = round(ebitda / revenue * 100, 1) if (ebitda is not None and isinstance(revenue, (int, float)) and revenue) else None
+    debt_to_ebitda = round(long_term_debt / ebitda, 2) if (ebitda and ebitda > 0 and isinstance(long_term_debt, (int, float)) and long_term_debt) else None
+
     return {
         "company": company_name.strip() if company_name else "",
         "language": _normalize_language(language),
@@ -5335,6 +5343,10 @@ def _build_ifrs_snapshot(
             "gross_margin_pct": latest_gross_margin,
             "ebit": ebit,
             "ebit_margin_pct": latest_ebit_margin,
+            "ebitda": ebitda,
+            "ebitda_margin_pct": ebitda_margin,
+            "depreciation": depreciation,
+            "debt_to_ebitda": debt_to_ebitda,
             "net_income": net_income,
             "net_margin_pct": latest_net_margin,
             "quarterly_revenue": _safe_float(latest_q.get("revenue")),
@@ -5854,6 +5866,149 @@ def _excel_number(value):
         return float(text)
     except ValueError:
         return None
+
+
+_PDF_FONT_CACHE: dict = {}
+
+
+def _pdf_font():
+    """Register a Cyrillic-capable TTF once; return (regular, bold) family names.
+    DejaVu on Linux (the Docker image installs fonts-dejavu-core), Arial on
+    Windows dev, Helvetica as a last resort (Latin only)."""
+    if _PDF_FONT_CACHE.get("name"):
+        return _PDF_FONT_CACHE["name"], _PDF_FONT_CACHE["bold"]
+    import os
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    candidates = [
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ("/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
+        ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
+    ]
+    for regular, bold in candidates:
+        if os.path.exists(regular):
+            try:
+                pdfmetrics.registerFont(TTFont("AppSans", regular))
+                bold_name = "AppSans"
+                if os.path.exists(bold):
+                    pdfmetrics.registerFont(TTFont("AppSans-Bold", bold))
+                    pdfmetrics.registerFontFamily("AppSans", normal="AppSans", bold="AppSans-Bold")
+                    bold_name = "AppSans-Bold"
+                _PDF_FONT_CACHE.update(name="AppSans", bold=bold_name)
+                return "AppSans", bold_name
+            except Exception:
+                continue
+    _PDF_FONT_CACHE.update(name="Helvetica", bold="Helvetica-Bold")
+    return "Helvetica", "Helvetica-Bold"
+
+
+def build_analysis_pdf(result: dict, language: str = "ru", generated_at=None) -> bytes:
+    """Render a completed analysis result to a PDF (ТЗ §3.13 / C5). Mirrors the
+    Excel export: header, key metrics, risk profile, statistical observations,
+    narrative sections, and the mandatory disclaimer."""
+    from io import BytesIO
+    from datetime import datetime
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+    generated_at = generated_at or datetime.now()
+    font, bold = _pdf_font()
+    lang = _normalize_language(language)
+    styles = getSampleStyleSheet()
+    body = ParagraphStyle("body", parent=styles["Normal"], fontName=font, fontSize=9.5, leading=13)
+    h1 = ParagraphStyle("h1", parent=styles["Title"], fontName=bold, fontSize=18, leading=22, spaceAfter=2, alignment=0)
+    h2 = ParagraphStyle("h2", parent=styles["Heading2"], fontName=bold, fontSize=12, leading=15, spaceBefore=11, spaceAfter=4)
+    muted = ParagraphStyle("muted", parent=body, textColor=colors.HexColor("#64748b"), fontSize=8.5)
+    disc = ParagraphStyle("disc", parent=body, textColor=colors.HexColor("#64748b"), fontSize=7.5, leading=10)
+
+    def esc(s):
+        s = "" if s is None else str(s)
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    def fnum(v):
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return "—"
+        for unit, div in ((("млрд" if lang == "ru" else "B"), 1e9), (("млн" if lang == "ru" else "M"), 1e6), (("тыс" if lang == "ru" else "K"), 1e3)):
+            if abs(v) >= div:
+                return f"{v / div:.2f} {unit}"
+        return f"{v:.0f}"
+
+    def pct(v):
+        try:
+            return f"{float(v):.1f}%"
+        except (TypeError, ValueError):
+            return "—"
+
+    snap = result.get("ifrs_snapshot") or {}
+    inc = snap.get("income_statement") or {}
+    bs = snap.get("balance_sheet") or {}
+    q = snap.get("quality") or {}
+    company = result.get("company_name") or result.get("input") or "—"
+    ticker = result.get("ticker") or ""
+    summary = result.get("summary") or {}
+
+    story = [Paragraph(esc(company) + (f" · {esc(ticker)}" if ticker else ""), h1)]
+    meta_bits = []
+    if summary.get("score") is not None:
+        meta_bits.append(f"{_risk_tr(lang, 'Скоринг', 'Score', 'Skoring')}: {esc(summary.get('score'))}" + (f" ({esc(summary.get('grade'))})" if summary.get("grade") else ""))
+    meta_bits.append(generated_at.strftime("%Y-%m-%d %H:%M"))
+    story.append(Paragraph(" · ".join(meta_bits), muted))
+    story.append(Spacer(1, 8))
+
+    metric_rows = [
+        [_risk_tr(lang, "Выручка", "Revenue", "Tushum"), fnum(inc.get("revenue"))],
+        ["EBIT", fnum(inc.get("ebit"))],
+        ["EBITDA", fnum(inc.get("ebitda"))],
+        [_risk_tr(lang, "Чистая прибыль", "Net income", "Sof foyda"), fnum(inc.get("net_income"))],
+        [_risk_tr(lang, "Чистая маржа", "Net margin", "Sof marja"), pct(inc.get("net_margin_pct"))],
+        ["ROE", pct(q.get("roe_pct"))],
+        ["ROA", pct(q.get("roa_pct"))],
+        [_risk_tr(lang, "Долг/капитал", "Debt/equity", "Qarz/kapital"), (f"{float(bs.get('debt_to_equity')):.2f}" if bs.get("debt_to_equity") is not None else "—")],
+    ]
+    story.append(Paragraph(_risk_tr(lang, "Ключевые показатели", "Key metrics", "Asosiy ko'rsatkichlar"), h2))
+    tbl = Table([[Paragraph(esc(r[0]), body), Paragraph(esc(r[1]), body)] for r in metric_rows], colWidths=[100 * mm, 74 * mm])
+    tbl.setStyle(TableStyle([
+        ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor("#e2e8f0")),
+        ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+    ]))
+    story.append(tbl)
+
+    rp = result.get("risk_profile") or {}
+    if rp.get("axes"):
+        story.append(Paragraph(_risk_tr(lang, "Профиль риска", "Risk profile", "Risk profili"), h2))
+        for ax in rp["axes"]:
+            drivers = "; ".join(ax.get("drivers") or [])
+            story.append(Paragraph(f"<b>{esc(ax.get('label'))}:</b> {esc(ax.get('level_label'))}" + (f" — {esc(drivers)}" if drivers else ""), body))
+
+    obs = result.get("observations") or []
+    if obs:
+        story.append(Paragraph(_risk_tr(lang, "Статистические наблюдения", "Statistical observations", "Statistik kuzatuvlar"), h2))
+        for o in obs:
+            story.append(Paragraph("• " + esc(o.get("text")), body))
+
+    sections = result.get("sections") or {}
+    if isinstance(sections, dict) and sections:
+        story.append(Paragraph(_risk_tr(lang, "Разделы отчёта", "Report sections", "Hisobot bo'limlari"), h2))
+        for name, text in sections.items():
+            if not text:
+                continue
+            story.append(Paragraph(f"<b>{esc(name)}</b>", body))
+            story.append(Paragraph(esc(str(text)[:3500]).replace("\n", "<br/>"), body))
+            story.append(Spacer(1, 4))
+
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(esc(report_disclaimer(lang)), disc))
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=14 * mm, title=f"{company} — analysis")
+    doc.build(story)
+    return buf.getvalue()
 
 
 def build_analysis_excel(result: dict, language: str = "ru", generated_at=None) -> bytes:

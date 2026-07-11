@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from analysis_service import build_analysis_excel, build_company_comparison, build_summary, report_disclaimer, run_company_analysis
+from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_summary, report_disclaimer, run_company_analysis
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from openinfo_collector import collect_company_data, get_company_periods
 from reports_catalog import (
@@ -1090,6 +1090,33 @@ async def api_export_excel(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{safe}_analysis.xlsx"'},
+    )
+
+
+@app.post("/api/analyze/export/pdf")
+async def api_export_pdf(
+    payload: ExcelExportRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> Response:
+    """Export a completed analysis result to PDF (ТЗ §3.13 / C5)."""
+    from datetime import datetime
+
+    try:
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(
+            None,
+            partial(build_analysis_pdf, payload.result, payload.language, datetime.now()),
+        )
+    except Exception as exc:
+        logger.exception("pdf export failed")
+        raise HTTPException(status_code=500, detail="Could not build the PDF file") from exc
+
+    company = payload.result.get("company_name") or payload.result.get("input") or "analysis"
+    safe = "".join(ch for ch in str(company) if ch.isalnum() or ch in "-_")[:40] or "analysis"
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe}_analysis.pdf"'},
     )
 
 
