@@ -170,3 +170,16 @@ body[data-theme="dark"] {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Placeholder logo tiles ────────────────────────────────────────────────
+   The monogram fallback tiles hash the ticker into a raw 0–360 hue, which lands
+   on clashing golds/greens. Remap that hue into a narrow cool band (teal → blue
+   → indigo) so every placeholder stays on-theme while keeping issuers distinct. */
+.chip-logo-fallback {
+  background: linear-gradient(
+    135deg,
+    hsl(calc(210 + (var(--mono-h, 210) - 180) * 0.16), 55%, 54%),
+    hsl(calc(230 + (var(--mono-h, 210) - 180) * 0.16), 52%, 43%)
+  ) !important;
+  color: #fff !important;
+}
