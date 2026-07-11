@@ -4119,7 +4119,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   ];
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [hover, setHover] = React.useState(null);
-  const [chartType, setChartType] = React.useState("line"); // line | candle
+  const [chartType, setChartType] = React.useState("candle"); // candle | line — candles are the default when OHLC is available
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
 
   const rangeBar = (
@@ -4134,7 +4134,8 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
 
   if (loading) return <div className="chart-loading muted">{t("Загрузка...", "Yuklanmoqda...", "Loading...")}</div>;
 
-  const points = (history || []).map((h) => {
+  // The feed returns newest-first — sort ascending so time reads left→right.
+  const daily = (history || []).map((h) => {
     if (Array.isArray(h)) return { date: h[0], close: Number(h[1]) || 0, volume: 0, change: null };
     return {
       date: h.date || h.trade_date,
@@ -4145,9 +4146,9 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
       volume: Number(h.volume ?? h.trading_volume ?? 0) || 0,
       change: h.change != null ? Number(h.change) : null,
     };
-  }).filter((p) => p.close > 0 && p.date);
+  }).filter((p) => p.close > 0 && p.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
-  if (points.length < 2) return (
+  if (daily.length < 2) return (
     <div>
       <div className="company-chart-toolbar">{rangeBar}</div>
       <div className="muted" style={{ padding: "32px 0", textAlign: "center" }}>
@@ -4173,9 +4174,33 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   const volBot = H - PAD.bottom;
   const innerW = W - PAD.left - PAD.right;
 
-  const hasOHLC = points.every((p) => p.open > 0 && p.high > 0 && p.low > 0);
-  const canCandle = hasOHLC && points.length <= 180;
+  // Candles are the primary view. Daily OHLC is aggregated into weekly-ish
+  // buckets so bars are wide and readable (~40 candles) rather than ~240 slivers.
+  const hasOHLC = daily.every((p) => p.open > 0 && p.high > 0 && p.low > 0);
+  const aggregate = (arr, size) => {
+    if (size <= 1) return arr;
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) {
+      const b = arr.slice(i, i + size);
+      out.push({
+        date: b[b.length - 1].date,
+        open: b[0].open,
+        high: Math.max(...b.map((p) => p.high)),
+        low: Math.min(...b.map((p) => p.low)),
+        close: b[b.length - 1].close,
+        volume: b.reduce((s, p) => s + (p.volume || 0), 0),
+        change: null,
+      });
+    }
+    return out;
+  };
+  const TARGET_CANDLES = 46;
+  const bucket = Math.max(1, Math.ceil(daily.length / TARGET_CANDLES));
+  const candles = hasOHLC ? aggregate(daily, bucket) : daily;
+  const canCandle = hasOHLC;
   const showCandles = chartType === "candle" && canCandle;
+  const points = showCandles ? candles : daily;
+
   const lows = hasOHLC ? points.map((p) => p.low) : points.map((p) => p.close);
   const highs = hasOHLC ? points.map((p) => p.high) : points.map((p) => p.close);
   const minP = Math.min(...lows), maxP = Math.max(...highs);
@@ -4185,7 +4210,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   const xs = (i) => PAD.left + (i / (points.length - 1)) * innerW;
   const ys = (p) => priceTop + (1 - (p - minP) / rangeP) * (priceBot - priceTop);
   const vy = (v) => volBot - (v / maxVol) * (volBot - volTop);
-  const candleW = Math.max(1.5, Math.min(13, (innerW / points.length) * 0.62));
+  const candleW = Math.max(2, Math.min(15, (innerW / points.length) * 0.62));
 
   const lineD = points.map((p, i) => `${i === 0 ? "M" : "L"}${xs(i).toFixed(1)},${ys(p.close).toFixed(1)}`).join(" ");
   const areaD = `${lineD} L${xs(points.length - 1).toFixed(1)},${priceBot.toFixed(1)} L${xs(0).toFixed(1)},${priceBot.toFixed(1)} Z`;
