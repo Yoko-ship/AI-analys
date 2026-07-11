@@ -13,8 +13,13 @@ const SECURITIES = { securities: {
   ALKB: { security_type: "stock", last_price: 900, industry: "Banks" },
   KVTS: { security_type: "stock", last_price: 320, industry: "Industry" },
 } };
-const FINANCIALS = { financials: {
+const FINANCIALS = { ok: true, financials: {
   AGBA: { net_income: 2e9, revenue: 9e9 }, ALKB: { net_income: 1.2e9, revenue: 6e9 }, KVTS: { net_income: 3e8, revenue: 1.5e9 },
+} };
+const RATIOS = { ok: true, ratios: {
+  AGBA: { roe: 18.2, roa: 6.1, net_profit_margin: 22, debt_to_equity: 1.2, total_equity: 1e10 },
+  ALKB: { roe: 12.0, roa: 4.0, net_profit_margin: 15, debt_to_equity: 2.1, total_equity: 6e9 },
+  KVTS: { roe: 0.56, roa: 0.24, net_profit_margin: 0.23, debt_to_equity: 76.9, total_equity: 2e9 },
 } };
 const STOCKS = { stocks: [
   { ticker: "AGBA", name: "AGBA Bank", isin: "UZ0001", last_price: 1500, close_price: 1440, volume: 5e6, quantity: 3333, trade_count: 40, market_cap: 3e10, nominal: 1000, sector: "Banks" },
@@ -29,6 +34,7 @@ async function mockApi(page) {
     if (p === "/api/companies") return j(COMPANIES);
     if (p === "/api/securities") return j(SECURITIES);
     if (p === "/api/market/financials") return j(FINANCIALS);
+    if (p === "/api/market/ratios") return j(RATIOS);
     if (p === "/api/market/trade-stats") return j({ stats: {} });
     if (p === "/api/market/stocks") return j(STOCKS);
     if (p === "/api/market/trades") return j({ total_volume: 7.8e6, total_trade_count: 73 });
@@ -79,4 +85,19 @@ test("navigating to Анализ shows the analysis form", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Анализ", exact: true }).click();
   await expect(page.locator(".analysis-form-modern").first()).toBeVisible();
+});
+
+test("Рынок shows §3.8 multiplier columns and exports CSV", async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("uz_market_cols", JSON.stringify(["change", "mktCap", "pe", "pb", "roe"]))
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await expect(page.locator(".market-table thead")).toContainText("P/E");
+  await expect(page.locator(".market-table thead")).toContainText("P/B");
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator(".market-export-btn").click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/\.csv$/);
 });

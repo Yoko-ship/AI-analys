@@ -1553,6 +1553,11 @@ const MARKET_TEXTS = {
     grpOverview: "Обзор AI-скринер",
     grpVolumes: "Объёмы",
     grpFinancials: "Фин. показатели",
+    grpMultiples: "Мультипликаторы",
+    mktCap: "Капитализация",
+    netMargin: "Чистая маржа",
+    debtEquity: "Долг/Капитал",
+    exportCsv: "Экспорт CSV",
     topGainers: "Топ роста",
     topLosers: "Топ падения",
     finRevenue: "Выручка",
@@ -1612,6 +1617,11 @@ const MARKET_TEXTS = {
     grpOverview: "AI screener overview",
     grpVolumes: "Volumes",
     grpFinancials: "Financials",
+    grpMultiples: "Multiples",
+    mktCap: "Market cap",
+    netMargin: "Net margin",
+    debtEquity: "Debt/Equity",
+    exportCsv: "Export CSV",
     topGainers: "Top gainers",
     topLosers: "Top losers",
     finRevenue: "Revenue",
@@ -1671,6 +1681,11 @@ const MARKET_TEXTS = {
     grpOverview: "AI-skrener sharhi",
     grpVolumes: "Hajmlar",
     grpFinancials: "Moliyaviy ko'rsatkichlar",
+    grpMultiples: "Multiplikatorlar",
+    mktCap: "Kapitalizatsiya",
+    netMargin: "Sof marja",
+    debtEquity: "Qarz/Kapital",
+    exportCsv: "CSV eksport",
     topGainers: "Eng ko'p o'sganlar",
     topLosers: "Eng ko'p tushganlar",
     finRevenue: "Tushum",
@@ -4935,6 +4950,18 @@ function MarketView({
   const [panelWikiLoading, setPanelWikiLoading] = useState(false);
   const hasFav = (t) => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase());
 
+  // Per-ticker financial ratios & equity (facts store) for P/E, P/B and the
+  // §3.8 ratio-coefficient columns. Fetched once; keyed by ticker.
+  const [ratios, setRatios] = useState({});
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/market/ratios")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setRatios(d.ratios || {}); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   // Column sorting. sortKey === null falls back to the default (date desc, then |change|).
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("desc");
@@ -4975,6 +5002,15 @@ function MarketView({
       ["finLiab", mt(lang, "finLiab")],
       ["finNet", mt(lang, "finNet")],
       ["finOperating", mt(lang, "finOperating")],
+    ] },
+    { key: "multiples", title: mt(lang, "grpMultiples"), cols: [
+      ["mktCap", mt(lang, "mktCap")],
+      ["pe", "P/E"],
+      ["pb", "P/B"],
+      ["roe", "ROE"],
+      ["roa", "ROA"],
+      ["netMargin", mt(lang, "netMargin")],
+      ["debtEq", mt(lang, "debtEquity")],
     ] },
   ];
   const MARKET_COLS = COL_GROUPS.flatMap((g) => g.cols);
@@ -5045,6 +5081,22 @@ function MarketView({
   // Gather sectors present in current data
   const presentSectors = [...new Set(prepared.map((r) => smap[r.ticker]?.sector).filter(Boolean))].sort();
 
+  // §3.8 multiplier helpers: P/E = market cap / net income, P/B = market cap /
+  // equity. market cap comes from the listing row, net income from the market
+  // financials, equity from the ratios fact store.
+  const ratioOf = (ticker) => ratios[ticker] || ratios[String(ticker || "").toUpperCase()] || null;
+  const mktCapOf = (r) => (Number.isFinite(r.marketCap) ? r.marketCap : null);
+  const peOf = (r) => {
+    const mc = mktCapOf(r);
+    const ni = finOf(r.ticker)?.net_income;
+    return mc && mc > 0 && Number.isFinite(ni) && ni > 0 ? mc / ni : null;
+  };
+  const pbOf = (r) => {
+    const mc = mktCapOf(r);
+    const eq = ratioOf(r.ticker)?.total_equity;
+    return mc && mc > 0 && Number.isFinite(eq) && eq > 0 ? mc / eq : null;
+  };
+
   // Value read for each sortable column. ticker/company/date are strings, the rest numeric.
   const sortAccessors = {
     ticker: (r) => r.ticker || "",
@@ -5066,6 +5118,13 @@ function MarketView({
     finLiab: (r) => finOf(r.ticker)?.total_liabilities,
     finNet: (r) => finOf(r.ticker)?.net_income,
     finOperating: (r) => finOf(r.ticker)?.operating_income,
+    mktCap: (r) => mktCapOf(r),
+    pe: (r) => peOf(r),
+    pb: (r) => pbOf(r),
+    roe: (r) => ratioOf(r.ticker)?.roe,
+    roa: (r) => ratioOf(r.ticker)?.roa,
+    netMargin: (r) => ratioOf(r.ticker)?.net_profit_margin,
+    debtEq: (r) => ratioOf(r.ticker)?.debt_to_equity,
     date: (r) => r.last_trade_date || "",
     source: (r) => r.url || "",
   };
@@ -5100,6 +5159,41 @@ function MarketView({
       return dir * (av - bv);
     });
   const stats = buildMarketStats(prepared);
+
+  // §3.8: export the current securities table (core stats + multipliers) to CSV,
+  // numbers as raw numbers, client-side (no backend needed).
+  const exportCsv = () => {
+    const header = ["Ticker","Company","ISIN","Last","Change%","Turnover","Trades","Qty","AvgPrice","VWAP","High","Low","MarketCap","MarketShare%","P/E","P/B","ROE","ROA","NetMargin","DebtEquity"];
+    const cell = (v) => {
+      if (v === null || v === undefined || v === "" || (typeof v === "number" && Number.isNaN(v))) return "";
+      if (typeof v === "number") return String(v);
+      const s = String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [header.join(",")];
+    for (const row of visibleRows) {
+      const rat = ratioOf(row.ticker) || {};
+      const share = Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? (row.stockVolume / stats.totalVolume) * 100 : "";
+      lines.push([
+        row.ticker, row.name, row.isin,
+        marketDisplayPrice(row), row.changePercent,
+        row.stockVolume, row.stockTradeCount, row.stockQuantity, row.avgPrice, row.vwap,
+        row.highPrice, row.lowPrice,
+        mktCapOf(row), share, peOf(row), pbOf(row),
+        rat.roe, rat.roa, rat.net_profit_margin, rat.debt_to_equity,
+      ].map(cell).join(","));
+    }
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `market_${type || "all"}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const formatLeader = (row) => row ? `${row.ticker} ${formatRatio(row.changePercent, 2, lang)}%` : "—";
 
   const sortTh = (key, label) => (
@@ -5248,6 +5342,12 @@ function MarketView({
             <label className="market-search">
               <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={mt(lang, "search")} />
             </label>
+          )}
+          {viewMode === "table" && (
+            <button type="button" className="market-fav-filter market-export-btn" onClick={exportCsv} title={mt(lang, "exportCsv")}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+              {mt(lang, "exportCsv")}
+            </button>
           )}
           {viewMode === "table" && (
             <div className="market-cols-wrap">
@@ -5410,6 +5510,13 @@ function MarketView({
                   {visibleCols.has("finLiab") && sortTh("finLiab", mt(lang, "finLiab"))}
                   {visibleCols.has("finNet") && sortTh("finNet", mt(lang, "finNet"))}
                   {visibleCols.has("finOperating") && sortTh("finOperating", mt(lang, "finOperating"))}
+                  {visibleCols.has("mktCap") && sortTh("mktCap", mt(lang, "mktCap"))}
+                  {visibleCols.has("pe") && sortTh("pe", "P/E")}
+                  {visibleCols.has("pb") && sortTh("pb", "P/B")}
+                  {visibleCols.has("roe") && sortTh("roe", "ROE")}
+                  {visibleCols.has("roa") && sortTh("roa", "ROA")}
+                  {visibleCols.has("netMargin") && sortTh("netMargin", mt(lang, "netMargin"))}
+                  {visibleCols.has("debtEq") && sortTh("debtEq", mt(lang, "debtEquity"))}
                   {visibleCols.has("date") && sortTh("date", mt(lang, "date"))}
                   {visibleCols.has("source") && sortTh("source", mt(lang, "source"))}
                 </tr>
@@ -5500,6 +5607,13 @@ function MarketView({
                       {visibleCols.has("finLiab") && <td className="num">{finValue(finOf(row.ticker)?.total_liabilities, lang)}</td>}
                       {visibleCols.has("finNet") && <td className="num">{finValue(finOf(row.ticker)?.net_income, lang)}</td>}
                       {visibleCols.has("finOperating") && <td className="num">{finValue(finOf(row.ticker)?.operating_income, lang)}</td>}
+                      {visibleCols.has("mktCap") && <td className="num">{(() => { const v = mktCapOf(row); return v == null ? "—" : formatRatio(v, 0, lang); })()}</td>}
+                      {visibleCols.has("pe") && <td className="num">{(() => { const v = peOf(row); return v == null ? "—" : `${formatRatio(v, 1, lang)}×`; })()}</td>}
+                      {visibleCols.has("pb") && <td className="num">{(() => { const v = pbOf(row); return v == null ? "—" : `${formatRatio(v, 2, lang)}×`; })()}</td>}
+                      {visibleCols.has("roe") && <td className="num">{(() => { const v = ratioOf(row.ticker)?.roe; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>}
+                      {visibleCols.has("roa") && <td className="num">{(() => { const v = ratioOf(row.ticker)?.roa; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>}
+                      {visibleCols.has("netMargin") && <td className="num">{(() => { const v = ratioOf(row.ticker)?.net_profit_margin; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>}
+                      {visibleCols.has("debtEq") && <td className="num">{(() => { const v = ratioOf(row.ticker)?.debt_to_equity; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>}
                       {visibleCols.has("date") && (
                         <td>
                           <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
