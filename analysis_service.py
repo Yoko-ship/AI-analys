@@ -5560,6 +5560,106 @@ def _compute_risk_profile(ifrs_snapshot, metrics, liquidity, language):
     }
 
 
+def _compute_observations(ifrs_snapshot, metrics, language):
+    """ТЗ §3.5 statistical detectors. Purely factual observations — an anomaly
+    vs the issuer's own history (>2σ), a simultaneous multi-metric shift, and
+    deviation from the sector norm. Stated as facts, never as a diagnosis or a
+    recommendation, so they pass the compliance sanitizer.
+    """
+    lang = _normalize_language(language)
+    snap = ifrs_snapshot or {}
+    annual = [r for r in ((snap.get("series") or {}).get("annual") or []) if isinstance(r, dict)]
+    out = []
+
+    def num(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    # ---- detector 1: >2σ anomaly vs the issuer's own history ----
+    metric_defs = [
+        ("revenue", _risk_tr(lang, "Выручка", "Revenue", "Tushum")),
+        ("net_income", _risk_tr(lang, "Чистая прибыль", "Net income", "Sof foyda")),
+        ("net_profit_margin", _risk_tr(lang, "Чистая маржа", "Net margin", "Sof marja")),
+    ]
+    if len(annual) >= 4:
+        for key, label in metric_defs:
+            vals = [num(r.get(key)) for r in annual]
+            vals = [v for v in vals if v is not None]
+            if len(vals) < 4:
+                continue
+            latest = vals[-1]
+            hist = vals[:-1]
+            n = len(hist)
+            mean = sum(hist) / n
+            std = (sum((x - mean) ** 2 for x in hist) / n) ** 0.5
+            if std <= 0:
+                continue
+            z = (latest - mean) / std
+            if abs(z) >= 2:
+                above = z > 0
+                direction = _risk_tr(lang, "выше", "above", "yuqori") if above else _risk_tr(lang, "ниже", "below", "past")
+                out.append({
+                    "type": "anomaly",
+                    "tone": "warning" if above else "danger",
+                    "text": _risk_tr(
+                        lang,
+                        f"{label} на {abs(z):.1f}σ {direction} исторической нормы за {n} лет",
+                        f"{label} is {abs(z):.1f}σ {direction} the {n}-year historical norm",
+                        f"{label} {n} yillik me'yordan {abs(z):.1f}σ {direction}",
+                    ),
+                })
+
+    # ---- detector 2: simultaneous multi-metric YoY shift ----
+    if len(annual) >= 2:
+        prev, cur = annual[-2], annual[-1]
+        checks = [
+            ("revenue", 1, _risk_tr(lang, "выручка", "revenue", "tushum")),
+            ("net_income", 1, _risk_tr(lang, "прибыль", "net income", "foyda")),
+            ("net_profit_margin", 1, _risk_tr(lang, "маржа", "margin", "marja")),
+            ("debt_to_equity_ratio", -1, _risk_tr(lang, "долг/капитал", "debt/equity", "qarz/kapital")),
+        ]
+        worse, better = [], []
+        for key, good_dir, label in checks:
+            pv, cv = num(prev.get(key)), num(cur.get(key))
+            if pv is None or cv is None or pv == cv:
+                continue
+            (better if ((cv - pv) * good_dir) > 0 else worse).append(label)
+        if len(worse) >= 3:
+            out.append({"type": "joint", "tone": "danger", "text": _risk_tr(
+                lang,
+                f"Одновременное ухудшение показателей: {', '.join(worse)}",
+                f"Simultaneous deterioration across: {', '.join(worse)}",
+                f"Bir vaqtda yomonlashuv: {', '.join(worse)}")})
+        elif len(better) >= 3:
+            out.append({"type": "joint", "tone": "good", "text": _risk_tr(
+                lang,
+                f"Одновременное улучшение показателей: {', '.join(better)}",
+                f"Simultaneous improvement across: {', '.join(better)}",
+                f"Bir vaqtda yaxshilanish: {', '.join(better)}")})
+
+    # ---- detector 3: deviation from the sector norm ----
+    industry = (metrics or {}).get("industry") or snap.get("industry") or {}
+    ratings = industry.get("ratings") or {}
+    sector_name = industry.get("sector_name") or industry.get("name_ru") or industry.get("sector")
+    rating_labels = {
+        "net_margin": _risk_tr(lang, "чистая маржа", "net margin", "sof marja"),
+        "roe": "ROE", "roa": "ROA",
+        "debt_equity": _risk_tr(lang, "долговая нагрузка", "leverage", "qarz yuki"),
+        "revenue_growth": _risk_tr(lang, "рост выручки", "revenue growth", "tushum o'sishi"),
+    }
+    weak = [rating_labels.get(k, k) for k, v in ratings.items() if str(v).lower() in ("weak", "слаб", "плох", "low")]
+    if weak and sector_name:
+        out.append({"type": "sector", "tone": "warning", "text": _risk_tr(
+            lang,
+            f"Ниже типичного для сектора «{sector_name}»: {', '.join(weak[:3])}",
+            f"Below the «{sector_name}» sector norm: {', '.join(weak[:3])}",
+            f"«{sector_name}» sektori me'yoridan past: {', '.join(weak[:3])}")})
+
+    return out
+
+
 def _normalize_language(language: str | None) -> str:
     value = (language or "ru").strip().lower()
     return value if value in LANGUAGE_HINTS else "ru"
@@ -7305,6 +7405,7 @@ async def run_company_analysis(
         "metrics": metrics,
         "ifrs_snapshot": ifrs_snapshot,
         "risk_profile": _compute_risk_profile(ifrs_snapshot, metrics, liquidity_data, language),
+        "observations": _compute_observations(ifrs_snapshot, metrics, language),
         "liquidity": liquidity_data,
         "market_data": company_data,
         "market_context": market_context,

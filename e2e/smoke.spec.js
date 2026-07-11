@@ -44,6 +44,10 @@ const ANALYZE = {
     { key: "market", label: "Рыночный риск", level: "low", level_label: "Низкий", drivers: ["Показатели ликвидности в норме"] },
     { key: "informational", label: "Информационный риск", level: "na", level_label: "Недостаточно данных", drivers: ["Требуется модуль анализа новостей (§3.11)"] },
   ] },
+  observations: [
+    { type: "anomaly", tone: "warning", text: "Выручка на 2.3σ выше исторической нормы за 4 лет" },
+    { type: "joint", tone: "danger", text: "Одновременное ухудшение показателей: прибыль, маржа, долг/капитал" },
+  ],
 };
 const PERIODS = { ok: true, periods: { annual_years: [2024, 2023, 2022], quarterly: ["2024Q2", "2024Q1"], latest_annual_year: 2024, latest_quarterly: "2024Q2" } };
 
@@ -135,4 +139,7 @@ test("analysis renders the §3.4 risk profile", async ({ page }) => {
   await expect(page.locator(".risk-profile-panel")).toBeVisible({ timeout: 12000 });
   await expect(page.locator(".risk-profile-panel")).toContainText("Финансовый риск");
   await expect(page.locator(".risk-profile-panel")).toContainText("§3.11");
+  // §3.5 statistical observations
+  await expect(page.locator(".observations-panel")).toBeVisible();
+  await expect(page.locator(".observations-panel")).toContainText("Одновременное ухудшение");
 });
