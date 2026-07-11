@@ -519,7 +519,7 @@ const TEXTS = {
       rightTitle: "Что получает пользователь",
       rightCards: [
         { title: "Оценка", copy: "Общий скор по компании." },
-        { title: "Вердикт", copy: "Краткое итоговое заключение." },
+        { title: "Итоговая оценка", copy: "Краткое фактологическое резюме по данным." },
         { title: "Метрики", copy: "Ликвидность, рентабельность, долговая нагрузка и динамика." },
         { title: "История", copy: "Сохраненные анализы и избранные компании." },
       ],
@@ -656,8 +656,8 @@ const TEXTS = {
       СОВЕТЫ: "На что обратить внимание",
       ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА: "Ограничения анализа",
       ИТОГ: "Резюме для инвестора",
-      ЗЕЛЕНЫЕ_ФЛАГИ: "Позитивные сигналы",
-      КРАСНЫЕ_ФЛАГИ: "Негативные сигналы",
+      ЗЕЛЕНЫЕ_ФЛАГИ: "Позитивные факторы",
+      КРАСНЫЕ_ФЛАГИ: "Негативные факторы",
     },
     metrics: {
       total_score: "Итоговый скор",
@@ -790,7 +790,7 @@ const TEXTS = {
       rightTitle: "What the user gets",
       rightCards: [
         { title: "Score", copy: "One main score for quick orientation." },
-        { title: "Verdict", copy: "A short final assessment." },
+        { title: "Bottom line", copy: "A short factual summary of the data." },
         { title: "Metrics", copy: "Liquidity, profitability, debt load, and trend dynamics." },
         { title: "History", copy: "Saved analyses and favorite companies." },
       ],
@@ -927,8 +927,8 @@ const TEXTS = {
       СОВЕТЫ: "What to Pay Attention To",
       ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА: "Analysis Limitations",
       ИТОГ: "Executive Summary",
-      ЗЕЛЕНЫЕ_ФЛАГИ: "Positive Signals",
-      КРАСНЫЕ_ФЛАГИ: "Warning Signals",
+      ЗЕЛЕНЫЕ_ФЛАГИ: "Positive Factors",
+      КРАСНЫЕ_ФЛАГИ: "Negative Factors",
     },
     metrics: {
       total_score: "Total score",
@@ -1198,8 +1198,8 @@ const TEXTS = {
       СОВЕТЫ: "Nimaga e'tibor berish kerak",
       ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА: "Tahlil cheklovlari",
       ИТОГ: "Investor uchun xulosa",
-      ЗЕЛЕНЫЕ_ФЛАГИ: "Ijobiy signallar",
-      КРАСНЫЕ_ФЛАГИ: "Ogohlantiruvchi signallar",
+      ЗЕЛЕНЫЕ_ФЛАГИ: "Ijobiy omillar",
+      КРАСНЫЕ_ФЛАГИ: "Salbiy omillar",
     },
     metrics: {
       total_score: "Yakuniy baho",
@@ -6940,6 +6940,36 @@ function App() {
     });
   };
 
+  // Server-side comparison export (ТЗ §3.6 / §3.13) — Excel + PDF of the matrix.
+  const [exportingCompare, setExportingCompare] = useState("");
+  const handleCompareExport = async (kind) => {
+    if (!compareResult) return;
+    setExportingCompare(kind);
+    try {
+      const res = await apiFetch(`/api/compare/export/${kind}`, {
+        method: "POST",
+        body: JSON.stringify({ result: compareResult, language }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `comparison.${kind === "excel" ? "xlsx" : "pdf"}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      addToast(error.message, "error");
+    } finally {
+      setExportingCompare("");
+    }
+  };
+
   const handleCompareSubmit = async (event) => {
     event.preventDefault();
     if (!token) {
@@ -7101,9 +7131,18 @@ function App() {
       cards.push({ label, value, sub, tone });
     };
 
-    // Composite total_score / attractiveness grade removed for ТЗ compliance (2026-07-09).
-    const dcf = metrics.dcf || {};
-    push(t(language, "metrics.dcf"), dcf.intrinsic_value_bn ?? "—", dcf.verdict || dcf.signal || "", dcf.signal === "bullish" ? "good" : dcf.signal === "bearish" ? "danger" : "warning");
+    // Composite total_score / attractiveness grade and the DCF valuation card
+    // removed for ТЗ compliance: no directional/forecast signals, no DCF model
+    // in the served UI. Replaced with the factual EBITDA-margin metric (§3.3).
+    const inc = analysisResult?.ifrs_snapshot?.income_statement || {};
+    if (inc.ebitda_margin_pct !== undefined && inc.ebitda_margin_pct !== null) {
+      push(
+        language === "en" ? "EBITDA margin" : language === "uz" ? "EBITDA marjasi" : "Маржа EBITDA",
+        `${formatRatio(inc.ebitda_margin_pct, 1, language)}%`,
+        inc.debt_to_ebitda != null ? `${language === "en" ? "Debt/EBITDA" : "Долг/EBITDA"}: ${formatRatio(inc.debt_to_ebitda, 2, language)}×` : "",
+        inc.ebitda_margin_pct >= 15 ? "good" : inc.ebitda_margin_pct >= 5 ? "warning" : "danger"
+      );
+    }
     const industry = metrics.industry || {};
     push(
       t(language, "metrics.industry"),
@@ -8210,9 +8249,18 @@ function App() {
                     </div>
                     {compareMessage ? <span className="status-badge muted">{compareMessage}</span> : null}
                     {compareResult && !compareLoading && (
-                      <button className="ghost-btn result-export-btn no-print" type="button" onClick={() => window.print()}>
-                        {language === "en" ? "⤓ Download PDF" : language === "uz" ? "⤓ PDF yuklab olish" : "⤓ Скачать PDF"}
-                      </button>
+                      <div className="compare-export-actions no-print">
+                        <button className="ghost-btn result-export-btn" type="button" onClick={() => handleCompareExport("excel")} disabled={!!exportingCompare}>
+                          {exportingCompare === "excel"
+                            ? (language === "en" ? "Preparing…" : language === "uz" ? "Tayyorlanmoqda…" : "Готовим…")
+                            : (language === "en" ? "⤓ Download Excel" : language === "uz" ? "⤓ Excel yuklab olish" : "⤓ Скачать Excel")}
+                        </button>
+                        <button className="ghost-btn result-export-btn" type="button" onClick={() => handleCompareExport("pdf")} disabled={!!exportingCompare}>
+                          {exportingCompare === "pdf"
+                            ? (language === "en" ? "Preparing…" : language === "uz" ? "Tayyorlanmoqda…" : "Готовим…")
+                            : (language === "en" ? "⤓ Download PDF" : language === "uz" ? "⤓ PDF yuklab olish" : "⤓ Скачать PDF")}
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -8425,6 +8473,8 @@ function RiskProfilePanel({ analysisResult, language }) {
   if (!rp || !Array.isArray(rp.axes) || !rp.axes.length) return null;
   const title = RISK_PANEL_TITLE[language] || RISK_PANEL_TITLE.ru;
   const toneOf = (lvl) => (lvl === "high" ? "danger" : lvl === "medium" ? "warning" : lvl === "low" ? "good" : "neutral");
+  const dl = rp.debt_load;
+  const dlLabel = language === "en" ? "Debt load" : language === "uz" ? "Qarz yuki" : "Долговая нагрузка";
   return (
     <article className="panel bank-metrics-panel risk-profile-panel">
       <div className="panel-head">
@@ -8432,6 +8482,12 @@ function RiskProfilePanel({ analysisResult, language }) {
           <div className="panel-label">{title}</div>
           <h3>{title}</h3>
         </div>
+        {dl && (
+          <span className={`debt-load-badge tone-${dl.tone}`}>
+            {dlLabel}: <strong>{dl.label}</strong>
+            {dl.debt_to_ebitda != null ? ` · Долг/EBITDA ${dl.debt_to_ebitda}×` : dl.debt_to_equity != null ? ` · D/E ${dl.debt_to_equity}×` : ""}
+          </span>
+        )}
       </div>
       <div className="bank-metrics-grid risk-profile-grid">
         {rp.axes.map((ax) => (
@@ -8652,18 +8708,15 @@ function FinancialVisuals({ result, language, score }) {
   ].filter((row) => row.value !== null);
   const maxAbs = Math.max(1, ...rows.map((row) => Math.abs(row.value)));
 
-  const scoreValue = safeNumber(score);
-  const scoreValuePercent = scorePercent(scoreValue);
   const roePct = pickNumber(result?.ifrs_snapshot?.quality?.roe_pct, latestAnnual?.roe_pct);
   const netMarginPct = pickNumber(result?.ifrs_snapshot?.income_statement?.net_margin_pct, latestAnnual?.net_margin_pct);
   const debtToEquity = pickNumber(balance?.debt_to_equity, latestAnnual?.debt_to_equity);
+  const ebitdaMarginPct = pickNumber(income?.ebitda_margin_pct);
+  const debtToEbitda = pickNumber(income?.debt_to_ebitda);
+  // ТЗ compliance: the composite total_score ring is dropped (it's an
+  // attractiveness verdict). Rings show only factual ratios. EBITDA-margin and
+  // Debt/EBITDA appear only when the filing disclosed D&A (§3.3).
   const rings = [
-    {
-      label: vt(language, "totalScore"),
-      percent: scoreValuePercent,
-      display: scoreValue === null ? "—" : Math.round(scoreValue),
-      tone: scoreTone(scoreValue),
-    },
     {
       label: language === "en" ? "ROE" : language === "uz" ? "ROE" : "ROE",
       percent: roePct === null ? null : Math.min(100, Math.max(0, roePct / 30 * 100)),
@@ -8676,13 +8729,25 @@ function FinancialVisuals({ result, language, score }) {
       display: netMarginPct === null ? "—" : `${formatRatio(netMarginPct, 1, language)}%`,
       tone: netMarginPct === null ? "neutral" : netMarginPct >= 10 ? "good" : netMarginPct >= 3 ? "warning" : "danger",
     },
+    ebitdaMarginPct === null ? null : {
+      label: language === "en" ? "EBITDA margin" : language === "uz" ? "EBITDA marjasi" : "Маржа EBITDA",
+      percent: Math.min(100, Math.max(0, ebitdaMarginPct / 40 * 100)),
+      display: `${formatRatio(ebitdaMarginPct, 1, language)}%`,
+      tone: ebitdaMarginPct >= 15 ? "good" : ebitdaMarginPct >= 5 ? "warning" : "danger",
+    },
     {
       label: vt(language, "leverage"),
       percent: debtToEquity === null ? null : 100 / (1 + Math.max(0, debtToEquity)),
       display: debtToEquity === null ? "—" : `D/E ${formatRatio(debtToEquity, 2, language)}`,
       tone: debtToEquity === null ? "neutral" : debtToEquity <= 1 ? "good" : debtToEquity <= 2 ? "warning" : "danger",
     },
-  ];
+    debtToEbitda === null ? null : {
+      label: language === "en" ? "Debt/EBITDA" : language === "uz" ? "Qarz/EBITDA" : "Долг/EBITDA",
+      percent: Math.min(100, Math.max(0, 100 - debtToEbitda / 6 * 100)),
+      display: `${formatRatio(debtToEbitda, 2, language)}×`,
+      tone: debtToEbitda <= 2 ? "good" : debtToEbitda <= 4 ? "warning" : "danger",
+    },
+  ].filter(Boolean);
 
   return (
     <div className="financial-visual-grid">
