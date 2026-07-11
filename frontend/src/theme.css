@@ -197,6 +197,23 @@ body[data-theme="dark"] {
 .risk-drivers li { font-size: 12.5px; line-height: 1.4; color: var(--bm-text-muted, var(--muted)); }
 @media (max-width: 760px) { .risk-profile-grid { grid-template-columns: 1fr; } }
 
+/* 4-tier debt-load indicator (§3.3): Low / Moderate / High / Critical */
+.debt-load-badge {
+  font-size: 12.5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--muted);
+  color: var(--text);
+  white-space: nowrap;
+}
+.debt-load-badge.tone-good { border-color: var(--success); color: var(--success); }
+.debt-load-badge.tone-warning { border-color: var(--warning); color: var(--warning); }
+.debt-load-badge.tone-danger { border-color: var(--danger); color: var(--danger); }
+.debt-load-badge.tone-critical { border-color: #ef4444; background: rgba(239,68,68,0.12); color: #ef4444; font-weight: 600; }
+
+/* Comparison export buttons (§3.6 / §3.13) */
+.compare-export-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
 /* ── Statistical observations (§3.5) ───────────────────────────────────────── */
 .observations-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .observation-item {

@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_summary, report_disclaimer, run_company_analysis
+from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_comparison_excel, build_comparison_pdf, build_summary, report_disclaimer, run_company_analysis
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from openinfo_collector import collect_company_data, get_company_periods
 from reports_catalog import (
@@ -1120,6 +1120,56 @@ async def api_export_pdf(
     )
 
 
+@app.post("/api/compare/export/excel")
+async def api_compare_export_excel(
+    payload: ExcelExportRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> Response:
+    """Export a completed comparison result to .xlsx (ТЗ §3.6 / §3.13)."""
+    from datetime import datetime
+
+    try:
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(
+            None,
+            partial(build_comparison_excel, payload.result, payload.language, datetime.now()),
+        )
+    except Exception as exc:
+        logger.exception("compare excel export failed")
+        raise HTTPException(status_code=500, detail="Could not build the Excel file") from exc
+
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="comparison.xlsx"'},
+    )
+
+
+@app.post("/api/compare/export/pdf")
+async def api_compare_export_pdf(
+    payload: ExcelExportRequest,
+    current_user: WebUser = Depends(_require_user),
+) -> Response:
+    """Export a completed comparison result to PDF (ТЗ §3.6 / §3.13)."""
+    from datetime import datetime
+
+    try:
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(
+            None,
+            partial(build_comparison_pdf, payload.result, payload.language, datetime.now()),
+        )
+    except Exception as exc:
+        logger.exception("compare pdf export failed")
+        raise HTTPException(status_code=500, detail="Could not build the PDF file") from exc
+
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="comparison.pdf"'},
+    )
+
+
 @app.post("/api/analyze")
 async def api_analyze(
     payload: AnalyzeRequest,
@@ -1166,6 +1216,11 @@ async def api_analyze(
         "article_report_version": result.get("article_report_version"),
         "metrics": result.get("metrics"),
         "ifrs_snapshot": result.get("ifrs_snapshot"),
+        # ТЗ §3.4 / §3.5 — the risk profile and statistical observations are
+        # computed in the engine; forward them so the RiskProfilePanel and
+        # ObservationsPanel actually render on the Analysis screen.
+        "risk_profile": result.get("risk_profile"),
+        "observations": result.get("observations"),
         "liquidity": result.get("liquidity"),
         "market_data": result.get("market_data"),
         "market_context": result.get("market_context"),

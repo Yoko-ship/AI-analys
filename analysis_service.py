@@ -5556,10 +5556,41 @@ def _compute_risk_profile(ifrs_snapshot, metrics, liquidity, language):
     if not mkt:
         mkt.append(_risk_tr(lang, "Показатели ликвидности в норме", "Liquidity within the normal range", "Likvidlik me'yorida"))
 
+    # ---- debt-load indicator (ТЗ §3.3): 4 tiers Low/Moderate/High/Critical ----
+    inc = snap.get("income_statement") or {}
+    de_val = num(bs.get("debt_to_equity"))
+    dte_val = num(inc.get("debt_to_ebitda"))
+    debt_load = None
+    if de_val is not None or dte_val is not None:
+        # Take the worse of the two available signals. D/E thresholds 1/2/3.5;
+        # Debt/EBITDA thresholds 2/4/6 (the >4x "high leverage" convention).
+        tiers = []
+        if de_val is not None:
+            tiers.append(3 if de_val > 3.5 else 2 if de_val > 2 else 1 if de_val > 1 else 0)
+        if dte_val is not None and dte_val > 0:
+            tiers.append(3 if dte_val > 6 else 2 if dte_val > 4 else 1 if dte_val > 2 else 0)
+        tier = max(tiers) if tiers else 0
+        _DEBT_TIERS = {
+            "ru": ["Низкая", "Умеренная", "Высокая", "Критическая"],
+            "en": ["Low", "Moderate", "High", "Critical"],
+            "uz": ["Past", "O'rtacha", "Yuqori", "Kritik"],
+        }
+        _DEBT_TONE = ["good", "warning", "danger", "critical"]
+        labels = _DEBT_TIERS.get(lang, _DEBT_TIERS["ru"])
+        debt_load = {
+            "tier": tier,
+            "level": ["low", "moderate", "high", "critical"][tier],
+            "label": labels[tier],
+            "tone": _DEBT_TONE[tier],
+            "debt_to_equity": round(de_val, 2) if de_val is not None else None,
+            "debt_to_ebitda": round(dte_val, 2) if dte_val is not None else None,
+        }
+
     fin_lvl = _risk_level(fin_pts)
     mkt_lvl = _risk_level(mkt_pts)
     return {
         "version": 1,
+        "debt_load": debt_load,
         "axes": [
             {"key": "financial", "label": _risk_tr(lang, "Финансовый риск", "Financial risk", "Moliyaviy risk"),
              "level": fin_lvl, "level_label": levels[fin_lvl], "drivers": fin[:4]},
@@ -6702,6 +6733,139 @@ def _compare_one_company(query: str) -> dict:
     }
 
 
+def _comparison_matrix(result: dict):
+    """Flatten a /api/compare result into (fields, companies, cell-getter) for
+    export. Accepts either the full response or the inner `comparison` block."""
+    comp = result.get("comparison") if isinstance(result.get("comparison"), dict) else result
+    fields = comp.get("fields") or COMPARISON_FIELDS
+    rows = comp.get("rows") or []
+    companies = [
+        {"name": r.get("company_name") or r.get("input") or "—", "ticker": r.get("ticker") or "", "row": r}
+        for r in rows
+    ]
+    return fields, companies, comp
+
+
+def build_comparison_excel(result: dict, language: str = "ru", generated_at=None) -> bytes:
+    """Export a company comparison to .xlsx (ТЗ §3.6 / §3.13): sheet 1 = disclaimer
+    + meta, sheet 2 = metric × issuer matrix. Numbers stay numeric."""
+    from io import BytesIO
+    from datetime import datetime
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment
+
+    generated_at = generated_at or datetime.now()
+    lang = _normalize_language(language)
+    fields, companies, _comp = _comparison_matrix(result)
+    bold = Font(bold=True)
+
+    wb = Workbook()
+    ws0 = wb.active
+    ws0.title = _risk_tr(lang, "О документе", "About", "Hujjat haqida")
+    ws0.cell(row=1, column=1, value=_risk_tr(lang, "Сравнение эмитентов", "Issuer comparison", "Emitentlar taqqoslovi")).font = Font(bold=True, size=14)
+    ws0.cell(row=2, column=1, value=_risk_tr(lang, "Эмитенты", "Issuers", "Emitentlar") + ": " + ", ".join(c["name"] for c in companies))
+    ws0.cell(row=3, column=1, value=generated_at.strftime("%Y-%m-%d %H:%M"))
+    dcell = ws0.cell(row=5, column=1, value=report_disclaimer(lang))
+    dcell.alignment = Alignment(wrap_text=True, vertical="top")
+    ws0.column_dimensions["A"].width = 100
+
+    ws = wb.create_sheet(_risk_tr(lang, "Показатели", "Metrics", "Ko'rsatkichlar"))
+    ws.cell(row=1, column=1, value=_risk_tr(lang, "Показатель", "Metric", "Ko'rsatkich")).font = bold
+    for ci, comp_c in enumerate(companies, start=2):
+        header = comp_c["name"] + (f" ({comp_c['ticker']})" if comp_c["ticker"] else "")
+        ws.cell(row=1, column=ci, value=header).font = bold
+    for ri, field in enumerate(fields, start=2):
+        label = field.get("label") or field.get("key")
+        unit = field.get("unit")
+        ws.cell(row=ri, column=1, value=f"{label} ({unit})" if unit else label)
+        for ci, comp_c in enumerate(companies, start=2):
+            raw = comp_c["row"].get(field["key"])
+            num = _safe_float(raw)
+            ws.cell(row=ri, column=ci, value=num if num is not None else (raw if raw not in (None, "") else "—"))
+    ws.column_dimensions["A"].width = 34
+    for ci in range(2, len(companies) + 2):
+        ws.column_dimensions[chr(64 + ci) if ci <= 26 else "A"].width = 20
+
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def build_comparison_pdf(result: dict, language: str = "ru", generated_at=None) -> bytes:
+    """Render a company comparison to PDF (ТЗ §3.6 / §3.13): metric × issuer table,
+    comparative AI summary (if present), and the mandatory disclaimer."""
+    from io import BytesIO
+    from datetime import datetime
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+    generated_at = generated_at or datetime.now()
+    font, bold = _pdf_font()
+    lang = _normalize_language(language)
+    fields, companies, comp = _comparison_matrix(result)
+    styles = getSampleStyleSheet()
+    body = ParagraphStyle("body", parent=styles["Normal"], fontName=font, fontSize=8.5, leading=11)
+    cellb = ParagraphStyle("cellb", parent=body, fontName=bold)
+    h1 = ParagraphStyle("h1", parent=styles["Title"], fontName=bold, fontSize=16, leading=20, alignment=0)
+    h2 = ParagraphStyle("h2", parent=styles["Heading2"], fontName=bold, fontSize=11, leading=14, spaceBefore=10, spaceAfter=4)
+    muted = ParagraphStyle("muted", parent=body, textColor=colors.HexColor("#64748b"), fontSize=8)
+    disc = ParagraphStyle("disc", parent=body, textColor=colors.HexColor("#64748b"), fontSize=7.5, leading=10)
+
+    def esc(s):
+        s = "" if s is None else str(s)
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    def fmt(raw):
+        num = _safe_float(raw)
+        if num is None:
+            return esc(raw) if raw not in (None, "") else "—"
+        if abs(num) >= 1e9:
+            return f"{num / 1e9:.2f}B"
+        if abs(num) >= 1e6:
+            return f"{num / 1e6:.2f}M"
+        return f"{num:.2f}".rstrip("0").rstrip(".")
+
+    story = [Paragraph(_risk_tr(lang, "Сравнение эмитентов", "Issuer comparison", "Emitentlar taqqoslovi"), h1)]
+    story.append(Paragraph(", ".join(esc(c["name"]) for c in companies) + " · " + generated_at.strftime("%Y-%m-%d %H:%M"), muted))
+    story.append(Spacer(1, 8))
+
+    head = [Paragraph(_risk_tr(lang, "Показатель", "Metric", "Ko'rsatkich"), cellb)]
+    head += [Paragraph(esc(c["name"]) + (f"<br/>{esc(c['ticker'])}" if c["ticker"] else ""), cellb) for c in companies]
+    data = [head]
+    for field in fields:
+        label = field.get("label") or field.get("key")
+        unit = field.get("unit")
+        line = [Paragraph(esc(f"{label} ({unit})" if unit else label), body)]
+        line += [Paragraph(fmt(c["row"].get(field["key"])), body) for c in companies]
+        data.append(line)
+    col1 = 52 * mm
+    rest = (250 * mm - col1) / max(1, len(companies))
+    tbl = Table(data, colWidths=[col1] + [rest] * len(companies), repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.3, colors.HexColor("#e2e8f0")),
+        ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("ALIGN", (1, 0), (-1, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.append(tbl)
+
+    ai = (comp.get("comparative_ai_summary") or {}) if isinstance(comp, dict) else {}
+    if ai.get("text"):
+        story.append(Paragraph(_risk_tr(lang, "Comparative AI summary", "Comparative AI summary", "Comparative AI summary"), h2))
+        story.append(Paragraph(esc(str(ai["text"])[:3500]).replace("\n", "<br/>"), body))
+
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(esc(report_disclaimer(lang)), disc))
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=14 * mm, rightMargin=14 * mm, topMargin=14 * mm, bottomMargin=12 * mm, title="comparison")
+    doc.build(story)
+    return buf.getvalue()
+
+
 def build_company_comparison(
     companies: list[str],
     language: str = "ru",
@@ -6716,8 +6880,8 @@ def build_company_comparison(
         if value and key not in seen:
             cleaned.append(value)
             seen.add(key)
-    if not 2 <= len(cleaned) <= 3:
-        raise ValueError("Compare requires 2 or 3 unique companies")
+    if not 2 <= len(cleaned) <= 5:
+        raise ValueError("Compare requires 2 to 5 unique companies")
 
     rows = []
     errors = []

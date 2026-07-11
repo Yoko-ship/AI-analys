@@ -34,12 +34,12 @@ const ANALYZE = {
   sections: {},
   ifrs_snapshot: {
     series: { annual: [{ year: 2023, revenue: 8e9, net_income: 1.5e9, equity: 9e9, total_assets: 3e10, net_profit_margin: 18 }, { year: 2024, revenue: 9e9, net_income: 2e9, equity: 1e10, total_assets: 4e10, net_profit_margin: 22 }] },
-    income_statement: { revenue: 9e9, net_income: 2e9, ebit: 2.4e9, ebitda: 2.9e9, net_margin_pct: 22 },
+    income_statement: { revenue: 9e9, net_income: 2e9, ebit: 2.4e9, ebitda: 2.9e9, ebitda_margin_pct: 32.2, debt_to_ebitda: 1.8, net_margin_pct: 22 },
     balance_sheet: { total_assets: 4e10, equity: 1e10, debt_to_equity: 1.5, current_ratio: 1.2 },
     quality: { roe_pct: 20, roa_pct: 5, interest_coverage: 2.2, altman: { zone: "grey" }, piotroski: { score: 5, max: 9 } },
   },
   article_report: { meta: { company: "AGBA Bank", ticker: "AGBA" }, abstract: "Демо.", sections: [] },
-  risk_profile: { version: 1, axes: [
+  risk_profile: { version: 1, debt_load: { tier: 1, level: "moderate", label: "Умеренная", tone: "warning", debt_to_equity: 1.5, debt_to_ebitda: 1.8 }, axes: [
     { key: "financial", label: "Финансовый риск", level: "medium", level_label: "Средний", drivers: ["Altman в серой зоне", "Повышенный долг/капитал (1.5)"] },
     { key: "market", label: "Рыночный риск", level: "low", level_label: "Низкий", drivers: ["Показатели ликвидности в норме"] },
     { key: "informational", label: "Информационный риск", level: "na", level_label: "Недостаточно данных", drivers: ["Требуется модуль анализа новостей (§3.11)"] },
@@ -140,6 +140,10 @@ test("analysis renders the §3.4 risk profile", async ({ page }) => {
   await expect(page.locator(".risk-profile-panel")).toBeVisible({ timeout: 12000 });
   await expect(page.locator(".risk-profile-panel")).toContainText("Финансовый риск");
   await expect(page.locator(".risk-profile-panel")).toContainText("§3.11");
+  // §3.3 4-tier debt-load indicator (Low/Moderate/High/Critical)
+  await expect(page.locator(".debt-load-badge")).toContainText("Умеренная");
+  // §3.3 EBITDA margin surfaced as a factual metric ring
+  await expect(page.locator(".metric-rings-grid")).toContainText("Маржа EBITDA");
   // §3.5 statistical observations
   await expect(page.locator(".observations-panel")).toBeVisible();
   await expect(page.locator(".observations-panel")).toContainText("Одновременное ухудшение");
