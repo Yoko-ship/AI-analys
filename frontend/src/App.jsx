@@ -6388,6 +6388,7 @@ function App() {
   const [notifCount, setNotifCount] = useState(0);
   const [notifItems, setNotifItems] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [catalogStatus, setCatalogStatus] = useState(null);
   const [authTab, setAuthTab] = useState("login");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -7218,7 +7219,16 @@ function App() {
       <div className="bg-glow bg-glow-b" />
 
       <div className="app-shell">
-        <header className="topbar">
+        <header className={`topbar${mobileNavOpen ? " is-nav-open" : ""}`}>
+          <button
+            className="topbar-burger"
+            type="button"
+            aria-label={mobileNavOpen ? (language === "en" ? "Close menu" : language === "uz" ? "Menyuni yopish" : "Закрыть меню") : (language === "en" ? "Open menu" : language === "uz" ? "Menyuni ochish" : "Открыть меню")}
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen((v) => !v)}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+          </button>
           <div className="topbar-brand">
             <img src={logoIcon} alt="UZ Stock Analyzer" className="brand-icon" />
             <div className="brand-copy">
@@ -7227,9 +7237,10 @@ function App() {
             </div>
           </div>
 
+          <button className="topbar-nav-scrim" type="button" aria-hidden="true" tabIndex={-1} onClick={() => setMobileNavOpen(false)} />
           <nav className="topbar-nav">
             {navItems.map((key) => (
-              <button key={key} className={`topbar-nav-btn ${activeView === key ? "active" : ""}`} type="button" onClick={() => setActiveView(key)}>
+              <button key={key} className={`topbar-nav-btn ${activeView === key ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>
                 {key === "catalog" ? (
                   <span className="nav-catalog-wrap">
                     {t(language, "nav.catalog")}

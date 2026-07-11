@@ -223,3 +223,56 @@ body[data-theme="dark"] {
 .structure-bar-equity { fill: var(--accent); }
 .structure-bar-liab { fill: var(--warning); }
 .structure-year { fill: var(--muted); font-size: 12px; text-anchor: middle; }
+
+/* ── Mobile drawer navigation (§3.12) ──────────────────────────────────────── */
+.topbar-burger {
+  display: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel);
+  color: var(--text);
+  flex-shrink: 0;
+}
+.topbar-nav-scrim { display: none; }
+
+@media (max-width: 860px) {
+  .topbar-burger { display: inline-grid; }
+  .topbar .topbar-nav {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    width: min(80vw, 300px);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 72px 14px 20px;
+    margin: 0;
+    background: var(--panel-strong, var(--panel));
+    border-right: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-100%);
+    transition: transform 0.24s var(--ease-out, ease);
+    overflow-y: auto;
+    flex-wrap: nowrap;
+  }
+  .topbar.is-nav-open .topbar-nav { transform: translateX(0); }
+  .topbar.is-nav-open .topbar-nav-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(2, 6, 16, 0.45);
+    border: 0;
+    padding: 0;
+  }
+  .topbar .topbar-nav .topbar-nav-btn {
+    width: 100%;
+    text-align: left;
+    padding: 12px 14px;
+  }
+}
