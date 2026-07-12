@@ -1878,6 +1878,7 @@ const SECTOR_LABELS = {
   ru: {
     all: "Все",
     finance: "Финансы",
+    funds: "Фонды",
     manufacturing: "Производство",
     mining: "Добыча",
     transport: "Транспорт",
@@ -1889,6 +1890,7 @@ const SECTOR_LABELS = {
   en: {
     all: "All",
     finance: "Finance",
+    funds: "Funds",
     manufacturing: "Manufacturing",
     mining: "Mining",
     transport: "Transport",
@@ -1900,6 +1902,7 @@ const SECTOR_LABELS = {
   uz: {
     all: "Hammasi",
     finance: "Moliya",
+    funds: "Fondlar",
     manufacturing: "Ishlab chiqarish",
     mining: "Konchilik",
     transport: "Transport",
@@ -4036,7 +4039,7 @@ function MarketChangeBadge({ value, percent, language }) {
   );
 }
 
-const SECTOR_ORDER = ["finance", "energy", "manufacturing", "telecom", "mining", "transport", "other"];
+const SECTOR_ORDER = ["finance", "funds", "energy", "manufacturing", "telecom", "mining", "transport", "other"];
 
 function heatmapTileStyle(changePercent) {
   if (changePercent === null || !Number.isFinite(changePercent)) return {};

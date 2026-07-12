@@ -85,6 +85,8 @@ _TICKER_SECTORS: dict[str, str] = {
     "UTYK": "transport", "UVGT": "transport",
     "METQ": "other", "UQEQ": "other",
     "TGPG": "professional",
+    # Investment funds
+    "UZNF": "funds", "UZNFP": "funds",  # National Investment Fund of Uzbekistan
 }
 
 # Wikipedia search titles for known tickers
