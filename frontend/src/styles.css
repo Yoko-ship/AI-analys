@@ -7406,6 +7406,43 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 .heatmap-tree-label .htl-avg.tone-danger { color: var(--danger); }
 .heatmap-tree-label .htl-avg.tone-neutral{ color: var(--muted); }
 
+/* Share-class block header (Ordinary / Preferred): full-width strip above each block */
+.heatmap-group-label {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-primary, #e6e9ef);
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+}
+.heatmap-group-label .hgl-name { position: relative; padding-left: 13px; }
+.heatmap-group-label .hgl-name::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: var(--accent, #6aa9ff);
+}
+.heatmap-group-label.is-preferred .hgl-name::before { background: #f5a623; }
+.heatmap-group-label .htl-avg { opacity: 0.95; font-weight: 700; }
+.heatmap-group-label .htl-avg.tone-good   { color: var(--success); }
+.heatmap-group-label .htl-avg.tone-danger { color: var(--danger); }
+.heatmap-group-label .htl-avg.tone-neutral{ color: var(--muted); }
+
 /* Individual stock tile */
 .heatmap-tree-tile {
   position: absolute;
