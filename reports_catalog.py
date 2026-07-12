@@ -1949,6 +1949,24 @@ def get_sector_averages(sector_tickers: list[str], form: str, year: int) -> dict
     }
 
 
+def get_recent_new_reports(since_days: int = 120, limit: int = 80) -> list[dict[str, Any]]:
+    """Recently detected new report filings across every ticker — the source for
+    the public market-news feed (ТЗ §3.2 item 6)."""
+    conn = get_catalog_conn()
+    rows = conn.execute(
+        """
+        SELECT ticker, report_form, period_type, year, quarter, title, detected_at
+        FROM catalog_new_reports
+        WHERE detected_at >= datetime('now', ?)
+        ORDER BY detected_at DESC
+        LIMIT ?
+        """,
+        (f"-{max(1, since_days)} days", max(1, limit)),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def get_new_reports_for_tickers(tickers: list[str], since_days: int = 7) -> list[dict[str, Any]]:
     """Return recently detected new reports for the given tickers (used for notifications)."""
     if not tickers:

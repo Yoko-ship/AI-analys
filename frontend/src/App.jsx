@@ -9,6 +9,7 @@ const VIEW_PATHS = {
   market: "/market",
   heatmap: "/heatmap",
   catalog: "/catalog",
+  news: "/news",
   analysis: "/analysis",
   compare: "/compare",
   reference: "/reference",
@@ -186,6 +187,179 @@ const TRADING_SCHEDULE = {
     "Типы заявок: лимитные, рыночные (только для акций) и переговорные.",
   ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// News (ТЗ §3.2, item 6) — market-news section built to the hero-lead + card-grid
+// pattern that professional financial-news sites (Bloomberg / Reuters) converge on:
+// one large lead story, a grid of secondary items, a compact "latest" rail, with
+// functional category tags, timestamps and a strong headline hierarchy. Content is
+// real, dated market events from /api/news (filings + listing/delisting), not the
+// editorial AI-news module (§3.11, out of scope).
+// ─────────────────────────────────────────────────────────────────────────────
+const NEWS_TX = {
+  ru: {
+    eyebrow: "Рынок · Лента событий", title: "Новости рынка",
+    subtitle: "События эмитентов РФБ «Тошкент»: раскрытие отчётности, листинг и делистинг — в одной хронологической ленте.",
+    latest: "Лента событий", empty: "Пока нет свежих событий рынка. Загляните позже.",
+    loadingText: "Загружаем ленту…", error: "Не удалось загрузить новости.",
+    footnote: "Лента формируется автоматически из событий раскрытия и торгов РФБ «Тошкент». Это фактические события рынка, а не редакционные материалы.",
+    cat: { report: "Отчётность", listing: "Листинг", delisting: "Делистинг" },
+    forms: { NAS: "НСБУ", NSBU: "НСБУ", IFRS: "МСФО", MSFO: "МСФО", Audit: "Аудит", Audition: "Аудит" },
+  },
+  en: {
+    eyebrow: "Market · Live feed", title: "Market News",
+    subtitle: "Events from RSE «Toshkent» issuers — financial filings, listings and delistings — in a single chronological feed.",
+    latest: "Latest events", empty: "No recent market events yet. Check back soon.",
+    loadingText: "Loading the feed…", error: "Could not load the news feed.",
+    footnote: "This feed is compiled automatically from RSE «Toshkent» disclosure and trading events. These are factual market events, not editorial coverage.",
+    cat: { report: "Filing", listing: "Listing", delisting: "Delisting" },
+    forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
+  },
+  uz: {
+    eyebrow: "Bozor · Jonli lenta", title: "Bozor yangiliklari",
+    subtitle: "«Toshkent» RFB emitentlari voqealari: hisobot, listing va delisting — yagona xronologik lentada.",
+    latest: "So'nggi voqealar", empty: "Hozircha yangi voqealar yo'q. Keyinroq qayting.",
+    loadingText: "Lenta yuklanmoqda…", error: "Yangiliklarni yuklab bo'lmadi.",
+    footnote: "Lenta «Toshkent» RFB oshkoralik va savdo voqealaridan avtomatik shakllanadi. Bu tahririy emas, faktik bozor voqealari.",
+    cat: { report: "Hisobot", listing: "Listing", delisting: "Delisting" },
+    forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
+  },
+};
+
+function newsPeriod(item, language) {
+  if (item.year == null) return "";
+  if (item.quarter && item.quarter > 0) {
+    return language === "en" ? `Q${item.quarter} ${item.year}` : language === "uz" ? `${item.year} ${item.quarter}-chorak` : `${item.quarter} кв. ${item.year}`;
+  }
+  return language === "en" ? `FY ${item.year}` : language === "uz" ? `${item.year}-yil` : `${item.year} год`;
+}
+
+function newsHeadline(item, language, tx) {
+  const company = item.company || item.ticker || "";
+  if (item.type === "listing") {
+    const suffix = item.ticker ? ` (${item.ticker})` : "";
+    return language === "en" ? `New listing: ${company}${suffix}` : language === "uz" ? `Yangi listing: ${company}${suffix}` : `Новый листинг: ${company}${suffix}`;
+  }
+  if (item.type === "delisting") {
+    return language === "en" ? `${company} drops off active trading` : language === "uz" ? `${company} faol savdodan chiqdi` : `${company}: нет активных торгов`;
+  }
+  const form = (item.report_form && tx.forms[item.report_form]) || item.report_form || "";
+  const period = newsPeriod(item, language);
+  if (language === "en") return `${company} files ${form} report${period ? ` for ${period}` : ""}`.replace(/\s+/g, " ").trim();
+  if (language === "uz") return `${company} ${form} hisobotini e'lon qildi${period ? ` (${period})` : ""}`.replace(/\s+/g, " ").trim();
+  return `${company}: раскрыт отчёт ${form}${period ? ` за ${period}` : ""}`.replace(/\s+/g, " ").trim();
+}
+
+function newsDek(item, language) {
+  if (item.type === "listing") {
+    return language === "en" ? "Newly admitted to trading on the exchange." : language === "uz" ? "Birjada savdoga yangi kiritildi." : "Новая бумага допущена к торгам на бирже.";
+  }
+  if (item.type === "delisting") {
+    return language === "en" ? "No recent trades — a possible delisting." : language === "uz" ? "So'nggi savdolar yo'q — delisting ehtimoli." : "Давно нет сделок — возможен делистинг.";
+  }
+  return language === "en" ? "Financial statements disclosed on the exchange." : language === "uz" ? "Moliyaviy hisobot birjada e'lon qilindi." : "Финансовая отчётность раскрыта на бирже.";
+}
+
+function newsRelTime(dateStr, language) {
+  if (!dateStr) return "";
+  const d = new Date(String(dateStr).replace(" ", "T"));
+  if (isNaN(d.getTime())) return String(dateStr);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  const loc = language === "en" ? "en-US" : "ru-RU";
+  if (diff < 3600) { const m = Math.max(1, Math.floor(diff / 60)); return language === "en" ? `${m}m ago` : language === "uz" ? `${m} daq oldin` : `${m} мин назад`; }
+  if (diff < 86400) { const h = Math.floor(diff / 3600); return language === "en" ? `${h}h ago` : language === "uz" ? `${h} soat oldin` : `${h} ч назад`; }
+  if (diff < 86400 * 7) { const dd = Math.floor(diff / 86400); return language === "en" ? `${dd}d ago` : language === "uz" ? `${dd} kun oldin` : `${dd} дн назад`; }
+  return d.toLocaleDateString(loc, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function NewsCard({ item, language, tx, variant, onOpen }) {
+  const open = () => { if (item.ticker) onOpen(item.ticker); };
+  const cls = variant === "lead" ? "news-lead" : "news-card";
+  const TitleTag = variant === "lead" ? "h2" : "h3";
+  return (
+    <article className={`${cls} cat-${item.type}`} role="button" tabIndex={0}
+      onClick={open} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}>
+      <div className="news-meta">
+        <span className={`news-tag cat-${item.type}`}>{tx.cat[item.type] || tx.cat.report}</span>
+        <span className="news-time">{newsRelTime(item.date, language)}</span>
+      </div>
+      <TitleTag className={variant === "lead" ? "news-lead-title" : "news-card-title"}>{newsHeadline(item, language, tx)}</TitleTag>
+      <p className={variant === "lead" ? "news-lead-dek" : "news-card-dek"}>{newsDek(item, language)}</p>
+      {item.ticker && <span className="news-ticker">{item.ticker}</span>}
+    </article>
+  );
+}
+
+function NewsView({ language, onOpenCompany }) {
+  const tx = NEWS_TX[language] || NEWS_TX.ru;
+  const [state, setState] = React.useState({ loading: true, error: false, items: [] });
+  React.useEffect(() => {
+    let alive = true;
+    setState({ loading: true, error: false, items: [] });
+    fetch("/api/news?limit=60")
+      .then((r) => r.json())
+      .then((d) => { if (alive) setState({ loading: false, error: !d?.ok, items: d?.items || [] }); })
+      .catch(() => { if (alive) setState({ loading: false, error: true, items: [] }); });
+    return () => { alive = false; };
+  }, []);
+
+  const onOpen = (ticker) => { if (ticker && onOpenCompany) onOpenCompany(ticker); };
+  const { loading, error, items } = state;
+  const lead = items[0];
+  const secondary = items.slice(1, 7);
+
+  return (
+    <div className="news-view">
+      <header className="news-masthead">
+        <div className="news-eyebrow">{tx.eyebrow}</div>
+        <h1 className="news-title">{tx.title}</h1>
+        <p className="news-subtitle">{tx.subtitle}</p>
+      </header>
+
+      {loading ? (
+        <div className="news-layout">
+          <div className="news-main">
+            <div className="news-skel news-skel-lead" />
+            <div className="news-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="news-skel news-skel-card" />)}</div>
+          </div>
+          <aside className="news-rail">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="news-skel news-skel-row" />)}</aside>
+        </div>
+      ) : error ? (
+        <div className="news-empty">{tx.error}</div>
+      ) : !items.length ? (
+        <div className="news-empty">{tx.empty}</div>
+      ) : (
+        <div className="news-layout">
+          <div className="news-main">
+            {lead && <NewsCard item={lead} language={language} tx={tx} variant="lead" onOpen={onOpen} />}
+            {secondary.length > 0 && (
+              <div className="news-grid">
+                {secondary.map((it, i) => <NewsCard key={i} item={it} language={language} tx={tx} variant="card" onOpen={onOpen} />)}
+              </div>
+            )}
+          </div>
+          <aside className="news-rail">
+            <div className="news-rail-head">{tx.latest}</div>
+            <ul className="news-rail-list">
+              {items.slice(0, 16).map((it, i) => (
+                <li key={i} className="news-rail-item" role="button" tabIndex={0}
+                  onClick={() => onOpen(it.ticker)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(it.ticker); } }}>
+                  <span className={`news-dot cat-${it.type}`} />
+                  <div className="news-rail-body">
+                    <div className="news-rail-title">{newsHeadline(it, language, tx)}</div>
+                    <div className="news-rail-time"><span className={`news-tag-mini cat-${it.type}`}>{tx.cat[it.type] || tx.cat.report}</span>{newsRelTime(it.date, language)}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        </div>
+      )}
+
+      <p className="news-footnote">{tx.footnote}</p>
+    </div>
+  );
+}
 
 function ReferenceView({ language }) {
   const [tab, setTab] = React.useState("glossary");
@@ -404,7 +578,7 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "Платформа для анализа компаний Узбекистана",
-    nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ", catalog: "Каталог", reference: "Справочник" },
+    nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ", catalog: "Каталог", reference: "Справочник", news: "Новости" },
     catalog: {
       title: "Каталог отчётности",
       subtitle: "Все доступные отчёты листинговых компаний с openinfo.uz",
@@ -676,7 +850,7 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "Company analysis platform for Uzbekistan",
-    nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis", catalog: "Catalog", reference: "Reference" },
+    nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis", catalog: "Catalog", reference: "Reference", news: "News" },
     catalog: {
       title: "Report Catalog",
       subtitle: "All available reports of listed companies from openinfo.uz",
@@ -947,7 +1121,7 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "O'zbekiston kompaniyalarini tahlil qilish platformasi",
-    nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil", catalog: "Katalog", reference: "Ma'lumotnoma" },
+    nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil", catalog: "Katalog", reference: "Ma'lumotnoma", news: "Yangiliklar" },
     catalog: {
       title: "Hisobotlar katalogi",
       subtitle: "openinfo.uz'dan barcha ro'yxatga olingan kompaniyalarning hisobotlari",
@@ -4116,6 +4290,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
     { label: "6М", months: 6 },
     { label: "1Г", months: 12 },
     { label: "2Г", months: 24 },
+    { label: "5Л", months: 60 },
   ];
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [hover, setHover] = React.useState(null);
@@ -4162,6 +4337,10 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   const fmtDate = (d, withYear) => d
     ? new Date(d).toLocaleDateString(dateLocale, withYear ? { year: "2-digit", month: "short", day: "numeric" } : { month: "short", day: "numeric" })
     : "";
+  // Multi-year ranges show "mon 'yy" on the axis (day-of-month is noise at monthly/quarterly buckets).
+  const fmtAxis = (d) => d
+    ? (months >= 24 ? new Date(d).toLocaleDateString(dateLocale, { year: "2-digit", month: "short" }) : fmtDate(d))
+    : "";
   const abbrev = (v) => v == null ? "—" : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : `${Math.round(v)}`;
   const fmtFull = (v) => v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 });
 
@@ -4174,29 +4353,50 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   const volBot = H - PAD.bottom;
   const innerW = W - PAD.left - PAD.right;
 
-  // Candles are the primary view. Daily OHLC is aggregated into weekly-ish
-  // buckets so bars are wide and readable (~40 candles) rather than ~240 slivers.
+  // Candles are the primary view. The UZSE feed is daily-only (no intraday
+  // ticks), so bars can only be rolled *up*: the interval follows the selected
+  // range — daily for short spans, then calendar week / month / quarter — so
+  // bars stay wide and readable instead of hundreds of daily slivers.
   const hasOHLC = daily.every((p) => p.open > 0 && p.high > 0 && p.low > 0);
-  const aggregate = (arr, size) => {
-    if (size <= 1) return arr;
-    const out = [];
-    for (let i = 0; i < arr.length; i += size) {
-      const b = arr.slice(i, i + size);
-      out.push({
-        date: b[b.length - 1].date,
-        open: b[0].open,
-        high: Math.max(...b.map((p) => p.high)),
-        low: Math.min(...b.map((p) => p.low)),
-        close: b[b.length - 1].close,
-        volume: b.reduce((s, p) => s + (p.volume || 0), 0),
-        change: null,
-      });
-    }
-    return out;
+  const bucketKind = months <= 6 ? "day" : months <= 12 ? "week" : months <= 24 ? "month" : "quarter";
+  const intervalLabel = {
+    day: t("дневные", "kunlik", "daily"),
+    week: t("недельные", "haftalik", "weekly"),
+    month: t("месячные", "oylik", "monthly"),
+    quarter: t("квартальные", "choraklik", "quarterly"),
+  }[bucketKind];
+  // Bucket key for a date under the chosen interval. daily points arrive sorted
+  // ascending, so a Map keyed this way yields buckets in chronological order.
+  const periodKey = (d) => {
+    const dt = new Date(d);
+    const y = dt.getFullYear();
+    if (bucketKind === "month") return `${y}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+    if (bucketKind === "quarter") return `${y}-Q${Math.floor(dt.getMonth() / 3)}`;
+    // ISO week: Thursday-of-week decides the owning year/week number.
+    const thu = new Date(Date.UTC(y, dt.getMonth(), dt.getDate()));
+    thu.setUTCDate(thu.getUTCDate() - ((thu.getUTCDay() + 6) % 7) + 3);
+    const firstThu = new Date(Date.UTC(thu.getUTCFullYear(), 0, 4));
+    const week = 1 + Math.round(((thu - firstThu) / 864e5 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
+    return `${thu.getUTCFullYear()}-W${week}`;
   };
-  const TARGET_CANDLES = 46;
-  const bucket = Math.max(1, Math.ceil(daily.length / TARGET_CANDLES));
-  const candles = hasOHLC ? aggregate(daily, bucket) : daily;
+  const aggregate = (arr) => {
+    if (bucketKind === "day") return arr;
+    const groups = new Map();
+    for (const p of arr) {
+      const k = periodKey(p.date);
+      (groups.get(k) || groups.set(k, []).get(k)).push(p);
+    }
+    return Array.from(groups.values()).map((b) => ({
+      date: b[b.length - 1].date,
+      open: b[0].open,
+      high: Math.max(...b.map((p) => p.high)),
+      low: Math.min(...b.map((p) => p.low)),
+      close: b[b.length - 1].close,
+      volume: b.reduce((s, p) => s + (p.volume || 0), 0),
+      change: null,
+    }));
+  };
+  const candles = hasOHLC ? aggregate(daily) : daily;
   const canCandle = hasOHLC;
   const showCandles = chartType === "candle" && canCandle;
   const points = showCandles ? candles : daily;
@@ -4244,7 +4444,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   const xLabels = points
     .map((p, i) => ({ i, p }))
     .filter(({ i }) => i % xStep === 0 || i === points.length - 1)
-    .map(({ i, p }) => ({ x: xs(i), label: fmtDate(p.date) }));
+    .map(({ i, p }) => ({ x: xs(i), label: fmtAxis(p.date) }));
 
   const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -4268,6 +4468,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
           {canCandle && (
             <button type="button" className={`chart-opt-btn ${showCandles ? "active" : ""}`} onClick={() => setChartType("candle")}>{t("Свечи", "Shamlar", "Candles")}</button>
           )}
+          {showCandles && <span className="chart-interval-tag" title={t("Интервал одной свечи", "Bitta shamning oralig'i", "Interval per candle")}>{intervalLabel}</span>}
           <span className="chart-opt-sep" />
           <button type="button" className={`chart-opt-btn chart-ma-ma20 ${maOn.ma20 ? "active" : ""}`} disabled={points.length < 20} onClick={() => setMaOn((s) => ({ ...s, ma20: !s.ma20 }))}>MA20</button>
           <button type="button" className={`chart-opt-btn chart-ma-ma50 ${maOn.ma50 ? "active" : ""}`} disabled={points.length < 50} onClick={() => setMaOn((s) => ({ ...s, ma50: !s.ma50 }))}>MA50</button>
@@ -7246,8 +7447,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "heatmap", "catalog", "reference", "profile", "analysis", "compare"]
-    : ["main", "market", "heatmap", "catalog", "reference", "auth", "analysis", "compare"];
+    ? ["main", "market", "heatmap", "catalog", "news", "reference", "profile", "analysis", "compare"]
+    : ["main", "market", "heatmap", "catalog", "news", "reference", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -7474,6 +7675,8 @@ function App() {
           )}
 
           {activeView === "reference" && <ReferenceView language={language} />}
+
+          {activeView === "news" && <NewsView language={language} onOpenCompany={openCompanyPage} />}
 
           {activeView === "company" && companyTicker && (
             <CompanyPage

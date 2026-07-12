@@ -41,6 +41,7 @@ from reports_catalog import (
     bulk_upsert_listings,
     refresh_financials_cache,
     get_new_reports_for_tickers,
+    get_recent_new_reports,
     get_report_urls,
     get_sector_averages,
     list_companies_with_stats,
@@ -746,6 +747,70 @@ async def api_listings_feed(inactive_days: int = 30) -> dict[str, Any]:
     return _json_safe({"ok": True, "count": len(items), "listed": listed, "inactive": inactive, "inactive_days": inactive_days})
 
 
+@app.get("/api/news")
+async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
+    """Public market-news feed (ТЗ §3.2, item 6). A single dated timeline of real
+    market events — new report filings + listing / delisting — so the News section
+    has genuine content. (Editorial news aggregation with AI sentiment is the
+    separate §3.11 module and stays out of scope.) Items carry structured fields;
+    the client composes the localized headline."""
+    from datetime import datetime, timedelta
+
+    loop = asyncio.get_running_loop()
+    try:
+        reports, listings = await asyncio.gather(
+            loop.run_in_executor(None, partial(get_recent_new_reports, max(1, days), max(1, limit))),
+            loop.run_in_executor(None, get_all_listings),
+        )
+    except Exception as exc:
+        logger.exception("news feed read failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    items: list[dict[str, Any]] = []
+    for r in reports or []:
+        tk = r.get("ticker")
+        items.append({
+            "type": "report",
+            "ticker": tk,
+            "company": _TICKER_TO_NAME.get(tk, tk),
+            "report_form": r.get("report_form"),
+            "period_type": r.get("period_type"),
+            "year": r.get("year"),
+            "quarter": r.get("quarter"),
+            "title": r.get("title"),
+            "date": r.get("detected_at"),
+        })
+
+    listing_map = listings or {}
+    listed = sorted(
+        ((tk, l) for tk, l in listing_map.items() if l.get("listing_date")),
+        key=lambda kv: kv[1]["listing_date"], reverse=True,
+    )[:20]
+    for tk, l in listed:
+        items.append({
+            "type": "listing", "ticker": tk, "company": l.get("name") or tk,
+            "share_type": l.get("share_type"), "market_cap": l.get("market_cap"),
+            "date": l.get("listing_date"),
+        })
+
+    cutoff = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
+    delisted = sorted(
+        ((tk, l) for tk, l in listing_map.items()
+         if l.get("last_trade_date") and l["last_trade_date"] < cutoff),
+        key=lambda kv: kv[1]["last_trade_date"], reverse=True,
+    )[:12]
+    for tk, l in delisted:
+        items.append({
+            "type": "delisting", "ticker": tk, "company": l.get("name") or tk,
+            "date": l.get("last_trade_date"),
+        })
+
+    # Unified timeline, newest first. Mixed "YYYY-MM-DD[ HH:MM:SS]" formats sort
+    # correctly lexically; dateless items fall to the end.
+    items.sort(key=lambda i: (i.get("date") or ""), reverse=True)
+    return _json_safe({"ok": True, "count": len(items), "items": items[: max(1, limit)]})
+
+
 @app.post("/api/admin/trade-stats")
 async def api_admin_trade_stats(
     payload: AdminTradeStatsRequest,
@@ -1422,7 +1487,7 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
     from openinfo_collector import fetch_price_history
 
     ticker = ticker.upper()
-    months = max(1, min(months, 36))
+    months = max(1, min(months, 60))
     loop = asyncio.get_running_loop()
     try:
         uzse_base = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")

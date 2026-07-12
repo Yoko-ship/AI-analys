@@ -68,6 +68,11 @@ async function mockApi(page) {
     if (p === "/api/auth/me") return j({ user: null }, 401);
     if (p === "/api/notifications") return j({ count: 0, notifications: [] });
     if (p === "/api/catalog/status") return j({ last_sync: null });
+    if (p === "/api/news") return j({ ok: true, count: 3, items: [
+      { type: "report", ticker: "AGBA", company: "AGBA Bank", report_form: "NAS", period_type: "annual", year: 2025, quarter: 0, date: "2026-07-10 09:40:00" },
+      { type: "listing", ticker: "NSTK", company: "Navoiy Sanoat", share_type: "ORD", date: "2026-07-08" },
+      { type: "delisting", ticker: "OLDZ", company: "Eski Zavod", date: "2026-04-30" },
+    ] });
     return j({});
   });
 }
@@ -112,6 +117,17 @@ test("navigating to Анализ shows the analysis form", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Анализ", exact: true }).click();
   await expect(page.locator(".analysis-form-modern").first()).toBeVisible();
+});
+
+test("Новости renders the market-news feed (§3.2)", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Новости", exact: true }).click();
+  await expect(page.locator(".news-masthead")).toContainText("Новости рынка");
+  // hero lead + category tags + rail
+  await expect(page.locator(".news-lead")).toBeVisible();
+  await expect(page.locator(".news-lead")).toContainText("AGBA Bank");
+  await expect(page.locator(".news-tag.cat-listing").first()).toBeVisible();
+  await expect(page.locator(".news-rail")).toBeVisible();
 });
 
 test("Рынок shows §3.8 multiplier columns and exports CSV", async ({ page }) => {
