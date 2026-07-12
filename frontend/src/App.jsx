@@ -4120,37 +4120,59 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
 
   const companyMap = {};
   (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
-  const sectorOf = (t) => companyMap[t]?.sector || securitiesMap?.[t]?.sector || "other";
+  // Fold any sector outside SECTOR_ORDER (e.g. "trade", "professional") into the
+  // "other" catch-all — otherwise the SECTOR_ORDER filter below drops those tiles.
+  const KNOWN_SECTORS = new Set(SECTOR_ORDER);
+  const sectorOf = (t) => {
+    const s = companyMap[t]?.sector || securitiesMap?.[t]?.sector || "other";
+    return KNOWN_SECTORS.has(s) ? s : "other";
+  };
+  const isPreferredRow = (row) =>
+    securitiesMap?.[row.ticker]?.is_preferred === true ||
+    securitiesMap?.[row.ticker]?.share_type === "preferred" ||
+    row.share_type === "preferred";
 
-  // Group rows by sector
-  const sectorGroups = {};
-  rows.forEach((row) => { (sectorGroups[sectorOf(row.ticker)] ||= []).push(row); });
-
-  // Tile weight = compressed (sqrt) volume, floored so thin movers stay visible
+  // Tile weight = compressed (sqrt) volume, floored so thin movers stay visible.
+  // The floor is global (over every row) so a tile's area means the same amount
+  // of traded value in the ordinary block and the preferred block alike.
   const rawWeight = (r) => Math.sqrt(Math.max(r.stockVolume || 0, 1));
   const maxRaw = Math.max(1, ...rows.map(rawWeight));
   const floor = maxRaw * 0.05;
   const weight = (r) => Math.max(rawWeight(r), floor);
 
-  Object.values(sectorGroups).forEach((g) => g.sort((a, b) => weight(b) - weight(a)));
-  const orderedSectors = SECTOR_ORDER.filter((s) => sectorGroups[s]?.length);
-
   const formatPct = (pct) => {
     if (pct === null || !Number.isFinite(pct)) return "—";
     return `${pct > 0 ? "+" : ""}${formatRatio(pct, 2, lang)}%`;
   };
+  const avgOf = (rs) => {
+    const c = rs.filter((r) => Number.isFinite(r.changePercent));
+    return c.length ? c.reduce((a, r) => a + r.changePercent, 0) / c.length : null;
+  };
 
-  // Two-level squarified layout: sectors fill the canvas, stocks fill each sector.
-  let layout = [];
-  if (size.w > 12 && size.h > 12) {
+  // Top level splits share class (ordinary vs preferred); each block is then the
+  // usual sector→stock treemap. Blocks stack vertically; heights are ∝ traded
+  // weight but clamped so the (usually thinner) preferred block stays readable.
+  const GROUP_ORDER = ["ordinary", "preferred"];
+  const rowsByGroup = { ordinary: [], preferred: [] };
+  rows.forEach((row) => { rowsByGroup[isPreferredRow(row) ? "preferred" : "ordinary"].push(row); });
+  const groups = GROUP_ORDER
+    .map((key) => ({ key, rows: rowsByGroup[key] }))
+    .filter((g) => g.rows.length);
+
+  const HEADER = 17;   // sector header strip
+  const GHEADER = 22;  // share-class block header strip
+  const buildSectors = (groupRows, bodyY, bodyH) => {
+    const sectorGroups = {};
+    groupRows.forEach((row) => { (sectorGroups[sectorOf(row.ticker)] ||= []).push(row); });
+    Object.values(sectorGroups).forEach((g) => g.sort((a, b) => weight(b) - weight(a)));
+    const orderedSectors = SECTOR_ORDER.filter((s) => sectorGroups[s]?.length);
     const sectorItems = orderedSectors.map((s) => ({
       sector: s,
       rows: sectorGroups[s],
       value: sectorGroups[s].reduce((sum, r) => sum + weight(r), 0),
     }));
-    const sectorRects = squarifyTreemap(sectorItems, 0, 0, size.w, size.h);
-    const HEADER = 17;
-    layout = sectorRects.map((sr) => {
+    const sectorRects = squarifyTreemap(sectorItems, 0, bodyY, size.w, bodyH);
+    return sectorRects.map((sr) => {
       const header = sr.h > 48 && sr.w > 64;
       const hdr = header ? HEADER : 0;
       const stocks = squarifyTreemap(
@@ -4159,7 +4181,35 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
       );
       return { sector: sr.sector, rect: sr, header, headerH: HEADER, stocks };
     });
+  };
+
+  let layout = [];
+  if (size.w > 12 && size.h > 12 && groups.length) {
+    const showBlockHeaders = groups.length > 1;
+    const bodyTotal = size.h - (showBlockHeaders ? GHEADER * groups.length : 0);
+    groups.forEach((g) => { g.weight = g.rows.reduce((s, r) => s + weight(r), 0); });
+    const totalW = groups.reduce((s, g) => s + g.weight, 0) || 1;
+    let fracs = groups.map((g) => g.weight / totalW);
+    if (groups.length > 1) {
+      fracs = fracs.map((f) => Math.min(0.72, Math.max(0.28, f)));
+      const fsum = fracs.reduce((a, b) => a + b, 0);
+      fracs = fracs.map((f) => f / fsum);
+    }
+    let y = 0;
+    layout = groups.map((g, gi) => {
+      const gh = showBlockHeaders ? GHEADER : 0;
+      const headerRect = { x: 0, y, w: size.w, h: gh };
+      const bodyY = y + gh;
+      const bodyH = fracs[gi] * bodyTotal;
+      const sectors = buildSectors(g.rows, bodyY, bodyH);
+      y = bodyY + bodyH;
+      return { key: g.key, showHeader: showBlockHeaders, headerRect, avg: avgOf(g.rows), sectors };
+    });
   }
+
+  const groupLabel = (key) => key === "preferred"
+    ? (lang === "ru" ? "Привилегированные" : lang === "uz" ? "Imtiyozli aksiyalar" : "Preferred")
+    : (lang === "ru" ? "Обыкновенные" : lang === "uz" ? "Oddiy aksiyalar" : "Ordinary");
 
   const GAP = 1.5;
   const LEGEND_STOPS = [
@@ -4185,50 +4235,63 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
       </div>
 
       <div className="heatmap-tree" ref={wrapRef}>
-        {layout.map((sec) => {
-          const label = sectorLabel(lang, sec.sector);
-          const withChange = sec.stocks.filter((s) => Number.isFinite(s.row.changePercent));
-          const avg = withChange.length ? withChange.reduce((a, s) => a + s.row.changePercent, 0) / withChange.length : null;
-          return (
-            <React.Fragment key={sec.sector}>
-              {sec.header && (
-                <div className="heatmap-tree-label" style={{ left: sec.rect.x, top: sec.rect.y, width: sec.rect.w, height: sec.headerH }}>
-                  <span>{label}</span>
-                  {avg !== null && (
-                    <span className={`htl-avg tone-${avg > 0.1 ? "good" : avg < -0.1 ? "danger" : "neutral"}`}>{formatPct(avg)}</span>
+        {layout.map((group) => (
+          <React.Fragment key={group.key}>
+            {group.showHeader && (
+              <div className={`heatmap-group-label is-${group.key}`}
+                style={{ left: group.headerRect.x, top: group.headerRect.y, width: group.headerRect.w, height: group.headerRect.h }}>
+                <span className="hgl-name">{groupLabel(group.key)}</span>
+                {group.avg !== null && (
+                  <span className={`htl-avg tone-${group.avg > 0.1 ? "good" : group.avg < -0.1 ? "danger" : "neutral"}`}>{formatPct(group.avg)}</span>
+                )}
+              </div>
+            )}
+            {group.sectors.map((sec) => {
+              const label = sectorLabel(lang, sec.sector);
+              const withChange = sec.stocks.filter((s) => Number.isFinite(s.row.changePercent));
+              const avg = withChange.length ? withChange.reduce((a, s) => a + s.row.changePercent, 0) / withChange.length : null;
+              return (
+                <React.Fragment key={`${group.key}-${sec.sector}`}>
+                  {sec.header && (
+                    <div className="heatmap-tree-label" style={{ left: sec.rect.x, top: sec.rect.y, width: sec.rect.w, height: sec.headerH }}>
+                      <span>{label}</span>
+                      {avg !== null && (
+                        <span className={`htl-avg tone-${avg > 0.1 ? "good" : avg < -0.1 ? "danger" : "neutral"}`}>{formatPct(avg)}</span>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-              {sec.stocks.map((st) => {
-                const row = st.row;
-                const tileStyle = heatmapTileStyle(row.changePercent);
-                const isNeutral = !tileStyle.background;
-                const w = st.w - GAP, h = st.h - GAP;
-                if (w < 1 || h < 1) return null;
-                const tickerSize = Math.max(8, Math.min(Math.min(w, h) / 2.9, w / 4.4, 19));
-                const showTicker = w > 22 && h > 15;
-                const showPct = w > 34 && h > 32;
-                return (
-                  <button
-                    key={row.ticker}
-                    type="button"
-                    className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}`}
-                    style={{ left: st.x + GAP / 2, top: st.y + GAP / 2, width: w, height: h, ...tileStyle }}
-                    onClick={() => onAnalyze(row.ticker)}
-                    onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
-                    onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
-                  >
-                    {showTicker && <span className="htt-ticker" style={{ fontSize: tickerSize }}>{row.ticker}</span>}
-                    {showPct && <span className="htt-pct" style={{ fontSize: tickerSize * 0.76 }}>{formatPct(row.changePercent)}</span>}
-                  </button>
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
+                  {sec.stocks.map((st) => {
+                    const row = st.row;
+                    const tileStyle = heatmapTileStyle(row.changePercent);
+                    const isNeutral = !tileStyle.background;
+                    const w = st.w - GAP, h = st.h - GAP;
+                    if (w < 1 || h < 1) return null;
+                    const tickerSize = Math.max(8, Math.min(Math.min(w, h) / 2.9, w / 4.4, 19));
+                    const showTicker = w > 22 && h > 15;
+                    const showPct = w > 34 && h > 32;
+                    return (
+                      <button
+                        key={row.ticker}
+                        type="button"
+                        className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}`}
+                        style={{ left: st.x + GAP / 2, top: st.y + GAP / 2, width: w, height: h, ...tileStyle }}
+                        onClick={() => onAnalyze(row.ticker)}
+                        onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
+                        onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
+                      >
+                        {showTicker && <span className="htt-ticker" style={{ fontSize: tickerSize }}>{row.ticker}</span>}
+                        {showPct && <span className="htt-pct" style={{ fontSize: tickerSize * 0.76 }}>{formatPct(row.changePercent)}</span>}
+                      </button>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
+          </React.Fragment>
+        ))}
       </div>
 
-      {orderedSectors.length === 0 && (
+      {groups.length === 0 && (
         <p className="market-empty-cell">
           {lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}
         </p>
