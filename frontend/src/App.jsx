@@ -4135,11 +4135,21 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
     securitiesMap?.[row.ticker]?.share_type === "preferred" ||
     row.share_type === "preferred";
 
+  // The market feed also carries bonds and many never-trading listings (the
+  // backend merges stale registry entries with inactive:true and a reference
+  // price that reads as a 0% "change"), which would otherwise flood the map with
+  // blank grey tiles. Show only equities that actually traded today: drop bonds
+  // and inactive listings, and keep a stock only when it has a real change today
+  // (finite % — a genuine 0% move on a live trade still counts as traded).
+  const isBond = (row) => row.type === "bond" || securitiesMap?.[row.ticker]?.type === "bond";
+  const tradedRows = rows.filter((row) =>
+    !isBond(row) && row.inactive !== true && Number.isFinite(row.changePercent));
+
   // Tile weight = compressed (sqrt) volume, floored so thin movers stay visible.
   // The floor is global (over every row) so a tile's area means the same amount
   // of traded value in the ordinary block and the preferred block alike.
   const rawWeight = (r) => Math.sqrt(Math.max(r.stockVolume || 0, 1));
-  const maxRaw = Math.max(1, ...rows.map(rawWeight));
+  const maxRaw = Math.max(1, ...tradedRows.map(rawWeight));
   const floor = maxRaw * 0.05;
   const weight = (r) => Math.max(rawWeight(r), floor);
 
@@ -4157,7 +4167,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
   // weight but clamped so the (usually thinner) preferred block stays readable.
   const GROUP_ORDER = ["ordinary", "preferred"];
   const rowsByGroup = { ordinary: [], preferred: [] };
-  rows.forEach((row) => { rowsByGroup[isPreferredRow(row) ? "preferred" : "ordinary"].push(row); });
+  tradedRows.forEach((row) => { rowsByGroup[isPreferredRow(row) ? "preferred" : "ordinary"].push(row); });
   const groups = GROUP_ORDER
     .map((key) => ({ key, rows: rowsByGroup[key] }))
     .filter((g) => g.rows.length);
