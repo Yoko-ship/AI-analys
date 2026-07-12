@@ -9582,11 +9582,12 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 
 /* ── Legal disclaimer (ТЗ §3.2) ─────────────────────────────── */
 .app-footer { margin-top: 32px; padding: 20px 0 8px; }
-.disclaimer-note { border: 1px solid var(--border, rgba(255,255,255,0.12)); border-left: 4px solid var(--accent, #f5a623); border-radius: 12px; padding: 16px 18px; background: var(--panel); }
+.disclaimer-note { border: 1px solid rgba(245, 166, 35, 0.45); border-left: 5px solid var(--accent, #f5a623); border-radius: 12px; padding: 18px 20px; background: rgba(245, 166, 35, 0.09); }
 .disclaimer-note--footer { max-width: 1180px; margin: 0 auto; }
 .disclaimer-note--report { margin: 16px 0 4px; }
-.disclaimer-note__label { display: inline-block; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent, #f5a623); font-weight: 800; margin-bottom: 8px; }
-.disclaimer-note__text { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-secondary, var(--text, #eef3ff)); }
+.disclaimer-note__label { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent, #f5a623); font-weight: 800; margin-bottom: 9px; }
+.disclaimer-note__label::before { content: "⚠"; font-size: 15px; }
+.disclaimer-note__text { margin: 0; font-size: 14px; line-height: 1.62; color: var(--text-secondary, var(--text, #eef3ff)); }
 
 /* ── Reference view (glossary / tariffs / trading modes) ─────── */
 .reference-view { display: flex; flex-direction: column; gap: 20px; }
