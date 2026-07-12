@@ -63,7 +63,7 @@ _TICKER_SECTORS: dict[str, str] = {
     "UZIR": "mining", "UZIRP": "mining",
     "PLST": "mining",
     "SANE": "mining",
-    "UTGAP": "transport",
+    "UTGA": "logistics", "UTGAP": "logistics",  # O'ztransgaz — gas transport / pipelines
     "QATT": "transport",
     "UPOS": "transport", "UPOSP": "transport",
     "UZTL": "telecom", "UZTLP": "telecom",
