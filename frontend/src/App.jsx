@@ -1885,6 +1885,7 @@ const SECTOR_LABELS = {
     manufacturing: "Производство",
     mining: "Добыча",
     transport: "Транспорт",
+    logistics: "Логистика",
     telecom: "Телеком",
     trade: "Торговля",
     professional: "Услуги",
@@ -1897,6 +1898,7 @@ const SECTOR_LABELS = {
     manufacturing: "Manufacturing",
     mining: "Mining",
     transport: "Transport",
+    logistics: "Logistics",
     telecom: "Telecom",
     trade: "Trade",
     professional: "Services",
@@ -1909,6 +1911,7 @@ const SECTOR_LABELS = {
     manufacturing: "Ishlab chiqarish",
     mining: "Konchilik",
     transport: "Transport",
+    logistics: "Logistika",
     telecom: "Telekom",
     trade: "Savdo",
     professional: "Xizmatlar",
@@ -4042,7 +4045,7 @@ function MarketChangeBadge({ value, percent, language }) {
   );
 }
 
-const SECTOR_ORDER = ["finance", "funds", "energy", "manufacturing", "telecom", "mining", "transport", "other"];
+const SECTOR_ORDER = ["finance", "funds", "energy", "manufacturing", "telecom", "mining", "transport", "logistics", "other"];
 
 function heatmapTileStyle(changePercent) {
   if (changePercent === null || !Number.isFinite(changePercent)) return {};
@@ -4107,7 +4110,7 @@ function squarifyTreemap(items, x, y, w, h) {
   return out;
 }
 
-function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) {
+function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, type }) {
   const lang = normalizeLanguage(language);
   const wrapRef = React.useRef(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -4138,15 +4141,16 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze }) 
     securitiesMap?.[row.ticker]?.share_type === "preferred" ||
     row.share_type === "preferred";
 
-  // The market feed also carries bonds and many never-trading listings (the
-  // backend merges stale registry entries with inactive:true and a reference
-  // price that reads as a 0% "change"), which would otherwise flood the map with
-  // blank grey tiles. Show only equities that actually traded today: drop bonds
-  // and inactive listings, and keep a stock only when it has a real change today
-  // (finite % — a genuine 0% move on a live trade still counts as traded).
+  // Show only instruments that actually traded today: drop inactive registry
+  // listings (the backend merges stale entries with inactive:true and a reference
+  // price that reads as a 0% "change"), and keep a row only when it has a real
+  // change today (finite % — a genuine 0% move on a live trade still counts).
+  // Bonds are excluded on the stock-focused views (Акции / Привилегированные) to
+  // keep the map clean, but shown when the user picks the Bonds / All segment.
   const isBond = (row) => row.type === "bond" || securitiesMap?.[row.ticker]?.type === "bond";
+  const allowBonds = type === "bond" || type === "all";
   const tradedRows = rows.filter((row) =>
-    !isBond(row) && row.inactive !== true && Number.isFinite(row.changePercent));
+    (allowBonds || !isBond(row)) && row.inactive !== true && Number.isFinite(row.changePercent));
 
   // Tile weight = compressed (sqrt) volume, floored so thin movers stay visible.
   // The floor is global (over every row) so a tile's area means the same amount
@@ -5801,7 +5805,7 @@ function MarketView({
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
           ) : (
-            <MarketHeatmap rows={prepared} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} />
+            <MarketHeatmap rows={prepared} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} type={type} />
           )
         ) : (
           <div className="market-table-wrap">
