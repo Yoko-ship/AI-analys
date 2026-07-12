@@ -1693,6 +1693,7 @@ const MARKET_TEXTS = {
     all: "Все",
     stocks: "Акции",
     bonds: "Облигации",
+    preferredStocks: "Привилегированные",
     instruments: "Инструментов",
     traded: "Сделки сегодня",
     advancers: "Рост",
@@ -1757,6 +1758,7 @@ const MARKET_TEXTS = {
     all: "All",
     stocks: "Stocks",
     bonds: "Bonds",
+    preferredStocks: "Preferred",
     instruments: "Instruments",
     traded: "Traded today",
     advancers: "Up",
@@ -1821,6 +1823,7 @@ const MARKET_TEXTS = {
     all: "Hammasi",
     stocks: "Aksiyalar",
     bonds: "Obligatsiyalar",
+    preferredStocks: "Imtiyozli",
     instruments: "Instrumentlar",
     traded: "Bugun savdo bo'lgan",
     advancers: "O'sish",
@@ -5362,7 +5365,7 @@ function MarketView({
   // /stocks snapshot can be stale. When present, override turnover/qty/trades
   // with them, expose the average trade price, and recompute the change from
   // that average price (vs previous close) instead of the last single trade.
-  const prepared = (Array.isArray(rows) ? rows : []).map(enrichMarketStock).map((r) => {
+  const preparedAll = (Array.isArray(rows) ? rows : []).map(enrichMarketStock).map((r) => {
     const t = tmap[r.isin] || tmap[(r.isin || "").toUpperCase()];
     if (!t) return r;
     const out = { ...r, ts: t };
@@ -5381,6 +5384,14 @@ function MarketView({
     if (Number.isFinite(t.vwap)) out.vwap = t.vwap;
     return out;
   });
+  // "preferred" is a client-side subset of stocks (the feed was fetched as
+  // type=stock); narrow to preferred shares so the table, sectors and heatmap
+  // all reflect the filter.
+  const isPreferredSec = (r) =>
+    smap[r.ticker]?.is_preferred === true ||
+    smap[r.ticker]?.share_type === "preferred" ||
+    r.share_type === "preferred";
+  const prepared = type === "preferred" ? preparedAll.filter(isPreferredSec) : preparedAll;
   const search = String(query || "").trim().toLowerCase();
 
   // Gather sectors present in current data
@@ -5623,6 +5634,7 @@ function MarketView({
           <div className="segmented-control market-type-control">
             {[
               ["stock", mt(lang, "stocks")],
+              ["preferred", mt(lang, "preferredStocks")],
               ["bond", mt(lang, "bonds")],
               ["all", mt(lang, "all")],
             ].map(([value, label]) => (
@@ -6986,7 +6998,10 @@ function App() {
     setMarketMessage(mt(language, "loading"));
     try {
       const params = new URLSearchParams();
-      if (marketType !== "all") params.set("type", marketType);
+      // "preferred" is a share-type subset the server can't filter (it only knows
+      // stock/bond), so fetch stocks and narrow to preferred client-side.
+      const apiType = marketType === "preferred" ? "stock" : marketType;
+      if (apiType !== "all") params.set("type", apiType);
       const res = await apiFetch(`/api/market/stocks${params.toString() ? `?${params}` : ""}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Could not load stock prices");
