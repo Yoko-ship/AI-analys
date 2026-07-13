@@ -5285,23 +5285,25 @@ function MarketScrollControls({ wrapRef, lang, colSignature, rowCount, loading }
     // colSignature/rowCount/loading: ResizeObserver won't fire when only scrollWidth changes.
   }, [wrapRef, colSignature, rowCount, loading]);
 
-  // Wheel over the table -> horizontal scroll. Native + non-passive so preventDefault works
-  // (React attaches onWheel passively). Releases to page scroll at the horizontal extremes.
+  // Shift+wheel -> horizontal scroll (the standard convention used by spreadsheets /
+  // data grids). A PLAIN wheel is left alone so it scrolls the page vertically as
+  // expected — we never hijack vertical intent into horizontal. Trackpad sideways
+  // swipes (native deltaX) keep working on their own. Native + non-passive so
+  // preventDefault works (React attaches onWheel passively) and there's no double-scroll.
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return undefined;
     const onWheel = (e) => {
-      let delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!e.shiftKey) return; // plain wheel = natural vertical page scroll
+      const max = wrap.scrollWidth - wrap.clientWidth;
+      if (max <= 0) return;
+      // With Shift, some browsers already swap the delta onto deltaX; take whichever axis carries it.
+      let delta = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (e.deltaMode === 1) delta *= 16;
       else if (e.deltaMode === 2) delta *= wrap.clientWidth;
       if (!delta) return;
-      const max = wrap.scrollWidth - wrap.clientWidth;
-      if (max <= 0) return;
-      const atStart = wrap.scrollLeft <= 0;
-      const atEnd = wrap.scrollLeft >= max - 1;
-      if ((delta < 0 && atStart) || (delta > 0 && atEnd)) return; // edge release
       e.preventDefault();
-      wrap.scrollLeft += delta;
+      wrap.scrollLeft = Math.max(0, Math.min(max, wrap.scrollLeft + delta));
     };
     wrap.addEventListener("wheel", onWheel, { passive: false });
     return () => wrap.removeEventListener("wheel", onWheel);
