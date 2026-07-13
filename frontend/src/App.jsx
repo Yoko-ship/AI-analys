@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import heroImage from "./assets/hero-image.png";
 import logoIcon from "./assets/icon.png";
@@ -5228,6 +5228,147 @@ function CompanyInfoPanel({ ticker, secInfo, wikiInfo, language, onClose, loadin
   );
 }
 
+// Floating ‹ / › edge buttons + wheel-to-horizontal for the wide market table.
+// The table's only scroll container (.market-table-wrap) has no height cap, so the
+// native horizontal scrollbar sits at the very bottom of a tall table — unreachable
+// without scrolling the whole page down. These controls make left/right scrolling
+// reachable from anywhere. Rendered via a body portal because the table's ancestors
+// (.market-board overflow:hidden + backdrop-filter, .app-shell-wrap overflow:hidden)
+// neutralize both position:sticky and an in-place position:fixed.
+function MarketScrollControls({ wrapRef, lang, colSignature, rowCount, loading }) {
+  const [geo, setGeo] = useState({ show: false, left: false, right: false, x1: 0, x2: 0, y: 0 });
+  const hold = useRef({ raf: 0, timer: 0, moved: false });
+
+  // Geometry: overflow state + the wrap's visible rectangle (clamped below the topbar).
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return undefined;
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const el = wrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const max = el.scrollWidth - el.clientWidth;
+      const overflow = max > 1;
+      const topbarBottom = document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
+      const visTop = Math.max(r.top, topbarBottom);
+      const visBottom = Math.min(r.bottom, window.innerHeight);
+      // Clamp horizontally too: the wrap can extend past the viewport (the layout has a
+      // min-width and .app-shell-wrap clips the overflow), so anchor the buttons to the
+      // VISIBLE edges of the table, never off-screen.
+      const visLeft = Math.max(r.left, 0);
+      const visRight = Math.min(r.right, window.innerWidth);
+      const inView = overflow && visBottom - visTop > 48 && visRight - visLeft > 48;
+      setGeo({
+        show: inView,
+        left: el.scrollLeft > 1,
+        right: el.scrollLeft < max - 1,
+        x1: visLeft,
+        x2: visRight,
+        y: (visTop + visBottom) / 2,
+      });
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };
+    measure();
+    // capture:true reaches window for the wrap's own (non-bubbling) horizontal scroll too.
+    window.addEventListener("scroll", schedule, { passive: true, capture: true });
+    window.addEventListener("resize", schedule);
+    const ro = new ResizeObserver(schedule);
+    ro.observe(wrap);
+    return () => {
+      window.removeEventListener("scroll", schedule, { capture: true });
+      window.removeEventListener("resize", schedule);
+      ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
+    // colSignature/rowCount/loading: ResizeObserver won't fire when only scrollWidth changes.
+  }, [wrapRef, colSignature, rowCount, loading]);
+
+  // Wheel over the table -> horizontal scroll. Native + non-passive so preventDefault works
+  // (React attaches onWheel passively). Releases to page scroll at the horizontal extremes.
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return undefined;
+    const onWheel = (e) => {
+      let delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (e.deltaMode === 1) delta *= 16;
+      else if (e.deltaMode === 2) delta *= wrap.clientWidth;
+      if (!delta) return;
+      const max = wrap.scrollWidth - wrap.clientWidth;
+      if (max <= 0) return;
+      const atStart = wrap.scrollLeft <= 0;
+      const atEnd = wrap.scrollLeft >= max - 1;
+      if ((delta < 0 && atStart) || (delta > 0 && atEnd)) return; // edge release
+      e.preventDefault();
+      wrap.scrollLeft += delta;
+    };
+    wrap.addEventListener("wheel", onWheel, { passive: false });
+    return () => wrap.removeEventListener("wheel", onWheel);
+  }, [wrapRef]);
+
+  const step = (dir) => {
+    const w = wrapRef.current;
+    if (w) w.scrollBy({ left: dir * w.clientWidth * 0.8, behavior: "smooth" });
+  };
+  const glideStop = () => {
+    clearTimeout(hold.current.timer);
+    if (hold.current.raf) cancelAnimationFrame(hold.current.raf);
+    hold.current.raf = 0;
+  };
+  const onDown = (dir) => (e) => {
+    e.preventDefault(); // avoid text selection / focus jump on press
+    hold.current.moved = false;
+    const loop = () => {
+      const w = wrapRef.current;
+      if (!w) return;
+      w.scrollLeft += dir * 14; // ~840 px/s at 60fps
+      hold.current.raf = requestAnimationFrame(loop);
+    };
+    hold.current.timer = setTimeout(() => { hold.current.moved = true; loop(); }, 180);
+  };
+  const onUp = (dir) => () => {
+    glideStop();
+    if (!hold.current.moved) step(dir); // a tap, not a hold
+  };
+  useEffect(() => glideStop, []);
+
+  if (!geo.show) return null;
+  const BW = 34;
+  const label = (en, uz, ru) => (lang === "en" ? en : lang === "uz" ? uz : ru);
+  return createPortal(
+    <div className="market-scroll-controls">
+      {geo.left && (
+        <button
+          type="button"
+          className="market-scroll-btn market-scroll-btn-left"
+          style={{ left: geo.x1 + 6, top: geo.y }}
+          aria-label={label("Scroll left", "Chapga aylantirish", "Прокрутить влево")}
+          onPointerDown={onDown(-1)}
+          onPointerUp={onUp(-1)}
+          onPointerLeave={onUp(-1)}
+          onPointerCancel={onUp(-1)}
+          onBlur={glideStop}
+        >‹</button>
+      )}
+      {geo.right && (
+        <button
+          type="button"
+          className="market-scroll-btn market-scroll-btn-right"
+          style={{ left: geo.x2 - BW - 6, top: geo.y }}
+          aria-label={label("Scroll right", "O'ngga aylantirish", "Прокрутить вправо")}
+          onPointerDown={onDown(1)}
+          onPointerUp={onUp(1)}
+          onPointerLeave={onUp(1)}
+          onPointerCancel={onUp(1)}
+          onBlur={glideStop}
+        >›</button>
+      )}
+    </div>,
+    document.body
+  );
+}
+
 function MarketView({
   rows,
   meta,
@@ -5362,6 +5503,7 @@ function MarketView({
   useEffect(() => { try { localStorage.setItem("uz_market_col_order", JSON.stringify(colOrder)); } catch (e) { /* ignore */ } }, [colOrder]);
   const [dragCol, setDragCol] = useState(null);
   const [dragOverCol, setDragOverCol] = useState(null);
+  const wrapRef = useRef(null); // .market-table-wrap — for the horizontal scroll controls
   const moveCol = (from, to) => {
     if (!from || from === to) return;
     setColOrder((prev) => {
@@ -5929,7 +6071,8 @@ function MarketView({
             <MarketHeatmap rows={prepared} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} type={type} />
           )
         ) : (
-          <div className="market-table-wrap">
+          <>
+          <div className="market-table-wrap" ref={wrapRef}>
             <table className="market-table">
               <thead>
                 <tr>
@@ -5995,6 +6138,14 @@ function MarketView({
               </tbody>
             </table>
           </div>
+          <MarketScrollControls
+            wrapRef={wrapRef}
+            lang={lang}
+            colSignature={visibleOrder.join("|")}
+            rowCount={visibleRows.length}
+            loading={loading}
+          />
+          </>
         )}
       </article>
 
