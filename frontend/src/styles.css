@@ -6906,14 +6906,6 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   background: rgba(148, 163, 184, 0.22);
 }
 
-/* Hide the table's own (bottom-of-a-tall-table) horizontal scrollbar — it's mirrored
-   by the always-reachable floating bar below. */
-.market-table-wrap {
-  scrollbar-width: none;        /* Firefox */
-  -ms-overflow-style: none;     /* old Edge */
-}
-.market-table-wrap::-webkit-scrollbar { display: none; }  /* Chrome / Safari */
-
 /* Floating horizontal scrollbar, clung to the bottom of the table's visible area.
    A custom thumb (not the OS scrollbar) so it looks identical across browsers/OSes
    and is always visible. Portaled to <body>, so position:fixed is relative to the
