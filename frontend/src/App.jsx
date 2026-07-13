@@ -5261,23 +5261,22 @@ function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
       const r = el.getBoundingClientRect();
       const sw = el.scrollWidth, cw = el.clientWidth;
       const max = sw - cw;
-      const topbarBottom = document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
-      const visTop = Math.max(r.top, topbarBottom);
-      const visBottom = Math.min(r.bottom, window.innerHeight);
       // Clamp to the table's VISIBLE rectangle: the wrap can extend past the viewport
       // (the layout has a min-width and .app-shell-wrap clips the overflow).
       const left = Math.max(r.left, 0);
       const right = Math.min(r.right, window.innerWidth);
       const trackW = right - left;
-      const inView = max > 1 && visBottom - visTop > 40 && trackW > 40;
+      // Only show the floating bar when the table's own bottom scrollbar is scrolled
+      // below the fold. Otherwise that native bar is on screen and does the job — this
+      // way there's always a scrollbar and never two at once.
+      const nativeBelowFold = r.bottom > window.innerHeight + 8;
+      const inView = max > 1 && nativeBelowFold && r.top < window.innerHeight && trackW > 40;
       if (!inView) {
         setBox((b) => (b.show ? { ...b, show: false } : b));
         return;
       }
-      // Ride the bottom of the visible slice: the screen bottom while the table runs
-      // off the fold, else the table's own bottom edge.
       const BAR = 14;
-      const top = Math.min(window.innerHeight, r.bottom) - BAR;
+      const top = window.innerHeight - BAR;
       setBox({ show: true, left, width: trackW, top });
       const tw = Math.max(trackW * (cw / sw), MIN_THUMB);
       const tl = max > 0 ? (el.scrollLeft / max) * (trackW - tw) : 0;
