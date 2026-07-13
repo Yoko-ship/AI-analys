@@ -1694,6 +1694,8 @@ const MARKET_TEXTS = {
     stocks: "Акции",
     bonds: "Облигации",
     preferredStocks: "Привилегированные",
+    ordinaryStocks: "Обыкновенные",
+    bondOne: "облигация",
     instruments: "Инструментов",
     traded: "Сделки сегодня",
     advancers: "Рост",
@@ -1759,6 +1761,8 @@ const MARKET_TEXTS = {
     stocks: "Stocks",
     bonds: "Bonds",
     preferredStocks: "Preferred",
+    ordinaryStocks: "Ordinary",
+    bondOne: "bond",
     instruments: "Instruments",
     traded: "Traded today",
     advancers: "Up",
@@ -1824,6 +1828,8 @@ const MARKET_TEXTS = {
     stocks: "Aksiyalar",
     bonds: "Obligatsiyalar",
     preferredStocks: "Imtiyozli",
+    ordinaryStocks: "Oddiy",
+    bondOne: "obligatsiya",
     instruments: "Instrumentlar",
     traded: "Bugun savdo bo'lgan",
     advancers: "O'sish",
@@ -4145,10 +4151,10 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
   // listings (the backend merges stale entries with inactive:true and a reference
   // price that reads as a 0% "change"), and keep a row only when it has a real
   // change today (finite % — a genuine 0% move on a live trade still counts).
-  // Bonds are excluded on the stock-focused views (Акции / Привилегированные) to
-  // keep the map clean, but shown when the user picks the Bonds / All segment.
+  // Bonds are excluded on the stock-focused views (Акции and its subtypes) to
+  // keep the map clean, but shown when the user picks the Bonds segment.
   const isBond = (row) => row.type === "bond" || securitiesMap?.[row.ticker]?.type === "bond";
-  const allowBonds = type === "bond" || type === "all";
+  const allowBonds = type === "bond";
   const tradedRows = rows.filter((row) =>
     (allowBonds || !isBond(row)) && row.inactive !== true && Number.isFinite(row.changePercent));
 
@@ -5456,7 +5462,11 @@ function MarketView({
   const toggleGroup = (k) => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   useEffect(() => { try { localStorage.setItem("uz_market_cols", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
   const toggleCol = (k) => setVisibleCols((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  const colSpan = 3 + visibleCols.size;
+  // Bonds carry no equity metrics — the exchange feed gives them only price/trade
+  // data (no market cap, P/E, ROE, or issuer financials). Hide the stock-only
+  // columns on the bonds view instead of rendering misleading blank cells; stocks
+  // and bonds are not comparable on the same metrics.
+  const EQUITY_ONLY_COLS = new Set(["mktCap", "pe", "pb", "roe", "roa", "netMargin", "debtEq", "finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating"]);
 
   // Drag-to-reorder columns. Ticker + company stay pinned left (identity cells);
   // everything from "last" onward is reorderable. Order is persisted per user.
@@ -5492,7 +5502,9 @@ function MarketView({
   };
   const resetColOrder = () => setColOrder(["last", ...MARKET_COLS.map(([k]) => k)]);
   // Visible movable columns in the user's chosen order ("last" is always shown).
-  const visibleOrder = colOrder.filter((k) => k === "last" || visibleCols.has(k));
+  const visibleOrder = colOrder.filter((k) =>
+    (k === "last" || visibleCols.has(k)) && !(type === "bond" && EQUITY_ONLY_COLS.has(k)));
+  const colSpan = 3 + visibleOrder.length;
 
   const openPanel = (ticker) => {
     setPanelTicker(ticker);
@@ -5545,7 +5557,10 @@ function MarketView({
     smap[r.ticker]?.is_preferred === true ||
     smap[r.ticker]?.share_type === "preferred" ||
     r.share_type === "preferred";
-  const prepared = type === "preferred" ? preparedAll.filter(isPreferredSec) : preparedAll;
+  const prepared =
+    type === "preferred" ? preparedAll.filter(isPreferredSec)
+    : type === "ordinary" ? preparedAll.filter((r) => !isPreferredSec(r))
+    : preparedAll;
   const search = String(query || "").trim().toLowerCase();
 
   // Gather sectors present in current data
@@ -5865,17 +5880,36 @@ function MarketView({
         </div>
 
         <div className="market-controls">
-          <div className="segmented-control market-type-control">
-            {[
-              ["stock", mt(lang, "stocks")],
-              ["preferred", mt(lang, "preferredStocks")],
-              ["bond", mt(lang, "bonds")],
-              ["all", mt(lang, "all")],
-            ].map(([value, label]) => (
-              <button key={value} type="button" className={type === value ? "active" : ""} onClick={() => onTypeChange(value)}>
-                {label}
-              </button>
-            ))}
+          {/* Level 1: instrument class — stocks vs bonds are not comparable
+              (price/capitalisation vs coupon/maturity), so they never share a table. */}
+          <div className="market-type-levels">
+            <div className="segmented-control market-type-control">
+              {[
+                ["stock", mt(lang, "stocks")],
+                ["bond", mt(lang, "bonds")],
+              ].map(([value, label]) => {
+                const active = value === "bond" ? type === "bond" : type !== "bond";
+                return (
+                  <button key={value} type="button" className={active ? "active" : ""} onClick={() => onTypeChange(value)}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Level 2: share class — only meaningful inside stocks. */}
+            {type !== "bond" && (
+              <div className="segmented-control market-subtype-control">
+                {[
+                  ["stock", mt(lang, "all")],
+                  ["ordinary", mt(lang, "ordinaryStocks")],
+                  ["preferred", mt(lang, "preferredStocks")],
+                ].map(([value, label]) => (
+                  <button key={value} type="button" className={type === value ? "active" : ""} onClick={() => onTypeChange(value)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {viewMode === "table" && (
             <button
@@ -6082,7 +6116,11 @@ function MarketView({
                           <button type="button" className="market-ticker-btn" onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}>
                             {row.ticker || "—"}
                           </button>
-                          <span>{isPreferred ? mt(lang, "preferred") : (row.share_type ? mt(lang, row.share_type) : (row.type || "—"))}</span>
+                          <span>{row.type === "bond"
+                            ? mt(lang, "bondOne")
+                            : isPreferred ? mt(lang, "preferred")
+                            : row.share_type ? mt(lang, row.share_type)
+                            : (row.type || "—")}</span>
                         </div>
                         <button
                           type="button"
@@ -7159,10 +7197,10 @@ function App() {
     setMarketMessage(mt(language, "loading"));
     try {
       const params = new URLSearchParams();
-      // "preferred" is a share-type subset the server can't filter (it only knows
-      // stock/bond), so fetch stocks and narrow to preferred client-side.
-      const apiType = marketType === "preferred" ? "stock" : marketType;
-      if (apiType !== "all") params.set("type", apiType);
+      // "ordinary"/"preferred" are share-type subsets the server can't filter (it
+      // only knows stock/bond), so fetch stocks and narrow client-side.
+      const apiType = (marketType === "preferred" || marketType === "ordinary") ? "stock" : marketType;
+      params.set("type", apiType);
       const res = await apiFetch(`/api/market/stocks${params.toString() ? `?${params}` : ""}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Could not load stock prices");

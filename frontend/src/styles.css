@@ -6804,6 +6804,18 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   width: auto;
 }
 
+/* Two-level instrument taxonomy: class (stocks|bonds) over share-class subtypes. */
+.market-type-levels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.market-subtype-control button {
+  padding: 8px 14px;
+  font-size: 0.86rem;
+}
+
 .market-search {
   flex: 1;
   min-width: 220px;
