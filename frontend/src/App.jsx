@@ -4367,15 +4367,15 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
 // ---------------------------------------------------------------------------
 
 function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
-  const RANGES = [
-    { label: "1М", months: 1 },
-    { label: "3М", months: 3 },
-    { label: "6М", months: 6 },
-    { label: "1Г", months: 12 },
-    { label: "2Г", months: 24 },
-    { label: "5Л", months: 60 },
-  ];
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const RANGES = [
+    { label: t("1М", "1O", "1M"), months: 1 },   // month   → daily
+    { label: t("3М", "3O", "3M"), months: 3 },   // quarter → daily
+    { label: t("6М", "6O", "6M"), months: 6 },   // half    → daily
+    { label: t("1Г", "1Y", "1Y"), months: 12 },  // year    → weekly
+    { label: t("3Г", "3Y", "3Y"), months: 36 },  // 3 years → weekly
+    { label: t("5Л", "5Y", "5Y"), months: 60 },  // 5 years → monthly
+  ];
   const [hover, setHover] = React.useState(null);
   const [chartType, setChartType] = React.useState("candle"); // candle | line — candles are the default when OHLC is available
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
@@ -4422,7 +4422,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
     : "";
   // Multi-year ranges show "mon 'yy" on the axis (day-of-month is noise at monthly/quarterly buckets).
   const fmtAxis = (d) => d
-    ? (months >= 24 ? new Date(d).toLocaleDateString(dateLocale, { year: "2-digit", month: "short" }) : fmtDate(d))
+    ? (months >= 12 ? new Date(d).toLocaleDateString(dateLocale, { year: "2-digit", month: "short" }) : fmtDate(d))
     : "";
   const abbrev = (v) => v == null ? "—" : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : `${Math.round(v)}`;
   const fmtFull = (v) => v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 });
@@ -4441,7 +4441,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   // range — daily for short spans, then calendar week / month / quarter — so
   // bars stay wide and readable instead of hundreds of daily slivers.
   const hasOHLC = daily.every((p) => p.open > 0 && p.high > 0 && p.low > 0);
-  const bucketKind = months <= 6 ? "day" : months <= 12 ? "week" : months <= 24 ? "month" : "quarter";
+  const bucketKind = months <= 6 ? "day" : months <= 36 ? "week" : "month";
   const intervalLabel = {
     day: t("дневные", "kunlik", "daily"),
     week: t("недельные", "haftalik", "weekly"),
