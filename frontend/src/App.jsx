@@ -5228,18 +5228,22 @@ function CompanyInfoPanel({ ticker, secInfo, wikiInfo, language, onClose, loadin
   );
 }
 
-// Floating ‹ / › edge buttons + wheel-to-horizontal for the wide market table.
-// The table's only scroll container (.market-table-wrap) has no height cap, so the
+// A floating horizontal scrollbar for the wide market table, clung to the bottom of
+// the table's visible area (the screen bottom while the table runs off the fold).
+// The table's own scroll container (.market-table-wrap) has no height cap, so its
 // native horizontal scrollbar sits at the very bottom of a tall table — unreachable
-// without scrolling the whole page down. These controls make left/right scrolling
-// reachable from anywhere. Rendered via a body portal because the table's ancestors
-// (.market-board overflow:hidden + backdrop-filter, .app-shell-wrap overflow:hidden)
-// neutralize both position:sticky and an in-place position:fixed.
-function MarketScrollControls({ wrapRef, lang, colSignature, rowCount, loading }) {
-  const [geo, setGeo] = useState({ show: false, left: false, right: false, x1: 0, x2: 0, y: 0 });
-  const hold = useRef({ raf: 0, timer: 0, moved: false });
+// without scrolling the whole page down. We hide that native bar (see CSS) and mirror
+// it here so it's always reachable. Rendered via a body portal because the table's
+// ancestors (.market-board overflow:hidden + backdrop-filter, .app-shell-wrap
+// overflow:hidden) would otherwise clip/mis-anchor a position:fixed element.
+function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
+  const trackRef = useRef(null);
+  const [box, setBox] = useState({ show: false, left: 0, width: 0, top: 0 });
+  const [thumb, setThumb] = useState({ width: 0, left: 0 });
+  const drag = useRef(null);
+  const MIN_THUMB = 40;
 
-  // Geometry: overflow state + the wrap's visible rectangle (clamped below the topbar).
+  // Track geometry + thumb size/position, derived from the table's live scroll state.
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return undefined;
@@ -5249,25 +5253,29 @@ function MarketScrollControls({ wrapRef, lang, colSignature, rowCount, loading }
       const el = wrapRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      const max = el.scrollWidth - el.clientWidth;
-      const overflow = max > 1;
+      const sw = el.scrollWidth, cw = el.clientWidth;
+      const max = sw - cw;
       const topbarBottom = document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
       const visTop = Math.max(r.top, topbarBottom);
       const visBottom = Math.min(r.bottom, window.innerHeight);
-      // Clamp horizontally too: the wrap can extend past the viewport (the layout has a
-      // min-width and .app-shell-wrap clips the overflow), so anchor the buttons to the
-      // VISIBLE edges of the table, never off-screen.
-      const visLeft = Math.max(r.left, 0);
-      const visRight = Math.min(r.right, window.innerWidth);
-      const inView = overflow && visBottom - visTop > 48 && visRight - visLeft > 48;
-      setGeo({
-        show: inView,
-        left: el.scrollLeft > 1,
-        right: el.scrollLeft < max - 1,
-        x1: visLeft,
-        x2: visRight,
-        y: (visTop + visBottom) / 2,
-      });
+      // Clamp to the table's VISIBLE rectangle: the wrap can extend past the viewport
+      // (the layout has a min-width and .app-shell-wrap clips the overflow).
+      const left = Math.max(r.left, 0);
+      const right = Math.min(r.right, window.innerWidth);
+      const trackW = right - left;
+      const inView = max > 1 && visBottom - visTop > 40 && trackW > 40;
+      if (!inView) {
+        setBox((b) => (b.show ? { ...b, show: false } : b));
+        return;
+      }
+      // Ride the bottom of the visible slice: the screen bottom while the table runs
+      // off the fold, else the table's own bottom edge.
+      const BAR = 14;
+      const top = Math.min(window.innerHeight, r.bottom) - BAR;
+      setBox({ show: true, left, width: trackW, top });
+      const tw = Math.max(trackW * (cw / sw), MIN_THUMB);
+      const tl = max > 0 ? (el.scrollLeft / max) * (trackW - tw) : 0;
+      setThumb({ width: tw, left: tl });
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };
     measure();
@@ -5276,96 +5284,59 @@ function MarketScrollControls({ wrapRef, lang, colSignature, rowCount, loading }
     window.addEventListener("resize", schedule);
     const ro = new ResizeObserver(schedule);
     ro.observe(wrap);
+    // Table scrolled (trackpad / Shift+wheel / keyboard) -> re-derive the thumb.
+    wrap.addEventListener("scroll", schedule, { passive: true });
     return () => {
       window.removeEventListener("scroll", schedule, { capture: true });
       window.removeEventListener("resize", schedule);
+      wrap.removeEventListener("scroll", schedule);
       ro.disconnect();
       if (raf) cancelAnimationFrame(raf);
     };
     // colSignature/rowCount/loading: ResizeObserver won't fire when only scrollWidth changes.
   }, [wrapRef, colSignature, rowCount, loading]);
 
-  // Shift+wheel -> horizontal scroll (the standard convention used by spreadsheets /
-  // data grids). A PLAIN wheel is left alone so it scrolls the page vertically as
-  // expected — we never hijack vertical intent into horizontal. Trackpad sideways
-  // swipes (native deltaX) keep working on their own. Native + non-passive so
-  // preventDefault works (React attaches onWheel passively) and there's no double-scroll.
+  // Drag the thumb -> the table scrolls (mapped by the thumb's travel range).
   useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return undefined;
-    const onWheel = (e) => {
-      if (!e.shiftKey) return; // plain wheel = natural vertical page scroll
-      const max = wrap.scrollWidth - wrap.clientWidth;
-      if (max <= 0) return;
-      // With Shift, some browsers already swap the delta onto deltaX; take whichever axis carries it.
-      let delta = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (e.deltaMode === 1) delta *= 16;
-      else if (e.deltaMode === 2) delta *= wrap.clientWidth;
-      if (!delta) return;
-      e.preventDefault();
-      wrap.scrollLeft = Math.max(0, Math.min(max, wrap.scrollLeft + delta));
+    const onMove = (e) => {
+      const d = drag.current;
+      const el = wrapRef.current;
+      if (!d || !el) return;
+      const denom = d.trackW - d.thumbW;
+      const max = el.scrollWidth - el.clientWidth;
+      el.scrollLeft = denom > 0 ? d.startScroll + ((e.clientX - d.startX) / denom) * max : d.startScroll;
     };
-    wrap.addEventListener("wheel", onWheel, { passive: false });
-    return () => wrap.removeEventListener("wheel", onWheel);
+    const onUp = () => { if (drag.current) { drag.current = null; document.body.classList.remove("market-float-dragging"); } };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
   }, [wrapRef]);
 
-  const step = (dir) => {
-    const w = wrapRef.current;
-    if (w) w.scrollBy({ left: dir * w.clientWidth * 0.8, behavior: "smooth" });
+  const onThumbDown = (e) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    e.preventDefault();
+    drag.current = { startX: e.clientX, startScroll: el.scrollLeft, trackW: box.width, thumbW: thumb.width };
+    document.body.classList.add("market-float-dragging");
   };
-  const glideStop = () => {
-    clearTimeout(hold.current.timer);
-    if (hold.current.raf) cancelAnimationFrame(hold.current.raf);
-    hold.current.raf = 0;
+  const onTrackDown = (e) => {
+    if (e.target !== trackRef.current) return; // ignore clicks on the thumb
+    const el = wrapRef.current;
+    if (!el) return;
+    const clickX = e.clientX - trackRef.current.getBoundingClientRect().left;
+    const dir = clickX < thumb.left ? -1 : 1; // page toward the click
+    el.scrollBy({ left: dir * el.clientWidth * 0.9, behavior: "smooth" });
   };
-  const onDown = (dir) => (e) => {
-    e.preventDefault(); // avoid text selection / focus jump on press
-    hold.current.moved = false;
-    const loop = () => {
-      const w = wrapRef.current;
-      if (!w) return;
-      w.scrollLeft += dir * 14; // ~840 px/s at 60fps
-      hold.current.raf = requestAnimationFrame(loop);
-    };
-    hold.current.timer = setTimeout(() => { hold.current.moved = true; loop(); }, 180);
-  };
-  const onUp = (dir) => () => {
-    glideStop();
-    if (!hold.current.moved) step(dir); // a tap, not a hold
-  };
-  useEffect(() => glideStop, []);
 
-  if (!geo.show) return null;
-  const BW = 34;
-  const label = (en, uz, ru) => (lang === "en" ? en : lang === "uz" ? uz : ru);
   return createPortal(
-    <div className="market-scroll-controls">
-      {geo.left && (
-        <button
-          type="button"
-          className="market-scroll-btn market-scroll-btn-left"
-          style={{ left: geo.x1 + 6, top: geo.y }}
-          aria-label={label("Scroll left", "Chapga aylantirish", "Прокрутить влево")}
-          onPointerDown={onDown(-1)}
-          onPointerUp={onUp(-1)}
-          onPointerLeave={onUp(-1)}
-          onPointerCancel={onUp(-1)}
-          onBlur={glideStop}
-        >‹</button>
-      )}
-      {geo.right && (
-        <button
-          type="button"
-          className="market-scroll-btn market-scroll-btn-right"
-          style={{ left: geo.x2 - BW - 6, top: geo.y }}
-          aria-label={label("Scroll right", "O'ngga aylantirish", "Прокрутить вправо")}
-          onPointerDown={onDown(1)}
-          onPointerUp={onUp(1)}
-          onPointerLeave={onUp(1)}
-          onPointerCancel={onUp(1)}
-          onBlur={glideStop}
-        >›</button>
-      )}
+    <div
+      className="market-float-scroll"
+      ref={trackRef}
+      onPointerDown={onTrackDown}
+      aria-hidden="true"
+      style={{ display: box.show ? "block" : "none", left: box.left, width: box.width, top: box.top }}
+    >
+      <div className="market-float-thumb" style={{ width: thumb.width, left: thumb.left }} onPointerDown={onThumbDown} />
     </div>,
     document.body
   );
@@ -6140,9 +6111,8 @@ function MarketView({
               </tbody>
             </table>
           </div>
-          <MarketScrollControls
+          <MarketFloatScroll
             wrapRef={wrapRef}
-            lang={lang}
             colSignature={visibleOrder.join("|")}
             rowCount={visibleRows.length}
             loading={loading}
