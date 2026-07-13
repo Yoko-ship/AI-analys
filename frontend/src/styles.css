@@ -6858,7 +6858,7 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 }
 
 .market-table td.num,
-.market-table th:nth-child(n + 3):nth-child(-n + 7) {
+.market-table th.market-th-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -6866,7 +6866,7 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 .market-table th.market-th-sortable {
   cursor: pointer;
   user-select: none;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s, opacity 0.15s;
 }
 .market-table th.market-th-sortable:hover { color: var(--text); background: rgba(148, 163, 184, 0.16); }
 .market-table th.market-th-sortable.sorted { color: var(--accent); }
@@ -6874,6 +6874,47 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 .market-sort-caret { font-size: 9px; opacity: 0.35; }
 .market-table th.market-th-sortable.sorted .market-sort-caret { opacity: 1; }
 .market-table th.market-th-sortable:hover .market-sort-caret { opacity: 0.7; }
+
+/* Drag-to-reorder headers */
+.market-table th.market-th-movable { cursor: grab; }
+.market-table th.market-th-movable:active { cursor: grabbing; }
+.market-th-grip {
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: -3px;
+  opacity: 0;
+  color: var(--text-muted, #94a3b8);
+  transition: opacity 0.15s;
+  cursor: grab;
+}
+.market-table th.market-th-movable:hover .market-th-grip { opacity: 0.55; }
+.market-table th.market-th-sortable.dragging { opacity: 0.4; }
+.market-table th.market-th-sortable.drag-over {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: rgba(148, 163, 184, 0.22);
+}
+
+.market-cols-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+.market-cols-hint { font-size: 11px; color: var(--text-muted, #94a3b8); }
+.market-cols-reset {
+  font-size: 11px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 7px;
+  padding: 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.market-cols-reset:hover { background: rgba(148, 163, 184, 0.14); border-color: var(--accent); }
 
 .market-table td strong,
 .market-table td span {

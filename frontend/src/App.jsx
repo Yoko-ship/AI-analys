@@ -5344,6 +5344,41 @@ function MarketView({
   const toggleCol = (k) => setVisibleCols((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const colSpan = 3 + visibleCols.size;
 
+  // Drag-to-reorder columns. Ticker + company stay pinned left (identity cells);
+  // everything from "last" onward is reorderable. Order is persisted per user.
+  const MOVABLE_KEYS = ["last", ...MARKET_COLS.map(([k]) => k)];
+  const [colOrder, setColOrder] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("uz_market_col_order"));
+      if (Array.isArray(s)) {
+        const known = new Set(["last", ...MARKET_COLS.map(([k]) => k)]);
+        const kept = s.filter((k) => known.has(k));
+        const missing = ["last", ...MARKET_COLS.map(([k]) => k)].filter((k) => !kept.includes(k));
+        return [...kept, ...missing];
+      }
+    } catch (e) { /* ignore */ }
+    return ["last", ...MARKET_COLS.map(([k]) => k)];
+  });
+  useEffect(() => { try { localStorage.setItem("uz_market_col_order", JSON.stringify(colOrder)); } catch (e) { /* ignore */ } }, [colOrder]);
+  const [dragCol, setDragCol] = useState(null);
+  const [dragOverCol, setDragOverCol] = useState(null);
+  const moveCol = (from, to) => {
+    if (!from || from === to) return;
+    setColOrder((prev) => {
+      const arr = prev.filter((k) => MOVABLE_KEYS.includes(k));
+      const fi = arr.indexOf(from);
+      const ti = arr.indexOf(to);
+      if (fi < 0 || ti < 0) return prev;
+      const next = [...arr];
+      next.splice(fi, 1);
+      next.splice(ti, 0, from);
+      return next;
+    });
+  };
+  const resetColOrder = () => setColOrder(["last", ...MARKET_COLS.map(([k]) => k)]);
+  // Visible movable columns in the user's chosen order ("last" is always shown).
+  const visibleOrder = colOrder.filter((k) => k === "last" || visibleCols.has(k));
+
   const openPanel = (ticker) => {
     setPanelTicker(ticker);
     setPanelWiki(null);
@@ -5516,22 +5551,102 @@ function MarketView({
 
   const formatLeader = (row) => row ? `${row.ticker} ${formatRatio(row.changePercent, 2, lang)}%` : "—";
 
-  const sortTh = (key, label) => (
+  const sortTh = (key, label, opts = {}) => {
+    const { movable = false, num = false } = opts;
+    const cls = [
+      "market-th-sortable",
+      num ? "market-th-num" : "",
+      sortKey === key ? "sorted" : "",
+      movable ? "market-th-movable" : "",
+      movable && dragCol === key ? "dragging" : "",
+      movable && dragOverCol === key && dragCol && dragCol !== key ? "drag-over" : "",
+    ].filter(Boolean).join(" ");
+    return (
     <th
       key={key}
-      className={`market-th-sortable${sortKey === key ? " sorted" : ""}`}
+      className={cls}
       onClick={() => onSort(key)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(key); } }}
       role="button"
       tabIndex={0}
       aria-sort={sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+      draggable={movable}
+      onDragStart={movable ? (e) => { setDragCol(key); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", key); } catch (_) { /* ignore */ } } : undefined}
+      onDragOver={movable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragOverCol !== key) setDragOverCol(key); } : undefined}
+      onDragEnter={movable ? (e) => e.preventDefault() : undefined}
+      onDragLeave={movable ? () => { setDragOverCol((c) => (c === key ? null : c)); } : undefined}
+      onDrop={movable ? (e) => { e.preventDefault(); let from = dragCol; if (!from) { try { from = e.dataTransfer.getData("text/plain"); } catch (_) { from = null; } } moveCol(from, key); setDragCol(null); setDragOverCol(null); } : undefined}
+      onDragEnd={movable ? () => { setDragCol(null); setDragOverCol(null); } : undefined}
+      title={movable ? (lang === "en" ? "Drag to reorder · click to sort" : lang === "uz" ? "Tartibni o'zgartirish uchun torting · saralash uchun bosing" : "Перетащите, чтобы переставить · нажмите для сортировки") : undefined}
     >
       <span className="market-th-inner">
+        {movable && <span className="market-th-grip" aria-hidden="true">⋮⋮</span>}
         <span>{label}</span>
         <span className="market-sort-caret">{sortKey === key ? (sortDir === "asc" ? "▲" : "▼") : "↕"}</span>
       </span>
     </th>
-  );
+    );
+  };
+
+  // Label + cell registry so the movable columns can render in any order.
+  const LABEL_OF = Object.fromEntries([["last", mt(lang, "last")], ...MARKET_COLS]);
+  const NUM_COLS = new Set(MOVABLE_KEYS.filter((k) => k !== "date" && k !== "source"));
+  const CELL_OF = {
+    last: (row) => <td className="num">{(() => { const p = marketDisplayPrice(row); return p == null ? "—" : formatMarketNumber(p, lang); })()}</td>,
+    change: (row) => <td className="num"><MarketChangeBadge value={row.changeValue != null ? row.changeValue : (row.closePrice > 0 ? 0 : null)} percent={row.changePercent != null ? row.changePercent : (row.closePrice > 0 ? 0 : null)} language={lang} /></td>,
+    open: (row) => <td className="num">{(() => { const v = row.openPrice !== null ? row.openPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
+    high: (row) => <td className="num">{(() => { const v = row.highPrice !== null ? row.highPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
+    low: (row) => <td className="num">{(() => { const v = row.lowPrice !== null ? row.lowPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
+    volume: (row) => (
+      <td className="num">
+        {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
+        {row.stockTradeCount !== null && <span>{formatRatio(row.stockTradeCount, 0, lang)} {mt(lang, "tradeCount")}</span>}
+      </td>
+    ),
+    volQty: (row) => <td className="num">{row.stockQuantity !== null ? formatRatio(row.stockQuantity, 0, lang) : "—"}</td>,
+    avgShare: (row) => { const v = Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row); return <td className="num">{v === null || v === undefined ? "—" : formatMarketNumber(v, lang)}</td>; },
+    avgTrade: (row) => <td className="num">{avgTradeValue(row) !== null ? formatRatio(avgTradeValue(row), 0, lang) : "—"}</td>,
+    bigTrade: (row) => (
+      <td className="num">
+        {row.ts && Number.isFinite(row.ts.largest_value) ? (
+          <>
+            {formatRatio(row.ts.largest_value, 0, lang)}
+            <span>
+              {Number.isFinite(row.ts.largest_qty) ? `${formatRatio(row.ts.largest_qty, 0, lang)} ${mt(lang, "tradeQtyUnit")}` : ""}
+              {Number.isFinite(row.ts.largest_pct_value) ? ` · ${formatRatio(row.ts.largest_pct_value, 1, lang)}%` : ""}
+            </span>
+          </>
+        ) : "—"}
+      </td>
+    ),
+    volShare: (row) => <td className="num">{Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—"}</td>,
+    finRevenue: (row) => <td className="num">{finValue(finOf(row.ticker)?.revenue, lang)}</td>,
+    finGross: (row) => <td className="num">{finValue(finOf(row.ticker)?.gross_profit, lang)}</td>,
+    finCash: (row) => <td className="num">{finValue(finOf(row.ticker)?.cash, lang)}</td>,
+    finLiab: (row) => <td className="num">{finValue(finOf(row.ticker)?.total_liabilities, lang)}</td>,
+    finNet: (row) => <td className="num">{finValue(finOf(row.ticker)?.net_income, lang)}</td>,
+    finOperating: (row) => <td className="num">{finValue(finOf(row.ticker)?.operating_income, lang)}</td>,
+    mktCap: (row) => <td className="num">{(() => { const v = mktCapOf(row); return v == null ? "—" : formatRatio(v, 0, lang); })()}</td>,
+    pe: (row) => <td className="num">{(() => { const v = peOf(row); return v == null ? "—" : `${formatRatio(v, 1, lang)}×`; })()}</td>,
+    pb: (row) => <td className="num">{(() => { const v = pbOf(row); return v == null ? "—" : `${formatRatio(v, 2, lang)}×`; })()}</td>,
+    roe: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roe; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
+    roa: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roa; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
+    netMargin: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.net_profit_margin; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
+    debtEq: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.debt_to_equity; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
+    date: (row) => (
+      <td>
+        <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
+        {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
+      </td>
+    ),
+    source: (row) => (
+      <td>
+        {row.url ? (
+          <a className="market-source-link" href={row.url} target="_blank" rel="noreferrer">{mt(lang, "source")}</a>
+        ) : "—"}
+      </td>
+    ),
+  };
 
   return (
     <section className="market-layout">
@@ -5772,6 +5887,12 @@ function MarketView({
                         </>
                       );
                     })()}
+                    <div className="market-cols-footer">
+                      <span className="market-cols-hint">{lang === "en" ? "Drag column headers to reorder" : lang === "uz" ? "Tartib uchun sarlavhalarni torting" : "Перетаскивайте заголовки для порядка"}</span>
+                      <button type="button" className="market-cols-reset" onClick={resetColOrder}>
+                        {lang === "en" ? "Reset order" : lang === "uz" ? "Tartibni tiklash" : "Сбросить порядок"}
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
@@ -5814,32 +5935,7 @@ function MarketView({
                 <tr>
                   {sortTh("ticker", mt(lang, "ticker"))}
                   {sortTh("company", mt(lang, "company"))}
-                  {sortTh("last", mt(lang, "last"))}
-                  {visibleCols.has("change") && sortTh("change", mt(lang, "change"))}
-                  {visibleCols.has("open") && sortTh("open", mt(lang, "open"))}
-                  {visibleCols.has("high") && sortTh("high", mt(lang, "high"))}
-                  {visibleCols.has("low") && sortTh("low", mt(lang, "low"))}
-                  {visibleCols.has("volume") && sortTh("volume", mt(lang, "volumeCol"))}
-                  {visibleCols.has("volQty") && sortTh("volQty", mt(lang, "volQty"))}
-                  {visibleCols.has("avgShare") && sortTh("avgShare", mt(lang, "avgSharePrice"))}
-                  {visibleCols.has("avgTrade") && sortTh("avgTrade", mt(lang, "avgTradePrice"))}
-                  {visibleCols.has("bigTrade") && sortTh("bigTrade", mt(lang, "bigTrade"))}
-                  {visibleCols.has("volShare") && sortTh("volShare", mt(lang, "volShare"))}
-                  {visibleCols.has("finRevenue") && sortTh("finRevenue", mt(lang, "finRevenue"))}
-                  {visibleCols.has("finGross") && sortTh("finGross", mt(lang, "finGross"))}
-                  {visibleCols.has("finCash") && sortTh("finCash", mt(lang, "finCash"))}
-                  {visibleCols.has("finLiab") && sortTh("finLiab", mt(lang, "finLiab"))}
-                  {visibleCols.has("finNet") && sortTh("finNet", mt(lang, "finNet"))}
-                  {visibleCols.has("finOperating") && sortTh("finOperating", mt(lang, "finOperating"))}
-                  {visibleCols.has("mktCap") && sortTh("mktCap", mt(lang, "mktCap"))}
-                  {visibleCols.has("pe") && sortTh("pe", "P/E")}
-                  {visibleCols.has("pb") && sortTh("pb", "P/B")}
-                  {visibleCols.has("roe") && sortTh("roe", "ROE")}
-                  {visibleCols.has("roa") && sortTh("roa", "ROA")}
-                  {visibleCols.has("netMargin") && sortTh("netMargin", mt(lang, "netMargin"))}
-                  {visibleCols.has("debtEq") && sortTh("debtEq", mt(lang, "debtEquity"))}
-                  {visibleCols.has("date") && sortTh("date", mt(lang, "date"))}
-                  {visibleCols.has("source") && sortTh("source", mt(lang, "source"))}
+                  {visibleOrder.map((k) => sortTh(k, LABEL_OF[k], { movable: true, num: NUM_COLS.has(k) }))}
                 </tr>
               </thead>
               <tbody>
@@ -5885,69 +5981,7 @@ function MarketView({
                         </button>
                         <span>{row.isin || "—"}</span>
                       </td>
-                      <td className="num">{(() => { const p = marketDisplayPrice(row); return p == null ? "—" : formatMarketNumber(p, lang); })()}</td>
-                      {visibleCols.has("change") && <td className="num"><MarketChangeBadge value={row.changeValue != null ? row.changeValue : (row.closePrice > 0 ? 0 : null)} percent={row.changePercent != null ? row.changePercent : (row.closePrice > 0 ? 0 : null)} language={lang} /></td>}
-                      {visibleCols.has("open") && <td className="num">{(() => { const v = row.openPrice !== null ? row.openPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>}
-                      {visibleCols.has("high") && <td className="num">{(() => { const v = row.highPrice !== null ? row.highPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>}
-                      {visibleCols.has("low") && <td className="num">{(() => { const v = row.lowPrice !== null ? row.lowPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>}
-                      {visibleCols.has("volume") && (
-                        <td className="num">
-                          {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
-                          {row.stockTradeCount !== null && <span>{formatRatio(row.stockTradeCount, 0, lang)} {mt(lang, "tradeCount")}</span>}
-                        </td>
-                      )}
-                      {visibleCols.has("volQty") && (
-                        <td className="num">{row.stockQuantity !== null ? formatRatio(row.stockQuantity, 0, lang) : "—"}</td>
-                      )}
-                      {visibleCols.has("avgShare") && (() => {
-                        const v = Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row);
-                        return <td className="num">{v === null || v === undefined ? "—" : formatMarketNumber(v, lang)}</td>;
-                      })()}
-                      {visibleCols.has("avgTrade") && (
-                        <td className="num">{avgTradeValue(row) !== null ? formatRatio(avgTradeValue(row), 0, lang) : "—"}</td>
-                      )}
-                      {visibleCols.has("bigTrade") && (
-                        <td className="num">
-                          {row.ts && Number.isFinite(row.ts.largest_value) ? (
-                            <>
-                              {formatRatio(row.ts.largest_value, 0, lang)}
-                              <span>
-                                {Number.isFinite(row.ts.largest_qty) ? `${formatRatio(row.ts.largest_qty, 0, lang)} ${mt(lang, "tradeQtyUnit")}` : ""}
-                                {Number.isFinite(row.ts.largest_pct_value) ? ` · ${formatRatio(row.ts.largest_pct_value, 1, lang)}%` : ""}
-                              </span>
-                            </>
-                          ) : "—"}
-                        </td>
-                      )}
-                      {visibleCols.has("volShare") && (
-                        <td className="num">{Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—"}</td>
-                      )}
-                      {visibleCols.has("finRevenue") && <td className="num">{finValue(finOf(row.ticker)?.revenue, lang)}</td>}
-                      {visibleCols.has("finGross") && <td className="num">{finValue(finOf(row.ticker)?.gross_profit, lang)}</td>}
-                      {visibleCols.has("finCash") && <td className="num">{finValue(finOf(row.ticker)?.cash, lang)}</td>}
-                      {visibleCols.has("finLiab") && <td className="num">{finValue(finOf(row.ticker)?.total_liabilities, lang)}</td>}
-                      {visibleCols.has("finNet") && <td className="num">{finValue(finOf(row.ticker)?.net_income, lang)}</td>}
-                      {visibleCols.has("finOperating") && <td className="num">{finValue(finOf(row.ticker)?.operating_income, lang)}</td>}
-                      {visibleCols.has("mktCap") && <td className="num">{(() => { const v = mktCapOf(row); return v == null ? "—" : formatRatio(v, 0, lang); })()}</td>}
-                      {visibleCols.has("pe") && <td className="num">{(() => { const v = peOf(row); return v == null ? "—" : `${formatRatio(v, 1, lang)}×`; })()}</td>}
-                      {visibleCols.has("pb") && <td className="num">{(() => { const v = pbOf(row); return v == null ? "—" : `${formatRatio(v, 2, lang)}×`; })()}</td>}
-                      {visibleCols.has("roe") && <td className="num">{(() => { const v = ratioOf(row.ticker)?.roe; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>}
-                      {visibleCols.has("roa") && <td className="num">{(() => { const v = ratioOf(row.ticker)?.roa; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>}
-                      {visibleCols.has("netMargin") && <td className="num">{(() => { const v = ratioOf(row.ticker)?.net_profit_margin; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>}
-                      {visibleCols.has("debtEq") && <td className="num">{(() => { const v = ratioOf(row.ticker)?.debt_to_equity; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>}
-                      {visibleCols.has("date") && (
-                        <td>
-                          <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
-                          {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
-                        </td>
-                      )}
-                      {visibleCols.has("source") && (
-                        <td>
-                          {row.url ? (
-                            <a className="market-source-link" href={row.url} target="_blank" rel="noreferrer">{mt(lang, "source")}</a>
-                          ) : "—"}
-                        </td>
-                      )}
+                      {visibleOrder.map((k) => React.cloneElement(CELL_OF[k](row), { key: k }))}
                     </tr>
                     );
                   })
