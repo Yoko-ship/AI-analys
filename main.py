@@ -50,8 +50,32 @@ def _make_session() -> requests.Session:
 
 def _normalize_company_key(value: str) -> str:
     value = (value or "").lower().strip()
+    # Apostrophes are letter modifiers in Uzbek Latin names (O'zmetkombinat),
+    # not word separators — drop them before splitting so the name stays one
+    # token instead of degrading into {o, zmetkombinat}.
+    value = re.sub(r"[''`ʼ’ʻ]", "", value)
     value = re.sub(r"[\W_]+", " ", value, flags=re.UNICODE)
     return " ".join(value.split())
+
+
+# Legal-form and generic corporate words that appear in almost every issuer
+# name. They carry no identity, so they never count toward a fuzzy match —
+# otherwise "Акционерное общество «X»" matches every other акционерное общество.
+_GENERIC_NAME_TOKENS = {
+    # uz latin legal forms / fillers
+    "aj", "oaj", "yoaj", "atb", "atib", "akb", "xatb", "mchj", "xk", "ak", "mmt",
+    "aksiyadorlik", "jamiyati", "jamiyat", "tijorat", "banki", "bank",
+    "kompaniyasi", "kompaniya", "korxonasi", "korxona", "shirkati",
+    "ochiq", "yopiq", "turdagi", "chet", "el", "kapitali", "ishtirokidagi",
+    # ru
+    "ао", "оао", "зао", "ооо", "акб", "чаб", "аж", "ат",
+    "акционерное", "акционерный", "общество", "обществo", "коммерческий",
+    "банк", "банка", "компания",
+}
+
+
+def _meaningful_tokens(normalized: str) -> set[str]:
+    return {t for t in normalized.split() if len(t) >= 2 and t not in _GENERIC_NAME_TOKENS}
 
 
 def _load_org_cache() -> dict:
@@ -70,10 +94,19 @@ def _save_org_cache(cache: dict) -> None:
     )
 
 
+# A wrong resolution must not live forever: entries expire so they get
+# re-resolved against current matching rules. Legacy entries without a
+# timestamp are treated as expired — that alone purges historical poison.
+ORG_CACHE_TTL_DAYS = int(os.getenv("ORG_CACHE_TTL_DAYS", "30"))
+
+
 def _get_cached_org_id(user_input: str) -> tuple[str, str] | None:
     cache = _load_org_cache()
     item = cache.get(_normalize_company_key(user_input))
     if not item:
+        return None
+    cached_at = item.get("cached_at")
+    if not cached_at or (time.time() - float(cached_at)) > ORG_CACHE_TTL_DAYS * 86400:
         return None
     org_id = item.get("org_id")
     company_name = item.get("company_name")
@@ -85,7 +118,7 @@ def _get_cached_org_id(user_input: str) -> tuple[str, str] | None:
 
 def _store_org_id_cache(user_input: str, org_id: str, company_name: str) -> None:
     cache = _load_org_cache()
-    payload = {"org_id": org_id, "company_name": company_name}
+    payload = {"org_id": org_id, "company_name": company_name, "cached_at": time.time()}
     for key in {_normalize_company_key(user_input), _normalize_company_key(company_name)}:
         if key:
             cache[key] = payload
@@ -123,9 +156,12 @@ def _lookup_org_id_via_api(user_input: str) -> tuple[str, str] | None:
         if result:
             return result
 
-    # Стратегия 2: Поиск по первому слову
+    # Стратегия 2: Поиск по первому слову — только если это слово несёт смысл.
+    # Первое слово вроде «Акционерное» совпадает с сотнями компаний и раньше
+    # закрепляло в кэше первую попавшуюся организацию.
     first_word = user_input.split()[0] if user_input.split() else user_input
-    if first_word != user_input:
+    first_norm = _normalize_company_key(first_word)
+    if first_word != user_input and first_norm and _meaningful_tokens(first_norm):
         first_variants = _get_search_variants(first_word)
         for variant in first_variants:
             result = _try_autofill_api(variant, _normalize_company_key(variant))
@@ -311,9 +347,15 @@ def _try_autofill_api(query: str, normalized_query: str) -> tuple[str, str] | No
     return org_id, company_name
 
 
-# Кэш полного списка организаций (загружается один раз)
+# Кэш полного списка организаций (загружается один раз).
+# Хранится в APP_DATA_DIR (как остальные кэши), а не в текущей директории —
+# путь больше не зависит от того, откуда запущен процесс.
 _FULL_ORG_LIST: list | None = None
-_FULL_ORG_LIST_PATH = Path("full_org_list_cache.json")
+_FULL_ORG_LIST_PATH = (
+    Path(os.getenv("FULL_ORG_LIST_CACHE_PATH")).expanduser()
+    if os.getenv("FULL_ORG_LIST_CACHE_PATH")
+    else ORG_CACHE_PATH.parent / "full_org_list_cache.json"
+)
 
 
 def _load_full_org_list() -> list:
@@ -407,7 +449,10 @@ def _search_in_full_org_list(query: str, normalized_query: str) -> tuple[str, st
             best_score = score
             best_item = org
 
-    if best_item and best_score >= 2.0:  # Минимум 1 хорошее совпадение
+    # Floor: общие токены сами по себе не проходят — нужен структурный сигнал
+    # (точное совпадение, подстрока или все значимые слова запроса в названии).
+    # Раньше порог 2.0 = одно общее слово, и «O'z…» совпадал с любой «O'z…».
+    if best_item and best_score >= 10.0:
         org_id = str(best_item["id"])
         company_name = str(best_item.get("full_name_text", "")).strip()
         logger.info(f"org_id найден в полном списке (score={best_score:.1f}): {org_id} ({company_name})")
@@ -418,16 +463,20 @@ def _search_in_full_org_list(query: str, normalized_query: str) -> tuple[str, st
 
 
 def _calc_match_score(query_normalized: str, name_normalized: str) -> float:
-    """Вычисляет score совпадения между запросом и названием."""
+    """Вычисляет score совпадения между запросом и названием.
+
+    Учитываются только значимые токены — юридические формы («AJ», «банк»,
+    «акционерное») не считаются совпадением.
+    """
     if not query_normalized or not name_normalized:
         return 0.0
 
     score = 0.0
-    query_tokens = set(query_normalized.split())
-    name_tokens = set(name_normalized.split())
+    query_tokens = _meaningful_tokens(query_normalized)
+    name_tokens = _meaningful_tokens(name_normalized)
 
     common = query_tokens & name_tokens
-    score += len(common) * 2  # 2 очка за каждое совпадающее слово
+    score += len(common) * 2  # 2 очка за каждое значимое совпадающее слово
 
     if query_normalized == name_normalized:
         score += 100
@@ -436,7 +485,7 @@ def _calc_match_score(query_normalized: str, name_normalized: str) -> float:
     elif name_normalized in query_normalized:
         score += 10
 
-    # Бонус за все слова запроса в названии
+    # Бонус: все значимые слова запроса найдены в названии
     if query_tokens and query_tokens <= name_tokens:
         score += 15
 
@@ -456,30 +505,25 @@ def _find_best_match(items: list, normalized_input: str) -> dict | None:
         normalized_name = _normalize_company_key(full_name)
         score = 0.0
         if normalized_input and normalized_name:
-            input_tokens = set(normalized_input.split())
-            name_tokens = set(normalized_name.split())
+            input_tokens = _meaningful_tokens(normalized_input)
+            name_tokens = _meaningful_tokens(normalized_name)
             common_tokens = input_tokens & name_tokens
             score = len(common_tokens)
             if normalized_input == normalized_name:
                 score += 100
             elif normalized_input in normalized_name or normalized_name in normalized_input:
                 score += 10
-            # Бонус если все слова запроса найдены
+            # Бонус если все значимые слова запроса найдены
             if input_tokens and input_tokens <= name_tokens:
                 score += 5
         if score > best_score:
             best_score = score
             best_item = item
 
-    # Trust autofill: it already searched by substring server-side.
-    # Short tickers like ALKB/IPTB/HMKB score 0 against full names, but the
-    # autofill result is still the right company.
-    if best_item:
-        if best_score <= 0:
-            logger.info(
-                "Скор=0, доверяем autofill: %s",
-                best_item.get("full_name_text") or best_item.get("name"),
-            )
+    # /home/autofill/ игнорирует параметр поиска и возвращает ПОЛНЫЙ список
+    # организаций, поэтому «доверять autofill» при нулевом скоре — значит взять
+    # произвольную первую компанию. Принимаем только структурное совпадение.
+    if best_item and best_score >= 6.0:
         return best_item
     return None
 
