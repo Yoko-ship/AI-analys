@@ -4,6 +4,7 @@ import asyncio
 import hmac
 import logging
 import os
+import threading
 from functools import partial
 from urllib.parse import quote, urlencode
 from pathlib import Path
@@ -950,6 +951,40 @@ async def api_admin_openinfo_probe(
     except Exception as exc:
         logger.exception("openinfo probe failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+_admin_catalog_sync_running = threading.Event()
+
+
+@app.post("/api/admin/catalog-sync")
+async def api_admin_catalog_sync(
+    force: bool = False,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Trigger this deployment's own full catalog sync in the background.
+
+    openinfo is reachable from the deployment itself (verify via
+    /api/admin/openinfo-probe), so the org map, report catalog and sync-error
+    states can be rebuilt in place — including the self-healing purge for
+    tickers whose issuer resolution changed. Returns immediately; progress is
+    visible in /api/coverage.
+    """
+    if _admin_catalog_sync_running.is_set():
+        return {"ok": True, "started": False, "detail": "catalog sync already running"}
+
+    def _run() -> None:
+        _admin_catalog_sync_running.set()
+        try:
+            res = catalog_sync_all(force=force)
+            logger.info("admin catalog sync done: %s",
+                        {k: res.get(k) for k in ("total", "synced", "skipped") if isinstance(res, dict)})
+        except Exception:
+            logger.exception("admin catalog sync failed")
+        finally:
+            _admin_catalog_sync_running.clear()
+
+    asyncio.get_running_loop().run_in_executor(None, _run)
+    return {"ok": True, "started": True, "force": force}
 
 
 @app.get("/api/securities")
