@@ -514,25 +514,45 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
 
     # Merge in listed-but-inactive issuers (openinfo RFB registry, pushed by the
     # collector) that the live feed omits, so they still show on the market board —
-    # tagged inactive with their last-known trade. Equities only (skip for bonds).
+    # tagged inactive with their last-known trade. The registry mixes an issuer's
+    # bonds in with its shares (openinfo has no security-kind field there), so route
+    # each row by the securities catalog: bond tickers go to the bond view tagged
+    # type=bond, everything else to the stock view — never bonds labeled as shares.
     merged = list(stocks_list)
     added_inactive = 0
-    if security_type != "bond":
-        feed_tickers = {str(s.get("ticker") or "").upper() for s in stocks_list}
-        feed_isins = {str(s.get("isin") or "").upper() for s in stocks_list if s.get("isin")}
+    feed_tickers = {str(s.get("ticker") or "").upper() for s in stocks_list}
+    feed_isins = {str(s.get("isin") or "").upper() for s in stocks_list if s.get("isin")}
+    try:
+        listings = get_all_listings()
+    except Exception:
+        logger.exception("market/stocks: listings merge read failed")
+        listings = {}
+    catalog: dict[str, dict] = {}
+    if listings:
         try:
-            listings = get_all_listings()
+            catalog = get_securities_map()
         except Exception:
-            logger.exception("market/stocks: listings merge read failed")
-            listings = {}
-        for tk, lst in listings.items():
-            if tk in feed_tickers:
-                continue
-            isin = str(lst.get("isin") or "").upper()
-            if isin and isin in feed_isins:
-                continue
-            merged.append(_listing_to_stock(lst))
-            added_inactive += 1
+            logger.exception("market/stocks: securities catalog read failed")
+    want_bonds = security_type == "bond"
+    for tk, lst in listings.items():
+        if tk in feed_tickers:
+            continue
+        isin = str(lst.get("isin") or "").upper()
+        if isin and isin in feed_isins:
+            continue
+        sec = catalog.get(str(tk or "").upper()) or {}
+        is_bond = sec.get("type") == "bond"
+        if is_bond != want_bonds:
+            continue
+        row = _listing_to_stock(lst)
+        if is_bond:
+            row["type"] = "bond"
+            # Registry fallback rows (issuer with empty info_rfb isin_codes) have
+            # no ISIN of their own — take the bond's ISIN from the catalog.
+            if not row.get("isin"):
+                row["isin"] = sec.get("isin")
+        merged.append(row)
+        added_inactive += 1
 
     return _json_safe({
         "ok": True,
