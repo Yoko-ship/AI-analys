@@ -238,6 +238,27 @@ def _extract_quarter(period_str: str) -> int | None:
     return None
 
 
+def _period_key(period: str | None) -> tuple[int, int]:
+    """Numeric sort key for fact-store period strings ('2025', '2025Q3').
+
+    Replaces lexicographic comparison, under which corrupt periods from the
+    source ('2025Q7' > '2025Q3', '2026Q5' > '2026') won every "latest period"
+    pick. An annual period ranks above the year's quarters (it is the complete,
+    most recently published figure for that year); anything unparseable or with
+    an out-of-range quarter ranks below every valid period.
+    """
+    m = re.fullmatch(r"(\d{4})(?:Q(\d{1,2}))?", str(period or "").strip())
+    if not m:
+        return (0, 0)
+    year = int(m.group(1))
+    if m.group(2) is None:
+        return (year, 5)  # annual: outranks Q1-Q4 of the same year
+    quarter = int(m.group(2))
+    if not 1 <= quarter <= 4:
+        return (0, 0)  # corrupt source period — never wins
+    return (year, quarter)
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -1458,6 +1479,16 @@ _MIN_PLAUSIBLE = 10_000
 _FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income", "operating_income")
 _RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_ratio", "total_equity", "total_assets")
 
+# Unit contract: NSBU statements and openinfo financial_indicators publish
+# absolute sums in THOUSANDS of UZS ("ming so'm"), and that is how they are
+# stored (catalog_financials, facts). Market caps and share prices are full
+# UZS. API endpoints that serve absolute sums to the frontend multiply by this
+# factor at the response boundary so the client never mixes units — dividing a
+# full-UZS market cap by thousands-UZS earnings understated P/E and P/B ~1000×.
+NSBU_THOUSANDS_UZS = 1000.0
+FIN_MONEY_FIELDS = _FIN_FIELDS
+RATIO_MONEY_FIELDS = ("total_equity", "total_assets")
+
 
 def get_all_ratios() -> dict[str, dict[str, Any]]:
     """Latest per-ticker financial ratios and equity from the fact store
@@ -1487,7 +1518,9 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
     for r in rows:
         key = (str(r["entity_id"]), r["field"])
         period = str(r["period"] or "")
-        if best.get(key) is None or period > best[key][0]:
+        if _period_key(period) == (0, 0):
+            continue  # corrupt/unparseable source period — never a candidate
+        if best.get(key) is None or _period_key(period) > _period_key(best[key][0]):
             best[key] = (period, r["value_num"])
     out: dict[str, dict[str, Any]] = {}
     for ticker, org in ticker_org.items():
@@ -1499,7 +1532,7 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             hit = best.get((org, field))
             if hit is not None:
                 entry[field] = hit[1]
-                if latest_period is None or hit[0] > latest_period:
+                if latest_period is None or _period_key(hit[0]) > _period_key(latest_period):
                     latest_period = hit[0]
         if entry:
             entry["period"] = latest_period
@@ -1545,7 +1578,9 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
     for r in rows:
         key = (str(r["entity_id"]), r["field"])
         period = str(r["period"] or "")
-        if best.get(key) is None or period > best[key][0]:
+        if _period_key(period) == (0, 0):
+            continue  # corrupt/unparseable source period — never a candidate
+        if best.get(key) is None or _period_key(period) > _period_key(best[key][0]):
             best[key] = (period, r["value_num"])
         if r["field"] == "net_profit" and period.isdigit() and len(period) == 4:
             npf_by_year[(str(r["entity_id"]), int(period))] = r["value_num"]
@@ -1638,8 +1673,29 @@ def upsert_facts(rows: list[dict[str, Any]]) -> int:
                  vnum, vtext, r.get("unit"), r.get("source", "unknown"), r.get("source_url")),
             )
             written += 1
+        _cleanup_invalid_fact_periods(conn)
     conn.close()
     return written
+
+
+def _cleanup_invalid_fact_periods(conn: sqlite3.Connection) -> int:
+    """Delete dated facts whose period fails validation ('2025Q7', '2026Q5', …).
+
+    Runs on every fact upsert (local collect and prod admin push alike), so a
+    DB that already contains corrupt periods heals itself without a hand-run
+    migration. Period-less facts (period = '') are untouched.
+    """
+    periods = [
+        r["period"]
+        for r in conn.execute("SELECT DISTINCT period FROM facts WHERE period != ''").fetchall()
+    ]
+    bad = [p for p in periods if _period_key(p) == (0, 0)]
+    removed = 0
+    for p in bad:
+        removed += conn.execute("DELETE FROM facts WHERE period = ?", (p,)).rowcount
+    if removed:
+        logger.warning("fact store: removed %d rows with invalid periods %s", removed, bad)
+    return removed
 
 
 def get_facts(entity_id: Any = None, dataset: str | None = None) -> list[dict[str, Any]]:
@@ -1686,7 +1742,9 @@ def audit_financials_consistency(form: str = "NSBU", tol: float = 0.05) -> list[
     for r in rows:
         key = str(r["entity_id"])
         period = str(r["period"] or "")
-        if key not in best or period > best[key][0]:
+        if _period_key(period) == (0, 0):
+            continue  # corrupt/unparseable source period
+        if key not in best or _period_key(period) > _period_key(best[key][0]):
             best[key] = (period, r["value_num"])
     flags: list[dict[str, Any]] = []
     for ticker, fin in served.items():
@@ -2213,13 +2271,26 @@ def _row_value(nums: list) -> float | None:
                 return v
         return None
 
+    def _half_value(half: list[float]) -> float | None:
+        # A 2-cell half in the commercial form №2 layout is an income|expense
+        # COLUMN PAIR, not two candidate values: a loss sits as a positive
+        # number in the expense column. Reading "first non-zero" there returns
+        # a loss with a plus sign — so read the pair as income − expense.
+        if len(half) == 2:
+            income, expense = half
+            if abs(income) <= 0.0001 and abs(expense) <= 0.0001:
+                return None
+            return income - expense
+        return _first_nonzero(half)
+
     # Period columns run oldest → newest, so the reporting period is the second
     # half of the value cells (form №2 prior|current income/expense pairs; form №1
     # and bank forms begin|end / prior|current). Prefer it; fall back if it's zero.
     if len(rest) >= 2 and len(rest) % 2 == 0:
-        reporting = _first_nonzero(rest[len(rest) // 2:])
+        reporting = _half_value(rest[len(rest) // 2:])
         if reporting is not None:
             return reporting
+        return _half_value(rest[:len(rest) // 2])
     return _first_nonzero(rest)
 
 
