@@ -1008,6 +1008,26 @@ async def api_securities_info(ticker: str, language: str = "ru") -> dict[str, An
         smap = await loop.run_in_executor(None, get_securities_map)
         sec = smap.get(ticker)
         if not sec:
+            # The securities map is filled from the live trading feed only, so
+            # listed-but-inactive securities (present in the RFB registry) used
+            # to 404 into a blank company page. Serve their registry data.
+            listings = await loop.run_in_executor(None, get_all_listings)
+            listing = (listings or {}).get(ticker)
+            if listing:
+                sec = {
+                    "ticker": ticker,
+                    "company_name": listing.get("name"),
+                    "security_name": listing.get("name"),
+                    "isin": listing.get("isin"),
+                    "share_type": listing.get("share_type"),
+                    "listing_date": listing.get("listing_date"),
+                    "shares_outstanding": listing.get("shares_outstanding"),
+                    "last_price": listing.get("last_price"),
+                    "last_trade_date": listing.get("last_trade_date"),
+                    "market_cap": listing.get("market_cap"),
+                    "inactive": True,
+                }
+        if not sec:
             raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found in securities")
         wiki = await loop.run_in_executor(
             None, partial(get_wiki_info, ticker, sec.get("company_name") or sec.get("security_name") or "", language)
@@ -1590,10 +1610,27 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
     months = max(1, min(months, 60))
     loop = asyncio.get_running_loop()
     try:
-        uzse_base = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
-        resp = await loop.run_in_executor(None, lambda: _req.get(f"{uzse_base}/stocks", timeout=15))
-        stocks = resp.json().get("stocks", []) if resp.ok else []
-        isin = next((s["isin"] for s in stocks if s.get("ticker", "").upper() == ticker), None)
+        # The ISIN is known locally (securities catalog / listing registry) —
+        # resolve there first. The live feed only lists actively traded
+        # tickers, so inactive listings used to die with "ISIN not found";
+        # it remains the last-resort fallback for brand-new tickers.
+        isin: str | None = None
+        try:
+            smap = await loop.run_in_executor(None, get_securities_map)
+            isin = str((smap.get(ticker) or {}).get("isin") or "").strip() or None
+        except Exception:  # noqa: BLE001
+            pass
+        if not isin:
+            try:
+                listings = await loop.run_in_executor(None, get_all_listings)
+                isin = str(((listings or {}).get(ticker) or {}).get("isin") or "").strip() or None
+            except Exception:  # noqa: BLE001
+                pass
+        if not isin:
+            uzse_base = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
+            resp = await loop.run_in_executor(None, lambda: _req.get(f"{uzse_base}/stocks", timeout=15))
+            stocks = resp.json().get("stocks", []) if resp.ok else []
+            isin = next((s["isin"] for s in stocks if s.get("ticker", "").upper() == ticker), None)
         if not isin:
             return {"ok": False, "ticker": ticker, "error": "ISIN not found", "points": []}
         data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, months))
