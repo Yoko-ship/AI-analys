@@ -6840,7 +6840,12 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 
 .market-table-wrap {
   overflow-x: auto;
+  /* Native horizontal scrollbar hidden — MarketFloatScroll renders the only bar,
+     fixed to the viewport bottom while the table runs below the fold. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.market-table-wrap::-webkit-scrollbar { display: none; }
 
 .market-table {
   width: 100%;

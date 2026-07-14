@@ -5266,17 +5266,17 @@ function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
       const left = Math.max(r.left, 0);
       const right = Math.min(r.right, window.innerWidth);
       const trackW = right - left;
-      // Only show the floating bar when the table's own bottom scrollbar is scrolled
-      // below the fold. Otherwise that native bar is on screen and does the job — this
-      // way there's always a scrollbar and never two at once.
-      const nativeBelowFold = r.bottom > window.innerHeight + 8;
-      const inView = max > 1 && nativeBelowFold && r.top < window.innerHeight && trackW > 40;
+      // The wrap's native bar is hidden (see CSS) — this floating bar is the only
+      // horizontal scrollbar. It clings to the viewport bottom while the table runs
+      // below the fold, and to the table's own bottom edge once the end scrolls into
+      // view, so exactly one bar is visible whenever the table is on screen.
+      const inView = max > 1 && r.top < window.innerHeight && r.bottom > 40 && trackW > 40;
       if (!inView) {
         setBox((b) => (b.show ? { ...b, show: false } : b));
         return;
       }
       const BAR = 14;
-      const top = window.innerHeight - BAR;
+      const top = Math.min(window.innerHeight, r.bottom) - BAR;
       setBox({ show: true, left, width: trackW, top });
       const tw = Math.max(trackW * (cw / sw), MIN_THUMB);
       const tl = max > 0 ? (el.scrollLeft / max) * (trackW - tw) : 0;
