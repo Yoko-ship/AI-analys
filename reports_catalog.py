@@ -1457,6 +1457,10 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         out[r["ticker"]] = {
             "year": r["year"],
             "quarter": r["quarter"],
+            # Quarterly NSBU flows are cumulative from Jan 1 — flag it so the
+            # client can label a Q2 figure as "6 months" rather than pass a
+            # part-year number off as a full-year one next to annual rows.
+            "is_ytd": bool(r["quarter"]),
             "revenue": r["revenue"],
             "gross_profit": r["gross_profit"],
             "cash": r["cash"],
@@ -2518,7 +2522,34 @@ def build_dynamics_data(ticker: str, form: str = "NSBU") -> dict[str, Any]:
             entry[k] = vals_q.get(k)
         quarterly.append(entry)
 
+    # --- De-cumulate flow metrics -------------------------------------------
+    # NSBU quarterly form-2 figures are cumulative year-to-date (an H1 filing's
+    # "revenue" is six months of revenue). Serving them per-quarter labeled
+    # "Q2" overstated quarters and made seasonality structurally meaningless.
+    # Derive true standalone quarters by differencing consecutive YTD values of
+    # the same year; a quarter without its predecessor on file stays None (the
+    # cumulative figure is still exposed as <metric>_ytd). Balance-sheet
+    # metrics (assets/equity/liabilities) are point-in-time and stay as-is.
+    flow_keys = ("revenue", "net_income")
+    for e in quarterly:
+        for k in flow_keys:
+            e[f"{k}_ytd"] = e.get(k)
+    ytd_by_period = {(e["year"], e["quarter"]): e for e in quarterly}
+    for e in quarterly:
+        for k in flow_keys:
+            ytd = e.get(f"{k}_ytd")
+            if not isinstance(ytd, (int, float)):
+                e[k] = None
+                continue
+            if e["quarter"] <= 1:
+                continue  # Q1 cumulative == standalone
+            prev = ytd_by_period.get((e["year"], e["quarter"] - 1))
+            prev_ytd = prev.get(f"{k}_ytd") if prev else None
+            e[k] = round(ytd - prev_ytd, 2) if isinstance(prev_ytd, (int, float)) else None
+
     # --- Seasonality (ТЗ §3.5): average a headline metric by quarter across years.
+    # Uses the de-cumulated standalone quarters computed above — averaging raw
+    # YTD values would always rank Q3 "above" Q1 regardless of real seasonality.
     # Needs ≥3 years of history; otherwise flagged insufficient rather than shown.
     season_metric = "revenue"
     by_q: dict[int, list[float]] = {1: [], 2: [], 3: [], 4: []}
