@@ -907,6 +907,25 @@ async def api_admin_listings(
     return {"ok": True, "upserted": n}
 
 
+@app.get("/api/admin/openinfo-probe")
+async def api_admin_openinfo_probe(
+    search: str = "Hamkorbank",
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Live connectivity matrix: which openinfo endpoint classes THIS deployment
+    can reach from its own egress IP, using the same client configuration the
+    collector uses (proxy, TLS). Diagnoses full/partial IP blocks without guessing.
+    """
+    from openinfo_probe import run_probe
+
+    loop = asyncio.get_running_loop()
+    try:
+        return _json_safe(await loop.run_in_executor(None, partial(run_probe, search)))
+    except Exception as exc:
+        logger.exception("openinfo probe failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.get("/api/securities")
 async def api_securities() -> dict[str, Any]:
     """Return the full securities map {ticker: info}."""
