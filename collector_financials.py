@@ -1,9 +1,13 @@
 """Daily financials collector.
 
-Runs where openinfo.uz is reachable (a machine/proxy on a UZ-allowed network),
-recomputes the NSBU headline indicators, and pushes them to the deployed API via
-POST /api/admin/financials — because the Railway datacenter IP is blocked by
-openinfo and cannot fetch the source data itself.
+Runs anywhere openinfo.uz is reachable, recomputes the NSBU headline indicators,
+and pushes them to the deployed API via POST /api/admin/*. Verified: Railway's
+own egress IP reaches openinfo directly (re-check live any time with
+GET /api/admin/openinfo-probe), so the recommended setup is a Railway cron
+service from this same repo (see railway.collector.json + DEPLOY.md). A local
+PC or any other host works identically; if a host does get blocked, set
+OPENINFO_PROXY to route through a relay. All openinfo traffic is paced and
+retried via openinfo_http.py so bulk syncs stay polite and the IP stays clean.
 
 Usage:
     python collector_financials.py              # sync catalog + recompute + push
