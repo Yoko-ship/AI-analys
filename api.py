@@ -21,6 +21,9 @@ from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from openinfo_collector import collect_company_data, get_company_periods
 from reports_catalog import (
     _TICKER_TO_NAME,
+    FIN_MONEY_FIELDS,
+    NSBU_THOUSANDS_UZS,
+    RATIO_MONEY_FIELDS,
     build_dynamics_data,
     compute_financial_ratios,
     fetch_report_excel_data,
@@ -224,6 +227,12 @@ class CatalogAnalyzeRequest(BaseModel):
     form: Literal["NSBU", "MSFO", "Audition"] = "NSBU"
     analysis_type: str = Field(default="financial", max_length=40)
     language: Literal["ru", "en", "uz"] = "ru"
+    # Used by the quarter_compare / annual_compare / multi_company modes. These
+    # fields used to sit on the Admin* models by mistake, so all three modes
+    # died with AttributeError → HTTP 500 on every request.
+    compare_ticker: str | None = Field(default=None, max_length=40)
+    compare_year: int | None = Field(default=None, ge=2000, le=2100)
+    compare_quarter: int | None = Field(default=None, ge=0, le=3)
 
 
 class AdminFinancialsRequest(BaseModel):
@@ -234,13 +243,10 @@ class AdminFinancialsRequest(BaseModel):
 class AdminTradeStatsRequest(BaseModel):
     trade_date: str | None = Field(default=None, max_length=16)
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
-    compare_ticker: str | None = Field(default=None, max_length=40)
-    compare_year: int | None = Field(default=None, ge=2000, le=2100)
 
 
 class AdminFactsRequest(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=20000)
-    compare_quarter: int | None = Field(default=None, ge=0, le=3)
 
 
 class AdminListingsRequest(BaseModel):
@@ -608,6 +614,16 @@ async def api_market_financials() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     # Progressive background fill (non-blocking; self-throttled and lock-guarded).
     loop.run_in_executor(None, refresh_financials_cache)
+    # Stored NSBU sums are thousands of UZS; serve full UZS so the client can
+    # relate them to market caps/prices without unit knowledge.
+    financials = {
+        ticker: {
+            **row,
+            **{k: row[k] * NSBU_THOUSANDS_UZS
+               for k in FIN_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
+        }
+        for ticker, row in financials.items()
+    }
     return _json_safe({
         "ok": True,
         "count": len(financials),
@@ -626,6 +642,16 @@ async def api_market_ratios() -> dict[str, Any]:
     except Exception as exc:
         logger.exception("ratios cache read failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    # Absolute sums (equity/assets) are stored in thousands of UZS; serve full
+    # UZS so P/B = market_cap / total_equity divides like units.
+    ratios = {
+        ticker: {
+            **row,
+            **{k: row[k] * NSBU_THOUSANDS_UZS
+               for k in RATIO_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
+        }
+        for ticker, row in ratios.items()
+    }
     return _json_safe({"ok": True, "count": len(ratios), "ratios": ratios})
 
 

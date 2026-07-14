@@ -12,6 +12,7 @@ get it too" property from the pipeline design.
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Any, Protocol, runtime_checkable
 
 import reports_catalog as rc
@@ -117,9 +118,27 @@ class FinancialIndicatorsCollector:
             for rec in results or []:
                 year = rec.get("reporting_year")
                 quarter = rec.get("quarter")
-                period = str(year or "")
-                if quarter not in (None, 0, "0", ""):
-                    period += f"Q{quarter}"
+                # Validate the source's period fields instead of trusting them:
+                # openinfo has published quarter values like 7 or 10, which used
+                # to create corrupt periods ("2025Q7") that then won every
+                # lexicographic "latest period" comparison.
+                try:
+                    year_num = int(year)
+                except (TypeError, ValueError):
+                    year_num = 0
+                try:
+                    quarter_num = int(quarter or 0)
+                except (TypeError, ValueError):
+                    quarter_num = -1
+                if not (2000 <= year_num <= date.today().year + 1) or quarter_num not in (0, 1, 2, 3, 4):
+                    logger.warning(
+                        "financial_indicators org=%s: dropping record with invalid period year=%r quarter=%r",
+                        org, year, quarter,
+                    )
+                    continue
+                period = str(year_num)
+                if quarter_num:
+                    period += f"Q{quarter_num}"
                 # Guard: only trust the absolute figures if they reconcile with the
                 # ratios the source reports. Ratios are always kept.
                 trust_absolutes = reconciles_indicators(rec)

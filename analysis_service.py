@@ -263,20 +263,22 @@ def _analysis_cache_mode(
     return f"default{_comparison_cache_suffix(report_comparison)}"
 
 
-def _as_pct(value, digits: int = 2):
-    """Convert ratio→percent, tolerating sources that already deliver percent.
+# openinfo /financial_indicators/ units are constant PER FIELD (verified against
+# live data): return_on_assets / return_on_equity / cost_of_risk arrive already
+# in percent (a bank's 0.8 means 0.8%), while *_margin fields arrive as fractions
+# (0.17 = 17%). Convert by field, never by guessing from the magnitude — the old
+# |value|>1 heuristic turned a bank ROA of 0.8% into 80% and an ROE of 150% into 1.5%.
 
-    openinfo /financial_indicators/ is inconsistent: return_on_equity comes as
-    27.64 (already %), while net_profit_margin comes as 0.12 (fraction). A
-    blind ×100 inflates ROE to 2764. If |value|>1 we assume the source is
-    already in percent and pass it through; otherwise we scale.
-    """
+def _pct_from_percent(value, digits: int = 2):
+    """Field already expressed in percent — parse and round only."""
     parsed = _safe_float(value)
-    if parsed is None:
-        return None
-    if abs(parsed) > 1:
-        return round(parsed, digits)
-    return round(parsed * 100, digits)
+    return None if parsed is None else round(parsed, digits)
+
+
+def _pct_from_fraction(value, digits: int = 2):
+    """Field expressed as a fraction (0.17) — scale to percent."""
+    parsed = _safe_float(value)
+    return None if parsed is None else round(parsed * 100, digits)
 
 
 def _latest_item(items: list) -> dict:
@@ -439,7 +441,7 @@ def _build_trend_report_table(ifrs_snapshot: dict, language: str) -> dict | None
             _format_report_number(row.get("net_income"), language),
             _format_report_number(row.get("total_assets"), language),
             _format_report_number(row.get("equity"), language),
-            _format_report_pct(_as_pct(row.get("net_profit_margin")), language),
+            _format_report_pct(_pct_from_fraction(row.get("net_profit_margin")), language),
         ])
     if len(rows) < 2:
         return None
@@ -3037,11 +3039,33 @@ def _tone_from_threshold(value: float | None, good: float, warn: float, *, rever
     return "danger"
 
 
+def _annualization_factor_from_label(label: str | None) -> float | None:
+    """×(4/q) factor for a cumulative year-to-date figure, from a period label.
+
+    NSBU quarterly statements are cumulative from January 1st, so annualizing
+    means scaling by 4/quarter — a blind ×4 is only right for Q1 and overstates
+    Q2 by 2× and Q3 by 1.33×. A 31.12 label is the full year (factor 1).
+    Returns None when the period cannot be determined — then no annualized
+    figure is produced at all rather than a guessed one.
+    """
+    match = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{4})", str(label or "").strip())
+    if not match:
+        return None
+    quarter = _article_quarter_from_reporting_month(int(match.group(2)))
+    return 4.0 / quarter if quarter else None
+
+
 def _article_table_signals(
     assets_h: dict | None,
     liab_h: dict | None,
     income_table: dict | None,
 ) -> dict:
+    # Flow figures (profit, interest) in quarterly filings are cumulative YTD —
+    # derive the annualization factor from the filing period itself.
+    annualize = _annualization_factor_from_label(
+        _article_period_label_from_table(assets_h)
+        or _article_period_label_from_table(income_table)
+    )
     assets_total = _table_value_by_keywords(assets_h, "итого актив")
     assets_change = _table_value_by_keywords(assets_h, "итого актив", column_index=3)
     cash = _table_value_by_keywords(assets_h, "касс")
@@ -3141,11 +3165,12 @@ def _article_table_signals(
         "capital_assets_pct": capital_assets_pct,
         "interest_coverage": interest_coverage,
         "roa_quarter_pct": roa_quarter_pct,
-        "roa_annual_pct": roa_quarter_pct * 4 if roa_quarter_pct is not None else None,
+        "roa_annual_pct": roa_quarter_pct * annualize if roa_quarter_pct is not None and annualize else None,
         "roe_quarter_pct": roe_quarter_pct,
-        "roe_annual_pct": roe_quarter_pct * 4 if roe_quarter_pct is not None else None,
+        "roe_annual_pct": roe_quarter_pct * annualize if roe_quarter_pct is not None and annualize else None,
         "nim_quarter_pct": nim_quarter_pct,
-        "nim_annual_pct": nim_quarter_pct * 4 if nim_quarter_pct is not None else None,
+        "nim_annual_pct": nim_quarter_pct * annualize if nim_quarter_pct is not None and annualize else None,
+        "annualization_factor": annualize,
         "net_margin_pct": net_margin_pct,
         "reserve_burden_pct": reserve_burden_pct,
         "effective_tax_pct": effective_tax_pct,
@@ -3553,7 +3578,7 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
         "profitability",
         "ROA (аннуализ.)",
         "roa_annual_pct",
-        "(Чистая прибыль / активы) × 4 × 100",
+        "(Чистая прибыль / активы) × (4 / номер квартала) × 100",
         "Показывает доходность активов в годовом выражении. Для квартального отчёта показатель аннуализируется, чтобы его можно было сравнить с банковскими ориентирами.",
         "1–2% для банков",
         1,
@@ -3563,7 +3588,7 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
         "profitability",
         "ROE (аннуализ.)",
         "roe_annual_pct",
-        "(Чистая прибыль / капитал) × 4 × 100",
+        "(Чистая прибыль / капитал) × (4 / номер квартала) × 100",
         "Показывает доходность капитала акционеров в годовом выражении. Очень высокий ROE нужно читать вместе с капитализацией и риском резервов.",
         "10–20%",
         10,
@@ -3573,7 +3598,7 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
         "profitability",
         "NIM (аннуализ.)",
         "nim_annual_pct",
-        "(Процентные доходы − процентные расходы) / активы × 4 × 100",
+        "(Процентные доходы − процентные расходы) / активы × (4 / номер квартала) × 100",
         "Показывает годовую чистую процентную маржу банка относительно активов.",
         "3–5%",
         3,
@@ -3687,9 +3712,9 @@ def _article_indicator_items(signals: dict, language: str) -> list[dict]:
             "LDR — кредиты / депозиты": ("LDR — loans / deposits", "(Net loans and leasing / client deposits) x 100", "Shows how much of the loan portfolio is covered by client deposits. A value above 100% means dependence on additional funding."),
             "Ликвидность первой линии": ("First-line liquidity", "(Cash + Central Bank balances) / assets x 100", "Shows the fast money buffer available without selling loans or securities."),
             "Покрытие процентных расходов": ("Interest expense coverage", "Interest income / interest expense", "Shows how far interest income covers the cost of funding. The closer it is to 1x, the thinner the margin buffer."),
-            "ROA (аннуализ.)": ("ROA, annualized", "(Net profit / assets) x 4 x 100", "Shows annualized return on assets. Quarterly figures are annualized so they can be compared with banking benchmarks."),
-            "ROE (аннуализ.)": ("ROE, annualized", "(Net profit / equity) x 4 x 100", "Shows annualized return on shareholder capital. Very high ROE should be read together with capitalization and reserve risk."),
-            "NIM (аннуализ.)": ("NIM, annualized", "(Interest income - interest expense) / assets x 4 x 100", "Shows annualized net interest margin relative to assets."),
+            "ROA (аннуализ.)": ("ROA, annualized", "(Net profit / assets) x (4 / quarter) x 100", "Shows annualized return on assets. Quarterly figures are annualized so they can be compared with banking benchmarks."),
+            "ROE (аннуализ.)": ("ROE, annualized", "(Net profit / equity) x (4 / quarter) x 100", "Shows annualized return on shareholder capital. Very high ROE should be read together with capitalization and reserve risk."),
+            "NIM (аннуализ.)": ("NIM, annualized", "(Interest income - interest expense) / assets x (4 / quarter) x 100", "Shows annualized net interest margin relative to assets."),
             "Чистая маржа прибыли": ("Net profit margin", "Net profit / interest income x 100", "Shows how much net profit remains per 100 UZS of interest income after expenses, provisions and tax."),
             "Эффективная ставка налога": ("Effective tax rate", "Income tax / profit before tax x 100", "Helps understand how much net profit depends on taxes, tax benefits or one-off tax effects."),
             "Покрытие брутто-кредитов резервами": ("Gross loan coverage by allowances", "Loss allowance / gross loans x 100", "Shows what part of the loan portfolio is already covered by allowances. A sharp increase weakens profit quality."),
@@ -5241,11 +5266,11 @@ def _build_ifrs_snapshot(
 
     latest_revenue = revenue
     prev_revenue = _safe_float(prev.get("revenue")) if prev else None
-    latest_gross_margin = _as_pct(latest.get("gross_profit_margin"))
-    latest_ebit_margin = _as_pct(latest.get("ebit_margin"))
-    latest_net_margin = _as_pct(latest.get("net_profit_margin"))
-    latest_roe = _as_pct(latest.get("return_on_equity"))
-    latest_roa = _as_pct(latest.get("return_on_assets"))
+    latest_gross_margin = _pct_from_fraction(latest.get("gross_profit_margin"))
+    latest_ebit_margin = _pct_from_fraction(latest.get("ebit_margin"))
+    latest_net_margin = _pct_from_fraction(latest.get("net_profit_margin"))
+    latest_roe = _pct_from_percent(latest.get("return_on_equity"))
+    latest_roa = _pct_from_percent(latest.get("return_on_assets"))
 
     trend_block = metrics.get("trends", {}) if isinstance(metrics, dict) else {}
     momentum_block = metrics.get("momentum", {}) if isinstance(metrics, dict) else {}
@@ -6221,6 +6246,40 @@ def _round_metric(value, digits: int = 2):
     return round(parsed, digits)
 
 
+def _balance_quality_score(
+    debt_ratio_pct,
+    current_ratio,
+    quick_ratio,
+    debt_to_equity,
+) -> float | None:
+    """Composite balance-sheet quality on a 0–100 scale.
+
+    Each available component maps linearly onto [0..1] between a weak and a
+    strong threshold (leverage lower-is-better, liquidity higher-is-better);
+    the score is the mean of the available components ×100, so companies with
+    partial data (e.g. banks without current assets) are scored on what they
+    do report instead of defaulting to zero. None when nothing is available.
+    """
+    def linear(value, weak: float, strong: float) -> float | None:
+        parsed = _safe_float(value)
+        if parsed is None:
+            return None
+        if strong > weak:  # higher is better
+            return max(0.0, min(1.0, (parsed - weak) / (strong - weak)))
+        return max(0.0, min(1.0, (weak - parsed) / (weak - strong)))
+
+    components = [
+        linear(debt_ratio_pct, 80.0, 30.0),   # % liabilities/assets
+        linear(current_ratio, 0.8, 2.0),
+        linear(quick_ratio, 0.3, 1.0),
+        linear(debt_to_equity, 4.0, 1.0),
+    ]
+    available = [c for c in components if c is not None]
+    if not available:
+        return None
+    return sum(available) / len(available) * 100.0
+
+
 def _best_by(rows: list[dict], key: str, reverse: bool = True) -> dict | None:
     candidates = [row for row in rows if _safe_float(row.get(key)) is not None]
     if not candidates:
@@ -6693,6 +6752,10 @@ def _compare_one_company(query: str) -> dict:
     prev_revenue = _safe_float(previous.get("revenue"))
     prev_net_income = _safe_float(previous.get("net_income"))
 
+    balance_quality_score = _balance_quality_score(
+        debt_ratio, current_ratio, quick_ratio, debt_to_equity
+    )
+
     return {
         "input": query,
         "company_name": resolved_name,
@@ -6714,7 +6777,7 @@ def _compare_one_company(query: str) -> dict:
         "debt_to_equity_ratio": debt_to_equity,
         "current_ratio": current_ratio,
         "quick_ratio": quick_ratio,
-        "balance_quality_score": round(balance_quality_score, 2),
+        "balance_quality_score": round(balance_quality_score, 2) if balance_quality_score is not None else None,
         "piotroski_score": _round_metric(piotroski.get("score")),
         "altman_score": _round_metric(altman.get("score")),
         "altman_zone": altman.get("zone") or altman.get("verdict"),
@@ -7154,7 +7217,7 @@ def _analysis_prompt_v2(
 - Сравнивай с нормами UZ-рынка. Аббревиатуры в ОСНОВНОМ тексте допустимы — при первом упоминании давай расшифровку в скобках 3–6 слов.
 - Формулы обязательны для ключевых коэффициентов: записывай «Показатель = Числитель / Знаменатель = Значение».
 - Для банков: дай все 5 групп коэффициентов (ликвидность, рентабельность, качество активов, достаточность капитала, операционная эффективность).
-- Квартальные показатели рентабельности (ROA, ROE, NIM) аннуализируй (×4) и указывай оба значения.
+- Квартальные показатели рентабельности (ROA, ROE, NIM) аннуализируй с учётом накопленного периода (×4/номер квартала: Q1 ×4, Q2 ×2, Q3 ×4/3; годовой отчёт не аннуализируется) и указывай оба значения.
 
 Формат таблиц:
 - В [ЧТО_С_ДЕНЬГАМИ] и [ТРЕНД] после «Кратко» — одна Markdown-таблица (через |) с реальными данными. Подпись: «Таблица 1 — …» отдельной строкой.
@@ -7517,7 +7580,7 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
         "LTD, ликвидные активы 1-й линии / активы, Coverage ratio (текущий и предыдущий период), "
         "нагрузку резервирования. В [ЭФФЕКТИВНОСТЬ] — все 5 групп коэффициентов (ликвидность, "
         "рентабельность, качество активов, достаточность капитала, операционная эффективность). "
-        "Квартальные ROA/ROE/NIM аннуализируй (×4) и указывай оба значения.\n\n"
+        "Квартальные ROA/ROE/NIM аннуализируй с учётом накопленного периода (×4/номер квартала: Q1 ×4, Q2 ×2, Q3 ×4/3; годовой не аннуализируется) и указывай оба значения.\n\n"
         "В [СИЛЬНЫЕ_СТОРОНЫ] и [СЛАБЫЕ_СТОРОНЫ]: минимум 3 пункта каждый, "
         "формат «• Сильная сторона №N — [Что]: [Показатель с числом] — [Значимость 1–2 предл.]».\n\n"
         "В [ИТОГ]: ХЕРО-АБЗАЦ 4–6 предложений (язык 9-классника, без термина без перевода), "
