@@ -13,13 +13,19 @@ from pathlib import Path
 from typing import Any, Literal
 
 import requests
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_comparison_excel, build_comparison_pdf, build_summary, report_disclaimer, run_company_analysis
+# Load .env BEFORE any project import: several modules (db paths, API keys,
+# cache locations) read the environment at import time. Previously this worked
+# only via an accidental load_dotenv() buried in analyzer.py's import chain.
+load_dotenv()
+
+from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_comparison_excel, build_comparison_pdf, build_summary, report_disclaimer, run_company_analysis  # noqa: E402
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from openinfo_collector import collect_company_data, get_company_periods
 from reports_catalog import (
@@ -576,11 +582,15 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="type must be stock or bond")
 
     try:
-        response = requests.get(
+        # Executor-wrapped: a sync HTTP call here stalled the whole event loop
+        # (single worker) for up to 20s on the hottest endpoint.
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, partial(
+            requests.get,
             f"{UZSE_STOCK_API_BASE}/stocks",
             params={"type": security_type} if security_type else None,
             timeout=20,
-        )
+        ))
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException as exc:
@@ -658,7 +668,9 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
 @app.get("/api/market/trades")
 async def api_market_trades() -> dict[str, Any]:
     try:
-        response = requests.get(f"{UZSE_STOCK_API_BASE}/trades", timeout=20)
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None, partial(requests.get, f"{UZSE_STOCK_API_BASE}/trades", timeout=20))
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException as exc:
@@ -799,8 +811,24 @@ async def api_coverage() -> dict[str, Any]:
     except Exception:
         logger.exception("financials consistency audit failed")
         flags = []
+    # Collector heartbeat: the last completed ingestion run (pushed as a meta
+    # fact) — a silently dead collector shows up here as growing data age.
+    collector: dict[str, Any] = {"last_run": None, "age_hours": None, "stale": None}
+    try:
+        meta = await loop.run_in_executor(None, partial(get_facts, "_collector", "meta"))
+        last_run = next((f.get("value_text") for f in meta if f.get("field") == "last_run"), None)
+        status = next((f.get("value_text") for f in meta if f.get("field") == "last_run_status"), None)
+        if last_run:
+            from datetime import datetime, timezone
+            age = (datetime.now(timezone.utc)
+                   - datetime.fromisoformat(last_run)).total_seconds() / 3600
+            collector = {"last_run": last_run, "last_run_status": status,
+                         "age_hours": round(age, 1), "stale": age > 26}
+    except Exception:
+        logger.exception("collector heartbeat read failed")
     return _json_safe({
         "ok": True, "total": len(items), "summary": summary,
+        "collector": collector,
         "financials_flags": flags, "securities": items,
     })
 
@@ -1141,11 +1169,14 @@ async def api_oauth_exchange(payload: OAuthExchangeRequest, request: Request) ->
 async def api_register(payload: RegisterRequest, request: Request) -> dict[str, Any]:
     _enforce_auth_rate_limit(request, "register")
     try:
-        user, token = web_auth_store.register_user(
+        # Executor-wrapped: PBKDF2 (~100ms CPU) + a sync Postgres roundtrip
+        # would otherwise run on the event loop.
+        user, token = await asyncio.get_running_loop().run_in_executor(None, partial(
+            web_auth_store.register_user,
             payload.email,
             payload.password,
             payload.full_name,
-        )
+        ))
     except ValueError as exc:
         message = str(exc)
         status = 409 if "already registered" in message.lower() else 400
@@ -1160,7 +1191,8 @@ async def api_register(payload: RegisterRequest, request: Request) -> dict[str, 
 async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
     _enforce_auth_rate_limit(request, "login")
     try:
-        user, token = web_auth_store.login_user(payload.email, payload.password)
+        user, token = await asyncio.get_running_loop().run_in_executor(
+            None, partial(web_auth_store.login_user, payload.email, payload.password))
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -1178,7 +1210,8 @@ async def api_me(current_user: WebUser = Depends(_require_user)) -> dict[str, An
 async def api_logout(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     try:
         token = _extract_bearer_token(authorization)
-        revoked = web_auth_store.revoke_token(token)
+        revoked = await asyncio.get_running_loop().run_in_executor(
+            None, partial(web_auth_store.revoke_token, token))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -1188,7 +1221,8 @@ async def api_logout(authorization: str | None = Header(default=None)) -> dict[s
 @app.get("/api/profile")
 async def api_profile(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
     try:
-        profile = web_auth_store.get_profile(current_user.id)
+        profile = await asyncio.get_running_loop().run_in_executor(
+            None, partial(web_auth_store.get_profile, current_user.id))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
@@ -1202,13 +1236,14 @@ async def api_profile_update(
     current_user: WebUser = Depends(_require_user),
 ) -> dict[str, Any]:
     try:
-        updated_user = web_auth_store.update_profile(
+        updated_user = await asyncio.get_running_loop().run_in_executor(None, partial(
+            web_auth_store.update_profile,
             current_user.id,
             full_name=payload.full_name,
             avatar_data_url=payload.avatar_data_url,
             set_full_name="full_name" in payload.model_fields_set,
             set_avatar="avatar_data_url" in payload.model_fields_set,
-        )
+        ))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -1220,7 +1255,8 @@ async def api_profile_update(
 @app.get("/api/favorites")
 async def api_favorites(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
     try:
-        favorites = web_auth_store.list_favorites(current_user.id)
+        favorites = await asyncio.get_running_loop().run_in_executor(
+            None, partial(web_auth_store.list_favorites, current_user.id))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"ok": True, "count": len(favorites), "favorites": _json_safe(favorites)}
@@ -1232,12 +1268,15 @@ async def api_favorites_toggle(
     current_user: WebUser = Depends(_require_user),
 ) -> dict[str, Any]:
     try:
-        result = web_auth_store.toggle_favorite(
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, partial(
+            web_auth_store.toggle_favorite,
             current_user.id,
             payload.ticker,
             payload.company_name,
-        )
-        favorites = web_auth_store.list_favorites(current_user.id)
+        ))
+        favorites = await loop.run_in_executor(
+            None, partial(web_auth_store.list_favorites, current_user.id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -1263,13 +1302,15 @@ async def api_oauth_google_callback(request: Request, code: str | None = None, e
         return _oauth_failure("Google login was cancelled or did not return a code")
 
     try:
-        profile = _exchange_google_code(code, request)
-        user, token = web_auth_store.oauth_login(
+        loop = asyncio.get_running_loop()
+        profile = await loop.run_in_executor(None, partial(_exchange_google_code, code, request))
+        user, token = await loop.run_in_executor(None, partial(
+            web_auth_store.oauth_login,
             "google",
             profile["provider_user_id"],
             profile.get("email"),
             profile.get("full_name") or "",
-        )
+        ))
     except HTTPException:
         raise
     except requests.RequestException as exc:
@@ -1525,7 +1566,8 @@ async def api_analyze(
         response["html_report"] = result.get("html_report")
 
     try:
-        web_auth_store.record_analysis(current_user.id, payload.model_dump(), result)
+        await asyncio.get_running_loop().run_in_executor(
+            None, partial(web_auth_store.record_analysis, current_user.id, payload.model_dump(), result))
     except Exception as exc:
         logger.warning("Failed to record analysis history for user %s: %s", current_user.id, exc)
 
@@ -1827,11 +1869,12 @@ async def api_company_reports(ticker: str) -> dict[str, Any]:
 async def api_notifications(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
     """New catalog reports for the user's favorited tickers (last 7 days)."""
     try:
-        favorites = web_auth_store.list_favorites(current_user.id)
+        loop = asyncio.get_running_loop()
+        favorites = await loop.run_in_executor(
+            None, partial(web_auth_store.list_favorites, current_user.id))
         tickers = [f["ticker"] for f in favorites]
         if not tickers:
             return {"ok": True, "count": 0, "items": []}
-        loop = asyncio.get_running_loop()
         items = await loop.run_in_executor(None, partial(get_new_reports_for_tickers, tickers, 7))
         return {"ok": True, "count": len(items), "items": _json_safe(items)}
     except Exception as exc:

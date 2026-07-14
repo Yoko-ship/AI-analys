@@ -5,11 +5,16 @@ from pathlib import Path
 
 
 DATABASE_BACKEND = os.getenv("DATABASE_BACKEND", "sqlite").strip().lower()
+# The data dir is anchored to THIS file, not the working directory — a process
+# launched from any CWD must find the same databases. (A relative path used to
+# silently create a fresh empty DB tree when started from elsewhere.)
 _PREFERRED_DATA_DIR = Path(
     os.getenv("APP_DATA_DIR")
     or os.getenv("RAILWAY_VOLUME_MOUNT_PATH")
     or "data"
 ).expanduser()
+if not _PREFERRED_DATA_DIR.is_absolute():
+    _PREFERRED_DATA_DIR = Path(__file__).resolve().parent / _PREFERRED_DATA_DIR
 
 
 def _is_writable_dir(path: Path) -> bool:

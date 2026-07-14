@@ -49,10 +49,15 @@ EXCEL_PROMPT_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_PROMPT_MAX_REPORTS", "1
 EXCEL_PROMPT_MAX_SHEETS_PER_REPORT = int(os.getenv("OPENINFO_EXCEL_PROMPT_MAX_SHEETS_PER_REPORT", "3"))
 EXCEL_PROMPT_MAX_ROWS_PER_SHEET = int(os.getenv("OPENINFO_EXCEL_PROMPT_MAX_ROWS_PER_SHEET", "8"))
 
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY is required for the API service")
+# The key is required only when an LLM call is actually made — failing at
+# import time took the whole API (market board, catalog, auth) down with it.
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+
+def _require_client() -> OpenAI:
+    if client is None:
+        raise RuntimeError("OPENAI_API_KEY is not configured — AI analysis is unavailable")
+    return client
 
 logger = logging.getLogger(__name__)
 
@@ -5839,7 +5844,7 @@ def _cap_words(text: str, max_words: int = 200) -> str:
 
 def _responses_text(prompt: str, instructions: str, max_output_tokens: int) -> tuple[str, object]:
     def _call():
-        return client.responses.create(
+        return _require_client().responses.create(
             model=OPENAI_MODEL,
             reasoning={"effort": _sanitize_reasoning_effort(OPENAI_REASONING_EFFORT)},
             instructions=instructions,
@@ -7072,63 +7077,6 @@ def build_company_profile(company_name: str, annual_data: list, quarterly_data: 
         out_tok = getattr(usage, "output_tokens", 0) or 0
         print(f"   ✅ Profile ready (in={in_tok}, out={out_tok})")
     return profile
-
-
-def _analysis_prompt(
-    company_name: str,
-    company_profile: str,
-    annual_data: list,
-    quarterly_data: list,
-    liquidity_data: dict | None,
-    language: str = "ru",
-) -> tuple[str, dict, dict, str, str]:
-    slim = slim_for_prompt(annual_data, quarterly_data)
-
-    annual_period = (
-        f"{slim['annual'][0]['year']}–{slim['annual'][-1]['year']}"
-        if slim["annual"] else "нет данных"
-    )
-    quarterly_period = (
-        f"{slim['quarterly'][0]['period']}–{slim['quarterly'][-1]['period']}"
-        if slim["quarterly"] else "квартальные данные недоступны"
-    )
-
-    metrics = compute_metrics(annual_data, quarterly_data)
-    if liquidity_data:
-        metrics["market_liquidity"] = liquidity_data
-
-    industry = detect_industry(company_name, WEB_RESEARCH_NOTE, company_profile)
-    ind_compare = compare_to_industry(metrics, industry)
-    metrics["industry"] = ind_compare
-    if "dcf" in metrics and industry.get("wacc"):
-        metrics["dcf"]["wacc_used_sector"] = round(industry["wacc"] * 100, 1)
-
-    web_brief = WEB_RESEARCH_NOTE[:1400]
-    prompt_metrics = slim_metrics_for_prompt(metrics)
-
-    industry_context_str = (
-        f"Отрасль: {industry.get('sector_name', 'не определена')}\n"
-        f"Результат vs бенчмарк: {ind_compare.get('verdict', '')}\n"
-        f"Хороших показателей: {ind_compare.get('good_count', 0)}/5, "
-        f"Слабых: {ind_compare.get('weak_count', 0)}/5\n"
-        f"Примечание: {ind_compare.get('capex_note', '')}"
-    ) if industry else "Отрасль не определена — используй общие нормы UZ"
-
-    prompt = ANALYSIS_PROMPT.format(
-        uz_benchmarks=UZ_BENCHMARKS.format(industry_context=industry_context_str),
-        currency=slim["currency"],
-        company=company_name,
-        company_profile=company_profile,
-        web_brief=web_brief,
-        metrics_json=json.dumps(prompt_metrics, ensure_ascii=False, indent=1),
-        liquidity_json=json.dumps(liquidity_data or {"status": "нет данных"}, ensure_ascii=False, indent=1),
-        annual_period=annual_period,
-        annual_json=json.dumps(slim["annual"], ensure_ascii=False),
-        quarterly_period=quarterly_period,
-        quarterly_json=json.dumps(slim["quarterly"], ensure_ascii=False),
-    )
-    lang = _normalize_language(language)
-    return f"Язык ответа: {LANGUAGE_HINTS[lang]['label']}.\n\n{ANALYSIS_STYLE_NOTE}\n\n{prompt}", metrics, ind_compare, annual_period, quarterly_period
 
 
 def _analysis_prompt_v2(

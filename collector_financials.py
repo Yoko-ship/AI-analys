@@ -171,6 +171,25 @@ def collect_and_push_facts() -> int:
     return _post("/api/admin/facts", {"rows": rows})
 
 
+def push_heartbeat(status: int) -> None:
+    """Stamp this run on prod so a silently dead collector is observable.
+
+    /api/coverage exposes the stamp as data age + staleness flag; a run that
+    never completes simply stops refreshing it.
+    """
+    from datetime import datetime, timezone
+
+    try:
+        _post("/api/admin/facts", {"rows": [
+            {"entity_id": "_collector", "dataset": "meta", "field": "last_run",
+             "period": "", "value": datetime.now(timezone.utc).isoformat(), "source": "collector"},
+            {"entity_id": "_collector", "dataset": "meta", "field": "last_run_status",
+             "period": "", "value": "ok" if status == 0 else f"exit {status}", "source": "collector"},
+        ]})
+    except Exception:
+        log.exception("heartbeat push failed")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--push-only", action="store_true", help="skip financials refresh, push current cache")
@@ -221,6 +240,9 @@ def main() -> int:
         except Exception:
             log.exception("listings step failed")
             rc_status = rc_status or 1
+
+    if not args.no_push:
+        push_heartbeat(rc_status)
 
     return rc_status
 
