@@ -7037,19 +7037,35 @@ function App() {
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const oauthError = hash.get("oauth_error") || hash.get("error");
-    const oauthToken = hash.get("token");
+    const oauthCode = hash.get("oauth_code");
     const provider = hash.get("provider") || hash.get("oauth");
+
+    const finishLogin = (newToken, providerName) => {
+      setToken(newToken);
+      localStorage.setItem(STORAGE_KEY, newToken);
+      const providerLabel = providerName === "google" ? "Google" : providerName || "";
+      addToast(providerLabel ? `${providerLabel}: ${t(language, "auth.messages.loginOk")}` : t(language, "auth.messages.loginOk"), "success");
+      setActiveView("profile");
+    };
 
     if (oauthError) {
       addToast(decodeURIComponent(oauthError.replace(/\+/g, " ")), "error");
       clearHash();
-    } else if (oauthToken) {
-      setToken(oauthToken);
-      localStorage.setItem(STORAGE_KEY, oauthToken);
-      const providerLabel = provider === "google" ? "Google" : provider || "";
-      addToast(providerLabel ? `${providerLabel}: ${t(language, "auth.messages.loginOk")}` : t(language, "auth.messages.loginOk"), "success");
+    } else if (oauthCode) {
+      // The redirect carries a short-lived one-time code, never the token
+      // itself (a token in the URL survives in history/logs). Exchange it.
       clearHash();
-      setActiveView("profile");
+      fetch("/api/auth/oauth/exchange", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: oauthCode }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.ok && d.token) finishLogin(d.token, d.provider || provider);
+          else addToast(d.detail || "Sign-in failed", "error");
+        })
+        .catch(() => addToast("Sign-in failed", "error"));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
