@@ -4147,24 +4147,26 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
     securitiesMap?.[row.ticker]?.share_type === "preferred" ||
     row.share_type === "preferred";
 
-  // Show only instruments that actually traded today: drop inactive registry
-  // listings (the backend merges stale entries with inactive:true and a reference
-  // price that reads as a 0% "change"), and keep a row only when it has a real
-  // change today (finite % — a genuine 0% move on a live trade still counts).
-  // Bonds are excluded on the stock-focused views (Акции and its subtypes) to
-  // keep the map clean, but shown when the user picks the Bonds segment.
+  // Every listed instrument stays on the map: instruments that traded today are
+  // colored by their change, while inactive registry listings and tickers
+  // without a price change render as small NEUTRAL (grey, "—") tiles instead of
+  // disappearing entirely. Bonds are excluded on the stock-focused views
+  // (Акции and its subtypes) but shown when the user picks the Bonds segment.
   const isBond = (row) => row.type === "bond" || securitiesMap?.[row.ticker]?.type === "bond";
   const allowBonds = type === "bond";
-  const tradedRows = rows.filter((row) =>
-    (allowBonds || !isBond(row)) && row.inactive !== true && Number.isFinite(row.changePercent));
+  const isNeutralRow = (row) => row.inactive === true || !Number.isFinite(row.changePercent);
+  const tradedRows = rows.filter((row) => allowBonds || !isBond(row));
 
   // Tile weight = compressed (sqrt) volume, floored so thin movers stay visible.
   // The floor is global (over every row) so a tile's area means the same amount
   // of traded value in the ordinary block and the preferred block alike.
+  // Neutral (non-traded) tiles get a third of the floor so the ~50 inactive
+  // listings stay visible without swamping the map with grey.
   const rawWeight = (r) => Math.sqrt(Math.max(r.stockVolume || 0, 1));
-  const maxRaw = Math.max(1, ...tradedRows.map(rawWeight));
+  const activeRows = tradedRows.filter((r) => !isNeutralRow(r));
+  const maxRaw = Math.max(1, ...(activeRows.length ? activeRows : tradedRows).map(rawWeight));
   const floor = maxRaw * 0.05;
-  const weight = (r) => Math.max(rawWeight(r), floor);
+  const weight = (r) => (isNeutralRow(r) ? floor / 3 : Math.max(rawWeight(r), floor));
 
   const formatPct = (pct) => {
     if (pct === null || !Number.isFinite(pct)) return "—";
@@ -4762,7 +4764,8 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
     { key: "debt_to_equity", label: lang === "ru" ? "Долг/Капитал" : "D/E" },
   ];
   const hasMetrics = KEY_METRICS.some((m) => metrics[m.key] != null);
-  // Multipliers (ТЗ §3.2/§3.4). P/E = market cap / net income (both full sum, same scale).
+  // Multipliers (ТЗ §3.2/§3.4). P/E = market cap / net income — like units: the API
+  // scales NSBU sums (stored in thousands of UZS) to full UZS at the response boundary.
   // P/B = P/E × ROE (identity: ROE = net income / equity), avoiding a separate equity feed.
   // ТЗ permits raw current multipliers in the public contour ("P/E сейчас = 8x") with no
   // interpretation label; no «недооценена/переоценена» here. Global disclaimer applies.
@@ -4854,9 +4857,13 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
 function CompanyReportsTab({ reports, lang }) {
   const forms = [...new Set((reports || []).map((r) => r.report_form))];
   const [form, setForm] = React.useState(forms[0] || null);
+  // Keyed on the actual form set, not reports.length: two companies with the
+  // same report count but different form types used to keep a stale filter
+  // and show "no reports" even though reports existed.
+  const formsKey = forms.join("|");
   React.useEffect(() => {
     if (forms.length > 0 && !forms.includes(form)) setForm(forms[0]);
-  }, [reports.length]);
+  }, [formsKey]);
   const visible = form ? reports.filter((r) => r.report_form === form) : reports;
   const FORM_LABELS = { NSBU: "НСБУ", MSFO: "МСФО", Audition: lang === "ru" ? "Аудит" : "Audit" };
   return (
@@ -5019,37 +5026,56 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
   const [dividends, setDividends] = React.useState(null);
   const [divLoading, setDivLoading] = React.useState(false);
 
+  // Failed requests must be visible and retryable: every fetch below reports
+  // an error state instead of silently leaving the page blank, and an `alive`
+  // guard keeps a late response for a previous ticker from overwriting state.
+  const [priceError, setPriceError] = React.useState(false);
+  const [priceRetry, setPriceRetry] = React.useState(0);
+  const [companyDataError, setCompanyDataError] = React.useState(false);
+  const [companyDataRetry, setCompanyDataRetry] = React.useState(0);
+
   React.useEffect(() => {
-    if (!ticker) return;
+    if (!ticker) return undefined;
+    let alive = true;
     setPriceLoading(true);
+    setPriceError(false);
     fetch(`/api/price-history/${encodeURIComponent(ticker)}?months=${priceMonths}`)
       .then((r) => r.json())
-      .then((d) => { if (d.ok) setPriceHistory(d.points || []); })
-      .catch(() => {})
-      .finally(() => setPriceLoading(false));
-  }, [ticker, priceMonths]);
+      .then((d) => {
+        if (!alive) return;
+        if (d.ok) setPriceHistory(d.points || []);
+        else setPriceError(true);
+      })
+      .catch(() => { if (alive) setPriceError(true); })
+      .finally(() => { if (alive) setPriceLoading(false); });
+    return () => { alive = false; };
+  }, [ticker, priceMonths, priceRetry]);
 
   // Reset dividends when the ticker changes; fetched lazily on first tab open.
   React.useEffect(() => { setDividends(null); }, [ticker]);
   React.useEffect(() => {
-    if (!ticker || tab !== "dividends" || dividends !== null) return;
+    if (!ticker || tab !== "dividends" || dividends !== null) return undefined;
+    let alive = true;
     setDivLoading(true);
     fetch(`/api/dividends/${encodeURIComponent(ticker)}`)
       .then((r) => r.json())
-      .then((d) => setDividends(d.ok ? (d.items || []) : []))
-      .catch(() => setDividends([]))
-      .finally(() => setDivLoading(false));
+      .then((d) => { if (alive) setDividends(d.ok ? (d.items || []) : []); })
+      .catch(() => { if (alive) setDividends([]); })
+      .finally(() => { if (alive) setDivLoading(false); });
+    return () => { alive = false; };
   }, [ticker, tab, dividends]);
 
   React.useEffect(() => {
-    if (!ticker) return;
+    if (!ticker) return undefined;
+    let alive = true;
     const local = (securitiesMap || {})[ticker];
     if (local) setSecInfo(local);
     setInfoLoading(true);
     fetch(`/api/securities/${encodeURIComponent(ticker)}/info?language=${lang}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.ok) setSecInfo({
+        if (!alive || !d.ok) return;
+        setSecInfo({
           ...(d.security || {}),
           company_description: d.wiki?.extract || d.security?.company_description || null,
           source_url: d.wiki?.page_url || d.security?.source_url || null,
@@ -5058,16 +5084,24 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
         });
       })
       .catch(() => {})
-      .finally(() => setInfoLoading(false));
+      .finally(() => { if (alive) setInfoLoading(false); });
+    return () => { alive = false; };
   }, [ticker, lang]);
 
   React.useEffect(() => {
-    if (!ticker) return;
+    if (!ticker) return undefined;
+    let alive = true;
+    setCompanyDataError(false);
     fetch(`/api/catalog/company/${encodeURIComponent(ticker)}/reports`)
       .then((r) => r.json())
-      .then((d) => { if (d.ok) setCompanyData(d); })
-      .catch(() => {});
-  }, [ticker]);
+      .then((d) => {
+        if (!alive) return;
+        if (d.ok) setCompanyData(d);
+        else setCompanyDataError(true);
+      })
+      .catch(() => { if (alive) setCompanyDataError(true); });
+    return () => { alive = false; };
+  }, [ticker, companyDataRetry]);
 
   if (!ticker) return null;
   const sec = secInfo || (securitiesMap || {})[ticker] || {};
@@ -5146,6 +5180,32 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
         </div>
       </div>
       <div className="company-page-body">
+        {companyDataError && (
+          <div className="panel" style={{ padding: "12px 16px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, border: "1px solid rgba(220, 80, 80, 0.5)" }}>
+            <span style={{ fontSize: 13 }}>
+              {lang === "ru" ? "Не удалось загрузить отчёты и показатели компании."
+                : lang === "uz" ? "Kompaniya hisobotlari va ko'rsatkichlarini yuklab bo'lmadi."
+                : "Failed to load company reports and metrics."}
+            </span>
+            <button className="primary-btn" type="button" style={{ padding: "6px 14px", fontSize: 13 }}
+              onClick={() => setCompanyDataRetry((n) => n + 1)}>
+              {lang === "ru" ? "Повторить" : lang === "uz" ? "Qayta urinish" : "Retry"}
+            </button>
+          </div>
+        )}
+        {priceError && (tab === "overview" || tab === "chart") && (
+          <div className="panel" style={{ padding: "12px 16px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, border: "1px solid rgba(220, 80, 80, 0.5)" }}>
+            <span style={{ fontSize: 13 }}>
+              {lang === "ru" ? "Не удалось загрузить историю цен."
+                : lang === "uz" ? "Narxlar tarixini yuklab bo'lmadi."
+                : "Failed to load price history."}
+            </span>
+            <button className="primary-btn" type="button" style={{ padding: "6px 14px", fontSize: 13 }}
+              onClick={() => setPriceRetry((n) => n + 1)}>
+              {lang === "ru" ? "Повторить" : lang === "uz" ? "Qayta urinish" : "Retry"}
+            </button>
+          </div>
+        )}
         {tab === "overview" && (
           <CompanyOverviewTab sec={sec} priceHistory={priceHistory} priceLoading={priceLoading}
             priceMonths={priceMonths} onMonthsChange={setPriceMonths}
@@ -7969,6 +8029,7 @@ function App() {
 
           {activeView === "company" && companyTicker && (
             <CompanyPage
+              key={companyTicker}
               ticker={companyTicker}
               securitiesMap={securitiesMap}
               language={language}
