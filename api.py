@@ -4,7 +4,9 @@ import asyncio
 import hmac
 import logging
 import os
+import secrets
 import threading
+import time
 from functools import partial
 from urllib.parse import quote, urlencode
 from pathlib import Path
@@ -290,6 +292,85 @@ def _require_admin(x_admin_secret: str | None = Header(default=None)) -> None:
         raise HTTPException(status_code=401, detail="Invalid admin secret")
 
 
+# ---------------------------------------------------------------------------
+# Abuse limits (in-memory; prod runs a single uvicorn worker).
+# ---------------------------------------------------------------------------
+
+AUTH_RATE_LIMIT_PER_MINUTE = int(os.getenv("AUTH_RATE_LIMIT_PER_MINUTE", "10"))
+LLM_RATE_LIMIT_PER_MINUTE = int(os.getenv("LLM_RATE_LIMIT_PER_MINUTE", "5"))
+LLM_DAILY_LIMIT = int(os.getenv("LLM_DAILY_LIMIT", "50"))
+
+
+class _SlidingWindowLimiter:
+    def __init__(self) -> None:
+        self._events: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def allow(self, key: str, limit: int, window_seconds: float) -> bool:
+        if limit <= 0:
+            return True
+        now = time.monotonic()
+        with self._lock:
+            events = [t for t in self._events.get(key, []) if now - t < window_seconds]
+            if len(events) >= limit:
+                self._events[key] = events
+                return False
+            events.append(now)
+            self._events[key] = events
+            return True
+
+
+_rate_limiter = _SlidingWindowLimiter()
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    return forwarded or (request.client.host if request.client else "unknown")
+
+
+def _enforce_auth_rate_limit(request: Request, scope: str) -> None:
+    """Per-IP limit on credential endpoints — blocks brute force and mass signup."""
+    if not _rate_limiter.allow(f"{scope}:{_client_ip(request)}", AUTH_RATE_LIMIT_PER_MINUTE, 60.0):
+        raise HTTPException(status_code=429, detail="Too many attempts — try again in a minute")
+
+
+def _enforce_llm_quota(user: WebUser) -> None:
+    """Per-user pacing + daily cap on endpoints that spend paid LLM tokens."""
+    if not _rate_limiter.allow(f"llm-min:{user.id}", LLM_RATE_LIMIT_PER_MINUTE, 60.0):
+        raise HTTPException(status_code=429, detail="Too many analysis requests — try again in a minute")
+    if not _rate_limiter.allow(f"llm-day:{user.id}", LLM_DAILY_LIMIT, 86400.0):
+        raise HTTPException(status_code=429, detail="Daily analysis limit reached — try again tomorrow")
+
+
+# ---------------------------------------------------------------------------
+# OAuth handoff: the access token must never appear in a URL (it lands in
+# browser history, logs and referrers). The callback stores it under a
+# short-lived one-time code; the SPA exchanges the code via POST.
+# ---------------------------------------------------------------------------
+
+_OAUTH_CODE_TTL_SECONDS = 120
+_oauth_codes: dict[str, tuple[str, str, float]] = {}  # code -> (provider, token, expires_at)
+_oauth_codes_lock = threading.Lock()
+
+
+def _issue_oauth_code(provider: str, token: str) -> str:
+    code = secrets.token_urlsafe(32)
+    now = time.monotonic()
+    with _oauth_codes_lock:
+        for stale in [c for c, (_, _, exp) in _oauth_codes.items() if exp < now]:
+            _oauth_codes.pop(stale, None)
+        _oauth_codes[code] = (provider, token, now + _OAUTH_CODE_TTL_SECONDS)
+    return code
+
+
+def _redeem_oauth_code(code: str) -> tuple[str, str] | None:
+    with _oauth_codes_lock:
+        entry = _oauth_codes.pop(code, None)
+    if not entry or entry[2] < time.monotonic():
+        return None
+    return entry[0], entry[1]
+
+
 def _extract_bearer_token(authorization: str | None) -> str:
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header is required")
@@ -306,8 +387,9 @@ def _oauth_failure(message: str) -> RedirectResponse:
 
 
 def _oauth_success(provider: str, token: str) -> RedirectResponse:
+    code = _issue_oauth_code(provider, token)
     return RedirectResponse(
-        url=f"/#provider={quote(provider)}&token={quote(token)}",
+        url=f"/#provider={quote(provider)}&oauth_code={quote(code)}",
         status_code=302,
     )
 
@@ -1040,8 +1122,24 @@ async def api_securities_info(ticker: str, language: str = "ru") -> dict[str, An
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+class OAuthExchangeRequest(BaseModel):
+    code: str = Field(..., min_length=8, max_length=128)
+
+
+@app.post("/api/auth/oauth/exchange")
+async def api_oauth_exchange(payload: OAuthExchangeRequest, request: Request) -> dict[str, Any]:
+    """Redeem the one-time code from the OAuth redirect for the access token."""
+    _enforce_auth_rate_limit(request, "oauth-exchange")
+    redeemed = _redeem_oauth_code(payload.code)
+    if not redeemed:
+        raise HTTPException(status_code=400, detail="Invalid or expired sign-in code")
+    provider, token = redeemed
+    return {"ok": True, "provider": provider, "token": token}
+
+
 @app.post("/api/auth/register")
-async def api_register(payload: RegisterRequest) -> dict[str, Any]:
+async def api_register(payload: RegisterRequest, request: Request) -> dict[str, Any]:
+    _enforce_auth_rate_limit(request, "register")
     try:
         user, token = web_auth_store.register_user(
             payload.email,
@@ -1059,7 +1157,8 @@ async def api_register(payload: RegisterRequest) -> dict[str, Any]:
 
 
 @app.post("/api/auth/login")
-async def api_login(payload: LoginRequest) -> dict[str, Any]:
+async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
+    _enforce_auth_rate_limit(request, "login")
     try:
         user, token = web_auth_store.login_user(payload.email, payload.password)
     except ValueError as exc:
@@ -1221,6 +1320,7 @@ async def api_compare(
     payload: CompareRequest,
     current_user: WebUser = Depends(_require_user),
 ) -> dict[str, Any]:
+    _enforce_llm_quota(current_user)
     try:
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
@@ -1360,6 +1460,7 @@ async def api_analyze(
     payload: AnalyzeRequest,
     current_user: WebUser = Depends(_require_user),
 ) -> dict[str, Any]:
+    _enforce_llm_quota(current_user)
     try:
         result = await run_company_analysis(
             payload.company,
@@ -1470,7 +1571,13 @@ async def api_catalog_index(ticker: str) -> dict[str, Any]:
 async def api_catalog_sync(
     payload: CatalogSyncRequest,
     current_user: WebUser = Depends(_require_user),
+    x_admin_secret: str | None = Header(default=None),
 ) -> dict[str, Any]:
+    # A single-ticker sync is a bounded refresh any signed-in user may run; the
+    # FULL catalog scrape is minutes of upstream traffic and admin-only
+    # (X-Admin-Secret, same as /api/admin/catalog-sync).
+    if not payload.ticker:
+        _require_admin(x_admin_secret)
     loop = asyncio.get_running_loop()
     try:
         if payload.ticker:
@@ -1561,6 +1668,7 @@ async def api_catalog_analyze(
             })
 
         if payload.analysis_type == "multi_company":
+            _enforce_llm_quota(current_user)
             compare_ticker = (payload.compare_ticker or "").upper()
             compare_name = _TICKER_TO_NAME.get(compare_ticker, compare_ticker)
             if not compare_name:
@@ -1571,6 +1679,7 @@ async def api_catalog_analyze(
             return _json_safe({"ok": True, "analysis_type": "multi_company", **result})
 
         # AI-based: financial / swot / recommendation
+        _enforce_llm_quota(current_user)
         period_type = "quarterly" if payload.quarter > 0 else "annual"
         result = await run_company_analysis(
             company_name,

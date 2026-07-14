@@ -1,3 +1,4 @@
+import os
 import re
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
@@ -7,14 +8,17 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from urllib3.exceptions import InsecureRequestWarning
-
 BASE_URL = "https://uzse.uz/trade_results"
 DATE_FORMAT = "%d.%m.%Y"
 DAYS_BACK = 30
 TIMEOUT = 30
 
-requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+# TLS verification ON by default for exchange data (uzse.uz serves a valid
+# certificate); UZSE_VERIFY_SSL=0 is a temporary escape hatch only.
+VERIFY_SSL = os.getenv("UZSE_VERIFY_SSL", "1").strip().lower() not in {"0", "false", "no"}
+if not VERIFY_SSL:
+    from urllib3.exceptions import InsecureRequestWarning
+    requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 
 def _normalize_name(value: str) -> str:
@@ -98,7 +102,7 @@ def _load_isu_directory() -> tuple[dict, ...]:
         "https://uzse.uz/isu_infos/names",
         params={"mkt_id": "STK"},
         headers=headers,
-        verify=False,
+        verify=VERIFY_SSL,
         timeout=TIMEOUT,
     )
     response.raise_for_status()
@@ -221,7 +225,7 @@ def get_trade_data(query: str, company_name: str | None = None, verbose: bool = 
     url = _update_query_params(_build_url(), search_key=security["isu_code"], mkt_id="STK")
     session = requests.Session()
     session.headers.update({"User-Agent": "Mozilla/5.0"})
-    session.verify = False
+    session.verify = VERIFY_SSL
 
     first_page = session.get(_build_page_url(url, 1), timeout=TIMEOUT)
     first_page.raise_for_status()
