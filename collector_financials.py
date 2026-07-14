@@ -153,10 +153,20 @@ def collect_and_push_facts() -> int:
     ratings tomorrow) is picked up automatically and its facts propagate.
     """
     import data_sources as ds
+    import listings_collector as lc
 
     log.info("running source adapters (fact store) ...")
     res = ds.run_all()
     log.info("adapters: %s", res.get("collectors"))
+    # Land the ticker→org map next to the facts: prod joins the fact store by
+    # org id, and only this map (not prod's own drifting catalog) is guaranteed
+    # to use the same IDs the facts were collected under — siblings included.
+    try:
+        org_map = lc.collect_org_map_rows()
+        rc.upsert_facts(org_map)
+        log.info("org map: %d ticker rows", len(org_map))
+    except Exception:
+        log.exception("org-map step failed (facts push continues without it)")
     facts = rc.get_facts()
     rows = [{
         "entity_id": f["entity_id"], "dataset": f["dataset"], "field": f["field"],
