@@ -2043,8 +2043,8 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
             processed += 1
             try:
                 data = fetch_report_excel_data(ticker, form, year, quarter)
-                vals = (compute_financial_ratios(data.get("income"),
-                                                 data.get("balance")).get("source_values") or {}) if data.get("ok") else {}
+                ratios = compute_financial_ratios(data.get("income"), data.get("balance")) if data.get("ok") else {}
+                vals = (ratios.get("source_values") or {}) if ratios else {}
                 if not any(vals.get(k) is not None for k in _FINANCIAL_KEYS):
                     # Preferred (annual) report had no usable data — e.g. an old
                     # empty filing. Fall back to the ticker's most recent report.
@@ -2052,12 +2052,19 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                     if alt:
                         alt_data = fetch_report_excel_data(ticker, form, alt["year"], alt["quarter"])
                         if alt_data.get("ok"):
-                            alt_vals = (compute_financial_ratios(alt_data.get("income"),
-                                                                 alt_data.get("balance")).get("source_values") or {})
+                            alt_ratios = compute_financial_ratios(alt_data.get("income"), alt_data.get("balance"))
+                            alt_vals = alt_ratios.get("source_values") or {}
                             if any(alt_vals.get(k) is not None for k in _FINANCIAL_KEYS):
-                                year, quarter, vals = alt["year"], alt["quarter"], alt_vals
+                                year, quarter, vals, ratios = alt["year"], alt["quarter"], alt_vals, alt_ratios
                 if any(vals.get(k) is not None for k in _FINANCIAL_KEYS):
                     upsert_financials_cache(ticker, form, year, quarter, vals)
+                    # Cache the ratios computed from the same statements: this is
+                    # what fills the company-page Key Metrics block and sector
+                    # averages — previously only a manual, login-gated analysis
+                    # wrote them, so catalog_ratios stayed empty for everyone.
+                    metrics = (ratios or {}).get("metrics") or {}
+                    if any(v is not None for v in metrics.values()):
+                        upsert_ratio_cache(ticker, form, year, quarter or 0, metrics)
                     filled += 1
             except Exception:
                 logger.exception("financials refresh failed for %s", ticker)
