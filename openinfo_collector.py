@@ -188,6 +188,12 @@ def resolve_company(query: str, session: requests.Session | None = None) -> dict
         items = []
 
     if isinstance(items, list) and items:
+        # /home/autofill/ IGNORES its search parameter and returns the full org
+        # list (~790 items), so taking the top row without a score floor selects
+        # an arbitrary organization — this is how tickers used to end up serving
+        # another company's data. Accept only an exact or substring match on the
+        # normalized name; anything weaker falls through to the fuzzy chain
+        # below, which has its own confidence floor.
         normalized_query = _normalize_key(query)
         scored: list[tuple[int, dict[str, Any]]] = []
         for item in items:
@@ -202,14 +208,15 @@ def resolve_company(query: str, session: requests.Session | None = None) -> dict
             scored.append((score, item))
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
-        best = scored[0][1]
-        return {
-            "input": query,
-            "org_id": str(best.get("id")),
-            "company_name": best.get("full_name_text") or "",
-            "logo": best.get("logo"),
-            "source_url": f"{OPENINFO_API_BASE}/home/autofill/?{urlencode({'name': query})}",
-        }
+        if scored and scored[0][0] >= 20:
+            best = scored[0][1]
+            return {
+                "input": query,
+                "org_id": str(best.get("id")),
+                "company_name": best.get("full_name_text") or "",
+                "logo": best.get("logo"),
+                "source_url": f"{OPENINFO_API_BASE}/home/autofill/?{urlencode({'name': query})}",
+            }
 
     # Strategy 2: shared fuzzy/transliteration/full-list lookup from main.py.
     # autofill misses Cyrillic queries, capitalization variants, missing dashes/apostrophes, etc.

@@ -436,7 +436,13 @@ def _probe_org_type(session: Any, form2_records: list[dict], period_type: str) -
     return None
 
 
-def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict[str, Any]:
+def sync_company(
+    ticker: str,
+    company_name: str,
+    *,
+    force: bool = False,
+    org_id: str | None = None,
+) -> dict[str, Any]:
     conn = get_catalog_conn()
 
     # Check freshness unless forced
@@ -452,9 +458,28 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
     errors: list[str] = []
     added = 0
 
+    # Resolution precedence: explicit caller org (already override-aware) →
+    # ORG_OVERRIDES → deterministic ticker/ISIN index → name matching (last
+    # resort, confidence-floored). A below-confidence resolution returns
+    # nothing and is recorded as sync_error — wrong data is never landed.
     try:
-        company = resolve_company(company_name, session=session)
-        org_id = company.get("org_id")
+        from entity_resolver import ORG_OVERRIDES, resolve_by_index
+
+        resolved_name = company_name
+        if not org_id:
+            org_id = ORG_OVERRIDES.get(ticker.upper())
+        if not org_id:
+            try:
+                hit = resolve_by_index(ticker, session=session)
+            except Exception:  # noqa: BLE001 — index needs network; fall through
+                hit = None
+            if hit:
+                org_id = hit["org_id"]
+                resolved_name = hit.get("org_name") or company_name
+        if not org_id:
+            company = resolve_company(company_name, session=session)
+            org_id = company.get("org_id")
+            resolved_name = company.get("company_name") or company_name
         # Preferred share tickers (e.g. AGBAP) share the same org as the base ticker (AGBA).
         # If resolution failed, retry with the base ticker's company name.
         if not org_id and ticker.endswith("P"):
@@ -462,6 +487,7 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
             if base_name and base_name != company_name:
                 company = resolve_company(base_name, session=session)
                 org_id = company.get("org_id")
+                resolved_name = company.get("company_name") or resolved_name
         if not org_id:
             raise LookupError(f"No org_id for {company_name!r}")
     except Exception as exc:
@@ -478,6 +504,22 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
             )
         conn.close()
         return {"ticker": ticker, "org_id": None, "added": 0, "errors": errors}
+    org_id = str(org_id)
+    company_name = resolved_name
+
+    # Self-healing: if this ticker previously pointed at a different org, its
+    # stored reports/financials/ratios belong to that other company — purge
+    # them so only the correct issuer's data is (re-)landed below.
+    prev = conn.execute(
+        "SELECT org_id FROM catalog_companies WHERE ticker = ?", (ticker,)
+    ).fetchone()
+    if prev and prev["org_id"] and str(prev["org_id"]) != org_id:
+        logger.warning(
+            "%s: issuer org changed %s -> %s; purging previously stored data",
+            ticker, prev["org_id"], org_id,
+        )
+        with conn:
+            _purge_ticker_data(conn, ticker)
 
     base = f"/reports/accounting-report/{org_id}/"
 
@@ -678,18 +720,22 @@ def sync_company(ticker: str, company_name: str, *, force: bool = False) -> dict
                 added += 1
 
     # ---- Update company row -------------------------------------------------
+    # Partial failures are recorded, not masked: a run where every report fetch
+    # errored used to be stamped as a clean sync and stayed invisible for the
+    # whole freshness window.
+    sync_error = ("; ".join(errors))[:1000] if errors else None
     with conn:
         conn.execute(
             """
             INSERT INTO catalog_companies (ticker, company_name, org_id, last_synced_at, sync_error)
-            VALUES (?,?,?,datetime('now'),NULL)
+            VALUES (?,?,?,datetime('now'),?)
             ON CONFLICT(ticker) DO UPDATE SET
                 company_name   = excluded.company_name,
                 org_id         = excluded.org_id,
                 last_synced_at = datetime('now'),
-                sync_error     = NULL
+                sync_error     = excluded.sync_error
             """,
-            (ticker, company_name, org_id),
+            (ticker, company_name, org_id, sync_error),
         )
 
     conn.close()
@@ -770,14 +816,27 @@ def _sync_auditions(conn: sqlite3.Connection, session: Any) -> int:
 # Sync — all companies
 # ---------------------------------------------------------------------------
 
+# Resolution sources that identify the issuer exactly (override table or the
+# ticker/ISIN→INN→org join). Only these may CORRECT a stored org_id; name-based
+# matches remain fill-only so a fuzzy result can never displace a good mapping.
+_DETERMINISTIC_RESOLVERS = {"override", "ticker", "isin", "base_ticker_index"}
+
+
+def _purge_ticker_data(conn: sqlite3.Connection, ticker: str) -> None:
+    """Remove a ticker's landed data (used when its issuer org mapping changes)."""
+    for table in ("catalog_reports", "catalog_new_reports", "catalog_financials", "catalog_ratios"):
+        conn.execute(f"DELETE FROM {table} WHERE ticker = ?", (ticker,))
+
+
 def discover_and_upsert_securities() -> dict[str, Any]:
     """Discover every UZSE-listed security and record its resolved issuer org.
 
     This is the self-discovering replacement for iterating the hardcoded
     COMPANY_CATALOG: it upserts a catalog_companies row (ticker -> org_id) for
     *every* listed security — ordinary, preferred and bond — so downstream
-    financials inheritance can reach all of them. Existing sync state is
-    preserved (org_id/name are only filled, never overwritten).
+    financials inheritance can reach all of them. Deterministic resolutions
+    (ticker/ISIN/override) may correct a previously stored org — purging the
+    old org's landed data — while name-based matches only fill blanks.
     """
     import entity_resolver as er
 
@@ -785,26 +844,50 @@ def discover_and_upsert_securities() -> dict[str, Any]:
     recs = er.resolve_all(session=session)
     conn = get_catalog_conn()
     upserted = 0
+    corrected = 0
     with conn:
         for rec in recs:
             org_id = rec.get("org_id")
             name = rec.get("org_name") or rec.get("name") or rec["ticker"]
-            conn.execute(
-                """
-                INSERT INTO catalog_companies (ticker, company_name, org_id)
-                VALUES (?,?,?)
-                ON CONFLICT(ticker) DO UPDATE SET
-                    org_id = COALESCE(catalog_companies.org_id, excluded.org_id),
-                    company_name = COALESCE(NULLIF(catalog_companies.company_name, ''), excluded.company_name)
-                """,
-                (rec["ticker"], name, org_id),
-            )
+            deterministic = org_id and rec.get("resolved_by") in _DETERMINISTIC_RESOLVERS
+            if deterministic:
+                prev = conn.execute(
+                    "SELECT org_id FROM catalog_companies WHERE ticker = ?", (rec["ticker"],)
+                ).fetchone()
+                if prev and prev["org_id"] and str(prev["org_id"]) != str(org_id):
+                    logger.warning(
+                        "%s: issuer org corrected %s -> %s (%s); purging stored data",
+                        rec["ticker"], prev["org_id"], org_id, rec.get("resolved_by"),
+                    )
+                    _purge_ticker_data(conn, rec["ticker"])
+                    corrected += 1
+                conn.execute(
+                    """
+                    INSERT INTO catalog_companies (ticker, company_name, org_id)
+                    VALUES (?,?,?)
+                    ON CONFLICT(ticker) DO UPDATE SET
+                        org_id = excluded.org_id,
+                        company_name = COALESCE(NULLIF(catalog_companies.company_name, ''), excluded.company_name)
+                    """,
+                    (rec["ticker"], name, org_id),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO catalog_companies (ticker, company_name, org_id)
+                    VALUES (?,?,?)
+                    ON CONFLICT(ticker) DO UPDATE SET
+                        org_id = COALESCE(catalog_companies.org_id, excluded.org_id),
+                        company_name = COALESCE(NULLIF(catalog_companies.company_name, ''), excluded.company_name)
+                    """,
+                    (rec["ticker"], name, org_id),
+                )
             upserted += 1
     conn.close()
     resolved = sum(1 for r in recs if r.get("org_id"))
     orgs = {r["org_id"] for r in recs if r.get("org_id")}
     return {"discovered": len(recs), "resolved": resolved, "distinct_orgs": len(orgs),
-            "upserted": upserted, "records": recs}
+            "upserted": upserted, "corrected": corrected, "records": recs}
 
 
 def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[str, Any]:
@@ -849,8 +932,13 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
         except Exception:
             pass
 
-        # ticker -> name from discovery (falls back to the curated catalog name).
+        # ticker -> name/org from discovery (falls back to the curated catalog name).
         disc_name = {r["ticker"]: (r.get("org_name") or r.get("name")) for r in discovered_recs}
+        disc_org = {
+            r["ticker"]: str(r["org_id"])
+            for r in discovered_recs
+            if r.get("org_id") and r.get("resolved_by") in _DETERMINISTIC_RESOLVERS
+        }
 
         for ticker in targets:
             # Skip preferred share tickers (e.g. AGBAP) — they map to the same
@@ -860,7 +948,7 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
                 continue
             name = disc_name.get(ticker) or _TICKER_TO_NAME.get(ticker, ticker)
             try:
-                result = sync_company(ticker, name, force=force)
+                result = sync_company(ticker, name, force=force, org_id=disc_org.get(ticker))
                 if result.get("skipped"):
                     skipped += 1
                 else:
