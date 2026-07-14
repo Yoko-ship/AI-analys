@@ -14,16 +14,17 @@ from urllib.parse import urlencode
 
 import requests
 
-try:
-    from urllib3.exceptions import InsecureRequestWarning
-except Exception:  # pragma: no cover
-    InsecureRequestWarning = None
 
+
+from openinfo_http import (  # shared paced/retrying HTTP layer for all openinfo traffic
+    OPENINFO_PROXY,
+    VERIFY_SSL,
+    make_session as _make_paced_session,
+)
 
 OPENINFO_API_BASE = "https://new-api.openinfo.uz/api/v2"
 OPENINFO_WEB_BASE = "https://openinfo.uz"
 REQUEST_TIMEOUT = int(os.getenv("OPENINFO_TIMEOUT", "30"))
-VERIFY_SSL = os.getenv("OPENINFO_VERIFY_SSL", "0").strip().lower() not in {"0", "false", "no"}
 EXCEL_PARSE_ENABLED = os.getenv("OPENINFO_EXCEL_PARSE_ENABLED", "1").strip().lower() not in {"0", "false", "no"}
 EXCEL_MAX_BYTES = int(os.getenv("OPENINFO_EXCEL_MAX_BYTES", "3000000"))
 EXCEL_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_REPORTS", "3"))
@@ -36,26 +37,8 @@ EXCEL_CACHE_PATH = Path(os.getenv("OPENINFO_EXCEL_CACHE_PATH", "data/openinfo_ex
 EXCEL_PARSER_VERSION = "openinfo-excel-full-rows-v3"
 _EXCEL_CACHE_LOCK = threading.Lock()
 
-if not VERIFY_SSL and InsecureRequestWarning is not None:
-    requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
-
-
-# Optional proxy so a host whose IP openinfo blocks (e.g. the Railway datacenter)
-# can still reach it through a UZ-reachable relay. OPENINFO_PROXY takes precedence
-# over the standard HTTPS_PROXY/HTTP_PROXY env vars.
-OPENINFO_PROXY = (os.getenv("OPENINFO_PROXY") or os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or "").strip()
-
-
 def _make_session() -> requests.Session:
-    session = requests.Session()
-    session.headers.update({
-        "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0",
-    })
-    session.verify = VERIFY_SSL
-    if OPENINFO_PROXY:
-        session.proxies.update({"http": OPENINFO_PROXY, "https": OPENINFO_PROXY})
-    return session
+    return _make_paced_session()
 
 
 def _normalize_key(value: str | None) -> str:

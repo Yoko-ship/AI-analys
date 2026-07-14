@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import requests
 from dotenv import load_dotenv
+import openinfo_http
 from uzse_parser import build_liquidity_df
 from db import get_org_cache_path
 
@@ -162,8 +163,8 @@ def _try_secondary_indexes(query: str) -> tuple[str, str] | None:
     ]
     for label, url, params, id_key, name_key in sources:
         try:
-            response = requests.get(url, params=params, headers=headers,
-                                    timeout=REQUEST_TIMEOUT, verify=False)
+            response = openinfo_http.get(url, params=params, headers=headers,
+                                         timeout=REQUEST_TIMEOUT)
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:
@@ -283,12 +284,11 @@ def _try_autofill_api(query: str, normalized_query: str) -> tuple[str, str] | No
     """Поиск через autofill endpoint."""
     url = "https://new-api.openinfo.uz/api/v2/home/autofill/"
     try:
-        response = requests.get(
+        response = openinfo_http.get(
             url,
             params={"name": query},
             timeout=REQUEST_TIMEOUT,
             headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-            verify=False,
         )
         response.raise_for_status()
         items = response.json()
@@ -343,12 +343,11 @@ def _load_full_org_list() -> list:
 
     while page <= max_pages:
         try:
-            response = requests.get(
+            response = openinfo_http.get(
                 "https://new-api.openinfo.uz/api/v2/home/organizations/",
                 params={"page": page, "page_size": 100},
                 timeout=REQUEST_TIMEOUT,
                 headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-                verify=False,
             )
             response.raise_for_status()
             data = response.json()
@@ -652,8 +651,8 @@ def _scrape_org_id(user_input: str) -> tuple[str, str]:
 def _api_get(url: str, session: requests.Session | None = None) -> dict | list:
     """HTTP GET с таймаутом и понятной ошибкой."""
     try:
-        client = session or requests
-        resp = client.get(url, timeout=REQUEST_TIMEOUT, verify=False)
+        client = session or openinfo_http.shared_session()
+        resp = client.get(url, timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
         logger.debug(f"API response from {url}: {type(data).__name__}, len={len(data) if isinstance(data, (list, dict)) else 'N/A'}")

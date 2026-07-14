@@ -163,23 +163,38 @@ truth** rather than a hardcoded company list:
   (price / volume / financials / reports) + resolution status + any sync error —
   so gaps are visible, never silent.
 
-### Reaching openinfo from a blocked host (proxy)
+### openinfo reachability (probe before assuming a block)
 
-The Railway datacenter IP is blocked by openinfo. Set **`OPENINFO_PROXY`** (or the
-standard `HTTPS_PROXY`) to a UZ-reachable relay so any host — the API service or a
-scheduled job — can fetch openinfo directly:
+Openinfo reachability from any deployment can be checked live at any time:
+
+```bash
+curl -H "X-Admin-Secret: $ADMIN_API_SECRET" \
+  https://YOUR-API-URL/api/admin/openinfo-probe
+```
+
+It runs a connectivity matrix against every openinfo endpoint class the
+collector uses (autofill, org list, reports, indicators, Excel export, web) from
+the deployment's own egress IP. Verified 2026-07: **Railway reaches openinfo
+directly — no proxy needed.** All openinfo traffic goes through the shared paced
+client (`openinfo_http.py`): min interval `OPENINFO_MIN_INTERVAL_MS` (350),
+retries with backoff `OPENINFO_RETRIES` (3), TLS verification on
+(`OPENINFO_VERIFY_SSL=0` to opt out). Keep the pacing — an unthrottled bulk sync
+is what gets datacenter IPs blocked.
+
+If a host ever does get blocked, set **`OPENINFO_PROXY`** (or the standard
+`HTTPS_PROXY`) to any reachable relay and the same code routes through it:
 
 ```env
-OPENINFO_PROXY=http://user:pass@your-uz-relay:8080
+OPENINFO_PROXY=http://user:pass@your-relay:8080
 ```
 
 ### Scheduling the collector
 
 `collector_financials.py` runs the full pipeline in one invocation (financials +
-trade-stats + adapter facts) and pushes to prod via the admin endpoints
-(`/api/admin/financials`, `/api/admin/trade-stats`, `/api/admin/facts`, all
-authenticated with `ADMIN_API_SECRET`). Run it on a host that can reach openinfo
-(directly, or via `OPENINFO_PROXY`):
+trade-stats + adapter facts + listings) and pushes to the API service via the
+admin endpoints (`/api/admin/financials`, `/api/admin/trade-stats`,
+`/api/admin/facts`, `/api/admin/listings`, all authenticated with
+`ADMIN_API_SECRET`):
 
 ```bash
 python collector_financials.py                # full pipeline + push
@@ -187,11 +202,19 @@ python collector_financials.py --facts-only   # only re-run source adapters
 python collector_financials.py --no-facts     # financials + trade-stats only
 ```
 
-Schedule it however suits the host:
+Schedule it on any host that can reach openinfo:
+
+- **Railway cron (recommended — no local PC involved)**. Create a second service
+  from this same repo:
+  1. New service → same GitHub repo + branch as the API service.
+  2. Service settings → **Config file path** = `railway.collector.json`
+     (runs daily at 03:00 UTC = 08:00 Tashkent; edit `cronSchedule` to taste).
+  3. Variables: `ADMIN_API_SECRET` (same value as the API service) and
+     `FINANCIALS_PUSH_URL=https://YOUR-API-URL`.
+  4. No volume needed — the collector rebuilds its scratch DB each run and
+     pushes results to the API service.
 - **Windows** — Task Scheduler running `run_collector.bat` (e.g. daily 06:00).
 - **Linux/VPS** — cron: `0 6 * * * cd /app && python collector_financials.py`.
-- **Cloud-native** — with `OPENINFO_PROXY` set, the API service can run the same
-  entrypoint on a Railway cron so ingestion no longer depends on any local PC.
 
 OAuth redirect URI to register in Google:
 
