@@ -78,11 +78,9 @@ KNOWN_SECTORS: dict[str, str] = {
 
 
 def make_session() -> requests.Session:
-    s = requests.Session()
-    s.headers["User-Agent"] = "Mozilla/5.0"
-    s.headers["Accept"] = "application/json"
-    s.verify = False
-    return s
+    # Shared paced/retrying client — TLS verification on, polite pacing.
+    from openinfo_http import make_session as _make_paced_session
+    return _make_paced_session()
 
 
 def get(session: requests.Session, path: str, params: dict | None = None) -> Any:

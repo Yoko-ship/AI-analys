@@ -16,6 +16,7 @@ import requests
 
 
 
+from db import APP_DATA_DIR as _APP_DATA_DIR
 from openinfo_http import (  # shared paced/retrying HTTP layer for all openinfo traffic
     OPENINFO_PROXY,
     VERIFY_SSL,
@@ -33,7 +34,9 @@ EXCEL_MAX_QUARTER_REPORTS = int(os.getenv("OPENINFO_EXCEL_MAX_QUARTER_REPORTS", 
 EXCEL_ABSOLUTE_MAX_REPORTS = int(os.getenv("OPENINFO_EXCEL_ABSOLUTE_MAX_REPORTS", "100"))
 EXCEL_MAX_TABLE_ROWS_PER_SHEET = int(os.getenv("OPENINFO_EXCEL_MAX_TABLE_ROWS_PER_SHEET", "240"))
 EXCEL_CACHE_TTL_SECONDS = int(os.getenv("OPENINFO_EXCEL_CACHE_TTL_DAYS", "30")) * 24 * 60 * 60
-EXCEL_CACHE_PATH = Path(os.getenv("OPENINFO_EXCEL_CACHE_PATH", "data/openinfo_excel_cache.json")).expanduser()
+EXCEL_CACHE_PATH = Path(
+    os.getenv("OPENINFO_EXCEL_CACHE_PATH") or (_APP_DATA_DIR / "openinfo_excel_cache.json")
+).expanduser()
 EXCEL_PARSER_VERSION = "openinfo-excel-full-rows-v3"
 _EXCEL_CACHE_LOCK = threading.Lock()
 
