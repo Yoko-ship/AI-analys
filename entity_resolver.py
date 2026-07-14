@@ -46,6 +46,10 @@ ORG_OVERRIDES: dict[str, str] = {
     "UZMK": "383", "UZMKP": "383",
     "KVTS": "445",                      # Кварц (UZSE "Kvarts AJ" hits a payment processor 1001)
     "GRBK": "11",                       # Garant bank (catalog carried a stale org)
+    # Andijon biokimyo zavodi (org 78, INN 200240495). Name matching hit the
+    # other biochemical plant "QO'QON BIOKIMYO" (org 433, INN 200126834), which
+    # left BIOK's ratios empty and would attach the wrong issuer's filings.
+    "BIOK": "78",
 }
 
 # Tickers with no correct openinfo entity — the only match is a *different* company,

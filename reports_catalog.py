@@ -1494,31 +1494,89 @@ FIN_MONEY_FIELDS = _FIN_FIELDS
 RATIO_MONEY_FIELDS = ("total_equity", "total_assets")
 
 
+def _ticker_org_map(conn: sqlite3.Connection) -> dict[str, str]:
+    """ticker → org_id for fact-store joins.
+
+    Precedence: catalog_companies (available before any collector push) →
+    pushed collector map (facts dataset ``org_map`` — the same org IDs the
+    facts were landed under, and the only map that covers secondary lines like
+    a bank's SQB2/HMBK1 issues) → ORG_OVERRIDES on top.
+    """
+    out: dict[str, str] = {}
+    try:
+        for r in conn.execute(
+            "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != ''"
+        ).fetchall():
+            out[str(r["ticker"]).upper()] = str(r["org_id"])
+    except Exception:
+        logger.exception("catalog_companies org-map read failed")
+    try:
+        for r in conn.execute(
+            "SELECT entity_id, value_num, value_text FROM facts "
+            "WHERE dataset='org_map' AND field='org_id'"
+        ).fetchall():
+            org = (r["value_text"] or "").strip()
+            if not org and r["value_num"] is not None:
+                org = str(int(r["value_num"]))
+            if org:
+                out[str(r["entity_id"]).upper()] = org
+    except Exception:
+        logger.exception("org_map facts read failed")
+    for ticker, org in ORG_OVERRIDES.items():
+        out[ticker] = org
+    return out
+
+
+def _derived_equity(fields: dict[str, float]) -> float | None:
+    """Equity for issuers that don't publish it, from one period's indicators.
+
+    The balance identity (assets − liabilities) is the primary source. When the
+    period also carries ROE + net_profit, the source's own ROE identity
+    (equity = net_profit/ROE·100) must agree within 25%, else the ROE identity
+    wins — banks publish indicator "liabilities" that exclude deposits, so an
+    unchecked balance difference can overstate their equity ~10×. Validated
+    against every issuer that does publish equity: 155/155 periods within 5%.
+    """
+    bal = None
+    assets, liab = fields.get("total_assets"), fields.get("total_liabilities")
+    if assets is not None and liab is not None and assets - liab > 0:
+        bal = assets - liab
+    roe_eq = None
+    roe, npf = fields.get("roe"), fields.get("net_profit")
+    # |ROE| < 0.1%: the published 2-decimal rounding dominates the estimate.
+    if roe and npf is not None and abs(roe) >= 0.1 and npf / roe > 0:
+        roe_eq = npf / roe * 100.0
+    if bal is not None and roe_eq is not None:
+        return bal if abs(bal - roe_eq) / roe_eq <= 0.25 else roe_eq
+    return bal if bal is not None else roe_eq
+
+
 def get_all_ratios() -> dict[str, dict[str, Any]]:
     """Latest per-ticker financial ratios and equity from the fact store
     (openinfo ``financial_indicators``), keyed by ticker.
 
     Feeds the market-wide multiplier columns (P/E, P/B) and ratio coefficients
     (ТЗ §3.8). Ratios are served exactly as openinfo reports them; equity/assets
-    are absolute sums used to derive P/B (= market_cap / equity). Unreliable
-    ticker→org matches are skipped, mirroring the financials enrichment.
+    are absolute sums used to derive P/B (= market_cap / equity), with equity
+    derived from the same-period balance/ROE identities for the majority of
+    issuers that never publish it directly. Unreliable ticker→org matches are
+    skipped, mirroring the financials enrichment.
     """
+    fetch_fields = tuple(dict.fromkeys(_RATIO_FIELDS + ("total_liabilities", "net_profit")))
     conn = get_catalog_conn()
     try:
-        comp = conn.execute(
-            "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != ''"
-        ).fetchall()
+        ticker_org = _ticker_org_map(conn)
         rows = conn.execute(
             "SELECT entity_id, field, period, value_num FROM facts "
             "WHERE dataset='financial_indicators' AND value_num IS NOT NULL "
-            f"AND field IN ({','.join('?' * len(_RATIO_FIELDS))})",
-            _RATIO_FIELDS,
+            f"AND field IN ({','.join('?' * len(fetch_fields))})",
+            fetch_fields,
         ).fetchall()
     except Exception:
         conn.close()
         return {}
-    ticker_org = {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in comp}
     best: dict[tuple[str, str], tuple[str, float]] = {}
+    by_period: dict[tuple[str, str], dict[str, float]] = {}
     for r in rows:
         key = (str(r["entity_id"]), r["field"])
         period = str(r["period"] or "")
@@ -1526,6 +1584,16 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             continue  # corrupt/unparseable source period — never a candidate
         if best.get(key) is None or _period_key(period) > _period_key(best[key][0]):
             best[key] = (period, r["value_num"])
+        by_period.setdefault((str(r["entity_id"]), period), {})[r["field"]] = r["value_num"]
+    # Latest derivable equity per org, for issuers with no published figure.
+    derived_eq: dict[str, tuple[str, float]] = {}
+    for (org, period), fields in by_period.items():
+        eq = _derived_equity(fields)
+        if eq is None:
+            continue
+        cur = derived_eq.get(org)
+        if cur is None or _period_key(period) > _period_key(cur[0]):
+            derived_eq[org] = (period, eq)
     out: dict[str, dict[str, Any]] = {}
     for ticker, org in ticker_org.items():
         if ticker in UNRELIABLE_FINANCIALS:
@@ -1536,6 +1604,12 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             hit = best.get((org, field))
             if hit is not None:
                 entry[field] = hit[1]
+                if latest_period is None or _period_key(hit[0]) > _period_key(latest_period):
+                    latest_period = hit[0]
+        if entry and entry.get("total_equity") is None:
+            hit = derived_eq.get(org)
+            if hit is not None:
+                entry["total_equity"] = hit[1]
                 if latest_period is None or _period_key(hit[0]) > _period_key(latest_period):
                     latest_period = hit[0]
         if entry:

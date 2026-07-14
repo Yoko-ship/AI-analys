@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from typing import Any
 
 import reports_catalog as rc
+from entity_resolver import ORG_OVERRIDES
 from openinfo_collector import OPENINFO_API_BASE, _json_get, _make_session
 
 log = logging.getLogger("listings")
@@ -47,7 +48,7 @@ def _org_ids() -> dict[str, str]:
         "WHERE org_id IS NOT NULL AND org_id != ''"
     ).fetchall()
     conn.close()
-    return {r["ticker"]: str(r["org_id"]) for r in rows}
+    return {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in rows}
 
 
 def _last_conclusion(session: Any, isin: str) -> dict[str, Any] | None:
@@ -144,8 +145,19 @@ _FIN_VALUE_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
                    "net_income", "operating_income")
 
 
+_ORG_TICKERS_MEMO: dict[str, set[str]] | None = None
+
+
 def _org_to_tickers(session: Any) -> dict[str, set[str]]:
-    """org_id → every security ticker of that issuer (catalog + info_rfb)."""
+    """org_id → every security ticker of that issuer (catalog + info_rfb).
+
+    Memoized per process: the collector calls this from both the financials-alias
+    and org-map steps, and the ~one org-detail request per issuer is the whole
+    cost of the walk.
+    """
+    global _ORG_TICKERS_MEMO
+    if _ORG_TICKERS_MEMO is not None:
+        return _ORG_TICKERS_MEMO
     org_ids = _org_ids()
     mapping: dict[str, set[str]] = {}
     detail_cache: dict[str, dict] = {}
@@ -166,7 +178,30 @@ def _org_to_tickers(session: Any) -> dict[str, set[str]]:
             tk = str(ic.get("ticker") or "").strip().upper()
             if tk:
                 bucket.add(tk)
+    _ORG_TICKERS_MEMO = mapping
     return mapping
+
+
+def collect_org_map_rows() -> list[dict[str, Any]]:
+    """The collector's authoritative ticker→org map as fact rows (dataset
+    ``org_map``, entity_id = ticker).
+
+    The fact store is keyed by the collector's org IDs, but the deployment used
+    to join it against its *own* catalog_companies — a map that drifts (BIOK
+    resolved to a different biochemical plant there) and lacks secondary lines
+    (a bank's SQB2/HMBK1-style issues), leaving their ratios blank. Pushing the
+    map alongside the facts lets ``get_all_ratios`` join on the same IDs the
+    facts were landed under, siblings included.
+    """
+    session = _make_session()
+    rows: list[dict[str, Any]] = []
+    for org_id, tickers in _org_to_tickers(session).items():
+        for tk in sorted(tickers):
+            rows.append({
+                "entity_id": tk, "dataset": "org_map", "field": "org_id",
+                "period": "", "value": str(org_id), "source": "collector",
+            })
+    return rows
 
 
 def collect_financials_aliases() -> list[dict[str, Any]]:
