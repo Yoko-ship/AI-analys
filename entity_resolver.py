@@ -50,6 +50,10 @@ ORG_OVERRIDES: dict[str, str] = {
     # other biochemical plant "QO'QON BIOKIMYO" (org 433, INN 200126834), which
     # left BIOK's ratios empty and would attach the wrong issuer's filings.
     "BIOK": "78",
+    # O'z-Tong Hong Kompani (org 80, INN 201832779): the screener TIN join
+    # returns nothing for its ISIN UZ7044930004, so the deterministic index
+    # never resolves it and its ratios/financials stayed blank.
+    "UTHK": "80",
 }
 
 # Tickers with no correct openinfo entity — the only match is a *different* company,

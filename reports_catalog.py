@@ -1587,6 +1587,13 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
         by_period.setdefault((str(r["entity_id"]), period), {})[r["field"]] = r["value_num"]
     # Latest derivable equity per org, for issuers with no published figure.
     derived_eq: dict[str, tuple[str, float]] = {}
+    # openinfo publishes debt_to_equity_ratio = 0 for many issuers whose own
+    # balance figures say otherwise (UTYK: 98.1B liabilities on 222.8B equity,
+    # published 0). Derive liabilities/equity per period, but only when the
+    # balance identity (assets − liabilities ≈ equity within 25%) holds — for
+    # banks the indicator "liabilities" excludes deposits, so a failed identity
+    # means the inputs can't be trusted for this (banks publish real D/E anyway).
+    derived_de: dict[str, tuple[str, float]] = {}
     for (org, period), fields in by_period.items():
         eq = _derived_equity(fields)
         if eq is None:
@@ -1594,6 +1601,14 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
         cur = derived_eq.get(org)
         if cur is None or _period_key(period) > _period_key(cur[0]):
             derived_eq[org] = (period, eq)
+        liab = fields.get("total_liabilities")
+        assets = fields.get("total_assets")
+        eq_pub = fields.get("total_equity") or eq
+        if (liab is not None and liab >= 0 and assets and eq_pub and eq_pub > 0
+                and abs((assets - liab) - eq_pub) / eq_pub <= 0.25):
+            cur = derived_de.get(org)
+            if cur is None or _period_key(period) > _period_key(cur[0]):
+                derived_de[org] = (period, round(liab / eq_pub, 2))
     out: dict[str, dict[str, Any]] = {}
     for ticker, org in ticker_org.items():
         if ticker in UNRELIABLE_FINANCIALS:
@@ -1612,6 +1627,10 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
                 entry["total_equity"] = hit[1]
                 if latest_period is None or _period_key(hit[0]) > _period_key(latest_period):
                     latest_period = hit[0]
+        if entry and not entry.get("debt_to_equity"):
+            hit = derived_de.get(org)
+            if hit is not None:
+                entry["debt_to_equity"] = hit[1]
         if entry:
             entry["period"] = latest_period
             out[ticker] = entry
@@ -2276,7 +2295,10 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
     "revenue": ["выруч", "реализац", "revenue", "sales", "daromad", "tushum"],
     "net_income": ["чистая прибыл", "чистый доход", "чистый убыт",
                    "net income", "net profit", "net loss", "sof foyda"],
-    "total_assets": ["итого актив", "total asset", "всего актив", "jami aktiv"],
+    # Commercial form №1 totals assets as "Всего по активу баланса (стр.130+390)"
+    # (uz: "balans aktivi bo'yicha jami") — neither contains "итого актив".
+    "total_assets": ["итого актив", "total asset", "всего актив", "jami aktiv",
+                     "по активу баланса", "balans aktivi"],
     "equity": ["собственный капитал", "итого капитал", "капитал и резерв",
                "total equity", "equity", "o'z kapitali", "kapital"],
     "total_liabilities": ["итого обязательств", "всего обязательств",
@@ -2416,6 +2438,12 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         cur = _extract_metric(balance_rows or all_rows, "cur_liabilities")
         if lt is not None or cur is not None:
             total_liabilities = (lt or 0.0) + (cur or 0.0)
+    # Commercial form №1 labels its equity total only "Итого по разделу I" — the
+    # same words as the assets-section total, so no label pattern can pick it out.
+    # On a published balance the identity assets = equity + liabilities holds, so
+    # take equity as the difference instead.
+    if equity is None and total_assets is not None and total_liabilities is not None:
+        equity = total_assets - total_liabilities
     cash = _extract_metric(balance_rows or all_rows, "cash")
 
     def _safe_ratio(num: float | None, den: float | None) -> float | None:
