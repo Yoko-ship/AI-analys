@@ -97,6 +97,7 @@ COMPANY_CATALOG = {
     'O\'zbekiston Respublikasi Milliy Investitsiya jamg\'armasi aksiyadorlik jamiyati': "UZNF",
     '"Farg\'onaazot" aksiyadorlik jamiyati': "FRAZP",  # openinfo org 460; only the preferred (FRAZP) is UZSE-listed
     '"O\'zbekinvest" eksport-import sug\'urta kompaniyasi': "UZINP",  # openinfo org 835; only the preferred (UZINP) is UZSE-listed
+    '“O’z-Tong Hong Kompani” O’zbekiston-Koreya QK AJ': "UTHK",  # openinfo org 80 (pinned in ORG_OVERRIDES; the screener TIN join misses it)
 }
 
 # Sector classification for each ticker.
@@ -172,4 +173,5 @@ COMPANY_SECTORS: dict[str, str] = {
     "TKDMP": "other",
     # Chemicals (manufacturing)
     "FRAZP": "manufacturing",  # Farg'onaazot — nitrogen fertilizers / chemicals
+    "UTHK": "manufacturing",  # O'z-Tong Hong Kompani — UZ-Korea textile JV
 }

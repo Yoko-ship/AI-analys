@@ -165,6 +165,119 @@ class FinancialIndicatorsCollector:
 register(FinancialIndicatorsCollector())
 
 
+class NsbuDerivedIndicatorsCollector:
+    """Ratios derived from filed NSBU statements, for issuers openinfo's
+    ``/reports/financial_indicators/`` cannot serve.
+
+    The endpoint 400s server-side for some orgs (e.g. Toshkentdonmahsulotlari,
+    ALSKOM, Temiryo'l-sug'urta: "local variable 'long_term_bank_loans'
+    referenced before assignment"), leaving their ROE/ROA/P-B blank on the
+    market board even though their quarterly reports publish a full balance.
+    For catalog orgs with NO financial_indicators facts on file, compute the
+    same fields from the latest parseable NSBU Excel and land them under the
+    same dataset, so ``get_all_ratios`` serves them with no read-side changes.
+
+    Registered after FinancialIndicatorsCollector: ``run_all`` lands each
+    collector's facts before the next runs, so "no facts on file" already
+    accounts for this run's endpoint results.
+    """
+
+    name = "nsbu_derived_indicators"
+    dataset = "financial_indicators"
+
+    def collect(self, orgs: list[str], session: Any) -> list[dict[str, Any]]:
+        conn = rc.get_catalog_conn()
+        try:
+            covered = {
+                str(r["entity_id"])
+                for r in conn.execute(
+                    "SELECT DISTINCT entity_id FROM facts "
+                    "WHERE dataset='financial_indicators' AND value_num IS NOT NULL"
+                ).fetchall()
+            }
+            org_tickers: dict[str, list[str]] = {}
+            for r in conn.execute(
+                "SELECT ticker, org_id FROM catalog_companies "
+                "WHERE org_id IS NOT NULL AND org_id != ''"
+            ).fetchall():
+                org_tickers.setdefault(str(r["org_id"]), []).append(r["ticker"])
+        finally:
+            conn.close()
+
+        facts: list[dict[str, Any]] = []
+        for org in orgs:
+            if org in covered:
+                continue
+            for ticker in org_tickers.get(str(org), []):
+                # Prefer the newest annual (full-year flows → honest ROE/margin);
+                # fall back to the newest report of any period type.
+                latest = rc._latest_excel_report(ticker, "NSBU")
+                if not latest:
+                    continue
+                candidates = [latest]
+                if latest.get("quarter"):
+                    cconn = rc.get_catalog_conn()
+                    annual = cconn.execute(
+                        "SELECT year, quarter FROM catalog_reports "
+                        "WHERE ticker=? AND report_form='NSBU' AND quarter=0 "
+                        "AND excel_url IS NOT NULL AND year IS NOT NULL "
+                        "ORDER BY year DESC LIMIT 1",
+                        (ticker,),
+                    ).fetchone()
+                    cconn.close()
+                    if annual:
+                        candidates.insert(0, {"year": annual["year"], "quarter": 0})
+                ratios: dict[str, Any] = {}
+                report: dict[str, int] | None = None
+                for cand in candidates:
+                    try:
+                        data = rc.fetch_report_excel_data(ticker, "NSBU", cand["year"], cand["quarter"])
+                        if not data.get("ok"):
+                            continue
+                        computed = rc.compute_financial_ratios(data.get("income"), data.get("balance"))
+                    except Exception:  # noqa: BLE001 — best-effort per issuer
+                        logger.exception("nsbu_derived %s (%s) failed", ticker, org)
+                        continue
+                    if any(v is not None for v in (computed.get("metrics") or {}).values()):
+                        ratios, report = computed, cand
+                        break
+                if not report:
+                    continue
+                metrics = ratios.get("metrics") or {}
+                vals = ratios.get("source_values") or {}
+                period = str(report["year"]) + (f"Q{report['quarter']}" if report.get("quarter") else "")
+                row_fields = {
+                    "roe": (metrics.get("ROE"), "%"),
+                    "roa": (metrics.get("ROA"), "%"),
+                    "net_profit_margin": (metrics.get("net_margin"), "x"),
+                    "debt_to_equity": (metrics.get("debt_to_equity"), "x"),
+                    # NSBU sums are thousands of UZS — same unit contract as the
+                    # indicators endpoint's absolutes.
+                    "total_assets": (vals.get("total_assets"), "UZS"),
+                    "total_equity": (vals.get("equity"), "UZS"),
+                    "total_liabilities": (vals.get("total_liabilities"), "UZS"),
+                    "net_profit": (vals.get("net_income"), "UZS"),
+                }
+                emitted = 0
+                for field, (value, unit) in row_fields.items():
+                    if value is None:
+                        continue
+                    facts.append({
+                        "entity_id": str(org), "dataset": self.dataset, "field": field,
+                        "period": period, "value": value, "unit": unit,
+                        "source": self.name,
+                        "source_url": f"nsbu-excel:{ticker}:{period}",
+                    })
+                    emitted += 1
+                if emitted:
+                    logger.info("nsbu_derived %s (org %s) %s: %d fields", ticker, org, period, emitted)
+                    break  # issuer covered via one ticker; siblings join by org
+        return facts
+
+
+register(NsbuDerivedIndicatorsCollector())
+
+
 def run_all(collectors: list[str] | None = None, session: Any = None) -> dict[str, Any]:
     """Discover every issuer org, run the registered collectors, land facts.
 

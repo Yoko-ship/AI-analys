@@ -632,6 +632,32 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
             catalog = get_securities_map()
         except Exception:
             logger.exception("market/stocks: securities catalog read failed")
+
+    # The live uzse feed carries no market cap, so the mktCap/P/E/P/B columns sat
+    # empty for every actively traded stock while the RFB registry (pushed by the
+    # collector) already knows each line's shares outstanding. Join it onto live
+    # rows and value the shares at the live price — the registry's own market_cap
+    # (struck at the last collector run's price) is only a staleness fallback.
+    listings_by_isin = {
+        str(lst.get("isin") or "").upper(): lst
+        for lst in listings.values() if lst.get("isin")
+    }
+    for row in merged:
+        if row.get("market_cap"):
+            continue
+        lst = (listings.get(str(row.get("ticker") or "").upper())
+               or listings_by_isin.get(str(row.get("isin") or "").upper()))
+        if not lst:
+            continue
+        shares = lst.get("shares_outstanding")
+        if row.get("shares_outstanding") is None and shares is not None:
+            row["shares_outstanding"] = shares
+        price = row.get("last_price") or row.get("close_price")
+        if shares and price:
+            row["market_cap"] = shares * price
+        elif lst.get("market_cap"):
+            row["market_cap"] = lst.get("market_cap")
+
     want_bonds = security_type == "bond"
     for tk, lst in listings.items():
         if tk in feed_tickers:
@@ -650,6 +676,11 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
             # no ISIN of their own — take the bond's ISIN from the catalog.
             if not row.get("isin"):
                 row["isin"] = sec.get("isin")
+        # Registry rows carry no exchange link — build it from the ISIN so the
+        # source column links to uzse.uz like live-feed rows do.
+        if not row.get("url") and row.get("isin"):
+            kind = "BND" if is_bond else "STK"
+            row["url"] = f"https://uzse.uz/isu_infos/{kind}?isu_cd={row['isin']}"
         merged.append(row)
         added_inactive += 1
 
