@@ -5652,6 +5652,10 @@ function MarketView({
     const d = String(r.ts?.trade_date || "");
     return /^\d{8}$/.test(d) ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}` : null;
   };
+  // Per-trade stat cells for securities with no execution in the archive at
+  // all (verified 10-year lookback): state "no trades" — the same fact the
+  // trade-date column shows — rather than an ambiguous dash.
+  const neverTraded = (r) => (!r.last_trade_date && !r.ts ? mt(lang, "noTrade") : "—");
   const pbOf = (r) => {
     const mc = mktCapOf(r);
     const eq = ratioOf(r.ticker)?.total_equity;
@@ -5810,8 +5814,8 @@ function MarketView({
       </td>
     ),
     volQty: (row) => <td className="num">{row.stockQuantity !== null ? formatRatio(row.stockQuantity, 0, lang) : "—"}</td>,
-    avgShare: (row) => { const v = Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row); return <td className="num">{v === null || v === undefined ? "—" : formatMarketNumber(v, lang)}</td>; },
-    avgTrade: (row) => <td className="num">{avgTradeValue(row) !== null ? formatRatio(avgTradeValue(row), 0, lang) : "—"}</td>,
+    avgShare: (row) => { const v = Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row); return <td className="num">{v === null || v === undefined ? neverTraded(row) : formatMarketNumber(v, lang)}</td>; },
+    avgTrade: (row) => <td className="num">{avgTradeValue(row) !== null ? formatRatio(avgTradeValue(row), 0, lang) : neverTraded(row)}</td>,
     bigTrade: (row) => (
       <td className="num">
         {row.ts && Number.isFinite(row.ts.largest_value) ? (
@@ -5822,7 +5826,7 @@ function MarketView({
               {Number.isFinite(row.ts.largest_pct_value) ? ` · ${formatRatio(row.ts.largest_pct_value, 1, lang)}%` : ""}
             </span>
           </>
-        ) : "—"}
+        ) : neverTraded(row)}
       </td>
     ),
     volShare: (row) => <td className="num">{Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—"}</td>,
