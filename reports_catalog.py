@@ -139,6 +139,10 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             largest_value     REAL,
             largest_pct_value REAL,
             largest_pct_qty   REAL,
+            open_price        REAL,
+            high_price        REAL,
+            low_price         REAL,
+            close_price       REAL,
             updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
@@ -184,6 +188,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_facts_entity ON facts(entity_id, dataset);
     """)
+    # Columns added after the table shipped (CREATE IF NOT EXISTS won't touch
+    # an existing table) — idempotent per-column migration.
+    have = {r[1] for r in conn.execute("PRAGMA table_info(catalog_trade_stats)")}
+    for col in ("open_price", "high_price", "low_price", "close_price"):
+        if col not in have:
+            conn.execute(f"ALTER TABLE catalog_trade_stats ADD COLUMN {col} REAL")
     conn.commit()
 
 
@@ -1303,21 +1313,27 @@ def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> 
                     """
                     INSERT INTO catalog_trade_stats
                         (isin, trade_date, total_value, total_qty, trade_count, avg_price,
-                         largest_qty, largest_value, largest_pct_value, largest_pct_qty, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                         largest_qty, largest_value, largest_pct_value, largest_pct_qty,
+                         open_price, high_price, low_price, close_price, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(isin) DO UPDATE SET
                         trade_date=excluded.trade_date, total_value=excluded.total_value,
                         total_qty=excluded.total_qty, trade_count=excluded.trade_count,
                         avg_price=excluded.avg_price, largest_qty=excluded.largest_qty,
                         largest_value=excluded.largest_value,
                         largest_pct_value=excluded.largest_pct_value,
-                        largest_pct_qty=excluded.largest_pct_qty, updated_at=datetime('now')
+                        largest_pct_qty=excluded.largest_pct_qty,
+                        open_price=excluded.open_price, high_price=excluded.high_price,
+                        low_price=excluded.low_price, close_price=excluded.close_price,
+                        updated_at=datetime('now')
                     """,
                     (isin, str(r.get("trade_date") or trade_date or ""),
                      _num(r.get("total_value")), _num(r.get("total_qty")),
                      int(_num(r.get("trade_count")) or 0), _num(r.get("avg_price")),
                      _num(r.get("largest_qty")), _num(r.get("largest_value")),
-                     _num(r.get("largest_pct_value")), _num(r.get("largest_pct_qty"))),
+                     _num(r.get("largest_pct_value")), _num(r.get("largest_pct_qty")),
+                     _num(r.get("open_price")), _num(r.get("high_price")),
+                     _num(r.get("low_price")), _num(r.get("close_price"))),
                 )
                 n += 1
     finally:
@@ -1330,7 +1346,8 @@ def get_all_trade_stats() -> dict[str, dict[str, Any]]:
     conn = get_catalog_conn()
     rows = conn.execute(
         """SELECT isin, trade_date, total_value, total_qty, trade_count, avg_price,
-                  largest_qty, largest_value, largest_pct_value, largest_pct_qty, updated_at
+                  largest_qty, largest_value, largest_pct_value, largest_pct_qty,
+                  open_price, high_price, low_price, close_price, updated_at
            FROM catalog_trade_stats"""
     ).fetchall()
     conn.close()

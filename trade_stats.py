@@ -39,7 +39,18 @@ def _aggregate(isin: str, lst: list[dict], trade_date: str) -> dict[str, Any]:
     prices = [_f(x.get("trade_price")) for x in lst if _f(x.get("trade_price")) > 0]
     big = max(lst, key=lambda x: _f(x.get("trading_value")))
     bv, bq = _f(big.get("trading_value")), _f(big.get("trade_quantity"))
+    # Session OHLC from the executions in time order — the exchange's official
+    # closing price is the day's LAST trade, which the averages can't stand in
+    # for (the daily bulletin's change is computed close-to-close).
+    timed = sorted((x for x in lst if _f(x.get("trade_price")) > 0),
+                   key=lambda x: str(x.get("trade_datetime") or ""))
+    open_p = _f(timed[0].get("trade_price")) if timed else None
+    close_p = _f(timed[-1].get("trade_price")) if timed else None
     return {
+        "open_price": open_p,
+        "close_price": close_p,
+        "high_price": max(prices) if prices else None,
+        "low_price": min(prices) if prices else None,
         "isin": isin,
         "trade_date": trade_date,
         "total_value": round(total_value, 2),
