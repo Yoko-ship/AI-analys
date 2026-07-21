@@ -42,7 +42,8 @@
       "Bash(.venv/Scripts/python.exe test_api2.py)",
       "Bash(.venv/Scripts/python.exe check_missing.py)",
       "Bash(.venv/Scripts/python.exe *)",
-      "Bash(gh pr *)"
+      "Bash(gh pr *)",
+      "Workflow(deep-research)"
     ]
   }
 }

@@ -48,7 +48,14 @@ def _org_ids() -> dict[str, str]:
         "WHERE org_id IS NOT NULL AND org_id != ''"
     ).fetchall()
     conn.close()
-    return {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in rows}
+    result = {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in rows}
+    # Some issuers (e.g. UTHK) never land in catalog_companies because discovery's
+    # screener TIN join misses them, yet they carry an explicit ORG_OVERRIDES pin
+    # and real facts under that org. Seed those override-only tickers so the org
+    # map still joins the org's facts to the ticker in get_all_ratios.
+    for tk, org in ORG_OVERRIDES.items():
+        result.setdefault(tk, str(org))
+    return result
 
 
 def _last_conclusion(session: Any, isin: str) -> dict[str, Any] | None:
