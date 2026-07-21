@@ -54,6 +54,11 @@ ORG_OVERRIDES: dict[str, str] = {
     # returns nothing for its ISIN UZ7044930004, so the deterministic index
     # never resolves it and its ratios/financials stayed blank.
     "UTHK": "80",
+    # O'zbekiston neftgaz (org 735) resolves correctly, but its NSBU excels are
+    # all-zero stubs (the SOE files IFRS only), so the fact-store figures are
+    # the ONLY real financials — pin the org so the enrichment takes the
+    # authoritative branch and fills net_income/revenue/liabilities from facts.
+    "UZNGP": "735",
 }
 
 # Tickers with no correct openinfo entity — the only match is a *different* company,
