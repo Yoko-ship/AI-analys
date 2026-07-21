@@ -4771,8 +4771,10 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
   // interpretation label; no «недооценена/переоценена» here. Global disclaimer applies.
   const netIncome = safeNumber(financials?.net_income);
   const roePct = safeNumber(metrics.ROE);
-  const peVal = (marketCapVal && netIncome && netIncome > 0) ? marketCapVal / netIncome : null;
-  const pbVal = (peVal != null && roePct != null && roePct > 0) ? peVal * (roePct / 100) : null;
+  // Loss-makers show the actual negative P/E (screener convention) — a blank
+  // reads as "no data" when both figures are published.
+  const peVal = (marketCapVal && netIncome) ? marketCapVal / netIncome : null;
+  const pbVal = (peVal != null && peVal > 0 && roePct != null && roePct > 0) ? peVal * (roePct / 100) : null;
   const hasValuation = peVal != null || pbVal != null;
 
   return (
@@ -5633,7 +5635,9 @@ function MarketView({
   const peOf = (r) => {
     const mc = mktCapOf(r);
     const ni = finOf(r.ticker)?.net_income;
-    return mc && mc > 0 && Number.isFinite(ni) && ni > 0 ? mc / ni : null;
+    // Loss-makers show the actual negative ratio (screener convention) rather
+    // than a blank — a dash reads as "no data" when both figures are published.
+    return mc && mc > 0 && Number.isFinite(ni) && ni !== 0 ? mc / ni : null;
   };
   const pbOf = (r) => {
     const mc = mktCapOf(r);
