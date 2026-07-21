@@ -5621,16 +5621,33 @@ function MarketView({
     if (Number.isFinite(t.trade_count)) out.stockTradeCount = t.trade_count;
     if (Number.isFinite(t.avg_price)) out.avgPrice = t.avg_price;
     if (Number.isFinite(t.vwap)) out.vwap = t.vwap;
-    // The feed sometimes reports last_price=null for a security that DID
-    // trade today (SANE, KFSK, KFSKP in the 21.07 bulletin) — without a
-    // price their official move vanished from the board. Use the session's
-    // volume-weighted price as the closing price, today's session only.
-    if (r.lastPrice === null && t.trade_date === latestTsDay) {
-      const px = Number.isFinite(t.vwap) ? t.vwap : t.avg_price;
-      if (Number.isFinite(px) && Number.isFinite(r.closePrice) && r.closePrice > 0) {
-        out.changeValue = px - r.closePrice;
-        out.changePercent = ((px - r.closePrice) / Math.abs(r.closePrice)) * 100;
-        out.tone = marketTone(out.changePercent);
+    // The feed lags for thin names — SANE still carried its 13.07 trade
+    // while today's executions existed (and sometimes last_price is null
+    // outright) — so the official move vanished from the board. When the
+    // day stats are the latest session AND newer than the feed row, the
+    // session's own OHLC is authoritative: price/date/OHLC come from it and
+    // the change is close-to-close (session close vs the feed's stale
+    // close, which IS the previous close — matching the daily bulletin).
+    const rowDay = String(r.last_trade_date || "").replace(/-/g, "");
+    const tsIsNewer = t.trade_date === latestTsDay &&
+      (r.lastPrice === null || !/^\d{8}$/.test(rowDay) || rowDay < t.trade_date);
+    if (tsIsNewer) {
+      const px = Number.isFinite(t.close_price) ? t.close_price
+        : Number.isFinite(t.vwap) ? t.vwap : t.avg_price;
+      if (Number.isFinite(px)) {
+        out.lastPrice = px;
+        if (Number.isFinite(t.open_price)) out.openPrice = t.open_price;
+        if (Number.isFinite(t.high_price)) out.highPrice = t.high_price;
+        if (Number.isFinite(t.low_price)) out.lowPrice = t.low_price;
+        if (/^\d{8}$/.test(String(t.trade_date))) {
+          const d = String(t.trade_date);
+          out.last_trade_date = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
+        }
+        if (Number.isFinite(r.closePrice) && r.closePrice > 0) {
+          out.changeValue = px - r.closePrice;
+          out.changePercent = ((px - r.closePrice) / Math.abs(r.closePrice)) * 100;
+          out.tone = marketTone(out.changePercent);
+        }
       }
     }
     return out;
