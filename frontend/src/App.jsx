@@ -5639,6 +5639,11 @@ function MarketView({
     // than a blank — a dash reads as "no data" when both figures are published.
     return mc && mc > 0 && Number.isFinite(ni) && ni !== 0 ? mc / ni : null;
   };
+  // Issuers openinfo records as having no tradable securities at all
+  // (is_listing=false, empty RFB/OTC share registries — e.g. MNGM, OCBK):
+  // market-value cells state that fact instead of an ambiguous dash.
+  const noSecLabel = (r) => (r.isin ? "—"
+    : lang === "ru" ? "нет бумаг" : lang === "uz" ? "qog'oz yo'q" : "no securities");
   const pbOf = (r) => {
     const mc = mktCapOf(r);
     const eq = ratioOf(r.ticker)?.total_equity;
@@ -5819,9 +5824,9 @@ function MarketView({
     finLiab: (row) => <td className="num">{finValue(finOf(row.ticker)?.total_liabilities, lang)}</td>,
     finNet: (row) => <td className="num">{finValue(finOf(row.ticker)?.net_income, lang)}</td>,
     finOperating: (row) => <td className="num">{finValue(finOf(row.ticker)?.operating_income, lang)}</td>,
-    mktCap: (row) => <td className="num">{(() => { const v = mktCapOf(row); return v == null ? "—" : formatRatio(v, 0, lang); })()}</td>,
-    pe: (row) => <td className="num">{(() => { const v = peOf(row); return v == null ? "—" : `${formatRatio(v, 1, lang)}×`; })()}</td>,
-    pb: (row) => <td className="num">{(() => { const v = pbOf(row); return v == null ? "—" : `${formatRatio(v, 2, lang)}×`; })()}</td>,
+    mktCap: (row) => <td className="num">{(() => { const v = mktCapOf(row); return v == null ? noSecLabel(row) : formatRatio(v, 0, lang); })()}</td>,
+    pe: (row) => <td className="num">{(() => { const v = peOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 1, lang)}×`; })()}</td>,
+    pb: (row) => <td className="num">{(() => { const v = pbOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 2, lang)}×`; })()}</td>,
     roe: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roe; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
     roa: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roa; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
     netMargin: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.net_profit_margin; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
