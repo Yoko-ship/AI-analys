@@ -5644,6 +5644,9 @@ function MarketView({
   // market-value cells state that fact instead of an ambiguous dash.
   const noSecLabel = (r) => (r.isin ? "—"
     : lang === "ru" ? "нет бумаг" : lang === "uz" ? "qog'oz yo'q" : "no securities");
+  // "Not applicable": the figure is undefined for this issuer's reporting
+  // form (bank/insurer/fund statements) rather than missing.
+  const naLabel = () => (lang === "ru" ? "н/п" : lang === "uz" ? "t/e" : "n/a");
   const pbOf = (r) => {
     const mc = mktCapOf(r);
     const eq = ratioOf(r.ticker)?.total_equity;
@@ -5819,11 +5822,23 @@ function MarketView({
     ),
     volShare: (row) => <td className="num">{Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—"}</td>,
     finRevenue: (row) => <td className="num">{finValue(finOf(row.ticker)?.revenue, lang)}</td>,
-    finGross: (row) => <td className="num">{finValue(finOf(row.ticker)?.gross_profit, lang)}</td>,
+    // Bank/insurer/fund filings have no gross-profit or operating-income
+    // lines (their reporting form differs) — when the issuer's top line IS
+    // published but the form carries no such line, say "not applicable"
+    // instead of an ambiguous dash.
+    finGross: (row) => <td className="num">{(() => {
+      const f = finOf(row.ticker);
+      if (f?.gross_profit == null && Number.isFinite(f?.revenue)) return naLabel();
+      return finValue(f?.gross_profit, lang);
+    })()}</td>,
     finCash: (row) => <td className="num">{finValue(finOf(row.ticker)?.cash, lang)}</td>,
     finLiab: (row) => <td className="num">{finValue(finOf(row.ticker)?.total_liabilities, lang)}</td>,
     finNet: (row) => <td className="num">{finValue(finOf(row.ticker)?.net_income, lang)}</td>,
-    finOperating: (row) => <td className="num">{finValue(finOf(row.ticker)?.operating_income, lang)}</td>,
+    finOperating: (row) => <td className="num">{(() => {
+      const f = finOf(row.ticker);
+      if (f?.operating_income == null && Number.isFinite(f?.revenue)) return naLabel();
+      return finValue(f?.operating_income, lang);
+    })()}</td>,
     mktCap: (row) => <td className="num">{(() => { const v = mktCapOf(row); return v == null ? noSecLabel(row) : formatRatio(v, 0, lang); })()}</td>,
     pe: (row) => <td className="num">{(() => { const v = peOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 1, lang)}×`; })()}</td>,
     pb: (row) => <td className="num">{(() => { const v = pbOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 2, lang)}×`; })()}</td>,
