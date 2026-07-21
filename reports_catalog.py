@@ -1476,9 +1476,12 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     return out
 
 
-# Below this a value is a parse error even for a micro-cap (e.g. O'zbekneftgaz's
-# revenue=10). Genuinely tiny issuers (UzMED-lizing ~186k) sit well above it and
-# are kept — a magnitude floor, not a size judgement.
+# Junk-report detector: when a parse goes wrong it reads the "Код стр" column
+# instead of values, so EVERY field lands near its line code (O'zbekneftgaz
+# 2023: revenue=10, net=270, liabilities=1090). A real report has at least one
+# large figure, so the floor is applied to the row's maximum — never to a
+# single field: small values beside large ones are genuine published figures
+# (93-maxsus trest net income 952.2; DORI year-end cash 4,757.9).
 _MIN_PLAUSIBLE = 10_000
 _FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income", "operating_income")
 _RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_ratio", "total_equity", "total_assets")
@@ -1677,6 +1680,11 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         period = str(r["period"] or "")
         if _period_key(period) == (0, 0):
             continue  # corrupt/unparseable source period — never a candidate
+        if not r["value_num"]:
+            # openinfo publishes all-zero indicator years for non-filers
+            # (O'zbekneftgaz 2021-2024) — a zero is "no report", not a figure.
+            # Letting it win "latest period" would shadow the last real year.
+            continue
         if best.get(key) is None or _period_key(period) > _period_key(best[key][0]):
             best[key] = (period, r["value_num"])
         if r["field"] == "net_profit" and period.isdigit() and len(period) == 4:
@@ -1692,9 +1700,9 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         # "revenue is None" would misfire after blanking or on a re-read of already
         # enriched-and-pushed data, making a blanked value look like a bank.)
         is_bank = COMPANY_SECTORS.get(ticker) == "finance"
-        for key in _FIN_FIELDS:
-            val = fin.get(key)
-            if val is not None and 0 < abs(val) < _MIN_PLAUSIBLE:
+        row_max = max((abs(fin[k]) for k in _FIN_FIELDS if fin.get(k)), default=0.0)
+        if 0 < row_max < _MIN_PLAUSIBLE:
+            for key in _FIN_FIELDS:
                 fin[key] = None
         org = ticker_org.get(ticker)
         if not org:
