@@ -2101,7 +2101,9 @@ function buildMarketStats(rows) {
   // trading day) must not surface as "today's" gainers/losers/volume.
   const boardDay = rows.reduce((m, r) => { const d = marketRowDay(r); return d && (!m || d > m) ? d : m; }, null);
   const todays = boardDay ? rows.filter((r) => marketRowDay(r) === boardDay) : rows;
-  const traded = todays.filter((row) => row.lastPrice !== null).length;
+  // Everything on the latest session's date traded (the feed's null-price
+  // quirk must not undercount securities whose executions we hold).
+  const traded = todays.length;
   const advancers = todays.filter((row) => row.changePercent !== null && row.changePercent > 0.05).length;
   const decliners = todays.filter((row) => row.changePercent !== null && row.changePercent < -0.05).length;
   const unchanged = todays.filter((row) => Number.isFinite(row.changePercent) && row.changePercent >= -0.05 && row.changePercent <= 0.05).length;
@@ -5606,6 +5608,10 @@ function MarketView({
   // bulletin computes O'zgarish from the closing price, not the day's
   // average; and a backfilled older day's average vs the current close would
   // fabricate a bogus "today's move" for an untraded security).
+  const latestTsDay = Object.values(tmap).reduce((m, t) => {
+    const d = String(t?.trade_date || "");
+    return /^\d{8}$/.test(d) && (!m || d > m) ? d : m;
+  }, null);
   const preparedAll = (Array.isArray(rows) ? rows : []).map(enrichMarketStock).map((r) => {
     const t = tmap[r.isin] || tmap[(r.isin || "").toUpperCase()];
     if (!t) return r;
@@ -5615,6 +5621,18 @@ function MarketView({
     if (Number.isFinite(t.trade_count)) out.stockTradeCount = t.trade_count;
     if (Number.isFinite(t.avg_price)) out.avgPrice = t.avg_price;
     if (Number.isFinite(t.vwap)) out.vwap = t.vwap;
+    // The feed sometimes reports last_price=null for a security that DID
+    // trade today (SANE, KFSK, KFSKP in the 21.07 bulletin) — without a
+    // price their official move vanished from the board. Use the session's
+    // volume-weighted price as the closing price, today's session only.
+    if (r.lastPrice === null && t.trade_date === latestTsDay) {
+      const px = Number.isFinite(t.vwap) ? t.vwap : t.avg_price;
+      if (Number.isFinite(px) && Number.isFinite(r.closePrice) && r.closePrice > 0) {
+        out.changeValue = px - r.closePrice;
+        out.changePercent = ((px - r.closePrice) / Math.abs(r.closePrice)) * 100;
+        out.tone = marketTone(out.changePercent);
+      }
+    }
     return out;
   });
   // "preferred" is a client-side subset of stocks (the feed was fetched as
