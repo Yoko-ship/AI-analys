@@ -10,9 +10,13 @@ recent trades) still appear on the market board, tagged inactive.
 """
 from __future__ import annotations
 
+import html as _html
 import logging
+import re
 from datetime import date, timedelta
 from typing import Any
+
+import requests
 
 import reports_catalog as rc
 from entity_resolver import ORG_OVERRIDES
@@ -58,6 +62,40 @@ def _uzse_screener_isins(session: Any) -> dict[str, str]:
             break
     _SCREENER_ISINS = out
     return out
+
+
+_BOND_NOMINAL_CACHE: dict[str, float | None] = {}
+
+
+def _uzse_bond_nominal(isin: str) -> float | None:
+    """Bond par value from UZSE's BND page ("Номинал (UZS)").
+
+    openinfo's info_rfb carries no reference price for exchange bonds, so a
+    never-traded bond row had no cap at all. UZSE publishes the par value;
+    outstanding face value (count × par) is the standard size metric for a
+    bond and is what the board's cap column shows for these rows. Fetched with
+    browser headers — uzse.uz answers 406 to JSON-accepting clients.
+    """
+    if isin in _BOND_NOMINAL_CACHE:
+        return _BOND_NOMINAL_CACHE[isin]
+    val: float | None = None
+    try:
+        resp = requests.get(
+            f"{_UZSE_BASE}/isu_infos/BND",
+            params={"isu_cd": isin, "locale": "ru"},
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "text/html"},
+            timeout=30,
+        )
+        text = re.sub(r"<[^>]+>", "|", _html.unescape(resp.text))
+        cells = [c.strip() for c in re.sub(r"\|+", "|", re.sub(r"[ \t]+", " ", text)).split("|") if c.strip()]
+        for i, c in enumerate(cells):
+            if "Номинал" in c and i + 1 < len(cells):
+                val = _num(cells[i + 1].replace("\xa0", "").replace(" ", "").replace(",", ""))
+                break
+    except Exception:  # noqa: BLE001
+        val = None
+    _BOND_NOMINAL_CACHE[isin] = val
+    return val
 
 
 def _uzse_share_count(session: Any, isin: str) -> float | None:
@@ -169,6 +207,10 @@ def collect_listing_rows() -> list[dict[str, Any]]:
 
             shares = _num(ic.get("list_shares"))
             reference_price = _num(ic.get("price"))
+            if not reference_price and isin.startswith("UZ6"):
+                # Exchange bond (UZ6… ISIN) with no openinfo reference price:
+                # par from UZSE so the cap shows outstanding face value.
+                reference_price = _uzse_bond_nominal(isin)
             last = _last_conclusion(session, isin)
             last_price = _num(last.get("close")) if last else None
             price_for_cap = last_price if last_price is not None else reference_price
