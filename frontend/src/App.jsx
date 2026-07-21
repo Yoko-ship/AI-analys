@@ -5829,7 +5829,14 @@ function MarketView({
     pb: (row) => <td className="num">{(() => { const v = pbOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 2, lang)}×`; })()}</td>,
     roe: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roe; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
     roa: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roa; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
-    netMargin: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.net_profit_margin; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
+    netMargin: (row) => <td className="num">{(() => {
+      const v = ratioOf(row.ticker)?.net_profit_margin;
+      if (v != null) return formatRatio(v, 2, lang);
+      // Margin is undefined at zero revenue (e.g. the National Investment
+      // Fund) — say so instead of showing an ambiguous dash.
+      if (finOf(row.ticker)?.revenue === 0) return lang === "ru" ? "н/п" : lang === "uz" ? "t/e" : "n/a";
+      return "—";
+    })()}</td>,
     debtEq: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.debt_to_equity; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
     date: (row) => (
       <td>

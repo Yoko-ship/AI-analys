@@ -1670,6 +1670,19 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
     except Exception:
         return
     ticker_org = {r["ticker"]: ORG_OVERRIDES.get(r["ticker"], str(r["org_id"])) for r in comp}
+    # Field-level fills verified by hand against the issuer's actual filings —
+    # used only where the automated chain cannot reach a figure the source
+    # publishes. Each entry cites its provenance.
+    curated: dict[str, dict[str, float]] = {
+        # National Investment Fund: openinfo net_revenue is literally 0.0 (a
+        # fund has no sales revenue) — a true published zero, not a gap.
+        "UZNF": {"revenue": 0.0},
+        # O'zbekiston neftgaz: 2021+ NSBU filings are zero stubs; the 2020
+        # annual (same year as the indicator facts shown for it) publishes
+        # year-end cash 2,291,908,931 th UZS (form 1, стр.320). The alias step
+        # copies it onto the sibling UZNG line.
+        "UZNGP": {"cash": 2291908931.0},
+    }
     best: dict[tuple[str, str], tuple[str, float]] = {}
     # net_profit indexed by annual year, so a sign-flip check compares against the
     # SAME year the board displays — not merely the newest indicator on file (which
@@ -1704,6 +1717,11 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         if 0 < row_max < _MIN_PLAUSIBLE:
             for key in _FIN_FIELDS:
                 fin[key] = None
+        # After junk-blanking so a curated figure survives it (UZNGP's junk
+        # 2023 row carried code-values that both hid and then erased cash).
+        for key, val in curated.get(ticker, {}).items():
+            if fin.get(key) is None:
+                fin[key] = val
         org = ticker_org.get(ticker)
         if not org:
             continue
