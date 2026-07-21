@@ -5647,6 +5647,11 @@ function MarketView({
   // "Not applicable": the figure is undefined for this issuer's reporting
   // form (bank/insurer/fund statements) rather than missing.
   const naLabel = () => (lang === "ru" ? "н/п" : lang === "uz" ? "t/e" : "n/a");
+  // Trade date of the row's day statistics (YYYYMMDD → YYYY-MM-DD).
+  const tsDate = (r) => {
+    const d = String(r.ts?.trade_date || "");
+    return /^\d{8}$/.test(d) ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}` : null;
+  };
   const pbOf = (r) => {
     const mc = mktCapOf(r);
     const eq = ratioOf(r.ticker)?.total_equity;
@@ -5855,7 +5860,9 @@ function MarketView({
     debtEq: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.debt_to_equity; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
     date: (row) => (
       <td>
-        <strong>{row.last_trade_date || mt(lang, "noTrade")}</strong>
+        {/* The live feed reports last_trade_date=null for some securities
+            that did trade — the backfilled day stats carry the real date. */}
+        <strong>{row.last_trade_date || tsDate(row) || mt(lang, "noTrade")}</strong>
         {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
       </td>
     ),

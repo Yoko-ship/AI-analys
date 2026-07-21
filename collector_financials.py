@@ -101,11 +101,55 @@ def push_trade_stats() -> int:
     """Fetch the latest-day per-trade stats from UZSE and push to prod."""
     log.info("fetching UZSE trade stats (latest day) ...")
     data = ts.fetch_trade_stats()
-    rows = list((data.get("stats") or {}).values())
+    stats = data.get("stats") or {}
+    rows = list(stats.values())
     log.info("trade stats: %d securities for %s", len(rows), data.get("trade_date"))
     if not rows:
         log.warning("no trade stats fetched")
         return 1
+    # Board rows whose security did not trade today otherwise show dashes in
+    # the qty/avg-price/avg-trade/largest columns forever, even though their
+    # price/OHLC columns already display the LAST trading day. Backfill that
+    # same day's stats from openinfo's trade-results archive so the whole row
+    # is coherently "as of the last trade date".
+    try:
+        base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+        board_rows = []
+        for kind in ("stock", "bond"):
+            board = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60).json()
+            board_rows.extend(board if isinstance(board, list) else board.get("stocks") or [])
+        targets = []
+        seen: set[str] = set()
+        no_date: list[str] = []
+        for r in board_rows:
+            isin = str(r.get("isin") or "").strip().upper()
+            if not isin or isin in stats or isin in seen:
+                continue
+            seen.add(isin)
+            day = str(r.get("last_trade_date") or "").strip()
+            if day:
+                targets.append((isin, day))
+            else:
+                no_date.append(isin)
+        # The live feed reports last_trade_date=null for some securities that
+        # DID trade (e.g. FRAZP, UZML) — recover the day from the conclusions
+        # archive; securities with genuinely no history are skipped.
+        if no_date:
+            import listings_collector as lc
+            from openinfo_collector import _make_session
+            session = _make_session()
+            for isin in no_date:
+                last = lc._last_conclusion(session, isin)
+                day = str((last or {}).get("date") or "").strip()
+                if day:
+                    targets.append((isin, day))
+        if targets:
+            log.info("backfilling last-day stats for %d untraded securities ...", len(targets))
+            back = ts.backfill_last_day_stats(targets)
+            log.info("backfilled %d securities", len(back))
+            rows.extend(back)
+    except Exception:
+        log.exception("last-day stats backfill failed (pushing today's only)")
     return _post("/api/admin/trade-stats", {"trade_date": data.get("trade_date"), "rows": rows})
 
 
