@@ -2089,9 +2089,18 @@ function finValue(v, lang) {
   return Number.isFinite(v) ? formatCompactNumber(v, lang) : "—";
 }
 
-function marketRowDay(r) {
-  const d = String(r?.ts?.trade_date || r?.last_trade_date || "").replace(/-/g, "");
+// Normalize a trade day to YYYYMMDD. The live feed writes DD.MM.YYYY, the
+// listings registry YYYY-MM-DD, the day stats YYYYMMDD — all must compare.
+function normalizeMarketDay(s) {
+  const str = String(s || "");
+  const m = str.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (m) return `${m[3]}${m[2]}${m[1]}`;
+  const d = str.replace(/-/g, "");
   return /^\d{8}$/.test(d) ? d : null;
+}
+
+function marketRowDay(r) {
+  return normalizeMarketDay(r?.ts?.trade_date) || normalizeMarketDay(r?.last_trade_date);
 }
 
 function buildMarketStats(rows) {
@@ -5628,9 +5637,9 @@ function MarketView({
     // session's own OHLC is authoritative: price/date/OHLC come from it and
     // the change is close-to-close (session close vs the feed's stale
     // close, which IS the previous close — matching the daily bulletin).
-    const rowDay = String(r.last_trade_date || "").replace(/-/g, "");
+    const rowDay = normalizeMarketDay(r.last_trade_date);
     const tsIsNewer = t.trade_date === latestTsDay &&
-      (r.lastPrice === null || !/^\d{8}$/.test(rowDay) || rowDay < t.trade_date);
+      (r.lastPrice === null || !rowDay || rowDay < t.trade_date);
     if (tsIsNewer) {
       const px = Number.isFinite(t.close_price) ? t.close_price
         : Number.isFinite(t.vwap) ? t.vwap : t.avg_price;

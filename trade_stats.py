@@ -41,9 +41,13 @@ def _aggregate(isin: str, lst: list[dict], trade_date: str) -> dict[str, Any]:
     bv, bq = _f(big.get("trading_value")), _f(big.get("trade_quantity"))
     # Session OHLC from the executions in time order — the exchange's official
     # closing price is the day's LAST trade, which the averages can't stand in
-    # for (the daily bulletin's change is computed close-to-close).
+    # for (the daily bulletin's change is computed close-to-close). openinfo's
+    # archive records carry trade_datetime; the UZSE rolling feed does NOT —
+    # there the monotonically increasing id/trade_number is the time order
+    # (the feed itself lists newest first, so input order must not be trusted).
     timed = sorted((x for x in lst if _f(x.get("trade_price")) > 0),
-                   key=lambda x: str(x.get("trade_datetime") or ""))
+                   key=lambda x: (str(x.get("trade_datetime") or ""),
+                                  _f(x.get("trade_number")), _f(x.get("id"))))
     open_p = _f(timed[0].get("trade_price")) if timed else None
     close_p = _f(timed[-1].get("trade_price")) if timed else None
     return {
