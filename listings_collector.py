@@ -24,6 +24,66 @@ log = logging.getLogger("listings")
 _STOCK_TYPE = {"01": "ordinary", "02": "preferred"}
 _CONCLUSIONS_LOOKBACK_DAYS = 3650
 
+# UZSE (RFB Tashkent) site — fallback source of the issued-share count for
+# issuers openinfo omits from info_rfb (empty isin_codes).
+_UZSE_BASE = "https://uzse.uz"
+_SCREENER_ISINS: dict[str, str] | None = None
+
+
+def _uzse_screener_isins(session: Any) -> dict[str, str]:
+    """ticker → ISIN for every UZSE-listed stock (openinfo's screener proxy).
+
+    Recovers the ISIN of issuers whose openinfo org detail carries no RFB
+    securities, so their share count can still be read from UZSE. Memoized.
+    """
+    global _SCREENER_ISINS
+    if _SCREENER_ISINS is not None:
+        return _SCREENER_ISINS
+    out: dict[str, str] = {}
+    for page in range(1, 12):
+        try:
+            data = _json_get(session, "/iuzse/stock-screener/",
+                             {"mkt_id": "STK", "page_size": 100, "page": page})
+        except Exception:  # noqa: BLE001
+            break
+        results = (data.get("results") or []) if isinstance(data, dict) else (data or [])
+        if not results:
+            break
+        for r in results:
+            tk = str(r.get("ticker") or "").strip().upper()
+            isin = str(r.get("isin_code") or "").strip().upper()
+            if tk and isin:
+                out.setdefault(tk, isin)
+        if len(results) < 100:
+            break
+    _SCREENER_ISINS = out
+    return out
+
+
+def _uzse_share_count(session: Any, isin: str) -> float | None:
+    """Issued share count from UZSE's isu_infos detail endpoint.
+
+    openinfo omits ``list_shares`` for some issuers (empty isin_codes); UZSE
+    returns it as ``shares[].list_shrs`` from ``/isu_infos/{isin}/detail`` (a
+    JSON list of yearly issuance records). Prefers the share record whose ISIN
+    matches, else the first with a count.
+    """
+    try:
+        data = session.get(f"{_UZSE_BASE}/isu_infos/{isin}/detail",
+                           params={"locale": "ru"}, timeout=30).json()
+    except Exception:  # noqa: BLE001
+        return None
+    records = data if isinstance(data, list) else [data]
+    fallback: float | None = None
+    for rec in records:
+        for sh in (rec.get("shares") or []) if isinstance(rec, dict) else []:
+            count = _num(sh.get("list_shrs"))
+            if count and str(sh.get("isu_cd") or "").upper() == isin.upper():
+                return count
+            if count and fallback is None:
+                fallback = count
+    return fallback
+
 
 def _num(v: Any) -> float | None:
     try:
@@ -135,13 +195,23 @@ def collect_listing_rows() -> list[dict[str, Any]]:
         # companies stay visible instead of vanishing. Keyed by our catalog ticker.
         if not (rfb.get("isin_codes") or []) and ticker not in seen_tickers:
             seen_tickers.add(ticker)
+            # openinfo lists no RFB security for this issuer, but UZSE may still
+            # publish its ISIN and share count — recover them so the market-cap
+            # join has shares to multiply by the live price (e.g. BIOK, DORI).
+            uz_isin = _uzse_screener_isins(session).get(ticker)
+            uz_shares = _uzse_share_count(session, uz_isin) if uz_isin else None
+            last = _last_conclusion(session, uz_isin) if uz_isin else None
+            last_price = _num(last.get("close")) if last else None
             rows.append({
-                "ticker": ticker, "isin": None, "name": name,
+                "ticker": ticker, "isin": uz_isin, "name": name,
                 "share_type": "ordinary", "listing_date": None,
-                "shares_outstanding": None, "reference_price": None,
-                "last_price": None, "last_trade_date": None,
-                "open_price": None, "high_price": None, "low_price": None,
-                "volume": None, "market_cap": None,
+                "shares_outstanding": uz_shares, "reference_price": None,
+                "last_price": last_price, "last_trade_date": (last or {}).get("date"),
+                "open_price": _num(last.get("open")) if last else None,
+                "high_price": _num(last.get("high")) if last else None,
+                "low_price": _num(last.get("low")) if last else None,
+                "volume": _num(last.get("trading_volume")) if last else None,
+                "market_cap": (uz_shares * last_price) if (uz_shares and last_price) else None,
             })
 
     log.info("collected %d listing rows from %d orgs", len(rows), len(org_detail_cache))
