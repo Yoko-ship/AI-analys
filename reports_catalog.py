@@ -1656,7 +1656,8 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
     Large magnitude disagreements are left as flags (see audit_financials_consistency)
     rather than "corrected" with possibly-wrong-org data.
     """
-    srcs = ("net_revenue", "net_profit", "total_liabilities")
+    srcs = ("net_revenue", "net_profit", "total_liabilities",
+            "gross_profit_margin", "ebit_margin")
     try:
         comp = conn.execute(
             "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != ''"
@@ -1677,6 +1678,9 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         # National Investment Fund: openinfo net_revenue is literally 0.0 (a
         # fund has no sales revenue) — a true published zero, not a gap.
         "UZNF": {"revenue": 0.0},
+        # Muborakneftgazmontaj: form 2 publishes Валовая прибыль = 0 (стр.030;
+        # a dividend-income holding with no product sales) — a true zero.
+        "MNGM": {"gross_profit": 0.0},
         # O'zbekiston neftgaz: 2021+ NSBU filings are zero stubs; the 2020
         # annual (same year as the indicator facts shown for it) publishes
         # year-end cash 2,291,908,931 th UZS (form 1, стр.320). The alias step
@@ -1732,6 +1736,22 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         npf_v = npf[1] if npf and npf[1] is not None else None
         tl_v = tl[1] if tl and tl[1] not in (None, 0) else None
 
+        def _derive_margin_lines() -> None:
+            # Gross/operating profit from the SAME-period published margin ×
+            # revenue (verified against O'zbekneftgaz 2019, where the filed
+            # figures reproduce the margins exactly). Fraction-valued margins
+            # only — openinfo stores net_profit_margin in percent but gross/
+            # ebit margins as fractions, and a mixed-unit hit would be junk.
+            if rev is None or not rev[1]:
+                return
+            for fld, margin_key in (("gross_profit", "gross_profit_margin"),
+                                    ("operating_income", "ebit_margin")):
+                if fin.get(fld) is not None:
+                    continue
+                m = best.get((org, margin_key))
+                if m and m[0] == rev[0] and 0 < m[1] <= 1:
+                    fin[fld] = round(rev[1] * m[1])
+
         if ticker in ORG_OVERRIDES:
             # Org is human-verified, so openinfo's clean figures are authoritative.
             if npf_v is not None:
@@ -1740,6 +1760,7 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
                 fin["revenue"] = rev_v
             if tl_v is not None:
                 fin["total_liabilities"] = tl_v
+            _derive_margin_lines()
             continue
 
         # Finance issuers (banks and insurers): openinfo's net_revenue is the
@@ -1763,6 +1784,7 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
                     fin["net_income"] = cmp_v  # sign flip — same company, fix sign
         if fin.get("total_liabilities") is None and tl_v is not None:
             fin["total_liabilities"] = tl_v
+        _derive_margin_lines()
 
 
 def upsert_facts(rows: list[dict[str, Any]]) -> int:
