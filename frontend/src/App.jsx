@@ -2089,19 +2089,30 @@ function finValue(v, lang) {
   return Number.isFinite(v) ? formatCompactNumber(v, lang) : "—";
 }
 
+function marketRowDay(r) {
+  const d = String(r?.ts?.trade_date || r?.last_trade_date || "").replace(/-/g, "");
+  return /^\d{8}$/.test(d) ? d : null;
+}
+
 function buildMarketStats(rows) {
-  const traded = rows.filter((row) => row.lastPrice !== null).length;
-  const advancers = rows.filter((row) => row.changePercent !== null && row.changePercent > 0.05).length;
-  const decliners = rows.filter((row) => row.changePercent !== null && row.changePercent < -0.05).length;
-  const unchanged = rows.filter((row) => Number.isFinite(row.changePercent) && row.changePercent >= -0.05 && row.changePercent <= 0.05).length;
-  const withChange = rows.filter((row) => Number.isFinite(row.changePercent));
+  // Movers, counters and the day's turnover follow the exchange's daily
+  // bulletin: only securities that traded on the LATEST session count.
+  // Backfilled last-day stats (an untraded security showing its own last
+  // trading day) must not surface as "today's" gainers/losers/volume.
+  const boardDay = rows.reduce((m, r) => { const d = marketRowDay(r); return d && (!m || d > m) ? d : m; }, null);
+  const todays = boardDay ? rows.filter((r) => marketRowDay(r) === boardDay) : rows;
+  const traded = todays.filter((row) => row.lastPrice !== null).length;
+  const advancers = todays.filter((row) => row.changePercent !== null && row.changePercent > 0.05).length;
+  const decliners = todays.filter((row) => row.changePercent !== null && row.changePercent < -0.05).length;
+  const unchanged = todays.filter((row) => Number.isFinite(row.changePercent) && row.changePercent >= -0.05 && row.changePercent <= 0.05).length;
+  const withChange = todays.filter((row) => Number.isFinite(row.changePercent));
   const topGrowth = withChange.reduce((best, row) => (!best || row.changePercent > best.changePercent ? row : best), null);
   const topDrop = withChange.reduce((worst, row) => (!worst || row.changePercent < worst.changePercent ? row : worst), null);
   const topGainers = withChange.filter((r) => r.changePercent > 0).sort((a, b) => b.changePercent - a.changePercent).slice(0, 5);
   const topLosers = withChange.filter((r) => r.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, 5);
-  const totalVolume = rows.reduce((s, r) => s + (Number.isFinite(r.stockVolume) ? r.stockVolume : 0), 0);
+  const totalVolume = todays.reduce((s, r) => s + (Number.isFinite(r.stockVolume) ? r.stockVolume : 0), 0);
   const totalMarketCap = rows.reduce((s, r) => s + (Number.isFinite(r.marketCap) && r.marketCap > 0 ? r.marketCap : 0), 0);
-  return { traded, advancers, decliners, unchanged, topGrowth, topDrop, topGainers, topLosers, totalVolume, totalMarketCap };
+  return { boardDay, traded, advancers, decliners, unchanged, topGrowth, topDrop, topGainers, topLosers, totalVolume, totalMarketCap };
 }
 
 const SCORE_EXPLANATION_TEXTS = {
@@ -5590,8 +5601,11 @@ function MarketView({
   const tmap = tradeStats || {};
   // Per-trade stats (UZSE) are the complete, correct daily totals — the plain
   // /stocks snapshot can be stale. When present, override turnover/qty/trades
-  // with them, expose the average trade price, and recompute the change from
-  // that average price (vs previous close) instead of the last single trade.
+  // with them and expose the average trade price. The change column stays
+  // close-to-close (the exchange's official convention — UZSE's daily
+  // bulletin computes O'zgarish from the closing price, not the day's
+  // average; and a backfilled older day's average vs the current close would
+  // fabricate a bogus "today's move" for an untraded security).
   const preparedAll = (Array.isArray(rows) ? rows : []).map(enrichMarketStock).map((r) => {
     const t = tmap[r.isin] || tmap[(r.isin || "").toUpperCase()];
     if (!t) return r;
@@ -5599,15 +5613,7 @@ function MarketView({
     if (Number.isFinite(t.total_value)) out.stockVolume = t.total_value;
     if (Number.isFinite(t.total_qty)) out.stockQuantity = t.total_qty;
     if (Number.isFinite(t.trade_count)) out.stockTradeCount = t.trade_count;
-    if (Number.isFinite(t.avg_price)) {
-      out.avgPrice = t.avg_price;
-      if (Number.isFinite(r.closePrice) && r.closePrice > 0) {
-        const v = t.avg_price - r.closePrice;
-        out.changeValue = v;
-        out.changePercent = (v / Math.abs(r.closePrice)) * 100;
-        out.tone = marketTone(out.changePercent);
-      }
-    }
+    if (Number.isFinite(t.avg_price)) out.avgPrice = t.avg_price;
     if (Number.isFinite(t.vwap)) out.vwap = t.vwap;
     return out;
   });
@@ -5738,7 +5744,8 @@ function MarketView({
     const lines = [header.join(",")];
     for (const row of visibleRows) {
       const rat = ratioOf(row.ticker) || {};
-      const share = Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? (row.stockVolume / stats.totalVolume) * 100 : "";
+      const share = (stats.boardDay && marketRowDay(row) !== stats.boardDay) ? 0
+        : Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? (row.stockVolume / stats.totalVolume) * 100 : "";
       lines.push([
         row.ticker, row.name, row.isin,
         marketDisplayPrice(row), row.changePercent,
@@ -5829,7 +5836,12 @@ function MarketView({
         ) : neverTraded(row)}
       </td>
     ),
-    volShare: (row) => <td className="num">{Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—"}</td>,
+    volShare: (row) => <td className="num">{(() => {
+      // Share of the LATEST session's turnover: an untraded security's
+      // backfilled old-day volume contributes 0% of today, by definition.
+      if (stats.boardDay && marketRowDay(row) !== stats.boardDay) return `0%`;
+      return Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—";
+    })()}</td>,
     finRevenue: (row) => <td className="num">{finValue(finOf(row.ticker)?.revenue, lang)}</td>,
     // Bank/insurer/fund filings have no gross-profit or operating-income
     // lines (their reporting form differs) — when the issuer's top line IS
