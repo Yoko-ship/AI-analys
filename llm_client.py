@@ -35,11 +35,18 @@ from openai import (
 logger = logging.getLogger(__name__)
 
 # --- configuration (env, with safe defaults) --------------------------------
-# `deepseek-chat` / `deepseek-reasoner` are retired 2026-07-24; V4 Flash is the
-# cheap workhorse for classification and tool-use. Override per-deployment.
-DEFAULT_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
-DEFAULT_MODEL = os.getenv("LLM_MODEL", "deepseek-v4-flash")
-_API_KEY = os.getenv("DEEPSEEK_API_KEY") or os.getenv("LLM_API_KEY") or os.getenv("api_key")
+# Provider-agnostic: point LLM_BASE_URL / LLM_MODEL at any OpenAI-compatible
+# endpoint (DeepSeek, xAI/Grok, OpenAI, Moonshot). Defaults target Grok's cheap
+# fast tier. `deepseek-chat`/`deepseek-reasoner` retire 2026-07-24 if you switch back.
+DEFAULT_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.x.ai/v1")
+DEFAULT_MODEL = os.getenv("LLM_MODEL", "grok-4-fast")
+# LLM_API_KEY is the generic key; provider-named vars are accepted for convenience.
+_API_KEY = (
+    os.getenv("LLM_API_KEY")
+    or os.getenv("XAI_API_KEY")
+    or os.getenv("DEEPSEEK_API_KEY")
+    or os.getenv("api_key")
+)
 
 _MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "4"))
 _BASE_BACKOFF = float(os.getenv("LLM_BASE_BACKOFF", "1.5"))
@@ -96,7 +103,7 @@ class LLMClient:
         key = api_key or _API_KEY
         if not key:
             raise LLMError(
-                "No LLM API key: set DEEPSEEK_API_KEY (or LLM_API_KEY) in the environment."
+                "No LLM API key: set LLM_API_KEY (or XAI_API_KEY / DEEPSEEK_API_KEY) in the environment."
             )
         self.model = model or DEFAULT_MODEL
         self._client = OpenAI(
