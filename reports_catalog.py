@@ -1385,6 +1385,57 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
     return n
 
 
+def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
+    """Make each row the *authoritative* latest figure for its ticker.
+
+    Unlike :func:`bulk_upsert_financials` (which only upserts one (ticker, form,
+    year, quarter) key and leaves other period rows in place), this deletes every
+    stored period for each ticker in ``rows`` and inserts the supplied row. It is
+    used to push structured-JSON reconciled figures (openinfo_reconcile): the read
+    path serves ``MAX(year*10+quarter)``, so a stale or spurious higher period
+    already in the cache would otherwise shadow a correct annual/earlier period.
+    Replacing per ticker guarantees the reconciled row is the one served. Values
+    are stored in thousands of UZS, as everywhere in this cache.
+    """
+    def _num(v: Any) -> float | None:
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    conn = get_catalog_conn()
+    n = 0
+    try:
+        with conn:
+            for r in rows or []:
+                ticker = str(r.get("ticker") or "").strip().upper()
+                if not ticker:
+                    continue
+                try:
+                    year = int(r.get("year") or 0)
+                    quarter = int(r.get("quarter") or 0)
+                except (TypeError, ValueError):
+                    continue
+                row_form = str(r.get("form") or form)
+                conn.execute("DELETE FROM catalog_financials WHERE ticker=? AND form=?", (ticker, row_form))
+                conn.execute(
+                    """
+                    INSERT INTO catalog_financials
+                        (ticker, form, year, quarter, revenue, gross_profit, cash,
+                         total_liabilities, net_income, operating_income, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    """,
+                    (ticker, row_form, year, quarter,
+                     _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
+                     _num(r.get("total_liabilities")), _num(r.get("net_income")),
+                     _num(r.get("operating_income"))),
+                )
+                n += 1
+    finally:
+        conn.close()
+    return n
+
+
 _TRADE_STAT_KEYS = ("total_value", "total_qty", "trade_count", "avg_price",
                     "largest_qty", "largest_value", "largest_pct_value", "largest_pct_qty")
 

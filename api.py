@@ -48,6 +48,7 @@ from reports_catalog import (
     get_all_financials,
     get_all_ratios,
     bulk_upsert_financials,
+    bulk_replace_financials,
     get_all_trade_stats,
     bulk_upsert_trade_stats,
     get_all_listings,
@@ -248,6 +249,9 @@ class CatalogAnalyzeRequest(BaseModel):
 class AdminFinancialsRequest(BaseModel):
     form: Literal["NSBU", "MSFO", "Audition"] = "NSBU"
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+    # "upsert" (default) keeps other stored periods; "replace" makes each row the
+    # sole/authoritative period for its ticker (used by the reconciler push).
+    mode: Literal["upsert", "replace"] = "upsert"
 
 
 class AdminTradeStatsRequest(BaseModel):
@@ -1084,12 +1088,13 @@ async def api_admin_financials(
     ADMIN_API_SECRET shared secret in the X-Admin-Secret header.
     """
     loop = asyncio.get_running_loop()
+    writer = bulk_replace_financials if payload.mode == "replace" else bulk_upsert_financials
     try:
-        n = await loop.run_in_executor(None, partial(bulk_upsert_financials, payload.rows, payload.form))
+        n = await loop.run_in_executor(None, partial(writer, payload.rows, payload.form))
     except Exception as exc:
-        logger.exception("admin financials upsert failed")
+        logger.exception("admin financials %s failed", payload.mode)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"ok": True, "upserted": n}
+    return {"ok": True, ("replaced" if payload.mode == "replace" else "upserted"): n}
 
 
 @app.post("/api/admin/facts")
