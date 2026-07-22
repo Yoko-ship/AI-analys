@@ -14,10 +14,13 @@ new item through `classify_item` (one DeepSeek JSON call), stores it, and pushes
 fetches here — it only judges what the collector pulled.
 
 **Layer B — `search_news` agent (on demand).** `news_agent.find_news("Kapitalbank")`
-gives DeepSeek a `search_news(query, days)` tool backed by a real web-search API
-(Tavily). The model chooses its own queries (RU/UZ/EN), reads results, and returns
-the market-relevant items it found — which can be fed back through `classify_item`
-and stored like any other. Bounded by a hard iteration cap; every query is logged.
+actively finds news. Two backends (`NEWS_SEARCH_BACKEND`):
+- `grok` — **Grok native web + X search** (`news_grok_search.py`, xAI Agent Tools /
+  Responses API). xAI runs the whole search loop server-side and returns items with
+  citations — no Tavily key, and it reaches X/Twitter. Uses `XAI_API_KEY`.
+- `tavily` — provider-agnostic tool loop: the model calls a `search_news(query, days)`
+  tool backed by Tavily, bounded by a hard iteration cap with every query logged.
+Either way the returned items can be fed back through `classify_item` and stored.
 
 ## Files
 
@@ -27,7 +30,8 @@ and stored like any other. Bounded by a hard iteration cap; every query is logge
 | `llm_client.py` | Provider-abstracted DeepSeek client (OpenAI-compatible) — `complete_json`, `run_tool_loop`, retry/backoff, token accounting |
 | `news_classifier.py` | Layer A — per-item classification (Pydantic-validated) |
 | `news_search_backend.py` | Pluggable search backends for Layer B (`TavilyBackend`, `NullBackend`) |
-| `news_agent.py` | Layer B — the `search_news` agentic loop |
+| `news_grok_search.py` | Layer B — Grok-native web + X search (xAI Agent Tools API) |
+| `news_agent.py` | Layer B — `find_news` entry point (routes to Grok-native or Tavily) |
 | `news_store.py` | `news` / `news_nlp` / `news_entities` upsert + read helpers |
 | `news_collector.py` | Orchestrator + CLI (fetch → dedup → classify → store → push) |
 | `reports_catalog.py` | Schema for the three news tables (in `_init_schema`) |
@@ -37,12 +41,14 @@ and stored like any other. Bounded by a hard iteration cap; every query is logge
 
 ```bash
 pip install -r requirements.txt        # adds feedparser, openai
-# .env:
-DEEPSEEK_API_KEY=sk-...                 # required for classification
-LLM_MODEL=deepseek-v4-flash             # deepseek-chat/reasoner retire 2026-07-24
-TAVILY_API_KEY=tvly-...                 # optional — only for the search_news agent
+# .env (configured for Grok):
+XAI_API_KEY=xai-...                     # classification + Grok native search
+LLM_BASE_URL=https://api.x.ai/v1
+LLM_MODEL=grok-4-fast                    # confirm exact fast model id in the xAI console
+NEWS_SEARCH_BACKEND=grok                 # Grok native web+X search (or 'tavily' + TAVILY_API_KEY)
 ADMIN_API_SECRET=...                    # required to push to prod (shared with financials)
 NEWS_PUSH_URL=https://<your-api>.up.railway.app
+# To use DeepSeek instead: LLM_BASE_URL=https://api.deepseek.com LLM_MODEL=deepseek-v4-flash DEEPSEEK_API_KEY=...
 ```
 
 ## Run
@@ -59,10 +65,11 @@ Serve: `GET /api/news/feed?limit=60&days=30`, `GET /api/news/ticker/HMKB`.
 
 ## Cost & control
 
-DeepSeek V4-Flash (`$0.14`/M in, `$0.28`/M out) ≈ **$1–5/month** at MVP volume;
-every run logs `tokens` and `est_cost_usd`. The search agent is capped at
-`NEWS_AGENT_MAX_ITERS` tool calls and logs each query. Only the search API adds
-cost (Tavily's free tier likely covers the MVP).
+Grok 4.1 Fast (`$0.20`/M in, `$0.50`/M out) ≈ **~$2/month** at MVP volume; every
+run logs `tokens` and `est_cost_usd`. Provider is a config swap — DeepSeek
+(`$0.14`/`$0.28`, ~$1/mo) is cheaper, GPT-5.4-mini (~$8/mo) is stronger on Uzbek.
+Grok's native search is billed per search call ($5/1k); the Tavily backend is
+capped at `NEWS_AGENT_MAX_ITERS` tool calls with each query logged.
 
 ## Legal invariant
 

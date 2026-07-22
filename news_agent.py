@@ -102,6 +102,12 @@ def find_news(
 
     Returns the items the agent surfaced, plus the queries it ran and token usage.
     """
+    # Grok-native path: xAI runs web + X search server-side (no Tavily, no client
+    # tool loop). Selected with NEWS_SEARCH_BACKEND=grok.
+    if backend is None and os.getenv("NEWS_SEARCH_BACKEND", "").strip().lower() == "grok":
+        from news_grok_search import grok_find_news
+        return grok_find_news(request, days=days)
+
     client = client or get_client()
     backend = backend or get_backend()
     queries: list[str] = []
