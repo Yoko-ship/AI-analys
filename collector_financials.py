@@ -225,6 +225,41 @@ def collect_and_push_facts() -> int:
     return _post("/api/admin/facts", {"rows": rows})
 
 
+def reconcile_and_push() -> int:
+    """Reconcile every tracked ticker against openinfo's structured report JSON
+    and push the corrected headline figures as the authoritative latest period.
+
+    This runs LAST and uses the ``replace`` mode so it supersedes whatever the
+    legacy Excel/PDF parse and the sibling-alias step wrote: the structured path
+    (openinfo_reconcile) reads P&L, balance, period and issuer correctly, so its
+    figures are the ones the site should serve. Tickers openinfo cannot source
+    (bonds with no issuer, IFRS-only holdings) are left to the legacy rows.
+    """
+    import openinfo_reconcile as orc
+
+    # Cover the full served registry: prod holds every tracked ticker, while the
+    # local store may be a subset (esp. when run with --reconcile-only, which skips
+    # the catalog sync). Union both so no ticker is missed.
+    tickers = set(rc.get_all_financials().keys())
+    try:
+        base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+        data = requests.get(f"{base}/api/market/financials", timeout=60).json()
+        tickers |= set((data.get("financials") or {}).keys())
+    except Exception:
+        log.exception("could not fetch push-target ticker list; using local store only")
+    tickers = sorted(tickers)
+    log.info("reconcile: %d tickers via structured openinfo JSON ...", len(tickers))
+    rows, errors = orc.reconcile_all(
+        tickers, progress=lambda i, n, t: log.info("reconcile %d/%d %s", i + 1, n, t) if (i % 25 == 0) else None)
+    push_rows = [orc.admin_push_row(r) for r in rows]
+    log.info("reconcile: resolved %d, unresolved %d (%s)",
+             len(push_rows), len(errors), ", ".join(sorted(errors)[:8]))
+    if not push_rows:
+        log.warning("reconcile produced no rows — skipping push")
+        return 1
+    return _post("/api/admin/financials", {"form": "NSBU", "rows": push_rows, "mode": "replace"})
+
+
 def push_heartbeat(status: int) -> None:
     """Stamp this run on prod so a silently dead collector is observable.
 
@@ -255,7 +290,21 @@ def main() -> int:
     ap.add_argument("--facts-only", action="store_true", help="only run+push the source-adapter facts")
     ap.add_argument("--no-listings", action="store_true", help="skip the exchange-listing registry step")
     ap.add_argument("--listings-only", action="store_true", help="only collect+push the listing registry")
+    ap.add_argument("--no-reconcile", action="store_true", help="skip the structured-JSON reconciliation push")
+    ap.add_argument("--reconcile-only", action="store_true",
+                    help="only reconcile financials against openinfo JSON and push (authoritative)")
     args = ap.parse_args()
+
+    if args.reconcile_only:
+        status = 0
+        try:
+            status = reconcile_and_push()
+        except Exception:
+            log.exception("reconcile step failed")
+            status = 1
+        if not args.no_push:
+            push_heartbeat(status)
+        return status
 
     rc_status = 0
     if not (args.no_financials or args.trades_only or args.facts_only or args.listings_only):
@@ -293,6 +342,16 @@ def main() -> int:
             rc_status = push_listings() or rc_status
         except Exception:
             log.exception("listings step failed")
+            rc_status = rc_status or 1
+
+    # Authoritative structured-JSON reconciliation — runs last so it supersedes the
+    # legacy Excel/PDF figures and the alias copies for every ticker openinfo can
+    # source directly.
+    if not (args.no_reconcile or args.no_push or args.trades_only or args.facts_only or args.listings_only):
+        try:
+            rc_status = reconcile_and_push() or rc_status
+        except Exception:
+            log.exception("reconcile step failed")
             rc_status = rc_status or 1
 
     if not args.no_push:
