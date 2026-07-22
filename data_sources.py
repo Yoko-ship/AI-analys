@@ -136,6 +136,17 @@ class FinancialIndicatorsCollector:
                         org, year, quarter,
                     )
                     continue
+                # openinfo publishes an "annual" (quarter 0) indicator for the
+                # in-progress fiscal year — a placeholder that duplicates or partially
+                # stands in for the prior year. A calendar-year annual is only complete
+                # once the year has ended, so drop a current-year annual; its quarterly
+                # filings (2026Q1 …) are real point-in-time figures and are kept.
+                if quarter_num == 0 and year_num >= date.today().year:
+                    logger.debug(
+                        "financial_indicators org=%s: skipping premature FY%d annual placeholder",
+                        org, year_num,
+                    )
+                    continue
                 period = str(year_num)
                 if quarter_num:
                     period += f"Q{quarter_num}"
@@ -209,24 +220,35 @@ class NsbuDerivedIndicatorsCollector:
             if org in covered:
                 continue
             for ticker in org_tickers.get(str(org), []):
-                # Prefer the newest annual (full-year flows → honest ROE/margin);
-                # fall back to the newest report of any period type.
+                # Prefer the newest *completed* annual (full-year flows → honest
+                # ROE/margin); fall back to the newest report of any period type.
+                # _latest_excel_report already excludes the current-year placeholder
+                # annual, so `latest` is a real report.
                 latest = rc._latest_excel_report(ticker, "NSBU")
                 if not latest:
                     continue
                 candidates = [latest]
                 if latest.get("quarter"):
+                    last_fy = rc._latest_complete_fiscal_year()
                     cconn = rc.get_catalog_conn()
                     annual = cconn.execute(
                         "SELECT year, quarter FROM catalog_reports "
                         "WHERE ticker=? AND report_form='NSBU' AND quarter=0 "
-                        "AND excel_url IS NOT NULL AND year IS NOT NULL "
+                        "AND excel_url IS NOT NULL AND year IS NOT NULL AND year<=? "
                         "ORDER BY year DESC LIMIT 1",
-                        (ticker,),
+                        (ticker, last_fy),
                     ).fetchone()
                     cconn.close()
                     if annual:
-                        candidates.insert(0, {"year": annual["year"], "quarter": 0})
+                        # Mirror _fin_candidates' tier rule: the annual for the most
+                        # recent *completed* fiscal year is the honest full-year figure
+                        # and leads even over a fresher partial quarter; an older annual
+                        # (the completed-year annual is missing) trails the fresher
+                        # quarter instead.
+                        if annual["year"] == last_fy or annual["year"] >= latest["year"]:
+                            candidates.insert(0, {"year": annual["year"], "quarter": 0})
+                        else:
+                            candidates.append({"year": annual["year"], "quarter": 0})
                 ratios: dict[str, Any] = {}
                 report: dict[str, int] | None = None
                 for cand in candidates:

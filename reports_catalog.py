@@ -269,6 +269,49 @@ def _period_key(period: str | None) -> tuple[int, int]:
     return (year, quarter)
 
 
+def _latest_complete_fiscal_year() -> int:
+    """The most recent fiscal year for which a complete annual report can exist.
+
+    Uzbek issuers file on a calendar fiscal year, so an annual report for year Y
+    is only complete once Y has ended. During calendar year N the newest complete
+    annual is therefore FY(N-1). openinfo, however, publishes a placeholder
+    "annual" for the *current* year (both as an ``/accounting-report/`` record and
+    as a ``financial_indicators`` row) that is either an in-progress figure or a
+    duplicate of the prior year — treating it as the latest completed annual dates
+    the headline figures a year into the future. This is the cutoff that separates
+    a real completed annual from that premature one.
+    """
+    return datetime.now(timezone.utc).year - 1
+
+
+def _is_premature_annual_year(year: int | None) -> bool:
+    """True for an annual report whose fiscal year has not yet ended."""
+    return year is not None and year > _latest_complete_fiscal_year()
+
+
+def _is_premature_annual_period(period: str | None) -> bool:
+    """True for a fact-store *annual* period ('2026') whose year is not complete.
+
+    Quarterly periods ('2026Q1') are point-in-time filings and stay valid.
+    """
+    y, k = _period_key(period)
+    return k == 5 and y > _latest_complete_fiscal_year()
+
+
+def _fact_period_rank(period: str | None) -> tuple[int, int]:
+    """``_period_key`` with premature annuals demoted below every real period.
+
+    Used only for "latest period" selection over the fact store. A premature
+    annual (openinfo's current-year placeholder) must never win against a real
+    completed period, but we still rank it above junk so an issuer whose *only*
+    fact is the placeholder is shown that rather than nothing.
+    """
+    y, k = _period_key(period)
+    if k == 5 and y > _latest_complete_fiscal_year():
+        return (y - 10000, k)  # far below any real period (min real year ~2015)
+    return (y, k)
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -599,6 +642,12 @@ def sync_company(
         for rec in form2_annual:
             yr = rec.get("reporting_year")
             if not isinstance(yr, int):
+                continue
+            if _is_premature_annual_year(yr):
+                # openinfo lists a placeholder "annual" for the in-progress fiscal
+                # year (e.g. FY2026 mid-2026) whose export is a duplicate of, or an
+                # incomplete stand-in for, the prior year. Ingesting it as the newest
+                # annual dates the headline figures a year forward — skip it.
                 continue
             doc2 = _build_report_document(rec)
             doc1 = form1_annual_by_year.get(yr)
@@ -1453,6 +1502,11 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     """
     conn = get_catalog_conn()
     _maybe_seed_financials(conn, form)
+    # Exclude a premature current-year annual (quarter 0, fiscal year not yet
+    # ended) from the "latest period" pick — it is openinfo's in-progress
+    # placeholder, so a real completed annual/quarter must win. Quarterly periods
+    # of the current year stay eligible.
+    last_fy = _latest_complete_fiscal_year()
     rows = conn.execute(
         """
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
@@ -1461,13 +1515,13 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         JOIN (
             SELECT ticker, MAX(year * 10 + quarter) AS rank
             FROM catalog_financials
-            WHERE form = ?
+            WHERE form = ? AND NOT (quarter = 0 AND year > ?)
             GROUP BY ticker
         ) latest
           ON latest.ticker = f.ticker AND (f.year * 10 + f.quarter) = latest.rank
-        WHERE f.form = ?
+        WHERE f.form = ? AND NOT (f.quarter = 0 AND f.year > ?)
         """,
-        (form, form),
+        (form, last_fy, form, last_fy),
     ).fetchall()
     out: dict[str, dict[str, Any]] = {}
     for r in rows:
@@ -1602,7 +1656,10 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
         period = str(r["period"] or "")
         if _period_key(period) == (0, 0):
             continue  # corrupt/unparseable source period — never a candidate
-        if best.get(key) is None or _period_key(period) > _period_key(best[key][0]):
+        # A premature current-year annual (openinfo's in-progress placeholder)
+        # must not win "latest period" over a real completed period; _fact_period_rank
+        # demotes it so it only surfaces when it is an issuer's sole datum.
+        if best.get(key) is None or _fact_period_rank(period) > _fact_period_rank(best[key][0]):
             best[key] = (period, r["value_num"])
         by_period.setdefault((str(r["entity_id"]), period), {})[r["field"]] = r["value_num"]
     # Latest derivable equity per org, for issuers with no published figure.
@@ -1619,7 +1676,7 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
         if eq is None:
             continue
         cur = derived_eq.get(org)
-        if cur is None or _period_key(period) > _period_key(cur[0]):
+        if cur is None or _fact_period_rank(period) > _fact_period_rank(cur[0]):
             derived_eq[org] = (period, eq)
         liab = fields.get("total_liabilities")
         assets = fields.get("total_assets")
@@ -1627,7 +1684,7 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
         if (liab is not None and liab >= 0 and assets and eq_pub and eq_pub > 0
                 and abs((assets - liab) - eq_pub) / eq_pub <= 0.25):
             cur = derived_de.get(org)
-            if cur is None or _period_key(period) > _period_key(cur[0]):
+            if cur is None or _fact_period_rank(period) > _fact_period_rank(cur[0]):
                 derived_de[org] = (period, round(liab / eq_pub, 2))
     out: dict[str, dict[str, Any]] = {}
     for ticker, org in ticker_org.items():
@@ -1639,13 +1696,13 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             hit = best.get((org, field))
             if hit is not None:
                 entry[field] = hit[1]
-                if latest_period is None or _period_key(hit[0]) > _period_key(latest_period):
+                if latest_period is None or _fact_period_rank(hit[0]) > _fact_period_rank(latest_period):
                     latest_period = hit[0]
         if entry and entry.get("total_equity") is None:
             hit = derived_eq.get(org)
             if hit is not None:
                 entry["total_equity"] = hit[1]
-                if latest_period is None or _period_key(hit[0]) > _period_key(latest_period):
+                if latest_period is None or _fact_period_rank(hit[0]) > _fact_period_rank(latest_period):
                     latest_period = hit[0]
         if entry and not entry.get("debt_to_equity"):
             hit = derived_de.get(org)
@@ -1719,7 +1776,9 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
             # (O'zbekneftgaz 2021-2024) — a zero is "no report", not a figure.
             # Letting it win "latest period" would shadow the last real year.
             continue
-        if best.get(key) is None or _period_key(period) > _period_key(best[key][0]):
+        if _is_premature_annual_period(period):
+            continue  # openinfo's in-progress current-year placeholder — not a real annual
+        if best.get(key) is None or _fact_period_rank(period) > _fact_period_rank(best[key][0]):
             best[key] = (period, r["value_num"])
         if r["field"] == "net_profit" and period.isdigit() and len(period) == 4:
             npf_by_year[(str(r["entity_id"]), int(period))] = r["value_num"]
@@ -2009,8 +2068,17 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
     """Best parseable report per ticker lacking a fresh cache.
 
     Considers only reports that have an Excel export (PDF-only issuers can't be
-    parsed). An annual report is preferred; if a ticker has none with Excel, its
-    latest quarter with Excel is used (e.g. GRBK files only quarterly Excel).
+    parsed). Selection rules, in order:
+
+      * a premature annual (fiscal year not yet ended — openinfo's current-year
+        placeholder) is never a candidate;
+      * the annual for the most recent *completed* fiscal year wins outright — it
+        is the honest full-year figure, preferred over any fresher partial quarter;
+      * otherwise the freshest report wins (a newer quarter beats an older annual),
+        so an issuer whose latest completed annual is missing (it filed only IFRS
+        that year, or files only quarterly like GRBK) still shows current figures
+        instead of a year-plus-stale annual.
+
     Returns ``[{ticker, year, quarter}]``, newest first.
     """
     ticker_filter = ""
@@ -2033,13 +2101,28 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
         """,
         params,
     ).fetchall()
+    last_fy = _latest_complete_fiscal_year()
     best: dict[str, tuple] = {}
     for r in rows:
         t = r["ticker"]
-        key = (1 if r["period_type"] == "annual" else 0, r["year"], r["quarter"] or 0)
+        year = r["year"]
+        quarter = r["quarter"] or 0
+        is_annual = r["period_type"] == "annual"
+        if is_annual and year is not None and year > last_fy:
+            continue  # premature placeholder annual — never a candidate
+        if is_annual and year == last_fy:
+            key = (2, year, 1, 0)  # most-recent completed annual: outranks partial quarters
+        else:
+            key = (1, year or 0, 1 if is_annual else 0, quarter)  # else freshest wins
         if t not in best or key > best[t][0]:
-            best[t] = (key, {"ticker": t, "year": r["year"], "quarter": r["quarter"] or 0})
-    return [v[1] for v in sorted(best.values(), key=lambda x: x[0], reverse=True)]
+            best[t] = (key, {"ticker": t, "year": year, "quarter": quarter})
+    return [
+        v[1] for v in sorted(
+            best.values(),
+            key=lambda x: (x[1]["year"] or 0, x[1]["quarter"]),
+            reverse=True,
+        )
+    ]
 
 
 def _sync_missing_companies(form: str, sync_limit: int) -> int:
@@ -2092,6 +2175,8 @@ def _latest_excel_report(ticker: str, form: str,
         yq = (r["year"], r["quarter"] or 0)
         if exclude and yq == exclude:
             continue
+        if yq[1] == 0 and _is_premature_annual_year(yq[0]):
+            continue  # skip the current-year placeholder annual
         return {"year": yq[0], "quarter": yq[1]}
     return None
 
@@ -2563,9 +2648,10 @@ def get_company_ratios_cached(ticker: str) -> dict[str, Any]:
         SELECT year, quarter, form, roa, roe, net_margin, debt_ratio, debt_to_equity, updated_at
         FROM catalog_ratios
         WHERE ticker = ?
+          AND NOT (quarter = 0 AND year > ?)
         ORDER BY year DESC, quarter DESC, updated_at DESC
         LIMIT 1
-    """, (ticker,)).fetchone()
+    """, (ticker, _latest_complete_fiscal_year())).fetchone()
     conn.close()
     if not row:
         return {}
@@ -2594,9 +2680,10 @@ def build_dynamics_data(ticker: str, form: str = "NSBU") -> dict[str, Any]:
         SELECT year, excel_url, excel_url_form1
         FROM catalog_reports
         WHERE ticker = ? AND report_form = ? AND period_type = 'annual' AND year IS NOT NULL
+          AND year <= ?
         ORDER BY year ASC
         """,
-        (ticker, form),
+        (ticker, form, _latest_complete_fiscal_year()),
     ).fetchall()
     conn.close()
 
