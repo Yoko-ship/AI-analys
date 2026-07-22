@@ -347,17 +347,25 @@ METRIC_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
 NSBU_THOUSANDS = 1000.0
 
 
-def period_year_quarter(reporting_year, period_type):
+def period_year_quarter(reporting_year, period_type, today=None):
     """Map an openinfo reporting_year date + form type to the site's (year, quarter).
 
     Annual -> quarter 0. Quarterly -> the quarter whose end the period-end date
     falls in (Jan-Mar=1 ... Oct-Dec=4). Interim dates snap to the enclosing
-    quarter. Returns (year, quarter) or (None, None)."""
+    quarter. Returns (year, quarter) or (None, None).
+
+    Exception: openinfo mis-stamps some freshly-filed annuals with the current or
+    a future year-end (e.g. 2026-12-31 published mid-2026). The read path hides a
+    quarter-0 row whose year is not yet a complete fiscal year (its premature
+    in-progress-annual placeholder guard), which would blank these real figures,
+    so a current/future-year annual is mapped to Q4 (a 12-month cumulative) to stay
+    served and correctly outrank earlier periods."""
     d = _parse_date(reporting_year)
     if d is None:
         return None, None
+    today = today or _dt.date.today()
     if period_type == "annual":
-        return d.year, 0
+        return (d.year, 4) if d.year >= today.year else (d.year, 0)
     return d.year, (d.month - 1) // 3 + 1
 
 
@@ -376,7 +384,7 @@ def reconcile_ticker(ticker, today=None):
     metrics, meta = select_report(ticker, today=today)
     if metrics is None:
         return None, meta
-    year, quarter = period_year_quarter(meta.get("reporting_year"), meta.get("period_type"))
+    year, quarter = period_year_quarter(meta.get("reporting_year"), meta.get("period_type"), today=today)
     row = {"ticker": ticker, "year": year, "quarter": quarter}
     for k in METRIC_KEYS:
         v = metrics.get(k)
