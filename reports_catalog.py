@@ -187,6 +187,53 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (entity_id, dataset, field, period, source)
         );
         CREATE INDEX IF NOT EXISTS idx_facts_entity ON facts(entity_id, dataset);
+
+        -- §3.11 editorial-news store. We keep only headline + our own LLM-authored
+        -- summary + link + metadata — never the source's full article body — which
+        -- keeps aggregation inside Uzbek copyright's news-of-the-day / press-review
+        -- allowances (see NEWS_MODULE.md). Populated by the news collector (push) /
+        -- the search agent; read by GET /api/news/feed and the risk-profile info dim.
+        CREATE TABLE IF NOT EXISTS news (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            url             TEXT NOT NULL UNIQUE,
+            source          TEXT NOT NULL,
+            source_id       TEXT,
+            lang            TEXT,
+            title           TEXT NOT NULL,
+            snippet         TEXT,
+            summary_ru      TEXT,
+            published_at    TEXT,
+            collected_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            coverage_weight REAL NOT NULL DEFAULT 0.5
+        );
+        CREATE INDEX IF NOT EXISTS idx_news_published ON news(published_at);
+        CREATE INDEX IF NOT EXISTS idx_news_source    ON news(source_id);
+
+        -- Per-item NLP output (one row per news item). Every value is a statistical/
+        -- analytical signal, not a diagnosis (TZ §3.11): 'direction' is a model
+        -- estimate the UI must present with a disclaimer.
+        CREATE TABLE IF NOT EXISTS news_nlp (
+            news_id         INTEGER PRIMARY KEY REFERENCES news(id) ON DELETE CASCADE,
+            relevant        INTEGER NOT NULL DEFAULT 0,
+            relevance_score REAL,
+            type            TEXT,
+            tone            TEXT,
+            tone_score      REAL,
+            impact          TEXT,
+            direction       TEXT,
+            sectors_json    TEXT,
+            reason          TEXT,
+            model           TEXT,
+            classified_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        -- News ↔ issuer links (a news item may touch several tickers).
+        CREATE TABLE IF NOT EXISTS news_entities (
+            news_id  INTEGER NOT NULL REFERENCES news(id) ON DELETE CASCADE,
+            ticker   TEXT NOT NULL,
+            PRIMARY KEY (news_id, ticker)
+        );
+        CREATE INDEX IF NOT EXISTS idx_news_ent_ticker ON news_entities(ticker);
     """)
     # Columns added after the table shipped (CREATE IF NOT EXISTS won't touch
     # an existing table) — idempotent per-column migration.

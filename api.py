@@ -28,6 +28,7 @@ load_dotenv()
 from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_comparison_excel, build_comparison_pdf, build_summary, report_disclaimer, run_company_analysis  # noqa: E402
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from openinfo_collector import collect_company_data, get_company_periods
+import news_store  # noqa: E402 — §3.11 editorial-news store
 from reports_catalog import (
     _TICKER_TO_NAME,
     FIN_MONEY_FIELDS,
@@ -260,6 +261,18 @@ class AdminFactsRequest(BaseModel):
 
 class AdminListingsRequest(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+
+
+class AdminNewsRequest(BaseModel):
+    items: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
+
+
+# TZ §3.11: every news signal is statistical/analytical, never a diagnosis or a
+# claim of manipulation. Returned with every editorial-news response.
+NEWS_DISCLAIMER = (
+    "Тональность новостей и оценка влияния — статистический сигнал, а не рекомендация "
+    "и не утверждение о манипуляции. Оценки сформированы моделью и могут быть неточными."
+)
 
 
 def _auth_payload(user: WebUser, token: str) -> dict[str, Any]:
@@ -997,6 +1010,50 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
     # correctly lexically; dateless items fall to the end.
     items.sort(key=lambda i: (i.get("date") or ""), reverse=True)
     return _json_safe({"ok": True, "count": len(items), "items": items[: max(1, limit)]})
+
+
+@app.get("/api/news/feed")
+async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None) -> dict[str, Any]:
+    """Editorial news feed (§3.11): classified, market-relevant items, newest first.
+
+    Distinct from /api/news (the market-events timeline). Each item carries a
+    model-estimated tone / impact / direction — an analytical signal, not advice.
+    """
+    loop = asyncio.get_running_loop()
+    items = await loop.run_in_executor(
+        None, partial(news_store.get_news_feed, limit=limit, days=days, news_type=type))
+    return _json_safe({"ok": True, "count": len(items), "items": items, "disclaimer": NEWS_DISCLAIMER})
+
+
+@app.get("/api/news/ticker/{ticker}")
+async def api_news_ticker(ticker: str, limit: int = 30, days: int = 90) -> dict[str, Any]:
+    """Per-issuer news + coverage-weighted background tone (the §3.4 info dimension)."""
+    loop = asyncio.get_running_loop()
+    items = await loop.run_in_executor(
+        None, partial(news_store.get_news_for_ticker, ticker, limit=limit, days=days))
+    sentiment = await loop.run_in_executor(
+        None, partial(news_store.get_news_sentiment, ticker, days=days))
+    return _json_safe({"ok": True, "ticker": ticker.upper(), "count": len(items),
+                       "items": items, "sentiment": sentiment, "disclaimer": NEWS_DISCLAIMER})
+
+
+@app.post("/api/admin/news")
+async def api_admin_news(
+    payload: AdminNewsRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Ingest classified news items from the external news collector (§3.11).
+
+    Mirrors /api/admin/facts: the collector runs where the sources are reachable
+    and pushes here. Authenticated via ADMIN_API_SECRET in the X-Admin-Secret header.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        n = await loop.run_in_executor(None, partial(news_store.upsert_news, payload.items))
+    except Exception as exc:
+        logger.exception("admin news upsert failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "upserted": n}
 
 
 @app.post("/api/admin/trade-stats")
