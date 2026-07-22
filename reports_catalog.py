@@ -1863,6 +1863,31 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         _derive_margin_lines()
 
 
+def purge_premature_annual_facts() -> int:
+    """Delete ``financial_indicators`` facts for a not-yet-complete fiscal year.
+
+    openinfo hands out a placeholder *annual* (quarter 0) indicator for the
+    in-progress year; the collector now skips it, but a catalog populated before
+    that guard can still carry the row. Left in place it keeps an issuer whose only
+    fact is that placeholder "covered", blocking the NSBU-derived collector from
+    re-covering it — so purge it. Quarterly current-year periods ('2026Q1') carry a
+    'Q' and are not matched. Idempotent; safe to call each collector cycle.
+    """
+    cutoff = _latest_complete_fiscal_year()
+    conn = get_catalog_conn()
+    with conn:
+        cur = conn.execute(
+            "DELETE FROM facts WHERE dataset='financial_indicators' "
+            "AND period GLOB '20[0-9][0-9]' AND CAST(period AS INT) > ?",
+            (cutoff,),
+        )
+        n = cur.rowcount
+    conn.close()
+    if n:
+        logger.info("purged %d premature (> FY%d) annual financial_indicators facts", n, cutoff)
+    return n
+
+
 def upsert_facts(rows: list[dict[str, Any]]) -> int:
     """Upsert generic facts from any source adapter (forward-compatible storage).
 

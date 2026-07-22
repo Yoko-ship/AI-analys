@@ -327,6 +327,13 @@ def run_all(collectors: list[str] | None = None, session: Any = None) -> dict[st
     except Exception:  # noqa: BLE001 — catalog union is best-effort
         logger.exception("failed to union catalog orgs into fact collection")
     orgs = sorted(orgs)
+    # Drop any premature current-year annual placeholders left by an earlier run
+    # BEFORE the collectors run: this frees issuers whose sole fact was the
+    # placeholder so the NSBU-derived collector re-covers them in this same pass.
+    try:
+        rc.purge_premature_annual_facts()
+    except Exception:  # noqa: BLE001 — hygiene step is best-effort
+        logger.exception("premature-fact purge failed")
     result: dict[str, Any] = {}
     for name, collector in registry().items():
         if collectors and name not in collectors:
