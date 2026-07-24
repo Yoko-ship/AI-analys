@@ -25,6 +25,11 @@ Tone = Literal["positive", "neutral", "negative"]
 Impact = Literal["high", "medium", "low", "none"]
 Direction = Literal["up", "down", "mixed", "unclear"]
 
+# Grok returns null/empty for these constrained fields on off-topic items; coerce to
+# the field default so an irrelevant item validates cleanly instead of raising (which
+# would drop it to a generic classification_failed and spam the logs).
+_ENUM_DEFAULTS = {"type": "market", "tone": "neutral", "impact": "none", "direction": "unclear"}
+
 
 class NewsClassification(BaseModel):
     relevant: bool = Field(description="True if this item plausibly affects any UZSE-listed issuer or the market.")
@@ -47,6 +52,19 @@ class NewsClassification(BaseModel):
         if isinstance(v, str):
             return [v] if v.strip() else []
         return [str(x).strip() for x in v if str(x).strip()]
+
+    @field_validator("type", "tone", "impact", "direction", mode="before")
+    @classmethod
+    def _coerce_enum(cls, v: Any, info: Any) -> Any:
+        # Off-topic items come back with null here; fall back to the field default.
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return _ENUM_DEFAULTS[info.field_name]
+        return v
+
+    @field_validator("relevance_score", "tone_score", mode="before")
+    @classmethod
+    def _coerce_score(cls, v: Any) -> Any:
+        return 0.0 if v is None or v == "" else v
 
 
 _SYSTEM = """You are a financial-news triage engine for a Uzbekistan stock-market platform
