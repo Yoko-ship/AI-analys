@@ -133,6 +133,25 @@ if LOGO_DIR.exists():
 
 UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
 
+# Tickers suppressed from the market board — stale / dormant openinfo RFB registry
+# lines (bond series and non-primary share classes with no live trading) that only
+# clutter the board. Display-only: the underlying financials/catalog data is left
+# intact and each /company/<ticker> page stays reachable by direct link. Extend at
+# runtime via BOARD_DENYLIST_EXTRA (comma-separated) without a code change.
+BOARD_DENYLIST = frozenset({
+    "KPB2", "KPB3", "KPB4", "KPBA", "KPBA1", "KPBA10",          # Kapitalbank
+    "SQB2", "SQB3", "SQB301", "SQB4", "SQB6", "SQB7", "SQB8",   # Sanoat-qurilish bank
+    "IPK3", "IPK4", "IPK5",                                     # Ipak Yo'li
+    "TRS2", "TRS201",                                           # Trastbank
+    "ALK201",                                                  # Aloqabank
+    "HMBK1",                                                   # Hamkorbank
+    "IPTB2",                                                   # Ipoteka-bank
+    "KKB2",                                                    # Biznesni rivojlantirish banki
+    "TNB101",                                                  # Turonbank
+    "UZMB2",                                                   # O'zbekiston metallurgiya kombinati
+    "KFSKP",                                                   # Kafolat sug'urta (preferred)
+} | {t.strip().upper() for t in os.getenv("BOARD_DENYLIST_EXTRA", "").split(",") if t.strip()})
+
 
 async def _populate_securities_on_startup() -> None:
     """Seed the securities table after a (re)deploy.
@@ -700,6 +719,14 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
             row["url"] = f"https://uzse.uz/isu_infos/{kind}?isu_cd={row['isin']}"
         merged.append(row)
         added_inactive += 1
+
+    # Drop board-suppressed tickers (dormant registry lines) from the view. Applied
+    # to the fully merged list so it holds regardless of source (live feed or the
+    # inactive registry merge above); data itself is left untouched.
+    if BOARD_DENYLIST:
+        merged = [r for r in merged
+                  if str(r.get("ticker") or "").upper() not in BOARD_DENYLIST]
+        added_inactive = sum(1 for r in merged if r.get("inactive"))
 
     return _json_safe({
         "ok": True,
