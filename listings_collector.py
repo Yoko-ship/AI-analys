@@ -123,6 +123,47 @@ def _uzse_share_count(session: Any, isin: str) -> float | None:
     return fallback
 
 
+_UZSE_EQUITY_CACHE: dict[str, dict | None] = {}
+
+
+def _uzse_equity(session: Any, isin: str) -> dict | None:
+    """Authoritative share count + last trade for an equity ISIN, from UZSE.
+
+    openinfo's ``info_rfb.list_shares``/``price`` are frequently stale or carry an
+    older denomination (pre-issuance count, par-value redenomination), which skewed
+    the board's market cap — verified against uzse.uz, 38/109 tickers disagreed,
+    almost all because the share count was off while the price already matched the
+    exchange. UZSE (the exchange's own registry) publishes the current ``list_shrs``
+    and last ``trade_price`` at ``/isu_infos/{isin}/detail``. Returns
+    ``{shares, price, date, mktcap}`` for the line whose ISIN matches, or None.
+    Cached per ISIN; fetched with the paced browser session.
+    """
+    if isin in _UZSE_EQUITY_CACHE:
+        return _UZSE_EQUITY_CACHE[isin]
+    result: dict | None = None
+    try:
+        data = session.get(f"{_UZSE_BASE}/isu_infos/{isin}/detail",
+                           params={"locale": "ru"}, timeout=30).json()
+        for rec in (data if isinstance(data, list) else [data]):
+            if not isinstance(rec, dict) or rec.get("error"):
+                continue
+            for sh in rec.get("shares") or []:
+                if str(sh.get("isu_cd") or "").upper() == isin.upper():
+                    result = {
+                        "shares": _num(sh.get("list_shrs")),
+                        "price": _num(sh.get("trade_price")),
+                        "date": sh.get("executions_date"),
+                        "mktcap": _num(rec.get("market_capitalization")),
+                    }
+                    break
+            if result:
+                break
+    except Exception:  # noqa: BLE001
+        result = None
+    _UZSE_EQUITY_CACHE[isin] = result
+    return result
+
+
 def _num(v: Any) -> float | None:
     try:
         return None if v in (None, "", "-") else float(v)
@@ -207,13 +248,42 @@ def collect_listing_rows() -> list[dict[str, Any]]:
 
             shares = _num(ic.get("list_shares"))
             reference_price = _num(ic.get("price"))
+            # UZSE (the exchange) is authoritative for the current share count and
+            # last trade; openinfo's info_rfb figures are frequently stale or in an
+            # older denomination, which skewed market cap. Prefer UZSE for equities.
+            uz = _uzse_equity(session, isin) if isin.startswith("UZ7") else None
+            if uz and uz.get("shares"):
+                shares = uz["shares"]
             if not reference_price and isin.startswith("UZ6"):
                 # Exchange bond (UZ6… ISIN) with no openinfo reference price:
                 # par from UZSE so the cap shows outstanding face value.
                 reference_price = _uzse_bond_nominal(isin)
+
             last = _last_conclusion(session, isin)
-            last_price = _num(last.get("close")) if last else None
+            last_close = _num(last.get("close")) if last else None
+            uz_price = uz.get("price") if uz else None
+            # The conclusions feed looks back years; for a redenominated / long-idle
+            # equity its close can be a pre-redenomination stub that no longer matches
+            # the current share count and would blow up the cap. Trust it only when it
+            # agrees with UZSE's stated last trade, else take UZSE's price and drop the
+            # mismatched OHLC.
+            if uz_price:
+                if last_close and 0.9 <= (last_close / uz_price) <= 1.1:
+                    last_price = last_close
+                else:
+                    last = None
+                    last_price = uz_price
+            else:
+                last_price = last_close
             price_for_cap = last_price if last_price is not None else reference_price
+
+            if last:
+                last_trade_date = last.get("date")
+            elif uz and uz.get("date"):
+                p = str(uz["date"]).split(".")
+                last_trade_date = f"{p[2]}-{p[1]}-{p[0]}" if len(p) == 3 else uz["date"]
+            else:
+                last_trade_date = None
             rows.append({
                 "ticker": tk,
                 "isin": isin,
@@ -223,7 +293,7 @@ def collect_listing_rows() -> list[dict[str, Any]]:
                 "shares_outstanding": shares,
                 "reference_price": reference_price,
                 "last_price": last_price,
-                "last_trade_date": (last or {}).get("date"),
+                "last_trade_date": last_trade_date,
                 "open_price": _num(last.get("open")) if last else None,
                 "high_price": _num(last.get("high")) if last else None,
                 "low_price": _num(last.get("low")) if last else None,
