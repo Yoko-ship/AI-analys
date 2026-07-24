@@ -347,26 +347,61 @@ METRIC_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
 NSBU_THOUSANDS = 1000.0
 
 
-def period_year_quarter(reporting_year, period_type, today=None):
+_Q_END = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}
+
+
+def _quarter_of(d):
+    return (d.month - 1) // 3 + 1
+
+
+def _quarter_end(year, q):
+    m, day = _Q_END[q]
+    return _dt.date(year, m, day)
+
+
+def _last_complete_quarter(asof):
+    """The latest quarter whose end fell on or before `asof`."""
+    y, q = asof.year, _quarter_of(asof)
+    if _quarter_end(y, q) <= asof:
+        return y, q
+    q -= 1
+    if q == 0:
+        q, y = 4, y - 1
+    return y, q
+
+
+def period_year_quarter(reporting_year, period_type, today=None, pub_date=None):
     """Map an openinfo reporting_year date + form type to the site's (year, quarter).
 
     Annual -> quarter 0. Quarterly -> the quarter whose end the period-end date
     falls in (Jan-Mar=1 ... Oct-Dec=4). Interim dates snap to the enclosing
     quarter. Returns (year, quarter) or (None, None).
 
-    Exception: openinfo mis-stamps some freshly-filed annuals with the current or
-    a future year-end (e.g. 2026-12-31 published mid-2026). The read path hides a
-    quarter-0 row whose year is not yet a complete fiscal year (its premature
-    in-progress-annual placeholder guard), which would blank these real figures,
-    so a current/future-year annual is mapped to Q4 (a 12-month cumulative) to stay
-    served and correctly outrank earlier periods."""
+    A period-end cannot post-date the report's own publication: openinfo mis-stamps
+    some freshly-filed interims with the *filing day* instead of the true period-end
+    (e.g. reporting_year=2026-07-23 on a report filed 2026-07-23), which would label
+    them with a quarter that has not ended yet. When the reporting_year-derived
+    quarter ends after the report was published, snap back to the last quarter fully
+    ended by the filing date. The publish date is the authoritative upper bound; when
+    it is missing, `today` bounds it instead.
+
+    Exception (annuals): openinfo mis-stamps some freshly-filed annuals with the
+    current or a future year-end (e.g. 2026-12-31 published mid-2026). The read path
+    hides a quarter-0 row whose year is not yet a complete fiscal year (its premature
+    in-progress-annual placeholder guard), which would blank these real figures, so a
+    current/future-year annual is mapped to Q4 (a 12-month cumulative) to stay served
+    and correctly outrank earlier periods."""
     d = _parse_date(reporting_year)
     if d is None:
         return None, None
     today = today or _dt.date.today()
     if period_type == "annual":
         return (d.year, 4) if d.year >= today.year else (d.year, 0)
-    return d.year, (d.month - 1) // 3 + 1
+    year, q = d.year, _quarter_of(d)
+    bound = _parse_date(pub_date) or today
+    if _quarter_end(year, q) > bound:
+        return _last_complete_quarter(bound)
+    return year, q
 
 
 def reconcile_ticker(ticker, today=None):
@@ -384,7 +419,8 @@ def reconcile_ticker(ticker, today=None):
     metrics, meta = select_report(ticker, today=today)
     if metrics is None:
         return None, meta
-    year, quarter = period_year_quarter(meta.get("reporting_year"), meta.get("period_type"), today=today)
+    year, quarter = period_year_quarter(meta.get("reporting_year"), meta.get("period_type"),
+                                        today=today, pub_date=meta.get("pub_date"))
     row = {"ticker": ticker, "year": year, "quarter": quarter}
     for k in METRIC_KEYS:
         v = metrics.get(k)
