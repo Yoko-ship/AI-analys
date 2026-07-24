@@ -24,7 +24,9 @@ import argparse
 import json
 import logging
 import os
+import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -86,6 +88,57 @@ def _iso(struct_time: Any) -> str | None:
         return None
 
 
+def _rss_image(entry: Any) -> str | None:
+    """Best-effort thumbnail from a feed entry — media:content/thumbnail, an
+    enclosure, or an <img> the source embedded in its own summary/content. We only
+    ever use the source's OWN published image; we never scrape the article page."""
+    for attr in ("media_content", "media_thumbnail"):
+        media = getattr(entry, attr, None)
+        if isinstance(media, list):
+            for m in media:
+                u = (m.get("url") or "").strip()
+                if u:
+                    return u
+    for enc in (getattr(entry, "enclosures", None) or []):
+        u = (enc.get("href") or enc.get("url") or "").strip()
+        typ = enc.get("type") or ""
+        if u and (typ.startswith("image") or re.search(r"\.(jpe?g|png|webp|gif)(\?|$)", u, re.I)):
+            return u
+    for lk in (getattr(entry, "links", None) or []):
+        if lk.get("rel") == "enclosure":
+            u = (lk.get("href") or "").strip()
+            typ = lk.get("type") or ""
+            if u and (typ.startswith("image") or re.search(r"\.(jpe?g|png|webp|gif)(\?|$)", u, re.I)):
+                return u
+    for field in ("content", "summary"):
+        val = getattr(entry, field, None)
+        if isinstance(val, list) and val:
+            val = (val[0] or {}).get("value")
+        if isinstance(val, str):
+            m = re.search(r'<img[^>]+src=["\']([^"\']+)', val)
+            if m:
+                return m.group(1).strip()
+    return None
+
+
+def _is_recent(published_at: Any, max_age_days: int) -> bool:
+    """True if within the freshness window. Undated / unparseable items are KEPT
+    (we skip on proven age, never on a missing date)."""
+    if not published_at:
+        return True
+    s = str(published_at).replace("T", " ").strip()
+    dt = None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(s[:19] if fmt.endswith("%S") else s[:10], fmt)
+            break
+        except ValueError:
+            continue
+    if dt is None:
+        return True
+    return (datetime.now() - dt).days <= max_age_days
+
+
 def fetch_rss(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     try:
         import feedparser  # lazy: not needed unless an RSS source is enabled
@@ -106,6 +159,7 @@ def fetch_rss(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
             "snippet": (getattr(e, "summary", "") or "").strip()[:1000],
             "published_at": _iso(getattr(e, "published_parsed", None))
             or _iso(getattr(e, "updated_parsed", None)),
+            "image_url": _rss_image(e),
             "lang": (source.get("lang") or ["ru"])[0],
         })
     return items
@@ -195,6 +249,14 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         logger.info("  %s: %d items", src["id"], len(fetched))
         raw.extend(fetched)
         time.sleep(min(src.get("crawl_delay_s", 2), 5) if len(sources) > 1 else 0)
+
+    # Skip stale news up front — never classify (or pay for) anything older than the
+    # freshness window. Undated items are kept (see _is_recent).
+    max_age = int(os.getenv("NEWS_MAX_AGE_DAYS", "30"))
+    before_age = len(raw)
+    raw = [it for it in raw if _is_recent(it.get("published_at"), max_age)]
+    if before_age != len(raw):
+        logger.info("recency filter: dropped %d item(s) older than %d days", before_age - len(raw), max_age)
 
     seen = news_store.existing_urls([it["url"] for it in raw])
     fresh = [it for it in raw if it["url"] not in seen]

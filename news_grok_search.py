@@ -40,10 +40,12 @@ Use web and X search to find the most market-relevant, recent news for the user'
 (company, ticker, or topic). Prefer official/primary and established Uzbek business sources.
 
 Reply with ONLY a JSON object:
-{"items": [{"title": "...", "url": "...", "snippet": "...", "source": "...", "published": "YYYY-MM-DD or null"}],
+{"items": [{"title": "...", "url": "...", "snippet": "...", "source": "...", "published": "YYYY-MM-DD or null", "image": "https image URL or null"}],
  "note": "one-line summary"}
-Include only items that plausibly affect a listed price or the market. Every item must come from
-a real search result — do not invent items or URLs."""
+Include only items that plausibly affect a listed price or the market. Only return RECENT items
+inside the requested time window — SKIP anything older, and skip items you cannot date. Every item
+must come from a real search result — do not invent items, URLs, or images; set "image" only when the
+source itself provides one (its article/preview image), otherwise null. Always keep the real source."""
 
 
 def _final_text(resp_json: dict[str, Any]) -> str:
@@ -118,6 +120,7 @@ def grok_find_news(
                     "snippet": str(it.get("snippet", "")).strip(),
                     "source": str(it.get("source", "")).strip(),
                     "published": it.get("published"),
+                    "image_url": (str(it.get("image") or "").strip() or None),
                 })
     usage_raw = data.get("usage") or {}
     findings = AgentFindings(

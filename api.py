@@ -1137,6 +1137,7 @@ def _news_search_sync(query: str, days: int, store: bool) -> dict[str, Any]:
             "source": it.get("source") or "grok-search",
             "source_id": "grok_search",
             "lang": None,
+            "image_url": it.get("image_url"),
             "published_at": it.get("published"),
             "coverage_weight": 0.5,
             "model": model,
@@ -1160,7 +1161,7 @@ def _news_search_sync(query: str, days: int, store: bool) -> dict[str, Any]:
             "published_at": r["published_at"], "relevant": r.get("relevant"),
             "type": r.get("type"), "tone": r.get("tone"), "impact": r.get("impact"),
             "direction": r.get("direction"), "tickers": r.get("tickers"),
-            "summary_ru": r.get("summary_ru"),
+            "summary_ru": r.get("summary_ru"), "image_url": r.get("image_url"),
         } for r in records],
         "tokens": findings.usage.total_tokens + usage.total_tokens,
     }

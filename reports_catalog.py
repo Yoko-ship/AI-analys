@@ -202,6 +202,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             title           TEXT NOT NULL,
             snippet         TEXT,
             summary_ru      TEXT,
+            image_url       TEXT,
             published_at    TEXT,
             collected_at    TEXT NOT NULL DEFAULT (datetime('now')),
             coverage_weight REAL NOT NULL DEFAULT 0.5
@@ -241,6 +242,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     for col in ("open_price", "high_price", "low_price", "close_price"):
         if col not in have:
             conn.execute(f"ALTER TABLE catalog_trade_stats ADD COLUMN {col} REAL")
+    have_news = {r[1] for r in conn.execute("PRAGMA table_info(news)")}
+    if "image_url" not in have_news:
+        conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")
     conn.commit()
 
 

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Whitelisted so a pushed row can never smuggle arbitrary columns.
 _NEWS_FIELDS = ("url", "source", "source_id", "lang", "title", "snippet", "summary_ru",
-                "published_at", "coverage_weight")
+                "image_url", "published_at", "coverage_weight")
 _NLP_FIELDS = ("relevant", "relevance_score", "type", "tone", "tone_score",
                "impact", "direction", "reason", "model")
 
@@ -44,18 +44,19 @@ def upsert_news(items: list[dict[str, Any]]) -> int:
             cur = conn.execute(
                 """
                 INSERT INTO news (url, source, source_id, lang, title, snippet, summary_ru,
-                                  published_at, coverage_weight, collected_at)
-                VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))
+                                  image_url, published_at, coverage_weight, collected_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
                 ON CONFLICT(url) DO UPDATE SET
                     title           = excluded.title,
                     snippet         = excluded.snippet,
                     summary_ru      = excluded.summary_ru,
+                    image_url       = COALESCE(excluded.image_url, news.image_url),
                     published_at    = COALESCE(excluded.published_at, news.published_at),
                     coverage_weight = excluded.coverage_weight
                 """,
                 (url, it.get("source", ""), it.get("source_id"), it.get("lang"),
                  it.get("title", "").strip(), it.get("snippet"), it.get("summary_ru"),
-                 it.get("published_at"), float(it.get("coverage_weight") or 0.5)),
+                 it.get("image_url"), it.get("published_at"), float(it.get("coverage_weight") or 0.5)),
             )
             row = conn.execute("SELECT id FROM news WHERE url = ?", (url,)).fetchone()
             if row is None:
@@ -114,7 +115,7 @@ def _row_to_item(r: Any) -> dict[str, Any]:
     return {
         "id": r["id"], "url": r["url"], "source": r["source"], "source_id": r["source_id"],
         "lang": r["lang"], "title": r["title"], "snippet": r["snippet"],
-        "summary_ru": r["summary_ru"], "published_at": r["published_at"],
+        "summary_ru": r["summary_ru"], "image_url": r["image_url"], "published_at": r["published_at"],
         "type": r["type"], "tone": r["tone"], "tone_score": r["tone_score"],
         "impact": r["impact"], "direction": r["direction"],
         "sectors": json.loads(r["sectors_json"]) if r["sectors_json"] else [],
