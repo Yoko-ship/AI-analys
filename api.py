@@ -139,7 +139,7 @@ UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-produ
 # intact and each /company/<ticker> page stays reachable by direct link. Extend at
 # runtime via BOARD_DENYLIST_EXTRA (comma-separated) without a code change.
 BOARD_DENYLIST = frozenset({
-    "KPB2", "KPB3", "KPB4", "KPBA", "KPBA1", "KPBA10",          # Kapitalbank
+    "KPB2", "KPB3", "KPB4", "KPBA1", "KPBA10",                  # Kapitalbank bonds + preferred (KPBA ordinary kept visible)
     "SQB2", "SQB3", "SQB301", "SQB4", "SQB6", "SQB7", "SQB8",   # Sanoat-qurilish bank
     "IPK3", "IPK4", "IPK5",                                     # Ipak Yo'li
     "TRS2", "TRS201",                                           # Trastbank
