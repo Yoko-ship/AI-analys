@@ -36,10 +36,12 @@ logger = logging.getLogger(__name__)
 
 # --- configuration (env, with safe defaults) --------------------------------
 # Provider-agnostic: point LLM_BASE_URL / LLM_MODEL at any OpenAI-compatible
-# endpoint (DeepSeek, xAI/Grok, OpenAI, Moonshot). Defaults target Grok's cheap
-# fast tier. `deepseek-chat`/`deepseek-reasoner` retire 2026-07-24 if you switch back.
+# endpoint (DeepSeek, xAI/Grok, OpenAI, Moonshot). Default targets Grok's current
+# general tier (grok-4.3, 1M context, ~$1.25/$2.50 per M). NOTE: the old fast-tier
+# ids `grok-4-fast`/`grok-4-1-fast` were retired 2026-05-15 and now silently
+# redirect to grok-4.3 — set LLM_MODEL to a live id rather than relying on that.
 DEFAULT_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.x.ai/v1")
-DEFAULT_MODEL = os.getenv("LLM_MODEL", "grok-4-fast")
+DEFAULT_MODEL = os.getenv("LLM_MODEL", "grok-4.3")
 # LLM_API_KEY is the generic key; provider-named vars are accepted for convenience.
 _API_KEY = (
     os.getenv("LLM_API_KEY")

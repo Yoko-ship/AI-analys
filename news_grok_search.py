@@ -29,7 +29,9 @@ from news_agent import AgentFindings, _extract_json
 logger = logging.getLogger(__name__)
 
 _ENDPOINT = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1").rstrip("/") + "/responses"
-_MODEL = os.getenv("GROK_SEARCH_MODEL", "grok-4-1-fast")
+# grok-4.5 = xAI's current flagship agentic model (server-side web_search/x_search
+# tools). The old grok-4-1-fast id retired 2026-05-15; override via GROK_SEARCH_MODEL.
+_MODEL = os.getenv("GROK_SEARCH_MODEL", "grok-4.5")
 _TIMEOUT = float(os.getenv("NEWS_SEARCH_TIMEOUT", "45"))
 _API_KEY = os.getenv("XAI_API_KEY") or os.getenv("LLM_API_KEY") or os.getenv("api_key")
 
