@@ -28,6 +28,16 @@ def _normalize_email(email: str) -> str:
     return (email or "").strip().lower()
 
 
+def _admin_emails() -> set[str]:
+    """Allowlist of admin emails (env ADMIN_EMAILS, comma-separated, case-insensitive)."""
+    return {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
+
+
+def is_admin_email(email: str | None) -> bool:
+    """True if this email is an allowlisted admin. Empty allowlist => nobody is admin."""
+    return bool(email) and _normalize_email(email) in _admin_emails()
+
+
 def _password_hash(password: str, salt: bytes | None = None) -> str:
     salt = salt or secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac(
@@ -82,6 +92,7 @@ class WebUser:
             "created_at": self.created_at.isoformat(),
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "is_active": self.is_active,
+            "is_admin": is_admin_email(self.email),
         }
 
 

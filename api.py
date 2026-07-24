@@ -64,7 +64,7 @@ from reports_catalog import (
     sync_all as catalog_sync_all,
 )
 from securities_catalog import get_securities_map, get_wiki_info, record_volume, resolve_logo, sync_securities
-from web_auth import WebUser, web_auth_store
+from web_auth import WebUser, web_auth_store, is_admin_email
 
 logger = logging.getLogger(__name__)
 
@@ -1190,6 +1190,43 @@ async def api_admin_news_search(
         result = await loop.run_in_executor(None, partial(_news_search_sync, query, days, store))
     except Exception as exc:
         logger.exception("admin news search failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return _json_safe({"ok": True, **result, "disclaimer": NEWS_DISCLAIMER})
+
+
+def _require_admin_user(current_user: WebUser = Depends(_require_user)) -> WebUser:
+    """Gate a route to admin web users (email in ADMIN_EMAILS). Unlike ``_require_admin``
+    (machine X-Admin-Secret), this authorises a logged-in user via their Bearer token —
+    so the frontend admin panel can call it without the shared secret ever reaching
+    the browser."""
+    if not is_admin_email(current_user.email):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+
+@app.get("/api/news/agent-search")
+async def api_news_agent_search(
+    q: str,
+    days: int = 7,
+    store: bool = True,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Admin-only news-agent search for the web UI (§3.11). Same engine as
+    ``/api/admin/news/search`` (Grok finds → grok-4.3 classifies → upsert into the
+    news tables), but authenticated by an admin web-user's Bearer token instead of
+    the machine secret. Each call triggers billed Grok searches, hence admin-gated.
+    """
+    query = (q or "").strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="q (search query) is required")
+    if len(query) > 200:
+        raise HTTPException(status_code=422, detail="q too long (max 200 chars)")
+    days = max(1, min(days, 30))
+    loop = asyncio.get_running_loop()
+    try:
+        result = await loop.run_in_executor(None, partial(_news_search_sync, query, days, store))
+    except Exception as exc:
+        logger.exception("news agent search failed for user %s", current_user.id)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return _json_safe({"ok": True, **result, "disclaimer": NEWS_DISCLAIMER})
 
