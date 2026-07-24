@@ -1087,6 +1087,113 @@ async def api_admin_news(
     return {"ok": True, "upserted": n}
 
 
+def _issuer_universe() -> dict[str, str]:
+    """ticker → name, to constrain the classifier's ticker tags (mirrors the collector)."""
+    import reports_catalog as rc
+    universe: dict[str, str] = {}
+    try:
+        conn = rc.get_catalog_conn()
+        for r in conn.execute("SELECT ticker, company_name FROM catalog_companies").fetchall():
+            if r["ticker"]:
+                universe[r["ticker"].upper()] = r["company_name"] or r["ticker"]
+        conn.close()
+    except Exception:  # noqa: BLE001 — fall back to the static catalog
+        logger.exception("issuer universe query failed; classifier will infer sectors only")
+    if not universe:
+        try:
+            universe = {t.upper(): n for t, n in rc._TICKER_TO_NAME.items()}
+        except Exception:  # noqa: BLE001
+            pass
+    return universe
+
+
+def _news_search_sync(query: str, days: int, store: bool) -> dict[str, Any]:
+    """Run the Layer-B search agent, classify each hit, and (by default) store it.
+
+    Blocking (network + LLM) — called via run_in_executor. Reuses the collector's
+    classify → upsert path so agent-found items are indistinguishable from
+    feed-collected ones (same tables, same /api/news/feed). Already-stored URLs are
+    skipped so we never re-pay to classify them.
+    """
+    from news_agent import find_news
+    from news_classifier import classify_item
+    from llm_client import Usage
+
+    findings = find_news(query, days=days)
+    universe = _issuer_universe()
+    usage = Usage()
+    model = os.getenv("LLM_MODEL", "grok-4.3")
+
+    seen = news_store.existing_urls([it["url"] for it in findings.items if it.get("url")])
+    records: list[dict[str, Any]] = []
+    for it in findings.items:
+        if not it.get("url") or it["url"] in seen:
+            continue
+        cls = classify_item({**it, "lang": None}, universe, usage=usage)
+        records.append({
+            "url": it["url"],
+            "title": it.get("title", ""),
+            "snippet": it.get("snippet", ""),
+            "source": it.get("source") or "grok-search",
+            "source_id": "grok_search",
+            "lang": None,
+            "published_at": it.get("published"),
+            "coverage_weight": 0.5,
+            "model": model,
+            **cls.model_dump(),
+        })
+
+    stored = news_store.upsert_news(records) if (store and records) else 0
+    relevant = [r for r in records if r.get("relevant")]
+    return {
+        "query": query,
+        "backend": findings.backend,
+        "note": findings.note,
+        "queries": findings.queries,
+        "found": len(findings.items),
+        "new": len(records),
+        "already_stored": len(findings.items) - len(records),
+        "relevant": len(relevant),
+        "stored": stored,
+        "items": [{
+            "url": r["url"], "title": r["title"], "source": r["source"],
+            "published_at": r["published_at"], "relevant": r.get("relevant"),
+            "type": r.get("type"), "tone": r.get("tone"), "impact": r.get("impact"),
+            "direction": r.get("direction"), "tickers": r.get("tickers"),
+            "summary_ru": r.get("summary_ru"),
+        } for r in records],
+        "tokens": findings.usage.total_tokens + usage.total_tokens,
+    }
+
+
+@app.get("/api/admin/news/search")
+async def api_admin_news_search(
+    q: str,
+    days: int = 7,
+    store: bool = True,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """On-demand Layer-B news search (§3.11): the Grok agent actively finds news for
+    a company/ticker/topic via server-side web + X search, classifies each hit, and
+    (by default, store=true) stores it so it surfaces in /api/news/feed and the
+    per-ticker endpoints. Admin-only — each call triggers billed searches.
+    Authenticated via ADMIN_API_SECRET in the X-Admin-Secret header.
+    """
+    query = (q or "").strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="q (search query) is required")
+    if len(query) > 200:
+        raise HTTPException(status_code=422, detail="q too long (max 200 chars)")
+    days = max(1, min(days, 30))
+    loop = asyncio.get_running_loop()
+    try:
+        result = await loop.run_in_executor(None, partial(_news_search_sync, query, days, store))
+    except Exception as exc:
+        logger.exception("admin news search failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return _json_safe({"ok": True, **result, "disclaimer": NEWS_DISCLAIMER})
+
+
 @app.post("/api/admin/trade-stats")
 async def api_admin_trade_stats(
     payload: AdminTradeStatsRequest,
