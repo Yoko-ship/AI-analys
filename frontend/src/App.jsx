@@ -193,34 +193,34 @@ const TRADING_SCHEDULE = {
 // pattern that professional financial-news sites (Bloomberg / Reuters) converge on:
 // one large lead story, a grid of secondary items, a compact "latest" rail, with
 // functional category tags, timestamps and a strong headline hierarchy. Content is
-// real, dated market events from /api/news (filings + listing/delisting), not the
-// editorial AI-news module (§3.11, out of scope).
+// the editorial §3.11 feed from /api/news/feed — overall Uzbek economy / market /
+// issuer news, gathered from Uzbek sources and AI-sorted by likely price impact.
 // ─────────────────────────────────────────────────────────────────────────────
 const NEWS_TX = {
   ru: {
-    eyebrow: "Рынок · Лента событий", title: "Новости рынка",
-    subtitle: "События эмитентов РФБ «Тошкент»: раскрытие отчётности, листинг и делистинг — в одной хронологической ленте.",
-    latest: "Лента событий", empty: "Пока нет свежих событий рынка. Загляните позже.",
+    eyebrow: "Рынок · Аналитическая лента", title: "Новости рынка",
+    subtitle: "Главные новости экономики, рынка и эмитентов Узбекистана — собраны из узбекских источников и отсортированы ИИ по возможному влиянию на котировки.",
+    latest: "Свежее", empty: "Пока нет свежих новостей. Загляните позже.",
     loadingText: "Загружаем ленту…", error: "Не удалось загрузить новости.",
-    footnote: "Лента формируется автоматически из событий раскрытия и торгов РФБ «Тошкент». Это фактические события рынка, а не редакционные материалы.",
+    footnote: "Лента формируется автоматически из узбекских источников и сортируется моделью. Тональность и влияние — статистический сигнал, а не рекомендация. Показаны заголовок, наш краткий обзор и ссылка на источник.",
     cat: { report: "Отчётность", listing: "Листинг", delisting: "Делистинг" },
     forms: { NAS: "НСБУ", NSBU: "НСБУ", IFRS: "МСФО", MSFO: "МСФО", Audit: "Аудит", Audition: "Аудит" },
   },
   en: {
-    eyebrow: "Market · Live feed", title: "Market News",
-    subtitle: "Events from RSE «Toshkent» issuers — financial filings, listings and delistings — in a single chronological feed.",
-    latest: "Latest events", empty: "No recent market events yet. Check back soon.",
+    eyebrow: "Market · Analytical feed", title: "Market News",
+    subtitle: "The economy, market and issuer news that matters in Uzbekistan — gathered from Uzbek sources and AI-sorted by likely price impact.",
+    latest: "Latest", empty: "No recent news yet. Check back soon.",
     loadingText: "Loading the feed…", error: "Could not load the news feed.",
-    footnote: "This feed is compiled automatically from RSE «Toshkent» disclosure and trading events. These are factual market events, not editorial coverage.",
+    footnote: "Compiled automatically from Uzbek sources and sorted by the model. Tone and impact are a statistical signal, not advice. We show the headline, our short summary and a link to the source.",
     cat: { report: "Filing", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
   uz: {
-    eyebrow: "Bozor · Jonli lenta", title: "Bozor yangiliklari",
-    subtitle: "«Toshkent» RFB emitentlari voqealari: hisobot, listing va delisting — yagona xronologik lentada.",
-    latest: "So'nggi voqealar", empty: "Hozircha yangi voqealar yo'q. Keyinroq qayting.",
+    eyebrow: "Bozor · Tahliliy lenta", title: "Bozor yangiliklari",
+    subtitle: "O'zbekiston iqtisodiyoti, bozori va emitentlari bo'yicha muhim yangiliklar — o'zbek manbalaridan yig'iladi va sun'iy intellekt tomonidan ta'sir bo'yicha saralanadi.",
+    latest: "So'nggi", empty: "Hozircha yangi yangiliklar yo'q. Keyinroq qayting.",
     loadingText: "Lenta yuklanmoqda…", error: "Yangiliklarni yuklab bo'lmadi.",
-    footnote: "Lenta «Toshkent» RFB oshkoralik va savdo voqealaridan avtomatik shakllanadi. Bu tahririy emas, faktik bozor voqealari.",
+    footnote: "Lenta o'zbek manbalaridan avtomatik yig'iladi va model tomonidan saralanadi. Tonallik va ta'sir — statistik signal, tavsiya emas. Sarlavha, qisqacha sharh va manbaga havola ko'rsatiladi.",
     cat: { report: "Hisobot", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
@@ -312,7 +312,7 @@ const NEWS_ADMIN_TONE = { positive: "#2f9e5f", negative: "#c0504d", neutral: "#8
 // shows what it found/classified, and — when "Save to feed" is on — stores it into
 // the editorial feed. The machine X-Admin-Secret is never used here; the logged-in
 // admin's own token authorises the call.
-function NewsAdminPanel({ language, apiFetch }) {
+function NewsAdminPanel({ language, apiFetch, onStored }) {
   const tx = NEWS_ADMIN_TX[language] || NEWS_ADMIN_TX.ru;
   const [q, setQ] = React.useState("");
   const [days, setDays] = React.useState(7);
@@ -331,7 +331,7 @@ function NewsAdminPanel({ language, apiFetch }) {
       const r = await apiFetch(`/api/news/agent-search?${params.toString()}`);
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d || !d.ok) setErr((d && d.detail) || tx.err);
-      else setRes(d);
+      else { setRes(d); if (store && d.stored > 0 && onStored) onStored(); }
     } catch (e) { setErr(tx.err); }
     finally { setLoading(false); }
   };
@@ -412,23 +412,72 @@ function NewsAdminPanel({ language, apiFetch }) {
   );
 }
 
+// Labels for the editorial feed's AI fields (the 4 §3.11 classes + tone/impact).
+const EDNEWS_TX = {
+  ru: { cat: { financial_report: "Отчётность", corporate_event: "Корпсобытие", regulatory: "Регулятор", market: "Рынок" },
+        tone: { positive: "позитив", neutral: "нейтрально", negative: "негатив" },
+        impact: { high: "высокое влияние", medium: "среднее влияние", low: "низкое влияние" } },
+  en: { cat: { financial_report: "Earnings", corporate_event: "Corporate", regulatory: "Regulatory", market: "Market" },
+        tone: { positive: "positive", neutral: "neutral", negative: "negative" },
+        impact: { high: "high impact", medium: "medium impact", low: "low impact" } },
+  uz: { cat: { financial_report: "Hisobot", corporate_event: "Korporativ", regulatory: "Regulyator", market: "Bozor" },
+        tone: { positive: "ijobiy", neutral: "neytral", negative: "salbiy" },
+        impact: { high: "yuqori ta'sir", medium: "o'rta ta'sir", low: "past ta'sir" } },
+};
+
+// Editorial news card: source image (when the source provides one), the source
+// name shown prominently, the real headline, our own summary, and the AI
+// tone/impact signal. The whole card links out to the original source article.
+function EdNewsCard({ item, language, variant }) {
+  const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
+  const isLead = variant === "lead";
+  const cls = isLead ? "news-lead" : "news-card";
+  const TitleTag = isLead ? "h2" : "h3";
+  const [imgOk, setImgOk] = React.useState(true);
+  const open = () => { if (item.url) window.open(item.url, "_blank", "noopener,noreferrer"); };
+  const summary = item.summary_ru || item.snippet || "";
+  const toneColor = NEWS_ADMIN_TONE[item.tone] || "inherit";
+  return (
+    <article className={`${cls} cat-${item.type}`} role="button" tabIndex={0}
+      onClick={open} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}>
+      {item.image_url && imgOk && (
+        <img src={item.image_url} alt="" loading="lazy" onError={() => setImgOk(false)}
+          style={{ width: "100%", height: isLead ? 240 : 148, objectFit: "cover", borderRadius: 10, marginBottom: 12, display: "block" }} />
+      )}
+      <div className="news-meta">
+        <span className={`news-tag cat-${item.type}`}>{etx.cat[item.type] || item.type}</span>
+        <span className="news-time">{newsRelTime(item.published_at, language)}</span>
+      </div>
+      <TitleTag className={isLead ? "news-lead-title" : "news-card-title"}>{item.title}</TitleTag>
+      {summary && <p className={isLead ? "news-lead-dek" : "news-card-dek"}>{summary}</p>}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginTop: 10, fontSize: 12 }}>
+        {item.source && <span style={{ fontWeight: 700, opacity: .92 }}>{item.source}</span>}
+        {item.tone && <span style={{ color: toneColor, fontWeight: 600 }}>● {etx.tone[item.tone] || item.tone}</span>}
+        {item.impact && item.impact !== "none" && <span style={{ opacity: .65 }}>{etx.impact[item.impact] || item.impact}</span>}
+      </div>
+    </article>
+  );
+}
+
 function NewsView({ language, onOpenCompany, user, apiFetch }) {
   const tx = NEWS_TX[language] || NEWS_TX.ru;
+  const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const [state, setState] = React.useState({ loading: true, error: false, items: [] });
+  const [reloadKey, setReloadKey] = React.useState(0);
   React.useEffect(() => {
     let alive = true;
     setState({ loading: true, error: false, items: [] });
-    fetch("/api/news?limit=60")
+    fetch("/api/news/feed?limit=60&days=30")
       .then((r) => r.json())
-      .then((d) => { if (alive) setState({ loading: false, error: !d?.ok, items: d?.items || [] }); })
+      .then((d) => { if (alive) setState({ loading: false, error: !d || !d.ok, items: (d && d.items) || [] }); })
       .catch(() => { if (alive) setState({ loading: false, error: true, items: [] }); });
     return () => { alive = false; };
-  }, []);
+  }, [reloadKey]);
 
-  const onOpen = (ticker) => { if (ticker && onOpenCompany) onOpenCompany(ticker); };
   const { loading, error, items } = state;
   const lead = items[0];
   const secondary = items.slice(1, 7);
+  const openUrl = (url) => { if (url) window.open(url, "_blank", "noopener,noreferrer"); };
 
   return (
     <div className="news-view">
@@ -438,7 +487,9 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
         <p className="news-subtitle">{tx.subtitle}</p>
       </header>
 
-      {user && user.is_admin && apiFetch && <NewsAdminPanel language={language} apiFetch={apiFetch} />}
+      {user && user.is_admin && apiFetch && (
+        <NewsAdminPanel language={language} apiFetch={apiFetch} onStored={() => setReloadKey((k) => k + 1)} />
+      )}
 
       {loading ? (
         <div className="news-layout">
@@ -455,10 +506,10 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
       ) : (
         <div className="news-layout">
           <div className="news-main">
-            {lead && <NewsCard item={lead} language={language} tx={tx} variant="lead" onOpen={onOpen} />}
+            {lead && <EdNewsCard item={lead} language={language} variant="lead" />}
             {secondary.length > 0 && (
               <div className="news-grid">
-                {secondary.map((it, i) => <NewsCard key={i} item={it} language={language} tx={tx} variant="card" onOpen={onOpen} />)}
+                {secondary.map((it, i) => <EdNewsCard key={it.id || i} item={it} language={language} variant="card" />)}
               </div>
             )}
           </div>
@@ -466,12 +517,16 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
             <div className="news-rail-head">{tx.latest}</div>
             <ul className="news-rail-list">
               {items.slice(0, 16).map((it, i) => (
-                <li key={i} className="news-rail-item" role="button" tabIndex={0}
-                  onClick={() => onOpen(it.ticker)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(it.ticker); } }}>
+                <li key={it.id || i} className="news-rail-item" role="button" tabIndex={0}
+                  onClick={() => openUrl(it.url)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openUrl(it.url); } }}>
                   <span className={`news-dot cat-${it.type}`} />
                   <div className="news-rail-body">
-                    <div className="news-rail-title">{newsHeadline(it, language, tx)}</div>
-                    <div className="news-rail-time"><span className={`news-tag-mini cat-${it.type}`}>{tx.cat[it.type] || tx.cat.report}</span>{newsRelTime(it.date, language)}</div>
+                    <div className="news-rail-title">{it.title}</div>
+                    <div className="news-rail-time">
+                      <span className={`news-tag-mini cat-${it.type}`}>{etx.cat[it.type] || it.type}</span>
+                      {it.source && <span style={{ marginLeft: 6, fontWeight: 600, opacity: .8 }}>{it.source}</span>}
+                      <span style={{ marginLeft: 6 }}>{newsRelTime(it.published_at, language)}</span>
+                    </div>
                   </div>
                 </li>
               ))}
