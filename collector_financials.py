@@ -237,17 +237,25 @@ def reconcile_and_push() -> int:
     """
     import openinfo_reconcile as orc
 
-    # Cover the full served registry: prod holds every tracked ticker, while the
-    # local store may be a subset (esp. when run with --reconcile-only, which skips
-    # the catalog sync). Union both so no ticker is missed.
+    # Cover the full board registry. Source from /api/market/stocks (the stable
+    # list of every listed security, stock + bond) so a ticker can't drop out just
+    # because its served financials row is currently filtered; union with the
+    # served financials keys and the local store as belt-and-braces.
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
     tickers = set(rc.get_all_financials().keys())
     try:
-        base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
         data = requests.get(f"{base}/api/market/financials", timeout=60).json()
         tickers |= set((data.get("financials") or {}).keys())
     except Exception:
-        log.exception("could not fetch push-target ticker list; using local store only")
-    tickers = sorted(tickers)
+        log.exception("could not fetch served financials ticker list")
+    try:
+        for kind in ("stock", "bond"):
+            board = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60).json()
+            rows = board if isinstance(board, list) else (board.get("stocks") or [])
+            tickers |= {str(r.get("ticker")).strip().upper() for r in rows if r.get("ticker")}
+    except Exception:
+        log.exception("could not fetch market board ticker list")
+    tickers = sorted(t for t in tickers if t)
     log.info("reconcile: %d tickers via structured openinfo JSON ...", len(tickers))
     rows, errors = orc.reconcile_all(
         tickers, progress=lambda i, n, t: log.info("reconcile %d/%d %s", i + 1, n, t) if (i % 25 == 0) else None)
