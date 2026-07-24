@@ -44,7 +44,8 @@ pip install -r requirements.txt        # adds feedparser, openai
 # .env (configured for Grok):
 XAI_API_KEY=xai-...                     # classification + Grok native search
 LLM_BASE_URL=https://api.x.ai/v1
-LLM_MODEL=grok-4-fast                    # confirm exact fast model id in the xAI console
+LLM_MODEL=grok-4.3                       # Layer-A classification (live id; grok-4-fast retired 2026-05-15)
+GROK_SEARCH_MODEL=grok-4.5               # Layer-B native-search model (optional; defaults to grok-4.5)
 NEWS_SEARCH_BACKEND=grok                 # Grok native web+X search (or 'tavily' + TAVILY_API_KEY)
 ADMIN_API_SECRET=...                    # required to push to prod (shared with financials)
 NEWS_PUSH_URL=https://<your-api>.up.railway.app
@@ -65,7 +66,7 @@ Serve: `GET /api/news/feed?limit=60&days=30`, `GET /api/news/ticker/HMKB`.
 
 ## Cost & control
 
-Grok 4.1 Fast (`$0.20`/M in, `$0.50`/M out) ≈ **~$2/month** at MVP volume; every
+Grok 4.3 (`$1.25`/M in, `$2.50`/M out, 1M ctx) ≈ **~$1–3/month** at MVP volume; every
 run logs `tokens` and `est_cost_usd`. Provider is a config swap — DeepSeek
 (`$0.14`/`$0.28`, ~$1/mo) is cheaper, GPT-5.4-mini (~$8/mo) is stronger on Uzbek.
 Grok's native search is billed per search call ($5/1k); the Tavily backend is

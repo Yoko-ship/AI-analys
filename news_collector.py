@@ -203,7 +203,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     # 2) classify each new item (Layer A).
     from llm_client import Usage
     usage = Usage()
-    model = os.getenv("LLM_MODEL", "deepseek-v4-flash")
+    model = os.getenv("LLM_MODEL", "grok-4.3")
     records: list[dict[str, Any]] = []
     for it in fresh:
         cls = classify_item(it, universe, usage=usage)
