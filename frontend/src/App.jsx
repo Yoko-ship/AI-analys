@@ -416,44 +416,63 @@ function NewsAdminPanel({ language, apiFetch, onStored }) {
 const EDNEWS_TX = {
   ru: { cat: { financial_report: "Отчётность", corporate_event: "Корпсобытие", regulatory: "Регулятор", market: "Рынок" },
         tone: { positive: "позитив", neutral: "нейтрально", negative: "негатив" },
-        impact: { high: "высокое влияние", medium: "среднее влияние", low: "низкое влияние" } },
+        impact: { high: "высокое влияние", medium: "среднее влияние", low: "низкое влияние" },
+        mood: "Настроение рынка · 30 дней", moodPos: "позитивное", moodNeu: "нейтральное", moodNeg: "негативное" },
   en: { cat: { financial_report: "Earnings", corporate_event: "Corporate", regulatory: "Regulatory", market: "Market" },
         tone: { positive: "positive", neutral: "neutral", negative: "negative" },
-        impact: { high: "high impact", medium: "medium impact", low: "low impact" } },
+        impact: { high: "high impact", medium: "medium impact", low: "low impact" },
+        mood: "Market sentiment · 30 days", moodPos: "positive", moodNeu: "neutral", moodNeg: "negative" },
   uz: { cat: { financial_report: "Hisobot", corporate_event: "Korporativ", regulatory: "Regulyator", market: "Bozor" },
         tone: { positive: "ijobiy", neutral: "neytral", negative: "salbiy" },
-        impact: { high: "yuqori ta'sir", medium: "o'rta ta'sir", low: "past ta'sir" } },
+        impact: { high: "yuqori ta'sir", medium: "o'rta ta'sir", low: "past ta'sir" },
+        mood: "Bozor kayfiyati · 30 kun", moodPos: "ijobiy", moodNeu: "neytral", moodNeg: "salbiy" },
 };
 
-// Editorial news card: source image (when the source provides one), the source
-// name shown prominently, the real headline, our own summary, and the AI
-// tone/impact signal. The whole card links out to the original source article.
+const _TONE_CLS = { positive: "pos", negative: "neg", neutral: "neu" };
+
+// Coverage-weighted-ish market sentiment across the loaded feed, for the sidebar
+// gauge: mean tone_score plus positive/neutral/negative counts. A statistical
+// aggregate, not a verdict (matches the API's per-ticker sentiment endpoint).
+function feedSentiment(items) {
+  const counts = { positive: 0, neutral: 0, negative: 0 };
+  let sum = 0, n = 0;
+  for (const it of items) {
+    if (it.tone && counts[it.tone] != null) counts[it.tone] += 1;
+    if (typeof it.tone_score === "number") { sum += it.tone_score; n += 1; }
+  }
+  const avg = n ? sum / n : 0;
+  return { avg, counts, pct: Math.round(((avg + 1) / 2) * 100), cls: avg > 0.15 ? "pos" : avg < -0.15 ? "neg" : "neu" };
+}
+
+// Editorial news card ("Ledger" direction): serif headline, source image when the
+// source provides one (else a category-tinted placeholder), source name shown in
+// the byline, our own summary, and the AI tone/impact signal. Links to the source.
 function EdNewsCard({ item, language, variant }) {
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const isLead = variant === "lead";
-  const cls = isLead ? "news-lead" : "news-card";
   const TitleTag = isLead ? "h2" : "h3";
   const [imgOk, setImgOk] = React.useState(true);
   const open = () => { if (item.url) window.open(item.url, "_blank", "noopener,noreferrer"); };
   const summary = item.summary_ru || item.snippet || "";
-  const toneColor = NEWS_ADMIN_TONE[item.tone] || "inherit";
+  const toneCls = _TONE_CLS[item.tone] || "neu";
+  const cat = item.type || "market";
   return (
-    <article className={`${cls} cat-${item.type}`} role="button" tabIndex={0}
+    <article className={isLead ? "led-lead" : "led-story"} role="button" tabIndex={0}
       onClick={open} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}>
-      {item.image_url && imgOk && (
-        <img src={item.image_url} alt="" loading="lazy" onError={() => setImgOk(false)}
-          style={{ width: "100%", height: isLead ? 240 : 148, objectFit: "cover", borderRadius: 10, marginBottom: 12, display: "block" }} />
-      )}
-      <div className="news-meta">
-        <span className={`news-tag cat-${item.type}`}>{etx.cat[item.type] || item.type}</span>
-        <span className="news-time">{newsRelTime(item.published_at, language)}</span>
+      <div className={isLead ? "led-figure" : "led-thumb"} data-cat={cat}>
+        {item.image_url && imgOk && (
+          <img src={item.image_url} alt="" loading="lazy" onError={() => setImgOk(false)} />
+        )}
       </div>
-      <TitleTag className={isLead ? "news-lead-title" : "news-card-title"}>{item.title}</TitleTag>
-      {summary && <p className={isLead ? "news-lead-dek" : "news-card-dek"}>{summary}</p>}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginTop: 10, fontSize: 12 }}>
-        {item.source && <span style={{ fontWeight: 700, opacity: .92 }}>{item.source}</span>}
-        {item.tone && <span style={{ color: toneColor, fontWeight: 600 }}>● {etx.tone[item.tone] || item.tone}</span>}
-        {item.impact && item.impact !== "none" && <span style={{ opacity: .65 }}>{etx.impact[item.impact] || item.impact}</span>}
+      <div className="led-body">
+        <div className="led-eyebrow">
+          <span className="led-cat">{etx.cat[item.type] || item.type}</span>
+          {item.tone && <><span className="led-sep">·</span><span className={`led-tone ${toneCls}`}>{etx.tone[item.tone] || item.tone}</span></>}
+          {isLead && item.impact && item.impact !== "none" && <><span className="led-sep">·</span><span className="led-imp">{etx.impact[item.impact] || item.impact}</span></>}
+        </div>
+        <TitleTag className={isLead ? "led-lead-title" : "led-story-title"}>{item.title}</TitleTag>
+        {summary && <p className={isLead ? "led-dek" : "led-story-dek"}>{summary}</p>}
+        <div className="led-byline">{item.source && <b>{item.source}</b>}{item.published_at ? ` · ${newsRelTime(item.published_at, language)}` : ""}</div>
       </div>
     </article>
   );
@@ -476,15 +495,16 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
 
   const { loading, error, items } = state;
   const lead = items[0];
-  const secondary = items.slice(1, 7);
-  const openUrl = (url) => { if (url) window.open(url, "_blank", "noopener,noreferrer"); };
+  const stack = items.slice(1);
+  const mood = feedSentiment(items);
+  const moodLabel = mood.cls === "pos" ? etx.moodPos : mood.cls === "neg" ? etx.moodNeg : etx.moodNeu;
 
   return (
-    <div className="news-view">
-      <header className="news-masthead">
-        <div className="news-eyebrow">{tx.eyebrow}</div>
-        <h1 className="news-title">{tx.title}</h1>
-        <p className="news-subtitle">{tx.subtitle}</p>
+    <div className="news-view led">
+      <header className="led-head">
+        <div className="led-kicker">{tx.eyebrow}</div>
+        <h1 className="led-title">{tx.title}</h1>
+        <p className="led-sub">{tx.subtitle}</p>
       </header>
 
       {user && user.is_admin && apiFetch && (
@@ -492,50 +512,53 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
       )}
 
       {loading ? (
-        <div className="news-layout">
-          <div className="news-main">
-            <div className="news-skel news-skel-lead" />
-            <div className="news-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="news-skel news-skel-card" />)}</div>
-          </div>
-          <aside className="news-rail">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="news-skel news-skel-row" />)}</aside>
+        <div className="led-cols">
+          <div className="led-main"><div className="led-skel-lead" /><div className="led-skel-row" /><div className="led-skel-row" /></div>
+          <aside className="led-rail"><div className="led-skel-panel" /></aside>
         </div>
       ) : error ? (
-        <div className="news-empty">{tx.error}</div>
+        <div className="led-empty">{tx.error}</div>
       ) : !items.length ? (
-        <div className="news-empty">{tx.empty}</div>
+        <div className="led-empty">{tx.empty}</div>
       ) : (
-        <div className="news-layout">
-          <div className="news-main">
+        <div className="led-cols">
+          <main className="led-main">
             {lead && <EdNewsCard item={lead} language={language} variant="lead" />}
-            {secondary.length > 0 && (
-              <div className="news-grid">
-                {secondary.map((it, i) => <EdNewsCard key={it.id || i} item={it} language={language} variant="card" />)}
-              </div>
+            {stack.length > 0 && (
+              <>
+                <div className="led-rule" />
+                <div className="led-stack">
+                  {stack.map((it, i) => <EdNewsCard key={it.id || i} item={it} language={language} variant="story" />)}
+                </div>
+              </>
             )}
-          </div>
-          <aside className="news-rail">
-            <div className="news-rail-head">{tx.latest}</div>
-            <ul className="news-rail-list">
-              {items.slice(0, 16).map((it, i) => (
-                <li key={it.id || i} className="news-rail-item" role="button" tabIndex={0}
-                  onClick={() => openUrl(it.url)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openUrl(it.url); } }}>
-                  <span className={`news-dot cat-${it.type}`} />
-                  <div className="news-rail-body">
-                    <div className="news-rail-title">{it.title}</div>
-                    <div className="news-rail-time">
-                      <span className={`news-tag-mini cat-${it.type}`}>{etx.cat[it.type] || it.type}</span>
-                      {it.source && <span style={{ marginLeft: 6, fontWeight: 600, opacity: .8 }}>{it.source}</span>}
-                      <span style={{ marginLeft: 6 }}>{newsRelTime(it.published_at, language)}</span>
-                    </div>
-                  </div>
-                </li>
+          </main>
+          <aside className="led-rail">
+            <div className="led-panel">
+              <h4 className="led-panel-h">{etx.mood}</h4>
+              <div className="led-gauge"><b className={mood.cls}>{(mood.avg >= 0 ? "+" : "") + mood.avg.toFixed(2)}</b><span>{moodLabel}</span></div>
+              <div className="led-bar"><i style={{ width: mood.pct + "%" }} /></div>
+              <div className="led-counts">
+                <span className="pos">▲ {mood.counts.positive}</span>
+                <span className="neu">● {mood.counts.neutral}</span>
+                <span className="neg">▼ {mood.counts.negative}</span>
+              </div>
+            </div>
+            <div className="led-panel led-latest">
+              <h4 className="led-panel-h">{tx.latest}</h4>
+              {items.slice(0, 7).map((it, i) => (
+                <a key={it.id || i} className="led-lt" href={it.url} target="_blank" rel="noopener noreferrer">
+                  <span className={`led-dot ${_TONE_CLS[it.tone] || "neu"}`} />
+                  <span className="led-lt-t">{it.title}</span>
+                  <span className="led-lt-s">{it.source}{it.published_at ? ` · ${newsRelTime(it.published_at, language)}` : ""}</span>
+                </a>
               ))}
-            </ul>
+            </div>
           </aside>
         </div>
       )}
 
-      <p className="news-footnote">{tx.footnote}</p>
+      <p className="led-foot">{tx.footnote}</p>
     </div>
   );
 }

@@ -9728,3 +9728,96 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .price-stat-value.neg { color: #f87171; }
 @media (max-width: 760px) { .price-stats-strip { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 420px) { .price-stats-strip { grid-template-columns: repeat(2, 1fr); } }
+
+/* ============================================================================
+   Editorial news feed — "Ledger" direction (§3.11). Serif headlines, a lead-
+   dominant layout, calm whitespace, and a market-sentiment rail. Token-driven,
+   so it inherits the app's light/dark theme; the editorial character comes from
+   the serif face + hierarchy, not a separate palette.
+   ========================================================================== */
+.led { --led-serif: Georgia, "Times New Roman", "Iowan Old Style", serif; }
+
+.led .led-head { padding: 6px 0 22px; border-bottom: 2px solid var(--text); margin-bottom: 30px; }
+.led .led-kicker { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.led .led-title { font-family: var(--led-serif); font-weight: 400; font-size: clamp(32px, 5vw, 50px); letter-spacing: -.02em; margin: .1em 0 0; color: var(--text); text-wrap: balance; }
+.led .led-sub { color: var(--muted); font-size: 14.5px; max-width: 58ch; margin: 8px 0 0; line-height: 1.55; }
+
+.led .led-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 44px; align-items: start; }
+@media (max-width: 900px) { .led .led-cols { grid-template-columns: 1fr; gap: 30px; } }
+
+.led .led-eyebrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-light); margin-bottom: 8px; }
+.led .led-cat { color: var(--accent); font-weight: 700; }
+.led .led-sep { opacity: .45; }
+.led .led-tone { font-weight: 700; }
+.led .led-tone.pos { color: var(--success); }
+.led .led-tone.neg { color: var(--danger); }
+.led .led-tone.neu { color: var(--muted); }
+.led .led-imp { color: var(--muted); }
+
+/* lead story */
+.led .led-lead { display: block; cursor: pointer; }
+.led .led-figure { height: clamp(190px, 33vw, 320px); border-radius: 6px; overflow: hidden; margin-bottom: 20px;
+  background: linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 42%, #06101f)); }
+.led .led-figure img, .led .led-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.led .led-lead-title { font-family: var(--led-serif); font-weight: 400; font-size: clamp(26px, 3.6vw, 38px); line-height: 1.16; letter-spacing: -.02em; margin: 0; color: var(--text); text-wrap: balance; max-width: 22ch; }
+.led .led-lead:hover .led-lead-title { color: var(--accent-hover); }
+.led .led-dek { font-size: 16.5px; color: var(--muted); margin: 14px 0 0; max-width: 62ch; line-height: 1.6; }
+.led .led-byline { margin-top: 14px; font-size: 12.5px; color: var(--muted-light); letter-spacing: .01em; }
+.led .led-byline b { color: var(--text); font-weight: 600; }
+
+.led .led-rule { height: 1px; background: var(--border); margin: 34px 0; }
+
+/* stacked stories */
+.led .led-stack { display: grid; gap: 28px; }
+.led .led-story { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 20px; align-items: start; cursor: pointer; }
+@media (max-width: 540px) { .led .led-story { grid-template-columns: 1fr; } }
+.led .led-thumb { height: 96px; border-radius: 4px; overflow: hidden;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 68%, var(--panel)), color-mix(in srgb, var(--accent) 22%, var(--panel))); }
+.led .led-thumb[data-cat="regulatory"] { background: linear-gradient(150deg, #3a4a63, #161d2a); }
+.led .led-thumb[data-cat="corporate_event"] { background: linear-gradient(150deg, #5a4a34, #241c12); }
+.led .led-thumb[data-cat="financial_report"] { background: linear-gradient(150deg, #2f5b46, #14261d); }
+.led .led-story-title { font-family: var(--led-serif); font-weight: 400; font-size: 20px; line-height: 1.24; letter-spacing: -.01em; margin: .3em 0 0; color: var(--text); text-wrap: balance; }
+.led .led-story:hover .led-story-title { color: var(--accent-hover); }
+.led .led-story-dek { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; max-width: 60ch; line-height: 1.5; }
+
+.led .led-lead:focus-visible, .led .led-story:focus-visible, .led .led-lt:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+/* market-sentiment rail */
+.led .led-rail { position: sticky; top: 16px; display: grid; gap: 16px; }
+@media (max-width: 900px) { .led .led-rail { position: static; } }
+.led .led-panel { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 18px; }
+.led .led-panel-h { font-size: 11px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted-light); margin: 0 0 14px; font-weight: 700; }
+.led .led-gauge { display: flex; align-items: baseline; gap: 8px; }
+.led .led-gauge b { font-family: var(--led-serif); font-size: 36px; line-height: 1; font-variant-numeric: tabular-nums; }
+.led .led-gauge b.pos { color: var(--success); }
+.led .led-gauge b.neg { color: var(--danger); }
+.led .led-gauge b.neu { color: var(--muted); }
+.led .led-gauge span { font-size: 13px; color: var(--muted); }
+.led .led-bar { height: 7px; border-radius: 4px; background: var(--border); overflow: hidden; margin: 13px 0; position: relative; }
+.led .led-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--danger), var(--muted-light), var(--success)); border-radius: 4px; }
+.led .led-counts { display: flex; gap: 14px; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.led .led-counts .pos { color: var(--success); }
+.led .led-counts .neu { color: var(--muted); }
+.led .led-counts .neg { color: var(--danger); }
+
+.led .led-lt { display: grid; grid-template-columns: auto 1fr; gap: 3px 9px; padding: 10px 0; border-top: 1px solid var(--border); text-decoration: none; }
+.led .led-latest .led-lt:first-of-type { border-top: 0; padding-top: 0; }
+.led .led-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; grid-row: span 2; }
+.led .led-dot.pos { background: var(--success); }
+.led .led-dot.neg { background: var(--danger); }
+.led .led-dot.neu { background: var(--muted-light); }
+.led .led-lt-t { font-size: 13px; line-height: 1.3; color: var(--text); }
+.led .led-lt-s { font-size: 11px; color: var(--muted-light); }
+.led .led-lt:hover .led-lt-t { color: var(--accent); }
+
+.led .led-empty { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 15px; }
+.led .led-foot { color: var(--muted); font-size: 12.5px; margin-top: 42px; border-top: 1px solid var(--border); padding-top: 18px; max-width: 82ch; line-height: 1.65; }
+
+/* skeletons */
+.led .led-skel-lead, .led .led-skel-row, .led .led-skel-panel { border-radius: 6px;
+  background: linear-gradient(90deg, var(--panel), var(--surface-2), var(--panel)); background-size: 200% 100%; animation: led-shim 1.4s infinite; }
+.led .led-skel-lead { height: 300px; margin-bottom: 24px; }
+.led .led-skel-row { height: 96px; margin-bottom: 20px; }
+.led .led-skel-panel { height: 200px; }
+@keyframes led-shim { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .led .led-skel-lead, .led .led-skel-row, .led .led-skel-panel { animation: none; } }
