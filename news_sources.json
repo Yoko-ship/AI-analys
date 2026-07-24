@@ -75,7 +75,7 @@
       "coverage_weight": 0.75,
       "legal": "caution",
       "attribution": "Spot.uz",
-      "enabled": false,
+      "enabled": true,
       "crawl_delay_s": 10,
       "notes": "OOO Afisha Media, registered e-media #1207 (2019). Business focus. Deferred: enable as a second business feed after MVP proves out."
     },
@@ -89,7 +89,7 @@
       "coverage_weight": 0.8,
       "legal": "caution",
       "attribution": "Kun.uz",
-      "enabled": false,
+      "enabled": true,
       "crawl_delay_s": 10,
       "notes": "Largest general-news audience. Feed is at /ru/news/rss (NOT /rss, which 404s). Deferred (high volume, general news — lots to filter)."
     },
