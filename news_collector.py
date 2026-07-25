@@ -465,10 +465,6 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     fresh = [it for it in raw if it["url"] not in seen]
     logger.info("fetched %d, %d already stored, %d new to classify", len(raw), len(seen), len(fresh))
 
-    # 1b) preview images: sources whose feed ships none get the article page's own
-    # og:image (opt-in per source). Runs after dedup so we only fetch NEW items.
-    enrich_images(fresh, {s["id"]: s for s in sources})
-
     # 2) classify each new item (Layer A).
     from llm_client import Usage
     usage = Usage()
@@ -490,13 +486,19 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     logger.info("classified %d items (%d relevant); ~%d tokens, est $%.4f",
                 len(records), len(relevant), usage.total_tokens, usage.est_cost_usd())
 
+    # 2b) preview images, for the RELEVANT items only: those are the cards the feed
+    # renders, and a whole-site feed like kursiv's is ~85% off-topic — fetching pages
+    # for items about to be filtered out would be almost all of the requests.
+    enrich_images(relevant, {s["id"]: s for s in sources})
+
     if dry_run:
         for r in records:
             print(json.dumps({k: r.get(k) for k in
                               ("source_id", "relevant", "type", "tone", "impact", "direction",
                                "tickers", "title", "summary_ru")},
                              ensure_ascii=False))
-        return {"fetched": len(raw), "new": len(fresh), "relevant": len(relevant), "dry_run": True}
+        return {"fetched": len(raw), "new": len(fresh), "relevant": len(relevant),
+                "with_image": sum(1 for r in relevant if r.get("image_url")), "dry_run": True}
 
     # 3) store locally (dedup memory) + push to prod.
     stored = news_store.upsert_news(records)
@@ -506,7 +508,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         pushed = len(records) if code == 0 else 0
     return {
         "fetched": len(raw), "new": len(fresh), "classified": len(records),
-        "classify_failed": failed, "with_image": sum(1 for r in records if r.get("image_url")),
+        "classify_failed": failed, "with_image": sum(1 for r in relevant if r.get("image_url")),
         "relevant": len(relevant), "stored": stored, "pushed": pushed,
         "tokens": usage.total_tokens, "est_cost_usd": round(usage.est_cost_usd(), 4),
     }
