@@ -200,19 +200,37 @@ admin endpoints (`/api/admin/financials`, `/api/admin/trade-stats`,
 python collector_financials.py                # full pipeline + push
 python collector_financials.py --facts-only   # only re-run source adapters
 python collector_financials.py --no-facts     # financials + trade-stats only
+python collector_financials.py --trades-only  # only the day's quotes/turnover (~2 min)
 ```
 
 Schedule it on any host that can reach openinfo:
 
-- **Railway cron (recommended — no local PC involved)**. Create a second service
-  from this same repo:
-  1. New service → same GitHub repo + branch as the API service.
-  2. Service settings → **Config file path** = `railway.collector.json`
-     (runs daily at 03:00 UTC = 08:00 Tashkent; edit `cronSchedule` to taste).
-  3. Variables: `ADMIN_API_SECRET` (same value as the API service) and
-     `FINANCIALS_PUSH_URL=https://YOUR-API-URL`.
+- **Railway cron (recommended — no local PC involved)**. Create a service from
+  this same repo:
+  1. New service → same GitHub repo + **branch as the API service** (`railway add`
+     defaults to the repo's default branch, whose `railway.json` may not know these
+     modes — verify with `railway service source connect --branch <branch>`).
+  2. Variables: `APP_MODE=collector`, `ADMIN_API_SECRET` (same value as the API
+     service), `FINANCIALS_PUSH_URL=https://YOUR-API-URL`, `TZ=Asia/Tashkent`.
+     The start command in the repo-root `railway.json` branches on `APP_MODE`.
+  3. Service settings → **Cron schedule** (UTC, regardless of `TZ`) and
+     **Restart policy = Never**. The CLI cannot set either; use the dashboard or
+     `serviceInstanceUpdate(environmentId, serviceId, input: {cronSchedule})`.
   4. No volume needed — the collector rebuilds its scratch DB each run and
      pushes results to the API service.
+
+  Live schedule (one cron expression per service, so intraday quote refreshes are
+  their own services — they run `--trades-only`, ~2 minutes, and cost nothing else):
+
+  | Service | `APP_MODE` | Cron (UTC) | Tashkent | Scope |
+  | --- | --- | --- | --- | --- |
+  | `collector` | `collector` | `0 3 * * *` | 08:00 | full pipeline |
+  | `quotes-1300` | `quotes` | `0 8 * * *` | 13:00 | quotes/turnover, mid-session |
+  | `quotes-1610` | `quotes` | `10 11 * * *` | 16:10 | quotes/turnover, after the close |
+
+  Re-running the same session is safe by design: `bulk_upsert_trade_stats` accepts
+  a same-day correction (a later run sees more executions) and refuses anything
+  dated earlier, so an intraday snapshot can only be replaced by a fuller one.
 - **Windows** — Task Scheduler running `run_collector.bat` (e.g. daily 06:00).
 - **Linux/VPS** — cron: `0 6 * * * cd /app && python collector_financials.py`.
 
