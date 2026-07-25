@@ -1169,14 +1169,16 @@ def _news_search_sync(query: str, days: int, store: bool) -> dict[str, Any]:
     findings = find_news(query, days=days)
     universe = _issuer_universe()
     usage = Usage()
-    model = os.getenv("LLM_MODEL", "grok-4.3")
+    model = os.getenv("NEWS_CLASSIFIER_MODEL", "").strip() or os.getenv("LLM_MODEL", "grok-4.3")
 
     seen = news_store.existing_urls([it["url"] for it in findings.items if it.get("url")])
     records: list[dict[str, Any]] = []
     for it in findings.items:
         if not it.get("url") or it["url"] in seen:
             continue
-        cls = classify_item({**it, "lang": None}, universe, usage=usage)
+        # triage=False: the admin asked for this company by name, so relevance is already
+        # established — the cheap gate exists for whole-feed collection, not targeted search.
+        cls = classify_item({**it, "lang": None}, universe, usage=usage, triage=False)
         records.append({
             "url": it["url"],
             "title": it.get("title", ""),

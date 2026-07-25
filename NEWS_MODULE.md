@@ -8,10 +8,16 @@ existing collector-push → prod-serve architecture (see `news_ai_module_scope.m
 ## Two layers
 
 **Layer A — collector pipeline (runs itself, scheduled).** `news_collector.py`
-pulls the enabled feeds in `news_sources.json`, drops already-seen URLs, sends each
-new item through `classify_item` (one DeepSeek JSON call), stores it, and pushes to
-`POST /api/admin/news`. This is the coverage backbone. DeepSeek never browses or
-fetches here — it only judges what the collector pulled.
+pulls the enabled feeds in `news_sources.json`, drops already-seen URLs, and puts each new
+item through three gates, cheapest first, before storing it and pushing to
+`POST /api/admin/news`. This is the coverage backbone. The model never browses or fetches
+here — it only judges what the collector pulled.
+
+| Gate | Cost | What it does |
+|---|---|---|
+| 0. `prefilter_reject` | free | Regex: drops sport/horoscope/weather/accident/culture items that carry no market signal and name no issuer. Asymmetric — a junk match with any market signal is kept. Dropped items aren't stored, so they're re-filtered free next run. |
+| 1. `triage_item` | ~350 input / 20 output tokens | One tiny call: `{"pass": bool, "score": 0-1}`. No issuer universe in the prompt. Fails open (a broken gate passes the item on). Rejections ARE stored, so we never re-pay for them. |
+| 2. full classification | ~2,280 input / ~400 output tokens | Class, tone, impact, direction, issuer links, our own `summary_ru` — only for items that survive triage. |
 
 **Layer B — `search_news` agent (on demand).** `news_agent.find_news("Kapitalbank")`
 actively finds news. Two backends (`NEWS_SEARCH_BACKEND`):
@@ -28,7 +34,7 @@ Either way the returned items can be fed back through `classify_item` and stored
 |---|---|
 | `news_sources.json` | Source registry (feed URLs, type, lang, coverage weight, legal flag, enabled) |
 | `llm_client.py` | Provider-abstracted DeepSeek client (OpenAI-compatible) — `complete_json`, `run_tool_loop`, retry/backoff, token accounting |
-| `news_classifier.py` | Layer A — per-item classification (Pydantic-validated) |
+| `news_classifier.py` | Layer A — the three gates: `prefilter_reject` (free), `triage_item` (tiny call), full classification (Pydantic-validated); own provider via `NEWS_CLASSIFIER_*` |
 | `news_search_backend.py` | Pluggable search backends for Layer B (`TavilyBackend`, `NullBackend`) |
 | `news_grok_search.py` | Layer B — Grok-native web + X search (xAI Agent Tools API) |
 | `news_agent.py` | Layer B — `find_news` entry point (routes to Grok-native or Tavily) |
@@ -41,15 +47,18 @@ Either way the returned items can be fed back through `classify_item` and stored
 
 ```bash
 pip install -r requirements.txt        # adds feedparser, openai
-# .env (configured for Grok):
-XAI_API_KEY=xai-...                     # classification + Grok native search
-LLM_BASE_URL=https://api.x.ai/v1
-LLM_MODEL=grok-4.3                       # Layer-A classification (live id; grok-4-fast retired 2026-05-15)
+# .env — Layer A on DeepSeek (high volume, cheap), Layer B on Grok (native web+X search):
+NEWS_CLASSIFIER_BASE_URL=https://api.deepseek.com
+NEWS_CLASSIFIER_MODEL=deepseek-v4-flash  # Layer-A classification ($0.14/$0.28 per M)
+DEEPSEEK_API_KEY=sk-...                  # or NEWS_CLASSIFIER_API_KEY if it differs
+XAI_API_KEY=xai-...                      # Layer-B Grok native search
+LLM_BASE_URL=https://api.x.ai/v1         # generic provider (Layer-B Tavily loop, classifier fallback)
+LLM_MODEL=grok-4.3                       # live id; grok-4-fast retired 2026-05-15
 GROK_SEARCH_MODEL=grok-4.5               # Layer-B native-search model (optional; defaults to grok-4.5)
 NEWS_SEARCH_BACKEND=grok                 # Grok native web+X search (or 'tavily' + TAVILY_API_KEY)
 ADMIN_API_SECRET=...                    # required to push to prod (shared with financials)
 NEWS_PUSH_URL=https://<your-api>.up.railway.app
-# To use DeepSeek instead: LLM_BASE_URL=https://api.deepseek.com LLM_MODEL=deepseek-v4-flash DEEPSEEK_API_KEY=...
+# Unset the NEWS_CLASSIFIER_* trio to classify with the generic LLM_* provider instead.
 ```
 
 ## Run
@@ -99,11 +108,39 @@ stored classification and drop the item out of the feed.
 
 ## Cost & control
 
-Grok 4.3 (`$1.25`/M in, `$2.50`/M out, 1M ctx) ≈ **~$1–3/month** at MVP volume; every
-run logs `tokens` and `est_cost_usd`. Provider is a config swap — DeepSeek
-(`$0.14`/`$0.28`, ~$1/mo) is cheaper, GPT-5.4-mini (~$8/mo) is stronger on Uzbek.
-Grok's native search is billed per search call ($5/1k); the Tavily backend is
-capped at `NEWS_AGENT_MAX_ITERS` tool calls with each query logged.
+**Measured, not assumed** (2026-07-25). The one telemetered run — 41 items, ~110k tokens —
+logged `$0.0177` but really cost **`$0.158`**: `est_cost_usd()` was hardcoded to DeepSeek's
+`$0.14`/`$0.28` while the module was running on grok-4.3 at `$1.25`/`$2.50`, understating
+every run by 8.9x. That stale figure is where the old "~$1–3/month" claim came from. The
+estimator now bills at the active model's rates from a per-model table (override with
+`LLM_PRICE_IN`/`_OUT`/`_CACHED`) and counts cached input separately.
+
+Where the tokens went in the old single-call design: of 6,248 input chars per item, the
+**news item was 205 (3.3%)** — the rest was the system prompt (27%) and the 93-line issuer
+universe (68%), re-sent at full price on every call.
+
+What the three gates plus the DeepSeek swap do to that, at ~140 genuinely-new items/day
+across the six feeds (projection from measured prompt sizes; prefilter drop rate 11% and
+triage pass rate ~25% measured on today's feeds):
+
+| Setup | Per 100 fetched items | Per month |
+|---|---|---|
+| old: one grok-4.3 call per item | `$0.386` | **`$16.20`** |
+| gates + grok-4.3 | `$0.129` | `$5.43` |
+| gates + deepseek-v4-flash | `$0.014` | **`$0.61`** |
+| gates + deepseek-v4-flash, prefix cached | `$0.005` | `$0.23` |
+
+Cache hits are the reason the issuer universe moved into the system message: a byte-identical
+prefix is billed at `$0.0028`/M on DeepSeek (`$0.20`/M on grok-4.3) instead of full price.
+Every run logs what share of its input the provider served from cache (`cached_input_pct`) —
+if that stays at 0%, the prefix is being re-billed and something broke the identity.
+
+Other controls: `--limit` caps items per source per run, `NEWS_MAX_AGE_DAYS` skips stale
+items before any call, `NEWS_TRIAGE_FLOOR` sets how eagerly borderline items get the full
+pass, and canonicalised URLs (tracking params stripped) stop `utm_*` variants from being
+re-classified as new. Layer B is separate: Grok's native search is billed per search call
+($5/1k) and the Tavily backend is capped at `NEWS_AGENT_MAX_ITERS` tool calls with each
+query logged.
 
 ## Legal invariant
 
