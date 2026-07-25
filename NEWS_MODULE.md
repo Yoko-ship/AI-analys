@@ -373,7 +373,7 @@ promising a full text that does not exist.
 payload shape differs per fact type across 50+ types, and for the common affiliate-list
 filings it is mostly personal names — so this is worth doing per fact type, not generically.
 
-**Figures are pulled for the two fact types filed as numbers (LIVE).** `_fact_figures`
+**Figures are pulled for every fact type filed as structured fields (LIVE).** `_fact_figures`
 makes one extra paced call to `/disclosure/facts/{id}/` — the id the item already carries — and
 appends the filing's own figures to the snippet. No model is involved, so this costs the
 request and nothing else; any failure returns None and the item publishes with its plain
@@ -389,6 +389,23 @@ snippet.
   99.24% … Не выплачено 0.76% … Причина по данным эмитента: …`. Reported exactly as filed —
   several issuers file `paid=0` alongside `debt=0`, and inferring the shortfall would
   contradict their own numbers.
+
+* **20 / 21 — «Крупная сделка» / «Сделка с аффилированным лицом»**: counterparty, subject,
+  amount, and for fact 20 `assets_issuer` — the deal as a share of the issuer's assets, which
+  is what separates routine trading from a balance-sheet event. A grouped day is **aggregated**,
+  because "eight filings" was never the story: `8 сделок за день, на 21 151 806 052 сум по 7 из
+  них. Контрагенты: Бухарский нефтеперерабатывающий завод, O'ZLITINEFTGAZ, UzGasTrade и др.`
+* **31 — «Сроки исполнения по ц/б»**: the redemption/payment window.
+* **22 — «Получение лицензии»**: activity, licence number, validity.
+
+Grouping keeps every filing's id (`fact_ids`), not just the newest anchor — one id can only
+describe one of eight deals. Fetches are capped at `_FIGURE_MAX_FETCH` (8) per item.
+
+`--backfill-facts` re-reads filings already stored and replaces their bare snippets via
+`POST /api/admin/news/snippets` (snippet only, and only when the new text is longer, so a
+re-run cannot shrink a row). Needed because dedup means a normal run never revisits a stored
+item — without it, everything collected before this pass keeps saying only "Подано 8 сообщений
+за день" until it ages out.
 
 The story page shows this under **«Из раскрытия эмитента»**, not «Как сообщает источник», and
 shows it unconditionally for filings: the summary only paraphrases figures that are the point.

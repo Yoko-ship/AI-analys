@@ -18,6 +18,7 @@ CLI:
     python news_collector.py --limit 20      # cap items per source
     python news_collector.py --source cbu    # one source only
     python news_collector.py --backfill-images  # images for stored items (no LLM calls)
+    python news_collector.py --backfill-facts   # figures for stored filings (no LLM calls)
     python news_collector.py --purge-failed   # drop failed classifications so they retry
 """
 from __future__ import annotations
@@ -474,7 +475,8 @@ def _ru_date(value):
     return f"{match.group(3)}.{match.group(2)}.{match.group(1)}" if match else text
 
 
-def _fmt_accrual(fact):
+def _fmt_accrual(facts):
+    fact = facts[0]
     """Fact 32 — the amount accrued per security, plus the payment window.
 
     Shares file ``sum_aksiya`` with the window in ``*_common_shares``; bonds file ``sum_per``
@@ -506,7 +508,8 @@ def _fmt_accrual(fact):
     return text + "."
 
 
-def _fmt_dividend_payment(fact):
+def _fmt_dividend_payment(facts):
+    fact = facts[0]
     """Fact 42 — declared vs actually paid, what is still owed, and why."""
     declared = _amount_uz(fact.get("overall_calculated_sum"))
     paid_pct = _pct(fact.get("overall_paid_percent"))
@@ -538,19 +541,135 @@ def _fmt_dividend_payment(fact):
     return text
 
 
-_FIGURE_FORMATTERS = {32: _fmt_accrual, 42: _fmt_dividend_payment}
+def _org_short(name):
+    """'Общество с ограниченной ответственностью «Бухарский НПЗ»' → 'Бухарский НПЗ'.
 
-
-def _fact_figures(fact_number, fact_id):
-    """The numbers behind one filing, as a sentence — or None.
-
-    One extra paced call to ``/disclosure/facts/{id}/`` using the id the item already carries;
-    no model is involved, so this costs the request and nothing else. Any failure returns None
-    and the item keeps its plain snippet: a filing that cannot be enriched must still publish.
+    Counterparties are filed with their full legal form, which is most of the string and none
+    of the information. The quoted trade name is what identifies the party.
     """
-    formatter = _FIGURE_FORMATTERS.get(fact_number)
-    if formatter is None or fact_id is None:
+    text = _clean_text(str(name or "")).strip()
+    if not text:
         return None
+    quoted = re.search(r"[«\"]([^»\"]{2,})[»\"]", text)
+    if quoted:
+        return quoted.group(1).strip()
+    return text if len(text) <= 60 else text[:59].rstrip() + "…"
+
+
+def _plural_ru(n, forms):
+    """(1, 2-4, 5+) — 'сделка' / 'сделки' / 'сделок'. Machine-generated text still has to
+    read like Russian, or the card looks broken."""
+    n = abs(int(n))
+    if n % 10 == 1 and n % 100 != 11:
+        return forms[0]
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return forms[1]
+    return forms[2]
+
+
+def _join_few(values, limit=3):
+    """'A, B, C и др.' — enough to see who is involved, not a wall of names."""
+    seen = []
+    for v in values:
+        if v and v not in seen:
+            seen.append(v)
+    if not seen:
+        return None
+    head = ", ".join(seen[:limit])
+    return head + (" и др." if len(seen) > limit else "")
+
+
+def _fmt_transaction(facts):
+    """Facts 20 / 21 — a major or related-party deal: with whom, for what, how much.
+
+    A grouped day is aggregated rather than reported once: O'zbekneftgaz files eight
+    related-party notices in an hour, and "eight deals totalling N" is the story — the count
+    alone (which is all the card said before) is not.
+
+    Fact 20 also files ``assets_issuer``, the deal's size as a share of the issuer's assets;
+    that is the number that separates routine trading from a balance-sheet event, so it is
+    kept whenever it is filed.
+    """
+    total, priced = 0.0, 0
+    parties, subjects, assets_pct, when = [], [], None, None
+    for f in facts:
+        amount = _pct(str(f.get("transaction_amount") or "").replace(" ", ""))
+        if amount:
+            total += amount
+            priced += 1
+        parties.append(_org_short(f.get("name_counterparty")))
+        subject = _clean_text(str(f.get("subject_matter") or "")).strip()
+        if subject:
+            subjects.append(subject if len(subject) <= 70 else subject[:69].rstrip() + "…")
+        assets_pct = assets_pct or _pct(f.get("assets_issuer"))
+        when = when or _ru_date(f.get("date_transaction"))
+
+    who, what = _join_few(parties), _join_few(subjects, 2)
+    if len(facts) == 1:
+        parts = [p for p in (who and f"контрагент — {who}", what and f"предмет — {what}") if p]
+        if priced:
+            money = _amount_uz(round(total) if total >= 1000 else total)
+            parts.append(f"сумма {money}" + (f" ({assets_pct:.2f}% активов)" if assets_pct else ""))
+        if when:
+            parts.append(f"дата {when}")
+        return ("Сделка: " + ", ".join(parts) + ".") if parts else None
+
+    parts = [f"{len(facts)} {_plural_ru(len(facts), ('сделка', 'сделки', 'сделок'))} за день"]
+    if priced:
+        rounded = round(total) if total >= 1000 else total
+        parts.append(f"на {_amount_uz(rounded)}"
+                     + (f" по {priced} из них" if priced < len(facts) else ""))
+    text = ", ".join(parts) + "."
+    if who:
+        text += f" Контрагенты: {who.rstrip('.')}."
+    if what:
+        text += f" Предмет: {what.rstrip('.')}."
+    return text
+
+
+def _fmt_obligation(facts):
+    """Fact 31 — the window in which the issuer must redeem or pay out on a security."""
+    fact = facts[0]
+    window = " — ".join(d for d in (_ru_date(fact.get("date_begin")),
+                                    _ru_date(fact.get("date_end"))) if d)
+    if not window:
+        return None
+    text = f"Срок исполнения обязательств: {window}."
+    detail = _clean_text(str(fact.get("description_issuers_obligations") or "")).strip()
+    if detail:
+        text += f" {detail[:120]}" + ("…" if len(detail) > 120 else "")
+    return text
+
+
+def _fmt_license(facts):
+    """Fact 22 — which licence, from whom, and how long it runs."""
+    fact = facts[0]
+    activity = _clean_text(str(fact.get("type_activity") or "")).strip()
+    number = _clean_text(str(fact.get("number_licensing") or "")).strip()
+    parts = []
+    if activity:
+        parts.append(f"вид деятельности — {activity[:90]}")
+    if number:
+        parts.append(f"№ {number}")
+    valid = _ru_date(fact.get("validity_license"))
+    if valid:
+        parts.append(f"действует до {valid}")
+    return ("Лицензия: " + ", ".join(parts) + ".") if parts else None
+
+
+# Only the fact types filed as STRUCTURED FIELDS are worth a second call; for every other type
+# the detail adds nothing the headline does not already say, so it is never fetched.
+_FIGURE_FORMATTERS = {
+    20: _fmt_transaction, 21: _fmt_transaction, 22: _fmt_license,
+    31: _fmt_obligation, 32: _fmt_accrual, 42: _fmt_dividend_payment,
+}
+# A grouped day is capped: O'zbekneftgaz's eight filings are worth eight paced calls, a
+# pathological hundred are not.
+_FIGURE_MAX_FETCH = 8
+
+
+def _fact_detail(fact_id):
+    """One filing's own fields from ``/disclosure/facts/{id}/``, or None on any failure."""
     try:
         import openinfo_http
         from openinfo_collector import OPENINFO_API_BASE
@@ -559,16 +678,52 @@ def _fact_figures(fact_number, fact_id):
         resp.raise_for_status()
         payload = (resp.json() or {}).get("fact") or []
     except Exception as exc:  # noqa: BLE001 — enrichment is never worth failing a run over
-        logger.debug("fact detail failed for %s (#%s): %s", fact_id, fact_number, exc)
+        logger.debug("fact detail failed for %s: %s", fact_id, exc)
         return None
     fact = payload[0] if isinstance(payload, list) and payload else payload
-    if not isinstance(fact, dict):
+    return fact if isinstance(fact, dict) else None
+
+
+def _fact_figures(fact_number, fact_ids):
+    """What the filings in one item actually say, as a sentence — or None.
+
+    One paced call per filing (capped at ``_FIGURE_MAX_FETCH``) using ids the item already
+    carries; no model is involved, so this costs the requests and nothing else. Any failure
+    returns None and the item keeps its plain snippet: a filing that cannot be enriched must
+    still be published.
+    """
+    formatter = _FIGURE_FORMATTERS.get(fact_number)
+    if formatter is None or not fact_ids:
+        return None
+    facts = [f for f in (_fact_detail(i) for i in fact_ids[:_FIGURE_MAX_FETCH]) if f]
+    if not facts:
         return None
     try:
-        return formatter(fact)
+        return formatter(facts)
     except Exception:  # noqa: BLE001 — one malformed filing must not break the run
-        logger.debug("fact %s (#%s) did not format", fact_id, fact_number)
+        logger.debug("fact #%s did not format (%d filing(s))", fact_number, len(facts))
         return None
+
+
+def _filing_snippet(group, detail, figures):
+    """The card text for one filing item: what was filed, then what it says.
+
+    Sentences are joined rather than concatenated, because the pieces come from different
+    places and half of them arrive without a full stop — which is how "…по ценным бумагам
+    Начислено 2 301,37 сум" happened. The bare filing count is dropped once ``figures`` is
+    present, since the figures sentence already opens with it.
+    """
+    chunks = [f"Существенный факт №{group['fact_number']} на openinfo.uz"]
+    if detail:
+        chunks.append(detail)
+    count = group["count"]
+    if count > 1 and not figures:
+        word = _plural_ru(count, ("сообщение", "сообщения", "сообщений"))
+        chunks.append(f"Подано {count} {word} за день")
+    text = ". ".join(c.strip().rstrip(".") for c in chunks if c and c.strip()) + "."
+    if figures:
+        text += " " + figures.strip()
+    return text[:1000]
 
 
 def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
@@ -635,6 +790,9 @@ def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
             groups[key] = {
                 "org": org, "tickers": tickers, "count": 1,
                 "fact_id": rec.get("id"),
+                # Every filing in the group, newest first: the enrichment sums the day's
+                # deals, and one anchor id could only ever describe one of them.
+                "fact_ids": [rec.get("id")],
                 "fact_number": rec.get("fact_number"),
                 "short_title": (rec.get("fact_short_title") or rec.get("fact_title") or "").strip(),
                 "full_title": (rec.get("fact_title") or "").strip(),
@@ -644,6 +802,7 @@ def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
             }
         else:
             group["count"] += 1
+            group["fact_ids"].append(rec.get("id"))
             # keep the newest filing of the group as its anchor
             if pub > str(group["pub_date"]):
                 group["pub_date"], group["fact_id"] = pub, rec.get("id")
@@ -654,22 +813,20 @@ def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
             continue
         suffix = f" ({g['count']})" if g["count"] > 1 else ""
         detail = g["full_title"] if g["full_title"] and g["full_title"] != g["short_title"] else ""
-        # Only the fact types filed as numbers are worth a second call; everything else
-        # would spend a request to learn nothing the title does not already say.
-        figures = _fact_figures(g["fact_number"], g["fact_id"])
+        figures = _fact_figures(g["fact_number"], g.get("fact_ids") or [g["fact_id"]])
         items.append({
             "url": _OPENINFO_ORG_URL.format(org=g["org"], fact_id=g["fact_id"]),
             "title": f"{g['org_name']}: {g['short_title']}{suffix}",
             # Filing metadata we publish ourselves — no article body is involved.
-            "snippet": (f"Существенный факт №{g['fact_number']} на openinfo.uz"
-                        + (f". {detail}" if detail else "")
-                        + (f". Подано {g['count']} сообщений за день." if g["count"] > 1 else "")
-                        + (f" {figures}" if figures else ""))[:1000],
+            "snippet": _filing_snippet(g, detail, figures),
             "published_at": g["pub_date"].replace(" ", "T")[:19] or None,
             "lang": "ru",
             "tickers": g["tickers"],
             "always_relevant": True,
             "type_hint": _FACT_TYPE_MAP.get(g["fact_number"]),
+            # Which openinfo fact type this came from — the backfill uses it to tell an item
+            # that CAN carry figures from one that never will.
+            "fact_number_hint": g["fact_number"],
         })
     logger.info("openinfo facts: %d filings fetched, %d relevant to our issuers "
                 "(grouped into %d item(s)); %d filings from %d non-covered filers skipped",
@@ -1010,6 +1167,66 @@ def backfill_images(*, limit: int = 40, days: int = 90, push: bool = True) -> di
     }
 
 
+def push_snippets(snippets: dict[str, str]) -> int:
+    """Push snippet-only updates (url → snippet) and return the rows prod changed.
+
+    Deliberately NOT /api/admin/news, for the same reason as ``push_images``: a full upsert
+    there would rewrite the stored classification from these partial records.
+    """
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if not secret:
+        logger.error("ADMIN_API_SECRET is not set — cannot push snippets")
+        return 0
+    try:
+        resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/snippets",
+                             json={"snippets": snippets},
+                             headers={"X-Admin-Secret": secret}, timeout=120)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        logger.error("push /api/admin/news/snippets failed: %s", exc)
+        return 0
+    return int((resp.json() or {}).get("updated") or 0)
+
+
+def backfill_facts(*, limit: int = 60, push: bool = True, dry_run: bool = False) -> dict[str, Any]:
+    """Re-read the openinfo filings we already store and replace their bare snippets.
+
+    Items collected before the figures pass existed say only "Существенный факт №21 …
+    Подано 8 сообщений за день", and dedup means a normal run will never look at them again.
+    This re-runs the same fetch (which now enriches), keeps the items whose URL is ALREADY
+    stored, and pushes snippet-only updates. No classification, so no LLM spend, and the
+    stored tone/impact is untouched.
+
+    Reaches as far back as the facts API's recent window — raise ``OPENINFO_FACTS_PAGES`` to
+    cover older rows.
+    """
+    sources = load_sources("openinfo_facts")
+    if not sources:
+        return {"candidates": 0, "updated_local": 0, "updated_prod": 0}
+    items = fetch_openinfo(sources[0], limit)
+    # Only the items that actually gained figures are worth an update; the rest would
+    # rewrite a row with the text it already has.
+    enriched = {it["url"]: it["snippet"] for it in items
+                if it.get("snippet") and _FIGURE_FORMATTERS.get(it.get("fact_number_hint"))}
+    if not enriched:
+        enriched = {it["url"]: it["snippet"] for it in items if it.get("snippet")}
+    known = news_store.existing_urls(list(enriched))
+    if push:
+        known |= known_urls_in_prod(list(enriched))
+    updates = {u: t for u, t in enriched.items() if u in known}
+    logger.info("fact backfill: %d fetched, %d already stored → %d snippet update(s)",
+                len(items), len(known), len(updates))
+    if dry_run:
+        for url, text in list(updates.items())[:10]:
+            logger.info("  %s -> %s", url, text[:220])
+        return {"candidates": len(updates), "updated_local": 0, "updated_prod": 0, "dry_run": True}
+    return {
+        "candidates": len(updates),
+        "updated_local": news_store.set_snippets(updates),
+        "updated_prod": push_snippets(updates) if (push and updates) else 0,
+    }
+
+
 # --------------------------------------------------------------------------- #
 # main run
 # --------------------------------------------------------------------------- #
@@ -1193,6 +1410,9 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="fetch+classify, print, do not store/push")
     ap.add_argument("--backfill-images", action="store_true",
                     help="fill preview images on already-stored items (no LLM calls)")
+    ap.add_argument("--backfill-facts", action="store_true",
+                    help="re-read stored openinfo filings and replace bare snippets with their "
+                         "own figures (no LLM calls)")
     ap.add_argument("--purge-failed", action="store_true",
                     help="delete items whose classification failed so the next run retries them")
     args = ap.parse_args()
@@ -1212,6 +1432,9 @@ def main() -> None:
         result = purge_failed(push=not args.no_push)
     elif args.backfill_images:
         result = backfill_images(limit=args.limit, push=not args.no_push)
+    elif args.backfill_facts:
+        result = backfill_facts(limit=max(args.limit, 60), push=not args.no_push,
+                                dry_run=args.dry_run)
     else:
         result = run(only=args.source, limit=args.limit, push=not args.no_push, dry_run=args.dry_run)
     print(json.dumps(result, ensure_ascii=False, indent=2))

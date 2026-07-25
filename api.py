@@ -296,6 +296,11 @@ class AdminNewsImagesRequest(BaseModel):
     images: dict[str, str] = Field(default_factory=dict)
 
 
+class AdminNewsSnippetsRequest(BaseModel):
+    """url → replacement snippet, for enriching already-stored filings in place."""
+    snippets: dict[str, str] = Field(default_factory=dict)
+
+
 class AdminNewsKnownRequest(BaseModel):
     """Candidate URLs a collector is about to classify, for a dedup check against prod."""
     urls: list[str] = Field(default_factory=list, max_length=5000)
@@ -1361,6 +1366,30 @@ async def api_admin_news_images(
         n = await loop.run_in_executor(None, partial(news_store.set_image_urls, images))
     except Exception as exc:
         logger.exception("admin news image update failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "updated": n}
+
+
+@app.post("/api/admin/news/snippets")
+async def api_admin_news_snippets(
+    payload: AdminNewsSnippetsRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Replace the snippet on already-stored news rows (§3.11).
+
+    The openinfo enrichment pass pushes here rather than to /api/admin/news: a full upsert
+    there would rewrite the item's classification from a snippet-only record and drop it out
+    of the feed. Only ``news.snippet`` is touched, and only when the new text is longer, so a
+    re-run can never shrink a row back to its bare "Существенный факт №21".
+    """
+    snippets = payload.snippets or {}
+    if len(snippets) > 2000:
+        raise HTTPException(status_code=422, detail="too many snippets (max 2000 per call)")
+    loop = asyncio.get_running_loop()
+    try:
+        n = await loop.run_in_executor(None, partial(news_store.set_snippets, snippets))
+    except Exception as exc:
+        logger.exception("admin news snippet update failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True, "updated": n}
 
