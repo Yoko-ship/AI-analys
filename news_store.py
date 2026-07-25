@@ -112,19 +112,46 @@ def existing_urls(urls: list[str]) -> set[str]:
 
 
 def rows_without_image(*, limit: int = 40, days: int = 90) -> list[dict[str, Any]]:
-    """Stored items that still have no preview image — backfill candidates, newest first."""
+    """Stored items that still have no preview image — backfill candidates.
+
+    Feed-visible items first (``relevant``, then newest): the per-run fetch cap should
+    be spent on the cards users actually see, not on items filtered out as off-topic.
+    """
     conn = rc.get_catalog_conn()
     rows = conn.execute(
         """
-        SELECT id, url, source_id FROM news
-        WHERE (image_url IS NULL OR image_url = '')
-          AND (published_at IS NULL OR published_at >= datetime('now', ?))
-        ORDER BY COALESCE(published_at, collected_at) DESC LIMIT ?
+        SELECT n.id, n.url, n.source_id FROM news n
+        LEFT JOIN news_nlp p ON p.news_id = n.id
+        WHERE (n.image_url IS NULL OR n.image_url = '')
+          AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))
+        ORDER BY COALESCE(p.relevant, 0) DESC, COALESCE(n.published_at, n.collected_at) DESC
+        LIMIT ?
         """,
         (f"-{int(days)} days", max(1, min(limit, 500))),
     ).fetchall()
     conn.close()
     return [{"id": r["id"], "url": r["url"], "source_id": r["source_id"]} for r in rows]
+
+
+def image_urls_for(urls: list[str]) -> dict[str, str]:
+    """url → stored ``image_url`` for those we already have one for, so a backfill
+    re-run pushes what is already known instead of re-fetching the page."""
+    urls = [u for u in urls if u]
+    if not urls:
+        return {}
+    conn = rc.get_catalog_conn()
+    found: dict[str, str] = {}
+    for i in range(0, len(urls), 400):
+        chunk = urls[i:i + 400]
+        placeholders = ",".join("?" * len(chunk))
+        rows = conn.execute(
+            f"SELECT url, image_url FROM news "
+            f"WHERE url IN ({placeholders}) AND image_url IS NOT NULL AND image_url <> ''",
+            chunk,
+        ).fetchall()
+        found.update({r["url"]: r["image_url"] for r in rows})
+    conn.close()
+    return found
 
 
 def set_image_urls(images: dict[str, str]) -> int:
