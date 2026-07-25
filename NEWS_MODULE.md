@@ -60,6 +60,7 @@ python news_collector.py --no-push          # store locally only
 python news_collector.py                    # collect, classify, store, push to prod
 python news_collector.py --source cbu        # one source
 python news_collector.py --backfill-images   # images for stored items (no LLM calls)
+python news_collector.py --purge-failed      # drop failed classifications so they retry
 python news_agent.py "Hamkorbank dividend"   # try the search agent (needs TAVILY_API_KEY)
 ```
 
@@ -116,8 +117,8 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 
 ## MVP scope & what's pending
 
-Enabled now: `openinfo_facts`, `cbu`, `uzse`, `kursiv`, `spot`, `kun` (covers taxonomy
-categories 1–9). Working today: RSS/CBU fetch + classify + store + push + serve +
+Enabled now: `openinfo_facts`, `cbu`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
+taxonomy categories 1–9). Working today: RSS/CBU fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **openinfo** — set `OPENINFO_FACTS_ENDPOINT` to the material-facts API path to enable.
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
@@ -128,7 +129,11 @@ Railway cron image hit the lazy import and returned `[]` — the 6-hourly run "s
 with 0 items; and Kun.uz's feed URL had moved (`/ru/news/rss` now serves the Next.js
 HTML page; only `/news/rss` and `/api/rss` return XML). An item whose classification
 fails (no key, quota, outage) is now **not stored** — URL dedup would otherwise bury it
-as irrelevant permanently; unstored, it is simply retried next run.
+as irrelevant permanently; unstored, it is simply retried next run. Rows already buried
+that way are cleared with `--purge-failed` (local + prod via
+`POST /api/admin/news/purge-failed`), which deletes only rows whose reason is exactly
+`classification_failed` — deleting the row *is* the retry, since the feed serves the item
+again on the next run.
 
 Deferred to later phases (`news_ai_module_scope.md` §8): the 4 anomaly detectors
 (spike / synchrony / media-attack / anomaly → `news_signals`), which need ≥90 days

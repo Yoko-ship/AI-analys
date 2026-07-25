@@ -179,6 +179,42 @@ def set_image_urls(images: dict[str, str]) -> int:
     return changed
 
 
+def delete_failed_classifications(*, limit: int = 1000) -> dict[str, Any]:
+    """Drop items whose classification failed, so the collector can retry them.
+
+    A failed classification (no API key, quota, outage) is stored as ``relevant = 0``:
+    invisible in the feed, yet its URL makes ``existing_urls`` treat the item as done —
+    permanently blocking a re-classification. Deleting the row is the retry: the source
+    feed serves the item again on the next run. Only rows whose reason is exactly
+    ``classification_failed`` are touched; a genuine "not market-relevant" verdict carries
+    a real reason string and is left alone.
+    """
+    conn = rc.get_catalog_conn()
+    rows = conn.execute(
+        """
+        SELECT n.id, n.source_id FROM news n JOIN news_nlp p ON p.news_id = n.id
+        WHERE p.reason = 'classification_failed' LIMIT ?
+        """,
+        (max(1, min(limit, 5000)),),
+    ).fetchall()
+    ids = [r["id"] for r in rows]
+    by_source: dict[str, int] = {}
+    for r in rows:
+        key = r["source_id"] or "?"
+        by_source[key] = by_source.get(key, 0) + 1
+    # ON DELETE CASCADE is declared and foreign_keys is ON, but the children are removed
+    # explicitly so this stays correct on any connection.
+    with conn:
+        for i in range(0, len(ids), 400):
+            chunk = ids[i:i + 400]
+            placeholders = ",".join("?" * len(chunk))
+            conn.execute(f"DELETE FROM news_entities WHERE news_id IN ({placeholders})", chunk)
+            conn.execute(f"DELETE FROM news_nlp WHERE news_id IN ({placeholders})", chunk)
+            conn.execute(f"DELETE FROM news WHERE id IN ({placeholders})", chunk)
+    conn.close()
+    return {"deleted": len(ids), "by_source": by_source}
+
+
 def _row_to_item(r: Any) -> dict[str, Any]:
     return {
         "id": r["id"], "url": r["url"], "source": r["source"], "source_id": r["source_id"],

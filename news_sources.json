@@ -103,14 +103,14 @@
       "name": "UzDaily.uz",
       "type": "rss",
       "url": "https://uzdaily.uz/rss",
-      "lang": ["en", "ru", "uz"],
+      "lang": ["ru", "en", "uz"],
       "content": "snippet",
       "coverage_weight": 0.6,
       "legal": "caution",
       "attribution": "UzDaily.uz",
-      "enabled": false,
+      "enabled": true,
       "crawl_delay_s": 10,
-      "notes": "Business daily; English mirror of financial news. Feed ships its own images (verified 2026-07-25: 10/10) and robots.txt explicitly allows ClaudeBot/GPTBot. Deferred."
+      "notes": "Business daily. Enabled 2026-07-25: /rss serves Russian items, 20/20 with their own image, 20/20 dated, clean titles/snippets, and a high share of market news (bank assets, mortgage volumes, IMF missions, stablecoin rules) — denser signal than kursiv's whole-site feed. robots.txt explicitly allows ClaudeBot/GPTBot."
     },
     {
       "id": "review",
