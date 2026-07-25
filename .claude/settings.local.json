@@ -48,7 +48,8 @@
       "PowerShell(railway service *)",
       "PowerShell(cd D:\\\\projects; \"=== .dockerignore ===\"; Get-Content .dockerignore; \"=== service state ===\"; $out = railway status 2>&1 | Out-String; $i = $out.IndexOf\\(\"All resources\"\\); if \\($i -ge 0\\) { $out.Substring\\($i\\) })",
       "PowerShell(railway variables *)",
-      "Bash(railway logs *)"
+      "Bash(railway logs *)",
+      "PowerShell(cd D:\\\\projects; \\(railway logs --service news-collector --deployment 2>&1 | Out-String\\) -split \"`n\" | Where-Object { $_ -match \"openinfo|issuer catalog|universe\" })"
     ]
   }
 }
