@@ -49,7 +49,7 @@ Either way the returned items can be fed back through `classify_item` and stored
 | `news_store.py` | `news` / `news_nlp` / `news_entities` upsert + read helpers |
 | `news_collector.py` | Orchestrator + CLI (fetch → dedup → classify → store → push) |
 | `reports_catalog.py` | Schema for the three news tables (in `_init_schema`) |
-| `api.py` | `GET /api/news/feed`, `GET /api/news/ticker/{ticker}`, `POST /api/admin/news`, `POST /api/admin/news/images` |
+| `api.py` | `GET /api/news/feed`, `GET /api/news/item/{id}`, `GET /api/news/ticker/{ticker}`, `POST /api/admin/news`, `POST /api/admin/news/images` |
 
 ## Setup
 
@@ -82,7 +82,7 @@ python news_collector.py --purge-failed      # drop failed classifications so th
 python news_agent.py "Hamkorbank dividend"   # try the search agent (needs TAVILY_API_KEY)
 ```
 
-Serve: `GET /api/news/feed?limit=60&days=30`, `GET /api/news/ticker/HMKB`.
+Serve: `GET /api/news/feed?limit=60&days=30`, `GET /api/news/item/106`, `GET /api/news/ticker/HMKB`.
 
 ## Ranking & noise control (the read path)
 
@@ -110,6 +110,23 @@ chronological.
 
 Set `NEWS_MIN_RELEVANCE=0`, `NEWS_DEDUP_SIMILARITY=0` or `NEWS_RANK_HALF_LIFE_H=0` to switch
 any stage off without a code change.
+
+## The story page (`/news/{id}`)
+
+A card opens the story **on our own site**, not at the outlet: `/news/{id}` is a real route
+(deep-linkable, back/forward works, the SPA fallback in `api.py` serves it), backed by
+`GET /api/news/item/{id}` → `news_store.get_news_item` + `get_related_news`.
+
+**It costs nothing per view.** The page is a plain SQLite read of the row the collector
+already wrote — headline, our own `summary_ru`, the stored tone / impact / direction /
+relevance, the issuers it names, related stories by shared ticker then by class. No model
+is called on this path, so opening an article can never move the LLM bill; the §3.11 budget
+still depends only on how many *new* items the collector classifies.
+
+The legal invariant is unchanged: the source's article body is never stored, so it is never
+served here. The page shows our own summary and attributes the outlet with an explicit
+"read at the source" link out — the one and only off-site jump. `reason` stays server-side:
+the classifier prompt declares it an internal note, so `get_news_item` does not return it.
 
 ## Card images
 

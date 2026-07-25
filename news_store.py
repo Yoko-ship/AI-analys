@@ -420,6 +420,108 @@ def get_news_feed(
     return items[:max(1, min(limit, 200))]
 
 
+def get_news_item(news_id: int) -> dict[str, Any] | None:
+    """One stored item with everything the article page shows — or ``None``.
+
+    Read-only over what the collector already wrote: headline, our own ``summary_ru``,
+    the classifier's tone / impact / direction, the issuers it names and the link out.
+    Opening an article therefore costs nothing — no model is called on this path, and no
+    source article body is served, because we never store one (see the module docstring).
+
+    ``reason`` is deliberately not returned: the classifier prompt declares it an internal
+    note, so it stays internal.
+    """
+    try:
+        news_id = int(news_id)
+    except (TypeError, ValueError):
+        return None
+    conn = rc.get_catalog_conn()
+    row = conn.execute(
+        """
+        SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,
+               p.relevant, p.relevance_score, p.model, p.classified_at,
+               (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e
+                 WHERE e.news_id = n.id) AS tickers_csv
+        FROM news n JOIN news_nlp p ON p.news_id = n.id
+        WHERE n.id = ?
+        """,
+        (news_id,),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    item = _row_to_item(row)
+    item.update({
+        "relevant": bool(row["relevant"]),
+        "model": row["model"],
+        "classified_at": row["classified_at"],
+        "collected_at": row["collected_at"],
+    })
+    item["rank"] = rank_score(item)
+    return item
+
+
+def get_related_news(news_id: int, *, limit: int = 6, days: int = 180) -> list[dict[str, Any]]:
+    """Neighbouring stories for the article page, best link first.
+
+    Items sharing an issuer come first — on a platform organised by issuer that is the
+    strongest connection — then the rest of the same news class fills the block. Plain SQL
+    over stored rows: no similarity model, no extra classification.
+    """
+    try:
+        news_id = int(news_id)
+    except (TypeError, ValueError):
+        return []
+    cap = max(1, min(limit, 20))
+    window = f"-{int(days)} days"
+    conn = rc.get_catalog_conn()
+    base = conn.execute(
+        """
+        SELECT p.type, (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e
+                         WHERE e.news_id = n.id) AS tickers_csv
+        FROM news n JOIN news_nlp p ON p.news_id = n.id WHERE n.id = ?
+        """,
+        (news_id,),
+    ).fetchone()
+    if base is None:
+        conn.close()
+        return []
+    select = (
+        "SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,"
+        "       p.relevance_score,"
+        "       (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e"
+        "         WHERE e.news_id = n.id) AS tickers_csv"
+        " FROM news n JOIN news_nlp p ON p.news_id = n.id"
+    )
+    recent = ("AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))"
+              " ORDER BY COALESCE(n.published_at, n.collected_at) DESC LIMIT ?")
+    picked: dict[int, dict[str, Any]] = {}
+
+    tickers = [t for t in (base["tickers_csv"] or "").split(",") if t]
+    if tickers:
+        placeholders = ",".join("?" * len(tickers))
+        rows = conn.execute(
+            f"{select} JOIN news_entities x ON x.news_id = n.id"
+            f" WHERE x.ticker IN ({placeholders}) AND n.id <> ? AND p.relevant = 1"
+            f" GROUP BY n.id {recent}",
+            (*tickers, news_id, window, cap),
+        ).fetchall()
+        for r in rows:
+            picked[r["id"]] = _row_to_item(r)
+
+    if len(picked) < cap and base["type"]:
+        rows = conn.execute(
+            f"{select} WHERE p.type = ? AND n.id <> ? AND p.relevant = 1 {recent}",
+            (base["type"], news_id, window, cap * 2),
+        ).fetchall()
+        for r in rows:
+            if len(picked) >= cap:
+                break
+            picked.setdefault(r["id"], _row_to_item(r))
+    conn.close()
+    return list(picked.values())[:cap]
+
+
 def get_news_for_ticker(ticker: str, *, limit: int = 30, days: int = 90) -> list[dict[str, Any]]:
     conn = rc.get_catalog_conn()
     rows = conn.execute(

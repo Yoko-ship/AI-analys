@@ -1070,6 +1070,27 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
     return _json_safe({"ok": True, "count": len(items), "items": items, "disclaimer": NEWS_DISCLAIMER})
 
 
+@app.get("/api/news/item/{news_id}")
+async def api_news_item(news_id: int, related: int = 6) -> dict[str, Any]:
+    """One news item + its neighbours — the read path behind the /news/{id} page (§3.11).
+
+    Pure database read of what the collector already stored (headline, our own summary, the
+    classifier's tone / impact / direction, issuer links, source link), so opening an
+    article never triggers a model call and costs nothing. The source's article body is
+    not served here — it is never stored; the page links out for the full text.
+    """
+    loop = asyncio.get_running_loop()
+    item = await loop.run_in_executor(None, partial(news_store.get_news_item, news_id))
+    if item is None:
+        raise HTTPException(status_code=404, detail="news item not found")
+    neighbours: list[dict[str, Any]] = []
+    if related > 0:
+        neighbours = await loop.run_in_executor(
+            None, partial(news_store.get_related_news, news_id, limit=min(related, 20)))
+    return _json_safe({"ok": True, "item": item, "related": neighbours,
+                       "disclaimer": NEWS_DISCLAIMER})
+
+
 @app.get("/api/news/ticker/{ticker}")
 async def api_news_ticker(ticker: str, limit: int = 30, days: int = 90) -> dict[str, Any]:
     """Per-issuer news + coverage-weighted background tone (the §3.4 info dimension)."""

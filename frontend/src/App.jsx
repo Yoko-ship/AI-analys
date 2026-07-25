@@ -17,18 +17,29 @@ const VIEW_PATHS = {
   auth: "/login",
 };
 
-function viewToPath(view, ticker) {
+function viewToPath(view, ticker, newsId) {
   if (view === "company" && ticker) return `/company/${encodeURIComponent(ticker)}`;
+  if (view === "newsArticle" && newsId) return `/news/${encodeURIComponent(newsId)}`;
   return VIEW_PATHS[view] || "/";
 }
 
 function pathToView(pathname) {
   const clean = (pathname || "/").replace(/\/+$/, "") || "/";
   if (clean.startsWith("/company/")) {
-    return { view: "company", ticker: decodeURIComponent(clean.slice("/company/".length)) };
+    return { view: "company", ticker: decodeURIComponent(clean.slice("/company/".length)), newsId: null };
+  }
+  // /news is the feed; /news/{id} is one story on its own page.
+  if (clean.startsWith("/news/")) {
+    const id = decodeURIComponent(clean.slice("/news/".length)).split("/")[0];
+    return id ? { view: "newsArticle", ticker: null, newsId: id }
+              : { view: "news", ticker: null, newsId: null };
   }
   const found = Object.entries(VIEW_PATHS).find(([, p]) => p === clean);
-  return { view: found ? found[0] : "main", ticker: null };
+  return { view: found ? found[0] : "main", ticker: null, newsId: null };
+}
+
+function newsArticlePath(item) {
+  return item && item.id ? `/news/${encodeURIComponent(item.id)}` : (item && item.url) || "#";
 }
 
 const STORAGE_KEY = "uz_stock_analyzer_token";
@@ -441,21 +452,33 @@ function feedSentiment(items) {
   return { avg, counts, pct: Math.round(((avg + 1) / 2) * 100), cls: avg > 0.15 ? "pos" : avg < -0.15 ? "neg" : "neu" };
 }
 
+// Plain left-clicks are handled in-app; modified clicks (new tab, new window) and
+// middle-clicks are left to the browser, which is why these are real <a href> links.
+function interceptNav(handler) {
+  return (event) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    handler();
+  };
+}
+
 // Editorial news card ("Ledger" direction): serif headline, source image when the
 // source provides one (else a category-tinted placeholder), source name shown in
-// the byline, our own summary, and the AI tone/impact signal. Links to the source.
-function EdNewsCard({ item, language, variant }) {
+// the byline, our own summary, and the AI tone/impact signal. Opens our own
+// /news/{id} story page — the source link lives there, on the article itself.
+function EdNewsCard({ item, language, variant, onOpen }) {
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const isLead = variant === "lead";
   const TitleTag = isLead ? "h2" : "h3";
   const [imgOk, setImgOk] = React.useState(true);
-  const open = () => { if (item.url) window.open(item.url, "_blank", "noopener,noreferrer"); };
+  const inApp = Boolean(item.id && onOpen);
   const summary = item.summary_ru || item.snippet || "";
   const toneCls = _TONE_CLS[item.tone] || "neu";
   const cat = item.type || "market";
   return (
-    <article className={isLead ? "led-lead" : "led-story"} role="button" tabIndex={0}
-      onClick={open} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}>
+    <a className={isLead ? "led-lead" : "led-story"} href={newsArticlePath(item)}
+      {...(inApp ? { onClick: interceptNav(() => onOpen(item)) } : { target: "_blank", rel: "noopener noreferrer" })}>
       <div className={isLead ? "led-figure" : "led-thumb"} data-cat={cat}>
         {item.image_url && imgOk && (
           <img src={item.image_url} alt="" loading="lazy" onError={() => setImgOk(false)} />
@@ -471,11 +494,11 @@ function EdNewsCard({ item, language, variant }) {
         {summary && <p className={isLead ? "led-dek" : "led-story-dek"}>{summary}</p>}
         <div className="led-byline">{item.source && <b>{item.source}</b>}{item.published_at ? ` · ${newsRelTime(item.published_at, language)}` : ""}</div>
       </div>
-    </article>
+    </a>
   );
 }
 
-function NewsView({ language, onOpenCompany, user, apiFetch }) {
+function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
   const tx = NEWS_TX[language] || NEWS_TX.ru;
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const [state, setState] = React.useState({ loading: true, error: false, items: [] });
@@ -526,12 +549,12 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
       ) : (
         <div className="led-cols">
           <main className="led-main">
-            {lead && <EdNewsCard item={lead} language={language} variant="lead" />}
+            {lead && <EdNewsCard item={lead} language={language} variant="lead" onOpen={onOpenNews} />}
             {stack.length > 0 && (
               <>
                 <div className="led-rule" />
                 <div className="led-stack">
-                  {stack.map((it, i) => <EdNewsCard key={it.id || i} item={it} language={language} variant="story" />)}
+                  {stack.map((it, i) => <EdNewsCard key={it.id || i} item={it} language={language} variant="story" onOpen={onOpenNews} />)}
                 </div>
               </>
             )}
@@ -550,7 +573,10 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
             <div className="led-panel led-latest">
               <h4 className="led-panel-h">{tx.latest}</h4>
               {latest.slice(0, 7).map((it, i) => (
-                <a key={it.id || i} className="led-lt" href={it.url} target="_blank" rel="noopener noreferrer">
+                <a key={it.id || i} className="led-lt" href={newsArticlePath(it)}
+                  {...(it.id && onOpenNews
+                    ? { onClick: interceptNav(() => onOpenNews(it)) }
+                    : { target: "_blank", rel: "noopener noreferrer" })}>
                   <span className={`led-dot ${_TONE_CLS[it.tone] || "neu"}`} />
                   <span className="led-lt-t">{it.title}</span>
                   <span className="led-lt-s">{it.source}{it.published_at ? ` · ${newsRelTime(it.published_at, language)}` : ""}</span>
@@ -560,6 +586,215 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
           </aside>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── /news/{id}: one story on its own page ────────────────────────────────────
+// Everything here comes from the row the collector already stored (headline, our own
+// summary, the classifier's tone / impact / direction, issuer links). Opening a story
+// is a plain database read — no model is called, so the §3.11 LLM budget is untouched.
+// The source's article text is never stored and never shown: the page attributes the
+// outlet and links out for the full text.
+const NEWS_ARTICLE_TX = {
+  ru: {
+    back: "Все новости", loading: "Загружаем новость…",
+    notFound: "Новость не найдена или уже недоступна.", error: "Не удалось загрузить новость.",
+    summaryNote: "Краткое изложение подготовлено платформой на основе публикации источника. Полный текст — на сайте источника.",
+    noSummary: "Краткого изложения нет — откройте публикацию у источника.",
+    readSource: "Читать в источнике", signal: "Оценка влияния", tone: "Тональность",
+    impact: "Возможное влияние", direction: "Направление", relevance: "Релевантность рынку",
+    dir: { up: "рост", down: "снижение", mixed: "смешанное", unclear: "неясно" },
+    impactNone: "не значимо", tickers: "Упомянутые эмитенты",
+    tickersHint: "Откройте карточку эмитента — котировки, отчётность и его новости.",
+    sectors: "Секторы", related: "По теме", source: "Источник",
+  },
+  en: {
+    back: "All news", loading: "Loading the story…",
+    notFound: "This story was not found, or is no longer available.", error: "Could not load the story.",
+    summaryNote: "This summary was prepared by the platform from the source's publication. The full text is on the source's site.",
+    noSummary: "No summary available — open the publication at the source.",
+    readSource: "Read at the source", signal: "Impact assessment", tone: "Tone",
+    impact: "Possible impact", direction: "Direction", relevance: "Market relevance",
+    dir: { up: "up", down: "down", mixed: "mixed", unclear: "unclear" },
+    impactNone: "not material", tickers: "Issuers mentioned",
+    tickersHint: "Open an issuer to see its quotes, filings and news.",
+    sectors: "Sectors", related: "Related", source: "Source",
+  },
+  uz: {
+    back: "Barcha yangiliklar", loading: "Yangilik yuklanmoqda…",
+    notFound: "Yangilik topilmadi yoki endi mavjud emas.", error: "Yangilikni yuklab bo'lmadi.",
+    summaryNote: "Qisqacha bayon platforma tomonidan manba nashri asosida tayyorlangan. To'liq matn manba saytida.",
+    noSummary: "Qisqacha bayon yo'q — nashrni manbada oching.",
+    readSource: "Manbada o'qish", signal: "Ta'sir bahosi", tone: "Ohang",
+    impact: "Mumkin bo'lgan ta'sir", direction: "Yo'nalish", relevance: "Bozorga aloqadorlik",
+    dir: { up: "o'sish", down: "pasayish", mixed: "aralash", unclear: "noaniq" },
+    impactNone: "ahamiyatsiz", tickers: "Tilga olingan emitentlar",
+    tickersHint: "Emitent kartasini oching — kotirovkalar, hisobotlar va yangiliklar.",
+    sectors: "Sektorlar", related: "Mavzu bo'yicha", source: "Manba",
+  },
+};
+
+function newsAbsTime(dateStr, language) {
+  if (!dateStr) return "";
+  const raw = String(dateStr).replace(" ", "T");
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return String(dateStr);
+  const loc = language === "en" ? "en-US" : language === "uz" ? "uz-UZ" : "ru-RU";
+  const opts = { day: "numeric", month: "long", year: "numeric" };
+  if (raw.length > 10) { opts.hour = "2-digit"; opts.minute = "2-digit"; }
+  return d.toLocaleString(loc, opts);
+}
+
+function newsHost(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
+}
+
+function NewsArticleView({ newsId, language, onOpenCompany, onOpenNews, onBack }) {
+  const tx = NEWS_ARTICLE_TX[language] || NEWS_ARTICLE_TX.ru;
+  const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
+  const [state, setState] = React.useState({ loading: true, error: "", data: null });
+  const [imgOk, setImgOk] = React.useState(true);
+
+  React.useEffect(() => {
+    let alive = true;
+    setState({ loading: true, error: "", data: null });
+    setImgOk(true);
+    window.scrollTo({ top: 0, behavior: "auto" });
+    fetch(`/api/news/item/${encodeURIComponent(newsId)}`)
+      .then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }))
+      .then(({ status, body }) => {
+        if (!alive) return;
+        if (body && body.ok) setState({ loading: false, error: "", data: body });
+        // 422 = a hand-typed /news/{something-that-is-not-an-id}: still "no such story".
+        else setState({ loading: false, error: status === 404 || status === 422 ? "notFound" : "error", data: null });
+      })
+      .catch(() => { if (alive) setState({ loading: false, error: "error", data: null }); });
+    return () => { alive = false; };
+  }, [newsId]);
+
+  const back = (
+    <a className="led-back" href={VIEW_PATHS.news} onClick={interceptNav(onBack)}>← {tx.back}</a>
+  );
+
+  if (state.loading) {
+    return (
+      <div className="news-view led">
+        {back}
+        <div className="led-cols">
+          <div className="led-main"><div className="led-skel-row" /><div className="led-skel-lead" /><div className="led-skel-row" /></div>
+          <aside className="led-rail"><div className="led-skel-panel" /></aside>
+        </div>
+      </div>
+    );
+  }
+  if (state.error || !state.data) {
+    return (
+      <div className="news-view led">
+        {back}
+        <div className="led-empty">{state.error === "notFound" ? tx.notFound : tx.error}</div>
+      </div>
+    );
+  }
+
+  const { item, related = [], disclaimer } = state.data;
+  const summary = item.summary_ru || item.snippet || "";
+  const toneCls = _TONE_CLS[item.tone] || "neu";
+  const cat = item.type || "market";
+  const host = newsHost(item.url);
+  const tickers = Array.isArray(item.tickers) ? item.tickers : [];
+  const sectors = Array.isArray(item.sectors) ? item.sectors : [];
+  const relevancePct = typeof item.relevance_score === "number"
+    ? `${Math.round(Math.max(0, Math.min(item.relevance_score, 1)) * 100)}%` : null;
+  const toneScore = typeof item.tone_score === "number"
+    ? `${item.tone_score >= 0 ? "+" : ""}${item.tone_score.toFixed(2)}` : "";
+
+  return (
+    <div className="news-view led">
+      {back}
+      <div className="led-cols">
+        <main className="led-main">
+          <article className="led-art">
+            <div className="led-eyebrow">
+              <span className="led-cat">{etx.cat[item.type] || item.type}</span>
+              {item.tone && <><span className="led-sep">·</span><span className={`led-tone ${toneCls}`}>{etx.tone[item.tone] || item.tone}</span></>}
+              {item.impact && item.impact !== "none" && <><span className="led-sep">·</span><span className="led-imp">{etx.impact[item.impact] || item.impact}</span></>}
+            </div>
+            <h1 className="led-art-title">{item.title}</h1>
+            <div className="led-art-byline">
+              {item.source && <b>{item.source}</b>}
+              {item.published_at && <span>{newsAbsTime(item.published_at, language)}</span>}
+              {item.published_at && <span className="led-art-rel">{newsRelTime(item.published_at, language)}</span>}
+            </div>
+
+            {item.image_url && imgOk && (
+              <div className="led-figure led-art-figure" data-cat={cat}>
+                <img src={item.image_url} alt="" loading="lazy" onError={() => setImgOk(false)} />
+              </div>
+            )}
+
+            <p className="led-art-lead">{summary || tx.noSummary}</p>
+
+            <div className="led-art-source">
+              <p className="led-art-note">{tx.summaryNote}</p>
+              {item.url && (
+                <a className="led-art-cta" href={item.url} target="_blank" rel="noopener noreferrer nofollow">
+                  {tx.readSource}
+                  {host && <span className="led-art-host">{host}</span>}
+                </a>
+              )}
+            </div>
+
+            {tickers.length > 0 && (
+              <section className="led-art-block">
+                <h3 className="led-panel-h">{tx.tickers}</h3>
+                <div className="led-chips">
+                  {tickers.map((tk) => (
+                    <button key={tk} type="button" className="led-chip led-chip--action"
+                      onClick={() => onOpenCompany && onOpenCompany(tk)}>{tk}</button>
+                  ))}
+                </div>
+                <p className="led-art-hint">{tx.tickersHint}</p>
+              </section>
+            )}
+
+            {sectors.length > 0 && (
+              <section className="led-art-block">
+                <h3 className="led-panel-h">{tx.sectors}</h3>
+                <div className="led-chips">
+                  {sectors.map((s, i) => <span key={`${s}-${i}`} className="led-chip">{s}</span>)}
+                </div>
+              </section>
+            )}
+          </article>
+
+          {related.length > 0 && (
+            <section className="led-art-related">
+              <div className="led-rule" />
+              <h3 className="led-panel-h">{tx.related}</h3>
+              <div className="led-stack">
+                {related.map((it, i) => (
+                  <EdNewsCard key={it.id || i} item={it} language={language} variant="story" onOpen={onOpenNews} />
+                ))}
+              </div>
+            </section>
+          )}
+        </main>
+
+        <aside className="led-rail">
+          <div className="led-panel">
+            <h4 className="led-panel-h">{tx.signal}</h4>
+            <dl className="led-sig">
+              <div><dt>{tx.tone}</dt><dd className={toneCls}>{etx.tone[item.tone] || item.tone} {toneScore}</dd></div>
+              <div><dt>{tx.impact}</dt><dd>{item.impact === "none" ? tx.impactNone : (etx.impact[item.impact] || item.impact)}</dd></div>
+              <div><dt>{tx.direction}</dt><dd>{tx.dir[item.direction] || item.direction || tx.dir.unclear}</dd></div>
+              {relevancePct && <div><dt>{tx.relevance}</dt><dd>{relevancePct}</dd></div>}
+              {item.source && <div><dt>{tx.source}</dt><dd>{item.source}</dd></div>}
+            </dl>
+            {disclaimer && <p className="led-sig-note">{disclaimer}</p>}
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
@@ -7269,6 +7504,7 @@ function App() {
   const [authMessage, setAuthMessage] = useState("");
   const [analysisCompany, setAnalysisCompany] = useState("");
   const [companyTicker, setCompanyTicker] = useState(() => pathToView(window.location.pathname).ticker);
+  const [newsId, setNewsId] = useState(() => pathToView(window.location.pathname).newsId);
   const [prevView, setPrevView] = useState("market");
   const [selectedSector, setSelectedSector] = useState(null);
   const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
@@ -7419,17 +7655,18 @@ function App() {
 
   // Keep the browser URL in sync with the active view (push a history entry).
   useEffect(() => {
-    const target = viewToPath(activeView, companyTicker);
+    const target = viewToPath(activeView, companyTicker, newsId);
     if (window.location.pathname !== target) {
       window.history.pushState({ view: activeView }, "", target);
     }
-  }, [activeView, companyTicker]);
+  }, [activeView, companyTicker, newsId]);
 
   // React to browser back/forward by restoring the view from the URL.
   useEffect(() => {
     const onPop = () => {
-      const { view, ticker } = pathToView(window.location.pathname);
+      const { view, ticker, newsId: popNewsId } = pathToView(window.location.pathname);
       if (ticker) setCompanyTicker(ticker);
+      if (popNewsId) setNewsId(popNewsId);
       setActiveView(view);
     };
     window.addEventListener("popstate", onPop);
@@ -7566,6 +7803,14 @@ function App() {
     setPrevView(activeView);
     setCompanyTicker(ticker);
     setActiveView("company");
+  };
+
+  // A story opens on our own /news/{id} page instead of jumping to the outlet.
+  const openNewsArticle = (item) => {
+    const id = item && (item.id != null ? item.id : item);
+    if (id == null || id === "") return;
+    setNewsId(String(id));
+    setActiveView("newsArticle");
   };
 
   const loadMarketStocks = async () => {
@@ -8171,7 +8416,7 @@ function App() {
           <button className="topbar-nav-scrim" type="button" aria-hidden="true" tabIndex={-1} onClick={() => setMobileNavOpen(false)} />
           <nav className="topbar-nav">
             {navItems.map((key) => (
-              <button key={key} className={`topbar-nav-btn ${activeView === key ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>
+              <button key={key} className={`topbar-nav-btn ${activeView === key || (key === "news" && activeView === "newsArticle") ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>
                 {key === "catalog" ? (
                   <span className="nav-catalog-wrap">
                     {t(language, "nav.catalog")}
@@ -8342,7 +8587,18 @@ function App() {
 
           {activeView === "reference" && <ReferenceView language={language} />}
 
-          {activeView === "news" && <NewsView language={language} onOpenCompany={openCompanyPage} user={user} apiFetch={apiFetch} />}
+          {activeView === "news" && <NewsView language={language} onOpenCompany={openCompanyPage} onOpenNews={openNewsArticle} user={user} apiFetch={apiFetch} />}
+
+          {activeView === "newsArticle" && newsId && (
+            <NewsArticleView
+              key={newsId}
+              newsId={newsId}
+              language={language}
+              onOpenCompany={openCompanyPage}
+              onOpenNews={openNewsArticle}
+              onBack={() => setActiveView("news")}
+            />
+          )}
 
           {activeView === "company" && companyTicker && (
             <CompanyPage
