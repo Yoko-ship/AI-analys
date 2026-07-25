@@ -195,7 +195,48 @@ with `"max_items"` (kursiv is at 15), `NEWS_MAX_AGE_DAYS` skips stale items befo
 `NEWS_TRIAGE_FLOOR` sets how eagerly borderline items get the full pass, and canonicalised
 URLs (tracking params stripped) stop `utm_*` variants from being re-classified as new.
 
+## Duplicate prevention
+
+Six layers, because a duplicate costs twice — once in LLM spend, once as a repeated card:
+
+| Where | Mechanism |
+|---|---|
+| Fetch | Tracking params stripped (`utm_*`, `fbclid`, …) so `?utm_campaign=x` is not a new article |
+| Within a run | Items collapsed on their **canonical** URL, so two sources (or two pages of one source) that surface the same link are classified once |
+| Before classifying | `existing_urls` against the local history **and** `POST /api/admin/news/known` against prod |
+| openinfo | Same issuer + fact type + day grouped into one card (8 affiliate-deal notices in an hour → 1) |
+| Storage | `news.url` is UNIQUE with `ON CONFLICT DO UPDATE` — the same URL can never become two rows |
+| Read (feed) | Same story from several outlets merged by title overlap, best-ranked copy kept |
+
+The prod check is what makes a **scheduled** run safe. The collector's memory of what it has
+already classified normally lives in its own SQLite file; a cron container starts without one,
+so local-only dedup would re-classify every item on every run — prod's UNIQUE(url) would keep
+the rows correct while the LLM bill quietly doubled. The check fails soft: if prod is
+unreachable the run continues on local history and logs it, rather than aborting or
+re-classifying blindly.
+
+Not deduplicated, on purpose: recurring stories with distinct headlines (a daily FX report is
+new each day), and the same story stored from two outlets — both rows are kept, the feed just
+shows one.
+
 ## Schedule vs feed depth
+
+> **The schedule is not running yet.** `railway status` (2026-07-25) shows exactly two
+> resources — the `AI-analys` app service and Postgres — so `railway.news.json` is inert: a
+> config file only takes effect once a service is pointed at it. Until that service exists,
+> every collection is a manual `railway run`. To create it:
+>
+> ```bash
+> railway add --service news-collector --repo Yoko-ship/AI-analys --branch API \
+>   --variables "APP_MODE=news-collector" --variables "XAI_API_KEY=..." \
+>   --variables "ADMIN_API_SECRET=..." --variables "NEWS_PUSH_URL=https://<api-host>"
+> ```
+>
+> `railway.json`'s start command already branches on `APP_MODE=news-collector`, so the default
+> config is enough to run it. The **cron schedule itself has to be set in the dashboard**
+> (Service → Settings → Cron Schedule) — the CLI cannot set it. Do **not** attach the app's
+> volume: a Railway volume mounts to one service only, and the collector no longer needs local
+> history thanks to the prod dedup check above.
 
 `railway.news.json` runs at **02:30 and 14:30 UTC = 07:30 / 19:30 Tashkent** (Railway
 evaluates cron in UTC; the container's `TZ=Asia/Tashkent` does not change that). Halving the

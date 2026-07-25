@@ -490,6 +490,34 @@ def push_news(items: list[dict[str, Any]]) -> int:
     return 0
 
 
+def known_urls_in_prod(urls: list[str]) -> set[str]:
+    """The subset of ``urls`` prod already stores — dedup memory that does not depend on this
+    host's SQLite file.
+
+    Matters for the scheduled deployment: a cron container starts with an empty database, so
+    local-only dedup would re-classify every item on every run. Prod's UNIQUE(url) keeps the
+    rows correct, but the LLM bill would be paid again each time. Fails soft — on any error we
+    fall back to local history and log it, rather than skipping the run.
+    """
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if not secret or not urls:
+        return set()
+    found: set[str] = set()
+    for i in range(0, len(urls), 500):
+        chunk = urls[i:i + 500]
+        try:
+            resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/known",
+                                 json={"urls": chunk},
+                                 headers={"X-Admin-Secret": secret}, timeout=60)
+            resp.raise_for_status()
+            found.update((resp.json() or {}).get("known") or [])
+        except (requests.RequestException, ValueError) as exc:
+            logger.warning("could not ask prod which URLs it already has (%s); "
+                           "using local history only", exc)
+            return found
+    return found
+
+
 def push_images(images: dict[str, str]) -> int:
     """Push image-only updates (url → image_url) and return the rows prod changed.
 
@@ -635,10 +663,33 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     if before_age != len(raw):
         logger.info("recency filter: dropped %d item(s) older than %d days", before_age - len(raw), max_age)
 
+    # Within one run, two sources — or two pages of the same source — can surface the same
+    # article. Collapsing them here means we never pay to classify it twice (the store's
+    # UNIQUE(url) would merge the rows afterwards, but only after the money was spent).
+    # Keyed on the canonical form rather than whatever the adapter produced, so this holds
+    # even for a fetcher that forgets to canonicalise its links.
+    unique: dict[str, dict[str, Any]] = {}
+    for it in raw:
+        unique.setdefault(_canonical_url(it["url"]), it)
+    if len(unique) != len(raw):
+        logger.info("intra-run dedup: %d duplicate URL(s) inside this run", len(raw) - len(unique))
+    raw = list(unique.values())
+
     # Dedup on the canonical URL, but also on the feed's original link so rows stored
-    # before canonicalisation are still recognised instead of re-classified once.
-    seen = news_store.existing_urls(
-        [it["url"] for it in raw] + [it["raw_url"] for it in raw if it.get("raw_url")])
+    # before canonicalisation are still recognised instead of re-classified once. Prod is
+    # asked too, so a run with no local history (a fresh cron container) is not a blank slate.
+    candidates = [it["url"] for it in raw] + [it["raw_url"] for it in raw if it.get("raw_url")]
+    seen = news_store.existing_urls(candidates)
+    if push:
+        try:
+            remote_seen = known_urls_in_prod(sorted(set(candidates)))
+        except Exception:  # noqa: BLE001 — a dedup check must never abort the run
+            logger.exception("prod dedup check failed; using local history only")
+            remote_seen = set()
+        if remote_seen - seen:
+            logger.info("dedup: %d item(s) already in prod but not in the local history",
+                        len(remote_seen - seen))
+        seen |= remote_seen
     fresh = [it for it in raw
              if it["url"] not in seen and (it.get("raw_url") or it["url"]) not in seen]
     logger.info("fetched %d, %d already stored, %d new", len(raw), len(raw) - len(fresh), len(fresh))
