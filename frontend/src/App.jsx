@@ -493,6 +493,12 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
   const { loading, error, items } = state;
   const lead = items[0];
   const stack = items.slice(1);
+  // The main column follows the API's impact ranking; the rail is literally "latest", so it
+  // needs its own chronological copy rather than the top of the ranked list.
+  const latest = React.useMemo(
+    () => [...items].sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || ""))),
+    [items],
+  );
   const mood = feedSentiment(items);
   const moodLabel = mood.cls === "pos" ? etx.moodPos : mood.cls === "neg" ? etx.moodNeg : etx.moodNeu;
 
@@ -543,7 +549,7 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
             </div>
             <div className="led-panel led-latest">
               <h4 className="led-panel-h">{tx.latest}</h4>
-              {items.slice(0, 7).map((it, i) => (
+              {latest.slice(0, 7).map((it, i) => (
                 <a key={it.id || i} className="led-lt" href={it.url} target="_blank" rel="noopener noreferrer">
                   <span className={`led-dot ${_TONE_CLS[it.tone] || "neu"}`} />
                   <span className="led-lt-t">{it.title}</span>
