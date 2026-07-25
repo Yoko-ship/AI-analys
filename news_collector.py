@@ -314,37 +314,146 @@ def fetch_rss(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     return items
 
 
-def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
-    """openinfo material facts. Reuses the repo's openinfo session/helper.
+# openinfo's public app is a Next.js SPA: the only working public route for a filing is the
+# issuer's own page (verified 2026-07-25 — /ru/organizations/<id> is 200, every deeper
+# /facts, /disclosure or /fact/<id> path 404s). The ?fact= hint is ignored by the app but
+# keeps the URL unique per filing, which matters because news.url is the dedup key.
+_OPENINFO_ORG_URL = "https://openinfo.uz/ru/organizations/{org}?fact={fact_id}"
+# openinfo fact_number → our §3.11 class, so the taxonomy comes from the filing itself
+# instead of being guessed by the model.
+_FACT_TYPE_MAP = {
+    32: "financial_report",   # начисление доходов по ценным бумагам
+    42: "financial_report",   # дивиденды выплаченные
+    49: "financial_report",   # рекомендация НС по распределению чистой прибыли
+    50: "financial_report",   # дивиденды, выплаченные акционерам
+    25: "corporate_event", 26: "corporate_event",   # выпуск ценных бумаг
+    46: "corporate_event", 47: "corporate_event",   # листинг / делистинг
+    6: "corporate_event", 7: "corporate_event",     # решения высшего органа управления
+    8: "corporate_event", 9: "corporate_event",     # изменения в НС / исполнительном органе
+    20: "corporate_event", 21: "corporate_event", 22: "corporate_event",  # крупные сделки
+    31: "corporate_event", 36: "corporate_event", 37: "corporate_event",
+    51: "corporate_event", 52: "corporate_event", 53: "corporate_event",
+    15: "corporate_event", 16: "corporate_event", 17: "corporate_event",  # крупные кредиты
+    18: "market", 19: "market",                      # изменение стоимости активов >10%
+    14: "regulatory", 23: "regulatory", 24: "regulatory", 34: "regulatory",
+    27: "regulatory", 28: "regulatory", 29: "regulatory", 30: "regulatory",
+}
 
-    The exact facts endpoint is deployment-specific; set ``OPENINFO_FACTS_ENDPOINT``
-    (path under the api base, e.g. ``/disclosure/facts/``). Best-effort: on any
-    failure it logs and returns [] so the rest of the run proceeds.
-    """
-    endpoint = os.getenv("OPENINFO_FACTS_ENDPOINT", "").strip()
-    if not endpoint:
-        logger.info("openinfo facts adapter idle: set OPENINFO_FACTS_ENDPOINT to enable")
-        return []
+
+def _openinfo_ticker_map() -> dict[str, list[str]]:
+    """openinfo organization id → our ticker(s). Several tickers can share one issuer
+    (ordinary + preferred, e.g. UZNG/UZNGP), and a fact concerns all of its share classes."""
+    mapping: dict[str, list[str]] = {}
     try:
-        from openinfo_collector import _json_get, _make_session
-        session = _make_session()
-        data = _json_get(session, endpoint, {"page_size": limit})
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("openinfo facts fetch failed: %s", exc)
+        conn = rc.get_catalog_conn()
+        rows = conn.execute(
+            "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id <> ''"
+        ).fetchall()
+        conn.close()
+    except Exception:  # noqa: BLE001
+        logger.exception("could not read catalog org ids; openinfo facts cannot be attributed")
+        return {}
+    for r in rows:
+        mapping.setdefault(str(r["org_id"]).strip(), []).append(r["ticker"])
+    return mapping
+
+
+def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+    """openinfo material facts — the primary issuer-disclosure channel (§3.11 cats 1–9).
+
+    Reads the newest filings from ``/disclosure/facts/`` (the API returns them newest-first;
+    ~21/day across all ~790 filers), keeps those filed by OUR listed issuers via
+    ``catalog_companies.org_id``, and collapses same-issuer/same-fact-type/same-day filings
+    into one item: O'zbekneftgaz files six affiliate-deal notices in an hour and that is one
+    story, not six cards.
+
+    Items come back marked ``always_relevant`` with their tickers already attached — a
+    material fact filed by a listed issuer is market news by definition, so it skips the
+    prefilter and the triage gate and the model only judges tone/impact and writes the
+    summary. All traffic goes through ``openinfo_http`` (paced 350 ms, retries, TLS verify).
+    """
+    endpoint = os.getenv("OPENINFO_FACTS_ENDPOINT", "/disclosure/facts/").strip()
+    pages = max(1, min(int(os.getenv("OPENINFO_FACTS_PAGES", "2")), 6))
+    page_size = max(10, min(limit if limit and limit > 10 else 50, 100))
+    tickers_by_org = _openinfo_ticker_map()
+    if not tickers_by_org:
+        logger.warning("openinfo facts: no org_id → ticker mapping in the catalog; skipping")
         return []
-    results = data.get("results") if isinstance(data, dict) else data
-    items: list[dict[str, Any]] = []
-    for rec in (results or [])[:limit]:
-        url = rec.get("url") or rec.get("source_url") or ""
-        title = rec.get("title") or rec.get("fact_type") or rec.get("name") or ""
-        if not url or not title:
+
+    try:
+        import openinfo_http
+        from openinfo_collector import OPENINFO_API_BASE
+    except ImportError as exc:
+        logger.warning("openinfo modules unavailable: %s", exc)
+        return []
+
+    base = endpoint if endpoint.startswith("http") else f"{OPENINFO_API_BASE}{endpoint}"
+    raw: list[dict[str, Any]] = []
+    for page in range(1, pages + 1):
+        try:
+            resp = openinfo_http.get(base, params={"page_size": page_size, "page": page}, timeout=40)
+            resp.raise_for_status()
+            batch = (resp.json() or {}).get("results") or []
+        except Exception as exc:  # noqa: BLE001 — one bad page must not kill the run
+            logger.warning("openinfo facts page %d failed: %s", page, exc)
+            break
+        raw.extend(batch)
+        if len(batch) < page_size:
+            break
+
+    # Group: one card per issuer + fact type + day.
+    groups: dict[tuple[str, Any, str], dict[str, Any]] = {}
+    unmatched: dict[str, int] = {}
+    for rec in raw:
+        org = str(rec.get("organization") or "")
+        tickers = tickers_by_org.get(org)
+        if not tickers:
+            name = rec.get("organization_short_name") or org
+            unmatched[name] = unmatched.get(name, 0) + 1
             continue
+        pub = str(rec.get("pub_date") or "").strip()
+        key = (org, rec.get("fact_number"), pub[:10])
+        group = groups.get(key)
+        if group is None:
+            groups[key] = {
+                "org": org, "tickers": tickers, "count": 1,
+                "fact_id": rec.get("id"),
+                "fact_number": rec.get("fact_number"),
+                "short_title": (rec.get("fact_short_title") or rec.get("fact_title") or "").strip(),
+                "full_title": (rec.get("fact_title") or "").strip(),
+                "org_name": (rec.get("organization_short_name")
+                             or rec.get("organization_name") or "").strip(),
+                "pub_date": pub,
+            }
+        else:
+            group["count"] += 1
+            # keep the newest filing of the group as its anchor
+            if pub > str(group["pub_date"]):
+                group["pub_date"], group["fact_id"] = pub, rec.get("id")
+
+    items: list[dict[str, Any]] = []
+    for g in sorted(groups.values(), key=lambda x: str(x["pub_date"]), reverse=True)[:limit]:
+        if not g["short_title"] or not g["org_name"]:
+            continue
+        suffix = f" ({g['count']})" if g["count"] > 1 else ""
+        detail = g["full_title"] if g["full_title"] and g["full_title"] != g["short_title"] else ""
         items.append({
-            "url": str(url), "title": str(title).strip(),
-            "snippet": str(rec.get("description") or "")[:1000],
-            "published_at": rec.get("published_at") or rec.get("pub_date"),
+            "url": _OPENINFO_ORG_URL.format(org=g["org"], fact_id=g["fact_id"]),
+            "title": f"{g['org_name']}: {g['short_title']}{suffix}",
+            # Filing metadata we publish ourselves — no article body is involved.
+            "snippet": (f"Существенный факт №{g['fact_number']} на openinfo.uz"
+                        + (f". {detail}" if detail else "")
+                        + (f". Подано {g['count']} сообщений за день." if g["count"] > 1 else "")),
+            "published_at": g["pub_date"].replace(" ", "T")[:19] or None,
             "lang": "ru",
+            "tickers": g["tickers"],
+            "always_relevant": True,
+            "type_hint": _FACT_TYPE_MAP.get(g["fact_number"]),
         })
+    logger.info("openinfo facts: %d filings fetched, %d relevant to our issuers "
+                "(grouped into %d item(s)); %d filings from %d non-covered filers skipped",
+                len(raw), sum(g["count"] for g in groups.values()), len(items),
+                sum(unmatched.values()), len(unmatched))
     return items
 
 
@@ -533,7 +642,8 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     kept: list[dict[str, Any]] = []
     dropped: dict[str, int] = {}
     for it in fresh:
-        junk = prefilter_reject(it, universe)
+        # An issuer's own filing is market news by definition — never gate it.
+        junk = None if it.get("always_relevant") else prefilter_reject(it, universe)
         if junk:
             dropped[junk] = dropped.get(junk, 0) + 1
         else:
@@ -553,14 +663,27 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     records: list[dict[str, Any]] = []
     failed = 0
     for it in kept:
-        cls = classify_item(it, universe, usage=usage)
+        authoritative = bool(it.get("always_relevant"))
+        cls = classify_item(it, universe, usage=usage, triage=not authoritative)
         # A failed classification (no API key, quota, outage) is NOT stored: URL dedup
         # would then bury the item as irrelevant forever. Left unstored, it is simply
         # re-fetched and re-classified on the next run.
         if cls.reason == "classification_failed":
             failed += 1
             continue
-        records.append({**it, "model": model, **cls.model_dump()})
+        record = {**it, "model": model, **cls.model_dump()}
+        if authoritative:
+            # The source told us the issuer and the filing class; those REPLACE the model's
+            # guesses (we only feed it the filing's title, so any extra ticker it names is a
+            # guess, and a wrong one would attach this filing to another issuer's feed and
+            # its sentiment). A filing is also never dropped as "not relevant". The model
+            # still supplies tone, impact, direction and the summary.
+            record["relevant"] = True
+            if it.get("tickers"):
+                record["tickers"] = sorted(it["tickers"])
+            if it.get("type_hint"):
+                record["type"] = it["type_hint"]
+        records.append(record)
     if failed:
         logger.warning("%d item(s) failed classification — not stored, will retry next run", failed)
     relevant = [r for r in records if r.get("relevant")]

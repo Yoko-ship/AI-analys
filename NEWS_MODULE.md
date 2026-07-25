@@ -188,10 +188,41 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 Enabled now: `openinfo_facts`, `cbu`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
 taxonomy categories 1–9). Working today: RSS/CBU fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
-- **openinfo** — set `OPENINFO_FACTS_ENDPOINT` to the material-facts API path to enable.
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
 
-Two things that had silently stopped the scheduled runs (both fixed 2026-07-25):
+## openinfo material facts (the issuer channel)
+
+Live since 2026-07-25. `GET {api}/disclosure/facts/` returns every filing newest-first
+(64k+ records, ~21/day across all ~790 filers). The adapter keeps the ones filed by **our**
+issuers, attributing each by openinfo `organization` id via `catalog_companies.org_id` —
+**68 of 93 tickers have one**, so filings from the remaining 25 are logged and skipped;
+backfilling those org_ids is the single cheapest way to widen coverage. Measured overlap:
+**~7 filings/day belong to covered issuers**, 20 distinct tickers over a 14-day window.
+
+Filings are treated as authoritative, unlike feed news:
+
+- **grouped** — same issuer + same fact type + same day becomes one card (O'zbekneftgaz
+  files eight affiliate-deal notices in an hour; that is one story, not eight);
+- **`always_relevant`** — they skip the prefilter and the triage gate entirely, and are
+  never dropped as "not relevant";
+- **tickers and class come from the filing**, replacing the model's guesses: `fact_number`
+  maps to the §3.11 class (`_FACT_TYPE_MAP`), and `org_id` gives the exact ticker(s) —
+  including both share classes where an issuer has them (UZNG/UZNGP). The model is left to
+  do only what it is good at here: tone, impact, direction and the summary.
+
+Set `OPENINFO_FACTS_ENDPOINT` to override the path, `OPENINFO_FACTS_PAGES` (default 2 × 50
+filings ≈ 5 days) to change the lookback. All traffic goes through `openinfo_http` (paced
+350 ms, retries, TLS verify) per the project rule.
+
+Link caveat: openinfo's public app is a Next.js SPA whose only working public route for a
+filing is the issuer page — `/ru/organizations/<org_id>` is 200, while every deeper
+`/facts`, `/disclosure` or `/fact/<id>` path 404s (checked 2026-07-25). Cards therefore link
+to the issuer's openinfo page with a `?fact=<id>` hint: the app ignores the param, but it
+keeps each card's URL unique, which matters because `news.url` is the dedup key.
+
+## Fixed 2026-07-25
+
+Two things that had silently stopped the scheduled runs:
 `feedparser` was missing from `requirements-server.txt`, so every RSS source in the
 Railway cron image hit the lazy import and returned `[]` — the 6-hourly run "succeeded"
 with 0 items; and Kun.uz's feed URL had moved (`/ru/news/rss` now serves the Next.js

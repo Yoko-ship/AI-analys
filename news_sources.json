@@ -23,7 +23,8 @@
       "attribution": "openinfo.uz",
       "enabled": true,
       "crawl_delay_s": 2,
-      "notes": "Primary issuer channel: dividends (fact 42), issuance (25), large/affiliate transactions, ownership >10%/20%, management changes. Reuse permitted with link-back. Already reachable from the collector host."
+      "max_items": 30,
+      "notes": "Primary issuer channel, LIVE since 2026-07-25: GET /disclosure/facts/ (newest-first, 64k+ filings, ~21/day across all ~790 filers, of which ~7/day are our listed issuers). Attributed by openinfo organization id via catalog_companies.org_id — 68 of 93 tickers have one; filings from unmapped issuers are logged and skipped, so backfilling those org_ids widens coverage. Same-issuer/same-fact-type/same-day filings are grouped into one card. Facts are marked always_relevant (skip prefilter + triage) with their tickers and §3.11 class taken from the filing itself. Covers dividends (42/50), profit-distribution recommendations (49), issuance (25/26), listing/delisting (46/47), large and affiliate deals (20-22), ownership crossings (51-53), management changes (8/9), bankruptcy (34). Reuse permitted with link-back."
     },
     {
       "id": "cbu",
