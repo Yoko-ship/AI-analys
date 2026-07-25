@@ -277,6 +277,7 @@ runs is lost for good. Measured 2026-07-25:
 | uzdaily | 20 | ~18h | ~27/day | ~20 of 27 |
 | **kun** | **15** | **~8h** | **~45/day** | **15 of 45** |
 | cbu | **10** (listing) | months | ~2–5/month | all |
+| moodys | 183 global → **filtered** | ~1 day | ~1 Uzbek hit/1–2 weeks | all that match |
 | openinfo | paged | months | ~7/day (ours) | all |
 
 Once daily costs the two highest-volume general feeds: Kun.uz truncates at 15 items covering
@@ -299,8 +300,8 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 
 ## MVP scope & what's pending
 
-Enabled now: `openinfo_facts`, `cbu`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
-taxonomy categories 1–9). Working today: RSS / html_list / openinfo fetch + classify + store + push + serve +
+Enabled now: `openinfo_facts`, `cbu`, `moodys`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
+taxonomy categories 1–9). Working today: RSS / html_list / sitemap / openinfo fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
 
@@ -318,6 +319,30 @@ chase a blurb for it. The source now reads the **Russian** edition (`/ru/press_c
 which matches the RU-first feed; note CBU numbers each language edition separately, so the
 one item already stored from the English RSS (`…/en/…/4194168`) is a different URL from its
 Russian twin and both will show until the older one leaves the 30-day window.
+
+### Rating agencies (`sitemap`)
+
+`fetch_sitemap` reads a publisher's XML sitemap as a feed and — this is the point — applies
+`url_filter`, a plain regex over the URL, **before** the prefilter, the triage gate and any
+model call. Moody's `ratingsnewsmap.xml` is a rolling window of ~183 *global* rating actions
+with the headline in the URL slug; Uzbek issuers are a handful a year in that stream, so the
+~99% that names none of ours costs one shared HTTP request and nothing else. A sitemap source
+with no `url_filter` refuses to return anything, so this cannot be misconfigured into a bill.
+Headline comes from the slug (`title_from`/`slug_strip`); no article page is opened. These
+entries carry no `<lastmod>`, so items arrive undated — `_is_recent` keeps undated items,
+which is correct for a window that only lists current actions.
+
+Verified 2026-07-25 against the live sitemap: 183 URLs in, 0 through the filter (no Uzbek
+action that day), 0 classified. The filter was checked against real Moody's Uzbek URLs —
+Alokabank, Agrobank and the sovereign banking outlook all match, Zeda and Botswana Development
+Corporation do not.
+
+**The other two agencies are not reachable, and this is not worth re-testing:**
+`spglobal.com` answers **403 to every automated request, including `/robots.txt`** — a WAF
+refusing non-browser clients. `fitchratings.com` serves its content from `/page-data/`, which
+its own `robots.txt` disallows; its five sitemaps hold only entity pages, podcasts, videos and
+`:slug` route placeholders, no rating actions. Rating news from those two has to come from the
+press feeds or a Layer-B search.
 
 ## openinfo material facts (the issuer channel)
 

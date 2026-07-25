@@ -640,8 +640,81 @@ def fetch_html_list(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     return items
 
 
+def _title_from_slug(url: str, strip_pattern: str | None = None) -> str:
+    """'…/Moodys-Ratings-affirms-Zeda-Limiteds-Ba3-rating-outlook-stable--PR_514556'
+    → 'Moodys Ratings affirms Zeda Limiteds Ba3 rating outlook stable'.
+
+    Publishers that put the headline in the URL let us name an item without opening it.
+    """
+    slug = urlsplit(url).path.rstrip("/").rsplit("/", 1)[-1]
+    if strip_pattern:
+        slug = re.sub(strip_pattern, "", slug)
+    return _clean_text(re.sub(r"[-_]+", " ", slug).strip())
+
+
+def fetch_sitemap(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+    """A publisher's XML sitemap read as a feed, filtered to our market before anything costs.
+
+    For publishers with no usable feed that do expose a crawlable sitemap. Moody's
+    ``ratingsnewsmap.xml`` is a rolling window of ~183 **global** rating actions with the
+    headline in the URL slug — Uzbek issuers are a handful a year in that stream. So
+    ``url_filter`` (a plain regex over the URL) runs **here**, ahead of the prefilter, the
+    triage gate and any model call: the ~99% that names no issuer of ours costs exactly one
+    shared HTTP request and nothing else.
+
+    Nothing is opened: the headline comes from the slug the publisher itself publishes
+    (``title_from: "slug"``), so no article page is fetched and no body is stored. Entries
+    without a ``<lastmod>`` arrive undated, which ``_is_recent`` keeps — correct for a
+    rolling window that only ever lists current actions.
+    """
+    try:
+        resp = requests.get(source["url"], timeout=40,
+                            headers={"User-Agent": source.get("user_agent", DEFAULT_UA)})
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning("sitemap fetch failed for %s: %s", source["id"], exc)
+        return []
+
+    entries: list[tuple[str, str | None]] = []
+    for block in re.finditer(r"<url>(.*?)</url>", resp.text, re.S):
+        loc = re.search(r"<loc>\s*([^<]+?)\s*</loc>", block.group(1))
+        if not loc:
+            continue
+        lastmod = re.search(r"<lastmod>\s*([^<]+?)\s*</lastmod>", block.group(1))
+        entries.append((html.unescape(loc.group(1)), lastmod.group(1)[:10] if lastmod else None))
+
+    pattern = source.get("url_filter")
+    if pattern:
+        matcher = re.compile(pattern, re.I)
+        kept = [e for e in entries if matcher.search(e[0])]
+        logger.info("  %s: url filter kept %d of %d sitemap URL(s) — the rest cost nothing",
+                    source["id"], len(kept), len(entries))
+        entries = kept
+    elif entries:
+        logger.warning("source '%s' is a sitemap with no url_filter — every URL would be "
+                       "classified; refusing to fetch %d item(s)", source["id"], len(entries))
+        return []
+
+    strip_pattern = source.get("slug_strip")
+    items: list[dict[str, Any]] = []
+    for url, lastmod in entries[:limit]:
+        title = _title_from_slug(url, strip_pattern)
+        if not title:
+            continue
+        items.append({
+            "url": _canonical_url(url),
+            "raw_url": url,
+            "title": title,
+            "snippet": "",
+            "published_at": lastmod,
+            "image_url": None,
+            "lang": (source.get("lang") or ["en"])[0],
+        })
+    return items
+
+
 _FETCHERS = {"rss": fetch_rss, "openinfo": fetch_openinfo, "html_list": fetch_html_list,
-             "html": fetch_pending, "telegram": fetch_pending}
+             "sitemap": fetch_sitemap, "html": fetch_pending, "telegram": fetch_pending}
 
 
 # --------------------------------------------------------------------------- #
