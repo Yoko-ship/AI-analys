@@ -369,11 +369,24 @@ openinfo.uz"** and says the portal publishes no standalone page per material fac
 promising a full text that does not exist.
 
 `GET /disclosure/facts/{id}/` *does* return the filing's own content (`factscorresponding`,
-`factslistaffiliates`, `date_vnesn`, …), one extra paced call per item and no model. Rendering
-it is a real option for the fact types where it carries a figure — dividends (#42, #50) above
-all — but the payload shape differs per fact type across 50+ types, and for the common
-affiliate-list filings it is mostly personal names. Not built; noted so the option is not
-rediscovered from scratch.
+`factslistaffiliates`, `date_vnesn`, …), one extra paced call per item and no model. The
+payload shape differs per fact type across 50+ types, and for the common affiliate-list
+filings it is mostly personal names — so this is worth doing per fact type, not generically.
+
+**The dividend case (fact 42) is the one that pays for itself.** `GET /disclosure/fact42/` is
+a dedicated endpoint (275 filings; **54 of them our issuers**, measured 2026-07-25) and every
+record is already structured: `body_decided`, `decision_date`, `payment_start_date` /
+`payment_end_date`, `overall_calculated_sum`, `overall_paid_sum` / `overall_paid_percent`,
+`overall_debt_sum` / `overall_debt_percent`, and `non_payment_explanation` — the issuer's own
+words when it did not pay. Live examples: HMKB/HMKBP 161.7bn UZS at 100% paid; UZNGP 1.46bn at
+**33.89%**; the ACMT bond series at **0.00%** with the window already closed. That turns a bare
+"«X» AJ: Выплаты дивидендов" headline into a dividend record, for one extra paced call on the
+~1–2 such filings a month and no model call. Not built yet.
+
+**Gotcha for whoever builds it:** `organization` is an integer id in `/disclosure/facts/` but a
+nested object in `/disclosure/fact42/`, so the org→ticker map must read
+`rec["organization"]["id"]` there. Matching the integer form against it silently yields zero
+matches. Note also `fact50`/`fact49` have no dedicated endpoint (404) — only some types do.
 
 
 Live since 2026-07-25. `GET {api}/disclosure/facts/` returns every filing newest-first
