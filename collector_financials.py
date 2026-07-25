@@ -102,6 +102,28 @@ def push(rows: list[dict]) -> int:
     return _post("/api/admin/financials", {"form": "NSBU", "rows": rows})
 
 
+def _stamp_step(step: str, detail: str = "") -> None:
+    """Record that ONE pipeline step landed, and for which session.
+
+    The run heartbeat is stamped by partial runs too (``--reconcile-only`` skips
+    trade stats entirely), so "collector ok" said nothing about whether the board's
+    turnover had been refreshed: the statistics sat three sessions behind while
+    /api/coverage reported a healthy 20-hour-old run. Per-step stamps make a step
+    that quietly stops running visible on its own.
+    """
+    from datetime import datetime, timezone
+
+    try:
+        _post("/api/admin/facts", {"rows": [
+            {"entity_id": "_collector", "dataset": "meta", "field": f"{step}_last_run",
+             "period": "", "value": datetime.now(timezone.utc).isoformat(), "source": "collector"},
+            {"entity_id": "_collector", "dataset": "meta", "field": f"{step}_last_day",
+             "period": "", "value": str(detail or ""), "source": "collector"},
+        ]})
+    except Exception:
+        log.exception("step stamp failed: %s", step)
+
+
 def push_trade_stats() -> int:
     """Fetch the latest-day per-trade stats from UZSE and push to prod."""
     log.info("fetching UZSE trade stats (latest day) ...")
@@ -155,7 +177,10 @@ def push_trade_stats() -> int:
             rows.extend(back)
     except Exception:
         log.exception("last-day stats backfill failed (pushing today's only)")
-    return _post("/api/admin/trade-stats", {"trade_date": data.get("trade_date"), "rows": rows})
+    status = _post("/api/admin/trade-stats", {"trade_date": data.get("trade_date"), "rows": rows})
+    if status == 0:
+        _stamp_step("trade_stats", str(data.get("trade_date") or ""))
+    return status
 
 
 def push_listings() -> int:

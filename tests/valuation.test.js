@@ -17,6 +17,7 @@ import {
   finRowPeriod,
   marketRowDay,
   normalizeMarketDay,
+  tradeStatsApply,
   valuationEquity,
   valuationRatios,
 } from "../frontend/src/lib/valuation.js";
@@ -176,5 +177,41 @@ describe("marketRowDay", () => {
   it("is null when a security has never traded", () => {
     assert.equal(marketRowDay({}), null);
     assert.equal(marketRowDay(null), null);
+  });
+});
+
+describe("tradeStatsApply", () => {
+  // The board fed the market table from two sources — the live uzse feed row and
+  // the nightly per-trade statistics — and merged them without comparing days.
+  // With the nightly push three sessions behind, 60 of 78 securities rendered an
+  // older session's turnover next to the current quote: NGQS showed 251 246 UZS
+  // over 6 trades (16.07) beside its 24.07 price, a session whose real figures
+  // were 287 900 over 4.
+  it("rejects statistics older than the row's own last trade", () => {
+    assert.equal(tradeStatsApply("24.07.2026", "20260716"), false);
+    assert.equal(tradeStatsApply("2026-07-24", "20260722"), false);
+  });
+
+  it("accepts the row's own session", () => {
+    assert.equal(tradeStatsApply("24.07.2026", "20260724"), true);
+    assert.equal(tradeStatsApply("2026-07-24", "20260724"), true);
+  });
+
+  it("accepts newer statistics — the feed lags for thin names", () => {
+    assert.equal(tradeStatsApply("13.07.2026", "20260724"), true);
+  });
+
+  it("compares by day, not by leading digits", () => {
+    // A raw string compare read "31.01.2026" as newer than 05.02.2026 and would
+    // have thrown away February's real statistics.
+    assert.equal(tradeStatsApply("31.01.2026", "20260205"), true);
+    assert.equal(tradeStatsApply("05.02.2026", "20260131"), false);
+  });
+
+  it("keeps the statistics when either day is unknown", () => {
+    // The feed reports last_trade_date=null for securities that did trade
+    // (FRAZP, UZML) — dropping their turnover trades a wrong number for none.
+    assert.equal(tradeStatsApply(null, "20260724"), true);
+    assert.equal(tradeStatsApply("24.07.2026", ""), true);
   });
 });
