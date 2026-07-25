@@ -245,6 +245,26 @@
       "enabled": false,
       "crawl_delay_s": 20,
       "notes": "~8.3K subs, Uzbekistan capital-market wire. Read-only via public web mirror t.me/s/. Treat as a LEAD source: confirm against an openinfo fact or outlet feed before showing to users. Deferred."
+    },
+    {
+      "id": "moodys",
+      "name": "Moody's Ratings",
+      "type": "sitemap",
+      "url": "https://www.moodys.com/ratingsnewsmap.xml",
+      "lang": [
+        "en"
+      ],
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "caution",
+      "attribution": "Moody's Ratings (moodys.com)",
+      "enabled": true,
+      "crawl_delay_s": 30,
+      "feed_image": false,
+      "url_filter": "uzbek|hamkor|ipoteka|agrobank|alo[kq]abank|kapitalbank|asaka|uzpromstroy|sanoat[- ]?qurilish|qishloq|mikrokredit|turonbank|trustbank|ipak[- ]?yuli|infinbank|xalq|uzagroexport|uzauto|navoi|almalyk|uztransgaz|uzkimyo|tashkent|toshkent|orient[- ]?finans|davr[- ]?bank|anor[- ]?bank",
+      "title_from": "slug",
+      "slug_strip": "-{1,2}PR_\\d+$",
+      "notes": "Rating actions on Uzbek issuers and the sovereign. Verified 2026-07-25: Moody's publishes no usable feed, but ratingsnewsmap.xml is a rolling window of ~183 GLOBAL actions with the headline in the URL slug, and robots.txt permits it. url_filter is applied before any model call, so the ~99% naming no issuer of ours costs one shared HTTP request and nothing more. Headline only - the article pages return a 2.7KB SPA shell, and no page is opened anyway. No lastmod on these entries, so items arrive undated (kept by _is_recent, right for a window of current actions). Expect roughly one hit a week or two. Sister agencies are NOT reachable: spglobal.com answers 403 to every automated request including robots.txt, and fitchratings.com serves its content from /page-data/, which its own robots.txt disallows."
     }
   ]
 }
