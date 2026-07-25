@@ -71,9 +71,11 @@ const NEWS_ITEMS = [
   // reach the issuer's card and the article page must say so instead of promising an article.
   { id: 13, url: "https://openinfo.uz/ru/organizations/422?fact=98584", source: "openinfo.uz",
     source_id: "openinfo_facts", lang: "ru",
-    title: "«Hamkorbank» АТБ: Изменения в перечне аффилированных лиц",
-    snippet: "Существенный факт №36 на openinfo.uz.",
-    summary_ru: "Эмитент раскрыл изменения в перечне аффилированных лиц.",
+    title: "«Hamkorbank» АТБ: Выплаты дивидендов",
+    snippet: "Существенный факт №42 на openinfo.uz. Дивиденды: начислено 161 662 245 000 сум, "
+      + "выплачено 72.38%, срок выплаты до 05.11.2026. Не выплачено 27.62% (367 500 сум). "
+      + "Причина по данным эмитента: недостаточно средств на счёте.",
+    summary_ru: "Эмитент отчитался о выплате дивидендов акционерам.",
     image_url: null, published_at: "2026-07-22 10:00:00", collected_at: "2026-07-22 11:00:00",
     type: "corporate_event", tone: "neutral", tone_score: 0, impact: "low", direction: "unclear",
     sectors: [], relevance_score: 0.9, coverage_weight: 0.95, tickers: [], rank: 0.6 },
@@ -201,10 +203,14 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
 
 test("an openinfo filing says the link opens the issuer card, not an article (§3.11)", async ({ page }) => {
   await page.goto("/news/13");
-  await expect(page.locator(".led-art-title")).toContainText("аффилированных лиц");
+  await expect(page.locator(".led-art-title")).toContainText("Выплаты дивидендов");
   // Not "Читать в источнике": openinfo publishes no page for a single material fact.
   await expect(page.locator(".led-art-cta")).toContainText("Карточка эмитента");
   await expect(page.locator(".led-art-note")).toContainText("не публикует отдельную страницу");
+  // The filing's own figures are shown, under a label that does not call them a quote.
+  await expect(page.locator(".led-art-quote .led-panel-h")).toContainText("Из раскрытия эмитента");
+  await expect(page.locator(".led-art-quote")).toContainText("выплачено 72.38%");
+  await expect(page.locator(".led-art-quote")).toContainText("Не выплачено 27.62%");
 });
 
 test("a /news/{id} deep link renders the story directly (§3.11)", async ({ page }) => {

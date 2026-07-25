@@ -373,15 +373,25 @@ promising a full text that does not exist.
 payload shape differs per fact type across 50+ types, and for the common affiliate-list
 filings it is mostly personal names — so this is worth doing per fact type, not generically.
 
-**The dividend case (fact 42) is the one that pays for itself.** `GET /disclosure/fact42/` is
-a dedicated endpoint (275 filings; **54 of them our issuers**, measured 2026-07-25) and every
-record is already structured: `body_decided`, `decision_date`, `payment_start_date` /
-`payment_end_date`, `overall_calculated_sum`, `overall_paid_sum` / `overall_paid_percent`,
-`overall_debt_sum` / `overall_debt_percent`, and `non_payment_explanation` — the issuer's own
-words when it did not pay. Live examples: HMKB/HMKBP 161.7bn UZS at 100% paid; UZNGP 1.46bn at
-**33.89%**; the ACMT bond series at **0.00%** with the window already closed. That turns a bare
-"«X» AJ: Выплаты дивидендов" headline into a dividend record, for one extra paced call on the
-~1–2 such filings a month and no model call. Not built yet.
+**Figures are pulled for the two fact types filed as numbers (LIVE).** `_fact_figures`
+makes one extra paced call to `/disclosure/facts/{id}/` — the id the item already carries — and
+appends the filing's own figures to the snippet. No model is involved, so this costs the
+request and nothing else; any failure returns None and the item publishes with its plain
+snippet.
+
+* **32 — «Начисление доходов по ценным бумагам»**, the declaration, carrying the amount **per
+  security**: `Начислено 468 493,16 сум на облигацию (4.68% номинала), выплата 19.07.2026 —
+  27.07.2026.` Shares file `sum_aksiya` with the window in `*_common_shares`; bonds file
+  `sum_per` with `*_other_securities` (verified across AGAT CREDIT, CONTACT FINANCE, UZUM
+  SARMOYA, ToshuyjoyLITI). The `*2` variants hold a second class, but the API's naming does not
+  separate ordinary from preferred reliably, so they are left out rather than mislabelled.
+* **42 — «Дивиденды, выплаченные акционерам»**, the payment report: `начислено … выплачено
+  99.24% … Не выплачено 0.76% … Причина по данным эмитента: …`. Reported exactly as filed —
+  several issuers file `paid=0` alongside `debt=0`, and inferring the shortfall would
+  contradict their own numbers.
+
+The story page shows this under **«Из раскрытия эмитента»**, not «Как сообщает источник», and
+shows it unconditionally for filings: the summary only paraphrases figures that are the point.
 
 **Gotcha for whoever builds it:** `organization` is an integer id in `/disclosure/facts/` but a
 nested object in `/disclosure/fact42/`, so the org→ticker map must read
