@@ -183,20 +183,50 @@ def _lookup_org_id_via_api(user_input: str) -> tuple[str, str] | None:
     return None
 
 
+# Minimum _calc_match_score for a search hit to be accepted as "this company".
+# The same floor the full-org-list path uses: shared generic tokens alone never
+# clear it, only an exact match, a substring, or every meaningful query word
+# present in the name. Below it the resolver reports failure instead of caching
+# whatever the search engine happened to rank first.
+SECONDARY_INDEX_MATCH_FLOOR = float(os.getenv("ORG_MATCH_FLOOR", "10.0"))
+
+
+def _ticket_names(item: dict) -> set[str]:
+    """Tickers openinfo lists for an organization ('AGMK,AGMKP' -> {agmk, agmkp}).
+
+    An exact ticker hit is the strongest identity signal these endpoints carry —
+    stronger than any name similarity — because it comes from the issuer's own
+    registered symbol list rather than from a text search.
+    """
+    raw = item.get("organization_ticket_name") or item.get("ticket_name") or ""
+    return {t.strip().lower() for t in str(raw).split(",") if t.strip()}
+
+
 def _try_secondary_indexes(query: str) -> tuple[str, str] | None:
     """Fallback search via /reports/main/ and /disclosure/dividend-calendar/.
 
     Both endpoints index issuers by ticker/name and expose organization id +
     organization_name, which is enough to keep the analysis pipeline running
     even when /home/autofill/ stops returning a particular ticker.
+
+    These are *text search* endpoints: they answer "documents matching these
+    words", not "the company with this identity". Taking their first row on faith
+    is what produced the historic wrong-company ingestions (KVTS/BIOK) — a search
+    for one issuer returns another's filing, the org id gets cached under the
+    query, and every later lookup inherits it. So a hit is only accepted when it
+    either carries the queried ticker outright or clears the same name-similarity
+    floor as the full-org-list path, and the best candidate on the page wins
+    rather than the first.
     """
     headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
     sources = [
         ("reports/main", "https://new-api.openinfo.uz/api/v2/reports/main/",
-         {"page_size": 5, "search": query}, "organization", "organization_name"),
+         {"page_size": 10, "search": query}, "organization", "organization_name"),
         ("dividend-calendar", "https://new-api.openinfo.uz/api/v2/disclosure/dividend-calendar/",
-         {"page_size": 5, "search": query}, "organization_id", "organization"),
+         {"page_size": 10, "search": query}, "organization_id", "organization"),
     ]
+    normalized_query = _normalize_company_key(query)
+    query_ticker = query.strip().lower()
     for label, url, params, id_key, name_key in sources:
         try:
             response = openinfo_http.get(url, params=params, headers=headers,
@@ -208,6 +238,7 @@ def _try_secondary_indexes(query: str) -> tuple[str, str] | None:
             continue
 
         results = payload.get("results", []) if isinstance(payload, dict) else []
+        best: tuple[float, str, str] | None = None
         for item in results:
             org_id = item.get(id_key)
             name = item.get(name_key)
@@ -217,9 +248,26 @@ def _try_secondary_indexes(query: str) -> tuple[str, str] | None:
             name = str(name).strip()
             if not org_id or not name:
                 continue
-            logger.info(f"org_id найден через {label}: {org_id} ({name})")
-            _store_org_id_cache(query, org_id, name)
-            return org_id, name
+            if query_ticker and query_ticker in _ticket_names(item):
+                score = 100.0  # the issuer's own registered symbol — unambiguous
+            else:
+                score = _calc_match_score(normalized_query, _normalize_company_key(name))
+            if best is None or score > best[0]:
+                best = (score, org_id, name)
+
+        if best is None:
+            continue
+        score, org_id, name = best
+        if score < SECONDARY_INDEX_MATCH_FLOOR:
+            logger.info(
+                "Fallback %s: лучший результат «%s» (org %s) не проходит порог "
+                "совпадения (%.1f < %.1f) — пропускаем, чтобы не закрепить чужую компанию",
+                label, name, org_id, score, SECONDARY_INDEX_MATCH_FLOOR,
+            )
+            continue
+        logger.info(f"org_id найден через {label} (score={score:.1f}): {org_id} ({name})")
+        _store_org_id_cache(query, org_id, name)
+        return org_id, name
     return None
 
 

@@ -42,6 +42,7 @@ import datetime as _dt
 import re
 
 import openinfo_http as _http
+from numeric_parse import parse_decimal
 
 API_BASE = "https://new-api.openinfo.uz/api/v2"
 
@@ -126,18 +127,15 @@ def _norm(s):
 
 
 def _num(x):
-    if x is None:
+    """One reconciler figure as a float, via the shared separator rules.
+
+    A blanket comma->dot replacement here silently dropped every comma-grouped
+    amount ("1,234,567" became the unparseable "1.234.567"), which on the
+    authoritative reconcile path means a published figure just vanishes.
+    """
+    if x is None or (isinstance(x, str) and x.strip() in ("", "None")):
         return None
-    if isinstance(x, (int, float)):
-        return float(x)
-    s = str(x).strip().replace("\xa0", "").replace(" ", "")
-    if s in ("", "-", "None"):
-        return None
-    s = s.replace(",", ".")
-    try:
-        return float(s)
-    except ValueError:
-        return None
+    return parse_decimal(x, group_sep=",", strip_non_numeric=False)
 
 
 def _parse_date(s):

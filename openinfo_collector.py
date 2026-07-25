@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import re
 import threading
@@ -17,6 +18,9 @@ import requests
 
 
 from db import APP_DATA_DIR as _APP_DATA_DIR
+from numeric_parse import parse_decimal
+
+logger = logging.getLogger(__name__)
 from openinfo_http import (  # shared paced/retrying HTTP layer for all openinfo traffic
     OPENINFO_PROXY,
     VERIFY_SSL,
@@ -82,29 +86,16 @@ def _safe_float(value: Any) -> float | None:
 
 
 def _safe_report_number(value: Any) -> float | None:
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        parsed = float(value)
-        return parsed if abs(parsed) < 1e30 else None
+    """One report cell as a number, or None if the cell is not an amount.
 
-    text = str(value).strip()
-    if not text or text in {"-", "—", "–"}:
-        return None
-    text = text.replace("\xa0", " ").replace(" ", "")
-    is_negative = text.startswith("(") and text.endswith(")")
-    text = text.strip("()")
-    text = text.replace("%", "").replace(",", ".")
-    if text.count(".") > 1:
-        parts = text.split(".")
-        text = "".join(parts[:-1]) + "." + parts[-1]
-    try:
-        parsed = float(text)
-    except ValueError:
-        return None
-    return -parsed if is_negative else parsed
+    Delegates to the shared parser (see ``numeric_parse``): report cells group
+    thousands with commas or spaces, so the old blanket ``replace(",", ".")`` read
+    "1,234,567" as 1234.567 and served every derived figure ~1000x low.
+    Strict about non-numeric tokens on purpose — a spreadsheet cell containing
+    words is a label or a line code, and reading 180 out of "стр. 180" is the
+    junk-row failure the plausibility floors exist to catch.
+    """
+    return parse_decimal(value, group_sep=",", strip_non_numeric=False)
 
 
 def _compact_cell(value: Any) -> Any:
@@ -141,8 +132,29 @@ def _load_excel_cache() -> dict[str, Any]:
 
 
 def _save_excel_cache(cache: dict[str, Any]) -> None:
+    """Write the parse cache atomically.
+
+    This file reaches ~14 MB. A plain ``write_text`` truncates it first, so a crash,
+    an OOM kill, or a container restart mid-write leaves a half-written JSON that
+    ``_load_excel_cache`` cannot parse — the whole cache silently evaporates and
+    every report is re-fetched and re-parsed from openinfo. Writing to a sibling
+    temp file and renaming makes the swap a single atomic operation: readers see
+    either the old complete file or the new one, never a partial one.
+    """
     path = _excel_cache_file()
-    path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    try:
+        with tmp.open("w", encoding="utf-8") as fh:
+            json.dump(cache, fh, ensure_ascii=False)
+            fh.flush()
+            os.fsync(fh.fileno())  # rename is only atomic once the bytes are down
+        os.replace(tmp, path)  # atomic within a filesystem, and overwrites on Windows
+    except Exception:
+        logger.exception("excel cache write failed; keeping the previous file")
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _get_excel_cache(url: str) -> dict[str, Any] | None:
@@ -425,14 +437,29 @@ def fetch_report_documents(
     page_size: int = 100,
     validate_documents: bool = False,
 ) -> dict[str, Any]:
+    """Report documents matching ``query``, restricted to ``org_id`` when given.
+
+    ``/reports/main/?search=`` is a full-text search over filings, so it happily
+    returns another issuer's documents for a name that merely shares words. When
+    the caller knows the organization, an empty filtered result means "this issuer
+    has no matching filing" — NOT "use whatever the search returned". The old
+    ``if filtered:`` fallback silently handed back the unfiltered page in exactly
+    that case, which is how another company's PDF ended up parsed into a ticker's
+    financials.
+    """
     client = session or _make_session()
     params = {"page": 1, "page_size": page_size, "search": query}
     payload = _json_get(client, "/reports/main/", params)
     results = list(payload.get("results") or []) if isinstance(payload, dict) else []
     if org_id:
         filtered = [item for item in results if str(item.get("organization")) == str(org_id)]
-        if filtered:
-            results = filtered
+        if not filtered and results:
+            logger.warning(
+                "reports/main: %d hit(s) for %r, none belonging to org %s — returning none "
+                "rather than another issuer's filings",
+                len(results), query, org_id,
+            )
+        results = filtered
 
     documents = [_build_report_document(report) for report in results]
     if validate_documents:

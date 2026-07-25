@@ -6,24 +6,115 @@ on:
       - "**"
   pull_request:
 
+# A push that supersedes an in-flight run cancels it — CI feedback should be about
+# the current head, not a queue of stale ones.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  syntax-and-build:
+  # ---------------------------------------------------------------------------
+  # Backend. The previous version of this job compiled 11 of ~30 modules and ran
+  # zero tests, so the numeric transforms in reports_catalog / analysis_service —
+  # exactly where the 1000x parse bug, the sign bugs and the period mislabel lived
+  # — were never exercised by anything.
+  # ---------------------------------------------------------------------------
+  backend:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements-server.txt
+            requirements-dev.txt
 
-      - name: Install server dependencies
-        run: pip install -r requirements-server.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-server.txt -r requirements-dev.txt
 
-      - name: Compile Python files
-        run: python -m compileall api.py reports_catalog.py securities_catalog.py openinfo_collector.py bot.py main.py analyzer.py cache.py db.py users.py uzse_parser.py
+      - name: Compile every module
+        # Not a hand-maintained list: a new module must not be able to join the
+        # repo already broken because nobody added it here.
+        run: python -m compileall -q .
 
-      - name: Build Docker image
+      - name: Verify the server image declares every import it uses
+        # The failure this catches: feedparser and pdfplumber were imported by
+        # collector code but absent from requirements-server.txt, so the Railway
+        # cron jobs exited 0 having silently collected nothing for weeks.
+        run: python scripts/check_server_requirements.py
+
+      - name: Run backend tests
+        run: python -m pytest tests -q
+
+  # ---------------------------------------------------------------------------
+  # Frontend. Lint is load-bearing here, not cosmetic: react-hooks/rules-of-hooks
+  # is the only mechanical guard against the CompareTable class of crash (a hook
+  # after an early return) in a 10k-line, ~60-component file.
+  # ---------------------------------------------------------------------------
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (Rules of Hooks is an error)
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E smoke suite
+        run: npm run test:e2e
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # The image both cron collectors and the API actually run.
+  # ---------------------------------------------------------------------------
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
         run: docker build -t uz-stock-bot .
+      - name: Smoke-check the runtime dependencies inside the image
+        # Import every package the collectors need, in the built image — the only
+        # place that answers "will tonight's cron actually work".
+        run: |
+          docker run --rm --entrypoint python uz-stock-bot -c "
+          import importlib, sys
+          from runtime_preflight import COLLECTOR_REQUIREMENTS, NEWS_REQUIREMENTS
+          missing = [n for n in {**COLLECTOR_REQUIREMENTS, **NEWS_REQUIREMENTS}
+                     if importlib.util.find_spec(n) is None]
+          print('checked', len({**COLLECTOR_REQUIREMENTS, **NEWS_REQUIREMENTS}), 'packages')
+          if missing:
+              sys.exit('MISSING in the server image: ' + ', '.join(missing))
+          print('all collector dependencies present')
+          "

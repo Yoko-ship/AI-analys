@@ -38,6 +38,7 @@ os.environ.setdefault("FINANCIALS_ENRICH_ON_READ", "1")
 
 import reports_catalog as rc  # noqa: E402  (after load_dotenv)
 import trade_stats as ts  # noqa: E402
+from runtime_preflight import COLLECTOR_REQUIREMENTS, preflight  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("collector")
@@ -73,6 +74,10 @@ def collect_rows() -> list[dict]:
             "ticker": ticker,
             "year": r.get("year"),
             "quarter": r.get("quarter"),
+            # Which period each field actually describes, when it is not the row's
+            # own — prod serves what we push verbatim, so the provenance has to
+            # travel with the figures or the row lies about its own period.
+            "field_periods": r.get("field_periods") or {},
             **{k: r.get(k) for k in KEYS},
         })
     return rows
@@ -302,6 +307,11 @@ def main() -> int:
     ap.add_argument("--reconcile-only", action="store_true",
                     help="only reconcile financials against openinfo JSON and push (authoritative)")
     args = ap.parse_args()
+
+    # Loudly name any package this pipeline needs but the image does not carry:
+    # the per-issuer `except Exception` guards below would otherwise turn a
+    # missing dependency into a run that "succeeds" having collected nothing.
+    preflight(COLLECTOR_REQUIREMENTS, label="collector")
 
     if args.reconcile_only:
         status = 0

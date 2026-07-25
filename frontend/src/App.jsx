@@ -2,6 +2,17 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import heroImage from "./assets/hero-image.png";
 import logoIcon from "./assets/icon.png";
+// Pure, unit-tested helpers. Valuation multiples and period labels live in one
+// module so the market table and the company page cannot compute them differently
+// (see frontend/src/lib/valuation.js and tests/valuation.test.js).
+import {
+  finFieldPeriod,
+  finPeriodCoverage,
+  finRowPeriod,
+  marketRowDay,
+  normalizeMarketDay,
+  valuationRatios,
+} from "./lib/valuation.js";
 
 // --- Client-side routing: each view maps to a real URL path ------------------
 const VIEW_PATHS = {
@@ -2669,20 +2680,6 @@ function finValue(v, lang) {
   return Number.isFinite(v) ? formatCompactNumber(v, lang) : "—";
 }
 
-// Normalize a trade day to YYYYMMDD. The live feed writes DD.MM.YYYY, the
-// listings registry YYYY-MM-DD, the day stats YYYYMMDD — all must compare.
-function normalizeMarketDay(s) {
-  const str = String(s || "");
-  const m = str.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  if (m) return `${m[3]}${m[2]}${m[1]}`;
-  const d = str.replace(/-/g, "");
-  return /^\d{8}$/.test(d) ? d : null;
-}
-
-function marketRowDay(r) {
-  return normalizeMarketDay(r?.ts?.trade_date) || normalizeMarketDay(r?.last_trade_date);
-}
-
 function buildMarketStats(rows) {
   // Movers, counters and the day's turnover follow the exchange's daily
   // bulletin: only securities that traded on the LATEST session count.
@@ -4475,7 +4472,6 @@ function CompareTable({ table, title, language }) {
   const rows = Array.isArray(table?.rows) ? table.rows : [];
   const [sort, setSort] = React.useState({ key: null, dir: 1 });
   const [transposed, setTransposed] = React.useState(false);
-  if (!columns.length || !rows.length) return null;
 
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: 1 }));
   const sortedRows = React.useMemo(() => {
@@ -4505,6 +4501,13 @@ function CompareTable({ table, title, language }) {
     });
     return hasAny ? out : null;
   }, [rows, columns]);
+
+  // Rules of Hooks: the empty-table bail-out MUST come after every hook call.
+  // When it sat above the two useMemo above, a table going empty -> non-empty
+  // rendered a different number of hooks than the previous pass, which React
+  // treats as a fatal error — it threw and blanked the whole compare view.
+  if (!columns.length || !rows.length) return null;
+
   const avgLabel = language === "en" ? "Average" : language === "uz" ? "O'rtacha" : "Среднее";
   const labelCol = columns[0];
   const metricCols = columns.slice(1);
@@ -5366,17 +5369,18 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
     { key: "debt_to_equity", label: lang === "ru" ? "Долг/Капитал" : "D/E" },
   ];
   const hasMetrics = KEY_METRICS.some((m) => metrics[m.key] != null);
-  // Multipliers (ТЗ §3.2/§3.4). P/E = market cap / net income — like units: the API
-  // scales NSBU sums (stored in thousands of UZS) to full UZS at the response boundary.
-  // P/B = P/E × ROE (identity: ROE = net income / equity), avoiding a separate equity feed.
-  // ТЗ permits raw current multipliers in the public contour ("P/E сейчас = 8x") with no
-  // interpretation label; no «недооценена/переоценена» here. Global disclaimer applies.
-  const netIncome = safeNumber(financials?.net_income);
-  const roePct = safeNumber(metrics.ROE);
-  // Loss-makers show the actual negative P/E (screener convention) — a blank
-  // reads as "no data" when both figures are published.
-  const peVal = (marketCapVal && netIncome) ? marketCapVal / netIncome : null;
-  const pbVal = (peVal != null && peVal > 0 && roePct != null && roePct > 0) ? peVal * (roePct / 100) : null;
+  // Multipliers (ТЗ §3.2/§3.4), computed by the SAME shared helper as the market
+  // table — see valuationRatios(). This page used to derive P/B as P/E × ROE,
+  // which is undefined for a loss-maker, so the same issuer showed a P/B on the
+  // market board and a blank here. ТЗ permits raw current multipliers in the
+  // public contour ("P/E сейчас = 8x") with no interpretation label; no
+  // «недооценена/переоценена» here. Global disclaimer applies.
+  const { pe: peVal, pb: pbVal } = valuationRatios({
+    marketCap: marketCapVal,
+    netIncome: safeNumber(financials?.net_income),
+    equity: safeNumber(companyData?.ratios?.total_equity),
+    roePercent: safeNumber(metrics.ROE),
+  });
   const hasValuation = peVal != null || pbVal != null;
 
   return (
@@ -6257,18 +6261,20 @@ function MarketView({
   // Gather sectors present in current data
   const presentSectors = [...new Set(prepared.map((r) => smap[r.ticker]?.sector).filter(Boolean))].sort();
 
-  // §3.8 multiplier helpers: P/E = market cap / net income, P/B = market cap /
-  // equity. market cap comes from the listing row, net income from the market
-  // financials, equity from the ratios fact store.
+  // §3.8 multipliers. Inputs are gathered here; the arithmetic lives in the one
+  // shared valuationRatios() so this table and the company page cannot disagree.
   const ratioOf = (ticker) => ratios[ticker] || ratios[String(ticker || "").toUpperCase()] || null;
   const mktCapOf = (r) => (Number.isFinite(r.marketCap) ? r.marketCap : null);
-  const peOf = (r) => {
-    const mc = mktCapOf(r);
-    const ni = finOf(r.ticker)?.net_income;
-    // Loss-makers show the actual negative ratio (screener convention) rather
-    // than a blank — a dash reads as "no data" when both figures are published.
-    return mc && mc > 0 && Number.isFinite(ni) && ni !== 0 ? mc / ni : null;
+  const valuationOf = (r) => {
+    const rat = ratioOf(r.ticker) || {};
+    return valuationRatios({
+      marketCap: mktCapOf(r),
+      netIncome: finOf(r.ticker)?.net_income,
+      equity: rat.total_equity,
+      roePercent: rat.roe,
+    });
   };
+  const peOf = (r) => valuationOf(r).pe;
   // Issuers openinfo records as having no tradable securities at all
   // (is_listing=false, empty RFB/OTC share registries — e.g. MNGM, OCBK):
   // market-value cells state that fact instead of an ambiguous dash.
@@ -6286,10 +6292,38 @@ function MarketView({
   // all (verified 10-year lookback): state "no trades" — the same fact the
   // trade-date column shows — rather than an ambiguous dash.
   const neverTraded = (r) => (!r.last_trade_date && !r.ts ? mt(lang, "noTrade") : "—");
-  const pbOf = (r) => {
-    const mc = mktCapOf(r);
-    const eq = ratioOf(r.ticker)?.total_equity;
-    return mc && mc > 0 && Number.isFinite(eq) && eq > 0 ? mc / eq : null;
+  const pbOf = (r) => valuationOf(r).pb;
+
+  // One financials cell, with the reporting period it belongs to underneath it.
+  // The period is not decoration: these figures mix completed annuals with
+  // cumulative quarters across issuers, and a field whose only source is another
+  // filing carries that filing's period (marked, so it reads as a footnote rather
+  // than as this row's number).
+  const finCell = (row, field, { naWhenTopLine = false } = {}) => {
+    const f = finOf(row.ticker);
+    const value = f?.[field];
+    if (value == null && naWhenTopLine && Number.isFinite(f?.revenue)) {
+      return <td className="num">{naLabel()}</td>;
+    }
+    if (!Number.isFinite(value)) return <td className="num">—</td>;
+    const period = finFieldPeriod(f, field);
+    const borrowed = Boolean((f?.field_periods || {})[field]);
+    const coverage = finPeriodCoverage(period, lang);
+    return (
+      <td className="num">
+        <strong>{finValue(value, lang)}</strong>
+        {period && (
+          <span className={`fin-cell-period${borrowed ? " borrowed" : ""}`}
+                title={borrowed
+                  ? `${period} · ${coverage} — ${lang === "ru" ? "период отличается от периода строки"
+                      : lang === "uz" ? "davr qator davridan farq qiladi"
+                      : "a different period than the row"}`
+                  : `${period} · ${coverage}`}>
+            {period}{borrowed ? " *" : ""}
+          </span>
+        )}
+      </td>
+    );
   };
 
   // Value read for each sortable column. ticker/company/date are strings, the rest numeric.
@@ -6320,7 +6354,11 @@ function MarketView({
     roa: (r) => ratioOf(r.ticker)?.roa,
     netMargin: (r) => ratioOf(r.ticker)?.net_profit_margin,
     debtEq: (r) => ratioOf(r.ticker)?.debt_to_equity,
-    date: (r) => r.last_trade_date || "",
+    // Normalized to YYYYMMDD so the comparison is chronological. The raw field is
+    // a mix of DD.MM.YYYY (live feed) and YYYY-MM-DD (listings registry), and
+    // comparing those as strings ordered by the leading digits — "31.01.2026"
+    // sorted above "05.02.2026", so "latest first" broke at every month boundary.
+    date: (r) => marketRowDay(r) || "",
     source: (r) => r.url || "",
   };
 
@@ -6333,8 +6371,11 @@ function MarketView({
     })
     .sort((a, b) => {
       if (!sortKey) {
-        const aDate = a.last_trade_date || "";
-        const bDate = b.last_trade_date || "";
+        // Same normalization as the `date` accessor — the default "most recently
+        // traded first" order was wrong across month boundaries for exactly the
+        // same reason (mixed DD.MM.YYYY / YYYY-MM-DD compared lexicographically).
+        const aDate = marketRowDay(a) || "";
+        const bDate = marketRowDay(b) || "";
         if (aDate !== bDate) return bDate.localeCompare(aDate);
         return Math.abs(b.changePercent ?? -Infinity) - Math.abs(a.changePercent ?? -Infinity);
       }
@@ -6466,24 +6507,16 @@ function MarketView({
       if (stats.boardDay && marketRowDay(row) !== stats.boardDay) return `0%`;
       return Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—";
     })()}</td>,
-    finRevenue: (row) => <td className="num">{finValue(finOf(row.ticker)?.revenue, lang)}</td>,
+    finRevenue: (row) => finCell(row, "revenue"),
     // Bank/insurer/fund filings have no gross-profit or operating-income
     // lines (their reporting form differs) — when the issuer's top line IS
     // published but the form carries no such line, say "not applicable"
     // instead of an ambiguous dash.
-    finGross: (row) => <td className="num">{(() => {
-      const f = finOf(row.ticker);
-      if (f?.gross_profit == null && Number.isFinite(f?.revenue)) return naLabel();
-      return finValue(f?.gross_profit, lang);
-    })()}</td>,
-    finCash: (row) => <td className="num">{finValue(finOf(row.ticker)?.cash, lang)}</td>,
-    finLiab: (row) => <td className="num">{finValue(finOf(row.ticker)?.total_liabilities, lang)}</td>,
-    finNet: (row) => <td className="num">{finValue(finOf(row.ticker)?.net_income, lang)}</td>,
-    finOperating: (row) => <td className="num">{(() => {
-      const f = finOf(row.ticker);
-      if (f?.operating_income == null && Number.isFinite(f?.revenue)) return naLabel();
-      return finValue(f?.operating_income, lang);
-    })()}</td>,
+    finGross: (row) => finCell(row, "gross_profit", { naWhenTopLine: true }),
+    finCash: (row) => finCell(row, "cash"),
+    finLiab: (row) => finCell(row, "total_liabilities"),
+    finNet: (row) => finCell(row, "net_income"),
+    finOperating: (row) => finCell(row, "operating_income", { naWhenTopLine: true }),
     mktCap: (row) => <td className="num">{(() => { const v = mktCapOf(row); return v == null ? noSecLabel(row) : formatRatio(v, 0, lang); })()}</td>,
     pe: (row) => <td className="num">{(() => { const v = peOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 1, lang)}×`; })()}</td>,
     pb: (row) => <td className="num">{(() => { const v = pbOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 2, lang)}×`; })()}</td>,

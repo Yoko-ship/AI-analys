@@ -1,0 +1,5 @@
+# Test-only dependencies. The runtime set lives in requirements-server.txt;
+# nothing here is installed into the deployed image.
+-r requirements-server.txt
+
+pytest>=8.3,<9

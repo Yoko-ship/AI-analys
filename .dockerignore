@@ -1,20 +1,79 @@
+# Build context for the server image. Everything the API and the two cron
+# collectors need, and nothing else.
+#
+# `COPY . /app` means anything left here ships to production: it inflates the
+# image, slows every deploy, and puts files on a public-facing container that were
+# never meant to leave a laptop. Patterns must match the ACTUAL names — `*.pyc`
+# did not match the committed `db.pyc.1797003759744`, so a stale bytecode artifact
+# rode along for months.
+
+# --- VCS / tooling ---------------------------------------------------------
 .git
 .github
 .gitignore
+.claude
+.railway-config-pull-*
+
+# --- Python build artifacts ------------------------------------------------
 .venv
+venv
 __pycache__
 *.pyc
 *.pyo
 *.pyd
+*.pyc.*
+*.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# --- Tests and dev tooling (never executed in the image) -------------------
+tests
+e2e
+scripts
+playwright.config.js
+eslint.config.js
+playwright-report
+test-results
+.verify_shots
+requirements-dev.txt
+
+# --- Node -------------------------------------------------------------------
+# NOTE: .dockerignore applies to the whole build context, i.e. to EVERY stage.
+# frontend/src, frontend/index.html, vite.config.js, package.json and
+# package-lock.json must stay — the frontend-builder stage compiles them. They are
+# dropped from the runtime image by the Dockerfile's final stage instead, which is
+# the only place that distinction can be made.
+node_modules
+frontend/node_modules
+frontend/.vite
+frontend/*.log
+
+# --- Secrets and local state -----------------------------------------------
+.env
+data
 *.db
 *.sqlite
+*.sqlite3
 *.log
-.env
-report.html
-data
-trades_*.csv
-org_cache.json
 analysis_cache.db
 users.db
+org_cache.json
+full_org_list_cache.json
+openinfo_reconciled.json
+
+# --- Local outputs, scratch and notes --------------------------------------
+report.html
+*_analysis_*.html
+trades_*.csv
+news_mockups
+image.png
+run_collector.bat
 README.md
 DEPLOY.md
+CODE_REVIEW_*.md
+PROJECT_REVIEW.md
+TZ_*.md
+TZ_*.txt
+NEWS_MODULE.md
+news_ai_module_scope.md

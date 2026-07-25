@@ -53,6 +53,7 @@ from news_classifier import (  # noqa: E402  (after load_dotenv)
     prefilter_reject,
     screen_items,
 )
+from runtime_preflight import NEWS_REQUIREMENTS, preflight  # noqa: E402  (after load_dotenv)
 
 logger = logging.getLogger(__name__)
 
@@ -886,6 +887,9 @@ def main() -> None:
         except (AttributeError, OSError):  # not a real console / already fixed
             pass
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    # feedparser missing from the image made every cron run collect 0 items while
+    # exiting 0 — name the gap in the log instead of shrugging it off.
+    preflight(NEWS_REQUIREMENTS, label="news-collector")
     if args.purge_failed:
         result = purge_failed(push=not args.no_push)
     elif args.backfill_images:

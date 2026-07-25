@@ -29,6 +29,7 @@ from analyzer import (
 )
 from cache import cache as analysis_cache
 from main import get_data
+from numeric_parse import parse_decimal
 from openinfo_collector import collect_company_data
 
 
@@ -2592,18 +2593,14 @@ def _table_count_from_article(sections: list[dict]) -> int:
 
 
 def _number_from_report_text(value: str) -> float | None:
-    text = str(value or "").strip()
-    if not text or text in {"—", "-"}:
-        return None
-    sign = -1 if text.startswith(("−", "-")) else 1
-    text = text.lstrip("+−-").replace("%", "").replace("\xa0", " ").replace(" ", "")
-    if "," in text and "." not in text:
-        text = text.replace(",", ".")
-    text = "".join(ch for ch in text if ch.isdigit() or ch == ".")
-    try:
-        return sign * float(text)
-    except ValueError:
-        return None
+    """A number out of an already-rendered report cell.
+
+    Lenient (these strings carry unit suffixes and the U+2212 minus), but the
+    separator rules come from the shared parser: the old comma->dot rewrite made
+    every comma-grouped amount unparseable, so "1,234,567" silently became None.
+    """
+    text = str(value or "").strip().replace("−", "-")
+    return parse_decimal(text, group_sep=",", strip_non_numeric=True)
 
 
 def _largest_abs_table_row(table: dict | None, column_index: int) -> tuple[str, str] | None:
@@ -5916,17 +5913,18 @@ def report_disclaimer(language: str = "ru") -> str:
 
 
 def _excel_number(value):
-    """Return a float if value is numeric-like, else None (so numbers export as numbers)."""
+    """Return a float if value is numeric-like, else None (so numbers export as numbers).
+
+    Multiplier cells are rendered with a times sign ("8.4x"); drop it, then hand
+    the token to the shared parser so a comma-grouped sum exports as a number
+    instead of falling through to text.
+    """
     if isinstance(value, bool) or value is None:
         return None
     if isinstance(value, (int, float)):
         return float(value)
-    text = str(value).strip().replace("\xa0", "").replace(" ", "").replace("%", "").replace("×", "").replace("x", "")
-    text = text.replace(",", ".")
-    try:
-        return float(text)
-    except ValueError:
-        return None
+    text = str(value).strip().replace("×", "").replace("x", "")
+    return parse_decimal(text, group_sep=",", strip_non_numeric=False)
 
 
 _PDF_FONT_CACHE: dict = {}

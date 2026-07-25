@@ -419,6 +419,10 @@ def collect_financials_aliases() -> list[dict[str, Any]]:
             rows.append({
                 "ticker": tk, "form": "NSBU",
                 "year": source.get("year"), "quarter": source.get("quarter") or 0,
+                # Same legal entity, same figures — including which period each
+                # figure describes. Dropping it here would republish the sibling's
+                # cross-period values under this row's own period label.
+                "field_periods": dict(source.get("field_periods") or {}),
                 **{k: source.get(k) for k in _FIN_VALUE_KEYS},
             })
     log.info("financials aliases: %d sibling tickers", len(rows))
