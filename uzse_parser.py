@@ -8,6 +8,9 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+
+from numeric_parse import parse_decimal
+
 BASE_URL = "https://uzse.uz/trade_results"
 DATE_FORMAT = "%d.%m.%Y"
 DAYS_BACK = 30
@@ -30,35 +33,13 @@ def _normalize_name(value: str) -> str:
 
 
 def _parse_number(text: str) -> float | None:
-    if not text:
-        return None
+    """One uzse.uz board cell as a number.
 
-    cleaned = re.sub(r"[^\d.,]", "", str(text).strip())
-    if not cleaned:
-        return None
-
-    if "," in cleaned and "." in cleaned:
-        last_sep = max(cleaned.rfind(","), cleaned.rfind("."))
-        integer_part = re.sub(r"[.,]", "", cleaned[:last_sep])
-        decimal_part = re.sub(r"[.,]", "", cleaned[last_sep + 1:])
-        cleaned = f"{integer_part}.{decimal_part}" if decimal_part else integer_part
-    elif "," in cleaned:
-        parts = cleaned.split(",")
-        if len(parts) > 1 and all(len(part) == 3 for part in parts[1:]):
-            cleaned = "".join(parts)
-        else:
-            cleaned = cleaned.replace(",", ".")
-    elif cleaned.count(".") > 1:
-        parts = cleaned.split(".")
-        if all(len(part) == 3 for part in parts[1:]):
-            cleaned = "".join(parts)
-        else:
-            cleaned = "".join(parts[:-1]) + "." + parts[-1]
-
-    try:
-        return float(cleaned)
-    except ValueError:
-        return None
+    Lenient about surrounding text because these are HTML cells that carry
+    currency marks and unit suffixes; the separator rules themselves live in the
+    shared parser so this path and the openinfo path cannot drift apart again.
+    """
+    return parse_decimal(text, group_sep=",", strip_non_numeric=True)
 
 
 def _build_url() -> str:

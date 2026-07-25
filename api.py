@@ -351,6 +351,10 @@ def _require_admin(x_admin_secret: str | None = Header(default=None)) -> None:
 AUTH_RATE_LIMIT_PER_MINUTE = int(os.getenv("AUTH_RATE_LIMIT_PER_MINUTE", "10"))
 LLM_RATE_LIMIT_PER_MINUTE = int(os.getenv("LLM_RATE_LIMIT_PER_MINUTE", "5"))
 LLM_DAILY_LIMIT = int(os.getenv("LLM_DAILY_LIMIT", "50"))
+# Deployment-wide daily ceiling on paid LLM calls. Registration is open and
+# unverified, so a per-user cap bounds nothing on its own — N accounts buy N
+# quotas. Raise deliberately; 0 disables the ceiling.
+LLM_GLOBAL_DAILY_LIMIT = int(os.getenv("LLM_GLOBAL_DAILY_LIMIT", "500"))
 
 
 class _SlidingWindowLimiter:
@@ -369,15 +373,58 @@ class _SlidingWindowLimiter:
                 return False
             events.append(now)
             self._events[key] = events
+            if len(self._events) > _LIMITER_MAX_KEYS:
+                self._evict_expired(now, window_seconds)
             return True
 
+    def _evict_expired(self, now: float, window_seconds: float) -> None:
+        """Drop buckets with nothing left in the window (caller holds the lock).
+
+        Without this the dict grows one entry per distinct key forever, which on a
+        long-lived single-worker process is an unbounded memory leak driven by
+        untrusted input (one bucket per client IP that ever hit an auth endpoint).
+        """
+        stale = [k for k, ts in self._events.items()
+                 if not ts or now - ts[-1] >= window_seconds]
+        for k in stale:
+            self._events.pop(k, None)
+
+
+# Guard-rail before eviction runs — high enough that normal traffic never pays
+# for the sweep, low enough that the dict cannot grow without bound.
+_LIMITER_MAX_KEYS = int(os.getenv("RATE_LIMIT_MAX_KEYS", "20000"))
 
 _rate_limiter = _SlidingWindowLimiter()
 
+# How many reverse proxies sit in front of this process. X-Forwarded-For is
+# APPEND-only: each hop adds the address it saw, so the last entry is the one
+# added by our own edge proxy and the leftmost entries are whatever the client
+# chose to send. Trusting the leftmost entry — as this did — let any client
+# supply "X-Forwarded-For: <random>" and get a brand-new rate-limit bucket on
+# every request, which defeats login brute-force and mass-signup protection
+# entirely. Railway terminates TLS and adds exactly one hop; set this to the real
+# number of trusted proxies if the topology changes, or 0 to ignore the header.
+TRUSTED_PROXY_HOPS = int(os.getenv("TRUSTED_PROXY_HOPS", "1"))
+
 
 def _client_ip(request: Request) -> str:
-    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
-    return forwarded or (request.client.host if request.client else "unknown")
+    """The client address, taken only from hops we actually trust.
+
+    Counts ``TRUSTED_PROXY_HOPS`` entries in from the RIGHT of X-Forwarded-For.
+    Anything further left is client-supplied and is never used. With no header (or
+    a shorter one than the configured hop count) this falls back to the peer
+    address, which cannot be spoofed.
+    """
+    peer = request.client.host if request.client else "unknown"
+    if TRUSTED_PROXY_HOPS <= 0:
+        return peer
+    forwarded = request.headers.get("x-forwarded-for") or ""
+    chain = [part.strip() for part in forwarded.split(",") if part.strip()]
+    if len(chain) < TRUSTED_PROXY_HOPS:
+        # Fewer hops than configured: the request did not traverse the expected
+        # proxy chain, so no entry in it is trustworthy.
+        return peer
+    return chain[-TRUSTED_PROXY_HOPS]
 
 
 def _enforce_auth_rate_limit(request: Request, scope: str) -> None:
@@ -387,7 +434,21 @@ def _enforce_auth_rate_limit(request: Request, scope: str) -> None:
 
 
 def _enforce_llm_quota(user: WebUser) -> None:
-    """Per-user pacing + daily cap on endpoints that spend paid LLM tokens."""
+    """Per-user pacing + daily cap, and a deployment-wide daily ceiling.
+
+    A per-user cap alone does not bound spend: registration is open and
+    unverified, so N accounts buy N times the quota. The global bucket is the
+    actual budget guard-rail — it turns "unbounded paid LLM spend" into a number
+    someone chose (LLM_GLOBAL_DAILY_LIMIT), and it is enforced before the
+    per-user checks so a burst of fresh accounts cannot walk past it.
+    """
+    if not _rate_limiter.allow("llm-day:__global__", LLM_GLOBAL_DAILY_LIMIT, 86400.0):
+        logger.warning("global daily LLM cap (%d) reached — refusing paid analysis requests",
+                       LLM_GLOBAL_DAILY_LIMIT)
+        raise HTTPException(
+            status_code=429,
+            detail="The service reached its daily analysis capacity — please try again tomorrow",
+        )
     if not _rate_limiter.allow(f"llm-min:{user.id}", LLM_RATE_LIMIT_PER_MINUTE, 60.0):
         raise HTTPException(status_code=429, detail="Too many analysis requests — try again in a minute")
     if not _rate_limiter.allow(f"llm-day:{user.id}", LLM_DAILY_LIMIT, 86400.0):
@@ -481,7 +542,60 @@ def _oauth_callback_url(path: str, endpoint_name: str, request: Request | None =
     raise HTTPException(status_code=503, detail="PUBLIC_BASE_URL is not configured")
 
 
-def _build_google_auth_url(request: Request) -> str:
+# ---------------------------------------------------------------------------
+# OAuth CSRF protection (RFC 6749 §10.12). Without a `state` bound to the
+# browser that started the flow, anyone can feed a victim a callback URL carrying
+# an attacker-obtained authorization code and silently sign the victim's browser
+# into the ATTACKER's account (login CSRF), and a leaked code can be replayed.
+# The state is a random nonce kept in a short-lived HttpOnly, SameSite=Lax cookie
+# — the cookie is what proves "the browser hitting the callback is the browser
+# that started the flow", so the value never needs to be stored server-side.
+# ---------------------------------------------------------------------------
+
+_OAUTH_STATE_COOKIE = "oauth_state"
+_OAUTH_STATE_TTL_SECONDS = 600
+
+
+def _cookies_are_secure(request: Request) -> bool:
+    """Whether to mark the state cookie Secure.
+
+    Keyed on the deployment's own public scheme when configured, else on the
+    forwarded scheme of this request — a Secure cookie over plain HTTP is dropped
+    by the browser, which would break the flow for a local HTTP dev server.
+    """
+    base = _public_base_url()
+    if base:
+        return base.startswith("https://")
+    scheme = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").lower()
+    return scheme == "https"
+
+
+def _issue_oauth_state(request: Request, response: RedirectResponse) -> str:
+    state = secrets.token_urlsafe(32)
+    response.set_cookie(
+        _OAUTH_STATE_COOKIE, state,
+        max_age=_OAUTH_STATE_TTL_SECONDS,
+        httponly=True,
+        secure=_cookies_are_secure(request),
+        samesite="lax",  # must survive the top-level redirect back from Google
+        path="/api/auth/oauth",
+    )
+    return state
+
+
+def _verify_oauth_state(request: Request, state: str | None) -> bool:
+    """Constant-time check that the callback's state matches this browser's cookie."""
+    expected = request.cookies.get(_OAUTH_STATE_COOKIE)
+    if not expected or not state:
+        return False
+    return hmac.compare_digest(expected, state)
+
+
+def _clear_oauth_state(response: RedirectResponse) -> None:
+    response.delete_cookie(_OAUTH_STATE_COOKIE, path="/api/auth/oauth")
+
+
+def _build_google_auth_url(request: Request, state: str) -> str:
     client_id = _env_required("GOOGLE_CLIENT_ID")
     redirect_uri = _google_redirect_uri(request)
     params = {
@@ -491,6 +605,7 @@ def _build_google_auth_url(request: Request) -> str:
         "scope": "openid email profile",
         "access_type": "online",
         "prompt": "select_account",
+        "state": state,
     }
     return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
@@ -1683,7 +1798,12 @@ async def api_favorites_toggle(
 @app.get("/api/auth/oauth/google/start")
 async def api_oauth_google_start(request: Request) -> RedirectResponse:
     try:
-        return RedirectResponse(_build_google_auth_url(request), status_code=302)
+        # The state cookie must be set on the SAME response that redirects to the
+        # provider, so build the response first and mint the nonce onto it.
+        response = RedirectResponse("about:blank", status_code=302)
+        state = _issue_oauth_state(request, response)
+        response.headers["location"] = _build_google_auth_url(request, state)
+        return response
     except HTTPException:
         raise
     except Exception as exc:
@@ -1691,9 +1811,21 @@ async def api_oauth_google_start(request: Request) -> RedirectResponse:
 
 
 @app.get("/api/auth/oauth/google/callback", name="api_oauth_google_callback")
-async def api_oauth_google_callback(request: Request, code: str | None = None, error: str | None = None) -> RedirectResponse:
+async def api_oauth_google_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+) -> RedirectResponse:
     if error:
         return _oauth_failure(error)
+    # Check state BEFORE spending a token exchange on it: an unmatched state means
+    # this callback did not originate from a flow this browser started.
+    if not _verify_oauth_state(request, state):
+        logger.warning("oauth callback rejected: state missing or does not match the browser cookie")
+        failed = _oauth_failure("Login session expired or invalid — please try signing in again")
+        _clear_oauth_state(failed)
+        return failed
     if not code:
         return _oauth_failure("Google login was cancelled or did not return a code")
 
@@ -1714,7 +1846,11 @@ async def api_oauth_google_callback(request: Request, code: str | None = None, e
     except Exception as exc:
         return _oauth_failure(str(exc))
 
-    return _oauth_success("google", token)
+    # Single-use: the nonce is spent whether or not the login succeeded, so a
+    # replayed callback cannot reuse it.
+    success = _oauth_success("google", token)
+    _clear_oauth_state(success)
+    return success
 
 
 @app.post("/api/company-data")

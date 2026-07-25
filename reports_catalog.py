@@ -6,6 +6,7 @@ import os
 import re
 import sqlite3
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
@@ -245,6 +246,14 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     have_news = {r[1] for r in conn.execute("PRAGMA table_info(news)")}
     if "image_url" not in have_news:
         conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")
+    # Per-field period provenance (JSON {field: period}). A financials row is
+    # labelled with ONE period, but a few fields can only be sourced from a
+    # different one (bank revenue exists in openinfo's indicators and nowhere in
+    # the NSBU form). Recording which period each such field came from is what
+    # keeps the row honest instead of passing a full-year figure off as a quarter.
+    have_fin = {r[1] for r in conn.execute("PRAGMA table_info(catalog_financials)")}
+    if "field_periods" not in have_fin:
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN field_periods TEXT")
     conn.commit()
 
 
@@ -349,18 +358,29 @@ def _is_premature_annual_period(period: str | None) -> bool:
     return k == 5 and y > _latest_complete_fiscal_year()
 
 
-def _fact_period_rank(period: str | None) -> tuple[int, int]:
+def _fact_period_rank(period: str | None) -> tuple[int, int, int]:
     """``_period_key`` with premature annuals demoted below every real period.
 
-    Used only for "latest period" selection over the fact store. A premature
-    annual (openinfo's current-year placeholder) must never win against a real
-    completed period, but we still rank it above junk so an issuer whose *only*
-    fact is the placeholder is shown that rather than nothing.
+    Used only for "latest period" selection over the fact store, and only ever
+    compared against other values of this same function — hence the explicit
+    tier, which makes the three classes totally ordered:
+
+        tier 0  junk / unparseable  ('2025Q7')
+        tier 1  premature annual    (openinfo's current-year placeholder)
+        tier 2  a real period
+
+    A premature annual must never beat a real period, but it must still beat junk
+    so an issuer whose *only* fact is the placeholder shows that rather than
+    nothing. The previous ``(y - 10000, k)`` demotion overshot: it produced a
+    negative year, which sorts BELOW junk's ``(0, 0)`` — so an issuer with one
+    placeholder and one corrupt period preferred the corrupt one.
     """
     y, k = _period_key(period)
+    if (y, k) == (0, 0):
+        return (0, 0, 0)
     if k == 5 and y > _latest_complete_fiscal_year():
-        return (y - 10000, k)  # far below any real period (min real year ~2015)
-    return (y, k)
+        return (1, y, k)
+    return (2, y, k)
 
 
 def _now_iso() -> str:
@@ -1271,25 +1291,33 @@ _FINANCIAL_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
 
 def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
                             values: dict[str, Any]) -> None:
-    """Store the six NSBU headline indicators for a ticker/period."""
+    """Store the six NSBU headline indicators for a ticker/period.
+
+    Every value here is parsed from the (year, quarter) statement itself, so the
+    row's ``field_periods`` is cleared: any stale provenance from a previous
+    enrichment no longer describes what is stored.
+    """
     conn = get_catalog_conn()
     with conn:
         conn.execute(
             """
             INSERT INTO catalog_financials
                 (ticker, form, year, quarter, revenue, gross_profit, cash,
-                 total_liabilities, net_income, operating_income, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                 total_liabilities, net_income, operating_income,
+                 field_periods, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
             ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                 revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                 cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                 net_income=excluded.net_income, operating_income=excluded.operating_income,
+                field_periods=excluded.field_periods,
                 updated_at=datetime('now')
             """,
             (ticker, form, year, quarter,
              values.get("revenue"), values.get("gross_profit"), values.get("cash"),
              values.get("total_liabilities"), values.get("net_income"),
-             values.get("operating_income")),
+             values.get("operating_income"),
+             _encode_field_periods(values.get("field_periods"))),
         )
     conn.close()
 
@@ -1370,18 +1398,21 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                     """
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
-                         total_liabilities, net_income, operating_income, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                         total_liabilities, net_income, operating_income,
+                         field_periods, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                         net_income=excluded.net_income, operating_income=excluded.operating_income,
+                        field_periods=excluded.field_periods,
                         updated_at=datetime('now')
                     """,
                     (ticker, str(r.get("form") or form), year, quarter,
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
-                     _num(r.get("operating_income"))),
+                     _num(r.get("operating_income")),
+                     _encode_field_periods(r.get("field_periods"))),
                 )
                 n += 1
     finally:
@@ -1426,13 +1457,15 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                     """
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
-                         total_liabilities, net_income, operating_income, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                         total_liabilities, net_income, operating_income,
+                         field_periods, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     """,
                     (ticker, row_form, year, quarter,
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
-                     _num(r.get("operating_income"))),
+                     _num(r.get("operating_income")),
+                     _encode_field_periods(r.get("field_periods"))),
                 )
                 n += 1
     finally:
@@ -1581,6 +1614,27 @@ def get_all_listings() -> dict[str, dict[str, Any]]:
     return {r["ticker"]: dict(r) for r in rows}
 
 
+def _decode_field_periods(raw: Any) -> dict[str, str]:
+    """Parse the stored ``field_periods`` JSON, tolerating legacy NULL rows."""
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return {str(k): str(v) for k, v in raw.items() if v}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {str(k): str(v) for k, v in parsed.items() if v}
+
+
+def _encode_field_periods(value: Any) -> str | None:
+    """Serialize ``field_periods`` for storage; None when there is nothing to say."""
+    decoded = _decode_field_periods(value)
+    return json.dumps(decoded, ensure_ascii=False, sort_keys=True) if decoded else None
+
+
 def _financials_enrich_enabled() -> bool:
     """Whether to apply org/fact enrichment when reading financials.
 
@@ -1604,26 +1658,48 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     """
     conn = get_catalog_conn()
     _maybe_seed_financials(conn, form)
-    # Exclude a premature current-year annual (quarter 0, fiscal year not yet
-    # ended) from the "latest period" pick — it is openinfo's in-progress
-    # placeholder, so a real completed annual/quarter must win. Quarterly periods
-    # of the current year stay eligible.
+    # Period ranking, in SQL, matching _period_key() exactly. Three things this
+    # has to get right and the old `MAX(year * 10 + quarter)` did not:
+    #
+    #  1. An ANNUAL row is stored with quarter = 0, so it ranked BELOW every
+    #     quarter of its own year — a completed FY2025 annual lost to 2025 Q1.
+    #     _period_key ranks an annual as 5 (the complete, final figure for that
+    #     year); the CASE below does the same, so the two orderings agree.
+    #  2. A premature annual (fiscal year not yet ended) is openinfo's in-progress
+    #     placeholder and must never win. Quarterly periods of the current year
+    #     stay eligible — they are real point-in-time filings.
+    #  3. A quarter outside 1-4 is a corrupt source period ('2025Q7'); at
+    #     quarter = 7 it outranked every real period. Excluded outright.
+    #  4. A period stamped beyond the current calendar year cannot be a filing
+    #     that exists yet, quarterly or not. A single mis-stamped row (openinfo
+    #     does mis-stamp period-ends) otherwise wins "latest" forever and shadows
+    #     the issuer's real figures.
     last_fy = _latest_complete_fiscal_year()
+    this_year = last_fy + 1
+    period_rank = "(f.year * 10 + CASE WHEN f.quarter = 0 THEN 5 ELSE f.quarter END)"
+    eligible = (
+        "f.form = :form "
+        "AND f.year IS NOT NULL "
+        "AND f.quarter BETWEEN 0 AND 4 "
+        "AND f.year <= :this_year "
+        "AND NOT (f.quarter = 0 AND f.year > :last_fy)"
+    )
     rows = conn.execute(
-        """
+        f"""
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
-               f.total_liabilities, f.net_income, f.operating_income, f.updated_at
+               f.total_liabilities, f.net_income, f.operating_income,
+               f.field_periods, f.updated_at
         FROM catalog_financials f
         JOIN (
-            SELECT ticker, MAX(year * 10 + quarter) AS rank
-            FROM catalog_financials
-            WHERE form = ? AND NOT (quarter = 0 AND year > ?)
-            GROUP BY ticker
+            SELECT f.ticker AS ticker, MAX{period_rank} AS rank
+            FROM catalog_financials f
+            WHERE {eligible}
+            GROUP BY f.ticker
         ) latest
-          ON latest.ticker = f.ticker AND (f.year * 10 + f.quarter) = latest.rank
-        WHERE f.form = ? AND NOT (f.quarter = 0 AND f.year > ?)
+          ON latest.ticker = f.ticker AND {period_rank} = latest.rank
+        WHERE {eligible}
         """,
-        (form, last_fy, form, last_fy),
+        {"form": form, "last_fy": last_fy, "this_year": this_year},
     ).fetchall()
     out: dict[str, dict[str, Any]] = {}
     for r in rows:
@@ -1640,6 +1716,10 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "total_liabilities": r["total_liabilities"],
             "net_income": r["net_income"],
             "operating_income": r["operating_income"],
+            # {field: period} for any value that does NOT belong to (year, quarter)
+            # — a bank's revenue is only published as an annual indicator, so the
+            # cell must say which period it describes rather than borrow the row's.
+            "field_periods": _decode_field_periods(r["field_periods"]),
             "updated_at": r["updated_at"],
         }
     if _financials_enrich_enabled():
@@ -1817,6 +1897,19 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
     return out
 
 
+def _row_period(fin: dict[str, Any]) -> str | None:
+    """The fact-store period string a financials row is labelled with.
+
+    ``{'year': 2024, 'quarter': 0}`` -> ``'2024'`` (annual); quarter 1-4 ->
+    ``'2024Q1'``. Returns None when the row carries no usable year.
+    """
+    year = fin.get("year")
+    if not isinstance(year, int) or year <= 0:
+        return None
+    quarter = fin.get("quarter") or 0
+    return f"{year}Q{quarter}" if 1 <= quarter <= 4 else str(year)
+
+
 def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[str, Any]]) -> None:
     """Conservatively correct NSBU headline figures from the fact store.
 
@@ -1831,6 +1924,21 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
       - blank implausibly small NSBU values (clear parse errors).
     Large magnitude disagreements are left as flags (see audit_financials_consistency)
     rather than "corrected" with possibly-wrong-org data.
+
+    PERIOD DISCIPLINE. A row carries one (year, quarter) label, and every value in
+    it must belong to that period or say which period it does belong to. The fact
+    store's "latest indicator on file" is frequently a *different, older* period
+    than the parsed NSBU row, so:
+
+      - a fact for the row's OWN period may overwrite the parsed value (same
+        period, cleaner source — this is the intended correction);
+      - a fact for any other period may only FILL A NULL, never overwrite, and the
+        period it came from is recorded in ``fin['field_periods']``.
+
+    Without that rule the enrichment wrote FY2024 revenue into a row labelled
+    "Q1 2026 (3 months)" — a ~5.5x overstatement on UZMK that also destroyed the
+    fresher quarterly figure underneath it. Every finance-sector and ORG_OVERRIDES
+    issuer was exposed.
     """
     srcs = ("net_revenue", "net_profit", "total_liabilities",
             "gross_profit_margin", "ebit_margin")
@@ -1864,6 +1972,9 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         "UZNGP": {"cash": 2291908931.0},
     }
     best: dict[tuple[str, str], tuple[str, float]] = {}
+    # Every (org, field) indexed by its exact period, so a fill can prefer the fact
+    # that belongs to the period the row is labelled with.
+    by_period: dict[tuple[str, str, str], float] = {}
     # net_profit indexed by annual year, so a sign-flip check compares against the
     # SAME year the board displays — not merely the newest indicator on file (which
     # can be a later annual than the parsed NSBU set, defeating the magnitude test).
@@ -1882,6 +1993,7 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
             continue  # openinfo's in-progress current-year placeholder — not a real annual
         if best.get(key) is None or _fact_period_rank(period) > _fact_period_rank(best[key][0]):
             best[key] = (period, r["value_num"])
+        by_period[(str(r["entity_id"]), r["field"], period)] = r["value_num"]
         if r["field"] == "net_profit" and period.isdigit() and len(period) == 4:
             npf_by_year[(str(r["entity_id"]), int(period))] = r["value_num"]
     for ticker, fin in out.items():
@@ -1907,9 +2019,46 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         org = ticker_org.get(ticker)
         if not org:
             continue
-        rev = best.get((org, "net_revenue"))
-        npf = best.get((org, "net_profit"))
-        tl = best.get((org, "total_liabilities"))
+        row_period = _row_period(fin)
+
+        def _pick(field: str) -> tuple[str, float] | None:
+            """The fact to use for ``field``: the row's own period if it exists,
+            otherwise the newest one on file (which the caller must then treat as
+            fill-only, because it describes a different reporting period)."""
+            if row_period is not None:
+                same = by_period.get((org, field, row_period))
+                if same is not None:
+                    return (row_period, same)
+            return best.get((org, field))
+
+        def _apply(target: str, hit: tuple[str, float] | None) -> None:
+            """Write a fact onto the row under the period rule (see the docstring).
+
+            Same period as the row -> authoritative, overwrite. Different period ->
+            fill a null only, and record the period the figure actually describes so
+            nothing is served under the wrong label.
+            """
+            if hit is None:
+                return
+            period, value = hit
+            if period == row_period:
+                fin[target] = value
+                return
+            if fin.get(target) is not None:
+                # A real figure for this row's period already exists; a different
+                # period's indicator does not get to replace it. Visible via
+                # audit_financials_consistency rather than silently resolved.
+                logger.debug(
+                    "%s: keeping parsed %s for %s, not overwriting with the %s fact",
+                    ticker, target, row_period, period,
+                )
+                return
+            fin[target] = value
+            fin.setdefault("field_periods", {})[target] = period
+
+        rev = _pick("net_revenue")
+        npf = _pick("net_profit")
+        tl = _pick("total_liabilities")
         rev_v = rev[1] if rev and rev[1] not in (None, 0) else None
         npf_v = npf[1] if npf and npf[1] is not None else None
         tl_v = tl[1] if tl and tl[1] not in (None, 0) else None
@@ -1926,18 +2075,24 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
                                     ("operating_income", "ebit_margin")):
                 if fin.get(fld) is not None:
                     continue
-                m = best.get((org, margin_key))
-                if m and m[0] == rev[0] and 0 < m[1] <= 1:
-                    fin[fld] = round(rev[1] * m[1])
+                m = by_period.get((org, margin_key, rev[0]))
+                if m is not None and 0 < m <= 1:
+                    fin[fld] = round(rev[1] * m)
+                    # The derived line inherits the revenue's period, which is not
+                    # always the row's — carry that through, same rule as _apply.
+                    if rev[0] != row_period:
+                        fin.setdefault("field_periods", {})[fld] = rev[0]
 
         if ticker in ORG_OVERRIDES:
-            # Org is human-verified, so openinfo's clean figures are authoritative.
-            if npf_v is not None:
-                fin["net_income"] = npf_v
-            if rev_v is not None:
-                fin["revenue"] = rev_v
-            if tl_v is not None:
-                fin["total_liabilities"] = tl_v
+            # Org is human-verified, so openinfo's clean figures are authoritative
+            # FOR THEIR OWN PERIOD. _apply still refuses to write a figure from one
+            # period into a row labelled with another — a verified org says nothing
+            # about which reporting period a number belongs to, and this branch is
+            # where the UZMK "Q1 2026 carrying FY2024 revenue" overstatement came
+            # from.
+            _apply("net_income", npf if npf_v is not None else None)
+            _apply("revenue", rev if rev_v is not None else None)
+            _apply("total_liabilities", tl if tl_v is not None else None)
             _derive_margin_lines()
             continue
 
@@ -1947,11 +2102,11 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
         # to stay consistent with how bank revenue is sourced. Non-finance keep the
         # NSBU figure and only fall back to the indicator when it is blank.
         if rev_v is not None and (is_bank or fin.get("revenue") is None):
-            fin["revenue"] = rev_v
+            _apply("revenue", rev)
         if npf_v is not None:
             stored = fin.get("net_income")
             if is_bank and npf_v != 0:
-                fin["net_income"] = npf_v
+                _apply("net_income", npf)
             elif stored is not None:
                 year = fin.get("year")
                 cmp_v = npf_by_year.get((org, year)) if year else None
@@ -1959,9 +2114,12 @@ def _enrich_financials_from_facts(conn: sqlite3.Connection, out: dict[str, dict[
                     cmp_v = npf_v
                 same_magnitude = abs(abs(stored) - abs(cmp_v)) / max(abs(cmp_v), 1.0) < 0.05
                 if same_magnitude and (stored < 0) != (cmp_v < 0):
-                    fin["net_income"] = cmp_v  # sign flip — same company, fix sign
+                    # A sign flip is a parser error on THIS row's own figure, not a
+                    # different period's value — the magnitude test already proved
+                    # they are the same number, so the label stays correct.
+                    fin["net_income"] = cmp_v
         if fin.get("total_liabilities") is None and tl_v is not None:
-            fin["total_liabilities"] = tl_v
+            _apply("total_liabilities", tl)
         _derive_margin_lines()
 
 
@@ -2023,6 +2181,8 @@ def upsert_facts(rows: list[dict[str, Any]]) -> int:
             written += 1
         _cleanup_invalid_fact_periods(conn)
     conn.close()
+    # The ratio memo is derived from exactly these rows.
+    invalidate_ratios_cache()
     return written
 
 
@@ -2043,6 +2203,7 @@ def _cleanup_invalid_fact_periods(conn: sqlite3.Connection) -> int:
         removed += conn.execute("DELETE FROM facts WHERE period = ?", (p,)).rowcount
     if removed:
         logger.warning("fact store: removed %d rows with invalid periods %s", removed, bad)
+        invalidate_ratios_cache()
     return removed
 
 
@@ -2177,7 +2338,12 @@ def _inherit_financials_by_org(conn: sqlite3.Connection, out: dict[str, dict[str
             continue
         source = org_fin.get(org)
         if source:
-            out[ticker] = {**source, "inherited_from_org": org}
+            # field_periods must be copied, not aliased: the enrichment pass that
+            # runs after this one mutates it per ticker, and siblings can resolve to
+            # different org records (UZMK/UZMKP), so a shared dict would leak one
+            # ticker's provenance onto another's row.
+            out[ticker] = {**source, "field_periods": dict(source.get("field_periods") or {}),
+                           "inherited_from_org": org}
 
     # Preferred shares also inherit directly from their ordinary ticker, even when
     # openinfo indexes them under a different org record (duplicate org entries for
@@ -2187,7 +2353,8 @@ def _inherit_financials_by_org(conn: sqlite3.Connection, out: dict[str, dict[str
             continue
         base = ticker[:-1]
         if base in out:
-            out[ticker] = {**out[base], "inherited_from_ticker": base}
+            out[ticker] = {**out[base], "field_periods": dict(out[base].get("field_periods") or {}),
+                           "inherited_from_ticker": base}
 
 
 def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
@@ -2327,7 +2494,7 @@ def refresh_financials_from_pdf(tickers: list[str] | None = None, limit: int = 8
         params = list(tickers)
     rows = conn.execute(
         f"""
-        SELECT r.ticker, c.company_name, r.period_type, r.year, r.quarter
+        SELECT r.ticker, c.company_name, c.org_id, r.period_type, r.year, r.quarter
         FROM catalog_reports r
         JOIN catalog_companies c ON c.ticker = r.ticker
         LEFT JOIN catalog_financials f ON f.ticker = r.ticker AND f.form = 'NSBU'
@@ -2345,13 +2512,27 @@ def refresh_financials_from_pdf(tickers: list[str] | None = None, limit: int = 8
 
     session = _make_session()
     updated = 0
+    updated_tickers: list[str] = []
+    unresolved: list[str] = []
     errors: list[dict] = []
     for ticker, (_, r) in list(best.items())[:limit]:
+        # This is the last-resort source and it writes straight into the served
+        # financials, so it must be the STRICTEST about identity, not the loosest.
+        # Searching by company name with no org filter meant a name that shares
+        # words with a larger issuer returned that issuer's PDF, and its balance
+        # sheet was then stored as this ticker's — the KVTS/BIOK failure mode.
+        org_id = ORG_OVERRIDES.get(ticker) or (str(r["org_id"]).strip() if r["org_id"] else "")
+        if not org_id:
+            unresolved.append(ticker)
+            continue
         try:
             # The stored pdf_url can carry a wrong report id for microfinance, so
             # fetch the live report list to get the current, correct PDF link.
-            docs = fetch_report_documents(r["company_name"] or ticker, session=session)
-            nsbu = [d for d in docs["items"] if d.get("report_form") == "NSBU" and d.get("pdf_url")]
+            docs = fetch_report_documents(r["company_name"] or ticker, org_id=org_id,
+                                          session=session)
+            nsbu = [d for d in docs["items"]
+                    if d.get("report_form") == "NSBU" and d.get("pdf_url")
+                    and str(d.get("organization_id")) == str(org_id)]
             if not nsbu:
                 continue
             nsbu.sort(key=lambda d: (d.get("period_type") == "annual", str(d.get("published_at") or "")), reverse=True)
@@ -2379,7 +2560,16 @@ def refresh_financials_from_pdf(tickers: list[str] | None = None, limit: int = 8
             )
         c.close()
         updated += 1
-    return {"ok": True, "candidates": len(best), "updated": updated, "errors": errors[:10]}
+        updated_tickers.append(ticker)
+    if unresolved:
+        # Not an error, but not silent either: these issuers stay uncovered by
+        # design because guessing which company a filing belongs to is what
+        # produced wrong numbers before.
+        logger.info("pdf fallback: skipped %d ticker(s) with no resolved org id: %s",
+                    len(unresolved), ", ".join(sorted(unresolved)[:20]))
+    return {"ok": True, "candidates": len(best), "updated": updated,
+            "updated_tickers": updated_tickers,
+            "skipped_unresolved": len(unresolved), "errors": errors[:10]}
 
 
 def refresh_financials_cache(tickers: list[str] | None = None, *,
@@ -2771,12 +2961,18 @@ def get_company_reports(ticker: str) -> list[dict[str, Any]]:
 def get_company_ratios_cached(ticker: str) -> dict[str, Any]:
     """Return most recent cached ratios for a ticker."""
     conn = get_catalog_conn()
+    # Same period ranking as get_all_financials / _period_key: an annual is stored
+    # with quarter = 0 but ranks as the year's FINAL figure, so plain
+    # "ORDER BY quarter DESC" handed Q1 the win over its own completed annual.
     row = conn.execute("""
         SELECT year, quarter, form, roa, roe, net_margin, debt_ratio, debt_to_equity, updated_at
         FROM catalog_ratios
         WHERE ticker = ?
+          AND quarter BETWEEN 0 AND 4
           AND NOT (quarter = 0 AND year > ?)
-        ORDER BY year DESC, quarter DESC, updated_at DESC
+        ORDER BY year DESC,
+                 CASE WHEN quarter = 0 THEN 5 ELSE quarter END DESC,
+                 updated_at DESC
         LIMIT 1
     """, (ticker, _latest_complete_fiscal_year())).fetchone()
     conn.close()
@@ -2793,7 +2989,63 @@ def get_company_ratios_cached(ticker: str) -> dict[str, Any]:
         metrics["debt_ratio"] = row["debt_ratio"]
     if row["debt_to_equity"] is not None:
         metrics["debt_to_equity"] = row["debt_to_equity"]
-    return {"year": row["year"], "quarter": row["quarter"], "form": row["form"], "metrics": metrics}
+    # Book equity for P/B. catalog_ratios stores only the coefficients, so this
+    # comes from the same fact-store logic the market-wide endpoint uses — the
+    # company page previously had no equity feed at all and fell back to the
+    # P/E x ROE identity, which is undefined for loss-makers and therefore
+    # disagreed with the market table on exactly those issuers.
+    return {
+        "year": row["year"], "quarter": row["quarter"], "form": row["form"],
+        "metrics": metrics,
+        "total_equity": _company_equity(ticker),
+    }
+
+
+def _company_equity(ticker: str) -> float | None:
+    """Latest book equity for one ticker, in full UZS.
+
+    Deliberately reuses :func:`get_all_ratios` rather than re-deriving equity from
+    a narrower query: the derivation (published figure, else the balance identity,
+    else the ROE identity, all per-period) is subtle, and a second copy of it is
+    how the P/E–P/B divergence happened in the first place. The result is memoized
+    so a per-company call does not repeat the scan.
+    """
+    try:
+        entry = _ratios_cached().get(str(ticker or "").upper()) or {}
+    except Exception:
+        logger.exception("equity lookup failed for %s", ticker)
+        return None
+    equity = entry.get("total_equity")
+    if not isinstance(equity, (int, float)):
+        return None
+    return float(equity) * NSBU_THOUSANDS_UZS
+
+
+# Short-lived memo over the fact-store ratio scan. The underlying facts change
+# only when a collector pushes, so seconds of staleness is invisible, while the
+# scan itself runs on every market load and every company page.
+_RATIOS_CACHE_TTL_SECONDS = int(os.getenv("RATIOS_CACHE_TTL_SECONDS", "60"))
+_ratios_cache: tuple[float, dict[str, dict[str, Any]]] | None = None
+_ratios_cache_lock = threading.Lock()
+
+
+def _ratios_cached() -> dict[str, dict[str, Any]]:
+    global _ratios_cache
+    now = time.monotonic()
+    with _ratios_cache_lock:
+        if _ratios_cache is not None and now - _ratios_cache[0] < _RATIOS_CACHE_TTL_SECONDS:
+            return _ratios_cache[1]
+    fresh = get_all_ratios()
+    with _ratios_cache_lock:
+        _ratios_cache = (now, fresh)
+    return fresh
+
+
+def invalidate_ratios_cache() -> None:
+    """Drop the memo — called after any write that changes the fact store."""
+    global _ratios_cache
+    with _ratios_cache_lock:
+        _ratios_cache = None
 
 
 # ---------------------------------------------------------------------------
