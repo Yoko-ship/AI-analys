@@ -47,18 +47,19 @@ Either way the returned items can be fed back through `classify_item` and stored
 
 ```bash
 pip install -r requirements.txt        # adds feedparser, openai
-# .env — Layer A on DeepSeek (high volume, cheap), Layer B on Grok (native web+X search):
-NEWS_CLASSIFIER_BASE_URL=https://api.deepseek.com
-NEWS_CLASSIFIER_MODEL=deepseek-v4-flash  # Layer-A classification ($0.14/$0.28 per M)
-DEEPSEEK_API_KEY=sk-...                  # or NEWS_CLASSIFIER_API_KEY if it differs
-XAI_API_KEY=xai-...                      # Layer-B Grok native search
-LLM_BASE_URL=https://api.x.ai/v1         # generic provider (Layer-B Tavily loop, classifier fallback)
+# .env — all on Grok (both layers). This is the configured default:
+XAI_API_KEY=xai-...                      # Layer-A classification + Layer-B native search
+LLM_BASE_URL=https://api.x.ai/v1
 LLM_MODEL=grok-4.3                       # live id; grok-4-fast retired 2026-05-15
 GROK_SEARCH_MODEL=grok-4.5               # Layer-B native-search model (optional; defaults to grok-4.5)
 NEWS_SEARCH_BACKEND=grok                 # Grok native web+X search (or 'tavily' + TAVILY_API_KEY)
 ADMIN_API_SECRET=...                    # required to push to prod (shared with financials)
 NEWS_PUSH_URL=https://<your-api>.up.railway.app
-# Unset the NEWS_CLASSIFIER_* trio to classify with the generic LLM_* provider instead.
+# OPTIONAL — move only the high-volume Layer-A path to a cheaper provider. Layer B stays on
+# Grok regardless. Worth a few dollars a month; costs you a second provider, key and bill:
+#   NEWS_CLASSIFIER_BASE_URL=https://api.deepseek.com
+#   NEWS_CLASSIFIER_MODEL=deepseek-v4-flash
+#   DEEPSEEK_API_KEY=sk-...
 ```
 
 ## Run
@@ -119,21 +120,31 @@ Where the tokens went in the old single-call design: of 6,248 input chars per it
 **news item was 205 (3.3%)** — the rest was the system prompt (27%) and the 93-line issuer
 universe (68%), re-sent at full price on every call.
 
-What the three gates plus the DeepSeek swap do to that, at ~140 genuinely-new items/day
-across the six feeds (projection from measured prompt sizes; prefilter drop rate 11% and
-triage pass rate ~25% measured on today's feeds):
+What the three gates do to that, at ~140 genuinely-new items/day across the six feeds
+(projection from measured prompt sizes; prefilter drop rate 11% and triage pass rate ~25%
+measured on today's feeds):
 
 | Setup | Per 100 fetched items | Per month |
 |---|---|---|
 | old: one grok-4.3 call per item | `$0.386` | **`$16.20`** |
-| gates + grok-4.3 | `$0.129` | `$5.43` |
-| gates + deepseek-v4-flash | `$0.014` | **`$0.61`** |
+| gates + grok-4.3 (**the default**) | `$0.129` | `$5.43` |
+| gates + grok-4.3, prefix cached | `$0.060` | **`$2.51`** |
+| gates + deepseek-v4-flash | `$0.014` | `$0.61` |
 | gates + deepseek-v4-flash, prefix cached | `$0.005` | `$0.23` |
 
+So the gates alone bring Grok back to the ~$1–3/month this doc originally (wrongly) claimed.
+There is no cheap tier inside xAI to lean on instead: grok-code-fast-1 is `$1.00`/`$2.00`,
+only 20% under grok-4.3, and no mini tier exists — the 9x gap is a provider gap, not a
+model-choice one. Moving Layer A to DeepSeek is therefore optional and worth a few dollars
+a month; Layer-B search stays on Grok either way, since server-side web+X search is the
+reason Grok was chosen.
+
 Cache hits are the reason the issuer universe moved into the system message: a byte-identical
-prefix is billed at `$0.0028`/M on DeepSeek (`$0.20`/M on grok-4.3) instead of full price.
+prefix is billed at `$0.20`/M on grok-4.3 (`$0.0028`/M on DeepSeek) instead of full price.
 Every run logs what share of its input the provider served from cache (`cached_input_pct`) —
-if that stays at 0%, the prefix is being re-billed and something broke the identity.
+**that number is unverified against xAI**; if it stays at 0%, the prefix is being re-billed
+and the realistic all-Grok figure is the `$5.43` row, not `$2.51`. Note also that xAI doubles
+every rate on prompts of 200k+ tokens — ours are ~2.3k, so this never applies here.
 
 Other controls: `--limit` caps items per source per run, `NEWS_MAX_AGE_DAYS` skips stale
 items before any call, `NEWS_TRIAGE_FLOOR` sets how eagerly borderline items get the full
