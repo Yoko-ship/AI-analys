@@ -9863,6 +9863,31 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .led-chip--action:hover { border-color: var(--accent); color: var(--accent); }
 .led .led-art-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted-light); }
 
+/* issuer context: quote + coverage tone + that issuer's other stories */
+.led .led-iss-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.led .led-iss { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 14px 16px; }
+.led .led-iss-head { display: flex; align-items: center; gap: 9px; width: 100%; padding: 0 0 12px;
+  background: none; border: 0; border-bottom: 1px solid var(--border); cursor: pointer;
+  font: inherit; color: inherit; text-align: left; }
+.led .led-iss-head:hover .led-iss-name { color: var(--accent); }
+.led .led-iss-logo { width: 24px; height: 24px; border-radius: 5px; object-fit: contain; flex: none; background: var(--surface-2); }
+.led .led-iss-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.led .led-iss-tk { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--muted);
+  padding: 2px 7px; border-radius: 999px; background: var(--surface-2); flex: none; }
+.led .led-iss-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 0; }
+.led .led-iss-stats > div { display: grid; gap: 3px; min-width: 0; }
+/* One line per label keeps the three values on a shared baseline. */
+.led .led-iss-stats dt { font-size: 10.5px; letter-spacing: .04em; color: var(--muted-light);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.led .led-iss-stats dd { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.led .led-iss-stats dd.pos { color: var(--success); }
+.led .led-iss-stats dd.neg { color: var(--danger); }
+.led .led-iss-basis { margin-top: 8px; font-size: 11px; color: var(--muted-light); }
+.led .led-iss-news { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.led .led-iss-news .led-panel-h { margin-bottom: 4px; }
+.led .led-iss-news .led-lt:first-of-type { border-top: 0; padding-top: 0; }
+
 .led .led-art-related { margin-top: 34px; }
 .led .led-art-related .led-panel-h { margin-bottom: 18px; }
 

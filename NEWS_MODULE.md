@@ -123,6 +123,16 @@ relevance, the issuers it names, related stories by shared ticker then by class.
 is called on this path, so opening an article can never move the LLM bill; the §3.11 budget
 still depends only on how many *new* items the collector classifies.
 
+**Depth comes from our own data, not from the publisher's text.** Measured 2026-07-25 across
+12 live articles, a page's `og:description` is the *same* blurb the feed already gives us —
+identical on uzdaily, shorter on spot, absent on kun — so fetching the article on open would
+return the text already on screen. The only longer text anywhere is the body itself (kursiv
+ships ~2000 chars in `content:encoded`), which is the one thing the invariant rules out.
+So the story page adds what a news site cannot: for every issuer it names, its quote
+(`/api/securities`, already loaded app-wide, so a cold deep link has prices too), the 90-day
+tone of its coverage and its other recent headlines (`/api/news/ticker/{t}`). Issuers with a
+known quote sort first, so a story naming four bond series still leads with the bank.
+
 The legal invariant is unchanged: the source's article body is never stored, so it is never
 served here. The page shows our own summary and attributes the outlet with an explicit
 "read at the source" link out — the one and only off-site jump. `reason` stays server-side:

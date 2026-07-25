@@ -611,6 +611,9 @@ const NEWS_ARTICLE_TX = {
     sourceLead: "Как сообщает источник", about: "О публикации",
     published: "Опубликовано", added: "В ленте с", langLabel: "Язык",
     langs: { ru: "русский", uz: "узбекский", en: "английский" },
+    issuers: "Эмитенты в этой новости", price: "Цена", change: "Изм.",
+    tone90: "Тон · 90 дн", basedOn: "публикаций за 90 дней",
+    moreNews: "Другие новости эмитента", openCompany: "Открыть карточку эмитента",
   },
   en: {
     back: "All news", loading: "Loading the story…",
@@ -626,6 +629,9 @@ const NEWS_ARTICLE_TX = {
     sourceLead: "As the source reports", about: "About this item",
     published: "Published", added: "In the feed since", langLabel: "Language",
     langs: { ru: "Russian", uz: "Uzbek", en: "English" },
+    issuers: "Issuers in this story", price: "Price", change: "Chg.",
+    tone90: "Tone · 90d", basedOn: "items over 90 days",
+    moreNews: "More from this issuer", openCompany: "Open the issuer page",
   },
   uz: {
     back: "Barcha yangiliklar", loading: "Yangilik yuklanmoqda…",
@@ -641,6 +647,9 @@ const NEWS_ARTICLE_TX = {
     sourceLead: "Manba xabar qilishicha", about: "Nashr haqida",
     published: "E'lon qilingan", added: "Lentada", langLabel: "Til",
     langs: { ru: "rus", uz: "o'zbek", en: "ingliz" },
+    issuers: "Ushbu yangilikdagi emitentlar", price: "Narx", change: "O'zg.",
+    tone90: "Ohang · 90 kun", basedOn: "90 kunlik nashrlar",
+    moreNews: "Emitentning boshqa yangiliklari", openCompany: "Emitent kartasini ochish",
   },
 };
 
@@ -674,7 +683,99 @@ function newsAddsDetail(snippet, summary) {
   return shared / lead.size < 0.7;
 }
 
-function NewsArticleView({ newsId, language, onOpenCompany, onOpenNews, onBack }) {
+// Issuer context — the depth a stock platform can add where a news site cannot, and the
+// answer to what a reader actually opened the story for: what does this mean for the shares.
+// For every issuer the story names, its quote, the 90-day tone of its coverage and its other
+// recent headlines. Assembled entirely from what we already serve — `/api/securities` is
+// loaded app-wide (so a cold deep link has prices too) and `/api/news/ticker/{t}` is a plain
+// DB read — so it adds no model call and no source fetch.
+function NewsIssuerContext({ tickers, currentId, language, securitiesMap, onOpenCompany, onOpenNews, tx }) {
+  const [byTicker, setByTicker] = React.useState({});
+  // Issuers we have a quote for lead: a story naming four bond series should not push the
+  // bank it is actually about off the list.
+  const keys = React.useMemo(() => {
+    const known = (t) => (securitiesMap && securitiesMap[t] ? 0 : 1);
+    return [...tickers].sort((a, b) => known(a) - known(b)).slice(0, 3);
+  }, [tickers, securitiesMap]);
+  const keyList = keys.join(",");
+
+  React.useEffect(() => {
+    let alive = true;
+    setByTicker({});
+    if (!keys.length) return undefined;
+    Promise.all(keys.map((t) =>
+      fetch(`/api/news/ticker/${encodeURIComponent(t)}?limit=6&days=90`)
+        .then((r) => r.json())
+        .then((d) => [t, d && d.ok ? d : null])
+        .catch(() => [t, null])))
+      .then((pairs) => { if (alive) setByTicker(Object.fromEntries(pairs)); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keyList]);
+
+  if (!keys.length) return null;
+  return (
+    <section className="led-art-block">
+      <h3 className="led-panel-h">{tx.issuers}</h3>
+      <div className="led-iss-grid">
+        {keys.map((tk) => {
+          const sec = (securitiesMap && securitiesMap[tk]) || null;
+          const data = byTicker[tk];
+          const sentiment = data && data.sentiment;
+          const others = ((data && data.items) || [])
+            .filter((n) => String(n.id) !== String(currentId)).slice(0, 3);
+          const last = sec ? Number(sec.last_price) : NaN;
+          const close = sec ? Number(sec.close_price) : NaN;
+          const chg = Number.isFinite(last) && Number.isFinite(close) && close
+            ? ((last - close) / close) * 100 : null;
+          const tone = sentiment && typeof sentiment.weighted_tone === "number"
+            ? sentiment.weighted_tone : null;
+          const toneCls = tone == null ? "" : tone > 0.15 ? "pos" : tone < -0.15 ? "neg" : "";
+          const chgCls = chg == null ? "" : chg > 0 ? "pos" : chg < 0 ? "neg" : "";
+          return (
+            <article className="led-iss" key={tk}>
+              <button type="button" className="led-iss-head" title={tx.openCompany}
+                onClick={() => onOpenCompany && onOpenCompany(tk)}>
+                {sec && sec.logo_url && (
+                  <img className="led-iss-logo" src={sec.logo_url} alt="" loading="lazy"
+                    onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                )}
+                <span className="led-iss-name">{(sec && sec.name) || tk}</span>
+                <span className="led-iss-tk">{tk}</span>
+              </button>
+              <dl className="led-iss-stats">
+                <div><dt>{tx.price}</dt><dd>{Number.isFinite(last) ? formatMarketNumber(last, language) : "—"}</dd></div>
+                <div><dt>{tx.change}</dt><dd className={chgCls}>{chg == null ? "—" : formatSignedPercent(chg)}</dd></div>
+                <div><dt>{tx.tone90}</dt><dd className={toneCls}>{tone == null ? "—" : `${tone >= 0 ? "+" : ""}${tone.toFixed(2)}`}</dd></div>
+              </dl>
+              {sentiment && sentiment.count > 0 && (
+                <div className="led-iss-basis">{sentiment.count} {tx.basedOn}</div>
+              )}
+              {others.length > 0 && (
+                <div className="led-iss-news">
+                  <h4 className="led-panel-h">{tx.moreNews}</h4>
+                  {others.map((n) => (
+                    <a key={n.id} className="led-lt" href={newsArticlePath(n)}
+                      {...(n.id && onOpenNews
+                        ? { onClick: interceptNav(() => onOpenNews(n)) }
+                        : { target: "_blank", rel: "noopener noreferrer" })}>
+                      <span className={`led-dot ${_TONE_CLS[n.tone] || "neu"}`} />
+                      <span className="led-lt-t">{n.title}</span>
+                      <span className="led-lt-s">{n.source}{n.published_at ? ` · ${newsRelTime(n.published_at, language)}` : ""}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </div>
+      <p className="led-art-hint">{tx.tickersHint}</p>
+    </section>
+  );
+}
+
+function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpenNews, onBack }) {
   const tx = NEWS_ARTICLE_TX[language] || NEWS_ARTICLE_TX.ru;
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const [state, setState] = React.useState({ loading: true, error: "", data: null });
@@ -780,16 +881,15 @@ function NewsArticleView({ newsId, language, onOpenCompany, onOpenNews, onBack }
             </div>
 
             {tickers.length > 0 && (
-              <section className="led-art-block">
-                <h3 className="led-panel-h">{tx.tickers}</h3>
-                <div className="led-chips">
-                  {tickers.map((tk) => (
-                    <button key={tk} type="button" className="led-chip led-chip--action"
-                      onClick={() => onOpenCompany && onOpenCompany(tk)}>{tk}</button>
-                  ))}
-                </div>
-                <p className="led-art-hint">{tx.tickersHint}</p>
-              </section>
+              <NewsIssuerContext
+                tickers={tickers}
+                currentId={item.id}
+                language={language}
+                securitiesMap={securitiesMap}
+                onOpenCompany={onOpenCompany}
+                onOpenNews={onOpenNews}
+                tx={tx}
+              />
             )}
 
             {sectors.length > 0 && (
@@ -8636,6 +8736,7 @@ function App() {
               key={newsId}
               newsId={newsId}
               language={language}
+              securitiesMap={securitiesMap}
               onOpenCompany={openCompanyPage}
               onOpenNews={openNewsArticle}
               onBack={() => setActiveView("news")}

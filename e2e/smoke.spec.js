@@ -8,10 +8,10 @@ const COMPANIES = { companies: [
   { ticker: "ALKB", company_name: "Aloqabank", sector: "Banks" },
   { ticker: "KVTS", company_name: "Kvarts", sector: "Industry" },
 ] };
-const SECURITIES = { securities: {
-  AGBA: { security_type: "stock", last_price: 1500, industry: "Banks" },
-  ALKB: { security_type: "stock", last_price: 900, industry: "Banks" },
-  KVTS: { security_type: "stock", last_price: 320, industry: "Industry" },
+const SECURITIES = { ok: true, securities: {
+  AGBA: { name: "AGBA Bank", security_type: "stock", last_price: 1500, close_price: 1440, industry: "Banks" },
+  ALKB: { name: "Aloqabank", security_type: "stock", last_price: 900, close_price: 930, industry: "Banks" },
+  KVTS: { name: "Kvarts", security_type: "stock", last_price: 320, close_price: 300, industry: "Industry" },
 } };
 const FINANCIALS = { ok: true, financials: {
   AGBA: { net_income: 2e9, revenue: 9e9 }, ALKB: { net_income: 1.2e9, revenue: 6e9 }, KVTS: { net_income: 3e8, revenue: 1.5e9 },
@@ -92,6 +92,12 @@ async function mockApi(page) {
       { type: "delisting", ticker: "OLDZ", company: "Eski Zavod", date: "2026-04-30" },
     ] });
     if (p === "/api/news/feed") return j({ ok: true, count: NEWS_ITEMS.length, items: NEWS_ITEMS, disclaimer: NEWS_DISCLAIMER });
+    if (p.startsWith("/api/news/ticker/")) {
+      const tk = p.slice("/api/news/ticker/".length);
+      const items = NEWS_ITEMS.filter((n) => (n.tickers || []).includes(tk));
+      return j({ ok: true, ticker: tk, count: items.length, items,
+                 sentiment: { ticker: tk, count: 4, weighted_tone: 0.31, positive: 3, neutral: 1, negative: 0 } });
+    }
     if (p.startsWith("/api/news/item/")) {
       const id = Number(p.slice("/api/news/item/".length));
       const item = NEWS_ITEMS.find((n) => n.id === id);
@@ -168,7 +174,12 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
   await expect(page.locator(".led-art-cta")).toHaveAttribute("href", "https://kursiv.uz/story-one");
   await expect(page.locator(".led-sig").first()).toContainText("высокое влияние");
   await expect(page.locator(".led-sig--rows")).toContainText("Опубликовано");
-  await expect(page.locator(".led-chip--action")).toContainText("AGBA");
+  // Issuer context: the quote and coverage tone we hold ourselves, not the outlet's text.
+  await expect(page.locator(".led-iss-tk")).toContainText("AGBA");
+  await expect(page.locator(".led-iss-name")).toContainText("AGBA Bank");
+  await expect(page.locator(".led-iss-stats")).toContainText("1 500");
+  await expect(page.locator(".led-iss-stats dd.pos").first()).toContainText("+4.2%");
+  await expect(page.locator(".led-iss-basis")).toContainText("4");
   // Related stories stay in-app; the back link returns to the feed.
   await page.locator(".led-art-related .led-story").first().click();
   await expect(page).toHaveURL(/\/news\/12$/);
