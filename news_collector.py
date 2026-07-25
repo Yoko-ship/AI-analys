@@ -18,6 +18,7 @@ CLI:
     python news_collector.py --limit 20      # cap items per source
     python news_collector.py --source cbu    # one source only
     python news_collector.py --backfill-images  # images for stored items (no LLM calls)
+    python news_collector.py --purge-failed   # drop failed classifications so they retry
 """
 from __future__ import annotations
 
@@ -376,6 +377,33 @@ def push_images(images: dict[str, str]) -> int:
     return updated
 
 
+def purge_failed(*, push: bool = True) -> dict[str, Any]:
+    """Delete locally (and in prod) the items whose classification failed, so the next
+    run re-fetches and re-classifies them. No LLM calls."""
+    local = news_store.delete_failed_classifications()
+    logger.info("purge-failed: %d row(s) deleted locally %s", local["deleted"],
+                local["by_source"] or "")
+    prod: dict[str, Any] = {"deleted": 0}
+    if push:
+        secret = os.getenv("ADMIN_API_SECRET", "").strip()
+        if not secret:
+            logger.error("ADMIN_API_SECRET is not set — cannot purge in prod")
+        else:
+            try:
+                resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/purge-failed",
+                                     headers={"X-Admin-Secret": secret}, timeout=120)
+                if resp.status_code != 200:
+                    logger.error("purge-failed in prod: HTTP %s %s",
+                                 resp.status_code, resp.text[:300])
+                else:
+                    prod = resp.json() or {}
+                    logger.info("purge-failed in prod: %s deleted %s",
+                                prod.get("deleted"), prod.get("by_source") or "")
+            except (requests.RequestException, ValueError) as exc:
+                logger.error("purge-failed in prod failed: %s", exc)
+    return {"local": local, "prod": prod}
+
+
 # --------------------------------------------------------------------------- #
 # image backfill (no LLM calls)
 # --------------------------------------------------------------------------- #
@@ -522,9 +550,13 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="fetch+classify, print, do not store/push")
     ap.add_argument("--backfill-images", action="store_true",
                     help="fill preview images on already-stored items (no LLM calls)")
+    ap.add_argument("--purge-failed", action="store_true",
+                    help="delete items whose classification failed so the next run retries them")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    if args.backfill_images:
+    if args.purge_failed:
+        result = purge_failed(push=not args.no_push)
+    elif args.backfill_images:
         result = backfill_images(limit=args.limit, push=not args.no_push)
     else:
         result = run(only=args.source, limit=args.limit, push=not args.no_push, dry_run=args.dry_run)

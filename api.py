@@ -1115,6 +1115,25 @@ async def api_admin_news_images(
     return {"ok": True, "updated": n}
 
 
+@app.post("/api/admin/news/purge-failed")
+async def api_admin_news_purge_failed(
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Delete news items whose classification failed, so the collector retries them.
+
+    Those rows sit at ``relevant = 0`` — invisible in the feed, yet their URLs make the
+    collector's dedup skip them forever. Deleting them is the only retry. Rows carrying a
+    real classifier verdict are never touched.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        result = await loop.run_in_executor(None, news_store.delete_failed_classifications)
+    except Exception as exc:
+        logger.exception("admin news purge-failed failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, **result}
+
+
 def _issuer_universe() -> dict[str, str]:
     """ticker → name, to constrain the classifier's ticker tags (mirrors the collector)."""
     import reports_catalog as rc
