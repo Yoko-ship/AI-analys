@@ -222,6 +222,33 @@ def set_image_urls(images: dict[str, str]) -> int:
     return changed
 
 
+def set_snippets(snippets: dict[str, str]) -> int:
+    """Replace ``news.snippet`` on already-stored rows; return rows changed.
+
+    The same reasoning as :func:`set_image_urls`, and the same reason it is not
+    ``upsert_news``: that path also writes ``news_nlp``, so a snippet-only record would reset
+    the item's classification and drop it out of the feed. Unlike images this DOES overwrite,
+    because the whole point is to replace a bare "Существенный факт №21" with the filing's
+    actual figures — but only ever with a longer text, so a re-run cannot shrink a row back.
+    """
+    if not snippets:
+        return 0
+    conn = rc.get_catalog_conn()
+    changed = 0
+    with conn:
+        for url, text in snippets.items():
+            if not url or not text:
+                continue
+            cur = conn.execute(
+                "UPDATE news SET snippet = ? "
+                "WHERE url = ? AND LENGTH(COALESCE(snippet, '')) < LENGTH(?)",
+                (text, url, text),
+            )
+            changed += cur.rowcount
+    conn.close()
+    return changed
+
+
 def delete_failed_classifications(*, limit: int = 1000) -> dict[str, Any]:
     """Drop items whose classification failed, so the collector can retry them.
 
