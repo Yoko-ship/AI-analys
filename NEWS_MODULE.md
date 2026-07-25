@@ -278,6 +278,7 @@ runs is lost for good. Measured 2026-07-25:
 | **kun** | **15** | **~8h** | **~45/day** | **15 of 45** |
 | cbu | **10** (listing) | months | ~2–5/month | all |
 | moodys | 183 global → **filtered** | ~1 day | ~1 Uzbek hit/1–2 weeks | all that match |
+| napp | 12 (listing) | ~13 days | ~0.5/day | all |
 | openinfo | paged | months | ~7/day (ours) | all |
 
 Once daily costs the two highest-volume general feeds: Kun.uz truncates at 15 items covering
@@ -300,7 +301,7 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 
 ## MVP scope & what's pending
 
-Enabled now: `openinfo_facts`, `cbu`, `moodys`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
+Enabled now: `openinfo_facts`, `cbu`, `napp`, `moodys`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
 taxonomy categories 1–9). Working today: RSS / html_list / sitemap / openinfo fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
@@ -312,6 +313,16 @@ stub: verified 2026-07-25 that all three language variants return a **single** e
 second press release published between runs was lost for good, while the press-centre page
 lists ten. One GET per run; only link, headline, date and the article's own thumbnail are
 read — no article page is opened, so the legal invariant is untouched.
+
+**napp.uz** — the capital-market regulator — uses the same adapter (`.info-in` cards,
+Russian titles on `/ru` even though the slugs are Uzbek, real `DD.MM.YYYY` dates, an image on
+every card). It is the primary source for the `regulatory` class and it names our issuers
+directly: verified 2026-07-25, page one carried Hamkorbank and ASIA ALLIANCE BANK entering the
+regulatory sandbox, the approved list of IFIs for bond issuance, and new bonded-warehouse
+rules. It has no RSS and no sitemap — every feed path returns the same catch-all HTML — so the
+listing page is the only machine-readable route; `robots.txt` is `Disallow:` with an **empty**
+value, which permits crawling. It also publishes exam notices and seminars, so unlike `moodys`
+it is deliberately **not** exempt from the relevance floor — the classifier sorts it.
 
 CBU items are **title-only by the publisher**: the listing renders an empty `news__text` and
 the article pages carry no `og:description`. That is CBU, not a gap in the adapter — do not
