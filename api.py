@@ -27,6 +27,7 @@ load_dotenv()
 
 from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_comparison_excel, build_comparison_pdf, build_summary, report_disclaimer, run_company_analysis  # noqa: E402
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
+from delisted import DELISTED_TICKERS
 from openinfo_collector import collect_company_data, get_company_periods
 import news_store  # noqa: E402 — §3.11 editorial-news store
 from reports_catalog import (
@@ -53,6 +54,7 @@ from reports_catalog import (
     bulk_upsert_trade_stats,
     get_all_listings,
     bulk_upsert_listings,
+    purge_delisted,
     refresh_financials_cache,
     get_new_reports_for_tickers,
     get_recent_new_reports,
@@ -133,22 +135,12 @@ if LOGO_DIR.exists():
 
 UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
 
-# Tickers suppressed from the market board — stale / dormant openinfo RFB registry
-# lines (bond series and non-primary share classes with no live trading) that only
-# clutter the board. Display-only: the underlying financials/catalog data is left
-# intact and each /company/<ticker> page stays reachable by direct link. Extend at
-# runtime via BOARD_DENYLIST_EXTRA (comma-separated) without a code change.
-BOARD_DENYLIST = frozenset({
-    "KPB2", "KPB3", "KPB4", "KPBA1", "KPBA10",                  # Kapitalbank bonds + preferred (KPBA ordinary kept visible)
-    "SQB2", "SQB3", "SQB301", "SQB4", "SQB6", "SQB7", "SQB8",   # Sanoat-qurilish bank
-    "IPK3", "IPK4", "IPK5",                                     # Ipak Yo'li
-    "TRS2", "TRS201",                                           # Trastbank
-    "ALK201",                                                  # Aloqabank
-    "HMBK1",                                                   # Hamkorbank
-    "IPTB2",                                                   # Ipoteka-bank
-    "KKB2",                                                    # Biznesni rivojlantirish banki
-    "TNB101",                                                  # Turonbank
-    "UZMB2",                                                   # O'zbekiston metallurgiya kombinati
+# Tickers suppressed from the market board. Display-only: the underlying
+# financials/catalog data is left intact and each /company/<ticker> page stays
+# reachable by direct link — which is the difference from DELISTED_TICKERS, whose
+# rows are deleted outright and are folded in here so the board filter covers both.
+# Extend at runtime via BOARD_DENYLIST_EXTRA (comma-separated) without a code change.
+BOARD_DENYLIST = DELISTED_TICKERS | frozenset({
     "KFSKP",                                                   # Kafolat sug'urta (preferred)
 } | {t.strip().upper() for t in os.getenv("BOARD_DENYLIST_EXTRA", "").split(",") if t.strip()})
 
@@ -186,6 +178,15 @@ async def _populate_securities_on_startup() -> None:
 
 @app.on_event("startup")
 async def _on_startup() -> None:
+    # The catalog DB lives on a mounted volume, so rows removed from the site
+    # survive a redeploy. Purge on boot — idempotent, and it makes deleting a
+    # ticker a code change rather than a manual DB step.
+    try:
+        removed = await asyncio.get_running_loop().run_in_executor(None, purge_delisted)
+        if removed:
+            logger.info("startup purge of delisted securities: %s", removed)
+    except Exception:
+        logger.exception("startup purge of delisted securities failed")
     # Fire-and-forget: seed the catalog without blocking the server from accepting
     # requests. The Market endpoint still refreshes it on demand afterwards.
     asyncio.create_task(_populate_securities_on_startup())

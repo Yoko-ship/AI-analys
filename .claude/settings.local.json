@@ -52,7 +52,9 @@
       "PowerShell(cd D:\\\\projects; \\(railway logs --service news-collector --deployment 2>&1 | Out-String\\) -split \"`n\" | Where-Object { $_ -match \"openinfo|issuer catalog|universe\" })",
       "WebFetch(domain:github.com)",
       "PowerShell(npm install *)",
-      "PowerShell(railway config *)"
+      "PowerShell(railway config *)",
+      "Bash(railway status *)",
+      "Bash(D:/projects/.venv/Scripts/python.exe -c ' *)"
     ]
   }
 }

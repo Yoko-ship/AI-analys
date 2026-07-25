@@ -19,7 +19,6 @@ COMPANY_CATALOG = {
     '"Mikrokreditbank" ATB': "MCBA",
     '"Mikrokreditbank" ATB (привилегированные)': "MCBAP",
     '"Universal Bank" CHAKB': "UNVB",
-    '"Octobank" AJ': "OCBK",
     '"Kafolat sug\'urta kompaniyasi" AJ': "KFSK",
     '"Biznesni rivojlantirish banki" ATB': "BRBN",
     '"Biznesni rivojlantirish banki" ATB (привилегированные)': "BRBNP",
@@ -48,7 +47,6 @@ COMPANY_CATALOG = {
     '"Buxoroneftgazparmalash" AJ': "BNGP",
     '"Buxoroneftgazparmalash" AJ (привилегированные)': "BNGPP",
     '"O\'zbekiston neftgaz" AJ (привилегированные)': "UZNGP",
-    '"Muborakneftgazmontaj" AJ': "MNGM",  # openinfo org 226 (autofill matches "Muborak", not the mis-spelled "Mubarek")
     '"O\'zbekgeofizika" AJ (привилегированные)': "UZGFP",
     '"Neft va gaz quduqlarini sinash" AJ': "NGQS",
     '"O\'zbekko\'mir" AJ': "UZIR",
@@ -74,7 +72,6 @@ COMPANY_CATALOG = {
     '"Quvasoycement" AJ': "KSCM",
     '"Quvasoycement" AJ (привилегированные)': "KSCMP",
     # Mining / oil & gas (added)
-    '"Neftgazqurilishta\'mir" AJ': "NGQT",
     '"Yuggazstroy" AJ': "YGSY",
     # Transport (added)
     '"O\'ztemiryolkonteyner" AJ': "UTYK",
@@ -115,7 +112,6 @@ COMPANY_SECTORS: dict[str, str] = {
     "GRBK": "finance",
     "MCBA": "finance", "MCBAP": "finance",
     "UNVB": "finance",
-    "OCBK": "finance",
     "BRBN": "finance", "BRBNP": "finance",
     "KPBA": "finance",
     "TNGB": "finance",
@@ -137,7 +133,6 @@ COMPANY_SECTORS: dict[str, str] = {
     "AGMKP": "mining",
     "BNGP": "mining", "BNGPP": "mining",
     "UZNGP": "mining",
-    "MNGM": "mining",
     "UZGFP": "mining",
     "NGQS": "mining",
     "UZIR": "mining", "UZIRP": "mining",
@@ -161,7 +156,6 @@ COMPANY_SECTORS: dict[str, str] = {
     "UZAL": "finance",   # O'zagrolizing — leasing
     "UZML": "finance",   # UzMED-lizing — medical-equipment leasing
     "KSCM": "manufacturing", "KSCMP": "manufacturing",
-    "NGQT": "mining",
     "YGSY": "mining",
     "UTYK": "transport",
     "UVGT": "transport",

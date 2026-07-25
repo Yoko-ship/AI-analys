@@ -19,6 +19,7 @@ from typing import Any
 import requests
 
 import reports_catalog as rc
+from delisted import DELISTED_TICKERS
 from entity_resolver import ORG_OVERRIDES
 from openinfo_collector import OPENINFO_API_BASE, _json_get, _make_session
 
@@ -244,6 +245,11 @@ def collect_listing_rows() -> list[dict[str, Any]]:
             isin = str(ic.get("isu_cd") or "").strip().upper()
             if not tk or not isin or tk in seen_tickers:
                 continue
+            if tk in DELISTED_TICKERS:
+                # Deleted from the site — skip before the per-security UZSE calls
+                # so the walk is cheaper too, not just the output smaller.
+                seen_tickers.add(tk)
+                continue
             seen_tickers.add(tk)
 
             shares = _num(ic.get("list_shares"))
@@ -305,7 +311,8 @@ def collect_listing_rows() -> list[dict[str, Any]]:
         # isin_codes — e.g. an inactive exchange registration like NGQT): still
         # surface it on the board (financials only, no price) so curated catalog
         # companies stay visible instead of vanishing. Keyed by our catalog ticker.
-        if not (rfb.get("isin_codes") or []) and ticker not in seen_tickers:
+        if not (rfb.get("isin_codes") or []) and ticker not in seen_tickers \
+                and ticker not in DELISTED_TICKERS:
             seen_tickers.add(ticker)
             # openinfo lists no RFB security for this issuer, but UZSE may still
             # publish its ISIN and share count — recover them so the market-cap
@@ -362,10 +369,13 @@ def _org_to_tickers(session: Any) -> dict[str, set[str]]:
             detail_cache[org_id] = detail
         rfb = (detail.get("info_rfb") or {}) if isinstance(detail, dict) else {}
         bucket = mapping.setdefault(org_id, set())
-        bucket.add(ticker.upper())
+        # Delisted lines are excluded from the map itself, so neither the org_map
+        # facts nor the financials aliases below can re-publish them by ticker.
+        if ticker.upper() not in DELISTED_TICKERS:
+            bucket.add(ticker.upper())
         for ic in rfb.get("isin_codes") or []:
             tk = str(ic.get("ticker") or "").strip().upper()
-            if tk:
+            if tk and tk not in DELISTED_TICKERS:
                 bucket.add(tk)
     _ORG_TICKERS_MEMO = mapping
     return mapping

@@ -13,6 +13,8 @@ import json, time, requests
 from pathlib import Path
 from typing import Any
 
+from delisted import DELISTED_TICKERS
+
 API = "https://new-api.openinfo.uz/api/v2"
 TIMEOUT = 20
 
@@ -30,7 +32,6 @@ KNOWN_SECTORS: dict[str, str] = {
     "GRBK": "finance",
     "MCBA": "finance", "MCBAP": "finance",
     "UNVB": "finance",
-    "OCBK": "finance",
     "BRBN": "finance", "BRNBP": "finance", "BRBNP": "finance",
     "KPBA": "finance",
     "TNGB": "finance",
@@ -54,7 +55,6 @@ KNOWN_SECTORS: dict[str, str] = {
     "AGMKP": "mining",
     "BNGP": "mining", "BNGPP": "mining",
     "UZNGP": "mining",
-    "MNGM": "mining",
     "UZGFP": "mining",
     "NGQS": "mining",
     "UZIR": "mining", "UZIRP": "mining",
@@ -266,6 +266,10 @@ def main() -> None:
         if not r.get("has_data"):
             continue
         ticker = r["ticker"]
+        if ticker in DELISTED_TICKERS:
+            # Deleted from the site by decision, not by missing data — a rebuild
+            # would otherwise silently put them back the moment openinfo answers.
+            continue
         # Prefer canonical name from openinfo; fall back to current catalog name
         cname = r.get("canonical_name") or r["issuer"]
         new_catalog[cname] = ticker

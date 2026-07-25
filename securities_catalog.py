@@ -14,6 +14,7 @@ from typing import Any
 import requests
 
 from db import APP_DATA_DIR
+from delisted import DELISTED_TICKERS
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,6 @@ _TICKER_SECTORS: dict[str, str] = {
     "GRBK": "finance",
     "MCBA": "finance", "MCBAP": "finance",
     "UNVB": "finance",
-    "OCBK": "finance",
     "BRBN": "finance", "BRBNP": "finance",
     "KPBA": "finance",
     "TNGB": "finance",
@@ -57,7 +57,6 @@ _TICKER_SECTORS: dict[str, str] = {
     "AGMKP": "mining",
     "BNGP": "mining", "BNGPP": "mining",
     "UZNGP": "mining",
-    "MNGM": "mining",
     "UZGFP": "mining",
     "NGQS": "mining",
     "UZIR": "mining", "UZIRP": "mining",
@@ -81,7 +80,7 @@ _TICKER_SECTORS: dict[str, str] = {
     # Chemicals (manufacturing)
     "FRAZP": "manufacturing",  # Farg'onaazot — nitrogen fertilizers / chemicals
     "KSCM": "manufacturing", "KSCMP": "manufacturing",
-    "NGQT": "mining", "YGSY": "mining",
+    "YGSY": "mining",
     "UTYK": "transport", "UVGT": "transport",
     "METQ": "other", "UQEQ": "other",
     "TGPG": "professional",
@@ -101,7 +100,6 @@ _WIKI_TITLES: dict[str, dict[str, str]] = {
     "ALKB":  {"ru": "Алокабанк", "en": "Aloqabank"},
     "MCBA":  {"ru": "Микрокредитбанк", "en": "Microcreditbank"},
     "UNVB":  {"ru": "Universal Bank (Узбекистан)", "en": "Universal Bank (Uzbekistan)"},
-    "OCBK":  {"ru": "Октобанк", "en": "Octobank"},
     "BRBN":  {"ru": "Банк развития бизнеса (Узбекистан)", "en": "Business Development Bank of Uzbekistan"},
     "KPBA":  {"ru": "Капиталбанк", "en": "Kapitalbank"},
     "UZTL":  {"ru": "Узбектелеком", "en": "Uzbektelecom"},
@@ -281,7 +279,7 @@ def sync_securities(stocks: list[dict], logos: dict[str, str]) -> int:
     count = 0
     for s in stocks:
         ticker = (s.get("ticker") or "").upper().strip()
-        if not ticker:
+        if not ticker or ticker in DELISTED_TICKERS:
             continue
         sector = _TICKER_SECTORS.get(ticker, "other")
         is_preferred = 1 if s.get("share_type") == "preferred" or ticker.endswith("P") else 0
@@ -338,6 +336,10 @@ def get_securities_map() -> dict[str, dict]:
     result: dict[str, dict] = {}
     for row in rows:
         d = dict(row)
+        if d["ticker"] in DELISTED_TICKERS:
+            # Deleted from the site: skip on read as well as on write, so a row
+            # written before the ticker was delisted cannot serve a company page.
+            continue
         d["is_preferred"] = bool(d.get("is_preferred"))
         vr = records.get(d["ticker"])
         if vr:

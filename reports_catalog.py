@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
+from delisted import DELISTED_TICKERS
 from entity_resolver import ORG_OVERRIDES, UNRELIABLE_FINANCIALS
 from db import APP_DATA_DIR, sqlite_connect
 from openinfo_collector import (
@@ -1572,7 +1573,9 @@ def bulk_upsert_listings(rows: list[dict]) -> int:
         with conn:
             for r in rows or []:
                 ticker = str(r.get("ticker") or "").strip().upper()
-                if not ticker:
+                if not ticker or ticker in DELISTED_TICKERS:
+                    # Deleted from the site: an older collector build still emits
+                    # these, and the upsert would silently resurrect them.
                     continue
                 conn.execute(
                     """
@@ -1611,7 +1614,70 @@ def get_all_listings() -> dict[str, dict[str, Any]]:
         f"SELECT {', '.join(_LISTING_COLS)}, updated_at FROM catalog_listings"
     ).fetchall()
     conn.close()
-    return {r["ticker"]: dict(r) for r in rows}
+    return {r["ticker"]: dict(r) for r in rows
+            if r["ticker"] not in DELISTED_TICKERS}
+
+
+# Every catalog table that keys rows by ticker, so a purge leaves nothing behind:
+# the registry row itself, the issuer record, its report history (which also feeds
+# the market-events timeline), the derived numbers and the org_map facts.
+_PURGE_TABLES = (
+    ("catalog_listings", "ticker"),
+    ("catalog_companies", "ticker"),
+    ("catalog_reports", "ticker"),
+    ("catalog_new_reports", "ticker"),
+    ("catalog_ratios", "ticker"),
+    ("catalog_financials", "ticker"),
+    ("facts", "entity_id"),        # org_map rows are keyed by ticker, not org id
+    ("news_entities", "ticker"),   # issuer tags on news stories (story itself stays)
+)
+
+
+def purge_delisted(tickers: set[str] | frozenset[str] | None = None) -> dict[str, int]:
+    """Delete every trace of the delisted securities from the catalog DB.
+
+    ``bulk_upsert_listings`` is upsert-only — it never drops rows the collector
+    stopped emitting — so filtering the collector alone would leave these tickers
+    in a persisted volume forever. This is the deletion half: idempotent, safe to
+    run on every boot, and cheap when there is nothing left to remove. Returns
+    ``{table: rows_deleted}`` for the tables that actually gave up rows.
+    """
+    targets = {t.upper() for t in (tickers if tickers is not None else DELISTED_TICKERS)}
+    if not targets:
+        return {}
+    placeholders = ",".join("?" * len(targets))
+    params = sorted(targets)
+    deleted: dict[str, int] = {}
+    conn = get_catalog_conn()
+    try:
+        existing = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        with conn:
+            # Trade stats are keyed by ISIN, so resolve them through the registry
+            # rows before those rows are deleted and the link is lost.
+            if {"catalog_listings", "catalog_trade_stats"} <= existing:
+                isins = [r[0] for r in conn.execute(
+                    f"SELECT isin FROM catalog_listings "
+                    f"WHERE UPPER(ticker) IN ({placeholders}) AND isin IS NOT NULL AND isin != ''",
+                    params)]
+                if isins:
+                    cur = conn.execute(
+                        f"DELETE FROM catalog_trade_stats WHERE isin IN ({','.join('?' * len(isins))})",
+                        isins)
+                    if cur.rowcount > 0:
+                        deleted["catalog_trade_stats"] = cur.rowcount
+            for table, column in _PURGE_TABLES:
+                if table not in existing:
+                    continue
+                cur = conn.execute(
+                    f"DELETE FROM {table} WHERE UPPER({column}) IN ({placeholders})", params)
+                if cur.rowcount > 0:
+                    deleted[table] = cur.rowcount
+    finally:
+        conn.close()
+    if deleted:
+        logger.info("purged delisted securities: %s", deleted)
+    return deleted
 
 
 def _decode_field_periods(raw: Any) -> dict[str, str]:
