@@ -70,16 +70,22 @@ def collect_rows() -> list[dict]:
     fin = rc.get_all_financials()
     rows = []
     for ticker, r in fin.items():
-        rows.append({
-            "ticker": ticker,
-            "year": r.get("year"),
-            "quarter": r.get("quarter"),
-            # Which period each field actually describes, when it is not the row's
-            # own — prod serves what we push verbatim, so the provenance has to
-            # travel with the figures or the row lies about its own period.
-            "field_periods": r.get("field_periods") or {},
-            **{k: r.get(k) for k in KEYS},
-        })
+        # The latest period AND the last complete fiscal year beside it. Prod
+        # serves what it is given; pushing only the newest cumulative quarter
+        # leaves every 12-month denominator on the deployment out of date.
+        for period in (r, r.get("annual")):
+            if not period:
+                continue
+            rows.append({
+                "ticker": ticker,
+                "year": period.get("year"),
+                "quarter": period.get("quarter"),
+                # Which period each field actually describes, when it is not the row's
+                # own — prod serves what we push verbatim, so the provenance has to
+                # travel with the figures or the row lies about its own period.
+                "field_periods": period.get("field_periods") or {},
+                **{k: period.get(k) for k in KEYS},
+            })
     return rows
 
 
@@ -289,9 +295,13 @@ def reconcile_and_push() -> int:
     log.info("reconcile: %d tickers via structured openinfo JSON ...", len(tickers))
     rows, errors = orc.reconcile_all(
         tickers, progress=lambda i, n, t: log.info("reconcile %d/%d %s", i + 1, n, t) if (i % 25 == 0) else None)
-    push_rows = [orc.admin_push_row(r) for r in rows]
-    log.info("reconcile: resolved %d, unresolved %d (%s)",
-             len(push_rows), len(errors), ", ".join(sorted(errors)[:8]))
+    # Two rows per ticker where the latest period is a cumulative quarter: the
+    # quarter itself, and the last complete fiscal year beside it. Replace mode
+    # clears the ticker before inserting, so the companion has to travel in the
+    # same push or the 12-month figure every ratio needs is simply gone.
+    push_rows = [r for row in rows for r in orc.admin_push_rows(row)]
+    log.info("reconcile: resolved %d tickers (%d period rows), unresolved %d (%s)",
+             len(rows), len(push_rows), len(errors), ", ".join(sorted(errors)[:8]))
     if not push_rows:
         log.warning("reconcile produced no rows — skipping push")
         return 1

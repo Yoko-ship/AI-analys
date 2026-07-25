@@ -426,15 +426,22 @@ def collect_financials_aliases() -> list[dict[str, Any]]:
         for tk in tickers:
             if tk in fin:
                 continue  # already carries its own financials
-            rows.append({
-                "ticker": tk, "form": "NSBU",
-                "year": source.get("year"), "quarter": source.get("quarter") or 0,
-                # Same legal entity, same figures — including which period each
-                # figure describes. Dropping it here would republish the sibling's
-                # cross-period values under this row's own period label.
-                "field_periods": dict(source.get("field_periods") or {}),
-                **{k: source.get(k) for k in _FIN_VALUE_KEYS},
-            })
+            # Every period the issuer carries, not just its latest: the last
+            # complete fiscal year is what ratios divide by, and a sibling that
+            # inherited only the current cumulative quarter would compute its P/E
+            # on three months of earnings next to a peer's twelve.
+            for period in (source, source.get("annual")):
+                if not period:
+                    continue
+                rows.append({
+                    "ticker": tk, "form": "NSBU",
+                    "year": period.get("year"), "quarter": period.get("quarter") or 0,
+                    # Same legal entity, same figures — including which period each
+                    # figure describes. Dropping it here would republish the sibling's
+                    # cross-period values under this row's own period label.
+                    "field_periods": dict(period.get("field_periods") or {}),
+                    **{k: period.get(k) for k in _FIN_VALUE_KEYS},
+                })
     log.info("financials aliases: %d sibling tickers", len(rows))
     return rows
 

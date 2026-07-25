@@ -9638,6 +9638,10 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .company-metric-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .company-metric-row:last-child { border-bottom: none; }
 .company-metric-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The earnings period P/E divides by. It can be an earlier filing than the rest
+   of the page (the last complete year, when the latest one is a part-year
+   quarter), so the multiple states its own basis. */
+.co-metric-period { font-size: 10px; opacity: 0.75; letter-spacing: 0.02em; }
 .isin-mono { font-family: monospace; font-size: 11px; }
 .section-heading { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
 

@@ -916,13 +916,20 @@ async def api_market_financials() -> dict[str, Any]:
     # Progressive background fill (non-blocking; self-throttled and lock-guarded).
     loop.run_in_executor(None, refresh_financials_cache)
     # Stored NSBU sums are thousands of UZS; serve full UZS so the client can
-    # relate them to market caps/prices without unit knowledge.
-    financials = {
-        ticker: {
+    # relate them to market caps/prices without unit knowledge. The `annual`
+    # companion carries the same money fields and must be scaled with the row —
+    # a 12-month denominator left in thousands would understate P/E ~1000x for
+    # exactly the issuers the companion exists to make comparable.
+    def _scaled(row: dict[str, Any]) -> dict[str, Any]:
+        return {
             **row,
             **{k: row[k] * NSBU_THOUSANDS_UZS
                for k in FIN_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
         }
+
+    financials = {
+        ticker: ({**_scaled(row), "annual": _scaled(row["annual"])} if row.get("annual")
+                 else _scaled(row))
         for ticker, row in financials.items()
     }
     return _json_safe({

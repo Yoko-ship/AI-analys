@@ -7,7 +7,7 @@ import re
 import sqlite3
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 
@@ -328,6 +328,44 @@ def _period_key(period: str | None) -> tuple[int, int]:
     if not 1 <= quarter <= 4:
         return (0, 0)  # corrupt source period — never wins
     return (year, quarter)
+
+
+def _period_months(year: int | None, quarter: int | None) -> int | None:
+    """Months of activity a P&L figure for this period covers.
+
+    NSBU quarterly forms are cumulative from 1 January, so a Q2 figure is six
+    months and a Q3 figure nine — not three each. Without this the market board
+    puts a full prior year, a half year and a quarter in one column and calls them
+    comparable. Balance-sheet lines are point-in-time and need no such number.
+    """
+    if year is None:
+        return None
+    if not quarter:
+        return 12
+    return int(quarter) * 3 if 1 <= int(quarter) <= 4 else None
+
+
+def _is_future_period(year: int | None, quarter: int | None,
+                      today: date | None = None) -> bool:
+    """True for a period that has not finished yet — one no filing can describe.
+
+    The last line of defence for the period label. openinfo mis-stamps period-ends
+    (an annual filed mid-2026 carrying reporting_year=2026-12-31), and a row that
+    reaches storage with such a label wins "latest period" forever and hides the
+    issuer's real figures behind a quarter that has not happened. Callers reject
+    rather than repair: by the time a row is being written, the filing date that
+    would let it be dated correctly is no longer at hand.
+    """
+    if year is None:
+        return False
+    today = today or datetime.now(timezone.utc).date()
+    q = int(quarter or 0)
+    if not q:
+        return int(year) > _latest_complete_fiscal_year()
+    if not 1 <= q <= 4:
+        return False  # corrupt quarter, excluded by its own rule
+    end_month, end_day = ((3, 31), (6, 30), (9, 30), (12, 31))[q - 1]
+    return date(int(year), end_month, end_day) > today
 
 
 def _latest_complete_fiscal_year() -> int:
@@ -1297,7 +1335,14 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
     Every value here is parsed from the (year, quarter) statement itself, so the
     row's ``field_periods`` is cleared: any stale provenance from a previous
     enrichment no longer describes what is stored.
+
+    A period that has not ended yet is refused here as it is on the push path —
+    every writer into this table applies the same rule, or the one that does not
+    becomes the way a fabricated period gets in.
     """
+    if _is_future_period(year, quarter):
+        logger.warning("financials: rejected %s %s Q%s — period has not ended", ticker, year, quarter)
+        return
     conn = get_catalog_conn()
     with conn:
         conn.execute(
@@ -1369,6 +1414,35 @@ def _maybe_seed_financials(conn: sqlite3.Connection, form: str = "NSBU") -> None
             _seeded = True
 
 
+def _financials_num(v: Any) -> float | None:
+    try:
+        return None if v is None else float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _financials_period(row: dict) -> tuple[int, int] | None:
+    """(year, quarter) for an incoming row, or None if it must not be stored.
+
+    Rejects periods that have not ended yet. This is the входная проверка the
+    "2026 Q4" rows needed: QZSM and UQEQ reached the served cache labelled with a
+    quarter of the current year that is still months away, because openinfo signed
+    their annual reports with a future year-end and nothing downstream questioned
+    it. A period is a claim about a closed accounting interval — if the interval
+    is open, the row is not a report and is dropped rather than re-dated.
+    """
+    try:
+        year = int(row.get("year") or 0)
+        quarter = int(row.get("quarter") or 0)
+    except (TypeError, ValueError):
+        return None
+    if _is_future_period(year, quarter):
+        logger.warning("financials: rejected %s %s Q%s — period has not ended",
+                       row.get("ticker"), year, quarter)
+        return None
+    return year, quarter
+
+
 def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
     """Overwrite the financials cache from an externally-computed batch.
 
@@ -1376,11 +1450,7 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
     reachable can refresh prod (whose datacenter IP openinfo blocks). Unlike the
     seed loader, this overwrites existing values (ON CONFLICT DO UPDATE).
     """
-    def _num(v: Any) -> float | None:
-        try:
-            return None if v is None else float(v)
-        except (TypeError, ValueError):
-            return None
+    _num = _financials_num
 
     conn = get_catalog_conn()
     n = 0
@@ -1390,11 +1460,10 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                 ticker = str(r.get("ticker") or "").strip().upper()
                 if not ticker:
                     continue
-                try:
-                    year = int(r.get("year") or 0)
-                    quarter = int(r.get("quarter") or 0)
-                except (TypeError, ValueError):
+                period = _financials_period(r)
+                if period is None:
                     continue
+                year, quarter = period
                 conn.execute(
                     """
                     INSERT INTO catalog_financials
@@ -1422,41 +1491,44 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
 
 
 def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
-    """Make each row the *authoritative* latest figure for its ticker.
+    """Make the supplied rows the *authoritative* set of periods for their tickers.
 
     Unlike :func:`bulk_upsert_financials` (which only upserts one (ticker, form,
     year, quarter) key and leaves other period rows in place), this deletes every
-    stored period for each ticker in ``rows`` and inserts the supplied row. It is
+    stored period for each ticker in ``rows`` and inserts what was supplied. It is
     used to push structured-JSON reconciled figures (openinfo_reconcile): the read
-    path serves ``MAX(year*10+quarter)``, so a stale or spurious higher period
+    path serves the highest-ranked period, so a stale or spurious higher period
     already in the cache would otherwise shadow a correct annual/earlier period.
-    Replacing per ticker guarantees the reconciled row is the one served. Values
-    are stored in thousands of UZS, as everywhere in this cache.
+
+    A ticker may legitimately supply SEVERAL periods — the latest cumulative
+    quarter plus the last complete fiscal year that ratios need a 12-month
+    denominator from — so the delete happens once per ticker, before any insert.
+    Deleting per row instead (as this did while every ticker had exactly one row)
+    silently keeps only whichever period happens to be pushed last. Values are
+    stored in thousands of UZS, as everywhere in this cache.
     """
-    def _num(v: Any) -> float | None:
-        try:
-            return None if v is None else float(v)
-        except (TypeError, ValueError):
-            return None
+    _num = _financials_num
 
     conn = get_catalog_conn()
     n = 0
+    cleared: set[tuple[str, str]] = set()
     try:
         with conn:
             for r in rows or []:
                 ticker = str(r.get("ticker") or "").strip().upper()
                 if not ticker:
                     continue
-                try:
-                    year = int(r.get("year") or 0)
-                    quarter = int(r.get("quarter") or 0)
-                except (TypeError, ValueError):
+                period = _financials_period(r)
+                if period is None:
                     continue
+                year, quarter = period
                 row_form = str(r.get("form") or form)
-                conn.execute("DELETE FROM catalog_financials WHERE ticker=? AND form=?", (ticker, row_form))
+                if (ticker, row_form) not in cleared:
+                    conn.execute("DELETE FROM catalog_financials WHERE ticker=? AND form=?", (ticker, row_form))
+                    cleared.add((ticker, row_form))
                 conn.execute(
                     """
-                    INSERT INTO catalog_financials
+                    INSERT OR REPLACE INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
                          field_periods, updated_at)
@@ -1784,6 +1856,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             # client can label a Q2 figure as "6 months" rather than pass a
             # part-year number off as a full-year one next to annual rows.
             "is_ytd": bool(r["quarter"]),
+            "period_months": _period_months(r["year"], r["quarter"]),
             "revenue": r["revenue"],
             "gross_profit": r["gross_profit"],
             "cash": r["cash"],
@@ -1796,11 +1869,54 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "field_periods": _decode_field_periods(r["field_periods"]),
             "updated_at": r["updated_at"],
         }
+    _attach_annual_companion(conn, out, form)
     if _financials_enrich_enabled():
         _inherit_financials_by_org(conn, out)
         _enrich_financials_from_facts(conn, out)
     conn.close()
     return out
+
+
+def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, Any]],
+                             form: str) -> None:
+    """Hang the last complete fiscal year off each row as ``annual``.
+
+    The latest period is the freshest figure but usually a cumulative quarter, and
+    every ratio built on a P&L line then divides by 3, 6 or 9 months of earnings
+    while the issuer next to it divides by 12 — the same P/E column measuring
+    different things. The companion is the comparable denominator: a real filed
+    12-month period, not a quarter multiplied up. It is absent (None) when the row
+    already IS an annual, and when no complete year has been collected.
+    """
+    last_fy = _latest_complete_fiscal_year()
+    rows = conn.execute(
+        """
+        SELECT f.ticker, f.year, f.revenue, f.gross_profit, f.cash,
+               f.total_liabilities, f.net_income, f.operating_income, f.field_periods
+        FROM catalog_financials f
+        JOIN (
+            SELECT ticker, MAX(year) AS year
+            FROM catalog_financials
+            WHERE form = :form AND quarter = 0 AND year IS NOT NULL AND year <= :last_fy
+            GROUP BY ticker
+        ) latest ON latest.ticker = f.ticker AND latest.year = f.year
+        WHERE f.form = :form AND f.quarter = 0
+        """,
+        {"form": form, "last_fy": last_fy},
+    ).fetchall()
+    annuals = {
+        r["ticker"]: {
+            "year": r["year"], "quarter": 0, "is_ytd": False, "period_months": 12,
+            "revenue": r["revenue"], "gross_profit": r["gross_profit"], "cash": r["cash"],
+            "total_liabilities": r["total_liabilities"], "net_income": r["net_income"],
+            "operating_income": r["operating_income"],
+            "field_periods": _decode_field_periods(r["field_periods"]),
+        }
+        for r in rows
+    }
+    for ticker, row in out.items():
+        annual = annuals.get(ticker)
+        row["annual"] = None if annual is None or not row.get("quarter") else annual
 
 
 # Junk-report detector: when a parse goes wrong it reads the "Код стр" column
@@ -2417,6 +2533,7 @@ def _inherit_financials_by_org(conn: sqlite3.Connection, out: dict[str, dict[str
             # different org records (UZMK/UZMKP), so a shared dict would leak one
             # ticker's provenance onto another's row.
             out[ticker] = {**source, "field_periods": dict(source.get("field_periods") or {}),
+                           "annual": dict(source["annual"]) if source.get("annual") else None,
                            "inherited_from_org": org}
 
     # Preferred shares also inherit directly from their ordinary ticker, even when
@@ -2428,6 +2545,7 @@ def _inherit_financials_by_org(conn: sqlite3.Connection, out: dict[str, dict[str
         base = ticker[:-1]
         if base in out:
             out[ticker] = {**out[base], "field_periods": dict(out[base].get("field_periods") or {}),
+                           "annual": dict(out[base]["annual"]) if out[base].get("annual") else None,
                            "inherited_from_ticker": base}
 
 
