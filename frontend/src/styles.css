@@ -9811,7 +9811,6 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .led-lt:hover .led-lt-t { color: var(--accent); }
 
 .led .led-empty { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 15px; }
-.led .led-foot { color: var(--muted); font-size: 12.5px; margin-top: 42px; border-top: 1px solid var(--border); padding-top: 18px; max-width: 82ch; line-height: 1.65; }
 
 /* skeletons */
 .led .led-skel-lead, .led .led-skel-row, .led .led-skel-panel { border-radius: 6px;

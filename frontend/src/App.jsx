@@ -202,7 +202,6 @@ const NEWS_TX = {
     subtitle: "Главные новости экономики, рынка и эмитентов Узбекистана — собраны из узбекских источников и отсортированы ИИ по возможному влиянию на котировки.",
     latest: "Свежее", empty: "Пока нет свежих новостей. Загляните позже.",
     loadingText: "Загружаем ленту…", error: "Не удалось загрузить новости.",
-    footnote: "Лента формируется автоматически из узбекских источников и сортируется моделью. Тональность и влияние — статистический сигнал, а не рекомендация. Показаны заголовок, наш краткий обзор и ссылка на источник.",
     cat: { report: "Отчётность", listing: "Листинг", delisting: "Делистинг" },
     forms: { NAS: "НСБУ", NSBU: "НСБУ", IFRS: "МСФО", MSFO: "МСФО", Audit: "Аудит", Audition: "Аудит" },
   },
@@ -211,7 +210,6 @@ const NEWS_TX = {
     subtitle: "The economy, market and issuer news that matters in Uzbekistan — gathered from Uzbek sources and AI-sorted by likely price impact.",
     latest: "Latest", empty: "No recent news yet. Check back soon.",
     loadingText: "Loading the feed…", error: "Could not load the news feed.",
-    footnote: "Compiled automatically from Uzbek sources and sorted by the model. Tone and impact are a statistical signal, not advice. We show the headline, our short summary and a link to the source.",
     cat: { report: "Filing", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
@@ -220,7 +218,6 @@ const NEWS_TX = {
     subtitle: "O'zbekiston iqtisodiyoti, bozori va emitentlari bo'yicha muhim yangiliklar — o'zbek manbalaridan yig'iladi va sun'iy intellekt tomonidan ta'sir bo'yicha saralanadi.",
     latest: "So'nggi", empty: "Hozircha yangi yangiliklar yo'q. Keyinroq qayting.",
     loadingText: "Lenta yuklanmoqda…", error: "Yangiliklarni yuklab bo'lmadi.",
-    footnote: "Lenta o'zbek manbalaridan avtomatik yig'iladi va model tomonidan saralanadi. Tonallik va ta'sir — statistik signal, tavsiya emas. Sarlavha, qisqacha sharh va manbaga havola ko'rsatiladi.",
     cat: { report: "Hisobot", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
@@ -557,8 +554,6 @@ function NewsView({ language, onOpenCompany, user, apiFetch }) {
           </aside>
         </div>
       )}
-
-      <p className="led-foot">{tx.footnote}</p>
     </div>
   );
 }
