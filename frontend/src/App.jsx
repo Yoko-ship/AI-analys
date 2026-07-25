@@ -1088,8 +1088,10 @@ function ReferenceView({ language }) {
               </div>
               <p className="reference-source">
                 {language === "en"
-                  ? `Source: RFB listing registry (openinfo). Inactive = no trades in ${listingFeed.inactive_days} days.`
-                  : `Источник: реестр листинга РФБ (openinfo). Неактивны = без сделок ${listingFeed.inactive_days} дн.`}
+                  ? `Sources: RFB listing registry (openinfo) + the exchange's live feed. Inactive = no trade seen by any source in ${listingFeed.inactive_days} days.`
+                  : language === "uz"
+                  ? `Manbalar: RFB listing reestri (openinfo) va birjaning jonli tasmasi. Nofaol = ${listingFeed.inactive_days} kun ichida hech bir manbada savdo yo'q.`
+                  : `Источники: реестр листинга РФБ (openinfo) и живая лента биржи. Неактивны = ни один источник не видел сделок ${listingFeed.inactive_days} дн.`}
               </p>
             </>
           )}
