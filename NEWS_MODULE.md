@@ -15,9 +15,17 @@ here — it only judges what the collector pulled.
 
 | Gate | Cost | What it does |
 |---|---|---|
-| 0. `prefilter_reject` | free | Regex: drops sport/horoscope/weather/accident/culture items that carry no market signal and name no issuer. Asymmetric — a junk match with any market signal is kept. Dropped items aren't stored, so they're re-filtered free next run. |
-| 1. `triage_item` | ~350 input / 20 output tokens | One tiny call: `{"pass": bool, "score": 0-1}`. No issuer universe in the prompt. Fails open (a broken gate passes the item on). Rejections ARE stored, so we never re-pay for them. |
-| 2. full classification | ~2,280 input / ~400 output tokens | Class, tone, impact, direction, issuer links, our own `summary_ru` — only for items that survive triage. |
+| 0. `prefilter_reject` | free | Regex: drops sport/horoscope/weather/accident/culture/municipal items that carry no market signal and name no issuer. Asymmetric — a junk match with any market signal is kept. Dropped items aren't stored, so they're re-filtered free next run. |
+| 1. `screen_items` | ~1,800 input / ~240 output per **20 items** | Batched triage: `{"pass": bool, "score": 0-1}` per item, no issuer universe in the prompt. Fails open (a broken gate passes items on). Rejections ARE stored, so we never re-pay for them. |
+| 2. `classify_items` | ~3,000 input / ~3,800 output per **10 items** | Batched full classification — class, tone, impact, direction, issuer links, our own `summary_ru` — only for triage survivors. |
+| 2b. `classify_filings` | ~800 input per **10 filings** | Issuer filings take a compact prompt with **no issuer universe at all**: their ticker and class come from the filing, so the model only rates tone/impact/direction and writes the summary. |
+
+Batching is what makes this cheap: on the 2026-07-25 run the ~2,200-token constant prefix went
+out 31 times and was 68% of all input, while the news text itself was 2%. Batch size is
+`NEWS_BATCH_SIZE` (10) and `NEWS_TRIAGE_BATCH_SIZE` (20). Every batch reply is mapped back by
+the `n` it echoes — never by position — and anything missing, unparseable or failing
+validation is retried as a single call, because a mis-attributed verdict is far worse than a
+second request. A filing whose rating fails is stored **unrated** rather than lost.
 
 **Layer B — `search_news` agent (on demand).** `news_agent.find_news("Kapitalbank")`
 actively finds news. Two backends (`NEWS_SEARCH_BACKEND`):
@@ -154,10 +162,19 @@ measured on today's feeds):
 | Setup | Per 100 fetched items | Per month |
 |---|---|---|
 | old: one grok-4.3 call per item | `$0.386` | **`$16.20`** |
-| gates + grok-4.3 (**the default**) | `$0.129` | `$5.43` |
-| gates + grok-4.3, prefix cached | `$0.060` | **`$2.51`** |
+| unbatched gates + grok-4.3 — **measured** | `$0.171` | `$7.2` |
+| batched gates + grok-4.3 (**the default**) | `~$0.05` | **`~$2`** |
 | gates + deepseek-v4-flash | `$0.014` | `$0.61` |
-| gates + deepseek-v4-flash, prefix cached | `$0.005` | `$0.23` |
+
+**First measured run (2026-07-25, before batching):** 77 fetched, 70 new, 5 prefiltered, 34
+stopped at triage, 19 relevant, 0 failures → 90 calls, 113,745 tokens, **`$0.1201`**, 25%
+of input served from cache. Anatomy: fresh input 78% of the bill, output 28%, cached input 4%
+— and the constant prefix alone was 68,231 tokens (68% of all input) because it went out once
+per item. Batching that same workload gives **6 calls instead of 90**, 12k input instead of
+100k, and ~70% less cost; the paid-triage titles from that run also fed 18 new free prefilter
+patterns. Two projections that missed: triage survival is ~42%, not the 25% assumed, and
+cache came back at 25%, not 90% — after batching the prefix goes out ~6 times, so caching
+stops being the lever it looked like.
 
 So the gates alone bring Grok back to the ~$1–3/month this doc originally (wrongly) claimed.
 There is no cheap tier inside xAI to lean on instead: grok-code-fast-1 is `$1.00`/`$2.00`,

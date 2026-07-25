@@ -28,6 +28,7 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -45,7 +46,13 @@ load_dotenv()
 
 import news_store  # noqa: E402  (after load_dotenv)
 import reports_catalog as rc  # noqa: E402  (after load_dotenv)
-from news_classifier import classify_item, prefilter_reject  # noqa: E402  (after load_dotenv)
+from news_classifier import (  # noqa: E402  (after load_dotenv)
+    NewsClassification,
+    classify_filings,
+    classify_items,
+    prefilter_reject,
+    screen_items,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -662,32 +669,49 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     model = os.getenv("NEWS_CLASSIFIER_MODEL", "").strip() or os.getenv("LLM_MODEL", "grok-4.3")
     records: list[dict[str, Any]] = []
     failed = 0
-    for it in kept:
-        authoritative = bool(it.get("always_relevant"))
-        cls = classify_item(it, universe, usage=usage, triage=not authoritative)
+    triaged_out = 0
+    # Filings are rated by a separate, compact prompt (no issuer universe — their ticker and
+    # class come from the filing) and never face the triage gate.
+    filings = [it for it in kept if it.get("always_relevant")]
+    regular = [it for it in kept if not it.get("always_relevant")]
+
+    # gate 1, batched: many items per call sharing one prompt.
+    survivors: list[dict[str, Any]] = []
+    for it, (passed, score) in zip(regular, screen_items(regular, usage=usage)):
+        if passed:
+            survivors.append(it)
+            continue
+        # Rejections ARE stored, so we never pay to triage the same item twice.
+        rejected = NewsClassification(relevant=False, relevance_score=score,
+                                      reason="triage: not market-relevant")
+        records.append({**it, "model": model, **rejected.model_dump()})
+        triaged_out += 1
+
+    # gate 2, batched.
+    for it, cls in zip(survivors, classify_items(survivors, universe, usage=usage)):
         # A failed classification (no API key, quota, outage) is NOT stored: URL dedup
         # would then bury the item as irrelevant forever. Left unstored, it is simply
         # re-fetched and re-classified on the next run.
         if cls.reason == "classification_failed":
             failed += 1
             continue
+        records.append({**it, "model": model, **cls.model_dump()})
+
+    for it, cls in zip(filings, classify_filings(filings, usage=usage)):
         record = {**it, "model": model, **cls.model_dump()}
-        if authoritative:
-            # The source told us the issuer and the filing class; those REPLACE the model's
-            # guesses (we only feed it the filing's title, so any extra ticker it names is a
-            # guess, and a wrong one would attach this filing to another issuer's feed and
-            # its sentiment). A filing is also never dropped as "not relevant". The model
-            # still supplies tone, impact, direction and the summary.
-            record["relevant"] = True
-            if it.get("tickers"):
-                record["tickers"] = sorted(it["tickers"])
-            if it.get("type_hint"):
-                record["type"] = it["type_hint"]
+        # The source told us the issuer and the filing class; those REPLACE anything the
+        # model might say (a wrong ticker would attach this filing to another issuer's feed
+        # and its sentiment), and a filing is never dropped as "not relevant".
+        record["relevant"] = True
+        if it.get("tickers"):
+            record["tickers"] = sorted(it["tickers"])
+        if it.get("type_hint"):
+            record["type"] = it["type_hint"]
         records.append(record)
+
     if failed:
         logger.warning("%d item(s) failed classification — not stored, will retry next run", failed)
     relevant = [r for r in records if r.get("relevant")]
-    triaged_out = sum(1 for r in records if str(r.get("reason") or "").startswith("triage:"))
     logger.info("classified %d items (%d stopped at triage, %d relevant); ~%d tokens in "
                 "%d calls (%.0f%% of input from prompt cache), est $%.4f at %s list prices",
                 len(records), triaged_out, len(relevant), usage.total_tokens, usage.calls,
@@ -738,6 +762,14 @@ def main() -> None:
     ap.add_argument("--purge-failed", action="store_true",
                     help="delete items whose classification failed so the next run retries them")
     args = ap.parse_args()
+    # The log names Russian/Uzbek drop reasons and issuer titles; on Windows the console
+    # defaults to a legacy codepage and renders them as mojibake, which makes the prefilter's
+    # counts undiagnosable. Force UTF-8 where the stream supports it.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):  # not a real console / already fixed
+            pass
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if args.purge_failed:
         result = purge_failed(push=not args.no_push)
