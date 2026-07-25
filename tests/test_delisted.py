@@ -156,3 +156,128 @@ class TestCollector:
 
         tickers = {r["ticker"] for r in lc.collect_listing_rows()}
         assert tickers == {"SQBN"}
+
+
+class TestInactiveFlag:
+    """The delisting flag must agree with every source, not just the registry.
+
+    The registry's ``last_trade_date`` comes from openinfo's conclusions history,
+    which is blank for whole classes of security that trade daily — that is what
+    put ALKB and the microfinance bonds under "возможный делистинг" while they
+    were printing trades. Each source states dates differently, so the normaliser
+    is the load-bearing part.
+    """
+
+    @pytest.mark.parametrize(("raw", "expected"), [
+        ("2026-06-11", "2026-06-11"),   # registry — ISO
+        ("24.07.2026", "2026-07-24"),   # live exchange feed — DD.MM.YYYY
+        ("20260722", "2026-07-22"),     # trade-stats cache — YYYYMMDD
+        ("", None), (None, None), ("nonsense", None), ("2026", None),
+    ])
+    def test_date_normalisation(self, raw, expected) -> None:
+        import api
+
+        assert api._iso_trade_date(raw) == expected
+
+    def test_dd_mm_is_not_read_as_mm_dd(self) -> None:
+        """A day-first date silently read as month-first shifts a trade by months."""
+        import api
+
+        assert api._iso_trade_date("07.01.2026") == "2026-01-07"
+
+    def _feed(self, monkeypatch, listings, live, stats=None):
+        import api
+
+        monkeypatch.setattr(api, "get_all_listings", lambda: listings)
+        monkeypatch.setattr(api, "_live_last_trade_dates", lambda: live)
+        monkeypatch.setattr(api, "get_all_trade_stats", lambda: stats or {})
+        from fastapi.testclient import TestClient
+
+        with TestClient(api.app) as client:
+            return client.get("/api/listings/feed").json()
+
+    def test_live_trade_clears_a_blank_registry_row(self, monkeypatch) -> None:
+        """ALKB: registry knows of no trade, the exchange saw one today."""
+        from datetime import datetime
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        body = self._feed(
+            monkeypatch,
+            {"ALKB": {"name": "Aloqabank", "isin": "UZ7001",
+                      "listing_date": "2015-01-01", "last_trade_date": None}},
+            {"ALKB": today},
+        )
+        assert [i["ticker"] for i in body["inactive"]] == []
+        # The exchange's date is reported, not the registry's blank.
+        assert body["listed"][0]["last_trade_date"] == today
+
+    def test_trade_stats_alone_also_clears_it(self, monkeypatch) -> None:
+        from datetime import datetime
+
+        today = datetime.now().strftime("%Y%m%d")
+        body = self._feed(
+            monkeypatch,
+            {"XXXX": {"name": "X", "isin": "UZ7001", "last_trade_date": None}},
+            {},
+            {"UZ7001": {"trade_date": today}},
+        )
+        assert body["inactive"] == []
+
+    def test_genuinely_quiet_line_is_still_flagged(self, monkeypatch) -> None:
+        body = self._feed(
+            monkeypatch,
+            {"ORGS": {"name": "Orgres", "isin": "UZ7002", "last_trade_date": "2024-02-26"}},
+            {},
+        )
+        assert [i["ticker"] for i in body["inactive"]] == ["ORGS"]
+
+    def test_freshest_source_wins(self, monkeypatch) -> None:
+        """A stale registry date must not override a newer one from the exchange."""
+        from datetime import datetime
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        body = self._feed(
+            monkeypatch,
+            {"KSCMP": {"name": "Quvasoycement", "isin": "UZ7003", "last_trade_date": "2026-06-11"}},
+            {"KSCMP": today},
+        )
+        assert body["inactive"] == []
+
+    def test_unreachable_live_feed_falls_back_instead_of_erroring(self, monkeypatch) -> None:
+        """A feed outage must degrade to registry-only, not 500 the Справочник."""
+        import api
+        import requests as _rq
+
+        def _boom(*a, **k):
+            raise _rq.RequestException("down")
+
+        monkeypatch.setattr(api.requests, "get", _boom)
+        assert api._live_last_trade_dates() == {}
+
+    def test_a_carried_forward_close_is_not_a_trade(self, monkeypatch) -> None:
+        """close_date advances daily whether or not anything traded.
+
+        FRAZP/MXUS/TRSBP/UZML all carried yesterday's close_date with no volume
+        while their last real trade was in June; accepting that date would clear
+        exactly the securities this section exists to surface.
+        """
+        import api
+
+        rows = {
+            None: [{"ticker": "FRAZP", "last_trade_date": None,
+                    "close_date": "23.07.2026", "volume": None},
+                   {"ticker": "ACMT1B2", "last_trade_date": None,
+                    "close_date": "17.07.2026", "volume": 57500000.0}],
+            "bond": [],
+        }
+
+        class _Resp:
+            def __init__(self, key): self._key = key
+            def raise_for_status(self): pass
+            def json(self): return {"stocks": rows[self._key]}
+
+        monkeypatch.setattr(api.requests, "get",
+                            lambda url, params=None, timeout=None: _Resp((params or {}).get("type")))
+        dates = api._live_last_trade_dates()
+        assert "FRAZP" not in dates, "a quote carried forward was read as a trade"
+        assert dates["ACMT1B2"] == "2026-07-17", "a session with turnover is a real trade"

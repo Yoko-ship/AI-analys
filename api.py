@@ -1068,35 +1068,113 @@ async def api_market_trade_stats() -> dict[str, Any]:
     return _json_safe({"ok": True, "count": len(stats), "stats": stats})
 
 
+def _iso_trade_date(value: Any) -> str | None:
+    """Normalise a last-trade date to YYYY-MM-DD.
+
+    The three sources that know when a security last traded each state it
+    differently — the RFB registry in ISO, the live UZSE feed as DD.MM.YYYY, the
+    trade-stats cache as YYYYMMDD — and they are compared against each other and
+    against a date cutoff, so they have to be reduced to one sortable form first.
+    """
+    s = str(value or "").strip()
+    if not s:
+        return None
+    if len(s) == 10 and s[4] == "-" and s[7] == "-":
+        return s
+    if len(s) == 10 and s[2] == "." and s[5] == ".":
+        return f"{s[6:]}-{s[3:5]}-{s[:2]}"
+    if len(s) == 8 and s.isdigit():
+        return f"{s[:4]}-{s[4:6]}-{s[6:]}"
+    return None
+
+
+def _live_last_trade_dates() -> dict[str, str]:
+    """ticker → last trade date (ISO) as the live exchange feed reports it.
+
+    The registry's own ``last_trade_date`` is missing for securities that trade
+    perfectly normally — it is derived from openinfo's conclusions history, which
+    is empty or stale for whole classes of line (ALKB, the microfinance bonds).
+    Reading the exchange feed as well is what stops the delisting section from
+    accusing a security that traded this morning. Best-effort: on a fetch failure
+    the caller simply falls back to the registry, which is the older behaviour.
+
+    Only evidence of an actual trade counts. ``close_date`` is the session the
+    closing *quote* belongs to and the exchange carries it forward through days
+    with no trading — FRAZP, MXUS, TRSBP and UZML all show yesterday's close_date
+    with no volume while their last real trade was in June. So a close date is
+    accepted only when the session also reports turnover.
+    """
+    out: dict[str, str] = {}
+    for security_type in (None, "bond"):
+        try:
+            resp = requests.get(
+                f"{UZSE_STOCK_API_BASE}/stocks",
+                params={"type": security_type} if security_type else None,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+        except (requests.RequestException, ValueError):
+            logger.warning("listings feed: live trade dates unavailable (type=%s)", security_type)
+            continue
+        rows = payload.get("stocks") if isinstance(payload, dict) else []
+        for row in rows if isinstance(rows, list) else []:
+            ticker = str(row.get("ticker") or "").strip().upper()
+            date = _iso_trade_date(row.get("last_trade_date"))
+            if not date and any(row.get(k) for k in ("volume", "quantity", "trade_count")):
+                date = _iso_trade_date(row.get("close_date"))
+            if ticker and date and date > out.get(ticker, ""):
+                out[ticker] = date
+    return out
+
+
 @app.get("/api/listings/feed")
 async def api_listings_feed(inactive_days: int = 30) -> dict[str, Any]:
     """Listing / delisting feed (ТЗ §3.2, item 7): who recently appeared on the
-    exchange and who has gone quiet (off the live feed → possible delisting). Data
-    is the RFB listing registry (catalog_listings), pushed by the collector."""
+    exchange and who has gone quiet (no trades anywhere → possible delisting).
+
+    The registry (catalog_listings, pushed by the collector) says when it last saw
+    a trade, but its answer is only as good as openinfo's conclusions history —
+    which is blank for securities that are trading daily. Flagging on that field
+    alone put actively traded lines under "возможный делистинг", so the live
+    exchange feed and the trade-stats cache are consulted too and the freshest of
+    the three decides. A security is inactive only when *no* source has seen it
+    trade inside the window."""
     from datetime import datetime, timedelta
 
     loop = asyncio.get_running_loop()
     try:
-        listings = await loop.run_in_executor(None, get_all_listings)
+        listings, live_dates, stats = await asyncio.gather(
+            loop.run_in_executor(None, get_all_listings),
+            loop.run_in_executor(None, _live_last_trade_dates),
+            loop.run_in_executor(None, get_all_trade_stats),
+        )
     except Exception as exc:
         logger.exception("listings feed read failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     def _mk(tk: str, lst: dict[str, Any]) -> dict[str, Any]:
+        isin = str(lst.get("isin") or "").upper()
+        candidates = (
+            _iso_trade_date(lst.get("last_trade_date")),
+            live_dates.get(tk.upper()),
+            _iso_trade_date(((stats or {}).get(isin) or {}).get("trade_date")),
+        )
+        known = [d for d in candidates if d]
         return {
             "ticker": tk,
             "name": lst.get("name"),
             "isin": lst.get("isin"),
             "share_type": lst.get("share_type"),
             "listing_date": lst.get("listing_date") or None,
-            "last_trade_date": lst.get("last_trade_date") or None,
+            "last_trade_date": max(known) if known else None,
             "market_cap": lst.get("market_cap"),
         }
 
     items = [_mk(tk, lst) for tk, lst in (listings or {}).items()]
     # Recently listed — those with a known listing date, newest first (ISO dates sort lexically).
     listed = sorted((i for i in items if i["listing_date"]), key=lambda i: i["listing_date"], reverse=True)
-    # Delisting candidates — no trades within the window (off the live feed).
+    # Delisting candidates — nothing has seen a trade inside the window.
     cutoff = (datetime.now() - timedelta(days=max(1, inactive_days))).strftime("%Y-%m-%d")
     inactive = sorted(
         (i for i in items if not i["last_trade_date"] or i["last_trade_date"] < cutoff),
