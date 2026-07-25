@@ -1124,6 +1124,39 @@ async def api_admin_news_images(
     return {"ok": True, "updated": n}
 
 
+@app.get("/api/admin/catalog/issuers")
+async def api_admin_catalog_issuers(
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """The issuer catalog — ticker, name and openinfo `org_id` — for a collector that has no
+    catalog database of its own.
+
+    The scheduled news collector runs in a container with an empty filesystem (a Railway
+    volume mounts to exactly one service), so without this it falls back to the static ticker
+    list and, worse, cannot attribute openinfo filings at all — `org_id` is what maps a filing
+    to a ticker. Read-only.
+    """
+    import reports_catalog as rc
+
+    def _read() -> list[dict[str, Any]]:
+        conn = rc.get_catalog_conn()
+        rows = conn.execute(
+            "SELECT ticker, company_name, org_id FROM catalog_companies ORDER BY ticker"
+        ).fetchall()
+        conn.close()
+        return [{"ticker": r["ticker"], "company_name": r["company_name"],
+                 "org_id": r["org_id"]} for r in rows if r["ticker"]]
+
+    loop = asyncio.get_running_loop()
+    try:
+        issuers = await loop.run_in_executor(None, _read)
+    except Exception as exc:
+        logger.exception("issuer catalog read failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "count": len(issuers),
+            "with_org_id": sum(1 for i in issuers if i.get("org_id")), "issuers": issuers}
+
+
 @app.post("/api/admin/news/known")
 async def api_admin_news_known(
     payload: AdminNewsKnownRequest,

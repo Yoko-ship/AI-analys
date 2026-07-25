@@ -43,7 +43,12 @@
       "Bash(.venv/Scripts/python.exe check_missing.py)",
       "Bash(.venv/Scripts/python.exe *)",
       "Bash(gh pr *)",
-      "Workflow(deep-research)"
+      "Workflow(deep-research)",
+      "PowerShell(cd D:\\\\projects; $out = railway status 2>&1 | Out-String; $i = $out.IndexOf\\(\"All resources\"\\); if \\($i -ge 0\\) { $out.Substring\\($i\\) } else { $out })",
+      "PowerShell(railway service *)",
+      "PowerShell(cd D:\\\\projects; \"=== .dockerignore ===\"; Get-Content .dockerignore; \"=== service state ===\"; $out = railway status 2>&1 | Out-String; $i = $out.IndexOf\\(\"All resources\"\\); if \\($i -ge 0\\) { $out.Substring\\($i\\) })",
+      "PowerShell(railway variables *)",
+      "Bash(railway logs *)"
     ]
   }
 }
