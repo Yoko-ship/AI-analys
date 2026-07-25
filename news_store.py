@@ -18,6 +18,7 @@ from datetime import datetime
 from typing import Any
 
 import reports_catalog as rc
+from delisted import DELISTED_TICKERS
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,10 @@ def upsert_news(items: list[dict[str, Any]]) -> int:
             )
             conn.execute("DELETE FROM news_entities WHERE news_id = ?", (news_id,))
             for ticker in {str(t).strip().upper() for t in (it.get("tickers") or []) if str(t).strip()}:
+                if ticker in DELISTED_TICKERS:
+                    # The issuer has no page on the site any more, so the chip would
+                    # link nowhere. The story itself is kept — only the tag is dropped.
+                    continue
                 conn.execute(
                     "INSERT OR IGNORE INTO news_entities (news_id, ticker) VALUES (?,?)",
                     (news_id, ticker),
