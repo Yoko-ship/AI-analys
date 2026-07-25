@@ -139,11 +139,16 @@ _MARKET_RE = re.compile(
     r"|\bgold\b|energy|market|trading|deposit|mortgage|central bank",
     re.I)
 _JUNK_RE = re.compile(
-    r"гороскоп|футбол|матч|чемпионат|олимпиад|спортсмен|\bспорт|тренер|арбитр|бокс|шахмат"
-    r"|борьб|погод|дождь|жара|\bдтп\b|аварии|столкновени|погиб|задержан|наркотик|кража"
+    # 'арбитр' is spelled out per-form on purpose: a bare stem also matches "арбитраж",
+    # i.e. commercial arbitration, which is regulatory news. 'борьба' is left out entirely —
+    # wrestling and "борьба с коррупцией" are indistinguishable by stem.
+    r"гороскоп|футбол|матч|чемпионат|олимпиад|спортсмен|\bспорт|тренер|бокс|шахмат"
+    r"|арбитр(?:ы|ов|а|у|ом|е)?\b"
+    r"|погод|дождь|жара|\bдтп\b|аварии|столкновени|погиб|задержан|наркотик|кража"
     r"|ограблен|убийств|приговор|концерт|фестивал|\bкино\b|сериал|актер|актрис|певиц|певец"
     r"|музыкант|свадьб|туристическ\w+ поезд|розыгрыш|конкурс красоты"
     r"|futbol|chempionat|musobaqa|\bsport|ob-havo|halok|jinoyat|\bkino\b|konsert|festival"
+    r"|sayli|bayram"
     r"|football|championship|olympic|weather|accident|crime|concert|festival|movie"
     r"|celebrity|horoscope",
     re.I)
@@ -170,16 +175,22 @@ def _issuer_terms(universe: dict[str, str] | None) -> set[str]:
 def prefilter_reject(item: dict[str, Any], universe: dict[str, str] | None = None) -> str | None:
     """The junk pattern that got this item dropped before any LLM call, or None to keep.
 
-    Keeps anything with a market signal or an issuer mention, and keeps anything it has
-    no opinion about — only a positive junk match with no market signal rejects.
+    Keeps anything naming an issuer we cover, and keeps anything it has no opinion about —
+    only positive junk evidence rejects. Two tiers, because the headline is what states the
+    topic: a junk headline with no market word IN THE HEADLINE is dropped even if the
+    snippet happens to contain one (kun.uz's "melon festival" carried a trade word in its
+    description and slipped through), while for the snippet the old, gentler rule stands.
     """
-    text = f"{item.get('title') or ''} {item.get('snippet') or ''}".strip()
+    title = str(item.get("title") or "").strip()
+    text = f"{title} {item.get('snippet') or ''}".strip()
     if not text:
         return None
-    if _MARKET_RE.search(text):
+    if any(term in text.lower() for term in _issuer_terms(universe)):
         return None
-    low = text.lower()
-    if any(term in low for term in _issuer_terms(universe)):
+    title_junk = _JUNK_RE.search(title)
+    if title_junk and not _MARKET_RE.search(title):
+        return title_junk.group(0).lower()
+    if _MARKET_RE.search(text):
         return None
     match = _JUNK_RE.search(text)
     return match.group(0).lower() if match else None

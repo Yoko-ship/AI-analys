@@ -1049,15 +1049,19 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
 
 
 @app.get("/api/news/feed")
-async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None) -> dict[str, Any]:
-    """Editorial news feed (§3.11): classified, market-relevant items, newest first.
+async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None,
+                        order: str = "rank") -> dict[str, Any]:
+    """Editorial news feed (§3.11): classified, market-relevant items, ranked by impact.
 
     Distinct from /api/news (the market-events timeline). Each item carries a
-    model-estimated tone / impact / direction — an analytical signal, not advice.
+    model-estimated tone / impact / direction — an analytical signal, not advice — plus the
+    ``rank`` it was ordered by. ``order=recent`` returns plain newest-first instead.
+    Low-relevance items are skipped and the same story from several outlets is merged.
     """
     loop = asyncio.get_running_loop()
     items = await loop.run_in_executor(
-        None, partial(news_store.get_news_feed, limit=limit, days=days, news_type=type))
+        None, partial(news_store.get_news_feed, limit=limit, days=days, news_type=type,
+                      order="recent" if order == "recent" else "rank"))
     return _json_safe({"ok": True, "count": len(items), "items": items, "disclaimer": NEWS_DISCLAIMER})
 
 

@@ -76,6 +76,33 @@ python news_agent.py "Hamkorbank dividend"   # try the search agent (needs TAVIL
 
 Serve: `GET /api/news/feed?limit=60&days=30`, `GET /api/news/ticker/HMKB`.
 
+## Ranking & noise control (the read path)
+
+The page promises news *sorted by likely price impact*, so `get_news_feed` ranks rather than
+just ordering by date. Three stages, all in one place so every consumer gets them:
+
+1. **Noise floor** — items the classifier passed as relevant but scored below
+   `NEWS_MIN_RELEVANCE` (default `0.3`) are skipped. Measured on real rows: genuinely
+   relevant items score 0.60–0.85 and rejected ones 0.00–0.10, so the floor sits in an empty
+   band. **Issuer filings are exempt** — a disclosure is news because the issuer filed it,
+   whatever score a model puts on "change in the list of affiliated persons".
+2. **Rank** — `rank_score()` = `0.38·impact + 0.27·relevance + 0.15·source authority +
+   0.12·class + 0.08·names-an-issuer`, decayed by age with a 36 h half-life
+   (`NEWS_RANK_HALF_LIFE_H`). Deterministic and pure, so an ordering can be explained and
+   tested. Each item carries its `rank` in the API response.
+3. **Cross-source de-duplication** — the same story from several outlets collapses to the
+   best-ranked copy, by Jaccard overlap of significant title words
+   (`NEWS_DEDUP_SIMILARITY`, default `0.62`) and only within `NEWS_DEDUP_WINDOW_H` (48 h),
+   because identical wording months apart is a recurring story, not a duplicate.
+
+Ranking runs over a window three times wider than `limit`, so a strong item just outside
+today's newest N can still surface. `?order=recent` returns the plain newest-first list —
+that is what the sidebar's "latest" panel uses, since the main column is no longer
+chronological.
+
+Set `NEWS_MIN_RELEVANCE=0`, `NEWS_DEDUP_SIMILARITY=0` or `NEWS_RANK_HALF_LIFE_H=0` to switch
+any stage off without a code change.
+
 ## Card images
 
 The feed cards use the **source's own published image**, in two steps (verified

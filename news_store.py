@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
+from datetime import datetime
 from typing import Any
 
 import reports_catalog as rc
@@ -23,6 +26,38 @@ _NEWS_FIELDS = ("url", "source", "source_id", "lang", "title", "snippet", "summa
                 "image_url", "published_at", "coverage_weight")
 _NLP_FIELDS = ("relevant", "relevance_score", "type", "tone", "tone_score",
                "impact", "direction", "reason", "model")
+
+# --------------------------------------------------------------------------- #
+# feed ranking (TZ §3.11: the page promises news SORTED by likely price impact,
+# so the read path ranks — it does not just order by date)
+# --------------------------------------------------------------------------- #
+_IMPACT_WEIGHT = {"high": 1.0, "medium": 0.65, "low": 0.35, "none": 0.1}
+# An issuer-specific filing or corporate event outranks generic macro copy on a platform
+# whose users hold these ~93 issuers; the model's own `impact` carries the rest.
+_TYPE_WEIGHT = {"financial_report": 1.0, "corporate_event": 1.0, "regulatory": 0.8,
+                "market": 0.6}
+# Sources whose items are the issuer's own disclosure: never subject to the relevance floor
+# (their relevance comes from who filed them, not from a model's score).
+_AUTHORITATIVE_SOURCES = {"openinfo_facts"}
+# Half-life of the recency decay: a story is worth half as much after this many hours.
+_RANK_HALF_LIFE_H = float(os.getenv("NEWS_RANK_HALF_LIFE_H", "36"))
+# Items the model marked relevant but scored below this are dropped as noise. Measured
+# 2026-07-25 on real rows: genuinely relevant items scored 0.60-0.85, rejected ones
+# 0.00-0.10, so this sits in an empty band. Set to 0 to disable the floor.
+_MIN_RELEVANCE = float(os.getenv("NEWS_MIN_RELEVANCE", "0.3"))
+# Jaccard similarity over significant title words above which two items are treated as the
+# same story from different outlets. 0 disables cross-source de-duplication.
+_DEDUP_SIMILARITY = float(os.getenv("NEWS_DEDUP_SIMILARITY", "0.62"))
+_DEDUP_WINDOW_H = float(os.getenv("NEWS_DEDUP_WINDOW_H", "48"))
+# Short/function words carry no topical signal, so they must not inflate the overlap.
+_STOPWORDS = {
+    "в", "на", "и", "с", "по", "за", "из", "к", "у", "о", "об", "от", "до", "для", "не",
+    "что", "как", "это", "при", "или", "но", "а", "же", "уже", "еще", "их", "его", "ее",
+    "был", "была", "было", "были", "будет", "стал", "стала", "млн", "млрд", "тыс", "года",
+    "год", "году", "the", "a", "an", "of", "in", "on", "to", "for", "and", "is", "was",
+    "will", "has", "have", "by", "with", "at", "from", "va", "bilan", "uchun", "boldi",
+}
+_WORD_RE = re.compile(r"[\wЀ-ӿ]+", re.UNICODE)
 
 
 def upsert_news(items: list[dict[str, Any]]) -> int:
@@ -216,6 +251,7 @@ def delete_failed_classifications(*, limit: int = 1000) -> dict[str, Any]:
 
 
 def _row_to_item(r: Any) -> dict[str, Any]:
+    keys = r.keys()
     return {
         "id": r["id"], "url": r["url"], "source": r["source"], "source_id": r["source_id"],
         "lang": r["lang"], "title": r["title"], "snippet": r["snippet"],
@@ -223,17 +259,138 @@ def _row_to_item(r: Any) -> dict[str, Any]:
         "type": r["type"], "tone": r["tone"], "tone_score": r["tone_score"],
         "impact": r["impact"], "direction": r["direction"],
         "sectors": json.loads(r["sectors_json"]) if r["sectors_json"] else [],
+        "relevance_score": r["relevance_score"] if "relevance_score" in keys else None,
+        "coverage_weight": r["coverage_weight"] if "coverage_weight" in keys else None,
+        "tickers": ([t for t in (r["tickers_csv"] or "").split(",") if t]
+                    if "tickers_csv" in keys else []),
     }
+
+
+def _parse_dt(value: Any) -> datetime | None:
+    """Stored timestamps come in both 'YYYY-MM-DDTHH:MM:SS' (feeds, filings) and
+    'YYYY-MM-DD HH:MM:SS' (collected_at) shapes; dates alone also occur."""
+    if not value:
+        return None
+    text = str(value).replace("T", " ").strip()
+    for fmt, width in (("%Y-%m-%d %H:%M:%S", 19), ("%Y-%m-%d", 10)):
+        try:
+            return datetime.strptime(text[:width], fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _title_words(title: str | None) -> set[str]:
+    return {w for w in (m.group(0).lower() for m in _WORD_RE.finditer(title or ""))
+            if len(w) > 3 and w not in _STOPWORDS}
+
+
+def rank_score(item: dict[str, Any], now: datetime | None = None) -> float:
+    """How prominently this item deserves to sit in the feed, in 0..1.
+
+    Quality is the model's estimated price impact and its own relevance score, weighted by
+    how authoritative the source is and whether the item names an issuer we cover; that is
+    then decayed by age, because a stale high-impact story is still stale. Deterministic and
+    pure, so the ordering is explainable and testable.
+    """
+    now = now or datetime.now()
+    impact = _IMPACT_WEIGHT.get((item.get("impact") or "none"), 0.1)
+    relevance = max(0.0, min(float(item.get("relevance_score") or 0.0), 1.0))
+    source = max(0.0, min(float(item.get("coverage_weight") or 0.5), 1.0))
+    type_w = _TYPE_WEIGHT.get((item.get("type") or "market"), 0.6)
+    names_issuer = 1.0 if item.get("tickers") else 0.0
+    quality = (0.38 * impact + 0.27 * relevance + 0.15 * source
+               + 0.12 * type_w + 0.08 * names_issuer)
+    published = _parse_dt(item.get("published_at"))
+    age_h = max((now - published).total_seconds() / 3600.0, 0.0) if published else 24.0
+    decay = 0.5 ** (age_h / _RANK_HALF_LIFE_H) if _RANK_HALF_LIFE_H > 0 else 1.0
+    return round(quality * decay, 6)
+
+
+def _drop_noise(items: list[dict[str, Any]], min_relevance: float) -> list[dict[str, Any]]:
+    """Skip items the classifier passed as relevant but scored as barely so.
+
+    Issuer filings are exempt: a disclosure is news because the issuer filed it, whatever
+    score a model puts on 'change in the list of affiliated persons'.
+    """
+    if min_relevance <= 0:
+        return items
+    kept = []
+    for it in items:
+        if it.get("source_id") in _AUTHORITATIVE_SOURCES:
+            kept.append(it)
+            continue
+        if float(it.get("relevance_score") or 0.0) >= min_relevance:
+            kept.append(it)
+    if len(kept) != len(items):
+        logger.info("news feed: dropped %d low-relevance item(s) below %.2f",
+                    len(items) - len(kept), min_relevance)
+    return kept
+
+
+def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[str, Any]]:
+    """Collapse the same story reported by several outlets, keeping the best-ranked copy.
+
+    Compares significant title words (Jaccard) only between items published within
+    ``NEWS_DEDUP_WINDOW_H`` of each other — the same wording months apart is a different
+    story (a daily FX report, say), not a duplicate. Items are expected pre-sorted best
+    first, so the survivor is the one that already ranked highest.
+    """
+    if threshold <= 0 or len(items) < 2:
+        return items
+    kept: list[tuple[set[str], datetime | None, dict[str, Any]]] = []
+    dropped = 0
+    for it in items:
+        words = _title_words(it.get("title"))
+        when = _parse_dt(it.get("published_at"))
+        duplicate = False
+        if words:
+            for prev_words, prev_when, _prev in kept:
+                if not prev_words:
+                    continue
+                if when and prev_when:
+                    gap_h = abs((when - prev_when).total_seconds()) / 3600.0
+                    if gap_h > _DEDUP_WINDOW_H:
+                        continue
+                union = words | prev_words
+                if union and len(words & prev_words) / len(union) >= threshold:
+                    duplicate = True
+                    break
+        if duplicate:
+            dropped += 1
+        else:
+            kept.append((words, when, it))
+    if dropped:
+        logger.info("news feed: merged %d duplicate cross-source story/stories", dropped)
+    return [it for _w, _t, it in kept]
 
 
 def get_news_feed(
     *, limit: int = 60, days: int = 30, only_relevant: bool = True,
-    news_type: str | None = None,
+    news_type: str | None = None, order: str = "rank",
+    min_relevance: float | None = None,
 ) -> list[dict[str, Any]]:
-    """Public editorial feed: relevant, classified items, newest first."""
+    """Public editorial feed: relevant, classified items, **ranked by likely impact**.
+
+    ``order="rank"`` (default) scores every candidate with :func:`rank_score`, drops
+    low-relevance noise, merges the same story reported by several outlets, and returns the
+    best first — which is what the page claims to show. ``order="recent"`` keeps the plain
+    newest-first ordering (the sidebar's "latest" list).
+
+    Ranking happens over a window wider than ``limit`` so a strong item just outside the
+    newest N can still surface; each returned item carries its ``rank`` for transparency.
+    """
+    fetch = max(1, min(limit, 200))
+    if order == "rank":
+        # Rank over more rows than we return, or a high-impact filing from yesterday could
+        # never outrank today's currency-rate note simply for being one row too far down.
+        fetch = max(1, min(max(limit * 3, 60), 300))
     conn = rc.get_catalog_conn()
     q = [
-        "SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json, p.relevant",
+        "SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,",
+        "       p.relevant, p.relevance_score,",
+        "       (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e",
+        "         WHERE e.news_id = n.id) AS tickers_csv",
         "FROM news n JOIN news_nlp p ON p.news_id = n.id",
         "WHERE 1=1",
     ]
@@ -247,10 +404,20 @@ def get_news_feed(
         q.append("AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))")
         params.append(f"-{int(days)} days")
     q.append("ORDER BY COALESCE(n.published_at, n.collected_at) DESC LIMIT ?")
-    params.append(max(1, min(limit, 200)))
+    params.append(fetch)
     rows = conn.execute(" ".join(q), params).fetchall()
     conn.close()
-    return [_row_to_item(r) for r in rows]
+    items = [_row_to_item(r) for r in rows]
+    if order != "rank":
+        return items[:max(1, min(limit, 200))]
+
+    now = datetime.now()
+    items = _drop_noise(items, _MIN_RELEVANCE if min_relevance is None else min_relevance)
+    for it in items:
+        it["rank"] = rank_score(it, now)
+    items.sort(key=lambda it: (-it["rank"], str(it.get("published_at") or "")))
+    items = _dedupe_stories(items, _DEDUP_SIMILARITY)
+    return items[:max(1, min(limit, 200))]
 
 
 def get_news_for_ticker(ticker: str, *, limit: int = 30, days: int = 90) -> list[dict[str, Any]]:
