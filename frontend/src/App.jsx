@@ -6,6 +6,8 @@ import logoIcon from "./assets/icon.png";
 // module so the market table and the company page cannot compute them differently
 // (see frontend/src/lib/valuation.js and tests/valuation.test.js).
 import {
+  finEarnings,
+  finFieldCoverage,
   finFieldPeriod,
   finPeriodCoverage,
   finRowPeriod,
@@ -5396,9 +5398,13 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
   // market board and a blank here. ТЗ permits raw current multipliers in the
   // public contour ("P/E сейчас = 8x") with no interpretation label; no
   // «недооценена/переоценена» here. Global disclaimer applies.
+  // Same 12-month earnings basis as the market board — the shared helper picks
+  // the last complete fiscal year when the latest filing is a cumulative quarter,
+  // so this page and the board cannot disagree about what P/E divides by.
+  const earnings = finEarnings(financials);
   const { pe: peVal, pb: pbVal } = valuationRatios({
     marketCap: marketCapVal,
-    netIncome: safeNumber(financials?.net_income),
+    netIncome: safeNumber(earnings.netIncome),
     equity: safeNumber(companyData?.ratios?.total_equity),
     roePercent: safeNumber(metrics.ROE),
   });
@@ -5448,7 +5454,12 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
                   </div>
                 ))}
                 {peVal != null && (
-                  <div className="company-metric-row"><span className="panel-label">P/E</span><span className="company-metric-val">{peVal.toFixed(2)}×</span></div>
+                  <div className="company-metric-row">
+                    <span className="panel-label">
+                      P/E{earnings.period ? <span className="co-metric-period"> · {earnings.period}</span> : null}
+                    </span>
+                    <span className="company-metric-val">{peVal.toFixed(2)}×</span>
+                  </div>
                 )}
                 {pbVal != null && (
                   <div className="company-metric-row"><span className="panel-label">P/B</span><span className="company-metric-val">{pbVal.toFixed(2)}×</span></div>
@@ -6293,11 +6304,15 @@ function MarketView({
   // shared valuationRatios() so this table and the company page cannot disagree.
   const ratioOf = (ticker) => ratios[ticker] || ratios[String(ticker || "").toUpperCase()] || null;
   const mktCapOf = (r) => (Number.isFinite(r.marketCap) ? r.marketCap : null);
+  // Earnings for the multiples: the last complete fiscal year when the issuer's
+  // latest filing is a cumulative quarter, so P/E means the same thing in every
+  // row. Without it the column silently mixes 3-, 6- and 12-month profits.
+  const earningsOf = (r) => finEarnings(finOf(r.ticker));
   const valuationOf = (r) => {
     const rat = ratioOf(r.ticker) || {};
     return valuationRatios({
       marketCap: mktCapOf(r),
-      netIncome: finOf(r.ticker)?.net_income,
+      netIncome: earningsOf(r).netIncome,
       equity: rat.total_equity,
       roePercent: rat.roe,
     });
@@ -6337,6 +6352,11 @@ function MarketView({
     const period = finFieldPeriod(f, field);
     const borrowed = Boolean((f?.field_periods || {})[field]);
     const coverage = finPeriodCoverage(period, lang);
+    // How much trading the figure covers, printed rather than only hovered: NSBU
+    // quarters are cumulative, so this column routinely sets one issuer's six
+    // months beside another's three and a third's completed year. Balance lines
+    // get no suffix — they are a position on the closing date, not an accumulation.
+    const length = finFieldCoverage(period, field, lang);
     return (
       <td className="num">
         <strong>{finValue(value, lang)}</strong>
@@ -6347,7 +6367,7 @@ function MarketView({
                       : lang === "uz" ? "davr qator davridan farq qiladi"
                       : "a different period than the row"}`
                   : `${period} · ${coverage}`}>
-            {period}{borrowed ? " *" : ""}
+            {period}{length ? ` · ${length}` : ""}{borrowed ? " *" : ""}
           </span>
         )}
       </td>
@@ -6546,7 +6566,19 @@ function MarketView({
     finNet: (row) => finCell(row, "net_income"),
     finOperating: (row) => finCell(row, "operating_income", { naWhenTopLine: true }),
     mktCap: (row) => <td className="num">{(() => { const v = mktCapOf(row); return v == null ? noSecLabel(row) : formatRatio(v, 0, lang); })()}</td>,
-    pe: (row) => <td className="num">{(() => { const v = peOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 1, lang)}×`; })()}</td>,
+    pe: (row) => {
+      const v = peOf(row);
+      if (v == null) return <td className="num">{noSecLabel(row)}</td>;
+      // Name the earnings period on the cell: this is the one multiple whose
+      // denominator can come from a different filing than the row's own figures.
+      const { period, months } = earningsOf(row);
+      return (
+        <td className="num" title={period ? `${lang === "ru" ? "прибыль за" : lang === "uz" ? "foyda" : "earnings for"} ${period} · ${months} ${lang === "ru" ? "мес." : lang === "uz" ? "oy" : "months"}` : undefined}>
+          <strong>{formatRatio(v, 1, lang)}×</strong>
+          {period && <span className="fin-cell-period">{period}</span>}
+        </td>
+      );
+    },
     pb: (row) => <td className="num">{(() => { const v = pbOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 2, lang)}×`; })()}</td>,
     roe: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roe; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
     roa: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roa; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,

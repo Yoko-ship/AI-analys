@@ -12,8 +12,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  finEarnings,
+  finFieldCoverage,
   finFieldPeriod,
   finPeriodCoverage,
+  finPeriodMonths,
   finRowPeriod,
   marketRowDay,
   normalizeMarketDay,
@@ -213,5 +216,97 @@ describe("tradeStatsApply", () => {
     // (FRAZP, UZML) — dropping their turnover trades a wrong number for none.
     assert.equal(tradeStatsApply(null, "20260724"), true);
     assert.equal(tradeStatsApply("24.07.2026", ""), true);
+  });
+});
+
+describe("finPeriodMonths", () => {
+  it("counts a cumulative quarter in months from January", () => {
+    // NSBU quarterly forms accumulate: Aloqabank's 2026 Q1 interest income of
+    // 939.6 bn becomes 1 950.4 bn at Q2 because Q2 IS six months.
+    assert.equal(finPeriodMonths({ year: 2026, quarter: 1 }), 3);
+    assert.equal(finPeriodMonths({ year: 2026, quarter: 2 }), 6);
+    assert.equal(finPeriodMonths({ year: 2026, quarter: 3 }), 9);
+  });
+
+  it("counts an annual as a full year", () => {
+    assert.equal(finPeriodMonths({ year: 2025, quarter: 0 }), 12);
+  });
+
+  it("prefers the length the backend computed", () => {
+    assert.equal(finPeriodMonths({ year: 2026, quarter: 2, period_months: 6 }), 6);
+  });
+
+  it("has nothing to say about a row with no period", () => {
+    assert.equal(finPeriodMonths(null), null);
+    assert.equal(finPeriodMonths({ year: null, quarter: 1 }), null);
+  });
+});
+
+describe("finFieldCoverage", () => {
+  it("states the length of a flow figure", () => {
+    assert.equal(finFieldCoverage("2026 Q2", "revenue", "ru"), "6 мес.");
+    assert.equal(finFieldCoverage("2026 Q1", "net_income", "en"), "3m");
+  });
+
+  it("says nothing for a balance-sheet line", () => {
+    // Cash and liabilities are a position on the closing date. Labelling them
+    // "6 months" would imply an accumulation that does not exist.
+    assert.equal(finFieldCoverage("2026 Q2", "cash", "ru"), null);
+    assert.equal(finFieldCoverage("2026 Q2", "total_liabilities", "ru"), null);
+  });
+
+  it("says nothing for an annual — the year is the unit", () => {
+    assert.equal(finFieldCoverage("2025", "revenue", "ru"), null);
+  });
+});
+
+describe("finEarnings", () => {
+  // A P/E built on the latest filing divides by 3, 6 or 9 months of profit
+  // depending only on when the issuer filed — so the same column means something
+  // different in every row. The last complete fiscal year is the comparable
+  // denominator, and it is a real filed period rather than a quarter scaled up.
+  it("prefers the last complete fiscal year over a cumulative quarter", () => {
+    const f = {
+      year: 2026, quarter: 1, net_income: 35_928_852_000,
+      annual: { year: 2025, quarter: 0, net_income: 98_827_172_000 },
+    };
+    const { netIncome, period, months } = finEarnings(f);
+    assert.equal(netIncome, 98_827_172_000);
+    assert.equal(period, "2025");
+    assert.equal(months, 12);
+  });
+
+  it("uses the row itself when it already is a full year", () => {
+    const { netIncome, period, months } = finEarnings({ year: 2025, quarter: 0, net_income: 400 });
+    assert.equal(netIncome, 400);
+    assert.equal(period, "2025");
+    assert.equal(months, 12);
+  });
+
+  it("falls back to the quarter when no annual was collected", () => {
+    // Better a stated 3-month basis than a blank multiple; the cell prints the
+    // period so the reader is not left to assume twelve months.
+    const { netIncome, period, months } = finEarnings({ year: 2026, quarter: 1, net_income: 100 });
+    assert.equal(netIncome, 100);
+    assert.equal(period, "2026 Q1");
+    assert.equal(months, 3);
+  });
+
+  it("keeps a loss negative", () => {
+    // Qizilqumsement's Q1 2026 is a 64.2 bn loss; a positive P/E here would read
+    // as a cheap earner.
+    const f = { year: 2026, quarter: 1, net_income: -64_238_084_000 };
+    assert.equal(finEarnings(f).netIncome, -64_238_084_000);
+  });
+
+  it("reports no earnings when none are published", () => {
+    assert.equal(finEarnings(null).netIncome, null);
+    assert.equal(finEarnings({ year: 2026, quarter: 1 }).netIncome, null);
+  });
+
+  it("ignores an annual companion with no profit figure", () => {
+    const f = { year: 2026, quarter: 1, net_income: 100, annual: { year: 2025, quarter: 0 } };
+    assert.equal(finEarnings(f).netIncome, 100);
+    assert.equal(finEarnings(f).period, "2026 Q1");
   });
 });

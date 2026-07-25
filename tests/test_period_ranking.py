@@ -151,6 +151,124 @@ class TestFinancialsPeriodSelectionSql:
         assert rc.get_all_financials()["GGG"]["is_ytd"] is False
 
 
+class TestFuturePeriodsAreRefusedAtTheWriteBoundary:
+    """The last defence for the period label.
+
+    QZSM and UQEQ reached the served cache stamped "2026 Q4" — a quarter still
+    months away — because openinfo signed their annual reports with a future
+    year-end. A period is a claim about a closed interval; if the interval is
+    still open the row is not a report, and no amount of ranking downstream can
+    recover from having stored it.
+    """
+
+    @pytest.fixture()
+    def catalog(self, tmp_path, monkeypatch) -> sqlite3.Connection:
+        db = tmp_path / "catalog.sqlite3"
+        monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(db))
+        monkeypatch.setattr(rc, "_maybe_seed_financials", lambda *a, **k: None)
+        monkeypatch.setenv("FINANCIALS_ENRICH_ON_READ", "0")
+        conn = rc.get_catalog_conn()
+        yield conn
+        conn.close()
+
+    def _row(self, ticker: str, year: int, quarter: int, revenue: float) -> dict:
+        return {"ticker": ticker, "year": year, "quarter": quarter, "revenue": revenue}
+
+    def test_a_quarter_that_has_not_ended_is_rejected(self, catalog) -> None:
+        current = datetime.now(timezone.utc).year
+        assert rc.bulk_replace_financials([self._row("AAA", current, 4, 999.0)]) == 0
+        assert rc.get_all_financials() == {}
+
+    def test_an_annual_for_an_unfinished_year_is_rejected(self, catalog) -> None:
+        current = datetime.now(timezone.utc).year
+        assert rc.bulk_upsert_financials([self._row("AAA", current, 0, 999.0)]) == 0
+        assert rc.get_all_financials() == {}
+
+    def test_a_completed_period_is_stored(self, catalog) -> None:
+        last_fy = rc._latest_complete_fiscal_year()
+        assert rc.bulk_replace_financials([self._row("AAA", last_fy, 0, 400.0)]) == 1
+        assert rc.get_all_financials()["AAA"]["revenue"] == 400.0
+
+    def test_a_rejected_row_does_not_wipe_what_is_already_stored(self, catalog) -> None:
+        # The replace push clears a ticker before inserting. Clearing it for a row
+        # that then turns out to be unstorable would trade a stale figure for none.
+        last_fy = rc._latest_complete_fiscal_year()
+        rc.bulk_replace_financials([self._row("AAA", last_fy, 0, 400.0)])
+
+        rc.bulk_replace_financials([self._row("AAA", last_fy + 1, 4, 999.0)])
+
+        assert rc.get_all_financials()["AAA"]["revenue"] == 400.0
+
+    @pytest.mark.parametrize(("year", "quarter", "future"), [
+        (2020, 1, False), (2020, 0, False),
+        (2999, 1, True), (2999, 0, True),
+        (None, 0, False),        # no period to judge
+    ])
+    def test_the_predicate(self, year, quarter, future) -> None:
+        assert rc._is_future_period(year, quarter) is future
+
+
+class TestSeveralPeriodsPerTicker:
+    """A replace push carries the latest period AND the last complete year.
+
+    Deleting per row — correct while every ticker had exactly one — keeps only
+    whichever period happens to be written last, so the 12-month figure every
+    ratio divides by would vanish the moment the companion was added.
+    """
+
+    @pytest.fixture()
+    def catalog(self, tmp_path, monkeypatch) -> sqlite3.Connection:
+        db = tmp_path / "catalog.sqlite3"
+        monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(db))
+        monkeypatch.setattr(rc, "_maybe_seed_financials", lambda *a, **k: None)
+        monkeypatch.setenv("FINANCIALS_ENRICH_ON_READ", "0")
+        conn = rc.get_catalog_conn()
+        yield conn
+        conn.close()
+
+    def test_both_periods_survive_the_replace(self, catalog) -> None:
+        last_fy = rc._latest_complete_fiscal_year()
+        rows = [
+            {"ticker": "AAA", "year": last_fy + 1, "quarter": 1, "net_income": 100.0},
+            {"ticker": "AAA", "year": last_fy, "quarter": 0, "net_income": 400.0},
+        ]
+
+        assert rc.bulk_replace_financials(rows) == 2
+
+        got = rc.get_all_financials()["AAA"]
+        assert (got["year"], got["quarter"]) == (last_fy + 1, 1)
+        assert got["net_income"] == 100.0
+        assert got["annual"]["year"] == last_fy
+        assert got["annual"]["net_income"] == 400.0
+
+    def test_the_replace_still_clears_a_stale_period(self, catalog) -> None:
+        last_fy = rc._latest_complete_fiscal_year()
+        rc.bulk_replace_financials([{"ticker": "AAA", "year": last_fy, "quarter": 3, "net_income": 7.0}])
+
+        rc.bulk_replace_financials([{"ticker": "AAA", "year": last_fy, "quarter": 0, "net_income": 400.0}])
+
+        rows = catalog.execute("SELECT year, quarter FROM catalog_financials WHERE ticker='AAA'").fetchall()
+        assert [(r["year"], r["quarter"]) for r in rows] == [(last_fy, 0)]
+
+    def test_an_annual_row_has_no_companion_of_its_own(self, catalog) -> None:
+        last_fy = rc._latest_complete_fiscal_year()
+        rc.bulk_replace_financials([{"ticker": "AAA", "year": last_fy, "quarter": 0, "net_income": 400.0}])
+
+        assert rc.get_all_financials()["AAA"]["annual"] is None
+
+    def test_the_period_length_travels_with_the_row(self, catalog) -> None:
+        last_fy = rc._latest_complete_fiscal_year()
+        rc.bulk_replace_financials([{"ticker": "AAA", "year": last_fy, "quarter": 2, "net_income": 50.0}])
+
+        got = rc.get_all_financials()["AAA"]
+        assert got["period_months"] == 6, "a cumulative Q2 is six months of trading"
+        assert got["is_ytd"] is True
+
+    @pytest.mark.parametrize(("quarter", "months"), [(0, 12), (1, 3), (2, 6), (3, 9), (4, 12)])
+    def test_months_per_period(self, quarter, months) -> None:
+        assert rc._period_months(2020, quarter) == months
+
+
 class TestAnnualizationFactor:
     """A blind x4 is right only for Q1: NSBU quarters are cumulative from Jan 1."""
 

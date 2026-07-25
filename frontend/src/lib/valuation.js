@@ -36,6 +36,33 @@ export function valuationEquity({ equity, netIncome, roePercent }) {
 }
 
 /**
+ * The earnings a multiple should divide by, and the period they cover.
+ *
+ * NSBU quarterly forms are cumulative from 1 January, so an issuer's latest
+ * filing is three, six or nine months of profit depending only on when in the
+ * year it filed — and issuers file on different calendars. Dividing a market cap
+ * by that produces a P/E column where one row means "price per year of earnings"
+ * and the next means "price per quarter", four times larger for no reason the
+ * reader can see. The backend therefore carries the last complete fiscal year
+ * alongside the latest period; prefer it, and fall back to the row's own figure
+ * (already 12 months when the row IS an annual).
+ *
+ * Returns { netIncome, period, months } — `period` labels what was used so the
+ * cell can say so, rather than leaving the reader to assume "latest".
+ */
+export function finEarnings(f) {
+  const annual = f?.annual;
+  if (annual && Number.isFinite(annual.net_income)) {
+    return { netIncome: annual.net_income, period: finRowPeriod(annual), months: 12 };
+  }
+  return {
+    netIncome: Number.isFinite(f?.net_income) ? f.net_income : null,
+    period: finRowPeriod(f),
+    months: finPeriodMonths(f),
+  };
+}
+
+/**
  * { pe, pb } for one issuer. Either may be null, meaning "not computable from
  * published data" — never 0 and never NaN.
  *
@@ -75,6 +102,13 @@ export function finFieldPeriod(f, field) {
   return m ? `${m[1]} Q${m[2]}` : String(own);
 }
 
+/** Months of activity a financials ROW's P&L figures cover (12 for an annual). */
+export function finPeriodMonths(f) {
+  if (!f || !f.year) return null;
+  if (Number.isFinite(f.period_months)) return f.period_months;
+  return f.quarter > 0 ? f.quarter * 3 : 12;
+}
+
 /** Human coverage of a period, so a cumulative quarter is never read as a year. */
 export function finPeriodCoverage(period, lang) {
   const m = String(period || "").match(/Q([1-4])$/);
@@ -83,6 +117,25 @@ export function finPeriodCoverage(period, lang) {
   return lang === "ru" ? `${months} мес., с начала года`
     : lang === "uz" ? `${months} oy, yil boshidan`
     : `${months} months, year to date`;
+}
+
+/**
+ * The short suffix printed next to the period under a figure.
+ *
+ * Only flow (P&L) figures get one: a cumulative Q2 revenue is six months of
+ * trading and has to say so, or the column silently compares half a year against
+ * a peer's full one. Balance-sheet lines are a position on the closing date —
+ * there is no length to state, and adding one would imply an accumulation that
+ * does not exist.
+ */
+const FIN_BALANCE_FIELDS = new Set(["cash", "total_liabilities"]);
+
+export function finFieldCoverage(period, field, lang) {
+  if (FIN_BALANCE_FIELDS.has(field)) return null;
+  const m = String(period || "").match(/Q([1-4])$/);
+  if (!m) return null;                       // an annual is the unit; no suffix needed
+  const months = Number(m[1]) * 3;
+  return lang === "ru" ? `${months} мес.` : lang === "uz" ? `${months} oy` : `${months}m`;
 }
 
 /**
