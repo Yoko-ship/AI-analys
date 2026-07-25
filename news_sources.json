@@ -6,6 +6,7 @@
     "legal": "safe = reuse with attribution/link-back OK; caution = snippet+link only, respect crawl rules; avoid_fulltext = ToS bars reproduction, headline+link only",
     "coverage_weight": "0..1 relative audience/authority weight for tone aggregation",
     "crawl_delay_s": "minimum seconds between requests to this host",
+    "max_items": "per-source cap on items fetched per run, tighter than the CLI --limit (which still applies as the ceiling). Use it on whole-site feeds whose extra volume is mostly non-market news.",
     "page_image": "true = feed ships no image, so read the article page's own og:image preview tag (head only, image URL only). Omit/false when the feed already carries media:*/enclosure images, or when the page's og:image is one site-wide share card that would repeat down the feed.",
     "feed_image": "false = do NOT use even the image the feed ships (source ToS bars reuse of its media). Defaults to true."
   },
@@ -66,8 +67,9 @@
       "attribution": "Kursiv Uzbekistan (uz.kursiv.media)",
       "enabled": true,
       "crawl_delay_s": 10,
+      "max_items": 15,
       "page_image": true,
-      "notes": "Business/finance specialist, hourly. Best signal-to-noise for markets. Feed ships full text; store snippet only. WordPress feed carries no featured image, but each article page exposes a real per-article og:image."
+      "notes": "Whole-site feed (100 entries, ~79h deep): sports/entertainment/horoscopes alongside business, ~14-23 new items/day. Capped at 15 per run — at 2 runs/day that is 30 slots for ~14-23 items, so nothing is lost. Feed ships full text; store snippet only. No featured image in the feed, but each article page exposes a real per-article og:image."
     },
     {
       "id": "spot",

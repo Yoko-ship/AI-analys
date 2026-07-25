@@ -146,10 +146,30 @@ Every run logs what share of its input the provider served from cache (`cached_i
 and the realistic all-Grok figure is the `$5.43` row, not `$2.51`. Note also that xAI doubles
 every rate on prompts of 200k+ tokens — ours are ~2.3k, so this never applies here.
 
-Other controls: `--limit` caps items per source per run, `NEWS_MAX_AGE_DAYS` skips stale
-items before any call, `NEWS_TRIAGE_FLOOR` sets how eagerly borderline items get the full
-pass, and canonicalised URLs (tracking params stripped) stop `utm_*` variants from being
-re-classified as new. Layer B is separate: Grok's native search is billed per search call
+Other controls: `--limit` caps items per source per run and a source can cap itself tighter
+with `"max_items"` (kursiv is at 15), `NEWS_MAX_AGE_DAYS` skips stale items before any call,
+`NEWS_TRIAGE_FLOOR` sets how eagerly borderline items get the full pass, and canonicalised
+URLs (tracking params stripped) stop `utm_*` variants from being re-classified as new.
+
+## Schedule vs feed depth
+
+`railway.news.json` runs at **02:30 and 14:30 UTC = 07:30 / 19:30 Tashkent** (Railway
+evaluates cron in UTC; the container's `TZ=Asia/Tashkent` does not change that). Halving the
+old 6-hourly cadence halves the bill, but **the cadence is bounded by how deep each feed
+is** — an item that falls off a feed between two runs is lost for good. Measured
+2026-07-25:
+
+| Source | Items in feed | Time span | Safe at 12h gap? |
+|---|---|---|---|
+| kursiv | 100 | ~79h | yes |
+| spot | 20 | ~32h | yes |
+| uzdaily | 20 | ~18h | yes, with little margin |
+| **kun** | **15** | **~8h** | **no — loses items** |
+| cbu | 1 | days | yes (very low volume) |
+
+Kun.uz publishes ~15 items per 8 hours and truncates its feed there, so a 12-hour gap drops
+roughly a third of its items. Fetching more is not possible — the feed simply ends at 15.
+Move the cron to `30 2,10,18 * * *` (every 8h) if Kun coverage matters more than ~$1/month. Layer B is separate: Grok's native search is billed per search call
 ($5/1k) and the Tavily backend is capped at `NEWS_AGENT_MAX_ITERS` tool calls with each
 query logged.
 
