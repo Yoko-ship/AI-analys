@@ -511,8 +511,10 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     if failed:
         logger.warning("%d item(s) failed classification — not stored, will retry next run", failed)
     relevant = [r for r in records if r.get("relevant")]
-    logger.info("classified %d items (%d relevant); ~%d tokens, est $%.4f",
-                len(records), len(relevant), usage.total_tokens, usage.est_cost_usd())
+    logger.info("classified %d items (%d relevant); ~%d tokens (%.0f%% of input served "
+                "from prompt cache), est $%.4f at %s list prices",
+                len(records), len(relevant), usage.total_tokens, usage.cache_hit_rate * 100,
+                usage.est_cost_usd(), usage.model or model)
 
     # 2b) preview images, for the RELEVANT items only: those are the cards the feed
     # renders, and a whole-site feed like kursiv's is ~85% off-topic — fetching pages
@@ -538,7 +540,8 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         "fetched": len(raw), "new": len(fresh), "classified": len(records),
         "classify_failed": failed, "with_image": sum(1 for r in relevant if r.get("image_url")),
         "relevant": len(relevant), "stored": stored, "pushed": pushed,
-        "tokens": usage.total_tokens, "est_cost_usd": round(usage.est_cost_usd(), 4),
+        "tokens": usage.total_tokens, "cached_input_pct": round(usage.cache_hit_rate * 100, 1),
+        "est_cost_usd": round(usage.est_cost_usd(), 4),
     }
 
 

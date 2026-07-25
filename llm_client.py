@@ -58,28 +58,86 @@ _REQUEST_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "60"))
 _RETRYABLE = (RateLimitError, APITimeoutError, APIConnectionError)
 
 
+# Per-million-token list prices (USD): (input, output, cached input). Cached input is
+# billed separately and far cheaper, so a repeated prompt prefix is worth engineering for.
+# Only rates verified against the provider's price page are listed; None = provider does
+# not publish a separate cached rate, so cached tokens are billed as fresh input.
+_PRICES_PER_M: dict[str, tuple[float, float, float | None]] = {
+    "grok-4.5": (2.00, 6.00, None),
+    "grok-4.3": (1.25, 2.50, 0.20),
+    "deepseek-v4-flash": (0.14, 0.28, 0.0028),
+}
+_FALLBACK_PRICE_MODEL = "grok-4.3"  # the configured default provider/tier
+
+
+def prices_for(model: str | None = None) -> tuple[float, float, float | None]:
+    """(input, output, cached) $/M for a model id. ``LLM_PRICE_IN``/``LLM_PRICE_OUT``/
+    ``LLM_PRICE_CACHED`` override, so a provider swap never needs a code change."""
+    env_in, env_out = os.getenv("LLM_PRICE_IN"), os.getenv("LLM_PRICE_OUT")
+    if env_in and env_out:
+        cached = os.getenv("LLM_PRICE_CACHED")
+        return (float(env_in), float(env_out), float(cached) if cached else None)
+    name = (model or DEFAULT_MODEL or "").strip().lower()
+    for prefix, prices in _PRICES_PER_M.items():
+        if name.startswith(prefix):
+            return prices
+    return _PRICES_PER_M[_FALLBACK_PRICE_MODEL]
+
+
 @dataclass
 class Usage:
     """Accumulated token spend across one or more calls."""
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    cached_prompt_tokens: int = 0
     calls: int = 0
+    model: str = ""
 
-    def add(self, raw: Any) -> None:
+    def add(self, raw: Any, model: str = "") -> None:
         if raw is None:
             return
         self.prompt_tokens += getattr(raw, "prompt_tokens", 0) or 0
         self.completion_tokens += getattr(raw, "completion_tokens", 0) or 0
+        # Cache-hit reporting differs per provider: OpenAI-wire nests it under
+        # prompt_tokens_details.cached_tokens, DeepSeek returns prompt_cache_hit_tokens,
+        # xAI returns cached_prompt_text_tokens. Read whichever is present.
+        details = getattr(raw, "prompt_tokens_details", None)
+        self.cached_prompt_tokens += (
+            (getattr(details, "cached_tokens", 0) or 0)
+            or (getattr(raw, "prompt_cache_hit_tokens", 0) or 0)
+            or (getattr(raw, "cached_prompt_text_tokens", 0) or 0)
+        )
         self.calls += 1
+        self.model = model or self.model
 
     @property
     def total_tokens(self) -> int:
         return self.prompt_tokens + self.completion_tokens
 
-    def est_cost_usd(self, in_per_m: float = 0.14, out_per_m: float = 0.28) -> float:
-        """Rough cost estimate at DeepSeek V4-Flash cache-miss rates."""
-        return (self.prompt_tokens * in_per_m + self.completion_tokens * out_per_m) / 1_000_000
+    @property
+    def cache_hit_rate(self) -> float:
+        """Share of input tokens served from the provider's prompt cache. 0.0 means the
+        constant prefix is being re-billed at full price on every call."""
+        return (self.cached_prompt_tokens / self.prompt_tokens) if self.prompt_tokens else 0.0
+
+    def est_cost_usd(self, in_per_m: float | None = None, out_per_m: float | None = None,
+                     model: str | None = None) -> float:
+        """Cost at the ACTIVE model's list prices, cached input billed at its own rate.
+
+        Previously hardcoded to DeepSeek's $0.14/$0.28 while the default provider is
+        Grok ($1.25/$2.50) — which under-reported every run by ~8.9x.
+        """
+        price_in, price_out, price_cached = prices_for(model or self.model or DEFAULT_MODEL)
+        if in_per_m is not None:
+            price_in = in_per_m
+        if out_per_m is not None:
+            price_out = out_per_m
+        cached = min(self.cached_prompt_tokens, self.prompt_tokens)
+        fresh = self.prompt_tokens - cached
+        cached_rate = price_cached if price_cached is not None else price_in
+        return (fresh * price_in + cached * cached_rate
+                + self.completion_tokens * price_out) / 1_000_000
 
 
 @dataclass
@@ -167,7 +225,7 @@ class LLMClient:
                 response_format={"type": "json_object"},
             )
             if usage is not None:
-                usage.add(getattr(resp, "usage", None))
+                usage.add(getattr(resp, "usage", None), model=self.model)
             content = (resp.choices[0].message.content or "").strip()
             try:
                 return json.loads(content)
@@ -212,7 +270,7 @@ class LLMClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            usage.add(getattr(resp, "usage", None))
+            usage.add(getattr(resp, "usage", None), model=self.model)
             msg = resp.choices[0].message
             tool_calls = getattr(msg, "tool_calls", None)
             if not tool_calls:
@@ -260,7 +318,7 @@ class LLMClient:
             "content": "Stop searching and give your final answer now, based on what you already found.",
         })
         resp = self._create(messages=messages, temperature=temperature, max_tokens=max_tokens)
-        usage.add(getattr(resp, "usage", None))
+        usage.add(getattr(resp, "usage", None), model=self.model)
         return ToolLoopResult(
             text=(resp.choices[0].message.content or "").strip(), usage=usage,
             tool_calls=call_log, iterations=max_iters, hit_iteration_cap=True,
