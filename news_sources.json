@@ -68,9 +68,9 @@
       "attribution": "Kursiv Uzbekistan (uz.kursiv.media)",
       "enabled": true,
       "crawl_delay_s": 10,
-      "max_items": 15,
+      "max_items": 25,
       "page_image": true,
-      "notes": "Whole-site feed (100 entries, ~79h deep): sports/entertainment/horoscopes alongside business, ~14-23 new items/day. Capped at 15 per run — at 2 runs/day that is 30 slots for ~14-23 items, so nothing is lost. Feed ships full text; store snippet only. No featured image in the feed, but each article page exposes a real per-article og:image."
+      "notes": "Whole-site feed (100 entries, ~79h deep): sports/entertainment/horoscopes alongside business, ~14-23 new items/day. Capped at 25 per run — raised from 15 when the schedule went to once daily, since one run now has to cover a full day's output rather than half of it. Feed ships full text; store snippet only. No featured image in the feed, but each article page exposes a real per-article og:image."
     },
     {
       "id": "spot",
