@@ -16,7 +16,10 @@
       "name": "openinfo.uz — material facts",
       "type": "openinfo",
       "url": "https://new-api.openinfo.uz/api/v2",
-      "lang": ["ru", "uz"],
+      "lang": [
+        "ru",
+        "uz"
+      ],
       "content": "full",
       "coverage_weight": 1.0,
       "legal": "safe",
@@ -29,9 +32,12 @@
     {
       "id": "cbu",
       "name": "Central Bank of Uzbekistan",
-      "type": "rss",
-      "url": "https://cbu.uz/en/press_center/news/rss/",
-      "lang": ["en", "ru"],
+      "type": "html_list",
+      "url": "https://cbu.uz/ru/press_center/news/",
+      "lang": [
+        "ru",
+        "en"
+      ],
       "content": "full",
       "coverage_weight": 0.95,
       "legal": "safe",
@@ -39,14 +45,25 @@
       "enabled": true,
       "crawl_delay_s": 5,
       "page_image": false,
-      "notes": "Policy-rate decisions and FX policy. Official full-text RSS, ttl 60. No image in the feed and its og:image is a single site-wide social.jpg, so cards fall back to the category placeholder by design."
+      "notes": "Policy-rate decisions and FX policy. Read from the press-centre listing, not the RSS: verified 2026-07-25 the feed carries a SINGLE entry (all three language variants), so a second release published between runs is lost, while the page lists ten. The listing renders an empty news__text and the article pages have no og:description, so CBU items are title-only by the publisher - do not chase a blurb. Per-article thumbnails do come from the listing; page_image stays false because its og:image is one site-wide social.jpg.",
+      "list_selectors": {
+        "item": "a.news",
+        "title": ".news__title",
+        "date": ".news__date span",
+        "image": ".news__image img",
+        "text": ".news__text"
+      }
     },
     {
       "id": "uzse",
       "name": "Republican Stock Exchange Toshkent (UZSE)",
       "type": "html",
       "url": "https://uzse.uz/sitemap.xml",
-      "lang": ["ru", "uz", "en"],
+      "lang": [
+        "ru",
+        "uz",
+        "en"
+      ],
       "content": "none",
       "coverage_weight": 0.9,
       "legal": "caution",
@@ -61,7 +78,9 @@
       "name": "Kursiv Media Uzbekistan",
       "type": "rss",
       "url": "https://uz.kursiv.media/feed",
-      "lang": ["ru"],
+      "lang": [
+        "ru"
+      ],
       "content": "full",
       "coverage_weight": 0.8,
       "legal": "caution",
@@ -77,7 +96,10 @@
       "name": "Spot.uz",
       "type": "rss",
       "url": "https://www.spot.uz/rss/",
-      "lang": ["ru", "uz"],
+      "lang": [
+        "ru",
+        "uz"
+      ],
       "content": "snippet",
       "coverage_weight": 0.75,
       "legal": "caution",
@@ -91,7 +113,11 @@
       "name": "Kun.uz",
       "type": "rss",
       "url": "https://kun.uz/news/rss",
-      "lang": ["uz", "ru", "en"],
+      "lang": [
+        "uz",
+        "ru",
+        "en"
+      ],
       "content": "snippet",
       "coverage_weight": 0.8,
       "legal": "caution",
@@ -106,7 +132,11 @@
       "name": "UzDaily.uz",
       "type": "rss",
       "url": "https://uzdaily.uz/rss",
-      "lang": ["ru", "en", "uz"],
+      "lang": [
+        "ru",
+        "en",
+        "uz"
+      ],
       "content": "snippet",
       "coverage_weight": 0.6,
       "legal": "caution",
@@ -120,7 +150,9 @@
       "name": "Review.uz",
       "type": "rss",
       "url": "https://review.uz/rss",
-      "lang": ["ru"],
+      "lang": [
+        "ru"
+      ],
       "content": "full",
       "coverage_weight": 0.55,
       "legal": "caution",
@@ -134,7 +166,9 @@
       "name": "Podrobno.uz",
       "type": "rss",
       "url": "https://podrobno.uz/rss/",
-      "lang": ["ru"],
+      "lang": [
+        "ru"
+      ],
       "content": "full",
       "coverage_weight": 0.5,
       "legal": "caution",
@@ -148,7 +182,11 @@
       "name": "UzA — National News Agency",
       "type": "rss",
       "url": "https://uza.uz/ru/rss",
-      "lang": ["ru", "uz", "en"],
+      "lang": [
+        "ru",
+        "uz",
+        "en"
+      ],
       "content": "snippet",
       "coverage_weight": 0.7,
       "legal": "safe",
@@ -162,7 +200,11 @@
       "name": "Gazeta.uz",
       "type": "rss",
       "url": "https://www.gazeta.uz/ru/rss/",
-      "lang": ["ru", "uz", "en"],
+      "lang": [
+        "ru",
+        "uz",
+        "en"
+      ],
       "content": "snippet",
       "coverage_weight": 0.85,
       "legal": "avoid_fulltext",
@@ -177,7 +219,9 @@
       "name": "Daryo.uz",
       "type": "html",
       "url": "https://daryo.uz/sitemap.xml",
-      "lang": ["uz"],
+      "lang": [
+        "uz"
+      ],
       "content": "none",
       "coverage_weight": 0.6,
       "legal": "caution",
@@ -191,7 +235,9 @@
       "name": "КорпИнфо (Telegram)",
       "type": "telegram",
       "url": "https://t.me/s/CorpInfo",
-      "lang": ["ru"],
+      "lang": [
+        "ru"
+      ],
       "content": "snippet",
       "coverage_weight": 0.4,
       "legal": "caution",
