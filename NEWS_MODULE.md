@@ -35,7 +35,7 @@ Either way the returned items can be fed back through `classify_item` and stored
 | `news_store.py` | `news` / `news_nlp` / `news_entities` upsert + read helpers |
 | `news_collector.py` | Orchestrator + CLI (fetch → dedup → classify → store → push) |
 | `reports_catalog.py` | Schema for the three news tables (in `_init_schema`) |
-| `api.py` | `GET /api/news/feed`, `GET /api/news/ticker/{ticker}`, `POST /api/admin/news` |
+| `api.py` | `GET /api/news/feed`, `GET /api/news/ticker/{ticker}`, `POST /api/admin/news`, `POST /api/admin/news/images` |
 
 ## Setup
 
@@ -59,10 +59,40 @@ python news_collector.py --dry-run          # fetch + classify, print, store not
 python news_collector.py --no-push          # store locally only
 python news_collector.py                    # collect, classify, store, push to prod
 python news_collector.py --source cbu        # one source
+python news_collector.py --backfill-images   # images for stored items (no LLM calls)
 python news_agent.py "Hamkorbank dividend"   # try the search agent (needs TAVILY_API_KEY)
 ```
 
 Serve: `GET /api/news/feed?limit=60&days=30`, `GET /api/news/ticker/HMKB`.
+
+## Card images
+
+The feed cards use the **source's own published image**, in two steps (verified
+2026-07-25):
+
+1. **From the feed** — `media:content` / `media:thumbnail`, an `enclosure`, or an
+   `<img>` the source put in its own description. Spot.uz, UzDaily and Gazeta.uz ship
+   one on every item this way.
+2. **From the article's `og:image`** — for sources whose feed carries no image at all
+   (Kursiv, Kun.uz), opt in with `"page_image": true` and the collector reads the
+   page's `<head>` and takes the preview-image URL the source publishes for link
+   unfurls. The response is streamed and cut at `</head>`, and only that URL is kept —
+   no article text is fetched or stored, so the legal invariant below is unchanged.
+   Paced by the source's `crawl_delay_s`, capped per run by `NEWS_OG_MAX_FETCH`
+   (default 40), and run *after* URL dedup so only new items cause a page fetch.
+
+Two guards: a site-wide share card is rejected (`social.jpg`, `default.png`, … — cbu.uz
+serves one banner for every article, which would repeat down the whole feed), and
+`"feed_image": false` opts a source out of images entirely when its ToS bars media
+reuse (Gazeta.uz). Items with no usable image get the category-tinted placeholder —
+the card design expects that. Images are hotlinked from the source's own CDN, with
+`onError` falling back to the placeholder.
+
+`--backfill-images` fills images on items stored before this pass existed: candidates
+come from the local DB plus prod's live feed, and updates go through
+`POST /api/admin/news/images`, which only writes `news.image_url` where it is empty.
+It never goes through `POST /api/admin/news` — a full upsert there would rewrite the
+stored classification and drop the item out of the feed.
 
 ## Cost & control
 
@@ -84,11 +114,19 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 
 ## MVP scope & what's pending
 
-Enabled now: `openinfo_facts`, `cbu`, `uzse`, `kursiv` (covers taxonomy
+Enabled now: `openinfo_facts`, `cbu`, `uzse`, `kursiv`, `spot`, `kun` (covers taxonomy
 categories 1–9). Working today: RSS/CBU fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **openinfo** — set `OPENINFO_FACTS_ENDPOINT` to the material-facts API path to enable.
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
+
+Two things that had silently stopped the scheduled runs (both fixed 2026-07-25):
+`feedparser` was missing from `requirements-server.txt`, so every RSS source in the
+Railway cron image hit the lazy import and returned `[]` — the 6-hourly run "succeeded"
+with 0 items; and Kun.uz's feed URL had moved (`/ru/news/rss` now serves the Next.js
+HTML page; only `/news/rss` and `/api/rss` return XML). An item whose classification
+fails (no key, quota, outage) is now **not stored** — URL dedup would otherwise bury it
+as irrelevant permanently; unstored, it is simply retried next run.
 
 Deferred to later phases (`news_ai_module_scope.md` §8): the 4 anomaly detectors
 (spike / synchrony / media-attack / anomaly → `news_signals`), which need ≥90 days

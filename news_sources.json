@@ -5,7 +5,9 @@
     "content": "full = feed ships whole article (we still store snippet only); snippet = title+summary+link; none = no feed, scrape sitemap",
     "legal": "safe = reuse with attribution/link-back OK; caution = snippet+link only, respect crawl rules; avoid_fulltext = ToS bars reproduction, headline+link only",
     "coverage_weight": "0..1 relative audience/authority weight for tone aggregation",
-    "crawl_delay_s": "minimum seconds between requests to this host"
+    "crawl_delay_s": "minimum seconds between requests to this host",
+    "page_image": "true = feed ships no image, so read the article page's own og:image preview tag (head only, image URL only). Omit/false when the feed already carries media:*/enclosure images, or when the page's og:image is one site-wide share card that would repeat down the feed.",
+    "feed_image": "false = do NOT use even the image the feed ships (source ToS bars reuse of its media). Defaults to true."
   },
   "sources": [
     {
@@ -34,7 +36,8 @@
       "attribution": "Central Bank of Uzbekistan (cbu.uz)",
       "enabled": true,
       "crawl_delay_s": 5,
-      "notes": "Policy-rate decisions and FX policy. Official full-text RSS, ttl 60."
+      "page_image": false,
+      "notes": "Policy-rate decisions and FX policy. Official full-text RSS, ttl 60. No image in the feed and its og:image is a single site-wide social.jpg, so cards fall back to the category placeholder by design."
     },
     {
       "id": "uzse",
@@ -63,7 +66,8 @@
       "attribution": "Kursiv Uzbekistan (uz.kursiv.media)",
       "enabled": true,
       "crawl_delay_s": 10,
-      "notes": "Business/finance specialist, hourly. Best signal-to-noise for markets. Feed ships full text; store snippet only."
+      "page_image": true,
+      "notes": "Business/finance specialist, hourly. Best signal-to-noise for markets. Feed ships full text; store snippet only. WordPress feed carries no featured image, but each article page exposes a real per-article og:image."
     },
     {
       "id": "spot",
@@ -77,21 +81,22 @@
       "attribution": "Spot.uz",
       "enabled": true,
       "crawl_delay_s": 10,
-      "notes": "OOO Afisha Media, registered e-media #1207 (2019). Business focus. Deferred: enable as a second business feed after MVP proves out."
+      "notes": "OOO Afisha Media, registered e-media #1207 (2019). Business focus. Feed ships its own images as rel=enclosure links (verified 2026-07-25: 10/10 items), so no page fetch is needed."
     },
     {
       "id": "kun",
       "name": "Kun.uz",
       "type": "rss",
-      "url": "https://kun.uz/ru/news/rss",
-      "lang": ["ru", "uz", "en"],
+      "url": "https://kun.uz/news/rss",
+      "lang": ["uz", "ru", "en"],
       "content": "snippet",
       "coverage_weight": 0.8,
       "legal": "caution",
       "attribution": "Kun.uz",
       "enabled": true,
       "crawl_delay_s": 10,
-      "notes": "Largest general-news audience. Feed is at /ru/news/rss (NOT /rss, which 404s). Deferred (high volume, general news — lots to filter)."
+      "page_image": true,
+      "notes": "Largest general-news audience. Feed URL re-verified 2026-07-25: only /news/rss and /api/rss return XML — /ru/news/rss now serves the Next.js HTML page (feedparser got 0 entries), which is why this source produced nothing. Items are Uzbek. Feed carries no image; the article page has an og:image."
     },
     {
       "id": "uzdaily",
@@ -105,7 +110,7 @@
       "attribution": "UzDaily.uz",
       "enabled": false,
       "crawl_delay_s": 10,
-      "notes": "Business daily; English mirror of financial news. Deferred."
+      "notes": "Business daily; English mirror of financial news. Feed ships its own images (verified 2026-07-25: 10/10) and robots.txt explicitly allows ClaudeBot/GPTBot. Deferred."
     },
     {
       "id": "review",
@@ -161,7 +166,8 @@
       "attribution": "Gazeta.uz",
       "enabled": false,
       "crawl_delay_s": 15,
-      "notes": "Major outlet. ToS: 'Materials may not be reproduced or distributed without prior written permission.' Headline + link + attribution ONLY, never store any article text. Deferred."
+      "feed_image": false,
+      "notes": "Major outlet. ToS: 'Materials may not be reproduced or distributed without prior written permission.' Headline + link + attribution ONLY, never store any article text. Feed does ship images (10/10), but under this ToS do not display them without permission — keep page_image off and treat the feed image as unusable too. Deferred."
     },
     {
       "id": "daryo",
