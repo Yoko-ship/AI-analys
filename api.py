@@ -295,6 +295,11 @@ class AdminNewsImagesRequest(BaseModel):
     images: dict[str, str] = Field(default_factory=dict)
 
 
+class AdminNewsKnownRequest(BaseModel):
+    """Candidate URLs a collector is about to classify, for a dedup check against prod."""
+    urls: list[str] = Field(default_factory=list, max_length=5000)
+
+
 # TZ §3.11: every news signal is statistical/analytical, never a diagnosis or a
 # claim of manipulation. Returned with every editorial-news response.
 NEWS_DISCLAIMER = (
@@ -1117,6 +1122,25 @@ async def api_admin_news_images(
         logger.exception("admin news image update failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True, "updated": n}
+
+
+@app.post("/api/admin/news/known")
+async def api_admin_news_known(
+    payload: AdminNewsKnownRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Which of these URLs prod already stores — the collector's dedup memory when it has no
+    local history of its own.
+
+    The collector normally remembers what it has classified in its own SQLite file. A
+    scheduled run in a fresh container has no such file, so without this it would re-classify
+    (and re-pay for) every item on every run; prod's UNIQUE(url) would keep the rows clean
+    while the LLM bill quietly doubled. Read-only: nothing is written.
+    """
+    urls = [u for u in (payload.urls or []) if u]
+    loop = asyncio.get_running_loop()
+    known = await loop.run_in_executor(None, partial(news_store.existing_urls, urls))
+    return {"ok": True, "checked": len(urls), "known": sorted(known)}
 
 
 @app.post("/api/admin/news/purge-failed")
