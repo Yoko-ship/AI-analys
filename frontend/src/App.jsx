@@ -623,6 +623,7 @@ const NEWS_ARTICLE_TX = {
     sourceLead: "Как сообщает источник", about: "О публикации",
     published: "Опубликовано", added: "В ленте с", langLabel: "Язык",
     langs: { ru: "русский", uz: "узбекский", en: "английский" },
+    filingDetail: "Из раскрытия эмитента",
     disclosureNote: "Это раскрытие самого эмитента на портале openinfo.uz. Портал не публикует отдельную страницу для каждого существенного факта — ссылка открывает карточку эмитента со списком его раскрытий.",
     openDisclosure: "Карточка эмитента на openinfo.uz",
     issuers: "Эмитенты в этой новости", price: "Цена", change: "Изм.",
@@ -643,6 +644,7 @@ const NEWS_ARTICLE_TX = {
     sourceLead: "As the source reports", about: "About this item",
     published: "Published", added: "In the feed since", langLabel: "Language",
     langs: { ru: "Russian", uz: "Uzbek", en: "English" },
+    filingDetail: "From the filing",
     disclosureNote: "This is the issuer's own filing on the openinfo.uz portal. The portal publishes no standalone page per material fact — the link opens the issuer's card, which lists its disclosures.",
     openDisclosure: "Issuer page on openinfo.uz",
     issuers: "Issuers in this story", price: "Price", change: "Chg.",
@@ -663,6 +665,7 @@ const NEWS_ARTICLE_TX = {
     sourceLead: "Manba xabar qilishicha", about: "Nashr haqida",
     published: "E'lon qilingan", added: "Lentada", langLabel: "Til",
     langs: { ru: "rus", uz: "o'zbek", en: "ingliz" },
+    filingDetail: "Emitent oshkor qilishidan",
     disclosureNote: "Bu emitentning openinfo.uz portalidagi o'z oshkor qilishi. Portal har bir muhim fakt uchun alohida sahifa chop etmaydi — havola emitent kartasini ochadi.",
     openDisclosure: "openinfo.uz dagi emitent kartasi",
     issuers: "Ushbu yangilikdagi emitentlar", price: "Narx", change: "O'zg.",
@@ -848,8 +851,12 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
   // source" there would be a lie, so the call to action says what the link actually does.
   const isDisclosure = item.source_id === "openinfo_facts";
   // Only when the snippet is not already doing duty as the lead paragraph above.
-  const sourceLead = item.summary_ru && item.snippet && newsAddsDetail(item.snippet, item.summary_ru)
-    ? item.snippet : "";
+  // For a filing the stored text is not a quote from an outlet — it is the disclosure's own
+  // figures (dividend per share, percent actually paid, the payment window), which the summary
+  // only paraphrases. Those numbers are the whole point, so they are shown unconditionally
+  // rather than being suppressed as a near-duplicate.
+  const sourceLead = item.summary_ru && item.snippet
+    && (isDisclosure || newsAddsDetail(item.snippet, item.summary_ru)) ? item.snippet : "";
   const toneCls = _TONE_CLS[item.tone] || "neu";
   const cat = item.type || "market";
   const host = newsHost(item.url);
@@ -888,7 +895,7 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
 
             {sourceLead && (
               <section className="led-art-quote">
-                <h3 className="led-panel-h">{tx.sourceLead}</h3>
+                <h3 className="led-panel-h">{isDisclosure ? tx.filingDetail : tx.sourceLead}</h3>
                 <p>{sourceLead}</p>
               </section>
             )}

@@ -431,6 +431,146 @@ def _openinfo_ticker_map() -> dict[str, list[str]]:
     return mapping
 
 
+# Two fact types are filed as structured NUMBERS rather than prose, so their filings can be
+# reported instead of merely announced:
+#   32 "Начисление доходов по ценным бумагам" — the declaration, carrying the amount PER
+#      SHARE or PER BOND, which is the figure a holder actually wants;
+#   42 "Дивиденды, выплаченные акционерам"    — the payment report: declared vs actually paid,
+#      what is still owed, and the issuer's own reason for not paying.
+# Without this, a dividend only a third paid and one paid in full render as the identical flat
+# headline. Every other fact type stays title-only: a second call would learn nothing new.
+# The issuer's own words for why it did not pay. Kept short: it is a filing field, not an
+# article, and the card needs the reason, not the paragraph.
+_NON_PAYMENT_MAX = 220
+
+
+def _amount_uz(value):
+    """'161662245000.00' → '161 662 245 000 сум'; '612.1253' → '612,1253 сум'.
+
+    Per-share amounts are filed to four decimals and totals to two, so trailing zeros are
+    dropped rather than fixed at a width that would misrepresent one of them.
+    """
+    try:
+        num = float(str(value).replace(" ", "").replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+    text = f"{num:,.4f}".replace(",", " ").rstrip("0").rstrip(".")
+    return f"{text.replace('.', ',')} сум"
+
+
+def _pct(value):
+    try:
+        return float(str(value).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+
+def _ru_date(value):
+    """'2026-07-24' → '24.07.2026'; anything else is returned as filed."""
+    text = str(value or "").strip()[:10]
+    if not text:
+        return None
+    match = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", text)
+    return f"{match.group(3)}.{match.group(2)}.{match.group(1)}" if match else text
+
+
+def _fmt_accrual(fact):
+    """Fact 32 — the amount accrued per security, plus the payment window.
+
+    Shares file ``sum_aksiya`` with the window in ``*_common_shares``; bonds file ``sum_per``
+    with the window in ``*_other_securities`` (verified 2026-07-25 across AGAT CREDIT, CONTACT
+    FINANCE, UZUM SARMOYA and ToshuyjoyLITI). The ``*2`` variants hold a second class, but the
+    API's own naming does not separate ordinary from preferred reliably, so they are left out
+    rather than guessed at and mislabelled.
+    """
+    if _pct(fact.get("sum_aksiya")):
+        amount, unit = _amount_uz(fact.get("sum_aksiya")), "на акцию"
+        start, end = fact.get("start_date_common_shares"), fact.get("end_date_common_shares")
+        nominal = _pct(fact.get("one_procent"))
+    elif _pct(fact.get("sum_per")):
+        amount, unit = _amount_uz(fact.get("sum_per")), "на облигацию"
+        start, end = (fact.get("start_date_other_securities"),
+                      fact.get("end_date_other_securities"))
+        nominal = _pct(fact.get("percentage_nominal"))
+    else:
+        return None
+    if not amount:
+        return None
+
+    text = f"Начислено {amount} {unit}"
+    if nominal:
+        text += f" ({nominal:.2f}% номинала)"
+    window = " — ".join(d for d in (_ru_date(start), _ru_date(end)) if d)
+    if window:
+        text += f", выплата {window}"
+    return text + "."
+
+
+def _fmt_dividend_payment(fact):
+    """Fact 42 — declared vs actually paid, what is still owed, and why."""
+    declared = _amount_uz(fact.get("overall_calculated_sum"))
+    paid_pct = _pct(fact.get("overall_paid_percent"))
+    parts = []
+    if declared:
+        parts.append(f"начислено {declared}")
+    if paid_pct is not None:
+        paid_sum = _amount_uz(fact.get("overall_paid_sum"))
+        parts.append(f"выплачено {paid_pct:.2f}%" + (f" ({paid_sum})" if paid_sum else ""))
+    end = _ru_date(fact.get("payment_end_date"))
+    if end:
+        parts.append(f"срок выплаты до {end}")
+    if not parts:
+        return None
+
+    text = "Дивиденды: " + ", ".join(parts) + "."
+    # The unpaid remainder carries the signal, so it gets its own sentence rather than being
+    # buried in the list. Reported exactly as filed — several issuers file paid=0 alongside
+    # debt=0, and inferring the shortfall would contradict their own numbers.
+    debt_pct = _pct(fact.get("overall_debt_percent"))
+    if debt_pct:
+        debt_sum = _amount_uz(fact.get("overall_debt_sum"))
+        text += f" Не выплачено {debt_pct:.2f}%" + (f" ({debt_sum})" if debt_sum else "") + "."
+        reason = _clean_text(str(fact.get("non_payment_explanation") or "")).strip(" -—")
+        if reason:
+            text += f" Причина по данным эмитента: {reason[:_NON_PAYMENT_MAX]}"
+            if len(reason) > _NON_PAYMENT_MAX:
+                text += "…"
+    return text
+
+
+_FIGURE_FORMATTERS = {32: _fmt_accrual, 42: _fmt_dividend_payment}
+
+
+def _fact_figures(fact_number, fact_id):
+    """The numbers behind one filing, as a sentence — or None.
+
+    One extra paced call to ``/disclosure/facts/{id}/`` using the id the item already carries;
+    no model is involved, so this costs the request and nothing else. Any failure returns None
+    and the item keeps its plain snippet: a filing that cannot be enriched must still publish.
+    """
+    formatter = _FIGURE_FORMATTERS.get(fact_number)
+    if formatter is None or fact_id is None:
+        return None
+    try:
+        import openinfo_http
+        from openinfo_collector import OPENINFO_API_BASE
+
+        resp = openinfo_http.get(f"{OPENINFO_API_BASE}/disclosure/facts/{fact_id}/", timeout=40)
+        resp.raise_for_status()
+        payload = (resp.json() or {}).get("fact") or []
+    except Exception as exc:  # noqa: BLE001 — enrichment is never worth failing a run over
+        logger.debug("fact detail failed for %s (#%s): %s", fact_id, fact_number, exc)
+        return None
+    fact = payload[0] if isinstance(payload, list) and payload else payload
+    if not isinstance(fact, dict):
+        return None
+    try:
+        return formatter(fact)
+    except Exception:  # noqa: BLE001 — one malformed filing must not break the run
+        logger.debug("fact %s (#%s) did not format", fact_id, fact_number)
+        return None
+
+
 def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     """openinfo material facts — the primary issuer-disclosure channel (§3.11 cats 1–9).
 
@@ -514,13 +654,17 @@ def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
             continue
         suffix = f" ({g['count']})" if g["count"] > 1 else ""
         detail = g["full_title"] if g["full_title"] and g["full_title"] != g["short_title"] else ""
+        # Only the fact types filed as numbers are worth a second call; everything else
+        # would spend a request to learn nothing the title does not already say.
+        figures = _fact_figures(g["fact_number"], g["fact_id"])
         items.append({
             "url": _OPENINFO_ORG_URL.format(org=g["org"], fact_id=g["fact_id"]),
             "title": f"{g['org_name']}: {g['short_title']}{suffix}",
             # Filing metadata we publish ourselves — no article body is involved.
             "snippet": (f"Существенный факт №{g['fact_number']} на openinfo.uz"
                         + (f". {detail}" if detail else "")
-                        + (f". Подано {g['count']} сообщений за день." if g["count"] > 1 else "")),
+                        + (f". Подано {g['count']} сообщений за день." if g["count"] > 1 else "")
+                        + (f" {figures}" if figures else ""))[:1000],
             "published_at": g["pub_date"].replace(" ", "T")[:19] or None,
             "lang": "ru",
             "tickers": g["tickers"],
