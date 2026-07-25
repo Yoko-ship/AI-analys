@@ -78,8 +78,41 @@ def load_sources(only: str | None = None) -> list[dict[str, Any]]:
     return out
 
 
+_prod_issuers: list[dict[str, Any]] | None = None
+
+
+def issuers_from_prod() -> list[dict[str, Any]]:
+    """The issuer catalog (ticker, name, openinfo org_id) read from prod, cached per process.
+
+    A scheduled run has an empty database of its own — a Railway volume mounts to one service
+    only — so without this the classifier would fall back to the static ticker list and
+    openinfo filings could not be attributed to a ticker at all.
+    """
+    global _prod_issuers
+    if _prod_issuers is not None:
+        return _prod_issuers
+    _prod_issuers = []
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if not secret:
+        return _prod_issuers
+    try:
+        resp = requests.get(DEFAULT_PUSH_URL + "/api/admin/catalog/issuers",
+                            headers={"X-Admin-Secret": secret}, timeout=60)
+        resp.raise_for_status()
+        _prod_issuers = (resp.json() or {}).get("issuers") or []
+        logger.info("issuer catalog from prod: %d ticker(s), %d with an openinfo org_id",
+                    len(_prod_issuers), sum(1 for i in _prod_issuers if i.get("org_id")))
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("could not fetch the issuer catalog from prod: %s", exc)
+    return _prod_issuers
+
+
 def build_universe() -> dict[str, str]:
-    """ticker → company name, for constraining the classifier's ticker tags."""
+    """ticker → company name, for constraining the classifier's ticker tags.
+
+    Local catalog first, then prod, then the static list — so a container with no database of
+    its own still classifies against the real universe rather than a stale snapshot.
+    """
     universe: dict[str, str] = {}
     try:
         conn = rc.get_catalog_conn()
@@ -87,9 +120,15 @@ def build_universe() -> dict[str, str]:
             if r["ticker"]:
                 universe[r["ticker"].upper()] = r["company_name"] or r["ticker"]
         conn.close()
-    except Exception:  # noqa: BLE001 — fall back to the static catalog
-        logger.exception("catalog universe query failed; using static catalog")
+    except Exception:  # noqa: BLE001 — fall back below
+        logger.exception("catalog universe query failed; trying prod")
     if not universe:
+        universe = {str(r["ticker"]).upper(): (r.get("company_name") or r["ticker"])
+                    for r in issuers_from_prod() if r.get("ticker")}
+        if universe:
+            logger.info("issuer universe: %d ticker(s) from prod (no local catalog)", len(universe))
+    if not universe:
+        logger.warning("no catalog locally or in prod — falling back to the static ticker list")
         universe = {t.upper(): n for t, n in rc._TICKER_TO_NAME.items()}
     return universe
 
@@ -351,15 +390,19 @@ def _openinfo_ticker_map() -> dict[str, list[str]]:
     """openinfo organization id → our ticker(s). Several tickers can share one issuer
     (ordinary + preferred, e.g. UZNG/UZNGP), and a fact concerns all of its share classes."""
     mapping: dict[str, list[str]] = {}
+    rows: list[Any] = []
     try:
         conn = rc.get_catalog_conn()
         rows = conn.execute(
             "SELECT ticker, org_id FROM catalog_companies WHERE org_id IS NOT NULL AND org_id <> ''"
         ).fetchall()
         conn.close()
-    except Exception:  # noqa: BLE001
-        logger.exception("could not read catalog org ids; openinfo facts cannot be attributed")
-        return {}
+    except Exception:  # noqa: BLE001 — fall back to prod below
+        logger.exception("could not read local catalog org ids; trying prod")
+    if not rows:
+        # A scheduled container has no catalog of its own; without this openinfo — the most
+        # valuable source — would be skipped entirely on every scheduled run.
+        rows = [r for r in issuers_from_prod() if r.get("org_id") and r.get("ticker")]
     for r in rows:
         mapping.setdefault(str(r["org_id"]).strip(), []).append(r["ticker"])
     return mapping
