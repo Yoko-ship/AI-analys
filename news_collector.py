@@ -78,6 +78,36 @@ def load_sources(only: str | None = None) -> list[dict[str, Any]]:
     return out
 
 
+def _prod_request(method: str, path: str, *, attempts: int = 3, timeout: int = 60,
+                  **kwargs: Any) -> Any | None:
+    """An admin call to prod, retried with backoff. Returns the parsed body, or None.
+
+    Both callers degrade gracefully on None, but degrading is not free: a single 502 while the
+    API happens to be redeploying would otherwise cost this run its whole openinfo feed, or
+    make it re-classify everything it could not confirm as already stored.
+    """
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if not secret:
+        return None
+    url = DEFAULT_PUSH_URL + path
+    delay = 5.0
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = requests.request(method, url, headers={"X-Admin-Secret": secret},
+                                    timeout=timeout, **kwargs)
+            resp.raise_for_status()
+            return resp.json()
+        except (requests.RequestException, ValueError) as exc:
+            if attempt == attempts:
+                logger.warning("prod %s %s failed after %d attempt(s): %s",
+                               method, path, attempts, exc)
+                return None
+            logger.info("prod %s %s failed (%s); retrying in %.0fs", method, path, exc, delay)
+            time.sleep(delay)
+            delay *= 3
+    return None
+
+
 _prod_issuers: list[dict[str, Any]] | None = None
 
 
@@ -91,19 +121,11 @@ def issuers_from_prod() -> list[dict[str, Any]]:
     global _prod_issuers
     if _prod_issuers is not None:
         return _prod_issuers
-    _prod_issuers = []
-    secret = os.getenv("ADMIN_API_SECRET", "").strip()
-    if not secret:
-        return _prod_issuers
-    try:
-        resp = requests.get(DEFAULT_PUSH_URL + "/api/admin/catalog/issuers",
-                            headers={"X-Admin-Secret": secret}, timeout=60)
-        resp.raise_for_status()
-        _prod_issuers = (resp.json() or {}).get("issuers") or []
+    body = _prod_request("GET", "/api/admin/catalog/issuers")
+    _prod_issuers = (body or {}).get("issuers") or []
+    if _prod_issuers:
         logger.info("issuer catalog from prod: %d ticker(s), %d with an openinfo org_id",
                     len(_prod_issuers), sum(1 for i in _prod_issuers if i.get("org_id")))
-    except (requests.RequestException, ValueError) as exc:
-        logger.warning("could not fetch the issuer catalog from prod: %s", exc)
     return _prod_issuers
 
 
@@ -427,7 +449,11 @@ def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     page_size = max(10, min(limit if limit and limit > 10 else 50, 100))
     tickers_by_org = _openinfo_ticker_map()
     if not tickers_by_org:
-        logger.warning("openinfo facts: no org_id → ticker mapping in the catalog; skipping")
+        # Loud on purpose: this is the highest-value source, and losing it silently for a run
+        # looks identical to "no issuer filed anything today".
+        logger.error("openinfo facts SKIPPED: no org_id → ticker mapping available, locally or "
+                     "from prod. Filings cannot be attributed to a ticker, so nothing is "
+                     "collected from the issuer channel this run.")
         return []
 
     try:
@@ -542,22 +568,17 @@ def known_urls_in_prod(urls: list[str]) -> set[str]:
     rows correct, but the LLM bill would be paid again each time. Fails soft — on any error we
     fall back to local history and log it, rather than skipping the run.
     """
-    secret = os.getenv("ADMIN_API_SECRET", "").strip()
-    if not secret or not urls:
+    if not urls:
         return set()
     found: set[str] = set()
     for i in range(0, len(urls), 500):
         chunk = urls[i:i + 500]
-        try:
-            resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/known",
-                                 json={"urls": chunk},
-                                 headers={"X-Admin-Secret": secret}, timeout=60)
-            resp.raise_for_status()
-            found.update((resp.json() or {}).get("known") or [])
-        except (requests.RequestException, ValueError) as exc:
-            logger.warning("could not ask prod which URLs it already has (%s); "
-                           "using local history only", exc)
+        body = _prod_request("POST", "/api/admin/news/known", json={"urls": chunk})
+        if body is None:
+            logger.warning("prod dedup check unavailable; using local history only — this run "
+                           "may re-classify items prod already has")
             return found
+        found.update(body.get("known") or [])
     return found
 
 
