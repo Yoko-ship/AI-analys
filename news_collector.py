@@ -641,6 +641,28 @@ def _fmt_obligation(facts):
     return text
 
 
+def _fmt_meeting(facts):
+    """Fact 6 — a shareholders'/board meeting: when it sat and how much of the register voted.
+
+    The resolutions themselves are filed as arrays that are empty on most records, so only the
+    facts that are consistently present are reported. Quorum is the one number here that says
+    something on its own: on a register this concentrated, who turned up is a governance
+    datapoint.
+    """
+    fact = facts[0]
+    parts = []
+    when = _ru_date(fact.get("date_transaction"))
+    if when:
+        parts.append(f"собрание {when}")
+    quorum = _pct(fact.get("quorum_general"))
+    if quorum:
+        parts.append(f"кворум {quorum:.2f}%")
+    minutes = _ru_date(fact.get("date_minutes"))
+    if minutes:
+        parts.append(f"протокол от {minutes}")
+    return (", ".join(parts).capitalize() + ".") if parts else None
+
+
 def _fmt_license(facts):
     """Fact 22 — which licence, from whom, and how long it runs."""
     fact = facts[0]
@@ -659,8 +681,11 @@ def _fmt_license(facts):
 
 # Only the fact types filed as STRUCTURED FIELDS are worth a second call; for every other type
 # the detail adds nothing the headline does not already say, so it is never fetched.
+# Deliberately absent: 8 (board changes) and 36 (affiliate lists). Their detail IS available,
+# but it is a list of people's names and workplaces — personal data that says nothing about the
+# security, so those filings stay title-only on purpose.
 _FIGURE_FORMATTERS = {
-    20: _fmt_transaction, 21: _fmt_transaction, 22: _fmt_license,
+    6: _fmt_meeting, 20: _fmt_transaction, 21: _fmt_transaction, 22: _fmt_license,
     31: _fmt_obligation, 32: _fmt_accrual, 42: _fmt_dividend_payment,
 }
 # A grouped day is capped: O'zbekneftgaz's eight filings are worth eight paced calls, a

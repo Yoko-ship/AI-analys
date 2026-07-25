@@ -396,7 +396,17 @@ snippet.
   because "eight filings" was never the story: `8 сделок за день, на 21 151 806 052 сум по 7 из
   них. Контрагенты: Бухарский нефтеперерабатывающий завод, O'ZLITINEFTGAZ, UzGasTrade и др.`
 * **31 — «Сроки исполнения по ц/б»**: the redemption/payment window.
+* **6 — «Решения высшего органа управления»**: meeting date, **quorum**, minutes date. The
+  resolutions themselves are filed as arrays that are empty on most records, so only the
+  consistently-present fields are reported.
 * **22 — «Получение лицензии»**: activity, licence number, validity.
+
+**Deliberately not enriched: 8 (board changes) and 36 (affiliate lists).** Their detail *is*
+available — `factscaseelection`, `factsmembershipexecutive`, `factslistaffiliates` — but it is
+a list of people's names and workplaces: personal data that says nothing about the security.
+Those filings stay title-only on purpose. Together with the press sources this is why coverage
+is partial by design, not by omission: **6 of the 9 openinfo items live on 2026-07-25 carry
+figures; the other 3 are types 8/36.**
 
 Grouping keeps every filing's id (`fact_ids`), not just the newest anchor — one id can only
 describe one of eight deals. Fetches are capped at `_FIGURE_MAX_FETCH` (8) per item.
