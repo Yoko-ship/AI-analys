@@ -79,7 +79,9 @@ The feed cards use the **source's own published image**, in two steps (verified
    unfurls. The response is streamed and cut at `</head>`, and only that URL is kept —
    no article text is fetched or stored, so the legal invariant below is unchanged.
    Paced by the source's `crawl_delay_s`, capped per run by `NEWS_OG_MAX_FETCH`
-   (default 40), and run *after* URL dedup so only new items cause a page fetch.
+   (default 40), and run *after* dedup **and** classification — only new, market-relevant
+   items cause a page fetch, which for a whole-site feed like kursiv's (~85% off-topic)
+   is roughly a sixth of the requests.
 
 Two guards: a site-wide share card is rejected (`social.jpg`, `default.png`, … — cbu.uz
 serves one banner for every article, which would repeat down the whole feed), and
