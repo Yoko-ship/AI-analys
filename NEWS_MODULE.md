@@ -221,40 +221,42 @@ shows one.
 
 ## Schedule vs feed depth
 
-> **The schedule is not running yet.** `railway status` (2026-07-25) shows exactly two
-> resources — the `AI-analys` app service and Postgres — so `railway.news.json` is inert: a
-> config file only takes effect once a service is pointed at it. Until that service exists,
-> every collection is a manual `railway run`. To create it:
->
-> ```bash
-> railway add --service news-collector --repo Yoko-ship/AI-analys --branch API \
->   --variables "APP_MODE=news-collector" --variables "XAI_API_KEY=..." \
->   --variables "ADMIN_API_SECRET=..." --variables "NEWS_PUSH_URL=https://<api-host>"
-> ```
->
-> `railway.json`'s start command already branches on `APP_MODE=news-collector`, so the default
-> config is enough to run it. The **cron schedule itself has to be set in the dashboard**
-> (Service → Settings → Cron Schedule) — the CLI cannot set it. Do **not** attach the app's
-> volume: a Railway volume mounts to one service only, and the collector no longer needs local
-> history thanks to the prod dedup check above.
+The `news-collector` service exists (created 2026-07-25 with
+`railway add --service news-collector --repo Yoko-ship/AI-analys --branch API`, secrets passed
+as `${{AI-analys.VAR}}` references). It uses the **default `railway.json`**, whose start
+command branches on `APP_MODE=news-collector`.
 
-`railway.news.json` runs at **02:30 and 14:30 UTC = 07:30 / 19:30 Tashkent** (Railway
-evaluates cron in UTC; the container's `TZ=Asia/Tashkent` does not change that). Halving the
-old 6-hourly cadence halves the bill, but **the cadence is bounded by how deep each feed
-is** — an item that falls off a feed between two runs is lost for good. Measured
-2026-07-25:
+> **The dashboard field is the source of truth for the schedule.** `railway.news.json`'s
+> `cronSchedule` only applies if a service's custom config path is pointed at it, which is
+> itself a dashboard setting — so the file below documents intent, nothing more. Set the real
+> schedule at **Service → Settings → Cron Schedule**. No CLI route exists: `railway add` has
+> no cron flag, `railway service` has no settings subcommand, `railway variables` cannot set
+> it, and `railway config pull` needs the `railway` npm SDK whose IaC loader is broken on
+> Windows (it mis-parses its own `index.cjs?namespace=…` module path). The Railway MCP server
+> (`railway setup agent -y`) is the remaining option for direct agent control.
 
-| Source | Items in feed | Time span | Safe at 12h gap? |
-|---|---|---|---|
-| kursiv | 100 | ~79h | yes |
-| spot | 20 | ~32h | yes |
-| uzdaily | 20 | ~18h | yes, with little margin |
-| **kun** | **15** | **~8h** | **no — loses items** |
-| cbu | 1 | days | yes (very low volume) |
+Intended schedule: **`30 2 * * *` = 02:30 UTC = 07:30 Tashkent**, once daily (Railway evaluates
+cron in UTC; the container's `TZ=Asia/Tashkent` does not change that). Early morning is
+deliberate — openinfo filings cluster through the previous afternoon and evening (14:00–21:12
+local in the sampled window), so a 07:30 run catches a complete filing day.
 
-Kun.uz publishes ~15 items per 8 hours and truncates its feed there, so a 12-hour gap drops
-roughly a third of its items. Fetching more is not possible — the feed simply ends at 15.
-Move the cron to `30 2,10,18 * * *` (every 8h) if Kun coverage matters more than ~$1/month. Layer B is separate: Grok's native search is billed per search call
+**The cadence is bounded by how deep each feed is** — an item that falls off a feed between
+runs is lost for good. Measured 2026-07-25:
+
+| Source | Items in feed | Time span | Publishes | Kept at 1 run/day |
+|---|---|---|---|---|
+| kursiv | 100 | ~79h | ~14–23/day | all (cap raised 15 → 25) |
+| spot | 20 | ~32h | ~9/day | all |
+| uzdaily | 20 | ~18h | ~27/day | ~20 of 27 |
+| **kun** | **15** | **~8h** | **~45/day** | **15 of 45** |
+| cbu | 1 | days | ~0–1/day | all |
+| openinfo | paged | months | ~7/day (ours) | all |
+
+Once daily costs the two highest-volume general feeds: Kun.uz truncates at 15 items covering
+~8 hours, so a 24-hour gap keeps a third of its output, and UzDaily loses a few. Fetching more
+is not possible — those feeds simply end. Kun is also the lowest-relevance source, so in
+*relevant* items the loss is smaller than it looks. `30 2,14 * * *` (twice daily) or
+`30 2,10,18 * * *` (every 8h) recover that coverage for roughly $1–2/month more. Layer B is separate: Grok's native search is billed per search call
 ($5/1k) and the Tavily backend is capped at `NEWS_AGENT_MAX_ITERS` tool calls with each
 query logged.
 
