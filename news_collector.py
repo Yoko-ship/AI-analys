@@ -540,7 +540,108 @@ def fetch_pending(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     return []
 
 
-_FETCHERS = {"rss": fetch_rss, "openinfo": fetch_openinfo, "html": fetch_pending, "telegram": fetch_pending}
+# Month names as the listings write them: abbreviated ("17 июл 2026") and spelled out
+# ("25 мая 2026") both occur on cbu.uz, so match on the first three letters.
+_RU_MONTHS = {"янв": 1, "фев": 2, "мар": 3, "апр": 4, "мая": 5, "май": 5, "июн": 6,
+              "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12}
+
+
+def _parse_list_date(text: str) -> str | None:
+    """'17 июл 2026' / '25 мая 2026' / '17.07.2026' → 'YYYY-MM-DD', else None.
+
+    A miss is safe: undated items pass the recency filter (``_is_recent``), so an
+    unparseable date costs ranking precision, never the item itself.
+    """
+    raw = (text or "").strip().lower()
+    if not raw:
+        return None
+    numeric = re.match(r"(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})", raw)
+    if numeric:
+        day, month, year = (int(g) for g in numeric.groups())
+    else:
+        named = re.match(r"(\d{1,2})\s+([а-яё]+)\s+(\d{4})", raw)
+        if not named:
+            return None
+        month = _RU_MONTHS.get(named.group(2)[:3], 0)
+        if not month:
+            return None
+        day, year = int(named.group(1)), int(named.group(3))
+    try:
+        return datetime(year, month, day).strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def fetch_html_list(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+    """A server-rendered listing page read as a feed (§3.11).
+
+    For publishers whose RSS is a stub this is the only way to see their output: cbu.uz's
+    feed carries a **single** entry, so a second press release published before the next
+    run is lost for good, while its press-centre page lists the last ten. Selectors come
+    from the source config (``list_selectors``), so covering another site is configuration,
+    not code.
+
+    One GET per run, and only what the listing itself renders — link, headline, date and
+    the article's own thumbnail. No article page is opened and no body is stored, so the
+    legal invariant (headline + our own summary + link) is untouched.
+    """
+    try:
+        from bs4 import BeautifulSoup  # lazy: only html_list sources need it
+    except ImportError:
+        logger.error("beautifulsoup4 is not installed — run: pip install beautifulsoup4")
+        return []
+    selectors = source.get("list_selectors") or {}
+    if not selectors.get("item"):
+        logger.warning("source '%s' is html_list but has no list_selectors.item — skipped",
+                       source["id"])
+        return []
+    try:
+        resp = requests.get(source["url"], timeout=20,
+                            headers={"User-Agent": source.get("user_agent", DEFAULT_UA)})
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning("listing fetch failed for %s: %s", source["id"], exc)
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    pick = lambda node, key: (node.select_one(selectors[key])
+                              if selectors.get(key) else None)  # noqa: E731
+    items: list[dict[str, Any]] = []
+    for node in soup.select(selectors["item"])[:limit]:
+        link = node if node.has_attr("href") else node.select_one("a[href]")
+        href = (link.get("href") if link else "") or ""
+        title_node = pick(node, "title")
+        title = _clean_text((title_node or node).get_text(" ", strip=True))
+        if not href or not title:
+            continue
+        text_node = pick(node, "text")
+        date_node = pick(node, "date")
+        image = None
+        # Same opt-out as the feeds: "feed_image": false when a ToS bars media reuse.
+        if source.get("feed_image", True):
+            img_node = pick(node, "image")
+            src = (img_node.get("src") if img_node else "") or ""
+            candidate = urljoin(source["url"], src) if src else ""
+            if (candidate.lower().startswith(("http://", "https://"))
+                    and not _GENERIC_IMAGE_RE.search(urlparse(candidate).path)):
+                image = candidate
+        url = urljoin(source["url"], href)
+        items.append({
+            "url": _canonical_url(url),
+            "raw_url": url,
+            "title": title,
+            # Listings publish a blurb only sometimes (cbu.uz renders an empty node), and
+            # what is here is the publisher's own teaser — a snippet, never the body.
+            "snippet": _clean_text(text_node.get_text(" ", strip=True))[:1000] if text_node else "",
+            "published_at": _parse_list_date(date_node.get_text(" ", strip=True)) if date_node else None,
+            "image_url": image,
+            "lang": (source.get("lang") or ["ru"])[0],
+        })
+    return items
+
+
+_FETCHERS = {"rss": fetch_rss, "openinfo": fetch_openinfo, "html_list": fetch_html_list,
+             "html": fetch_pending, "telegram": fetch_pending}
 
 
 # --------------------------------------------------------------------------- #

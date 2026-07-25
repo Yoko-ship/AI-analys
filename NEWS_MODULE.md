@@ -276,7 +276,7 @@ runs is lost for good. Measured 2026-07-25:
 | spot | 20 | ~32h | ~9/day | all |
 | uzdaily | 20 | ~18h | ~27/day | ~20 of 27 |
 | **kun** | **15** | **~8h** | **~45/day** | **15 of 45** |
-| cbu | 1 | days | ~0–1/day | all |
+| cbu | **10** (listing) | months | ~2–5/month | all |
 | openinfo | paged | months | ~7/day (ours) | all |
 
 Once daily costs the two highest-volume general feeds: Kun.uz truncates at 15 items covering
@@ -300,9 +300,24 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 ## MVP scope & what's pending
 
 Enabled now: `openinfo_facts`, `cbu`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
-taxonomy categories 1–9). Working today: RSS/CBU fetch + classify + store + push + serve +
+taxonomy categories 1–9). Working today: RSS / html_list / openinfo fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
+
+**html_list** (`fetch_html_list`) reads a server-rendered listing page as a feed, with the
+selectors in `news_sources.json` (`list_selectors`: `item` / `title` / `date` / `image` /
+`text`) so another site is configuration, not code. Added for **cbu.uz**, whose RSS is a
+stub: verified 2026-07-25 that all three language variants return a **single** entry, so a
+second press release published between runs was lost for good, while the press-centre page
+lists ten. One GET per run; only link, headline, date and the article's own thumbnail are
+read — no article page is opened, so the legal invariant is untouched.
+
+CBU items are **title-only by the publisher**: the listing renders an empty `news__text` and
+the article pages carry no `og:description`. That is CBU, not a gap in the adapter — do not
+chase a blurb for it. The source now reads the **Russian** edition (`/ru/press_center/news/`),
+which matches the RU-first feed; note CBU numbers each language edition separately, so the
+one item already stored from the English RSS (`…/en/…/4194168`) is a different URL from its
+Russian twin and both will show until the older one leaves the 30-day window.
 
 ## openinfo material facts (the issuer channel)
 
