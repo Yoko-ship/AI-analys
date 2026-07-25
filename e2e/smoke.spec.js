@@ -67,6 +67,16 @@ const NEWS_ITEMS = [
     image_url: null, published_at: "2026-07-23 12:00:00", type: "regulatory", tone: "neutral", tone_score: 0.0,
     impact: "medium", direction: "unclear", sectors: [], relevance_score: 0.6, coverage_weight: 0.6,
     tickers: [], rank: 0.5 },
+  // An openinfo filing: the portal has no page per material fact, so its link can only
+  // reach the issuer's card and the article page must say so instead of promising an article.
+  { id: 13, url: "https://openinfo.uz/ru/organizations/422?fact=98584", source: "openinfo.uz",
+    source_id: "openinfo_facts", lang: "ru",
+    title: "«Hamkorbank» АТБ: Изменения в перечне аффилированных лиц",
+    snippet: "Существенный факт №36 на openinfo.uz.",
+    summary_ru: "Эмитент раскрыл изменения в перечне аффилированных лиц.",
+    image_url: null, published_at: "2026-07-22 10:00:00", collected_at: "2026-07-22 11:00:00",
+    type: "corporate_event", tone: "neutral", tone_score: 0, impact: "low", direction: "unclear",
+    sectors: [], relevance_score: 0.9, coverage_weight: 0.95, tickers: [], rank: 0.6 },
 ];
 
 async function mockApi(page) {
@@ -187,6 +197,14 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
   await page.locator(".led-back").click();
   await expect(page).toHaveURL(/\/news$/);
   await expect(page.locator(".led-lead")).toBeVisible();
+});
+
+test("an openinfo filing says the link opens the issuer card, not an article (§3.11)", async ({ page }) => {
+  await page.goto("/news/13");
+  await expect(page.locator(".led-art-title")).toContainText("аффилированных лиц");
+  // Not "Читать в источнике": openinfo publishes no page for a single material fact.
+  await expect(page.locator(".led-art-cta")).toContainText("Карточка эмитента");
+  await expect(page.locator(".led-art-note")).toContainText("не публикует отдельную страницу");
 });
 
 test("a /news/{id} deep link renders the story directly (§3.11)", async ({ page }) => {

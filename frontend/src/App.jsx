@@ -623,6 +623,8 @@ const NEWS_ARTICLE_TX = {
     sourceLead: "Как сообщает источник", about: "О публикации",
     published: "Опубликовано", added: "В ленте с", langLabel: "Язык",
     langs: { ru: "русский", uz: "узбекский", en: "английский" },
+    disclosureNote: "Это раскрытие самого эмитента на портале openinfo.uz. Портал не публикует отдельную страницу для каждого существенного факта — ссылка открывает карточку эмитента со списком его раскрытий.",
+    openDisclosure: "Карточка эмитента на openinfo.uz",
     issuers: "Эмитенты в этой новости", price: "Цена", change: "Изм.",
     tone90: "Тон · 90 дн", basedOn: "публикаций за 90 дней",
     moreNews: "Другие новости эмитента", openCompany: "Открыть карточку эмитента",
@@ -641,6 +643,8 @@ const NEWS_ARTICLE_TX = {
     sourceLead: "As the source reports", about: "About this item",
     published: "Published", added: "In the feed since", langLabel: "Language",
     langs: { ru: "Russian", uz: "Uzbek", en: "English" },
+    disclosureNote: "This is the issuer's own filing on the openinfo.uz portal. The portal publishes no standalone page per material fact — the link opens the issuer's card, which lists its disclosures.",
+    openDisclosure: "Issuer page on openinfo.uz",
     issuers: "Issuers in this story", price: "Price", change: "Chg.",
     tone90: "Tone · 90d", basedOn: "items over 90 days",
     moreNews: "More from this issuer", openCompany: "Open the issuer page",
@@ -659,6 +663,8 @@ const NEWS_ARTICLE_TX = {
     sourceLead: "Manba xabar qilishicha", about: "Nashr haqida",
     published: "E'lon qilingan", added: "Lentada", langLabel: "Til",
     langs: { ru: "rus", uz: "o'zbek", en: "ingliz" },
+    disclosureNote: "Bu emitentning openinfo.uz portalidagi o'z oshkor qilishi. Portal har bir muhim fakt uchun alohida sahifa chop etmaydi — havola emitent kartasini ochadi.",
+    openDisclosure: "openinfo.uz dagi emitent kartasi",
     issuers: "Ushbu yangilikdagi emitentlar", price: "Narx", change: "O'zg.",
     tone90: "Ohang · 90 kun", basedOn: "90 kunlik nashrlar",
     moreNews: "Emitentning boshqa yangiliklari", openCompany: "Emitent kartasini ochish",
@@ -836,6 +842,11 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
 
   const { item, related = [], disclaimer } = state.data;
   const summary = item.summary_ru || item.snippet || "";
+  // An openinfo item is a filing, not an article: the portal has no page for a single
+  // material fact (verified — /facts/{id}, /fact/{id} and /organizations/{org}/facts/{id}
+  // all 404), so its link can only reach the issuer's card. Promising "the full text at the
+  // source" there would be a lie, so the call to action says what the link actually does.
+  const isDisclosure = item.source_id === "openinfo_facts";
   // Only when the snippet is not already doing duty as the lead paragraph above.
   const sourceLead = item.summary_ru && item.snippet && newsAddsDetail(item.snippet, item.summary_ru)
     ? item.snippet : "";
@@ -883,10 +894,10 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
             )}
 
             <div className="led-art-source">
-              <p className="led-art-note">{tx.summaryNote}</p>
+              <p className="led-art-note">{isDisclosure ? tx.disclosureNote : tx.summaryNote}</p>
               {item.url && (
                 <a className="led-art-cta" href={item.url} target="_blank" rel="noopener noreferrer nofollow">
-                  {tx.readSource}
+                  {isDisclosure ? tx.openDisclosure : tx.readSource}
                   {host && <span className="led-art-host">{host}</span>}
                 </a>
               )}

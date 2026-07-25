@@ -357,6 +357,25 @@ press feeds or a Layer-B search.
 
 ## openinfo material facts (the issuer channel)
 
+**Its link opens the issuer's card, not the filing — and that is openinfo, not a bug.**
+Re-verified 2026-07-25: `/ru/facts/{id}`, `/ru/fact/{id}`, `/ru/disclosure/{id}` and
+`/ru/organizations/{org}/facts/{id}` all 404; only `/ru/organizations/{org}` is 200. The
+`?fact=` hint is ignored by the app but keeps `news.url` unique per filing, which is the dedup
+key. The API's `fact_own_link` is not a better target either — sampled over 12 recent filings
+it is the issuer's disclosure *index* page at best (`pahta.uz/…/sushchestvennye-fakty/`) and a
+bare homepage at worst (`edcom.uz/uz/`, `www.toshuyjoyliti.uz`), so swapping to it would often
+be a downgrade. The story page therefore labels the button **"Карточка эмитента на
+openinfo.uz"** and says the portal publishes no standalone page per material fact, instead of
+promising a full text that does not exist.
+
+`GET /disclosure/facts/{id}/` *does* return the filing's own content (`factscorresponding`,
+`factslistaffiliates`, `date_vnesn`, …), one extra paced call per item and no model. Rendering
+it is a real option for the fact types where it carries a figure — dividends (#42, #50) above
+all — but the payload shape differs per fact type across 50+ types, and for the common
+affiliate-list filings it is mostly personal names. Not built; noted so the option is not
+rediscovered from scratch.
+
+
 Live since 2026-07-25. `GET {api}/disclosure/facts/` returns every filing newest-first
 (64k+ records, ~21/day across all ~790 filers). The adapter keeps the ones filed by **our**
 issuers, attributing each by openinfo `organization` id via `catalog_companies.org_id` —
