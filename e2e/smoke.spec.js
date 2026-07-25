@@ -51,6 +51,22 @@ const ANALYZE = {
 };
 const PERIODS = { ok: true, periods: { annual_years: [2024, 2023, 2022], quarterly: ["2024Q2", "2024Q1"], latest_annual_year: 2024, latest_quarterly: "2024Q2" } };
 
+// Editorial feed (§3.11). Items carry the classifier's output; the article page at
+// /news/{id} reads the same stored fields back — no model call on either path.
+const NEWS_DISCLAIMER = "Тональность новостей и оценка влияния — статистический сигнал, а не рекомендация.";
+const NEWS_ITEMS = [
+  { id: 11, url: "https://kursiv.uz/story-one", source: "Kursiv", source_id: "kursiv", lang: "ru",
+    title: "Биржа расширяет листинг банков", snippet: "", summary_ru: "Краткое изложение первой новости.",
+    image_url: null, published_at: "2026-07-24 09:00:00", type: "market", tone: "positive", tone_score: 0.42,
+    impact: "high", direction: "up", sectors: ["banking"], relevance_score: 0.81, coverage_weight: 0.7,
+    tickers: ["AGBA"], rank: 0.71 },
+  { id: 12, url: "https://uzdaily.uz/story-two", source: "UzDaily", source_id: "uzdaily", lang: "ru",
+    title: "ЦБ уточнил требования к капиталу", snippet: "", summary_ru: "Краткое изложение второй новости.",
+    image_url: null, published_at: "2026-07-23 12:00:00", type: "regulatory", tone: "neutral", tone_score: 0.0,
+    impact: "medium", direction: "unclear", sectors: [], relevance_score: 0.6, coverage_weight: 0.6,
+    tickers: [], rank: 0.5 },
+];
+
 async function mockApi(page) {
   await page.route("**/api/**", (route) => {
     const p = new URL(route.request().url()).pathname;
@@ -73,6 +89,13 @@ async function mockApi(page) {
       { type: "listing", ticker: "NSTK", company: "Navoiy Sanoat", share_type: "ORD", date: "2026-07-08" },
       { type: "delisting", ticker: "OLDZ", company: "Eski Zavod", date: "2026-04-30" },
     ] });
+    if (p === "/api/news/feed") return j({ ok: true, count: NEWS_ITEMS.length, items: NEWS_ITEMS, disclaimer: NEWS_DISCLAIMER });
+    if (p.startsWith("/api/news/item/")) {
+      const id = Number(p.slice("/api/news/item/".length));
+      const item = NEWS_ITEMS.find((n) => n.id === id);
+      if (!item) return j({ detail: "news item not found" }, 404);
+      return j({ ok: true, item, related: NEWS_ITEMS.filter((n) => n.id !== id), disclaimer: NEWS_DISCLAIMER });
+    }
     return j({});
   });
 }
@@ -119,15 +142,46 @@ test("navigating to Анализ shows the analysis form", async ({ page }) => {
   await expect(page.locator(".analysis-form-modern").first()).toBeVisible();
 });
 
-test("Новости renders the market-news feed (§3.2)", async ({ page }) => {
+test("Новости renders the editorial feed (§3.11)", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Новости", exact: true }).click();
-  await expect(page.locator(".news-masthead")).toContainText("Новости рынка");
-  // hero lead + category tags + rail
-  await expect(page.locator(".news-lead")).toBeVisible();
-  await expect(page.locator(".news-lead")).toContainText("AGBA Bank");
-  await expect(page.locator(".news-tag.cat-listing").first()).toBeVisible();
-  await expect(page.locator(".news-rail")).toBeVisible();
+  await expect(page.locator(".led-head")).toContainText("Новости рынка");
+  await expect(page.locator(".led-lead")).toContainText("Биржа расширяет листинг банков");
+  await expect(page.locator(".led-stack .led-story").first()).toContainText("ЦБ уточнил требования");
+  await expect(page.locator(".led-latest")).toBeVisible();
+});
+
+test("a story opens on its own /news/{id} page instead of the source site (§3.11)", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Новости", exact: true }).click();
+  // The card is a real link to our own route, not to the outlet.
+  await expect(page.locator(".led-lead")).toHaveAttribute("href", "/news/11");
+  await page.locator(".led-lead").click();
+  await expect(page).toHaveURL(/\/news\/11$/);
+  await expect(page.locator(".led-art-title")).toContainText("Биржа расширяет листинг банков");
+  await expect(page.locator(".led-art-lead")).toContainText("Краткое изложение первой новости");
+  // Only the explicit CTA leaves the site, and the stored signal is shown alongside it.
+  await expect(page.locator(".led-art-cta")).toHaveAttribute("href", "https://kursiv.uz/story-one");
+  await expect(page.locator(".led-sig")).toContainText("высокое влияние");
+  await expect(page.locator(".led-chip--action")).toContainText("AGBA");
+  // Related stories stay in-app; the back link returns to the feed.
+  await page.locator(".led-art-related .led-story").first().click();
+  await expect(page).toHaveURL(/\/news\/12$/);
+  await expect(page.locator(".led-art-title")).toContainText("ЦБ уточнил требования");
+  await page.locator(".led-back").click();
+  await expect(page).toHaveURL(/\/news$/);
+  await expect(page.locator(".led-lead")).toBeVisible();
+});
+
+test("a /news/{id} deep link renders the story directly (§3.11)", async ({ page }) => {
+  await page.goto("/news/12");
+  await expect(page.locator(".led-art-title")).toContainText("ЦБ уточнил требования");
+  await expect(page.getByRole("button", { name: "Новости", exact: true })).toHaveClass(/active/);
+});
+
+test("an unknown /news/{id} shows a not-found notice, not a blank page (§3.11)", async ({ page }) => {
+  await page.goto("/news/999");
+  await expect(page.locator(".led-empty")).toContainText("не найдена");
 });
 
 test("Рынок shows §3.8 multiplier columns and exports CSV", async ({ page }) => {
