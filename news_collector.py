@@ -495,8 +495,11 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     raw: list[dict[str, Any]] = []
     for src in sources:
         fetcher = _FETCHERS.get(src["type"], fetch_pending)
+        # A source may cap itself tighter than the CLI --limit (whole-site feeds whose
+        # extra volume is mostly non-market news); --limit stays the ceiling.
+        src_limit = min(limit, int(src.get("max_items") or limit))
         try:
-            fetched = fetcher(src, limit)
+            fetched = fetcher(src, src_limit)
         except Exception:  # noqa: BLE001 — one source must not kill the run
             logger.exception("fetch failed for %s", src["id"])
             fetched = []
@@ -504,7 +507,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
             it["source"] = src["name"]
             it["source_id"] = src["id"]
             it["coverage_weight"] = src.get("coverage_weight", 0.5)
-        logger.info("  %s: %d items", src["id"], len(fetched))
+        logger.info("  %s: %d items (cap %d)", src["id"], len(fetched), src_limit)
         raw.extend(fetched)
         time.sleep(min(src.get("crawl_delay_s", 2), 5) if len(sources) > 1 else 0)
 
