@@ -32,7 +32,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qsl, urljoin, urlparse, urlsplit, urlunsplit
 
 import requests
 from dotenv import load_dotenv
@@ -45,7 +45,7 @@ load_dotenv()
 
 import news_store  # noqa: E402  (after load_dotenv)
 import reports_catalog as rc  # noqa: E402  (after load_dotenv)
-from news_classifier import classify_item  # noqa: E402  (after load_dotenv)
+from news_classifier import classify_item, prefilter_reject  # noqa: E402  (after load_dotenv)
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,30 @@ def build_universe() -> dict[str, str]:
 # --------------------------------------------------------------------------- #
 # fetchers (one per source type)
 # --------------------------------------------------------------------------- #
+_TRACKING_PARAMS = re.compile(r"^(utm_\w+|fbclid|gclid|yclid|_openstat|from|ref)$", re.I)
+
+
+def _canonical_url(url: str) -> str:
+    """Drop tracking params and the trailing slash so dedup sees one article once.
+
+    Kursiv's feed appends ``?utm_source=rss&utm_medium=rss&utm_campaign=<slug>``: if a
+    campaign slug ever changes, exact-URL dedup treats the same article as new and we pay
+    to classify it again. Fragments and default ports go too; nothing else is touched, so
+    the link still resolves at the source.
+    """
+    url = (url or "").strip()
+    if not url:
+        return url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    query = "&".join(f"{k}={v}" for k, v in parse_qsl(parts.query, keep_blank_values=True)
+                     if not _TRACKING_PARAMS.match(k))
+    path = parts.path.rstrip("/") or "/"
+    return urlunsplit((parts.scheme, parts.netloc, path, query, ""))
+
+
 def _iso(struct_time: Any) -> str | None:
     if not struct_time:
         return None
@@ -274,7 +298,10 @@ def fetch_rss(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
         if not url:
             continue
         items.append({
-            "url": url,
+            "url": _canonical_url(url),
+            # The feed's original link, so dedup can also match rows stored before URLs
+            # were canonicalised (and we never re-pay for those).
+            "raw_url": url,
             "title": _clean_text(getattr(e, "title", "")),
             # RSS 'summary' is the source's own short description — snippet, not body.
             "snippet": _clean_text(getattr(e, "summary", ""))[:1000],
@@ -489,17 +516,40 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     if before_age != len(raw):
         logger.info("recency filter: dropped %d item(s) older than %d days", before_age - len(raw), max_age)
 
-    seen = news_store.existing_urls([it["url"] for it in raw])
-    fresh = [it for it in raw if it["url"] not in seen]
-    logger.info("fetched %d, %d already stored, %d new to classify", len(raw), len(seen), len(fresh))
+    # Dedup on the canonical URL, but also on the feed's original link so rows stored
+    # before canonicalisation are still recognised instead of re-classified once.
+    seen = news_store.existing_urls(
+        [it["url"] for it in raw] + [it["raw_url"] for it in raw if it.get("raw_url")])
+    fresh = [it for it in raw
+             if it["url"] not in seen and (it.get("raw_url") or it["url"]) not in seen]
+    logger.info("fetched %d, %d already stored, %d new", len(raw), len(raw) - len(fresh), len(fresh))
 
-    # 2) classify each new item (Layer A).
+    # 1b) gate 0 — free code-only prefilter. Whole-site feeds are mostly non-market news;
+    # dropping it here costs nothing and never reaches the model. Dropped items are not
+    # stored, so a later prefilter change simply reconsiders them next run.
+    kept: list[dict[str, Any]] = []
+    dropped: dict[str, int] = {}
+    for it in fresh:
+        junk = prefilter_reject(it, universe)
+        if junk:
+            dropped[junk] = dropped.get(junk, 0) + 1
+        else:
+            kept.append(it)
+    if dropped:
+        top = sorted(dropped.items(), key=lambda kv: -kv[1])[:6]
+        logger.info("prefilter: dropped %d of %d as non-market before any LLM call (%s)",
+                    len(fresh) - len(kept), len(fresh),
+                    ", ".join(f"{k}×{v}" for k, v in top))
+
+    # 2) classify what's left (Layer A: cheap triage, then full classification).
     from llm_client import Usage
     usage = Usage()
-    model = os.getenv("LLM_MODEL", "grok-4.3")
+    # Label rows with the model that actually classified them (the classifier can run on
+    # a different, cheaper provider than the generic LLM_* one used by Layer B).
+    model = os.getenv("NEWS_CLASSIFIER_MODEL", "").strip() or os.getenv("LLM_MODEL", "grok-4.3")
     records: list[dict[str, Any]] = []
     failed = 0
-    for it in fresh:
+    for it in kept:
         cls = classify_item(it, universe, usage=usage)
         # A failed classification (no API key, quota, outage) is NOT stored: URL dedup
         # would then bury the item as irrelevant forever. Left unstored, it is simply
@@ -511,10 +561,11 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     if failed:
         logger.warning("%d item(s) failed classification — not stored, will retry next run", failed)
     relevant = [r for r in records if r.get("relevant")]
-    logger.info("classified %d items (%d relevant); ~%d tokens (%.0f%% of input served "
-                "from prompt cache), est $%.4f at %s list prices",
-                len(records), len(relevant), usage.total_tokens, usage.cache_hit_rate * 100,
-                usage.est_cost_usd(), usage.model or model)
+    triaged_out = sum(1 for r in records if str(r.get("reason") or "").startswith("triage:"))
+    logger.info("classified %d items (%d stopped at triage, %d relevant); ~%d tokens in "
+                "%d calls (%.0f%% of input from prompt cache), est $%.4f at %s list prices",
+                len(records), triaged_out, len(relevant), usage.total_tokens, usage.calls,
+                usage.cache_hit_rate * 100, usage.est_cost_usd(), usage.model or model)
 
     # 2b) preview images, for the RELEVANT items only: those are the cards the feed
     # renders, and a whole-site feed like kursiv's is ~85% off-topic — fetching pages
@@ -527,8 +578,12 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
                               ("source_id", "relevant", "type", "tone", "impact", "direction",
                                "tickers", "title", "summary_ru")},
                              ensure_ascii=False))
-        return {"fetched": len(raw), "new": len(fresh), "relevant": len(relevant),
-                "with_image": sum(1 for r in relevant if r.get("image_url")), "dry_run": True}
+        return {"fetched": len(raw), "new": len(fresh),
+                "prefiltered": len(fresh) - len(kept), "triaged_out": triaged_out,
+                "relevant": len(relevant),
+                "with_image": sum(1 for r in relevant if r.get("image_url")),
+                "tokens": usage.total_tokens, "est_cost_usd": round(usage.est_cost_usd(), 4),
+                "dry_run": True}
 
     # 3) store locally (dedup memory) + push to prod.
     stored = news_store.upsert_news(records)
@@ -537,7 +592,8 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         code = push_news(records)
         pushed = len(records) if code == 0 else 0
     return {
-        "fetched": len(raw), "new": len(fresh), "classified": len(records),
+        "fetched": len(raw), "new": len(fresh), "prefiltered": len(fresh) - len(kept),
+        "classified": len(records), "triaged_out": triaged_out,
         "classify_failed": failed, "with_image": sum(1 for r in relevant if r.get("image_url")),
         "relevant": len(relevant), "stored": stored, "pushed": pushed,
         "tokens": usage.total_tokens, "cached_input_pct": round(usage.cache_hit_rate * 100, 1),
