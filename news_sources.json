@@ -265,6 +265,28 @@
       "title_from": "slug",
       "slug_strip": "-{1,2}PR_\\d+$",
       "notes": "Rating actions on Uzbek issuers and the sovereign. Verified 2026-07-25: Moody's publishes no usable feed, but ratingsnewsmap.xml is a rolling window of ~183 GLOBAL actions with the headline in the URL slug, and robots.txt permits it. url_filter is applied before any model call, so the ~99% naming no issuer of ours costs one shared HTTP request and nothing more. Headline only - the article pages return a 2.7KB SPA shell, and no page is opened anyway. No lastmod on these entries, so items arrive undated (kept by _is_recent, right for a window of current actions). Expect roughly one hit a week or two. Sister agencies are NOT reachable: spglobal.com answers 403 to every automated request including robots.txt, and fitchratings.com serves its content from /page-data/, which its own robots.txt disallows."
+    },
+    {
+      "id": "napp",
+      "name": "NAPP (capital-market regulator)",
+      "type": "html_list",
+      "url": "https://napp.uz/ru/category/yangiliklar",
+      "lang": [
+        "ru"
+      ],
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "safe",
+      "attribution": "Национальное агентство перспективных проектов (napp.uz)",
+      "enabled": true,
+      "crawl_delay_s": 10,
+      "list_selectors": {
+        "item": ".info-in",
+        "title": ".info-title-text",
+        "date": ".date span",
+        "image": "a img"
+      },
+      "notes": "Uzbekistan capital-market regulator: licensing, the regulatory sandbox, crypto-asset and stablecoin rules, repo regulations - the primary source for the regulatory class, and it names our issuers directly (Ipak Yo'li AITB, Avesta Investment Group). Verified 2026-07-25: robots.txt is Disallow: with an EMPTY value, i.e. crawling is allowed; there is no RSS and no sitemap (every feed path returns the same catch-all HTML), so the listing page is the only machine-readable route. Titles on /ru are Russian even though the slugs are Uzbek. Publishes routine exam notices and seminars alongside real regulation, so it is deliberately NOT exempt from the relevance floor - unlike moodys, let the classifier sort it."
     }
   ]
 }
