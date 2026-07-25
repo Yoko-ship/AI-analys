@@ -56,7 +56,9 @@ const PERIODS = { ok: true, periods: { annual_years: [2024, 2023, 2022], quarter
 const NEWS_DISCLAIMER = "Тональность новостей и оценка влияния — статистический сигнал, а не рекомендация.";
 const NEWS_ITEMS = [
   { id: 11, url: "https://kursiv.uz/story-one", source: "Kursiv", source_id: "kursiv", lang: "ru",
-    title: "Биржа расширяет листинг банков", snippet: "", summary_ru: "Краткое изложение первой новости.",
+    title: "Биржа расширяет листинг банков",
+    snippet: "Листинговый комитет допустил к торгам четыре выпуска акций.",
+    summary_ru: "Краткое изложение первой новости.",
     image_url: null, published_at: "2026-07-24 09:00:00", type: "market", tone: "positive", tone_score: 0.42,
     impact: "high", direction: "up", sectors: ["banking"], relevance_score: 0.81, coverage_weight: 0.7,
     tickers: ["AGBA"], rank: 0.71 },
@@ -160,9 +162,12 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
   await expect(page).toHaveURL(/\/news\/11$/);
   await expect(page.locator(".led-art-title")).toContainText("Биржа расширяет листинг банков");
   await expect(page.locator(".led-art-lead")).toContainText("Краткое изложение первой новости");
+  // Both stored texts are shown: our summary, then the source's own lead-in.
+  await expect(page.locator(".led-art-quote")).toContainText("Листинговый комитет допустил");
   // Only the explicit CTA leaves the site, and the stored signal is shown alongside it.
   await expect(page.locator(".led-art-cta")).toHaveAttribute("href", "https://kursiv.uz/story-one");
-  await expect(page.locator(".led-sig")).toContainText("высокое влияние");
+  await expect(page.locator(".led-sig").first()).toContainText("высокое влияние");
+  await expect(page.locator(".led-sig--rows")).toContainText("Опубликовано");
   await expect(page.locator(".led-chip--action")).toContainText("AGBA");
   // Related stories stay in-app; the back link returns to the feed.
   await page.locator(".led-art-related .led-story").first().click();
