@@ -1479,7 +1479,14 @@ _TRADE_STAT_KEYS = ("total_value", "total_qty", "trade_count", "avg_price",
 
 
 def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> int:
-    """Overwrite the latest-day per-ISIN trade statistics cache."""
+    """Overwrite the latest-day per-ISIN trade statistics cache.
+
+    A security's stats only ever move FORWARD in time: the backfill path derives
+    a security's "last trading day" from the board, and a board row that lags (or
+    an openinfo archive that answers for the wrong day) would otherwise replace a
+    fresh session with an older one, leaving turnover that belongs to no quote on
+    the page. Rows dated before what is already stored are skipped, not written.
+    """
     def _num(v: Any) -> float | None:
         try:
             return None if v is None else float(v)
@@ -1494,7 +1501,7 @@ def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> 
                 isin = str(r.get("isin") or "").strip().upper()
                 if not isin:
                     continue
-                conn.execute(
+                cur = conn.execute(
                     """
                     INSERT INTO catalog_trade_stats
                         (isin, trade_date, total_value, total_qty, trade_count, avg_price,
@@ -1511,6 +1518,7 @@ def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> 
                         open_price=excluded.open_price, high_price=excluded.high_price,
                         low_price=excluded.low_price, close_price=excluded.close_price,
                         updated_at=datetime('now')
+                    WHERE excluded.trade_date >= catalog_trade_stats.trade_date
                     """,
                     (isin, str(r.get("trade_date") or trade_date or ""),
                      _num(r.get("total_value")), _num(r.get("total_qty")),
@@ -1520,7 +1528,7 @@ def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> 
                      _num(r.get("open_price")), _num(r.get("high_price")),
                      _num(r.get("low_price")), _num(r.get("close_price"))),
                 )
-                n += 1
+                n += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
     finally:
         conn.close()
     return n

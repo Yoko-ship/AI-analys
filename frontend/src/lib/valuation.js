@@ -105,3 +105,24 @@ export function normalizeMarketDay(s) {
 export function marketRowDay(r) {
   return normalizeMarketDay(r?.ts?.trade_date) || normalizeMarketDay(r?.last_trade_date);
 }
+
+/**
+ * Do the stored day statistics describe the same session as the market row?
+ *
+ * The stats are a nightly snapshot; a push that never lands leaves a security on
+ * an older session while the live feed has already moved on. Pasting that older
+ * day's turnover next to the newer quote produces a volume that belongs to no
+ * session at all — NGQS showed 16.07's 251 246 UZS / 6 trades beside its 24.07
+ * price of 23 900 (that session was 287 900 / 4). Stats for the row's own day
+ * apply; newer ones apply too (the feed lags for thin names); older ones do not.
+ *
+ * An unknown day on either side keeps the stats: the feed reports
+ * last_trade_date=null for securities that did trade, and dropping their
+ * turnover would trade a wrong number for a missing one.
+ */
+export function tradeStatsApply(lastTradeDate, statsTradeDate) {
+  const rowDay = normalizeMarketDay(lastTradeDate);
+  const tsDay = normalizeMarketDay(statsTradeDate);
+  if (!rowDay || !tsDay) return true;
+  return tsDay >= rowDay;
+}

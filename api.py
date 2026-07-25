@@ -1017,14 +1017,40 @@ async def api_coverage() -> dict[str, Any]:
     collector: dict[str, Any] = {"last_run": None, "age_hours": None, "stale": None}
     try:
         meta = await loop.run_in_executor(None, partial(get_facts, "_collector", "meta"))
-        last_run = next((f.get("value_text") for f in meta if f.get("field") == "last_run"), None)
-        status = next((f.get("value_text") for f in meta if f.get("field") == "last_run_status"), None)
+        fields = {f.get("field"): f.get("value_text") for f in meta}
+        last_run = fields.get("last_run")
+        status = fields.get("last_run_status")
+        from datetime import datetime, timezone
+
+        def _age(stamp: str | None) -> float | None:
+            try:
+                return (datetime.now(timezone.utc)
+                        - datetime.fromisoformat(stamp)).total_seconds() / 3600 if stamp else None
+            except ValueError:
+                return None
+
         if last_run:
-            from datetime import datetime, timezone
-            age = (datetime.now(timezone.utc)
-                   - datetime.fromisoformat(last_run)).total_seconds() / 3600
+            age = _age(last_run)
             collector = {"last_run": last_run, "last_run_status": status,
-                         "age_hours": round(age, 1), "stale": age > 26}
+                         "age_hours": round(age, 1) if age is not None else None,
+                         "stale": age > 26 if age is not None else None}
+        # A whole-run "ok" covers only the steps that run: --reconcile-only stamps
+        # the heartbeat while the board's turnover stays frozen. Report each step
+        # that stamps itself separately, with the session it last ingested.
+        steps: dict[str, Any] = {}
+        for field, value in fields.items():
+            if not str(field).endswith("_last_run") or field == "last_run":
+                continue
+            name = str(field)[: -len("_last_run")]
+            age = _age(value)
+            steps[name] = {
+                "last_run": value,
+                "last_day": fields.get(f"{name}_last_day") or None,
+                "age_hours": round(age, 1) if age is not None else None,
+                "stale": age > 26 if age is not None else None,
+            }
+        if steps:
+            collector["steps"] = steps
     except Exception:
         logger.exception("collector heartbeat read failed")
     return _json_safe({

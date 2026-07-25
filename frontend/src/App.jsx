@@ -11,6 +11,7 @@ import {
   finRowPeriod,
   marketRowDay,
   normalizeMarketDay,
+  tradeStatsApply,
   valuationRatios,
 } from "./lib/valuation.js";
 
@@ -6210,6 +6211,14 @@ function MarketView({
   const preparedAll = (Array.isArray(rows) ? rows : []).map(enrichMarketStock).map((r) => {
     const t = tmap[r.isin] || tmap[(r.isin || "").toUpperCase()];
     if (!t) return r;
+    const rowDay = normalizeMarketDay(r.last_trade_date);
+    const tsDay = normalizeMarketDay(t.trade_date);
+    // The day stats and the feed row must describe the SAME session — a stored
+    // day older than the row's own last trade is a snapshot the nightly push
+    // never refreshed, and its turnover belongs to no quote on the page. Fall
+    // back to the feed's own figures for the row's day; an em-dash where the
+    // feed has none is honest, a number from another week is not.
+    if (!tradeStatsApply(r.last_trade_date, t.trade_date)) return r;
     const out = { ...r, ts: t };
     if (Number.isFinite(t.total_value)) out.stockVolume = t.total_value;
     if (Number.isFinite(t.total_qty)) out.stockQuantity = t.total_qty;
@@ -6223,9 +6232,8 @@ function MarketView({
     // session's own OHLC is authoritative: price/date/OHLC come from it and
     // the change is close-to-close (session close vs the feed's stale
     // close, which IS the previous close — matching the daily bulletin).
-    const rowDay = normalizeMarketDay(r.last_trade_date);
-    const tsIsNewer = t.trade_date === latestTsDay &&
-      (r.lastPrice === null || !rowDay || rowDay < t.trade_date);
+    const tsIsNewer = tsDay && tsDay === latestTsDay &&
+      (r.lastPrice === null || !rowDay || rowDay < tsDay);
     if (tsIsNewer) {
       const px = Number.isFinite(t.close_price) ? t.close_price
         : Number.isFinite(t.vwap) ? t.vwap : t.avg_price;
