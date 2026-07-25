@@ -34,10 +34,17 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import requests
+from dotenv import load_dotenv
 
-import news_store
-import reports_catalog as rc
-from news_classifier import classify_item
+# Before the repo imports: reports_catalog resolves DB paths and llm_client reads the
+# API key at import time, and the push needs ADMIN_API_SECRET. Without this, a CLI run
+# from a fresh shell silently has no LLM key (every item → classification_failed) and
+# no push credentials — the failure mode the collector docs describe.
+load_dotenv()
+
+import news_store  # noqa: E402  (after load_dotenv)
+import reports_catalog as rc  # noqa: E402  (after load_dotenv)
+from news_classifier import classify_item  # noqa: E402  (after load_dotenv)
 
 logger = logging.getLogger(__name__)
 
@@ -398,13 +405,19 @@ def backfill_images(*, limit: int = 40, days: int = 90, push: bool = True) -> di
     """Fill preview images on already-stored items — those collected before the
     page-image pass existed. Images only: no classification, so no LLM spend, and the
     stored tone/impact is never touched."""
-    local = news_store.rows_without_image(limit=limit, days=days)
-    candidates = {r["url"]: {"url": r["url"], "source_id": r["source_id"], "image_url": None}
-                  for r in local}
-    for it in (_prod_items_without_image(days) if push else []):
-        candidates.setdefault(it["url"], it)
-    logger.info("image backfill: %d local + %d prod-only candidate(s)",
-                len(local), len(candidates) - len(local))
+    # Prod's feed first: those are the cards users see, so they get the fetch budget
+    # ahead of local rows (which include items the classifier filtered out).
+    remote = _prod_items_without_image(days) if push else []
+    candidates = {it["url"]: it for it in remote}
+    for r in news_store.rows_without_image(limit=limit, days=days):
+        candidates.setdefault(r["url"], {"url": r["url"], "source_id": r["source_id"],
+                                         "image_url": None})
+    logger.info("image backfill: %d from the prod feed + %d local-only candidate(s)",
+                len(remote), len(candidates) - len(remote))
+    # Anything a previous run already fetched is reused, not fetched again — a re-run
+    # (e.g. after a failed push) costs no requests.
+    for url, img in news_store.image_urls_for(list(candidates)).items():
+        candidates[url]["image_url"] = img
     items = list(candidates.values())[:limit]
     found = enrich_images(items, _source_registry(), max_fetch=limit)
     images = {it["url"]: it["image_url"] for it in items if it.get("image_url")}
