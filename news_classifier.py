@@ -10,9 +10,17 @@ enabled feeds are whole-site feeds where most items are not market news at all:
   2. the full classification — class, tone, impact, direction, issuer links and our own
      summary, and ONLY for items that survive triage.
 
+Both LLM gates are **batched**: many numbered items per call, one shared prompt. Measured on
+the 2026-07-25 run, the ~2,200-token constant prefix was re-sent 31 times and accounted for
+68% of all input tokens, while the news text itself was 2%. Batching sends it once per batch
+instead of once per item; output volume is unchanged, so the saving is pure input.
+
 The expensive constant (the ~93-line issuer universe) sits in the SYSTEM message so it
 is an identical prefix on every call and the provider's prompt cache can serve it: on
 grok-4.3 cached input is $0.20/M vs $1.25/M, on DeepSeek V4-Flash $0.0028/M vs $0.14/M.
+
+Issuer filings take a separate, compact prompt: their ticker and class come from the filing
+itself, so sending them the issuer universe is pure waste.
 
 Provider: the classifier takes its own config (``NEWS_CLASSIFIER_*``) so this high-volume
 path can run on a cheap model while Layer-B search stays on Grok.
@@ -147,10 +155,20 @@ _JUNK_RE = re.compile(
     r"|погод|дождь|жара|\bдтп\b|аварии|столкновени|погиб|задержан|наркотик|кража"
     r"|ограблен|убийств|приговор|концерт|фестивал|\bкино\b|сериал|актер|актрис|певиц|певец"
     r"|музыкант|свадьб|туристическ\w+ поезд|розыгрыш|конкурс красоты"
+    # Added 2026-07-25 from the titles the paid triage gate actually rejected — every one of
+    # these cost a call to learn nothing. Sports betting/fights, state awards, municipal
+    # works, consular paperwork and party politics.
+    r"|букмекер|андердог|\bбо[йя] с\b|нокаут|титульны|наградил|орденом|медал"
+    r"|теплотрасс|благоустройств|экопарк|зелены[хе] зон|генеральный план|генплан"
+    r"|загранпаспорт|визовы[йм] режим|визовых|оргнабор|омбудсмен"
+    r"|оштрафовал|штраф|конфискова|музе[йя]|выставк[аи] картин"
     r"|futbol|chempionat|musobaqa|\bsport|ob-havo|halok|jinoyat|\bkino\b|konsert|festival"
     r"|sayli|bayram"
+    # Uzbek: Kun.uz alone accounted for 14 of those 34 paid rejections.
+    r"|saylov|partiya|iste'?fo|musodara|jarima|vizasiz|viza rejimi|nomzod"
+    r"|xandaq|avtomobil.{0,12}(?:tushib|urib)|jinoiy sud|qoidabuzar|hukm qil"
     r"|football|championship|olympic|weather|accident|crime|concert|festival|movie"
-    r"|celebrity|horoscope",
+    r"|celebrity|horoscope|boxing|bookmaker",
     re.I)
 _GENERIC_NAME_TOKENS = {
     "акционерное", "общество", "компания", "предприятие", "узбекистан", "узбекистана",
@@ -215,9 +233,19 @@ If you are genuinely unsure, PASS it (score ~0.4) — a fuller pass decides afte
 
 Reply with ONLY a JSON object: {"pass": true|false, "score": 0.0-1.0}"""
 
+_BATCH_PROTOCOL = """
+
+You will be given SEVERAL numbered items. Judge each one INDEPENDENTLY — never merge them,
+never let one item's content influence another's verdict. Reply with ONLY:
+{"items": [{"n": <the number the item was given>, ...the fields above...}, ...]}
+Return exactly one object per item, echoing the number it was given."""
+
 # Anything at or above this passes to the full classification even if 'pass' came back
 # false — the cheap gate should never be the last word on a borderline item.
 _TRIAGE_FLOOR = float(os.getenv("NEWS_TRIAGE_FLOOR", "0.35"))
+# Items per call. Triage batches larger because both its item text and its answer are tiny.
+_BATCH_SIZE = max(1, int(os.getenv("NEWS_BATCH_SIZE", "10")))
+_TRIAGE_BATCH_SIZE = max(1, int(os.getenv("NEWS_TRIAGE_BATCH_SIZE", "20")))
 
 
 def triage_item(item: dict[str, Any], *, client: LLMClient | None = None,
@@ -231,6 +259,10 @@ def triage_item(item: dict[str, Any], *, client: LLMClient | None = None,
     except Exception as exc:  # noqa: BLE001 — never let the cheap gate drop an item
         logger.warning("triage failed for %s (%s) — passing through", item.get("url"), exc)
         return True, 1.0
+    return _triage_verdict(raw)
+
+
+def _triage_verdict(raw: dict[str, Any]) -> tuple[bool, float]:
     score = raw.get("score")
     try:
         score = float(score) if score is not None else 0.0
@@ -238,6 +270,115 @@ def triage_item(item: dict[str, Any], *, client: LLMClient | None = None,
         score = 0.0
     passed = bool(raw.get("pass")) or score >= _TRIAGE_FLOOR
     return passed, score
+
+
+def _numbered(items: list[dict[str, Any]]) -> str:
+    return "\n\n".join(f"### ITEM {i + 1}\n{_format_item(it)}" for i, it in enumerate(items))
+
+
+def _by_number(raw: Any, expected: int) -> dict[int, dict[str, Any]]:
+    """Map a batch reply back onto the items we sent, by the echoed ``n``.
+
+    Tolerates a bare list, a missing ``n`` (falls back to position), and out-of-range
+    numbers. Whatever cannot be matched is simply absent — callers retry those individually
+    rather than guessing, because a mis-attributed verdict is worse than a second call.
+    """
+    rows = raw.get("items") if isinstance(raw, dict) else raw
+    if not isinstance(rows, list):
+        return {}
+    out: dict[int, dict[str, Any]] = {}
+    for position, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        try:
+            n = int(row.get("n", position + 1))
+        except (TypeError, ValueError):
+            n = position + 1
+        if 1 <= n <= expected:
+            out.setdefault(n, row)
+    return out
+
+
+def screen_items(items: list[dict[str, Any]], *, client: LLMClient | None = None,
+                 usage: Usage | None = None) -> list[tuple[bool, float]]:
+    """Batched gate 1: ``[(passes, score), ...]`` aligned with ``items``.
+
+    Fails open per item — anything the batch does not come back with is retried on its own,
+    and a failure there passes the item through. A cheap gate must never silently swallow
+    market news.
+    """
+    verdicts: list[tuple[bool, float]] = []
+    client = client or get_classifier_client()
+    for start in range(0, len(items), _TRIAGE_BATCH_SIZE):
+        chunk = items[start:start + _TRIAGE_BATCH_SIZE]
+        if len(chunk) == 1:
+            verdicts.append(triage_item(chunk[0], client=client, usage=usage))
+            continue
+        rows: dict[int, dict[str, Any]] = {}
+        try:
+            raw = client.complete_json(_TRIAGE_SYSTEM + _BATCH_PROTOCOL, _numbered(chunk),
+                                       usage=usage, max_tokens=60 * len(chunk) + 120)
+            rows = _by_number(raw, len(chunk))
+        except Exception as exc:  # noqa: BLE001 — fall through to per-item retries
+            logger.warning("batched triage failed for %d item(s) (%s); retrying individually",
+                           len(chunk), exc)
+        missing = 0
+        for i, it in enumerate(chunk, start=1):
+            if i in rows:
+                verdicts.append(_triage_verdict(rows[i]))
+            else:
+                missing += 1
+                verdicts.append(triage_item(it, client=client, usage=usage))
+        if missing and rows:
+            logger.info("batched triage: %d of %d item(s) missing from the reply, "
+                        "retried individually", missing, len(chunk))
+    return verdicts
+
+
+def classify_items(items: list[dict[str, Any]], universe: dict[str, str] | None = None, *,
+                   client: LLMClient | None = None, usage: Usage | None = None,
+                   ) -> list[NewsClassification]:
+    """Batched gate 2, aligned with ``items``. Triage is NOT applied here — call
+    :func:`screen_items` first and pass only the survivors.
+
+    Any item the batch fails to return, or whose row does not validate, is re-classified on
+    its own; only if that also fails does it get ``classification_failed`` (which the
+    collector then declines to store, so the item is retried next run).
+    """
+    results: list[NewsClassification] = []
+    client = client or get_classifier_client()
+    system = _system_with_universe(universe) + _BATCH_PROTOCOL
+    for start in range(0, len(items), _BATCH_SIZE):
+        chunk = items[start:start + _BATCH_SIZE]
+        if len(chunk) == 1:
+            results.append(classify_item(chunk[0], universe, client=client, usage=usage,
+                                         triage=False))
+            continue
+        rows: dict[int, dict[str, Any]] = {}
+        try:
+            raw = client.complete_json(system, _numbered(chunk), usage=usage,
+                                       max_tokens=480 * len(chunk) + 200)
+            rows = _by_number(raw, len(chunk))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("batched classification failed for %d item(s) (%s); "
+                           "retrying individually", len(chunk), exc)
+        retried = 0
+        for i, it in enumerate(chunk, start=1):
+            row = rows.get(i)
+            if row is not None:
+                try:
+                    results.append(NewsClassification.model_validate(row))
+                    continue
+                except ValidationError as exc:
+                    logger.warning("batched row %d did not validate (%s); retrying alone",
+                                   i, exc)
+            retried += 1
+            results.append(classify_item(it, universe, client=client, usage=usage,
+                                         triage=False))
+        if retried and rows:
+            logger.info("batched classification: %d of %d item(s) retried individually",
+                        retried, len(chunk))
+    return results
 
 
 _SYSTEM = """You are a financial-news triage engine for a Uzbekistan stock-market platform
@@ -261,9 +402,89 @@ never a claim of manipulation or "attack"):
 6. tickers — ONLY symbols from the provided issuer universe that the item is genuinely about. Empty if none.
 7. sectors — affected sectors (e.g. "banking", "cement", "energy"), if any.
 8. summary_ru — YOUR OWN 1-2 sentence factual summary in Russian. Do NOT copy the source's wording.
+9. reason — why this class/tone, in AT MOST 12 WORDS. It is an internal note, never shown.
 
 Reply with ONLY a JSON object with keys:
 relevant, relevance_score, type, tone, tone_score, impact, direction, tickers, sectors, summary_ru, reason."""
+
+
+# Filings arrive with their issuer and class already known (openinfo org_id → ticker,
+# fact_number → class), so this prompt carries no issuer universe at all — on the measured
+# run that was ~2,200 wasted tokens per filing — and asks only for what a model can add.
+_FILING_SYSTEM = """You rate disclosures ("существенные факты") filed by issuers on the
+Tashkent exchange (UZSE / RFB "Toshkent"). The issuer and the filing class are ALREADY known
+and are not your job — do not infer or restate them.
+
+Judge only the following, as a STATISTICAL/ANALYTICAL SIGNAL (never a diagnosis, never a
+claim of manipulation or "attack"):
+1. tone — positive / neutral / negative FOR INVESTORS IN THAT ISSUER, and tone_score in [-1,1].
+2. impact — high / medium / low / none: how strongly this filing could move the issuer's price.
+   Routine administrative filings (changes to lists of affiliates, of branches, of governing
+   bodies) are usually low or none; dividends, share issuance, large deals, credit above half
+   of capital, bankruptcy and delisting are higher.
+3. direction — up / down / mixed / unclear (an estimate, not advice).
+4. summary_ru — YOUR OWN one-sentence factual summary in Russian, based only on what the
+   filing's title states. Never invent amounts, dates or counterparties.
+5. reason — at most 12 words, an internal note.
+
+Reply with ONLY a JSON object with keys: tone, tone_score, impact, direction, summary_ru, reason."""
+
+
+def classify_filings(items: list[dict[str, Any]], *, client: LLMClient | None = None,
+                     usage: Usage | None = None) -> list[NewsClassification]:
+    """Batched rating of issuer filings, aligned with ``items``.
+
+    Returns ``relevant=True`` throughout: an issuer's own disclosure is market news because
+    the issuer filed it. ``type`` comes from the item's ``type_hint`` (derived from the
+    filing's own fact number), and tickers are attached by the caller — so a model can
+    neither drop a filing nor mis-attribute one.
+    """
+    results: list[NewsClassification] = []
+    client = client or get_classifier_client()
+
+    def build(row: dict[str, Any], item: dict[str, Any]) -> NewsClassification:
+        return NewsClassification.model_validate({
+            "relevant": True,
+            "relevance_score": 0.9,
+            "type": item.get("type_hint") or "corporate_event",
+            "tone": row.get("tone"), "tone_score": row.get("tone_score"),
+            "impact": row.get("impact"), "direction": row.get("direction"),
+            "tickers": item.get("tickers") or [], "sectors": [],
+            "summary_ru": row.get("summary_ru") or "",
+            "reason": (row.get("reason") or "issuer filing")[:200],
+        })
+
+    for start in range(0, len(items), _BATCH_SIZE):
+        chunk = items[start:start + _BATCH_SIZE]
+        rows: dict[int, dict[str, Any]] = {}
+        single = len(chunk) == 1
+        try:
+            system = _FILING_SYSTEM if single else _FILING_SYSTEM + _BATCH_PROTOCOL
+            user = _format_item(chunk[0]) if single else _numbered(chunk)
+            raw = client.complete_json(system, user, usage=usage,
+                                       max_tokens=(300 if single else 260 * len(chunk) + 200))
+            rows = {1: raw} if single else _by_number(raw, len(chunk))
+        except Exception as exc:  # noqa: BLE001 — a filing must still be stored
+            logger.warning("filing rating failed for %d item(s): %s", len(chunk), exc)
+        for i, it in enumerate(chunk, start=1):
+            row = rows.get(i)
+            if row is None:
+                # Store the filing anyway, unrated: losing a disclosure would be worse than
+                # showing one with a neutral signal.
+                results.append(build({"tone": "neutral", "impact": "low",
+                                      "direction": "unclear",
+                                      "summary_ru": it.get("snippet") or "",
+                                      "reason": "filing stored unrated"}, it))
+                continue
+            try:
+                results.append(build(row, it))
+            except ValidationError as exc:
+                logger.warning("filing row %d did not validate (%s); storing unrated", i, exc)
+                results.append(build({"tone": "neutral", "impact": "low",
+                                      "direction": "unclear",
+                                      "summary_ru": it.get("snippet") or "",
+                                      "reason": "filing stored unrated"}, it))
+    return results
 
 
 def _format_universe(universe: dict[str, str] | None, limit: int = 120) -> str:
