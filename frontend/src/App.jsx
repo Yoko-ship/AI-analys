@@ -608,6 +608,9 @@ const NEWS_ARTICLE_TX = {
     impactNone: "не значимо", tickers: "Упомянутые эмитенты",
     tickersHint: "Откройте карточку эмитента — котировки, отчётность и его новости.",
     sectors: "Секторы", related: "По теме", source: "Источник",
+    sourceLead: "Как сообщает источник", about: "О публикации",
+    published: "Опубликовано", added: "В ленте с", langLabel: "Язык",
+    langs: { ru: "русский", uz: "узбекский", en: "английский" },
   },
   en: {
     back: "All news", loading: "Loading the story…",
@@ -620,6 +623,9 @@ const NEWS_ARTICLE_TX = {
     impactNone: "not material", tickers: "Issuers mentioned",
     tickersHint: "Open an issuer to see its quotes, filings and news.",
     sectors: "Sectors", related: "Related", source: "Source",
+    sourceLead: "As the source reports", about: "About this item",
+    published: "Published", added: "In the feed since", langLabel: "Language",
+    langs: { ru: "Russian", uz: "Uzbek", en: "English" },
   },
   uz: {
     back: "Barcha yangiliklar", loading: "Yangilik yuklanmoqda…",
@@ -632,6 +638,9 @@ const NEWS_ARTICLE_TX = {
     impactNone: "ahamiyatsiz", tickers: "Tilga olingan emitentlar",
     tickersHint: "Emitent kartasini oching — kotirovkalar, hisobotlar va yangiliklar.",
     sectors: "Sektorlar", related: "Mavzu bo'yicha", source: "Manba",
+    sourceLead: "Manba xabar qilishicha", about: "Nashr haqida",
+    published: "E'lon qilingan", added: "Lentada", langLabel: "Til",
+    langs: { ru: "rus", uz: "o'zbek", en: "ingliz" },
   },
 };
 
@@ -648,6 +657,21 @@ function newsAbsTime(dateStr, language) {
 
 function newsHost(url) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
+}
+
+// We store two short texts per item: the source's own lead-in (`snippet`, from its feed)
+// and our one-sentence `summary_ru`. They are usually complementary — the lead-in often
+// keeps a detail the summary drops — so the page shows both, unless the summary already
+// says the same thing, in which case repeating it would only pad the page.
+function newsAddsDetail(snippet, summary) {
+  const words = (s) => new Set(
+    (String(s || "").toLowerCase().match(/[\wЀ-ӿ]+/g) || []).filter((w) => w.length > 3));
+  const lead = words(snippet);
+  if (lead.size < 4) return false;
+  const ours = words(summary);
+  let shared = 0;
+  lead.forEach((w) => { if (ours.has(w)) shared += 1; });
+  return shared / lead.size < 0.7;
 }
 
 function NewsArticleView({ newsId, language, onOpenCompany, onOpenNews, onBack }) {
@@ -699,6 +723,9 @@ function NewsArticleView({ newsId, language, onOpenCompany, onOpenNews, onBack }
 
   const { item, related = [], disclaimer } = state.data;
   const summary = item.summary_ru || item.snippet || "";
+  // Only when the snippet is not already doing duty as the lead paragraph above.
+  const sourceLead = item.summary_ru && item.snippet && newsAddsDetail(item.snippet, item.summary_ru)
+    ? item.snippet : "";
   const toneCls = _TONE_CLS[item.tone] || "neu";
   const cat = item.type || "market";
   const host = newsHost(item.url);
@@ -734,6 +761,13 @@ function NewsArticleView({ newsId, language, onOpenCompany, onOpenNews, onBack }
             )}
 
             <p className="led-art-lead">{summary || tx.noSummary}</p>
+
+            {sourceLead && (
+              <section className="led-art-quote">
+                <h3 className="led-panel-h">{tx.sourceLead}</h3>
+                <p>{sourceLead}</p>
+              </section>
+            )}
 
             <div className="led-art-source">
               <p className="led-art-note">{tx.summaryNote}</p>
@@ -792,6 +826,14 @@ function NewsArticleView({ newsId, language, onOpenCompany, onOpenNews, onBack }
               {item.source && <div><dt>{tx.source}</dt><dd>{item.source}</dd></div>}
             </dl>
             {disclaimer && <p className="led-sig-note">{disclaimer}</p>}
+          </div>
+          <div className="led-panel">
+            <h4 className="led-panel-h">{tx.about}</h4>
+            <dl className="led-sig led-sig--rows">
+              {item.published_at && <div><dt>{tx.published}</dt><dd>{newsAbsTime(item.published_at, language)}</dd></div>}
+              {item.collected_at && <div><dt>{tx.added}</dt><dd>{newsAbsTime(item.collected_at, language)}</dd></div>}
+              {item.lang && <div><dt>{tx.langLabel}</dt><dd>{(tx.langs && tx.langs[item.lang]) || item.lang}</dd></div>}
+            </dl>
           </div>
         </aside>
       </div>
