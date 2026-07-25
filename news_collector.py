@@ -17,10 +17,12 @@ CLI:
     python news_collector.py --dry-run       # fetch+classify, print, don't store/push
     python news_collector.py --limit 20      # cap items per source
     python news_collector.py --source cbu    # one source only
+    python news_collector.py --backfill-images  # images for stored items (no LLM calls)
 """
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import logging
 import os
@@ -29,6 +31,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -88,10 +91,28 @@ def _iso(struct_time: Any) -> str | None:
         return None
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def _clean_text(value: Any) -> str:
+    """Feed text → plain text: unescape entities, drop markup, collapse whitespace.
+
+    Feeds are inconsistent: spot/gazeta double-escape (``&amp;nbsp;`` arrives as a
+    literal ``&nbsp;``) and several embed an ``<img>`` in the description. Stored raw,
+    that renders as visible entity/tag noise in the card and pollutes classifier input.
+    """
+    if not value:
+        return ""
+    text = _TAG_RE.sub(" ", html.unescape(html.unescape(str(value))))
+    return _WS_RE.sub(" ", text.replace("\xa0", " ")).strip()
+
+
 def _rss_image(entry: Any) -> str | None:
     """Best-effort thumbnail from a feed entry — media:content/thumbnail, an
-    enclosure, or an <img> the source embedded in its own summary/content. We only
-    ever use the source's OWN published image; we never scrape the article page."""
+    enclosure, or an <img> the source embedded in its own summary/content. This only
+    ever uses the source's OWN published image (see ``_og_image`` for the fallback
+    when a feed ships none)."""
     for attr in ("media_content", "media_thumbnail"):
         media = getattr(entry, attr, None)
         if isinstance(media, list):
@@ -119,6 +140,98 @@ def _rss_image(entry: Any) -> str | None:
             if m:
                 return m.group(1).strip()
     return None
+
+
+# ── preview images ────────────────────────────────────────────────────────── #
+# Several feeds carry no <media:*>/enclosure at all (kursiv, cbu, kun) even though
+# the article page publishes a preview image for link unfurls — the og:image meta
+# tag. For sources flagged ``"page_image": true`` we read the page's <head> and take
+# that URL. Only the head is read (the response is streamed and cut at </head>) and
+# only the image URL is kept — no article text is downloaded or stored, so the legal
+# invariant (headline + our own summary + link) is unchanged.
+_OG_IMAGE_PATTERNS = (
+    r'<meta[^>]+(?:property|name)=["\'](?:og:image(?::url|:secure_url)?|twitter:image(?::src)?)["\']'
+    r'[^>]+content=["\']([^"\']+)',
+    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)='
+    r'["\'](?:og:image(?::url|:secure_url)?|twitter:image(?::src)?)["\']',
+)
+# A site-wide share card (cbu.uz serves one social.jpg for every article) is worse
+# than no image: the same picture would repeat down the whole feed. Skip those.
+_GENERIC_IMAGE_RE = re.compile(
+    r"(?:^|[/_-])(?:social|share|default|placeholder|logo|preview|banner|no[_-]?image)[\w-]*"
+    r"\.(?:jpe?g|png|webp|gif|svg)$", re.I)
+_HEAD_MAX_BYTES = 150_000
+
+
+def _og_image(session: requests.Session, page_url: str, timeout: int = 15) -> str | None:
+    """The article page's own preview image (og:image / twitter:image), or None."""
+    try:
+        resp = session.get(page_url, timeout=timeout, stream=True)
+        if resp.status_code != 200:
+            resp.close()
+            return None
+        buf = bytearray()
+        for chunk in resp.iter_content(8192):
+            buf += chunk
+            if len(buf) >= _HEAD_MAX_BYTES or b"</head" in buf.lower():
+                break
+        resp.close()
+    except requests.RequestException as exc:
+        logger.debug("page-image fetch failed for %s: %s", page_url, exc)
+        return None
+    head = bytes(buf).decode("utf-8", "replace")
+    for pattern in _OG_IMAGE_PATTERNS:
+        match = re.search(pattern, head, re.I)
+        if not match:
+            continue
+        img = urljoin(page_url, html.unescape(match.group(1).strip()))
+        if not img.lower().startswith(("http://", "https://")):
+            return None
+        if _GENERIC_IMAGE_RE.search(urlparse(img).path):
+            logger.debug("ignoring site-wide share image %s", img)
+            return None
+        return img
+    return None
+
+
+def enrich_images(items: list[dict[str, Any]], sources: dict[str, dict[str, Any]],
+                  *, max_fetch: int | None = None) -> int:
+    """Fill ``image_url`` from the article page for items whose feed shipped none.
+
+    Opt-in per source (``"page_image": true``), paced by that source's
+    ``crawl_delay_s``, and capped per run (``NEWS_OG_MAX_FETCH``, default 40) so a
+    large batch can never turn into a crawl. Returns the number of images found.
+    """
+    if max_fetch is None:
+        max_fetch = int(os.getenv("NEWS_OG_MAX_FETCH", "40"))
+    todo = [it for it in items
+            if it.get("url") and not it.get("image_url")
+            and (sources.get(it.get("source_id")) or {}).get("page_image")]
+    if not todo or max_fetch <= 0:
+        return 0
+    if len(todo) > max_fetch:
+        logger.info("page-image pass: %d candidate(s); fetching %d (NEWS_OG_MAX_FETCH), "
+                    "the rest keep the category placeholder", len(todo), max_fetch)
+    session = requests.Session()
+    last_hit: dict[str, float] = {}
+    filled = 0
+    for it in todo[:max_fetch]:
+        src = sources.get(it.get("source_id")) or {}
+        session.headers["User-Agent"] = src.get("user_agent", DEFAULT_UA)
+        host = urlparse(it["url"]).netloc
+        if host in last_hit:
+            wait = float(src.get("crawl_delay_s", 2) or 0) - (time.monotonic() - last_hit[host])
+            if wait > 0:
+                time.sleep(min(wait, 30))
+        last_hit[host] = time.monotonic()
+        img = _og_image(session, it["url"])
+        if img:
+            it["image_url"] = img
+            filled += 1
+    session.close()
+    logger.info("page-image pass: %d of %d fetched item(s) got an image",
+                filled, min(len(todo), max_fetch))
+    return filled
 
 
 def _is_recent(published_at: Any, max_age_days: int) -> bool:
@@ -154,12 +267,13 @@ def fetch_rss(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
             continue
         items.append({
             "url": url,
-            "title": (getattr(e, "title", "") or "").strip(),
+            "title": _clean_text(getattr(e, "title", "")),
             # RSS 'summary' is the source's own short description — snippet, not body.
-            "snippet": (getattr(e, "summary", "") or "").strip()[:1000],
+            "snippet": _clean_text(getattr(e, "summary", ""))[:1000],
             "published_at": _iso(getattr(e, "published_parsed", None))
             or _iso(getattr(e, "updated_parsed", None)),
-            "image_url": _rss_image(e),
+            # "feed_image": false opts a source out entirely (its ToS bars media reuse).
+            "image_url": _rss_image(e) if source.get("feed_image", True) else None,
             "lang": (source.get("lang") or ["ru"])[0],
         })
     return items
@@ -225,6 +339,82 @@ def push_news(items: list[dict[str, Any]]) -> int:
     return 0
 
 
+def push_images(images: dict[str, str]) -> int:
+    """Push image-only updates (url → image_url) and return the rows prod changed.
+
+    Deliberately NOT /api/admin/news: a full upsert there would rewrite the stored
+    classification from these image-only records and hide the items from the feed.
+    """
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if not secret:
+        logger.error("ADMIN_API_SECRET is not set — cannot push images")
+        return 0
+    try:
+        resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/images",
+                             json={"images": images},
+                             headers={"X-Admin-Secret": secret}, timeout=120)
+    except requests.RequestException as exc:
+        logger.error("push /api/admin/news/images failed: %s", exc)
+        return 0
+    if resp.status_code != 200:
+        logger.error("push /api/admin/news/images failed: HTTP %s %s",
+                     resp.status_code, resp.text[:300])
+        return 0
+    try:
+        updated = int((resp.json() or {}).get("updated") or 0)
+    except ValueError:
+        logger.error("push /api/admin/news/images: non-JSON 200 body")
+        return 0
+    logger.info("push /api/admin/news/images ok: %d row(s) updated in prod", updated)
+    return updated
+
+
+# --------------------------------------------------------------------------- #
+# image backfill (no LLM calls)
+# --------------------------------------------------------------------------- #
+def _source_registry() -> dict[str, dict[str, Any]]:
+    """id → source config for EVERY registered source, enabled or not: a stored item
+    may come from a source that has since been disabled."""
+    data = json.loads(SOURCES_FILE.read_text(encoding="utf-8"))
+    return {s["id"]: s for s in data.get("sources", []) if s.get("id")}
+
+
+def _prod_items_without_image(days: int) -> list[dict[str, Any]]:
+    """Backfill candidates read from prod's public feed — the rows users actually see
+    (the local DB can lag behind it, e.g. items pushed from another host)."""
+    try:
+        resp = requests.get(f"{DEFAULT_PUSH_URL}/api/news/feed",
+                            params={"limit": 200, "days": days}, timeout=60)
+        resp.raise_for_status()
+        items = (resp.json() or {}).get("items") or []
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("could not read the prod feed for backfill candidates: %s", exc)
+        return []
+    return [{"url": it.get("url"), "source_id": it.get("source_id"), "image_url": None}
+            for it in items if it.get("url") and not it.get("image_url")]
+
+
+def backfill_images(*, limit: int = 40, days: int = 90, push: bool = True) -> dict[str, Any]:
+    """Fill preview images on already-stored items — those collected before the
+    page-image pass existed. Images only: no classification, so no LLM spend, and the
+    stored tone/impact is never touched."""
+    local = news_store.rows_without_image(limit=limit, days=days)
+    candidates = {r["url"]: {"url": r["url"], "source_id": r["source_id"], "image_url": None}
+                  for r in local}
+    for it in (_prod_items_without_image(days) if push else []):
+        candidates.setdefault(it["url"], it)
+    logger.info("image backfill: %d local + %d prod-only candidate(s)",
+                len(local), len(candidates) - len(local))
+    items = list(candidates.values())[:limit]
+    found = enrich_images(items, _source_registry(), max_fetch=limit)
+    images = {it["url"]: it["image_url"] for it in items if it.get("image_url")}
+    return {
+        "candidates": len(items), "found": found,
+        "updated_local": news_store.set_image_urls(images),
+        "updated_prod": push_images(images) if (push and images) else 0,
+    }
+
+
 # --------------------------------------------------------------------------- #
 # main run
 # --------------------------------------------------------------------------- #
@@ -262,15 +452,27 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     fresh = [it for it in raw if it["url"] not in seen]
     logger.info("fetched %d, %d already stored, %d new to classify", len(raw), len(seen), len(fresh))
 
+    # 1b) preview images: sources whose feed ships none get the article page's own
+    # og:image (opt-in per source). Runs after dedup so we only fetch NEW items.
+    enrich_images(fresh, {s["id"]: s for s in sources})
+
     # 2) classify each new item (Layer A).
     from llm_client import Usage
     usage = Usage()
     model = os.getenv("LLM_MODEL", "grok-4.3")
     records: list[dict[str, Any]] = []
+    failed = 0
     for it in fresh:
         cls = classify_item(it, universe, usage=usage)
-        record = {**it, "model": model, **cls.model_dump()}
-        records.append(record)
+        # A failed classification (no API key, quota, outage) is NOT stored: URL dedup
+        # would then bury the item as irrelevant forever. Left unstored, it is simply
+        # re-fetched and re-classified on the next run.
+        if cls.reason == "classification_failed":
+            failed += 1
+            continue
+        records.append({**it, "model": model, **cls.model_dump()})
+    if failed:
+        logger.warning("%d item(s) failed classification — not stored, will retry next run", failed)
     relevant = [r for r in records if r.get("relevant")]
     logger.info("classified %d items (%d relevant); ~%d tokens, est $%.4f",
                 len(records), len(relevant), usage.total_tokens, usage.est_cost_usd())
@@ -291,6 +493,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         pushed = len(records) if code == 0 else 0
     return {
         "fetched": len(raw), "new": len(fresh), "classified": len(records),
+        "classify_failed": failed, "with_image": sum(1 for r in records if r.get("image_url")),
         "relevant": len(relevant), "stored": stored, "pushed": pushed,
         "tokens": usage.total_tokens, "est_cost_usd": round(usage.est_cost_usd(), 4),
     }
@@ -302,9 +505,14 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=40, help="max items per source")
     ap.add_argument("--no-push", action="store_true", help="store locally, do not push to prod")
     ap.add_argument("--dry-run", action="store_true", help="fetch+classify, print, do not store/push")
+    ap.add_argument("--backfill-images", action="store_true",
+                    help="fill preview images on already-stored items (no LLM calls)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    result = run(only=args.source, limit=args.limit, push=not args.no_push, dry_run=args.dry_run)
+    if args.backfill_images:
+        result = backfill_images(limit=args.limit, push=not args.no_push)
+    else:
+        result = run(only=args.source, limit=args.limit, push=not args.no_push, dry_run=args.dry_run)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

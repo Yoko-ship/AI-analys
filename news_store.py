@@ -111,6 +111,47 @@ def existing_urls(urls: list[str]) -> set[str]:
     return found
 
 
+def rows_without_image(*, limit: int = 40, days: int = 90) -> list[dict[str, Any]]:
+    """Stored items that still have no preview image — backfill candidates, newest first."""
+    conn = rc.get_catalog_conn()
+    rows = conn.execute(
+        """
+        SELECT id, url, source_id FROM news
+        WHERE (image_url IS NULL OR image_url = '')
+          AND (published_at IS NULL OR published_at >= datetime('now', ?))
+        ORDER BY COALESCE(published_at, collected_at) DESC LIMIT ?
+        """,
+        (f"-{int(days)} days", max(1, min(limit, 500))),
+    ).fetchall()
+    conn.close()
+    return [{"id": r["id"], "url": r["url"], "source_id": r["source_id"]} for r in rows]
+
+
+def set_image_urls(images: dict[str, str]) -> int:
+    """Fill in ``image_url`` for stored rows that have none; return rows changed.
+
+    Image-only updates come through here, never ``upsert_news``: that path also writes
+    ``news_nlp``, so an image-only record would reset the item's classification (and
+    with ``relevant`` gone, drop it out of the feed). Never overwrites an existing image.
+    """
+    if not images:
+        return 0
+    conn = rc.get_catalog_conn()
+    changed = 0
+    with conn:
+        for url, img in images.items():
+            if not url or not img:
+                continue
+            cur = conn.execute(
+                "UPDATE news SET image_url = ? "
+                "WHERE url = ? AND (image_url IS NULL OR image_url = '')",
+                (img, url),
+            )
+            changed += cur.rowcount
+    conn.close()
+    return changed
+
+
 def _row_to_item(r: Any) -> dict[str, Any]:
     return {
         "id": r["id"], "url": r["url"], "source": r["source"], "source_id": r["source_id"],

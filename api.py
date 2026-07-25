@@ -290,6 +290,11 @@ class AdminNewsRequest(BaseModel):
     items: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
 
 
+class AdminNewsImagesRequest(BaseModel):
+    """url → preview-image URL, for image-only updates of already-stored items."""
+    images: dict[str, str] = Field(default_factory=dict)
+
+
 # TZ §3.11: every news signal is statistical/analytical, never a diagnosis or a
 # claim of manipulation. Returned with every editorial-news response.
 NEWS_DISCLAIMER = (
@@ -1085,6 +1090,29 @@ async def api_admin_news(
         logger.exception("admin news upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True, "upserted": n}
+
+
+@app.post("/api/admin/news/images")
+async def api_admin_news_images(
+    payload: AdminNewsImagesRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Fill preview images (url → image_url) on already-stored news rows (§3.11).
+
+    The collector's ``--backfill-images`` pass pushes here rather than to
+    /api/admin/news: this only touches ``news.image_url`` on rows that have none, so a
+    stored item's classification (tone/impact/relevance) can never be overwritten.
+    """
+    images = payload.images or {}
+    if len(images) > 2000:
+        raise HTTPException(status_code=422, detail="too many images (max 2000 per call)")
+    loop = asyncio.get_running_loop()
+    try:
+        n = await loop.run_in_executor(None, partial(news_store.set_image_urls, images))
+    except Exception as exc:
+        logger.exception("admin news image update failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "updated": n}
 
 
 def _issuer_universe() -> dict[str, str]:
