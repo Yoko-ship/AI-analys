@@ -264,7 +264,31 @@
       "url_filter": "uzbek|hamkor|ipoteka|agrobank|alo[kq]abank|kapitalbank|asaka|uzpromstroy|sanoat[- ]?qurilish|qishloq|mikrokredit|turonbank|trustbank|ipak[- ]?yuli|infinbank|xalq|uzagroexport|uzauto|navoi|almalyk|uztransgaz|uzkimyo|tashkent|toshkent|orient[- ]?finans|davr[- ]?bank|anor[- ]?bank",
       "title_from": "slug",
       "slug_strip": "-{1,2}PR_\\d+$",
-      "notes": "Rating actions on Uzbek issuers and the sovereign. Verified 2026-07-25: Moody's publishes no usable feed, but ratingsnewsmap.xml is a rolling window of ~183 GLOBAL actions with the headline in the URL slug, and robots.txt permits it. url_filter is applied before any model call, so the ~99% naming no issuer of ours costs one shared HTTP request and nothing more. Headline only - the article pages return a 2.7KB SPA shell, and no page is opened anyway. No lastmod on these entries, so items arrive undated (kept by _is_recent, right for a window of current actions). Expect roughly one hit a week or two. Sister agencies are NOT reachable: spglobal.com answers 403 to every automated request including robots.txt, and fitchratings.com serves its content from /page-data/, which its own robots.txt disallows."
+      "notes": "Rating actions on Uzbek issuers and the sovereign. Verified 2026-07-25: Moody's publishes no usable feed, but ratingsnewsmap.xml is a rolling window of ~183 GLOBAL actions with the headline in the URL slug, and robots.txt permits it. url_filter is applied before any model call, so the ~99% naming no issuer of ours costs one shared HTTP request and nothing more. Headline only - the article pages return a 2.7KB SPA shell, and no page is opened anyway. No lastmod on these entries, so items arrive undated (kept by _is_recent, right for a window of current actions). Expect roughly one hit a week or two. Of the sister agencies, S&P stays unreachable (see the spglobal entry); Fitch turned out to BE reachable - see the fitch entry, the /page-data/ JSON its robots.txt disallows is only needed to read article pages, and we open none."
+    },
+    {
+      "id": "fitch",
+      "name": "Fitch Ratings",
+      "type": "sitemap",
+      "url": "https://www.fitchratings.com/sitemap-research.xml",
+      "lang": [
+        "en"
+      ],
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "caution",
+      "attribution": "Fitch Ratings (fitchratings.com)",
+      "enabled": true,
+      "crawl_delay_s": 30,
+      "feed_image": false,
+      "url_filter": "uzbek|toshkent|tashkent|hamkor|ipoteka|agrobank|asaka|aloqabank|kapitalbank|turonbank|trustbank|ipak[- ]?yuli|infinbank|xalq|mikrokredit|qishloq|sanoat[- ]?qurilish|uzpromstroy|uzauto|uzavto|navoi|almalyk|uztransgaz|uzsuvenergo|uzagroexport|orient[- ]?finans|davr[- ]?bank|anor[- ]?bank",
+      "title_from": "slug",
+      "slug_strip": "-\\d{2}-\\d{2}-\\d{4}$",
+      "slug_date": {
+        "pattern": "(\\d{2}-\\d{2}-\\d{4})$",
+        "format": "%d-%m-%Y"
+      },
+      "notes": "The second rating agency, read exactly like moodys. Verified 2026-07-28: /rss/press-releases and /rss/news are dead (both bounce to the /redirect/ SPA shell), but sitemap-research.xml is a live rolling set - 502 URLs the day it was checked, headline in the slug, date as a -dd-mm-yyyy suffix - and robots.txt disallows only /page-data/, /search, /redirect and /user-settings, none of which we touch since no article page is opened. Fitch does rate our market: its entity sitemap carries Asaka Bank, and the sovereign plus the state banks are all Fitch-rated, so url_filter is the same trick as moodys - the ~99.8% of global research naming nobody of ours costs one shared request. slug_date is required here: every entry's lastmod is the sitemap's own generation timestamp, so without it a five-day-old rating action would be published to readers as today's news."
     },
     {
       "id": "napp",
@@ -287,6 +311,56 @@
         "image": "a img"
       },
       "notes": "Uzbekistan capital-market regulator: licensing, the regulatory sandbox, crypto-asset and stablecoin rules, repo regulations - the primary source for the regulatory class, and it names our issuers directly (Ipak Yo'li AITB, Avesta Investment Group). Verified 2026-07-25: robots.txt is Disallow: with an EMPTY value, i.e. crawling is allowed; there is no RSS and no sitemap (every feed path returns the same catch-all HTML), so the listing page is the only machine-readable route. Titles on /ru are Russian even though the slugs are Uzbek. Publishes routine exam notices and seminars alongside real regulation, so it is deliberately NOT exempt from the relevance floor - unlike moodys, let the classifier sort it."
+    },
+    {
+      "id": "thediplomat",
+      "name": "The Diplomat — Central Asia",
+      "type": "rss",
+      "url": "https://thediplomat.com/regions/central-asia/feed/",
+      "lang": [
+        "en"
+      ],
+      "content": "snippet",
+      "coverage_weight": 0.5,
+      "legal": "caution",
+      "attribution": "The Diplomat (thediplomat.com)",
+      "enabled": true,
+      "crawl_delay_s": 15,
+      "max_items": 15,
+      "notes": "Regional context the local outlets do not write: reform politics, the China-Kyrgyzstan-Uzbekistan railway, energy and crypto policy. Verified 2026-07-28 - the REGION feed, not thediplomat.com/feed: both ship 96 entries, but the site-wide one is Asia-Pacific (3 mentions of Uzbekistan against 72 here) and would burn triage calls on Vietnamese AI law. Every entry is dated, carries its own image, and ships a 70-160 char teaser with no content:encoded, so snippet-only holds by construction. Volume is ~10 items per 18 days, most of them Kazakh/Kyrgyz - deliberately NOT exempt from the relevance floor, and at that rate the classifier calls are noise. robots.txt allows * everywhere but /wp-admin, while banning AI-labelled crawlers BY NAME (ClaudeBot, GPTBot, anthropic-ai, CCBot, Google-Extended, Bytespider) and setting Content-Signal ai-train=no, use=reference: our DEFAULT_UA is neutral and must stay that way, we never train on it, and we store headline + link + our own summary only."
+    },
+    {
+      "id": "imf",
+      "name": "IMF — press releases",
+      "type": "rss",
+      "url": "https://www.imf.org/en/News/RSS?language=eng",
+      "lang": [
+        "en"
+      ],
+      "content": "snippet",
+      "coverage_weight": 0.9,
+      "legal": "caution",
+      "attribution": "International Monetary Fund (imf.org)",
+      "enabled": false,
+      "crawl_delay_s": 20,
+      "notes": "Article IV consultations, mission statements and WEO updates on Uzbekistan - a handful a year, but authoritative for the macro class. NOT deferred, blocked: checked 2026-07-28 from our network, every /en/ path (news RSS, /en/rss, /en/Countries/UZB, /en/Blogs, sitemap.xml) answers 403 Access Denied from the edge for BOTH our neutral bot UA and a full Chrome header set (Sec-Fetch-*, sec-ch-ua, Accept-Language), while /robots.txt itself returns 200 and disallows none of them. The legacy /external/ feeds (country/UZB/rss.xml, cntpst, pubs/ft/survey/sorss.xml) are all gone - they 404 into the Next.js error page. The url above is the documented feed, left here unverified. Before enabling, re-run the check from the Railway egress (a different IP may not be filtered) and confirm the feed returns XML; IMF news about Uzbekistan is in any case relayed by uzdaily and kursiv, which we already read."
+    },
+    {
+      "id": "spglobal",
+      "name": "S&P Global Ratings",
+      "type": "sitemap",
+      "url": "https://www.spglobal.com/ratings/en/",
+      "lang": [
+        "en"
+      ],
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "caution",
+      "attribution": "S&P Global Ratings (spglobal.com)",
+      "enabled": false,
+      "crawl_delay_s": 30,
+      "feed_image": false,
+      "notes": "The third agency, and the only one of the three with no route at all. Re-verified 2026-07-28: www.spglobal.com answers 403 to every automated request - /robots.txt, /ratings/en/, /ratings/en/rss/index.xml alike - for our neutral bot UA and for a full Chrome header set. press.spglobal.com does answer 200 but serves an HTML press page, not a feed. Nothing here is crawl-shy behaviour we can fix with a header or a delay; enabling this needs a licensed feed. Moody's (moodys) and Fitch (fitch) cover the same rating actions on our issuers."
     }
   ]
 }

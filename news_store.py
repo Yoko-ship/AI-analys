@@ -38,11 +38,12 @@ _IMPACT_WEIGHT = {"high": 1.0, "medium": 0.65, "low": 0.35, "none": 0.1}
 _TYPE_WEIGHT = {"financial_report": 1.0, "corporate_event": 1.0, "regulatory": 0.8,
                 "market": 0.6}
 # Sources whose relevance is established before the model sees them, so the noise floor must
-# not drop their items: openinfo filings are news because the issuer filed them, and a Moody's
-# item only reaches us if the collector's url_filter already matched an issuer of ours or the
-# sovereign. Rating actions are rare and market-moving — losing one to a 0.29 score would hurt
-# far more than admitting the occasional dull affirmation.
-_AUTHORITATIVE_SOURCES = {"openinfo_facts", "moodys"}
+# not drop their items: openinfo filings are news because the issuer filed them, and a rating
+# agency's item only reaches us if the collector's url_filter already matched an issuer of ours
+# or the sovereign. Rating actions are rare and market-moving — losing one to a 0.29 score would
+# hurt far more than admitting the occasional dull affirmation. Sources read whole (napp,
+# thediplomat) are NOT here: nothing has vouched for their items before the model reads them.
+_AUTHORITATIVE_SOURCES = {"openinfo_facts", "moodys", "fitch"}
 # Half-life of the recency decay: a story is worth half as much after this many hours.
 _RANK_HALF_LIFE_H = float(os.getenv("NEWS_RANK_HALF_LIFE_H", "36"))
 # Items the model marked relevant but scored below this are dropped as noise. Measured
