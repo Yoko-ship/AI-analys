@@ -278,7 +278,9 @@ runs is lost for good. Measured 2026-07-25:
 | **kun** | **15** | **~8h** | **~45/day** | **15 of 45** |
 | cbu | **10** (listing) | months | ~2–5/month | all |
 | moodys | 183 global → **filtered** | ~1 day | ~1 Uzbek hit/1–2 weeks | all that match |
+| fitch | 502 global → **filtered** | ~5 business days | ~1 Uzbek hit/1–2 weeks | all that match |
 | napp | 12 (listing) | ~13 days | ~0.5/day | all |
+| thediplomat | 96 (Central Asia) | ~96 days | ~1/day | all (cap 15) |
 | openinfo | paged | months | ~7/day (ours) | all |
 
 Once daily costs the two highest-volume general feeds: Kun.uz truncates at 15 items covering
@@ -301,7 +303,7 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 
 ## MVP scope & what's pending
 
-Enabled now: `openinfo_facts`, `cbu`, `napp`, `moodys`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
+Enabled now: `openinfo_facts`, `cbu`, `napp`, `moodys`, `fitch`, `thediplomat`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
 taxonomy categories 1–9). Working today: RSS / html_list / sitemap / openinfo fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
@@ -323,6 +325,45 @@ rules. It has no RSS and no sitemap — every feed path returns the same catch-a
 listing page is the only machine-readable route; `robots.txt` is `Disallow:` with an **empty**
 value, which permits crawling. It also publishes exam notices and seminars, so unlike `moodys`
 it is deliberately **not** exempt from the relevance floor — the classifier sorts it.
+
+### The second rating agency, the regional desk, and two that stay shut (2026-07-28)
+
+**`fitch`** joins `moodys` on the same `sitemap` adapter. Its `/rss/*` paths are dead — both
+bounce to the `/redirect/` SPA shell — but `sitemap-research.xml` is live and crawlable
+(`robots.txt` disallows only `/page-data/`, `/search`, `/redirect`, `/user-settings`, and we
+open no article page, so none of it is touched). It carried 502 URLs when checked, ~100 per
+business day, headline in the slug and the date as a `-DD-MM-YYYY` suffix. Fitch does rate this
+market — its entity sitemap lists Asaka Bank, and the sovereign and state banks are Fitch-rated
+— so the same `url_filter` trick applies: the ~99.8% of global research naming nobody of ours
+is dropped before any model call, for one shared request. One new knob was needed:
+`slug_date`, because Fitch stamps **every** entry's `<lastmod>` with the sitemap's own
+generation time — trusting it would publish a five-day-old rating action as today's news, and
+would make the 30-day recency filter a no-op for the handful of 2024–2025 stragglers that sit
+in the file. Like `moodys`, `fitch` is exempt from the relevance floor (`news_store.py`):
+by the time an item reaches the model, the URL filter has already vouched for it.
+
+**`thediplomat`** is the regional-context desk — reform politics, the China–Kyrgyzstan–Uzbekistan
+railway, energy and crypto policy — read from the **Central Asia region feed**, not the
+site-wide one: both ship 96 entries, but the site-wide feed is Asia-Pacific (3 mentions of
+Uzbekistan against 72) and would spend triage calls on Vietnamese AI law. ~1 item/day over a
+96-day window, every entry dated and carrying its own image, teasers of 70–160 characters and
+no `content:encoded`, so snippet-only holds by construction. Most items are Kazakh or Kyrgyz,
+so it is **not** exempt from the relevance floor. Its `robots.txt` allows `*` everywhere but
+`/wp-admin`, while banning AI-labelled crawlers by name (ClaudeBot, GPTBot, anthropic-ai,
+CCBot, Google-Extended, Bytespider) and setting `Content-Signal: ai-train=no, use=reference` —
+our `DEFAULT_UA` is neutral and must stay that way, we never train on it, and we keep the
+headline + link + our own summary only.
+
+**`imf`** and **`spglobal`** are in the registry `enabled: false` with their evidence, so the
+next person does not re-run the same probes. Every `imf.org/en/` path answers **403** from the
+edge — news RSS, `/en/rss`, `/en/Countries/UZB`, `sitemap.xml` — for our neutral bot UA *and*
+for a full Chrome header set, while `/robots.txt` itself returns 200 and forbids none of them;
+the legacy `/external/` feeds are gone (404 into the SPA error page). IMF news about Uzbekistan
+reaches us second-hand through `uzdaily` and `kursiv` anyway. `spglobal.com` is the same wall
+and has been since the first check: 403 to everything including `/robots.txt`;
+`press.spglobal.com` answers but serves HTML, not a feed. Neither is a crawl-politeness problem
+a header or a delay can fix — enabling them needs a licensed feed, or (for IMF) a re-check from
+the Railway egress, whose IP may not be filtered.
 
 CBU items are **title-only by the publisher**: the listing renders an empty `news__text` and
 the article pages carry no `og:description`. That is CBU, not a gap in the adapter — do not

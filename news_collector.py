@@ -992,6 +992,11 @@ def fetch_sitemap(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     (``title_from: "slug"``), so no article page is fetched and no body is stored. Entries
     without a ``<lastmod>`` arrive undated, which ``_is_recent`` keeps — correct for a
     rolling window that only ever lists current actions.
+
+    ``slug_date`` reads the publication date out of the URL instead of trusting
+    ``<lastmod>``. Fitch regenerates its research sitemap daily and stamps EVERY entry with
+    the generation time, so a rating action published five days ago would be served to
+    readers as today's news; its slug ends in the real date (``…-23-07-2026``).
     """
     try:
         resp = requests.get(source["url"], timeout=40,
@@ -1022,17 +1027,29 @@ def fetch_sitemap(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
         return []
 
     strip_pattern = source.get("slug_strip")
+    slug_date = source.get("slug_date") or {}
+    date_pattern = slug_date.get("pattern")
+    date_format = slug_date.get("format", "%d-%m-%Y")
     items: list[dict[str, Any]] = []
     for url, lastmod in entries[:limit]:
         title = _title_from_slug(url, strip_pattern)
         if not title:
             continue
+        published = lastmod
+        if date_pattern:
+            match = re.search(date_pattern, url)
+            if match:
+                try:
+                    published = datetime.strptime(match.group(1), date_format).strftime("%Y-%m-%d")
+                except ValueError:
+                    logger.warning("  %s: unparseable slug date %r in %s",
+                                   source["id"], match.group(1), url)
         items.append({
             "url": _canonical_url(url),
             "raw_url": url,
             "title": title,
             "snippet": "",
-            "published_at": lastmod,
+            "published_at": published,
             "image_url": None,
             "lang": (source.get("lang") or ["en"])[0],
         })
