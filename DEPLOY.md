@@ -224,9 +224,22 @@ Schedule it on any host that can reach openinfo:
 
   | Service | `APP_MODE` | Cron (UTC) | Tashkent | Scope |
   | --- | --- | --- | --- | --- |
-  | `collector` | `collector` | `0 3 * * *` | 08:00 | full pipeline |
-  | `quotes-1300` | `quotes` | `0 8 * * *` | 13:00 | quotes/turnover, mid-session |
-  | `quotes-1610` | `quotes` | `10 11 * * *` | 16:10 | quotes/turnover, after the close |
+  | `collector` | `collector` | `0 3 * * 1-5` | 08:00 Mon–Fri | full pipeline |
+  | `quotes-1300` | `quotes` | `0 8 * * 2-6` | 13:00 Tue–Sat | quotes/turnover, mid-session |
+  | `quotes-1610` | `quotes` | `10 11 * * 1-6` | 16:10 Mon–Sat | quotes/turnover, after the close |
+
+  The days each service skips are the days uzse has nothing to give. `uzse.uz/trade_results/`
+  is a rolling window of about **two calendar days** (yesterday + today), and a session's
+  executions keep landing in it until ~21:00 Tashkent — so the *complete* day-N session is
+  only readable on day N+1, and by day N+2 it is gone. Consequences worth knowing:
+
+  - Sunday every run sees Sat+Sun and gets nothing; Monday 08:00 and 13:00 see Sun+Mon and
+    likewise get nothing (Monday's own trades start publishing ~15:00). An empty fetch makes
+    `push_trade_stats` return 1, so the run exits non-zero and Railway paints the cron card
+    red — a red `collector` on a Monday morning is this, not a broken pipeline. Everything
+    else in that run (financials, facts, listings, reconcile) still collects and pushes.
+  - Friday's finished session is picked up by **`quotes-1300` on Saturday**. That is the only
+    scheduled run that can see it, which is why quotes-1300 runs Tue–Sat rather than Mon–Fri.
 
   Re-running the same session is safe by design: `bulk_upsert_trade_stats` accepts
   a same-day correction (a later run sees more executions) and refuses anything
