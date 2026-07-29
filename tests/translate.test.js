@@ -31,12 +31,12 @@ describe("a browser without the on-device translator", () => {
   });
 
   it("resolves to an empty translation instead of throwing", async () => {
-    const out = await translateHeadline("Uzbekistan Signs Railway Deal", "en");
+    const out = await translateHeadline("Uzbekistan Signs Railway Deal", "en", "ru");
     assert.deepEqual(out, { text: "", status: "unsupported" });
   });
 
   it("reports 'unsupported' availability", async () => {
-    assert.equal(await availability("en"), "unsupported");
+    assert.equal(await availability("en", "ru"), "unsupported");
   });
 
   it("treats an unreadable localStorage as no consent", () => {
@@ -50,17 +50,17 @@ describe("a browser without the on-device translator", () => {
 
 describe("guards that hold whatever the browser supports", () => {
   it("never translates empty text or a missing source language", async () => {
-    assert.equal((await translateHeadline("", "en")).text, "");
-    assert.equal((await translateHeadline("Some headline", "")).text, "");
-    assert.equal((await translateHeadline(null, "en")).text, "");
+    assert.equal((await translateHeadline("", "en", "ru")).text, "");
+    assert.equal((await translateHeadline("Some headline", "", "ru")).text, "");
+    assert.equal((await translateHeadline(null, "en", "ru")).text, "");
   });
 
-  it("never translates Russian into Russian", async () => {
-    assert.equal(await availability("ru"), "unsupported");
+  it("never translates a language into itself", async () => {
+    assert.equal(await availability("ru", "ru"), "unsupported");
   });
 
   it("reports nothing cached for text it has not translated", () => {
-    assert.equal(cachedTranslation("Central Asia Weighs Its Options", "en"), "");
+    assert.equal(cachedTranslation("Central Asia Weighs Its Options", "en", "ru"), "");
   });
 });
 
@@ -74,11 +74,11 @@ describe("a browser that does have the translator", () => {
 
   it("translates when the language pack is already installed", async () => {
     fakeTranslator({ status: "available", translate: () => "Узбекистан подписал соглашение" });
-    const out = await translateHeadline("Uzbekistan Signs Railway Deal", "en");
+    const out = await translateHeadline("Uzbekistan Signs Railway Deal", "en", "ru");
     assert.equal(out.text, "Узбекистан подписал соглашение");
     // ...and serves the same headline from cache afterwards, so the feed, the rail and the
     // related block cost one call between them rather than one each.
-    assert.equal(cachedTranslation("Uzbekistan Signs Railway Deal", "en"),
+    assert.equal(cachedTranslation("Uzbekistan Signs Railway Deal", "en", "ru"),
                  "Узбекистан подписал соглашение");
   });
 
@@ -88,7 +88,7 @@ describe("a browser that does have the translator", () => {
       availability: async () => "downloadable",
       create: async () => { created = true; return { translate: async () => "нет" }; },
     };
-    const out = await translateHeadline("Central Asia Weighs Its Options", "en");
+    const out = await translateHeadline("Central Asia Weighs Its Options", "en", "ru");
     assert.equal(out.text, "");
     assert.equal(out.status, "downloadable");
     assert.equal(created, false, "a pack must only be fetched from an explicit user action");
@@ -96,19 +96,54 @@ describe("a browser that does have the translator", () => {
 
   it("downloads when the reader explicitly asks", async () => {
     fakeTranslator({ status: "downloadable", translate: () => "Центральная Азия взвешивает варианты" });
-    const out = await translateHeadline("Central Asia Weighs Its Options", "en", { download: true });
+    const out = await translateHeadline("Central Asia Weighs Its Options", "en", "ru", { download: true });
     assert.equal(out.text, "Центральная Азия взвешивает варианты");
   });
 
   it("treats an echoed-back source string as a failed translation", async () => {
     fakeTranslator({ status: "available", translate: (t) => t });
-    const out = await translateHeadline("Fitch Affirms Uzbekistan", "en");
+    const out = await translateHeadline("Fitch Affirms Uzbekistan", "en", "ru");
     assert.equal(out.text, "", "an untranslated echo must fall back, not pose as Russian");
   });
 
   it("survives a translator that throws mid-call", async () => {
     fakeTranslator({ status: "available", translate: () => { throw new Error("model died"); } });
-    const out = await translateHeadline("Uzbekistan Signs Deal With China", "en");
+    const out = await translateHeadline("Uzbekistan Signs Deal With China", "en", "ru");
     assert.equal(out.text, "");
+  });
+});
+
+describe("the target language is the reader's, not a constant", () => {
+  it("translates ru->en for the English site", async () => {
+    globalThis.Translator = {
+      availability: async ({ sourceLanguage, targetLanguage }) =>
+        (sourceLanguage === "ru" && targetLanguage === "en" ? "available" : "unavailable"),
+      create: async () => ({ translate: async () => "The central bank held the rate" }),
+    };
+    const out = await translateHeadline("ЦБ сохранил ставку", "ru", "en");
+    assert.equal(out.text, "The central bank held the rate");
+  });
+
+  // Checked against real Chrome on 2026-07-29: every Uzbek pair reports "unavailable".
+  // The Uzbek site therefore has no browser route at all and must fall back to the stored
+  // summary_uz — this asserts it degrades quietly instead of throwing or blanking.
+  it("gives up quietly on Uzbek, which Chrome cannot do", async () => {
+    globalThis.Translator = {
+      availability: async ({ targetLanguage }) => (targetLanguage === "uz" ? "unavailable" : "available"),
+      create: async () => ({ translate: async () => "should never be reached" }),
+    };
+    const out = await translateHeadline("ЦБ сохранил ставку", "ru", "uz");
+    assert.equal(out.text, "");
+    assert.equal(out.status, "unavailable");
+  });
+
+  it("caches per direction, so ru->en cannot be served to an Uzbek reader", async () => {
+    globalThis.Translator = {
+      availability: async () => "available",
+      create: async () => ({ translate: async () => "English text" }),
+    };
+    await translateHeadline("ЦБ сохранил ставку", "ru", "en");
+    assert.equal(cachedTranslation("ЦБ сохранил ставку", "ru", "en"), "English text");
+    assert.equal(cachedTranslation("ЦБ сохранил ставку", "ru", "uz"), "");
   });
 });

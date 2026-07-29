@@ -305,6 +305,48 @@ test("the market CSV is our report, not a board dump (§3.8)", async ({ page }) 
   expect(row[header.split(";").indexOf("Изм., %")]).toBe("4,17");
 });
 
+// The site is served in three languages but every stored summary used to be Russian, so
+// the English and Uzbek versions served a Russian feed. The classifier now writes all three
+// and the read path ships one headline per language; this pins that each reader gets theirs.
+const TRILINGUAL = [
+  { id: 91, url: "https://kursiv.uz/a", source: "Kursiv", source_id: "kursiv", lang: "ru",
+    title: "ЦБ сохранил ставку на уровне 13,5%", snippet: "Совет ЦБ принял решение.",
+    summary_ru: "Центробанк сохранил ставку.", summary_en: "The central bank held its rate.",
+    summary_uz: "Markaziy bank stavkani saqlab qoldi.",
+    title_ru: null, title_en: "The central bank held its rate.",
+    title_uz: "Markaziy bank stavkani saqlab qoldi.",
+    translatable: true, image_url: null, published_at: "2026-07-29 09:00:00",
+    type: "regulatory", tone: "neutral", tone_score: 0, impact: "high", direction: "unclear",
+    sectors: [], relevance_score: 0.8, coverage_weight: 0.9, tickers: [], rank: 0.8 },
+];
+
+for (const [lang, expected] of [
+  ["ru", "ЦБ сохранил ставку на уровне 13,5%"],
+  ["en", "The central bank held its rate."],
+  ["uz", "Markaziy bank stavkani saqlab qoldi."],
+]) {
+  test(`the ${lang} feed reads in ${lang} (§3.11)`, async ({ page }) => {
+    await mockApi(page);
+    await page.route("**/api/news/feed**", (route) => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ ok: true, count: 1, items: TRILINGUAL, disclaimer: "d" }),
+    }));
+    await page.addInitScript((l) => {
+      try { localStorage.setItem("uz_stock_analyzer_language", l); } catch { /* ignore */ }
+    }, lang);
+    await page.goto("/news");
+    await expect(page.locator(".led-lead-title")).toHaveText(expected);
+    if (lang !== "ru") {
+      // The summary is now the headline, so it must not also be printed as the dek…
+      await expect(page.locator(".led-dek:not(.led-orig)")).toHaveCount(0);
+      // …and the publisher's own Russian headline stays on the card as attribution,
+      // badged with the language it is in.
+      await expect(page.locator(".led-orig")).toContainText("ЦБ сохранил ставку");
+      await expect(page.locator(".led-orig .led-lang")).toHaveText("ru");
+    }
+  });
+}
+
 test("analysis renders the §3.4 risk profile", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "e2e-token"));
   await page.route("**/api/auth/me", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: { full_name: "E2E", email: "e2e@test.uz" } }) }));

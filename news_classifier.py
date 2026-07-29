@@ -65,6 +65,14 @@ class NewsClassification(BaseModel):
     tickers: list[str] = Field(default_factory=list)
     sectors: list[str] = Field(default_factory=list)
     summary_ru: str = Field(default="", description="Our own 1-2 sentence factual summary in Russian.")
+    # The site is served in three languages. These come from the SAME call that writes
+    # summary_ru — no second request, no translation provider, no key — because the only
+    # free alternative cannot do the job: real Chrome's on-device translator reports
+    # ru->uz, uz->ru and en->uz as "unavailable" (checked 2026-07-29), so the Uzbek feed
+    # has no browser-side route at all. Empty is tolerated: the reader falls back to
+    # Russian rather than to a blank card.
+    summary_en: str = Field(default="", description="The same summary in English.")
+    summary_uz: str = Field(default="", description="The same summary in Uzbek (Latin script).")
     reason: str = Field(default="", description="Brief why-this-class/tone note.")
 
     @field_validator("tickers", "sectors", mode="before")
@@ -356,8 +364,10 @@ def classify_items(items: list[dict[str, Any]], universe: dict[str, str] | None 
             continue
         rows: dict[int, dict[str, Any]] = {}
         try:
+            # 480 -> 620: two more summaries of the same length as summary_ru. Measured
+            # 2026-07-29 the reply averaged ~380 tokens an item, so the headroom holds.
             raw = client.complete_json(system, _numbered(chunk), usage=usage,
-                                       max_tokens=480 * len(chunk) + 200)
+                                       max_tokens=620 * len(chunk) + 200)
             rows = _by_number(raw, len(chunk))
         except Exception as exc:  # noqa: BLE001
             logger.warning("batched classification failed for %d item(s) (%s); "
@@ -402,10 +412,14 @@ never a claim of manipulation or "attack"):
 6. tickers — ONLY symbols from the provided issuer universe that the item is genuinely about. Empty if none.
 7. sectors — affected sectors (e.g. "banking", "cement", "energy"), if any.
 8. summary_ru — YOUR OWN 1-2 sentence factual summary in Russian. Do NOT copy the source's wording.
-9. reason — why this class/tone, in AT MOST 12 WORDS. It is an internal note, never shown.
+9. summary_en / summary_uz — THE SAME summary in English and in Uzbek (Latin script).
+   Same facts, same figures, same length as summary_ru — a translation of your own summary,
+   not a second opinion and not a longer one. Uzbek in Latin script only, never Cyrillic.
+10. reason — why this class/tone, in AT MOST 12 WORDS. It is an internal note, never shown.
 
 Reply with ONLY a JSON object with keys:
-relevant, relevance_score, type, tone, tone_score, impact, direction, tickers, sectors, summary_ru, reason."""
+relevant, relevance_score, type, tone, tone_score, impact, direction, tickers, sectors,
+summary_ru, summary_en, summary_uz, reason."""
 
 
 # Filings arrive with their issuer and class already known (openinfo org_id → ticker,
@@ -425,9 +439,11 @@ claim of manipulation or "attack"):
 3. direction — up / down / mixed / unclear (an estimate, not advice).
 4. summary_ru — YOUR OWN one-sentence factual summary in Russian, based only on what the
    filing's title states. Never invent amounts, dates or counterparties.
-5. reason — at most 12 words, an internal note.
+5. summary_en / summary_uz — the same sentence in English and in Uzbek (Latin script).
+6. reason — at most 12 words, an internal note.
 
-Reply with ONLY a JSON object with keys: tone, tone_score, impact, direction, summary_ru, reason."""
+Reply with ONLY a JSON object with keys: tone, tone_score, impact, direction,
+summary_ru, summary_en, summary_uz, reason."""
 
 
 def classify_filings(items: list[dict[str, Any]], *, client: LLMClient | None = None,
@@ -451,6 +467,8 @@ def classify_filings(items: list[dict[str, Any]], *, client: LLMClient | None = 
             "impact": row.get("impact"), "direction": row.get("direction"),
             "tickers": item.get("tickers") or [], "sectors": [],
             "summary_ru": row.get("summary_ru") or "",
+            "summary_en": row.get("summary_en") or "",
+            "summary_uz": row.get("summary_uz") or "",
             "reason": (row.get("reason") or "issuer filing")[:200],
         })
 
@@ -462,7 +480,7 @@ def classify_filings(items: list[dict[str, Any]], *, client: LLMClient | None = 
             system = _FILING_SYSTEM if single else _FILING_SYSTEM + _BATCH_PROTOCOL
             user = _format_item(chunk[0]) if single else _numbered(chunk)
             raw = client.complete_json(system, user, usage=usage,
-                                       max_tokens=(300 if single else 260 * len(chunk) + 200))
+                                       max_tokens=(420 if single else 380 * len(chunk) + 200))
             rows = {1: raw} if single else _by_number(raw, len(chunk))
         except Exception as exc:  # noqa: BLE001 — a filing must still be stored
             logger.warning("filing rating failed for %d item(s): %s", len(chunk), exc)
@@ -485,6 +503,52 @@ def classify_filings(items: list[dict[str, Any]], *, client: LLMClient | None = 
                                       "summary_ru": it.get("snippet") or "",
                                       "reason": "filing stored unrated"}, it))
     return results
+
+
+# Backfill only. New items get all three summaries from the classification call itself; this
+# exists for rows stored before those columns did. No issuer universe, no judgement, no
+# re-classification — just the Russian sentence we already wrote, in the other two languages,
+# so a backfill can never change an item's tone, impact or issuer links.
+_TRANSLATE_SYSTEM = """You translate short financial-news summaries for a Uzbekistan
+stock-market platform. You are given a summary in Russian that the platform wrote itself.
+
+Return it in English and in Uzbek (Latin script only, never Cyrillic). Same facts, same
+figures, same length — a translation, not a rewrite, not a summary of the summary, and never
+an addition. Keep tickers, company names and numbers exactly as they appear.
+
+Reply with ONLY a JSON object: {"summary_en": "...", "summary_uz": "..."}"""
+
+
+def translate_summaries(items: list[dict[str, Any]], *, client: LLMClient | None = None,
+                        usage: Usage | None = None) -> list[dict[str, str]]:
+    """``[{"en": ..., "uz": ...}, ...]`` aligned with ``items`` (each needs ``summary_ru``).
+
+    Batched like the other gates. A row that fails comes back as empty strings, which the
+    caller stores as "no translation" — the reader then falls back to Russian, exactly as
+    they did before this existed.
+    """
+    out: list[dict[str, str]] = []
+    client = client or get_classifier_client()
+    for start in range(0, len(items), _BATCH_SIZE):
+        chunk = items[start:start + _BATCH_SIZE]
+        rows: dict[int, dict[str, Any]] = {}
+        single = len(chunk) == 1
+        body = "\n\n".join(
+            f"### ITEM {i + 1}\n{(it.get('summary_ru') or '').strip()}"
+            for i, it in enumerate(chunk))
+        try:
+            system = _TRANSLATE_SYSTEM if single else _TRANSLATE_SYSTEM + _BATCH_PROTOCOL
+            user = (chunk[0].get("summary_ru") or "").strip() if single else body
+            raw = client.complete_json(system, user, usage=usage,
+                                       max_tokens=(220 if single else 200 * len(chunk) + 150))
+            rows = {1: raw} if single else _by_number(raw, len(chunk))
+        except Exception as exc:  # noqa: BLE001 — a failed backfill must not abort the run
+            logger.warning("summary translation failed for %d item(s): %s", len(chunk), exc)
+        for i in range(1, len(chunk) + 1):
+            row = rows.get(i) or {}
+            out.append({"en": str(row.get("summary_en") or "").strip(),
+                        "uz": str(row.get("summary_uz") or "").strip()})
+    return out
 
 
 def _format_universe(universe: dict[str, str] | None, limit: int = 120) -> str:

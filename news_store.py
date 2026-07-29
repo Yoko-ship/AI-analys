@@ -25,7 +25,11 @@ logger = logging.getLogger(__name__)
 
 # Whitelisted so a pushed row can never smuggle arbitrary columns.
 _NEWS_FIELDS = ("url", "source", "source_id", "lang", "title", "snippet", "summary_ru",
-                "image_url", "published_at", "coverage_weight")
+                "summary_en", "summary_uz", "image_url", "published_at", "coverage_weight")
+# The UI languages a stored summary exists for. Russian is the pivot: it is what the
+# classifier writes first and what every other language falls back to, so a missing
+# translation costs a reader the wrong language, never a blank card.
+SUMMARY_LANGS = ("ru", "en", "uz")
 _NLP_FIELDS = ("relevant", "relevance_score", "type", "tone", "tone_score",
                "impact", "direction", "reason", "model")
 
@@ -98,18 +102,25 @@ def upsert_news(items: list[dict[str, Any]]) -> int:
             cur = conn.execute(
                 """
                 INSERT INTO news (url, source, source_id, lang, title, snippet, summary_ru,
+                                  summary_en, summary_uz,
                                   image_url, published_at, coverage_weight, collected_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                 ON CONFLICT(url) DO UPDATE SET
                     title           = excluded.title,
                     snippet         = excluded.snippet,
                     summary_ru      = excluded.summary_ru,
+                    -- COALESCE, unlike summary_ru: a re-push that could not produce a
+                    -- translation must not wipe one an earlier run (or the backfill)
+                    -- already wrote.
+                    summary_en      = COALESCE(NULLIF(excluded.summary_en, ''), news.summary_en),
+                    summary_uz      = COALESCE(NULLIF(excluded.summary_uz, ''), news.summary_uz),
                     image_url       = COALESCE(excluded.image_url, news.image_url),
                     published_at    = COALESCE(excluded.published_at, news.published_at),
                     coverage_weight = excluded.coverage_weight
                 """,
                 (url, it.get("source", ""), it.get("source_id"), it.get("lang"),
                  it.get("title", "").strip(), it.get("snippet"), it.get("summary_ru"),
+                 it.get("summary_en"), it.get("summary_uz"),
                  it.get("image_url"), it.get("published_at"), float(it.get("coverage_weight") or 0.5)),
             )
             row = conn.execute("SELECT id FROM news WHERE url = ?", (url,)).fetchone()
@@ -237,6 +248,60 @@ def set_image_urls(images: dict[str, str]) -> int:
     return changed
 
 
+def rows_missing_translations(*, limit: int = 60, days: int = 90) -> list[dict[str, Any]]:
+    """Stored items that have a Russian summary but not an English or Uzbek one.
+
+    These are rows collected before the classifier wrote all three. Feed-visible items first
+    (``relevant``, then newest), for the same reason the image backfill orders that way: the
+    per-run budget should be spent on cards users actually see.
+    """
+    conn = rc.get_catalog_conn()
+    rows = conn.execute(
+        """
+        SELECT n.url, n.title, n.summary_ru, n.summary_en, n.summary_uz
+        FROM news n LEFT JOIN news_nlp p ON p.news_id = n.id
+        WHERE COALESCE(n.summary_ru, '') <> ''
+          AND (COALESCE(n.summary_en, '') = '' OR COALESCE(n.summary_uz, '') = '')
+          AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))
+        ORDER BY COALESCE(p.relevant, 0) DESC, COALESCE(n.published_at, n.collected_at) DESC
+        LIMIT ?
+        """,
+        (f"-{int(days)} days", max(1, min(limit, 500))),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def set_translations(translations: dict[str, dict[str, str]]) -> int:
+    """Fill ``summary_en`` / ``summary_uz`` on stored rows; return rows changed.
+
+    A partial update for the same reason as :func:`set_image_urls`: ``upsert_news`` also
+    writes ``news_nlp``, so a translation-only record would reset the item's classification
+    and drop it out of the feed. Only writes where the column is still empty, so a re-run is
+    free and can never overwrite a translation the classifier itself produced.
+    """
+    if not translations:
+        return 0
+    conn = rc.get_catalog_conn()
+    changed = 0
+    with conn:
+        for url, langs in translations.items():
+            if not url or not isinstance(langs, dict):
+                continue
+            for code in ("en", "uz"):
+                text = (langs.get(code) or "").strip()
+                if not text:
+                    continue
+                cur = conn.execute(
+                    f"UPDATE news SET summary_{code} = ? "
+                    f"WHERE url = ? AND COALESCE(summary_{code}, '') = ''",
+                    (text, url),
+                )
+                changed += cur.rowcount
+    conn.close()
+    return changed
+
+
 def set_snippets(snippets: dict[str, str]) -> int:
     """Replace ``news.snippet`` on already-stored rows; return rows changed.
 
@@ -300,14 +365,33 @@ def delete_failed_classifications(*, limit: int = 1000) -> dict[str, Any]:
     return {"deleted": len(ids), "by_source": by_source}
 
 
-def ru_headline(item: dict[str, Any]) -> str | None:
-    """A Russian headline for an item whose own headline is not one — else None.
+def summary_for(item: dict[str, Any], lang: str) -> str:
+    """The stored summary in ``lang``, falling back to Russian, then to "".
 
-    Nothing is translated here, and nothing can be without a model. What we already have is
-    ``summary_ru``: the one-sentence Russian summary the classifier wrote when the item was
-    collected, which until now sat as small print underneath an English or Uzbek headline.
-    Promoting it to the headline costs no call, adds no dependency, and puts our own text on
-    the card instead of the source's.
+    Russian is the pivot: it is what the classifier writes first, and a row collected before
+    the other two columns existed has only that. Falling back keeps a card readable in the
+    wrong language rather than empty, which is the better failure.
+    """
+    if lang in SUMMARY_LANGS:
+        text = (item.get(f"summary_{lang}") or "").strip()
+        if text:
+            return text
+    return (item.get("summary_ru") or "").strip()
+
+
+def headline_for(item: dict[str, Any], lang: str) -> str | None:
+    """A headline in ``lang`` for an item whose own headline is in another language — else None.
+
+    Nothing is translated on this path. What we already have is the classifier's own
+    one-or-two-sentence summary, written in all three UI languages in the same call that
+    classified the item, which until now sat as small print underneath a headline the reader
+    could not read. Promoting it to the headline costs no call and puts our own text on the
+    card instead of the source's.
+
+    An item counts as foreign when its own language is not the reader's — so on the English
+    site a Russian headline needs this exactly as much as an English one does on the Russian
+    site. Returns None when the item is already in the reader's language, or when we have no
+    summary to promote (the caller then keeps the original rather than blanking the card).
 
     Deliberately NOT a phrase-table translation of the rating agencies' headlines, formulaic
     though those are ("fitch affirms uzbekistan at bb outlook stable" and a few dozen
@@ -317,9 +401,10 @@ def ru_headline(item: dict[str, Any]) -> str | None:
     much worse failure than an English headline, so the original wording stays authoritative
     and the card shows it as attribution.
     """
-    if not news_lang.is_foreign(item.get("lang")):
+    item_lang = item.get("lang")
+    if not item_lang or item_lang == lang:
         return None
-    return (item.get("summary_ru") or "").strip() or None
+    return summary_for(item, lang) or None
 
 
 def _row_to_item(r: Any) -> dict[str, Any]:
@@ -331,7 +416,12 @@ def _row_to_item(r: Any) -> dict[str, Any]:
         # also corrects rows collected before per-item detection existed.
         "lang": news_lang.detect_lang(r["title"], r["snippet"]) or r["lang"],
         "title": r["title"], "snippet": r["snippet"],
-        "summary_ru": r["summary_ru"], "image_url": r["image_url"], "published_at": r["published_at"],
+        "summary_ru": r["summary_ru"],
+        # Absent on a row read back through an old SELECT list, and absent on rows collected
+        # before the columns existed — both mean "no translation", not an error.
+        "summary_en": r["summary_en"] if "summary_en" in keys else None,
+        "summary_uz": r["summary_uz"] if "summary_uz" in keys else None,
+        "image_url": r["image_url"], "published_at": r["published_at"],
         "type": r["type"], "tone": r["tone"], "tone_score": r["tone_score"],
         "impact": r["impact"], "direction": r["direction"],
         "sectors": json.loads(r["sectors_json"]) if r["sectors_json"] else [],
@@ -340,14 +430,19 @@ def _row_to_item(r: Any) -> dict[str, Any]:
         "tickers": ([t for t in (r["tickers_csv"] or "").split(",") if t]
                     if "tickers_csv" in keys else []),
     }
-    item["title_ru"] = ru_headline(item)
+    # One field per UI language rather than a `?lang=` parameter on the endpoint: the feed is
+    # served to all three from one cached response, and the client already knows which
+    # language it is rendering. `title_ru` keeps its name — it is what the frontend reads.
+    item["title_ru"] = headline_for(item, "ru")
+    item["title_en"] = headline_for(item, "en")
+    item["title_uz"] = headline_for(item, "uz")
     # Whether a client may put this headline through a machine translator (the browser's
-    # own, on-device one). True only for foreign items whose headline the publisher actually
-    # wrote — see _SLUG_TITLE_SOURCES for why the rating agencies are excluded here rather
-    # than in the UI: it is a property of the data, and the server is the only place that
-    # can state it once for every client.
-    item["translatable"] = (news_lang.is_foreign(item["lang"])
-                            and item["source_id"] not in _SLUG_TITLE_SOURCES)
+    # own, on-device one). A property of the HEADLINE, not of any one reader's language:
+    # which direction needs translating depends on who is looking, and the client knows that
+    # from `lang`. What the server settles is whether the text is the publisher's own prose
+    # at all — see _SLUG_TITLE_SOURCES for why the rating agencies are excluded here rather
+    # than in the UI.
+    item["translatable"] = bool(item["lang"]) and item["source_id"] not in _SLUG_TITLE_SOURCES
     return item
 
 
