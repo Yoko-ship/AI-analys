@@ -112,10 +112,10 @@
       "id": "kun",
       "name": "Kun.uz",
       "type": "rss",
-      "url": "https://kun.uz/news/rss",
+      "url": "https://kun.uz/api/rss?lang=ru",
       "lang": [
-        "uz",
         "ru",
+        "uz",
         "en"
       ],
       "content": "snippet",
@@ -125,7 +125,7 @@
       "enabled": true,
       "crawl_delay_s": 10,
       "page_image": true,
-      "notes": "Largest general-news audience. Feed URL re-verified 2026-07-25: only /news/rss and /api/rss return XML — /ru/news/rss now serves the Next.js HTML page (feedparser got 0 entries), which is why this source produced nothing. Items are Uzbek. Feed carries no image; the article page has an og:image."
+      "notes": "Largest general-news audience. Feed carries no image; the article page has an og:image. RUSSIAN feed since 2026-07-29: kun.uz was the only enabled source publishing in Uzbek, and its Uzbek headlines were the bulk of the foreign-language cards on a Russian-first feed. The language is a QUERY PARAM, not a path — /ru/news/rss and /ru/api/rss both serve the Next.js HTML page (feedparser gets 0 entries, which is what made this look impossible on 2026-07-25), while /api/rss?lang=ru returns proper XML: same 16 stories as the Uzbek feed, Russian titles, /ru/ links. Prefer the publisher's own translation over anything we could do downstream. The old /news/ URLs stay in the store as separate rows and simply age out of the 30-day window; while they are still in it they render through summary_ru like any foreign item."
     },
     {
       "id": "uzdaily",
