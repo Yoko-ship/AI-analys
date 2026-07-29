@@ -980,6 +980,40 @@ def _title_from_slug(url: str, strip_pattern: str | None = None) -> str:
     return _clean_text(re.sub(r"[-_]+", " ", slug).strip())
 
 
+# Tokens a slug-derived headline must not be left holding in lower case.
+_SLUG_ACRONYMS = {"jsc", "ojsc", "pjsc", "llc", "ltd", "plc", "idr", "idrs", "ifs", "esg",
+                  "abs", "rmbs", "cmbs", "sme", "ipo", "gdp", "usd", "eur", "uk", "us", "uae"}
+# Fitch writes the grade right after 'at' or 'to' ('…at bb outlook stable'), which is the
+# only position where a bare 'a' or 'b' is a rating and not an ordinary word.
+_RATING_GRADE = re.compile(r"(?:aaa|aa|a|bbb|bb|b|ccc|cc|c|d)[+-]?$")
+_TITLE_SMALL_WORDS = {"a", "an", "and", "as", "at", "but", "by", "for", "in", "of", "on",
+                      "or", "the", "to", "vs", "with"}
+
+
+def _recase_title(title: str, mode: str | None) -> str:
+    """Give a slug-derived headline back the capitals the URL threw away.
+
+    Fitch lower-cases every research slug, so its headline arrives as 'fitch affirms
+    uzbekistan at bb outlook stable' and would sit in the feed next to properly cased ones
+    looking broken. Only a source that declares ``title_case`` is touched, and only when the
+    title is entirely lower case — Moody's slugs carry their own capitals and rewriting them
+    could only do damage.
+    """
+    if mode != "title" or not title or title != title.lower():
+        return title
+    words = title.split()
+    out: list[str] = []
+    for i, word in enumerate(words):
+        previous = words[i - 1] if i else ""
+        if word in _SLUG_ACRONYMS or (previous in ("at", "to") and _RATING_GRADE.fullmatch(word)):
+            out.append(word.upper())
+        elif i and word in _TITLE_SMALL_WORDS:
+            out.append(word)
+        else:
+            out.append(word[:1].upper() + word[1:])
+    return " ".join(out)
+
+
 def fetch_sitemap(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     """A publisher's XML sitemap read as a feed, filtered to our market before anything costs.
 
@@ -1032,9 +1066,10 @@ def fetch_sitemap(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     slug_date = source.get("slug_date") or {}
     date_pattern = slug_date.get("pattern")
     date_format = slug_date.get("format", "%d-%m-%Y")
+    title_case = source.get("title_case")
     items: list[dict[str, Any]] = []
     for url, lastmod in entries[:limit]:
-        title = _title_from_slug(url, strip_pattern)
+        title = _recase_title(_title_from_slug(url, strip_pattern), title_case)
         if not title:
             continue
         published = lastmod
@@ -1274,6 +1309,32 @@ def backfill_facts(*, limit: int = 60, push: bool = True, dry_run: bool = False)
 # --------------------------------------------------------------------------- #
 # main run
 # --------------------------------------------------------------------------- #
+def _split_for_triage(
+    items: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """``(filings, pre_gated, to_screen)`` — who skips the cheap gate, and why.
+
+    Two kinds of item have already had their relevance established before any model is
+    asked. An issuer's own filing is market news by definition. And a rating agency read
+    through a ``url_filter`` reached us *because* its URL named one of our issuers — that
+    is exactly what makes the source authoritative on the read side
+    (``news_store._AUTHORITATIVE_SOURCES``).
+
+    Sending the second kind to triage could only lose. Fitch publishes a rating action as a
+    bare, snippet-less entity name ('JSC Uzbek Metallurgical Plant'); asked "could this
+    plausibly matter to the market?", a cheap gate reading nothing but that string can
+    reasonably say no — and a triage rejection **is stored**, so one wrong verdict buries
+    the action for good. They go straight to the full classification, which sees the issuer
+    universe and is the right place to decide what the action actually says. It costs one
+    extra full call for the handful of items a year that clear the URL filter.
+    """
+    filings = [it for it in items if it.get("always_relevant")]
+    rest = [it for it in items if not it.get("always_relevant")]
+    return (filings,
+            [it for it in rest if it.get("skip_triage")],
+            [it for it in rest if not it.get("skip_triage")])
+
+
 def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run: bool = False) -> dict[str, Any]:
     sources = load_sources(only)
     universe = build_universe()
@@ -1295,6 +1356,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
             it["source"] = src["name"]
             it["source_id"] = src["id"]
             it["coverage_weight"] = src.get("coverage_weight", 0.5)
+            it["skip_triage"] = bool(src.get("skip_triage"))
             # Every adapter stamps the source's DECLARED first language, which is a constant
             # per source and therefore wrong for any outlet that publishes in more than one
             # (kun.uz, spot.uz, uzdaily all declare two or three). Read the item instead;
@@ -1374,12 +1436,15 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     triaged_out = 0
     # Filings are rated by a separate, compact prompt (no issuer universe — their ticker and
     # class come from the filing) and never face the triage gate.
-    filings = [it for it in kept if it.get("always_relevant")]
-    regular = [it for it in kept if not it.get("always_relevant")]
+    filings, pre_gated, to_screen = _split_for_triage(kept)
 
     # gate 1, batched: many items per call sharing one prompt.
-    survivors: list[dict[str, Any]] = []
-    for it, (passed, score) in zip(regular, screen_items(regular, usage=usage)):
+    survivors: list[dict[str, Any]] = list(pre_gated)
+    if pre_gated:
+        logger.info("triage bypassed for %d item(s) from url-filtered source(s): %s",
+                    len(pre_gated),
+                    ", ".join(sorted({str(it.get("source_id")) for it in pre_gated})))
+    for it, (passed, score) in zip(to_screen, screen_items(to_screen, usage=usage)):
         if passed:
             survivors.append(it)
             continue
