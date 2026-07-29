@@ -16,6 +16,12 @@ import {
   tradeStatsApply,
   valuationRatios,
 } from "./lib/valuation.js";
+import {
+  allowDownloads,
+  cachedTranslation,
+  onTranslation,
+  translateHeadline,
+} from "./lib/translate.js";
 
 // --- Client-side routing: each view maps to a real URL path ------------------
 const VIEW_PATHS = {
@@ -439,15 +445,18 @@ const EDNEWS_TX = {
   ru: { cat: { financial_report: "Отчётность", corporate_event: "Корпсобытие", regulatory: "Регулятор", market: "Рынок" },
         tone: { positive: "позитив", neutral: "нейтрально", negative: "негатив" },
         impact: { high: "высокое влияние", medium: "среднее влияние", low: "низкое влияние" },
-        mood: "Настроение рынка · 30 дней", moodPos: "позитивное", moodNeu: "нейтральное", moodNeg: "негативное" },
+        mood: "Настроение рынка · 30 дней", moodPos: "позитивное", moodNeu: "нейтральное", moodNeg: "негативное",
+        machine: "перевод браузера" },
   en: { cat: { financial_report: "Earnings", corporate_event: "Corporate", regulatory: "Regulatory", market: "Market" },
         tone: { positive: "positive", neutral: "neutral", negative: "negative" },
         impact: { high: "high impact", medium: "medium impact", low: "low impact" },
-        mood: "Market sentiment · 30 days", moodPos: "positive", moodNeu: "neutral", moodNeg: "negative" },
+        mood: "Market sentiment · 30 days", moodPos: "positive", moodNeu: "neutral", moodNeg: "negative",
+        machine: "browser translation" },
   uz: { cat: { financial_report: "Hisobot", corporate_event: "Korporativ", regulatory: "Regulyator", market: "Bozor" },
         tone: { positive: "ijobiy", neutral: "neytral", negative: "salbiy" },
         impact: { high: "yuqori ta'sir", medium: "o'rta ta'sir", low: "past ta'sir" },
-        mood: "Bozor kayfiyati · 30 kun", moodPos: "ijobiy", moodNeu: "neytral", moodNeg: "salbiy" },
+        mood: "Bozor kayfiyati · 30 kun", moodPos: "ijobiy", moodNeu: "neytral", moodNeg: "salbiy",
+        machine: "brauzer tarjimasi" },
 };
 
 const _TONE_CLS = { positive: "pos", negative: "neg", neutral: "neu" };
@@ -486,13 +495,79 @@ function interceptNav(handler) {
 // sentence there would trade one foreign headline for another. The original is returned
 // either way so the card can print it as attribution — for a rating action the agency's exact
 // wording is the news.
-function edHeadline(item, language) {
-  const swap = language === "ru" && Boolean(item && item.title_ru);
+// `machine` is the browser's own translation of the source headline, when it produced one
+// (see useBrowserHeadline). It outranks the summary, because a translated headline is still
+// a headline while the summary is a sentence about the story — but it is only ever an
+// upgrade: if it is absent, the summary the server already supplied carries the card.
+function edHeadline(item, language, machine) {
+  const ru = language === "ru";
+  if (ru && machine) {
+    return { text: machine, original: (item && item.title) || "",
+             lang: (item && item.lang) || "", machine: true };
+  }
+  const swap = ru && Boolean(item && item.title_ru);
   return {
     text: swap ? item.title_ru : (item && item.title) || "",
     original: swap ? item.title : "",
     lang: (item && item.lang) || "",
+    machine: false,
   };
+}
+
+// Ask the browser to put a foreign headline into Russian with its own on-device translator.
+// Strictly an enhancement: `item.translatable` is the server's verdict (false for Moody's and
+// Fitch, whose headline is a URL slug that machine translation gets factually wrong), and a
+// browser without the API — Safari, Firefox, anything on iOS — simply never resolves a
+// translation and keeps the Russian summary that was already on the card.
+//
+// The automatic pass uses only a language pack that is already installed, so nobody pays for
+// a surprise download; when one is merely `downloadable`, `offer` goes true and the story
+// page shows an opt-in the reader can take (or not).
+function useBrowserHeadline(item, language) {
+  const source = language === "ru" && item && item.translatable ? item.lang || "" : "";
+  const text = source ? item.title || "" : "";
+  const [machine, setMachine] = React.useState(() => (text ? cachedTranslation(text, source) : ""));
+  const [offer, setOffer] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    setMachine(text ? cachedTranslation(text, source) : "");
+    setOffer(false);
+    if (!text) return undefined;
+    translateHeadline(text, source).then(({ text: out, status }) => {
+      if (!alive) return;
+      if (out) setMachine(out);
+      else setOffer(status === "downloadable" || status === "downloading");
+    });
+    return () => { alive = false; };
+  }, [text, source]);
+
+  // Called from a click, which is what lets Chrome fetch the language pack at all.
+  const request = React.useCallback(() => {
+    if (!text) return;
+    allowDownloads();
+    setOffer(false);
+    translateHeadline(text, source, { download: true })
+      .then(({ text: out }) => { if (out) setMachine(out); });
+  }, [text, source]);
+
+  return { machine, offer, request };
+}
+
+// The same headline as `edHeadline`, but for the compact lists (the "latest" rail, an
+// issuer's other stories) that only READ what a card has already translated rather than
+// starting work of their own. Paired with useTranslationTick on the surrounding view so they
+// repaint when a translation lands.
+function edHeadlineCached(item, language) {
+  const machine = language === "ru" && item && item.translatable
+    ? cachedTranslation(item.title || "", item.lang || "") : "";
+  return edHeadline(item, language, machine);
+}
+
+// Repaint this view whenever any headline finishes translating.
+function useTranslationTick() {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => onTranslation(bump), []);
 }
 
 // Editorial news card ("Ledger" direction): serif headline, source image when the
@@ -505,10 +580,12 @@ function EdNewsCard({ item, language, variant, onOpen }) {
   const TitleTag = isLead ? "h2" : "h3";
   const [imgOk, setImgOk] = React.useState(true);
   const inApp = Boolean(item.id && onOpen);
-  const head = edHeadline(item, language);
+  const { machine } = useBrowserHeadline(item, language);
+  const head = edHeadline(item, language, machine);
   // When the Russian headline above IS our summary, printing it again as the dek would only
-  // repeat the line; the source's own wording takes that slot instead.
-  const summary = head.original ? "" : (item.summary_ru || item.snippet || "");
+  // repeat the line; the source's own wording takes that slot instead. A translated headline
+  // is not the summary, so there the dek goes back to doing its normal job.
+  const summary = head.original && !head.machine ? "" : (item.summary_ru || item.snippet || "");
   const toneCls = _TONE_CLS[item.tone] || "neu";
   const cat = item.type || "market";
   return (
@@ -530,6 +607,7 @@ function EdNewsCard({ item, language, variant, onOpen }) {
         {head.original && (
           <p className={`led-orig ${isLead ? "led-dek" : "led-story-dek"}`}>
             <span className="led-lang">{head.lang}</span>{head.original}
+            {head.machine && <span className="led-mt">{etx.machine}</span>}
           </p>
         )}
         <div className="led-byline">{item.source && <b>{item.source}</b>}{item.published_at ? ` · ${newsRelTime(item.published_at, language)}` : ""}</div>
@@ -540,6 +618,7 @@ function EdNewsCard({ item, language, variant, onOpen }) {
 
 function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
   const tx = NEWS_TX[language] || NEWS_TX.ru;
+  useTranslationTick();
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const [state, setState] = React.useState({ loading: true, error: false, items: [] });
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -618,7 +697,7 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
                     ? { onClick: interceptNav(() => onOpenNews(it)) }
                     : { target: "_blank", rel: "noopener noreferrer" })}>
                   <span className={`led-dot ${_TONE_CLS[it.tone] || "neu"}`} />
-                  <span className="led-lt-t">{edHeadline(it, language).text}</span>
+                  <span className="led-lt-t">{edHeadlineCached(it, language).text}</span>
                   <span className="led-lt-s">{it.source}{it.published_at ? ` · ${newsRelTime(it.published_at, language)}` : ""}</span>
                 </a>
               ))}
@@ -650,6 +729,9 @@ const NEWS_ARTICLE_TX = {
     sectors: "Секторы", related: "По теме", source: "Источник",
     sourceLead: "Как сообщает источник", about: "О публикации",
     origTitle: "Заголовок источника",
+    translate: "Перевести заголовок средствами браузера",
+    translateHint: "Перевод выполняется офлайн, самим браузером. При первом запуске он загрузит языковой пакет; текст никуда не отправляется.",
+    machineTitle: "Заголовок источника, переведён браузером",
     published: "Опубликовано", added: "В ленте с", langLabel: "Язык",
     langs: { ru: "русский", uz: "узбекский", en: "английский" },
     filingDetail: "Из раскрытия эмитента",
@@ -672,6 +754,9 @@ const NEWS_ARTICLE_TX = {
     sectors: "Sectors", related: "Related", source: "Source",
     sourceLead: "As the source reports", about: "About this item",
     origTitle: "The source's headline",
+    translate: "Translate the headline in your browser",
+    translateHint: "The translation runs offline, in the browser itself. The first run downloads a language pack; the text is never sent anywhere.",
+    machineTitle: "The source's headline, translated by your browser",
     published: "Published", added: "In the feed since", langLabel: "Language",
     langs: { ru: "Russian", uz: "Uzbek", en: "English" },
     filingDetail: "From the filing",
@@ -694,6 +779,9 @@ const NEWS_ARTICLE_TX = {
     sectors: "Sektorlar", related: "Mavzu bo'yicha", source: "Manba",
     sourceLead: "Manba xabar qilishicha", about: "Nashr haqida",
     origTitle: "Manba sarlavhasi",
+    translate: "Sarlavhani brauzer vositasida tarjima qilish",
+    translateHint: "Tarjima brauzerning o'zida, oflayn bajariladi. Birinchi ishga tushirishda til paketi yuklanadi; matn hech qayerga yuborilmaydi.",
+    machineTitle: "Manba sarlavhasi, brauzer tarjimasi",
     published: "E'lon qilingan", added: "Lentada", langLabel: "Til",
     langs: { ru: "rus", uz: "o'zbek", en: "ingliz" },
     filingDetail: "Emitent oshkor qilishidan",
@@ -743,6 +831,7 @@ function newsAddsDetail(snippet, summary) {
 // DB read — so it adds no model call and no source fetch.
 function NewsIssuerContext({ tickers, currentId, language, securitiesMap, onOpenCompany, onOpenNews, tx }) {
   const [byTicker, setByTicker] = React.useState({});
+  useTranslationTick();
   // Issuers we have a quote for lead: a story naming four bond series should not push the
   // bank it is actually about off the list.
   const keys = React.useMemo(() => {
@@ -812,7 +901,7 @@ function NewsIssuerContext({ tickers, currentId, language, securitiesMap, onOpen
                         ? { onClick: interceptNav(() => onOpenNews(n)) }
                         : { target: "_blank", rel: "noopener noreferrer" })}>
                       <span className={`led-dot ${_TONE_CLS[n.tone] || "neu"}`} />
-                      <span className="led-lt-t">{edHeadline(n, language).text}</span>
+                      <span className="led-lt-t">{edHeadlineCached(n, language).text}</span>
                       <span className="led-lt-s">{n.source}{n.published_at ? ` · ${newsRelTime(n.published_at, language)}` : ""}</span>
                     </a>
                   ))}
@@ -832,6 +921,9 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const [state, setState] = React.useState({ loading: true, error: "", data: null });
   const [imgOk, setImgOk] = React.useState(true);
+  // Above the loading/error returns below, because hooks cannot sit behind one. The hook
+  // handles a null item by doing nothing, which is what the loading state needs anyway.
+  const browser = useBrowserHeadline(state.data ? state.data.item : null, language);
 
   React.useEffect(() => {
     let alive = true;
@@ -875,11 +967,12 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
   }
 
   const { item, related = [], disclaimer } = state.data;
-  const head = edHeadline(item, language);
+  const head = edHeadline(item, language, browser.machine);
   const summary = item.summary_ru || item.snippet || "";
   // Same rule as the card: when the headline above is already our summary, the lead slot
-  // carries the source's own headline instead of repeating it.
-  const lead = head.original ? "" : (summary || tx.noSummary);
+  // carries the source's own headline instead of repeating it. Once the browser has
+  // translated the real headline the summary is no longer a duplicate, so it comes back.
+  const lead = head.original && !head.machine ? "" : (summary || tx.noSummary);
   // An openinfo item is a filing, not an article: the portal has no page for a single
   // material fact (verified — /facts/{id}, /fact/{id} and /organizations/{org}/facts/{id}
   // all 404), so its link can only reach the issuer's card. Promising "the full text at the
@@ -930,8 +1023,19 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
 
             {head.original && (
               <section className="led-art-quote">
-                <h3 className="led-panel-h">{tx.origTitle}</h3>
+                <h3 className="led-panel-h">{head.machine ? tx.machineTitle : tx.origTitle}</h3>
                 <p className="led-orig"><span className="led-lang">{head.lang}</span>{head.original}</p>
+                {/* Offered only when the browser HAS the translator but not yet this
+                    language pack. Downloading one is a real cost and Chrome requires a
+                    gesture for it, so it is the reader's call, remembered afterwards. */}
+                {browser.offer && (
+                  <div className="led-mt-offer">
+                    <button type="button" className="led-mt-btn" onClick={browser.request}>
+                      {tx.translate}
+                    </button>
+                    <span className="led-mt-hint">{tx.translateHint}</span>
+                  </div>
+                )}
               </section>
             )}
 

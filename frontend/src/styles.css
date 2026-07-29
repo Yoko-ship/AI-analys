@@ -9808,6 +9808,16 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
    `edHeadline`). Attribution, not the story: quieter than a dek, and prefixed with the
    language code so the reader can see at a glance why a second line is there at all. */
 .led .led-orig { color: var(--muted-light); font-style: italic; }
+/* Marks a headline the visitor's own browser translated, so a machine rendering is never
+   mistaken for the publisher's words. */
+.led .led-mt { margin-left: 8px; font-style: normal; font-size: .85em; opacity: .75; }
+.led .led-mt::before { content: "· "; }
+.led .led-mt-offer { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.led .led-mt-btn { font: inherit; font-size: 13px; font-style: normal; cursor: pointer;
+  padding: 5px 11px; border-radius: 4px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); }
+.led .led-mt-btn:hover { border-color: var(--accent); color: var(--accent-hover); }
+.led .led-mt-hint { font-size: 12px; font-style: normal; color: var(--muted-light); max-width: 46ch; }
 .led .led-lang { display: inline-block; margin-right: 7px; padding: 1px 5px; border-radius: 3px;
   border: 1px solid var(--border); background: var(--panel); color: var(--muted);
   font-family: "IBM Plex Mono", monospace; font-style: normal;
