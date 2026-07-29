@@ -51,6 +51,34 @@ def test_a_delisted_issuer_is_never_pushed_back_onto_the_board(monkeypatch):
     assert sorted(found) == ["UZTL"]
 
 
+def test_a_ticker_the_registry_does_not_carry_is_still_followed(monkeypatch):
+    """TGPG/TKDM/TKDMP resolve only by name search — the first run left them behind."""
+    monkeypatch.setattr(rw.orc, "ticker_org_map", lambda refresh=False: {"UZTL": UZTL_ORG})
+    monkeypatch.setattr(rw.orc, "ORG_ID_OVERRIDE", {})
+    monkeypatch.setattr(rw.orc, "SEARCH_OVERRIDE", {"TKDM": "Toshkentdonmahsulotlari"})
+    searched: list[str] = []
+
+    def fake_candidates(term):
+        searched.append(term)
+        return [{"organization": 512, "pub_date": "2026-07-29T10:56:43"}]
+
+    monkeypatch.setattr(rw.orc, "list_candidates", fake_candidates)
+    monkeypatch.setattr(rw, "_SEARCH_ORG_CACHE", {})
+    found = rw.candidates([filing(org=512)], known_tickers={"TKDM", "UZTL"},
+                          extra_tickers={"TKDM", "UZTL"})
+    assert sorted(found) == ["TKDM"]
+    assert searched == ["Toshkentdonmahsulotlari"]  # the override, not the raw symbol
+
+
+def test_an_unresolvable_symbol_is_skipped_not_fatal(monkeypatch):
+    monkeypatch.setattr(rw.orc, "ticker_org_map", lambda refresh=False: {})
+    monkeypatch.setattr(rw.orc, "ORG_ID_OVERRIDE", {})
+    monkeypatch.setattr(rw.orc, "SEARCH_OVERRIDE", {})
+    monkeypatch.setattr(rw.orc, "list_candidates", lambda term: [])
+    monkeypatch.setattr(rw, "_SEARCH_ORG_CACHE", {})
+    assert rw.tickers_by_org(["NOPE"]) == {}
+
+
 def test_an_ifrs_filing_changes_nothing_the_board_serves(one_org):
     """MSFO is a PDF the reconciler cannot read — it must not trigger a refresh."""
     assert rw.candidates([filing(form="MSFO")], known_tickers={"UZTL", "UZTLP"}) == {}

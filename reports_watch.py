@@ -112,13 +112,50 @@ def recent_filings(hours: int = 48, max_pages: int = 8, page_size: int = 100) ->
     return out
 
 
+_SEARCH_ORG_CACHE: dict[str, Any] = {}
+
+
+def _search_org(ticker: str) -> Any:
+    """The organization behind a ticker openinfo's registry does not carry.
+
+    Eleven of the listed symbols resolve only through the reconciler's name search —
+    TGPG as "Tashgiprogor", TKDM as "Toshkentdonmahsulotlari", the bond series through
+    their issuer — so ``org_id_for`` returns nothing for them and they are invisible to
+    the feed → ticker mapping. TGPG, TKDM and TKDMP were exactly the three the first
+    run left behind while their half-year filings sat published.
+
+    The search is looser than the registry: where the reconciler needs an extra name
+    hint to tell two issuers apart, the top candidate here may be the wrong one. That
+    only decides *whether to reconcile* — ``reconcile_ticker`` binds the issuer strictly
+    on its own and ``_changed`` gates the push — so a wrong guess costs one lookup, not
+    a wrong figure.
+    """
+    if ticker in _SEARCH_ORG_CACHE:
+        return _SEARCH_ORG_CACHE[ticker]
+    org = None
+    try:
+        for cand in orc.list_candidates(orc.SEARCH_OVERRIDE.get(ticker, ticker)):
+            if cand.get("organization"):
+                org = cand["organization"]
+                break
+    except Exception:  # noqa: BLE001 — one unmappable symbol must not stop the scan
+        log.exception("could not resolve an organization for %s", ticker)
+    _SEARCH_ORG_CACHE[ticker] = org
+    return org
+
+
 def tickers_by_org(extra_tickers: Iterable[str] = ()) -> dict[str, set[str]]:
-    """organization id -> the tickers whose figures that organization's filings set."""
+    """organization id -> the tickers whose figures that organization's filings set.
+
+    Hits the network for the handful of ``extra_tickers`` openinfo's registry cannot
+    map (see :func:`_search_org`), once per process.
+    """
     out: dict[str, set[str]] = defaultdict(set)
     for ticker, org in orc.ticker_org_map().items():
         out[str(org)].add(str(ticker).upper())
     for ticker, org in orc.ORG_ID_OVERRIDE.items():
         out[str(org)].add(str(ticker).upper())
+    unmapped: list[str] = []
     for ticker in extra_tickers:
         symbol = str(ticker or "").strip().upper()
         if not symbol:
@@ -126,6 +163,17 @@ def tickers_by_org(extra_tickers: Iterable[str] = ()) -> dict[str, set[str]]:
         org = orc.org_id_for(symbol)
         if org:
             out[str(org)].add(symbol)
+        else:
+            unmapped.append(symbol)
+    if unmapped:
+        log.info("resolving %d ticker(s) openinfo's registry does not carry: %s",
+                 len(unmapped), ", ".join(sorted(unmapped)))
+    for symbol in unmapped:
+        org = _search_org(symbol)
+        if org:
+            out[str(org)].add(symbol)
+        else:
+            log.warning("%s: no organization — a filing by its issuer cannot be noticed", symbol)
     return dict(out)
 
 
