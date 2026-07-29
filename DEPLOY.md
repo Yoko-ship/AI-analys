@@ -228,7 +228,7 @@ Schedule it on any host that can reach openinfo:
   | `collector` | `collector` | `0 3 * * 1-5` | 08:00 Mon–Fri | full pipeline |
   | `quotes-1300` | `quotes` | `0 8 * * 2-6` | 13:00 Tue–Sat | quotes/turnover, mid-session |
   | `quotes-1610` | `quotes` | `10 11 * * 1-6` | 16:10 Mon–Sat | quotes/turnover, after the close |
-  | `reports-watch` | `reports-watch` | `0 4-17 * * 1-6` | hourly 09:00–22:00 Mon–Sat | issuers that filed since the last sweep |
+  | `reports-watch` | `reports-watch` | `0 4-18 * * 1-6` | hourly 09:00–23:00 Mon–Sat | issuers that filed since the last sweep |
 
   `reports-watch` exists because reporting deadlines do not respect the daily sweep.
   O'zbektelekom filed its half-year report at 11:27 on 2026-07-29, three hours after
@@ -243,6 +243,13 @@ Schedule it on any host that can reach openinfo:
   container all converge on the same answer. `REPORTS_WATCH_HOURS` (default 48) sets
   how far back the feed is read; the window only bounds the scan, never correctness.
   Run it by hand with `python reports_watch.py` to see what it would do without pushing.
+
+  Railway's own constraints on any of these: the shortest gap between runs is **5
+  minutes**, the expression is standard five-field cron (no seconds, no `@reboot`)
+  evaluated in **UTC** regardless of `TZ`, start times drift by a few minutes, and — the
+  one that bites — **a run is skipped entirely if the previous one is still going**. All
+  four services here exit when their work is done, which is what makes an hourly
+  schedule safe; a mode that hangs would silently stop the schedule rather than pile up.
 
   The days each service skips are the days uzse has nothing to give. `uzse.uz/trade_results/`
   is a rolling window of about **two calendar days** (yesterday + today), and a session's
