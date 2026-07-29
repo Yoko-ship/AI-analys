@@ -308,6 +308,47 @@ def reconcile_and_push() -> int:
     return _post("/api/admin/financials", {"form": "NSBU", "rows": push_rows, "mode": "replace"})
 
 
+def watch_filings_and_push(hours: int | None = None) -> int:
+    """Refresh only the issuers that filed since the last sweep.
+
+    The daily run re-derives all ~100 tickers whether anything was filed or not,
+    which is why it runs once: it is minutes of openinfo traffic. This is the same
+    reconciliation restricted to the issuers openinfo's filing feed says have
+    published something — usually none, a dozen on a deadline day — so it is cheap
+    enough to run hourly and the board stops waiting a day for a report that is
+    already public. Pushes with ``mode=replace``, which clears only the tickers in
+    the payload, so an interleaved run cannot disturb anything it did not touch.
+    """
+    import reports_watch as rw
+
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+    served = requests.get(f"{base}/api/market/financials", timeout=60).json()
+    served = served.get("financials") or served
+    universe = rw.board_tickers(base) | set(served)
+    result = rw.scan(
+        served=served, known_tickers=universe,
+        hours=hours if hours is not None else int(os.getenv("REPORTS_WATCH_HOURS", "48")),
+    )
+    log.info("watch: %d filings, %d candidate(s), %d to refresh, %d unchanged, %d error(s)",
+             result["filings"], len(result["candidates"]), len(result["refreshed"]),
+             len(result["unchanged"]), len(result["errors"]))
+    for ticker, reason in sorted(result["refreshed"].items()):
+        log.info("watch: %s %s", ticker, reason)
+    if result["errors"]:
+        log.warning("watch: unresolved %s", result["errors"])
+    if not result["rows"]:
+        # Nothing filed, or nothing that changes a figure — a normal quiet run. The
+        # heartbeat below still stamps it, so "no new reports" and "watcher dead"
+        # stay distinguishable.
+        _stamp_step("watch_filings", "no change")
+        return 0
+    status = _post("/api/admin/financials",
+                   {"form": "NSBU", "rows": result["rows"], "mode": "replace"})
+    if status == 0:
+        _stamp_step("watch_filings", ", ".join(sorted(result["refreshed"])[:12]))
+    return status
+
+
 def push_heartbeat(status: int) -> None:
     """Stamp this run on prod so a silently dead collector is observable.
 
@@ -341,12 +382,27 @@ def main() -> int:
     ap.add_argument("--no-reconcile", action="store_true", help="skip the structured-JSON reconciliation push")
     ap.add_argument("--reconcile-only", action="store_true",
                     help="only reconcile financials against openinfo JSON and push (authoritative)")
+    ap.add_argument("--watch-filings", action="store_true",
+                    help="reconcile only the issuers that filed recently and push (cheap, hourly)")
+    ap.add_argument("--watch-hours", type=int, default=None,
+                    help="how far back the filing feed is read (default REPORTS_WATCH_HOURS or 48)")
     args = ap.parse_args()
 
     # Loudly name any package this pipeline needs but the image does not carry:
     # the per-issuer `except Exception` guards below would otherwise turn a
     # missing dependency into a run that "succeeds" having collected nothing.
     preflight(COLLECTOR_REQUIREMENTS, label="collector")
+
+    if args.watch_filings:
+        status = 0
+        try:
+            status = watch_filings_and_push(args.watch_hours)
+        except Exception:
+            log.exception("filing watch failed")
+            status = 1
+        if not args.no_push:
+            push_heartbeat(status)
+        return status
 
     if args.reconcile_only:
         status = 0
