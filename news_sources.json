@@ -8,7 +8,10 @@
     "crawl_delay_s": "minimum seconds between requests to this host",
     "max_items": "per-source cap on items fetched per run, tighter than the CLI --limit (which still applies as the ceiling). Use it on whole-site feeds whose extra volume is mostly non-market news.",
     "page_image": "true = feed ships no image, so read the article page's own og:image preview tag (head only, image URL only). Omit/false when the feed already carries media:*/enclosure images, or when the page's og:image is one site-wide share card that would repeat down the feed.",
-    "feed_image": "false = do NOT use even the image the feed ships (source ToS bars reuse of its media). Defaults to true."
+    "feed_image": "false = do NOT use even the image the feed ships (source ToS bars reuse of its media). Defaults to true.",
+    "url_filter": "regex over the URL, applied at fetch time — ahead of the prefilter, the triage gate and any model call. Required on a sitemap source, whose stream is global.",
+    "title_case": "'title' = the publisher lower-cases its slugs, so re-case the headline read out of the URL. Omit for slugs that carry their own capitals (Moody's).",
+    "skip_triage": "true = the item's relevance was established before any model saw it (a url_filter match on one of our issuers), so send it straight to the full classification. Triage rejections are stored permanently, so a wrong one is not retried."
   },
   "sources": [
     {
@@ -264,7 +267,8 @@
       "url_filter": "uzbek|hamkor|ipoteka|agrobank|alo[kq]abank|kapitalbank|asaka|uzpromstroy|sanoat[- ]?qurilish|qishloq|mikrokredit|turonbank|trustbank|ipak[- ]?yuli|infinbank|xalq|uzagroexport|uzauto|navoi|almalyk|uztransgaz|uzkimyo|tashkent|toshkent|orient[- ]?finans|davr[- ]?bank|anor[- ]?bank",
       "title_from": "slug",
       "slug_strip": "-{1,2}PR_\\d+$",
-      "notes": "Rating actions on Uzbek issuers and the sovereign. Verified 2026-07-25: Moody's publishes no usable feed, but ratingsnewsmap.xml is a rolling window of ~183 GLOBAL actions with the headline in the URL slug, and robots.txt permits it. url_filter is applied before any model call, so the ~99% naming no issuer of ours costs one shared HTTP request and nothing more. Headline only - the article pages return a 2.7KB SPA shell, and no page is opened anyway. No lastmod on these entries, so items arrive undated (kept by _is_recent, right for a window of current actions). Expect roughly one hit a week or two. Of the sister agencies, S&P stays unreachable (see the spglobal entry); Fitch turned out to BE reachable - see the fitch entry, the /page-data/ JSON its robots.txt disallows is only needed to read article pages, and we open none."
+      "skip_triage": true,
+      "notes": "Rating actions on Uzbek issuers and the sovereign. Verified 2026-07-25: Moody's publishes no usable feed, but ratingsnewsmap.xml is a rolling window of ~183 GLOBAL actions with the headline in the URL slug, and robots.txt permits it. url_filter is applied before any model call, so the ~99% naming no issuer of ours costs one shared HTTP request and nothing more. Headline only - the article pages return a 2.7KB SPA shell, and no page is opened anyway. No lastmod on these entries, so items arrive undated (kept by _is_recent, right for a window of current actions). Expect roughly one hit a week or two. Of the sister agencies, S&P stays unreachable (see the spglobal entry); Fitch turned out to BE reachable - see the fitch entry, the /page-data/ JSON its robots.txt disallows is only needed to read article pages, and we open none. skip_triage since 2026-07-29, for the same reason as fitch: an item that cleared the url_filter has had its relevance established before any model saw it, and a stored triage rejection is permanent."
     },
     {
       "id": "fitch",
@@ -288,7 +292,9 @@
         "pattern": "(\\d{2}-\\d{2}-\\d{4})$",
         "format": "%d-%m-%Y"
       },
-      "notes": "The second rating agency, read exactly like moodys. Verified 2026-07-28: /rss/press-releases and /rss/news are dead (both bounce to the /redirect/ SPA shell), but sitemap-research.xml is a live rolling set - 502 URLs the day it was checked, headline in the slug, date as a -dd-mm-yyyy suffix - and robots.txt disallows only /page-data/, /search, /redirect and /user-settings, none of which we touch since no article page is opened. Fitch does rate our market: its entity sitemap carries Asaka Bank, and the sovereign plus the state banks are all Fitch-rated, so url_filter is the same trick as moodys - the ~99.8% of global research naming nobody of ours costs one shared request. slug_date is required here: every entry's lastmod is the sitemap's own generation timestamp, so without it a five-day-old rating action would be published to readers as today's news."
+      "title_case": "title",
+      "skip_triage": true,
+      "notes": "The second rating agency, read exactly like moodys. Verified 2026-07-28: /rss/press-releases and /rss/news are dead (both bounce to the /redirect/ SPA shell), but sitemap-research.xml is a live rolling set - 502 URLs the day it was checked, headline in the slug, date as a -dd-mm-yyyy suffix - and robots.txt disallows only /page-data/, /search, /redirect and /user-settings, none of which we touch since no article page is opened. Fitch does rate our market: its entity sitemap carries Asaka Bank, and the sovereign plus the state banks are all Fitch-rated, so url_filter is the same trick as moodys - the ~99.8% of global research naming nobody of ours costs one shared request. slug_date is required here: every entry's lastmod is the sitemap's own generation timestamp, so without it a five-day-old rating action would be published to readers as today's news. Two more source-level knobs, both added 2026-07-29 after the first live run: title_case (Fitch lower-cases every research slug, so 'jsc uzbek metallurgical plant' would sit in the feed among properly cased headlines looking broken) and skip_triage (the url_filter already established that this URL names one of our issuers, which is what makes the source authoritative in news_store; a snippet-less entity name put to the cheap 'could this plausibly matter?' gate can be rejected, and triage rejections ARE stored, so one wrong verdict would bury a rating action for good)."
     },
     {
       "id": "napp",

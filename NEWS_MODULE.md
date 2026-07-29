@@ -47,6 +47,7 @@ Either way the returned items can be fed back through `classify_item` and stored
 | `news_grok_search.py` | Layer B — Grok-native web + X search (xAI Agent Tools API) |
 | `news_agent.py` | Layer B — `find_news` entry point (routes to Grok-native or Tavily) |
 | `news_lang.py` | Code-only language detection (`detect_lang`, `is_foreign`) — no model, no network |
+| `frontend/src/lib/translate.js` | The browser's own on-device translator (Chrome/Edge `Translator`), as a progressive enhancement |
 | `news_store.py` | `news` / `news_nlp` / `news_entities` upsert + read helpers |
 | `news_collector.py` | Orchestrator + CLI (fetch → dedup → classify → store → push) |
 | `reports_catalog.py` | Schema for the three news tables (in `_init_schema`) |
@@ -142,11 +143,61 @@ of them calls a model or a translation API** — the whole path stays free.
    line; on the English and Uzbek UI the original stays, since swapping in Russian there
    would trade one foreign headline for another.
 
-**Not done, on purpose:** a phrase-table translation of the rating agencies' headlines,
-formulaic though they are (`fitch affirms uzbekistan at bb outlook stable`). Their headline
-reaches us through the URL slug, and a slug has already lost the notch — `+` and `-` do not
-survive it — so a template would print «BB» where the action said "BB-". A fabricated rating
-notch stated in confident Russian is a far worse failure than an English headline.
+4. **Offer the browser's own translator for the rest** (`frontend/src/lib/translate.js`).
+   Chrome and Edge 138+ expose a `Translator` global whose model runs *on the device*: free
+   at any volume, no key, no bill, and the headline never leaves the machine. Strictly a
+   progressive enhancement — Safari, Firefox and everything on iOS have no such API and keep
+   the summary from step 3, so a card is never blank. A translated headline outranks the
+   summary (a headline is a headline; a summary is a sentence about the story) and the
+   summary drops back to being the dek. Anything translated this way is labelled
+   *«перевод браузера»* so a machine rendering is never mistaken for the publisher's words.
+
+   The automatic pass only ever uses a language pack that is **already installed**. When one
+   is merely `downloadable` the story page offers an opt-in button — downloading a pack is a
+   real cost and Chrome requires a user gesture for it — and the consent is remembered in
+   `localStorage`.
+
+### Which sources have a Russian edition (audited 2026-07-29)
+
+| Source | Russian edition | Note |
+|---|---|---|
+| `openinfo_facts` | ✅ native | filings are filed in Russian |
+| `cbu` | ✅ `/ru/press_center/news/` | occasionally posts an English release on the Russian listing — caught per item, not per source |
+| `kursiv` | ✅ Russian-only feed | |
+| `spot` | ✅ `/rss/` → `/ru/rss/` | |
+| `kun` | ✅ **fixed** `/api/rss?lang=ru` | was the only Uzbek source |
+| `uzdaily` | ✅ `/rss` is Russian | host not reachable from every network; all stored rows detect `ru` |
+| `napp` | ✅ `/ru/…` | Russian titles, Uzbek slugs |
+| `uzse` | — | produces **nothing**: `type: "html"` maps to the `fetch_pending` stub, and its sitemap is 68 static pages with no articles. `?locale=ru` exists if it is ever implemented |
+| `moodys` | ❌ none | `/ru/ratingsnewsmap.xml`, the `/ru/global/rss` research path and `ratings.moodys.com/ru` all return the English SPA shell |
+| `fitch` | ❌ none | `/ru` and `/site/ru` both serve `lang="en"` |
+| `thediplomat` | ❌ none | `/ru/` → 403; English-language publication |
+
+So three sources are English with no alternative, all low volume (Moody's and Fitch roughly
+one item a week each, The Diplomat about ten per eighteen days).
+
+### Why machine translation is allowed for some of those and not others
+
+Measured 2026-07-29 on a real MT engine, with the exact strings we store:
+
+| In | Out | |
+|---|---|---|
+| `Central Asia Weighs Its Options as Great Power Competition Intensifies` | «Центральная Азия взвешивает свои варианты, поскольку конкуренция великих держав усиливается» | ✅ clean |
+| `Uzbekistan Signs Railway Deal With China and Kyrgyzstan` | «Узбекистан подписал железнодорожную сделку с Китаем и Кыргызстаном» | ✅ clean |
+| `fitch affirms uzbekistan at bb outlook stable` | «fitch подтвердило **прогноз** по Узбекистану на уровне bb стабильный» | ❌ Fitch affirmed the **rating**; the stable outlook is a separate fact |
+| `Moodys Ratings affirms Zeda Limiteds Ba3 rating outlook stable` | «подтвердило **стабильный прогноз по рейтингу** Ba3» | ❌ same collapse |
+| `fitch downgrades garland tx idr to aa rates 75mm gos aa outlook stable` | «…до aa **rates 75mm gos aa** прогноз стабильный» | ❌ untranslated remainder |
+
+The rule is therefore **not** "don't translate English" but *"don't translate a headline the
+publisher never wrote"*. Moody's and Fitch reach us through `title_from: "slug"`, and a URL
+slug has already lost the case, the punctuation and — critically — the rating notch, since
+`+` and `-` do not survive one. MT does not degrade gracefully on that input; it produces
+confident Russian that states the wrong fact.
+
+`news_store._SLUG_TITLE_SOURCES` holds those source ids and the read path publishes
+`translatable: false` for them, so the decision is made **once on the server** rather than
+being re-litigated by every client. The same reasoning rules out a phrase-table translation
+of those headlines: a template would print «BB» where the action said "BB-".
 
 Side effect worth knowing: cross-source de-duplication now works for kun.uz. An Uzbek title
 could never Jaccard-match the same story's Russian title elsewhere in the feed; a Russian one
@@ -413,6 +464,44 @@ which matches the RU-first feed; note CBU numbers each language edition separate
 one item already stored from the English RSS (`…/en/…/4194168`) is a different URL from its
 Russian twin and both will show until the older one leaves the 30-day window.
 
+### What the first live run with both showed (2026-07-29)
+
+The 02:34 UTC run collected from 11 sources. Neither new source put anything on the feed, and
+the two reasons are different.
+
+**`fitch` fetched nothing, correctly.** `url filter kept 0 of 502` — the sitemap is a
+**~5-business-day window** (that morning: 23–29 July, ~100 entries a day, plus three
+2023–2025 stragglers), and no entry in it named one of our issuers. Later the same day Fitch
+published `…/research/corporate-finance/jsc-uzbek-metallurgical-plant-29-07-2026` — UZMK, a
+listed issuer — which the filter keeps and dates correctly. So the source works; it simply had
+nothing to say for a week. Expect that to be normal.
+
+**`thediplomat` fetched 15 and the market gate rejected all 15.** Every item came back
+`relevant=false` with a triage score of 0.0–0.3 against the 0.35 floor, was stored as such
+(rejections are stored so we never pay to triage the same URL twice), and the feed only serves
+`relevant = 1`. That is the gate working: 10 of the 15 were Kazakh, Kyrgyz or Mongolian, and
+the rest were politics and society. The two arguable misses — a tax-free crypto mining zone and
+the China–Kyrgyzstan–Uzbekistan railway — are policy stories with no issuer in them. This
+source is regional *context*, worth roughly one market-relevant Uzbek item a week; it is not a
+news feed for the board and it was never exempted from the floor.
+
+Two knobs were added off the back of that run, both for the agencies only:
+
+- **`title_case`** — Fitch lower-cases every research slug, so a headline read out of the URL
+  arrives as `jsc uzbek metallurgical plant` and would sit among properly cased ones looking
+  broken. Opt-in per source, and applied only to an all-lower-case title: Moody's slugs carry
+  their own capitals. Acronyms (`JSC`, `IDR`, `ESG`…) are upper-cased, and a rating grade only
+  where Fitch writes one — directly after `at` or `to`, the one position where a bare `a` or
+  `b` is a grade and not an ordinary word.
+- **`skip_triage`** — `moodys` and `fitch` items now go straight to the full classification.
+  The `url_filter` kept the URL *because* it names one of our issuers; that is the same fact
+  that makes them authoritative on the read path. Putting a snippet-less entity name to a cheap
+  "could this plausibly matter?" gate can only lose, and because a triage rejection is stored,
+  one wrong verdict would bury a rating action for good. The read-side exemption in
+  `news_store._AUTHORITATIVE_SOURCES` was never enough on its own: it waives the *relevance
+  floor*, but `get_news_feed` still filters on `relevant = 1`, which a triage rejection sets.
+  Cost: one full classification for the handful of items a year that clear the URL filter.
+
 ### Rating agencies (`sitemap`)
 
 `fetch_sitemap` reads a publisher's XML sitemap as a feed and — this is the point — applies
@@ -421,21 +510,24 @@ model call. Moody's `ratingsnewsmap.xml` is a rolling window of ~183 *global* ra
 with the headline in the URL slug; Uzbek issuers are a handful a year in that stream, so the
 ~99% that names none of ours costs one shared HTTP request and nothing else. A sitemap source
 with no `url_filter` refuses to return anything, so this cannot be misconfigured into a bill.
-Headline comes from the slug (`title_from`/`slug_strip`); no article page is opened. These
-entries carry no `<lastmod>`, so items arrive undated — `_is_recent` keeps undated items,
-which is correct for a window that only lists current actions.
+Headline comes from the slug (`title_from`/`slug_strip`, plus `title_case` where the publisher
+lower-cases its slugs); no article page is opened. Moody's entries carry no `<lastmod>`, so its
+items arrive undated — `_is_recent` keeps undated items, which is correct for a window that
+only lists current actions; Fitch stamps a useless one and is dated from the slug instead
+(`slug_date`). Both skip the triage gate (`skip_triage`): the URL filter has already
+established what a cheap gate would be guessing at.
 
 Verified 2026-07-25 against the live sitemap: 183 URLs in, 0 through the filter (no Uzbek
 action that day), 0 classified. The filter was checked against real Moody's Uzbek URLs —
 Alokabank, Agrobank and the sovereign banking outlook all match, Zeda and Botswana Development
 Corporation do not.
 
-**The other two agencies are not reachable, and this is not worth re-testing:**
-`spglobal.com` answers **403 to every automated request, including `/robots.txt`** — a WAF
-refusing non-browser clients. `fitchratings.com` serves its content from `/page-data/`, which
-its own `robots.txt` disallows; its five sitemaps hold only entity pages, podcasts, videos and
-`:slug` route placeholders, no rating actions. Rating news from those two has to come from the
-press feeds or a Layer-B search.
+**Of the sister agencies, one is reachable and one is not.** `fitchratings.com` **is** —
+`sitemap-research.xml` carries the rating actions, the `/page-data/` its `robots.txt` disallows
+is only needed to open an article page and we open none (see the 2026-07-28 entry above; the
+earlier "not reachable" reading here was wrong and has been corrected). `spglobal.com` answers
+**403 to every automated request, including `/robots.txt`** — a WAF refusing non-browser
+clients — so S&P's rating news still has to come from the press feeds or a Layer-B search.
 
 ## openinfo material facts (the issuer channel)
 
