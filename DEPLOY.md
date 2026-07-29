@@ -201,6 +201,7 @@ python collector_financials.py                # full pipeline + push
 python collector_financials.py --facts-only   # only re-run source adapters
 python collector_financials.py --no-facts     # financials + trade-stats only
 python collector_financials.py --trades-only  # only the day's quotes/turnover (~2 min)
+python collector_financials.py --watch-filings # only the issuers that just filed (~1 min)
 ```
 
 Schedule it on any host that can reach openinfo:
@@ -227,6 +228,21 @@ Schedule it on any host that can reach openinfo:
   | `collector` | `collector` | `0 3 * * 1-5` | 08:00 Mon–Fri | full pipeline |
   | `quotes-1300` | `quotes` | `0 8 * * 2-6` | 13:00 Tue–Sat | quotes/turnover, mid-session |
   | `quotes-1610` | `quotes` | `10 11 * * 1-6` | 16:10 Mon–Sat | quotes/turnover, after the close |
+  | `reports-watch` | `reports-watch` | `0 4-17 * * 1-6` | hourly 09:00–22:00 Mon–Sat | issuers that filed since the last sweep |
+
+  `reports-watch` exists because reporting deadlines do not respect the daily sweep.
+  O'zbektelekom filed its half-year report at 11:27 on 2026-07-29, three hours after
+  that morning's `collector` run, and the board would otherwise have shown Q1 until
+  the next day — a Friday-evening filing until Monday. It reads openinfo's newest-first
+  filing feed (one request for the whole market), keeps the issuers we list, reconciles
+  only those, and pushes with `mode=replace`, which clears only the tickers in its own
+  payload. A quiet hour reconciles nothing and pushes nothing; on a deadline day it
+  refreshes a dozen or so tickers in well under a minute. It holds no cursor — a ticker
+  is refreshed when its reconciled period outranks the one prod serves, or when the
+  same period comes back restated — so a missed run, a duplicate run, or a fresh
+  container all converge on the same answer. `REPORTS_WATCH_HOURS` (default 48) sets
+  how far back the feed is read; the window only bounds the scan, never correctness.
+  Run it by hand with `python reports_watch.py` to see what it would do without pushing.
 
   The days each service skips are the days uzse has nothing to give. `uzse.uz/trade_results/`
   is a rolling window of about **two calendar days** (yesterday + today), and a session's
