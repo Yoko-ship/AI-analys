@@ -239,6 +239,72 @@ test("Рынок shows §3.8 multiplier columns and exports CSV", async ({ page 
   expect(download.suggestedFilename()).toMatch(/\.csv$/);
 });
 
+// The export used to emit a bare exchange-board dump — English headers on a Russian page,
+// full-precision floats and a comma delimiter Russian Excel cannot split — which read as
+// somebody else's file rather than our report. What makes it ours is the issuer reporting
+// beside the quote, so that is what this pins.
+test("the market CSV is our report, not a board dump (§3.8)", async ({ page }) => {
+  await mockApi(page);
+  // Registered after mockApi, so these win: the shared fixtures carry no reporting period
+  // and no OHLC, and both are columns under test.
+  await page.route("**/api/market/stocks**", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ stocks: [{
+      ticker: "AGBA", name: "AGBA Bank", isin: "UZ0001", type: "stock", share_type: "ordinary",
+      last_price: 1500, close_price: 1440, open: 1450, high: 1520, low: 1430,
+      last_trade_date: "29.07.2026", volume: 5e6, quantity: 3333, trade_count: 40,
+      market_cap: 3e10,
+    }] }),
+  }));
+  await page.route("**/api/market/financials**", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ ok: true, financials: { AGBA: {
+      year: 2026, quarter: 1, is_ytd: true, period_months: 3,
+      revenue: 9e9, gross_profit: 4e9, operating_income: 3e9, net_income: 2e9,
+      cash: 1e9, total_liabilities: 2e10, field_periods: {},
+    } } }),
+  }));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator(".market-export-btn").click(),
+  ]);
+
+  const chunks = [];
+  for await (const c of await download.createReadStream()) chunks.push(c);
+  const buf = Buffer.concat(chunks);
+  expect(buf.subarray(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));   // Excel wants the BOM
+  const CRLF = String.fromCharCode(13, 10);
+  const text = buf.toString("utf8").replace(/^﻿/, "");
+  expect(text).toContain(CRLF);
+  const lines = text.split(CRLF);
+
+  // It says what it is and where each part came from, instead of starting at row 1 with data.
+  expect(lines[0]).toContain("рынок и отчётность эмитентов");
+  expect(text).toContain("uzse.uz");
+  expect(text).toContain("openinfo.uz");
+
+  const header = lines.find((l) => l.startsWith("Тикер"));
+  expect(header).toBeTruthy();
+  // Semicolons, because Excel in a ru locale splits on ';' and reads ',' as the decimal mark.
+  expect(header.split(";").length).toBeGreaterThan(30);
+  for (const col of ["Выручка", "Чистая прибыль", "Общие обязательства", "Отчётный период",
+    "Капитализация", "P/E", "Сектор"]) {
+    expect(header.split(";")).toContain(col);
+  }
+  expect(header).not.toContain("Ticker");        // never English on the Russian UI
+  expect(header).not.toContain("% объёма, %");   // the label already carries its unit
+
+  const row = lines[lines.indexOf(header) + 1].split(";");
+  expect(row[0]).toBe("AGBA");
+  expect(row[header.split(";").indexOf("Отчётный период")]).toBe("2026 Q1");
+  expect(row[header.split(";").indexOf("Выручка")]).toBe("9000000000");
+  // Rounded like the screen and with a decimal comma — not "4.166666666666667".
+  expect(row[header.split(";").indexOf("Изм., %")]).toBe("4,17");
+});
+
 test("analysis renders the §3.4 risk profile", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "e2e-token"));
   await page.route("**/api/auth/me", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: { full_name: "E2E", email: "e2e@test.uz" } }) }));

@@ -2504,6 +2504,25 @@ const MARKET_TEXTS = {
     finLiab: "Общие обязательства",
     finNet: "Чистая прибыль",
     finOperating: "Операц. доход",
+    isin: "ISIN",
+    sector: "Сектор",
+    shareType: "Тип бумаги",
+    pe: "P/E",
+    pb: "P/B",
+    roe: "ROE, %",
+    roa: "ROA, %",
+    finPeriod: "Отчётный период",
+    finCoverage: "Охват периода",
+    csvTrades: "Сделок",
+    csvTitle: "UZSE — рынок и отчётность эмитентов",
+    csvGenerated: "Выгружено",
+    csvSession: "Торговая сессия",
+    csvFilter: "Фильтр",
+    csvRows: "Строк",
+    csvFav: "только избранное",
+    csvSearch: "поиск",
+    csvSources: "Котировки — UZSE (uzse.uz). Финансовая отчётность — раскрытия эмитентов (openinfo.uz). Капитализация, мультипликаторы и коэффициенты рассчитаны платформой.",
+    csvMoneyNote: "Денежные величины — в сумах (UZS).",
   },
   en: {
     nav: "Market",
@@ -2571,6 +2590,25 @@ const MARKET_TEXTS = {
     finLiab: "Total liabilities",
     finNet: "Net profit",
     finOperating: "Operating income",
+    isin: "ISIN",
+    sector: "Sector",
+    shareType: "Security type",
+    pe: "P/E",
+    pb: "P/B",
+    roe: "ROE, %",
+    roa: "ROA, %",
+    finPeriod: "Reporting period",
+    finCoverage: "Period coverage",
+    csvTrades: "Trades",
+    csvTitle: "UZSE — market and issuer reporting",
+    csvGenerated: "Exported",
+    csvSession: "Trading session",
+    csvFilter: "Filter",
+    csvRows: "Rows",
+    csvFav: "favorites only",
+    csvSearch: "search",
+    csvSources: "Quotes — UZSE (uzse.uz). Financial statements — issuer filings (openinfo.uz). Market cap, multiples and ratios are computed by the platform.",
+    csvMoneyNote: "Monetary figures are in soum (UZS).",
   },
   uz: {
     nav: "Bozor",
@@ -2638,6 +2676,25 @@ const MARKET_TEXTS = {
     finLiab: "Jami majburiyatlar",
     finNet: "Sof foyda",
     finOperating: "Operatsion daromad",
+    isin: "ISIN",
+    sector: "Sektor",
+    shareType: "Qogʻoz turi",
+    pe: "P/E",
+    pb: "P/B",
+    roe: "ROE, %",
+    roa: "ROA, %",
+    finPeriod: "Hisobot davri",
+    finCoverage: "Davr qamrovi",
+    csvTrades: "Bitimlar",
+    csvTitle: "UZSE — bozor va emitentlar hisoboti",
+    csvGenerated: "Yuklab olingan",
+    csvSession: "Savdo sessiyasi",
+    csvFilter: "Filtr",
+    csvRows: "Qatorlar",
+    csvFav: "faqat tanlanganlar",
+    csvSearch: "qidiruv",
+    csvSources: "Kotirovkalar — UZSE (uzse.uz). Moliyaviy hisobot — emitentlar oshkor qilishi (openinfo.uz). Kapitalizatsiya, multiplikatorlar va koeffitsiyentlar platforma tomonidan hisoblangan.",
+    csvMoneyNote: "Pul qiymatlari soʻmda (UZS).",
   },
 };
 
@@ -6629,35 +6686,121 @@ function MarketView({
     });
   const stats = buildMarketStats(prepared);
 
-  // §3.8: export the current securities table (core stats + multipliers) to CSV,
-  // numbers as raw numbers, client-side (no backend needed).
+  // §3.8: export the table the user is looking at as OUR report, client-side.
+  //
+  // It used to emit a bare 20-column board dump — English headers on a Russian page, UZSE's
+  // own name strings, full-precision floats ("43.84615384615385") and a comma delimiter —
+  // which read as somebody else's export, because that is what an exchange board is. What
+  // separates our page from uzse.uz is the reporting beside the quote, and none of it was in
+  // the file: revenue, gross and operating profit, net income, cash, liabilities, and the
+  // period each of those figures actually covers. Those are here now, next to the multiples
+  // computed from them, under a header block that says what the file is and where each part
+  // came from.
+  //
+  // Delimiter and decimal mark follow the UI language for the same reason. Excel in a ru/uz
+  // locale splits on ';' and reads ',' as the decimal mark, so a comma-separated file with
+  // dotted decimals opens as a single column of text — the most literal way to look like a
+  // foreign dump.
   const exportCsv = () => {
-    const header = ["Ticker","Company","ISIN","Last","Change%","Turnover","Trades","Qty","AvgPrice","VWAP","High","Low","MarketCap","MarketShare%","P/E","P/B","ROE","ROA","NetMargin","DebtEquity"];
+    const ruLocale = lang !== "en";
+    const sep = ruLocale ? ";" : ",";
     const cell = (v) => {
       if (v === null || v === undefined || v === "" || (typeof v === "number" && Number.isNaN(v))) return "";
-      if (typeof v === "number") return String(v);
-      const s = String(v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      let s = typeof v === "number"
+        ? (ruLocale ? String(v).replace(".", ",") : String(v))
+        : String(v);
+      // A quoted field is needed for the delimiter, quotes and newlines — and, once decimals
+      // are commas, for every number too when the delimiter is a comma.
+      return new RegExp(`["\\n\\r${sep === ";" ? ";" : ","}]`).test(s)
+        ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const lines = [header.join(",")];
+    // Rounded the way the screen rounds: a report states a figure, it does not dump a float.
+    const round = (v, digits) => (Number.isFinite(v) ? Number(v.toFixed(digits)) : "");
+    const money = (v) => (Number.isFinite(v) ? Math.round(v) : "");
+
+    const filters = [
+      mt(lang, type === "stock" ? "stocks" : type === "bond" ? "bonds"
+        : type === "preferred" ? "preferredStocks" : type === "ordinary" ? "ordinaryStocks" : "all"),
+      marketSector || "",
+      favOnly ? mt(lang, "csvFav") : "",
+      String(query || "").trim() ? `${mt(lang, "csvSearch")}: ${String(query).trim()}` : "",
+    ].filter(Boolean).join(" · ");
+    // `last_trade_date` arrives as DD.MM.YYYY from the live feed and YYYY-MM-DD from the
+    // listings registry. Normalise both through marketRowDay so one column holds one format.
+    const day = (d) => (/^\d{8}$/.test(d || "") ? `${d.slice(6)}.${d.slice(4, 6)}.${d.slice(0, 4)}` : "");
+    const session = day(stats.boardDay);
+
+    // Two columns, so the block reads as label/value in a spreadsheet rather than as text
+    // spilled across the sheet. A blank row separates it from the table proper.
+    const lines = [
+      [mt(lang, "csvTitle"), ""].map(cell).join(sep),
+      // Stamped DD.MM.YYYY like every other date in the file. Deliberately not the browser
+      // locale's own format: on en-US that prints 7/29/2026 next to a 29.07.2026 trade-date
+      // column, and one report should not carry two date conventions.
+      [mt(lang, "csvGenerated"), (() => {
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      })()].map(cell).join(sep),
+      [mt(lang, "csvSession"), session].map(cell).join(sep),
+      [mt(lang, "csvFilter"), filters].map(cell).join(sep),
+      [mt(lang, "csvRows"), visibleRows.length].map(cell).join(sep),
+      [mt(lang, "csvMoneyNote"), ""].map(cell).join(sep),
+      [mt(lang, "csvSources"), ""].map(cell).join(sep),
+      "",
+    ];
+
+    const header = [
+      mt(lang, "ticker"), mt(lang, "company"), mt(lang, "isin"), mt(lang, "sector"),
+      mt(lang, "shareType"), mt(lang, "date"),
+      mt(lang, "last"), `${mt(lang, "change")}, %`, mt(lang, "open"), mt(lang, "high"), mt(lang, "low"),
+      mt(lang, "volumeCol"), mt(lang, "csvTrades"), mt(lang, "volQty"),
+      mt(lang, "avgSharePrice"), "VWAP", mt(lang, "bigTrade"), mt(lang, "volShare"),
+      mt(lang, "finPeriod"), mt(lang, "finCoverage"),
+      mt(lang, "finRevenue"), mt(lang, "finGross"), mt(lang, "finOperating"),
+      mt(lang, "finNet"), mt(lang, "finCash"), mt(lang, "finLiab"),
+      mt(lang, "mktCap"), mt(lang, "pe"), mt(lang, "pb"),
+      mt(lang, "roe"), mt(lang, "roa"), `${mt(lang, "netMargin")}, %`, mt(lang, "debtEquity"),
+    ];
+    lines.push(header.map(cell).join(sep));
+
     for (const row of visibleRows) {
+      const sec = smap[row.ticker] || {};
       const rat = ratioOf(row.ticker) || {};
+      const fin = finOf(row.ticker) || null;
+      const period = finRowPeriod(fin);
       const share = (stats.boardDay && marketRowDay(row) !== stats.boardDay) ? 0
-        : Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? (row.stockVolume / stats.totalVolume) * 100 : "";
+        : Number.isFinite(row.stockVolume) && stats.totalVolume > 0
+          ? (row.stockVolume / stats.totalVolume) * 100 : "";
+      const isPreferred = sec.is_preferred || row.share_type === "preferred";
       lines.push([
-        row.ticker, row.name, row.isin,
-        marketDisplayPrice(row), row.changePercent,
-        row.stockVolume, row.stockTradeCount, row.stockQuantity, row.avgPrice, row.vwap,
-        row.highPrice, row.lowPrice,
-        mktCapOf(row), share, peOf(row), pbOf(row),
-        rat.roe, rat.roa, rat.net_profit_margin, rat.debt_to_equity,
-      ].map(cell).join(","));
+        row.ticker,
+        row.name,
+        row.isin,
+        sec.sector || "",
+        (row.type === "bond" || sec.type === "bond") ? mt(lang, "bondOne")
+          : isPreferred ? mt(lang, "preferred") : mt(lang, "ordinary"),
+        day(marketRowDay(row)),
+        round(marketDisplayPrice(row), 2), round(row.changePercent, 2),
+        round(row.openPrice, 2), round(row.highPrice, 2), round(row.lowPrice, 2),
+        money(row.stockVolume), row.stockTradeCount, row.stockQuantity,
+        round(Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row), 2),
+        round(row.vwap, 2), money(row.ts?.largest_value), round(share, 2),
+        period || "", period ? finPeriodCoverage(period, lang) : "",
+        money(fin?.revenue), money(fin?.gross_profit), money(fin?.operating_income),
+        money(fin?.net_income), money(fin?.cash), money(fin?.total_liabilities),
+        money(mktCapOf(row)), round(peOf(row), 2), round(pbOf(row), 2),
+        round(rat.roe, 2), round(rat.roa, 2), round(rat.net_profit_margin, 2),
+        round(rat.debt_to_equity, 2),
+      ].map(cell).join(sep));
     }
-    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+
+    // CRLF and the BOM: what Excel expects of a CSV on Windows, which is where these open.
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `market_${type || "all"}.csv`;
+    a.download = `uzse_${type || "all"}_${(stats.boardDay || "").slice(0, 8) || "latest"}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
