@@ -5146,7 +5146,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
 // Company detail page components
 // ---------------------------------------------------------------------------
 
-function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
+function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustments, lang }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const RANGES = [
     { label: t("1М", "1O", "1M"), months: 1 },   // month   → daily
@@ -5322,6 +5322,18 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
   const hx = hover != null ? xs(hover) : 0;
   const ttRight = hover != null && hx > W * 0.62;
 
+  // Splits and bonus issues that fall inside the visible span. The prices either side are
+  // already in the same unit (the server restated the older half), but the day the share
+  // count changed is still worth naming — otherwise a reader checking a 2024 close against
+  // uzse.uz finds a different number and no explanation. An event before the first point
+  // (index 0) has nothing left to mark: the whole span is already post-event.
+  const eventMarks = (adjustments || [])
+    .map((a) => ({ ...a, i: points.findIndex((p) => String(p.date) >= String(a.ex_date)) }))
+    .filter((a) => a.i > 0);
+  const kindLabel = (kind) => kind === "bonus"
+    ? t("бонусная эмиссия", "bonus emissiya", "bonus issue")
+    : t("дробление", "aksiyalarni maydalash", "split");
+
   return (
     <div className="company-chart-wrap">
       <div className="company-chart-toolbar">
@@ -5393,6 +5405,11 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
 
         {!showCandles && <circle cx={xs(points.length - 1)} cy={ys(points[points.length - 1].close)} r="4" fill={color} />}
 
+        {eventMarks.map((m) => (
+          <line key={`ev${m.ex_date}`} x1={xs(m.i)} y1={priceTop} x2={xs(m.i)} y2={volBot}
+            stroke="currentColor" strokeOpacity="0.3" strokeDasharray="2 4" />
+        ))}
+
         {/* Crosshair */}
         {hover != null && (
           <>
@@ -5422,6 +5439,24 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, lang }) {
             </div>
           )}
         </div>
+      )}
+
+      {eventMarks.length > 0 && (
+        <p className="cpc-adjust-note">
+          {t("Цены до этих дат пересчитаны на текущую акцию",
+             "Bu sanalargacha boʻlgan narxlar joriy aksiyaga qayta hisoblangan",
+             "Prices before these dates are restated onto the current share")}
+          {": "}
+          {eventMarks.map((m, i) => (
+            <React.Fragment key={m.ex_date}>
+              {i > 0 && "; "}
+              {fmtDate(m.ex_date, true)} — {kindLabel(m.kind)} ×{fmtFull(m.ratio)}
+            </React.Fragment>
+          ))}
+          {t(". На бирже они котировались в прежних долях.",
+             ". Birjada ular eski ulushlarda kotirovka qilingan.",
+             ". The exchange quoted them in the old units.")}
+        </p>
       )}
     </div>
   );
@@ -5524,7 +5559,7 @@ function PriceStatsStrip({ history, lang }) {
   );
 }
 
-function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow }) {
+function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow }) {
   const marketCapVal = safeNumber(marketRow?.market_cap ?? marketRow?.marketCap) || null;
   const nominalVal = safeNumber(marketRow?.nominal) || null;
   const metrics = companyData?.ratios?.metrics || {};
@@ -5558,7 +5593,7 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceMonths, onMo
     <div className="company-overview-layout">
       {/* Full-width price chart */}
       <div className="company-chart-panel panel">
-        <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} lang={lang} />
+        <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} adjustments={priceAdjustments} lang={lang} />
         <PriceStatsStrip history={priceHistory} lang={lang} />
       </div>
 
@@ -5802,6 +5837,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
   const lang = normalizeLanguage(language);
   const [tab, setTab] = React.useState("overview");
   const [priceHistory, setPriceHistory] = React.useState(null);
+  // Non-empty only for a series that spans a split or a bonus issue — the chart has to
+  // say the older prices were restated, or they read as wrong against uzse.uz.
+  const [priceAdjustments, setPriceAdjustments] = React.useState([]);
   const [priceMonths, setPriceMonths] = React.useState(12);
   const [priceLoading, setPriceLoading] = React.useState(false);
   const [secInfo, setSecInfo] = React.useState((securitiesMap || {})[ticker] || null);
@@ -5827,8 +5865,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return;
-        if (d.ok) setPriceHistory(d.points || []);
-        else setPriceError(true);
+        if (d.ok) {
+          setPriceHistory(d.points || []);
+          setPriceAdjustments(d.adjustments || []);
+        } else setPriceError(true);
       })
       .catch(() => { if (alive) setPriceError(true); })
       .finally(() => { if (alive) setPriceLoading(false); });
@@ -5992,6 +6032,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
         )}
         {tab === "overview" && (
           <CompanyOverviewTab sec={sec} priceHistory={priceHistory} priceLoading={priceLoading}
+            priceAdjustments={priceAdjustments}
             priceMonths={priceMonths} onMonthsChange={setPriceMonths}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
             marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading} />

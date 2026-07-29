@@ -17,6 +17,7 @@ import requests
 
 
 
+from corporate_actions import adjust_history
 from db import APP_DATA_DIR as _APP_DATA_DIR
 from numeric_parse import parse_decimal
 
@@ -315,11 +316,17 @@ def fetch_price_history(
         "end_date": end_date.isoformat(),
     }
     payload = _json_get(client, "/iuzse/conclusions/", params)
+    ticker = payload.get("ticker")
+    # The feed never restates a price after a split or a bonus issue, so a series that
+    # spans one is quoted in two different units. Put the older half on today's share
+    # before anything reads it — the chart, the period change below, the analyst prompt.
+    points, adjustments = adjust_history(payload.get("results") or [], ticker, isin_code)
     return {
         "source_url": f"{OPENINFO_API_BASE}/iuzse/conclusions/?{urlencode(params)}",
         "name": payload.get("name"),
-        "ticker": payload.get("ticker"),
-        "points": payload.get("results") or [],
+        "ticker": ticker,
+        "points": points,
+        "adjustments": adjustments,
     }
 
 
