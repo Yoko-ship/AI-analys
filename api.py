@@ -2472,7 +2472,13 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
             for p in (data.get("points") or [])
             if p.get("date") and p.get("close") is not None
         ]
-        return {"ok": True, "ticker": ticker, "isin": isin, "points": points}
+        # Non-empty only when the series spans a split or a bonus issue: the older prices
+        # have been restated onto today's share, so the chart says so rather than let a
+        # reader reconcile it against uzse.uz and conclude we are wrong.
+        return {
+            "ok": True, "ticker": ticker, "isin": isin, "points": points,
+            "adjustments": data.get("adjustments") or [],
+        }
     except Exception as exc:
         logger.exception("price-history failed for %s", ticker)
         return {"ok": False, "ticker": ticker, "error": str(exc), "points": []}

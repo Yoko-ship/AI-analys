@@ -9670,6 +9670,7 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .cpc-tt-row { display: flex; justify-content: space-between; gap: 14px; line-height: 1.55; }
 .cpc-tt-row span { color: var(--text-muted); }
 .cpc-tt-row b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.cpc-adjust-note { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: var(--text-muted); }
 
 /* Dividend center */
 .company-dividends { display: flex; flex-direction: column; gap: 14px; }
