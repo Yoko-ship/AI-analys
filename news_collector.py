@@ -31,6 +31,7 @@ import os
 import re
 import sys
 import time
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,7 @@ from dotenv import load_dotenv
 # no push credentials — the failure mode the collector docs describe.
 load_dotenv()
 
+import news_lang  # noqa: E402  (after load_dotenv)
 import news_store  # noqa: E402  (after load_dotenv)
 import reports_catalog as rc  # noqa: E402  (after load_dotenv)
 from news_classifier import (  # noqa: E402  (after load_dotenv)
@@ -1293,7 +1295,14 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
             it["source"] = src["name"]
             it["source_id"] = src["id"]
             it["coverage_weight"] = src.get("coverage_weight", 0.5)
-        logger.info("  %s: %d items (cap %d)", src["id"], len(fetched), src_limit)
+            # Every adapter stamps the source's DECLARED first language, which is a constant
+            # per source and therefore wrong for any outlet that publishes in more than one
+            # (kun.uz, spot.uz, uzdaily all declare two or three). Read the item instead;
+            # keep the declared value only when the text has no letters to judge by.
+            it["lang"] = news_lang.detect_lang(it.get("title"), it.get("snippet")) or it.get("lang")
+        by_lang = Counter(it.get("lang") for it in fetched)
+        logger.info("  %s: %d items (cap %d)%s", src["id"], len(fetched), src_limit,
+                    f" — {dict(by_lang)}" if len(by_lang) > 1 else "")
         raw.extend(fetched)
         time.sleep(min(src.get("crawl_delay_s", 2), 5) if len(sources) > 1 else 0)
 

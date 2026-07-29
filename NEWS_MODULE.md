@@ -46,6 +46,7 @@ Either way the returned items can be fed back through `classify_item` and stored
 | `news_search_backend.py` | Pluggable search backends for Layer B (`TavilyBackend`, `NullBackend`) |
 | `news_grok_search.py` | Layer B — Grok-native web + X search (xAI Agent Tools API) |
 | `news_agent.py` | Layer B — `find_news` entry point (routes to Grok-native or Tavily) |
+| `news_lang.py` | Code-only language detection (`detect_lang`, `is_foreign`) — no model, no network |
 | `news_store.py` | `news` / `news_nlp` / `news_entities` upsert + read helpers |
 | `news_collector.py` | Orchestrator + CLI (fetch → dedup → classify → store → push) |
 | `reports_catalog.py` | Schema for the three news tables (in `_init_schema`) |
@@ -110,6 +111,46 @@ chronological.
 
 Set `NEWS_MIN_RELEVANCE=0`, `NEWS_DEDUP_SIMILARITY=0` or `NEWS_RANK_HALF_LIFE_H=0` to switch
 any stage off without a code change.
+
+## Keeping a Russian-first feed Russian (no model, no translation service)
+
+The feed is Russian-first, but the sources are not. Three layers, cheapest first, and **none
+of them calls a model or a translation API** — the whole path stays free.
+
+1. **Read the publisher's own Russian edition where one exists.** The best translation of a
+   kun.uz story is kun.uz's. Its Russian feed is `https://kun.uz/api/rss?lang=ru` — the
+   language is a *query param*, not a path, which is why `/ru/news/rss` (an HTML page,
+   0 entries for feedparser) made this look impossible on 2026-07-25. Same 16 stories,
+   Russian titles, `/ru/` links. That removed the only Uzbek source in the registry. Every
+   other enabled source is already Russian except Moody's, Fitch and The Diplomat, which
+   publish in English and nothing else.
+2. **Detect the language per item, not per source** (`news_lang.detect_lang`). `news.lang`
+   used to be the source's *declared first* language from `news_sources.json` — a constant,
+   so every kun.uz item was stamped `uz` whether it was or not, and a stray English release
+   on cbu.uz's Russian listing was stamped `ru`. Detection is code only: script first
+   (Cyrillic vs Latin, with Uzbek Cyrillic told from Russian by ў/қ/ғ/ҳ), then function words
+   and the oʻ/gʻ apostrophe letters inside Latin. The collector stamps it at fetch time and
+   the read path re-derives it, so rows written before this existed are corrected too.
+   Deliberately asymmetric in two places, both documented in the module docstring: a quarter
+   Cyrillic is enough to call a headline Russian (real ones carry Latin brand names), and an
+   undecidable Latin headline is called English, not Uzbek.
+3. **Promote `summary_ru` to the headline for what is left.** For a foreign-language item the
+   read path returns `title_ru` — the one-sentence Russian summary the classifier *already*
+   wrote when the item was collected, which until now sat as small print under an English
+   headline. No new call, no new dependency, and it is our own text. On the Russian UI the
+   card prints it as the headline and demotes the original to an `EN`-badged attribution
+   line; on the English and Uzbek UI the original stays, since swapping in Russian there
+   would trade one foreign headline for another.
+
+**Not done, on purpose:** a phrase-table translation of the rating agencies' headlines,
+formulaic though they are (`fitch affirms uzbekistan at bb outlook stable`). Their headline
+reaches us through the URL slug, and a slug has already lost the notch — `+` and `-` do not
+survive it — so a template would print «BB» where the action said "BB-". A fabricated rating
+notch stated in confident Russian is a far worse failure than an English headline.
+
+Side effect worth knowing: cross-source de-duplication now works for kun.uz. An Uzbek title
+could never Jaccard-match the same story's Russian title elsewhere in the feed; a Russian one
+can.
 
 ## The story page (`/news/{id}`)
 

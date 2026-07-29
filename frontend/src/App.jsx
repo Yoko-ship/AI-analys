@@ -477,6 +477,24 @@ function interceptNav(handler) {
   };
 }
 
+// The headline to print for an editorial item, plus the original when we substituted one.
+// The API ships `title_ru` — our own stored Russian summary, promoted — only for items whose
+// own headline is not Russian (kun.uz before it moved to its Russian feed; Moody's, Fitch and
+// The Diplomat, which publish in English and nothing else). Nothing is translated: no model
+// runs on the read path, and the substitute is text we already wrote when the item was
+// collected. On the English and Uzbek UI the original stays, because swapping in a Russian
+// sentence there would trade one foreign headline for another. The original is returned
+// either way so the card can print it as attribution — for a rating action the agency's exact
+// wording is the news.
+function edHeadline(item, language) {
+  const swap = language === "ru" && Boolean(item && item.title_ru);
+  return {
+    text: swap ? item.title_ru : (item && item.title) || "",
+    original: swap ? item.title : "",
+    lang: (item && item.lang) || "",
+  };
+}
+
 // Editorial news card ("Ledger" direction): serif headline, source image when the
 // source provides one (else a category-tinted placeholder), source name shown in
 // the byline, our own summary, and the AI tone/impact signal. Opens our own
@@ -487,7 +505,10 @@ function EdNewsCard({ item, language, variant, onOpen }) {
   const TitleTag = isLead ? "h2" : "h3";
   const [imgOk, setImgOk] = React.useState(true);
   const inApp = Boolean(item.id && onOpen);
-  const summary = item.summary_ru || item.snippet || "";
+  const head = edHeadline(item, language);
+  // When the Russian headline above IS our summary, printing it again as the dek would only
+  // repeat the line; the source's own wording takes that slot instead.
+  const summary = head.original ? "" : (item.summary_ru || item.snippet || "");
   const toneCls = _TONE_CLS[item.tone] || "neu";
   const cat = item.type || "market";
   return (
@@ -504,8 +525,13 @@ function EdNewsCard({ item, language, variant, onOpen }) {
           {item.tone && <><span className="led-sep">·</span><span className={`led-tone ${toneCls}`}>{etx.tone[item.tone] || item.tone}</span></>}
           {isLead && item.impact && item.impact !== "none" && <><span className="led-sep">·</span><span className="led-imp">{etx.impact[item.impact] || item.impact}</span></>}
         </div>
-        <TitleTag className={isLead ? "led-lead-title" : "led-story-title"}>{item.title}</TitleTag>
+        <TitleTag className={isLead ? "led-lead-title" : "led-story-title"}>{head.text}</TitleTag>
         {summary && <p className={isLead ? "led-dek" : "led-story-dek"}>{summary}</p>}
+        {head.original && (
+          <p className={`led-orig ${isLead ? "led-dek" : "led-story-dek"}`}>
+            <span className="led-lang">{head.lang}</span>{head.original}
+          </p>
+        )}
         <div className="led-byline">{item.source && <b>{item.source}</b>}{item.published_at ? ` · ${newsRelTime(item.published_at, language)}` : ""}</div>
       </div>
     </a>
@@ -592,7 +618,7 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
                     ? { onClick: interceptNav(() => onOpenNews(it)) }
                     : { target: "_blank", rel: "noopener noreferrer" })}>
                   <span className={`led-dot ${_TONE_CLS[it.tone] || "neu"}`} />
-                  <span className="led-lt-t">{it.title}</span>
+                  <span className="led-lt-t">{edHeadline(it, language).text}</span>
                   <span className="led-lt-s">{it.source}{it.published_at ? ` · ${newsRelTime(it.published_at, language)}` : ""}</span>
                 </a>
               ))}
@@ -623,6 +649,7 @@ const NEWS_ARTICLE_TX = {
     tickersHint: "Откройте карточку эмитента — котировки, отчётность и его новости.",
     sectors: "Секторы", related: "По теме", source: "Источник",
     sourceLead: "Как сообщает источник", about: "О публикации",
+    origTitle: "Заголовок источника",
     published: "Опубликовано", added: "В ленте с", langLabel: "Язык",
     langs: { ru: "русский", uz: "узбекский", en: "английский" },
     filingDetail: "Из раскрытия эмитента",
@@ -644,6 +671,7 @@ const NEWS_ARTICLE_TX = {
     tickersHint: "Open an issuer to see its quotes, filings and news.",
     sectors: "Sectors", related: "Related", source: "Source",
     sourceLead: "As the source reports", about: "About this item",
+    origTitle: "The source's headline",
     published: "Published", added: "In the feed since", langLabel: "Language",
     langs: { ru: "Russian", uz: "Uzbek", en: "English" },
     filingDetail: "From the filing",
@@ -665,6 +693,7 @@ const NEWS_ARTICLE_TX = {
     tickersHint: "Emitent kartasini oching — kotirovkalar, hisobotlar va yangiliklar.",
     sectors: "Sektorlar", related: "Mavzu bo'yicha", source: "Manba",
     sourceLead: "Manba xabar qilishicha", about: "Nashr haqida",
+    origTitle: "Manba sarlavhasi",
     published: "E'lon qilingan", added: "Lentada", langLabel: "Til",
     langs: { ru: "rus", uz: "o'zbek", en: "ingliz" },
     filingDetail: "Emitent oshkor qilishidan",
@@ -783,7 +812,7 @@ function NewsIssuerContext({ tickers, currentId, language, securitiesMap, onOpen
                         ? { onClick: interceptNav(() => onOpenNews(n)) }
                         : { target: "_blank", rel: "noopener noreferrer" })}>
                       <span className={`led-dot ${_TONE_CLS[n.tone] || "neu"}`} />
-                      <span className="led-lt-t">{n.title}</span>
+                      <span className="led-lt-t">{edHeadline(n, language).text}</span>
                       <span className="led-lt-s">{n.source}{n.published_at ? ` · ${newsRelTime(n.published_at, language)}` : ""}</span>
                     </a>
                   ))}
@@ -846,7 +875,11 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
   }
 
   const { item, related = [], disclaimer } = state.data;
+  const head = edHeadline(item, language);
   const summary = item.summary_ru || item.snippet || "";
+  // Same rule as the card: when the headline above is already our summary, the lead slot
+  // carries the source's own headline instead of repeating it.
+  const lead = head.original ? "" : (summary || tx.noSummary);
   // An openinfo item is a filing, not an article: the portal has no page for a single
   // material fact (verified — /facts/{id}, /fact/{id} and /organizations/{org}/facts/{id}
   // all 404), so its link can only reach the issuer's card. Promising "the full text at the
@@ -880,7 +913,7 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
               {item.tone && <><span className="led-sep">·</span><span className={`led-tone ${toneCls}`}>{etx.tone[item.tone] || item.tone}</span></>}
               {item.impact && item.impact !== "none" && <><span className="led-sep">·</span><span className="led-imp">{etx.impact[item.impact] || item.impact}</span></>}
             </div>
-            <h1 className="led-art-title">{item.title}</h1>
+            <h1 className="led-art-title">{head.text}</h1>
             <div className="led-art-byline">
               {item.source && <b>{item.source}</b>}
               {item.published_at && <span>{newsAbsTime(item.published_at, language)}</span>}
@@ -893,7 +926,14 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
               </div>
             )}
 
-            <p className="led-art-lead">{summary || tx.noSummary}</p>
+            {lead && <p className="led-art-lead">{lead}</p>}
+
+            {head.original && (
+              <section className="led-art-quote">
+                <h3 className="led-panel-h">{tx.origTitle}</h3>
+                <p className="led-orig"><span className="led-lang">{head.lang}</span>{head.original}</p>
+              </section>
+            )}
 
             {sourceLead && (
               <section className="led-art-quote">

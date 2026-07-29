@@ -9804,6 +9804,15 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .led-story:hover .led-story-title { color: var(--accent-hover); }
 .led .led-story-dek { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; max-width: 60ch; line-height: 1.5; }
 
+/* The source's own headline, shown under a Russian one we substituted for it (see
+   `edHeadline`). Attribution, not the story: quieter than a dek, and prefixed with the
+   language code so the reader can see at a glance why a second line is there at all. */
+.led .led-orig { color: var(--muted-light); font-style: italic; }
+.led .led-lang { display: inline-block; margin-right: 7px; padding: 1px 5px; border-radius: 3px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--muted);
+  font-family: "IBM Plex Mono", monospace; font-style: normal;
+  font-size: .82em; line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; vertical-align: 1px; }
+
 .led .led-lead:focus-visible, .led .led-story:focus-visible, .led .led-lt:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 
 /* market-sentiment rail */

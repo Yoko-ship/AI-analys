@@ -17,6 +17,7 @@ import re
 from datetime import datetime
 from typing import Any
 
+import news_lang
 import reports_catalog as rc
 from delisted import DELISTED_TICKERS
 
@@ -286,11 +287,37 @@ def delete_failed_classifications(*, limit: int = 1000) -> dict[str, Any]:
     return {"deleted": len(ids), "by_source": by_source}
 
 
+def ru_headline(item: dict[str, Any]) -> str | None:
+    """A Russian headline for an item whose own headline is not one — else None.
+
+    Nothing is translated here, and nothing can be without a model. What we already have is
+    ``summary_ru``: the one-sentence Russian summary the classifier wrote when the item was
+    collected, which until now sat as small print underneath an English or Uzbek headline.
+    Promoting it to the headline costs no call, adds no dependency, and puts our own text on
+    the card instead of the source's.
+
+    Deliberately NOT a phrase-table translation of the rating agencies' headlines, formulaic
+    though those are ("fitch affirms uzbekistan at bb outlook stable" and a few dozen
+    variants). Their headline reaches us through the URL slug, and a slug has already lost
+    the notch — '+' and '-' do not survive it — so a template would print «BB» where the
+    action actually said "BB-". A fabricated rating notch stated in confident Russian is a
+    much worse failure than an English headline, so the original wording stays authoritative
+    and the card shows it as attribution.
+    """
+    if not news_lang.is_foreign(item.get("lang")):
+        return None
+    return (item.get("summary_ru") or "").strip() or None
+
+
 def _row_to_item(r: Any) -> dict[str, Any]:
     keys = r.keys()
-    return {
+    item = {
         "id": r["id"], "url": r["url"], "source": r["source"], "source_id": r["source_id"],
-        "lang": r["lang"], "title": r["title"], "snippet": r["snippet"],
+        # Read from the text, not from the stored column: that column is only as good as the
+        # source's declared language was on the day the row was written, so detecting here
+        # also corrects rows collected before per-item detection existed.
+        "lang": news_lang.detect_lang(r["title"], r["snippet"]) or r["lang"],
+        "title": r["title"], "snippet": r["snippet"],
         "summary_ru": r["summary_ru"], "image_url": r["image_url"], "published_at": r["published_at"],
         "type": r["type"], "tone": r["tone"], "tone_score": r["tone_score"],
         "impact": r["impact"], "direction": r["direction"],
@@ -300,6 +327,8 @@ def _row_to_item(r: Any) -> dict[str, Any]:
         "tickers": ([t for t in (r["tickers_csv"] or "").split(",") if t]
                     if "tickers_csv" in keys else []),
     }
+    item["title_ru"] = ru_headline(item)
+    return item
 
 
 def _parse_dt(value: Any) -> datetime | None:
