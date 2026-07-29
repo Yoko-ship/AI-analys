@@ -336,7 +336,11 @@ body[data-theme="dark"] .news-tag.cat-delisting, body[data-theme="dark"] .news-t
 }
 .topbar-nav-scrim { display: none; }
 
-@media (max-width: 860px) {
+/* The inline nav needs ~1445px to lay out (248 brand + 909 nav + 128 controls
+   + gaps + padding). Below that the controls used to run off the right edge, so
+   the drawer has to take over well before phone widths — see mobile.css §2,
+   which compacts the inline nav for the 1181–1460px band above this. */
+@media (max-width: 1180px) {
   .topbar-burger { display: inline-grid; }
   .topbar .topbar-nav {
     position: fixed;
