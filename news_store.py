@@ -45,6 +45,19 @@ _TYPE_WEIGHT = {"financial_report": 1.0, "corporate_event": 1.0, "regulatory": 0
 # hurt far more than admitting the occasional dull affirmation. Sources read whole (napp,
 # thediplomat) are NOT here: nothing has vouched for their items before the model reads them.
 _AUTHORITATIVE_SOURCES = {"openinfo_facts", "moodys", "fitch"}
+# Sources whose headline is not the publisher's sentence but a URL slug we un-hyphenated
+# (``title_from: "slug"`` in the registry, because these publishers ship no readable feed).
+# A slug has lost the case, the punctuation and — critically — the rating notch, since '+'
+# and '-' do not survive it. Machine translation cannot recover any of that and does not
+# degrade gracefully on it: measured 2026-07-29, "fitch affirms uzbekistan at bb outlook
+# stable" comes back as "fitch подтвердило ПРОГНОЗ по Узбекистану на уровне bb стабильный" —
+# Fitch affirmed the RATING, and the outlook being stable is a separate fact. On the same
+# engine, real prose ("Central Asia Weighs Its Options as Great Power Competition
+# Intensifies") translates cleanly. So the rule is not "don't translate English", it is
+# "don't translate a headline the publisher never wrote": these items keep ``summary_ru``
+# and their original wording, and the read path marks them ``translatable: False`` so no
+# client can decide otherwise.
+_SLUG_TITLE_SOURCES = {"moodys", "fitch"}
 # Half-life of the recency decay: a story is worth half as much after this many hours.
 _RANK_HALF_LIFE_H = float(os.getenv("NEWS_RANK_HALF_LIFE_H", "36"))
 # Items the model marked relevant but scored below this are dropped as noise. Measured
@@ -328,6 +341,13 @@ def _row_to_item(r: Any) -> dict[str, Any]:
                     if "tickers_csv" in keys else []),
     }
     item["title_ru"] = ru_headline(item)
+    # Whether a client may put this headline through a machine translator (the browser's
+    # own, on-device one). True only for foreign items whose headline the publisher actually
+    # wrote — see _SLUG_TITLE_SOURCES for why the rating agencies are excluded here rather
+    # than in the UI: it is a property of the data, and the server is the only place that
+    # can state it once for every client.
+    item["translatable"] = (news_lang.is_foreign(item["lang"])
+                            and item["source_id"] not in _SLUG_TITLE_SOURCES)
     return item
 
 

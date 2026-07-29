@@ -94,3 +94,58 @@ def test_ru_headline_promotes_the_stored_summary_only_for_foreign_items():
     # No summary to promote: the caller falls back to the original headline rather than
     # showing an empty card.
     assert news_store.ru_headline({**foreign, "summary_ru": ""}) is None
+
+
+class _Row(dict):
+    """Just enough of a sqlite3.Row for _row_to_item."""
+
+    def keys(self):  # noqa: D102
+        return list(super().keys())
+
+
+def _row(**over):
+    base = dict(id=1, url="u", source="s", source_id="thediplomat", lang="en",
+                title="Uzbekistan Signs Railway Deal With China and Kyrgyzstan",
+                snippet="", summary_ru="Узбекистан подписал соглашение.", image_url=None,
+                published_at=None, type="market", tone="neutral", tone_score=0.0,
+                impact="low", direction="unclear", sectors_json=None,
+                relevance_score=0.5, coverage_weight=0.5, tickers_csv="")
+    base.update(over)
+    return _Row(base)
+
+
+def test_prose_sources_may_be_machine_translated():
+    import news_store
+
+    item = news_store._row_to_item(_row())
+    assert item["lang"] == "en"
+    assert item["translatable"] is True
+
+
+@pytest.mark.parametrize("source_id", ["moodys", "fitch"])
+def test_slug_titled_sources_are_never_machine_translated(source_id):
+    """The safety rule from the module comment, pinned.
+
+    Their headline is a URL slug, so the rating notch is already gone ('+'/'-' do not survive
+    one) and machine translation reads "affirms X at BB, outlook stable" as an affirmation of
+    the OUTLOOK. The server must say no once, for every client.
+    """
+    import news_store
+
+    item = news_store._row_to_item(
+        _row(source_id=source_id, title="fitch affirms uzbekistan at bb outlook stable"))
+    assert item["lang"] == "en"
+    assert item["translatable"] is False
+    # The Russian summary still carries the card — excluded from translation is not the
+    # same as left in English.
+    assert item["title_ru"] == "Узбекистан подписал соглашение."
+
+
+def test_russian_items_are_not_offered_for_translation():
+    import news_store
+
+    item = news_store._row_to_item(
+        _row(source_id="kursiv", title="ЦБ сохранил ставку на уровне 13,5%"))
+    assert item["lang"] == "ru"
+    assert item["translatable"] is False
+    assert item["title_ru"] is None
