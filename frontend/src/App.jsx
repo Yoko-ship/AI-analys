@@ -500,21 +500,37 @@ function interceptNav(handler) {
 // a headline while the summary is a sentence about the story — but it is only ever an
 // upgrade: if it is absent, the summary the server already supplied carries the card.
 function edHeadline(item, language, machine) {
-  const ru = language === "ru";
-  if (ru && machine) {
-    return { text: machine, original: (item && item.title) || "",
-             lang: (item && item.lang) || "", machine: true };
+  const title = (item && item.title) || "";
+  const lang = (item && item.lang) || "";
+  // Foreign means "not the language this reader is reading", so a Russian headline needs
+  // replacing on the English site exactly as an English one does on the Russian site.
+  const foreign = Boolean(lang) && lang !== language;
+  if (foreign && machine) {
+    return { text: machine, original: title, lang, machine: true };
   }
-  const swap = ru && Boolean(item && item.title_ru);
+  const stored = (item && item[`title_${language}`]) || "";
+  const swap = foreign && Boolean(stored);
   return {
-    text: swap ? item.title_ru : (item && item.title) || "",
-    original: swap ? item.title : "",
-    lang: (item && item.lang) || "",
+    text: swap ? stored : title,
+    original: swap ? title : "",
+    lang,
     machine: false,
   };
 }
 
-// Ask the browser to put a foreign headline into Russian with its own on-device translator.
+// The stored summary in the reader's language. Falls back to Russian — the pivot the
+// classifier writes first, and all a row collected before the other two columns existed
+// has — and only then to the source's own lead-in, and that one ONLY when the source wrote
+// it in the reader's language, or we would swap one foreign paragraph for another.
+function edSummary(item, language) {
+  if (!item) return "";
+  return (item[`summary_${language}`] || "").trim()
+    || (item.summary_ru || "").trim()
+    || (item.lang === language ? (item.snippet || "").trim() : "");
+}
+
+// Ask the browser to put a foreign headline into the reader's language with its own
+// on-device translator.
 // Strictly an enhancement: `item.translatable` is the server's verdict (false for Moody's and
 // Fitch, whose headline is a URL slug that machine translation gets factually wrong), and a
 // browser without the API — Safari, Firefox, anything on iOS — simply never resolves a
@@ -524,32 +540,33 @@ function edHeadline(item, language, machine) {
 // a surprise download; when one is merely `downloadable`, `offer` goes true and the story
 // page shows an opt-in the reader can take (or not).
 function useBrowserHeadline(item, language) {
-  const source = language === "ru" && item && item.translatable ? item.lang || "" : "";
+  const source = item && item.translatable && item.lang && item.lang !== language
+    ? item.lang : "";
   const text = source ? item.title || "" : "";
-  const [machine, setMachine] = React.useState(() => (text ? cachedTranslation(text, source) : ""));
+  const [machine, setMachine] = React.useState(() => (text ? cachedTranslation(text, source, language) : ""));
   const [offer, setOffer] = React.useState(false);
 
   React.useEffect(() => {
     let alive = true;
-    setMachine(text ? cachedTranslation(text, source) : "");
+    setMachine(text ? cachedTranslation(text, source, language) : "");
     setOffer(false);
     if (!text) return undefined;
-    translateHeadline(text, source).then(({ text: out, status }) => {
+    translateHeadline(text, source, language).then(({ text: out, status }) => {
       if (!alive) return;
       if (out) setMachine(out);
       else setOffer(status === "downloadable" || status === "downloading");
     });
     return () => { alive = false; };
-  }, [text, source]);
+  }, [text, source, language]);
 
   // Called from a click, which is what lets Chrome fetch the language pack at all.
   const request = React.useCallback(() => {
     if (!text) return;
     allowDownloads();
     setOffer(false);
-    translateHeadline(text, source, { download: true })
+    translateHeadline(text, source, language, { download: true })
       .then(({ text: out }) => { if (out) setMachine(out); });
-  }, [text, source]);
+  }, [text, source, language]);
 
   return { machine, offer, request };
 }
@@ -559,8 +576,8 @@ function useBrowserHeadline(item, language) {
 // starting work of their own. Paired with useTranslationTick on the surrounding view so they
 // repaint when a translation lands.
 function edHeadlineCached(item, language) {
-  const machine = language === "ru" && item && item.translatable
-    ? cachedTranslation(item.title || "", item.lang || "") : "";
+  const machine = item && item.translatable && item.lang && item.lang !== language
+    ? cachedTranslation(item.title || "", item.lang, language) : "";
   return edHeadline(item, language, machine);
 }
 
@@ -585,7 +602,7 @@ function EdNewsCard({ item, language, variant, onOpen }) {
   // When the Russian headline above IS our summary, printing it again as the dek would only
   // repeat the line; the source's own wording takes that slot instead. A translated headline
   // is not the summary, so there the dek goes back to doing its normal job.
-  const summary = head.original && !head.machine ? "" : (item.summary_ru || item.snippet || "");
+  const summary = head.original && !head.machine ? "" : edSummary(item, language);
   const toneCls = _TONE_CLS[item.tone] || "neu";
   const cat = item.type || "market";
   return (
@@ -968,7 +985,7 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
 
   const { item, related = [], disclaimer } = state.data;
   const head = edHeadline(item, language, browser.machine);
-  const summary = item.summary_ru || item.snippet || "";
+  const summary = edSummary(item, language);
   // Same rule as the card: when the headline above is already our summary, the lead slot
   // carries the source's own headline instead of repeating it. Once the browser has
   // translated the real headline the summary is no longer a duplicate, so it comes back.
@@ -983,8 +1000,8 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
   // figures (dividend per share, percent actually paid, the payment window), which the summary
   // only paraphrases. Those numbers are the whole point, so they are shown unconditionally
   // rather than being suppressed as a near-duplicate.
-  const sourceLead = item.summary_ru && item.snippet
-    && (isDisclosure || newsAddsDetail(item.snippet, item.summary_ru)) ? item.snippet : "";
+  const sourceLead = summary && item.snippet
+    && (isDisclosure || newsAddsDetail(item.snippet, summary)) ? item.snippet : "";
   const toneCls = _TONE_CLS[item.tone] || "neu";
   const cat = item.type || "market";
   const host = newsHost(item.url);

@@ -83,17 +83,46 @@ def test_returns_none_when_nothing_can_be_judged():
     assert detect_lang("", None, "2026-07-29 · 13,5%") is None
 
 
-def test_ru_headline_promotes_the_stored_summary_only_for_foreign_items():
+def test_headline_promotes_the_stored_summary_only_for_foreign_items():
     import news_store
 
     foreign = {"lang": "en", "title": "fitch affirms uzbekistan at bb outlook stable",
                "summary_ru": "Fitch подтвердило суверенный рейтинг Узбекистана."}
-    assert news_store.ru_headline(foreign) == "Fitch подтвердило суверенный рейтинг Узбекистана."
-    # A Russian item keeps its own headline — the summary stays the dek.
-    assert news_store.ru_headline({**foreign, "lang": "ru"}) is None
+    assert news_store.headline_for(foreign, "ru") == "Fitch подтвердило суверенный рейтинг Узбекистана."
+    # An item already in the reader's language keeps its own headline — the summary stays the dek.
+    assert news_store.headline_for({**foreign, "lang": "ru"}, "ru") is None
+    assert news_store.headline_for(foreign, "en") is None
     # No summary to promote: the caller falls back to the original headline rather than
     # showing an empty card.
-    assert news_store.ru_headline({**foreign, "summary_ru": ""}) is None
+    assert news_store.headline_for({**foreign, "summary_ru": ""}, "ru") is None
+
+
+def test_a_russian_item_is_foreign_to_an_english_reader():
+    """The whole point of the three-language feed: 'foreign' is relative to the reader.
+
+    A Russian headline needs replacing on the English site exactly as an English one does on
+    the Russian site, and before this the English and Uzbek versions served a Russian feed.
+    """
+    import news_store
+
+    item = {"lang": "ru", "title": "ЦБ сохранил ставку на уровне 13,5%",
+            "summary_ru": "Центробанк сохранил ставку.",
+            "summary_en": "The central bank held its rate.",
+            "summary_uz": "Markaziy bank stavkani saqlab qoldi."}
+    assert news_store.headline_for(item, "ru") is None
+    assert news_store.headline_for(item, "en") == "The central bank held its rate."
+    assert news_store.headline_for(item, "uz") == "Markaziy bank stavkani saqlab qoldi."
+
+
+def test_a_missing_translation_falls_back_to_russian_never_to_blank():
+    import news_store
+
+    item = {"lang": "ru", "title": "ЦБ сохранил ставку", "summary_ru": "Центробанк сохранил ставку."}
+    # Rows collected before the columns existed have only Russian. A reader gets the wrong
+    # language, which is recoverable; a blank card is not.
+    assert news_store.summary_for(item, "en") == "Центробанк сохранил ставку."
+    assert news_store.summary_for(item, "uz") == "Центробанк сохранил ставку."
+    assert news_store.summary_for({}, "en") == ""
 
 
 class _Row(dict):
@@ -106,7 +135,9 @@ class _Row(dict):
 def _row(**over):
     base = dict(id=1, url="u", source="s", source_id="thediplomat", lang="en",
                 title="Uzbekistan Signs Railway Deal With China and Kyrgyzstan",
-                snippet="", summary_ru="Узбекистан подписал соглашение.", image_url=None,
+                snippet="", summary_ru="Узбекистан подписал соглашение.",
+                summary_en="Uzbekistan signed a railway deal.",
+                summary_uz="Oʻzbekiston temir yoʻl bitimini imzoladi.", image_url=None,
                 published_at=None, type="market", tone="neutral", tone_score=0.0,
                 impact="low", direction="unclear", sectors_json=None,
                 relevance_score=0.5, coverage_weight=0.5, tickers_csv="")
@@ -141,11 +172,69 @@ def test_slug_titled_sources_are_never_machine_translated(source_id):
     assert item["title_ru"] == "Узбекистан подписал соглашение."
 
 
-def test_russian_items_are_not_offered_for_translation():
+def test_a_row_carries_a_headline_for_every_ui_language():
     import news_store
 
     item = news_store._row_to_item(
-        _row(source_id="kursiv", title="ЦБ сохранил ставку на уровне 13,5%"))
+        _row(source_id="kursiv", lang="ru", title="ЦБ сохранил ставку на уровне 13,5%"))
     assert item["lang"] == "ru"
-    assert item["translatable"] is False
+    # Russian reader: the item is already Russian, so its own headline stands.
     assert item["title_ru"] is None
+    # English and Uzbek readers get our summary promoted instead of a Russian headline.
+    assert item["title_en"] == "Uzbekistan signed a railway deal."
+    assert item["title_uz"] == "Oʻzbekiston temir yoʻl bitimini imzoladi."
+    # `translatable` is a property of the headline, not of any one reader: a Russian headline
+    # is publisher prose and Chrome can do ru->en, so the client is allowed to try.
+    assert item["translatable"] is True
+
+
+def test_a_classification_without_translations_still_validates():
+    """A model that omits summary_en/summary_uz must not fail the whole item.
+
+    The two columns are nullable and the reader falls back to Russian, so a provider that
+    ignores the new fields costs a language, never a card — and never a batch: a
+    ValidationError here would send the item to classification_failed.
+    """
+    from news_classifier import NewsClassification
+
+    c = NewsClassification.model_validate({"relevant": True, "summary_ru": "Только по-русски."})
+    assert c.summary_en == "" and c.summary_uz == ""
+
+    full = NewsClassification.model_validate({
+        "relevant": True, "summary_ru": "Центробанк сохранил ставку.",
+        "summary_en": "The central bank held its rate.",
+        "summary_uz": "Markaziy bank stavkani saqlab qoldi."})
+    assert full.summary_en == "The central bank held its rate."
+    assert full.summary_uz == "Markaziy bank stavkani saqlab qoldi."
+
+
+def test_a_translation_only_update_cannot_overwrite_or_reclassify(tmp_path, monkeypatch):
+    """`set_translations` is the backfill's only write path, and it is deliberately narrow.
+
+    It must fill an empty column and stop there: overwriting what the classifier itself wrote
+    would let a cheap translation pass degrade a good summary, and touching news_nlp would
+    drop the item out of the feed (the reason images and snippets have their own routes too).
+    """
+    import reports_catalog as rc
+    import news_store
+
+    # Patch the path function, not an env var: _catalog_db_path builds it from APP_DATA_DIR
+    # and reads no environment, so anything else writes to the developer's real catalog.
+    monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
+
+    news_store.upsert_news([{
+        "url": "https://example.test/x", "source": "S", "source_id": "kursiv", "lang": "ru",
+        "title": "ЦБ сохранил ставку", "snippet": "", "summary_ru": "Центробанк сохранил ставку.",
+        "summary_en": "Written by the classifier.", "summary_uz": "",
+        "relevant": True, "relevance_score": 0.8, "type": "regulatory", "tone": "neutral",
+        "tone_score": 0.0, "impact": "high", "direction": "unclear", "sectors": [],
+        "reason": "r", "model": "test", "tickers": [],
+    }])
+    news_store.set_translations({"https://example.test/x": {
+        "en": "A backfill trying to overwrite.", "uz": "Backfill matni."}})
+
+    item = next(i for i in news_store.get_news_feed(limit=50, days=3650)
+                if i["url"] == "https://example.test/x")
+    assert item["summary_en"] == "Written by the classifier."   # not overwritten
+    assert item["summary_uz"] == "Backfill matni."              # the empty one was filled
+    assert item["impact"] == "high"                             # classification untouched

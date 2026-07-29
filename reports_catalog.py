@@ -247,6 +247,16 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     have_news = {r[1] for r in conn.execute("PRAGMA table_info(news)")}
     if "image_url" not in have_news:
         conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")
+    # The site is served in three languages but every summary we stored was Russian, so an
+    # English or Uzbek reader got a Russian feed. The classifier writes all three in the one
+    # call it already makes (see news_classifier._SYSTEM) — there is no cheaper source:
+    # verified 2026-07-29 against real Chrome, its on-device translator has no Uzbek at all
+    # (ru->uz, uz->ru and en->uz all report "unavailable"), so the browser can never serve
+    # the Uzbek feed. Nullable: rows collected before this exist and are backfilled by
+    # `news_collector.py --backfill-translations`.
+    for col in ("summary_en", "summary_uz"):
+        if col not in have_news:
+            conn.execute(f"ALTER TABLE news ADD COLUMN {col} TEXT")
     # Per-field period provenance (JSON {field: period}). A financials row is
     # labelled with ONE period, but a few fields can only be sourced from a
     # different one (bank revenue exists in openinfo's indicators and nowhere in

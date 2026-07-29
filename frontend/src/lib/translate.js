@@ -22,7 +22,10 @@
 //   3. **Never throw.** Every entry point resolves to a value; a browser that half-supports
 //      the API is treated as one that does not support it.
 
-const TARGET = "ru";
+// The target is the language the reader is looking at, not a constant: the Russian site
+// needs en->ru, the English site ru->en. Uzbek is deliberately not special-cased — real
+// Chrome simply reports every uz pair "unavailable" (checked 2026-07-29), so the Uzbek
+// site falls through to the stored summary_uz on its own, with no code path of its own.
 const CONSENT_KEY = "news.translate.download";
 
 // text → translation, for the life of the page. The same headline appears in the feed, in
@@ -75,15 +78,15 @@ export function supportsTranslation() {
   return Boolean(api());
 }
 
-function key(text, source) {
-  // '|' cannot occur in a BCP-47 language code, so it separates the two parts without
-  // any chance of two different (source, text) pairs colliding on one key.
-  return `${source}|${text}`;
+function key(text, source, target) {
+  // '|' cannot occur in a BCP-47 language code, so it separates the parts without any
+  // chance of two different (source, target, text) triples colliding on one key.
+  return `${source}|${target}|${text}`;
 }
 
 /** A translation already computed this session, or "" — lets a re-render paint instantly. */
-export function cachedTranslation(text, source) {
-  return _done.get(key(text, source)) || "";
+export function cachedTranslation(text, source, target) {
+  return _done.get(key(text, source, target)) || "";
 }
 
 /**
@@ -110,29 +113,30 @@ export function allowDownloads() {
  * "unavailable" | "downloadable" | "downloading" | "available" | "unsupported".
  * "unsupported" is ours, for a browser with no API at all.
  */
-export async function availability(source) {
+export async function availability(source, target) {
   const Translator = api();
-  if (!Translator || !source || source === TARGET) return "unsupported";
+  if (!Translator || !source || !target || source === target) return "unsupported";
   try {
-    const status = await Translator.availability({ sourceLanguage: source, targetLanguage: TARGET });
+    const status = await Translator.availability({ sourceLanguage: source, targetLanguage: target });
     return status || "unavailable";
   } catch {
     return "unavailable";
   }
 }
 
-async function instance(source) {
-  if (!_instances.has(source)) {
+async function instance(source, target) {
+  const pair = `${source}|${target}`;
+  if (!_instances.has(pair)) {
     const Translator = api();
-    _instances.set(source, Translator.create({ sourceLanguage: source, targetLanguage: TARGET })
+    _instances.set(pair, Translator.create({ sourceLanguage: source, targetLanguage: target })
       .catch(() => {
         // Do not cache a rejection: a failed create is usually a missing user gesture, and
         // the next attempt comes from a click that has one.
-        _instances.delete(source);
+        _instances.delete(pair);
         return null;
       }));
   }
-  return _instances.get(source);
+  return _instances.get(pair);
 }
 
 /**
@@ -144,23 +148,23 @@ async function instance(source) {
  * installed, so it never costs the visitor a surprise download. Pass `download: true` from a
  * click to fetch the pack and translate.
  */
-export async function translateHeadline(text, source, { download = false } = {}) {
+export async function translateHeadline(text, source, target, { download = false } = {}) {
   const clean = String(text || "").trim();
-  if (!clean || !source) return { text: "", status: "unsupported" };
-  const hit = _done.get(key(clean, source));
+  if (!clean || !source || !target || source === target) return { text: "", status: "unsupported" };
+  const hit = _done.get(key(clean, source, target));
   if (hit) return { text: hit, status: "available" };
 
-  const status = await availability(source);
+  const status = await availability(source, target);
   if (status === "unsupported" || status === "unavailable") return { text: "", status };
   // "downloadable" means the pack is not here yet. Only a user action may fetch it.
   if (status !== "available" && !(download || downloadAllowed())) return { text: "", status };
 
-  const translator = await instance(source);
+  const translator = await instance(source, target);
   if (!translator) return { text: "", status };
   try {
     const out = String((await translator.translate(clean)) || "").trim();
     if (!out || out === clean) return { text: "", status: "unavailable" };
-    _done.set(key(clean, source), out);
+    _done.set(key(clean, source, target), out);
     announce();
     return { text: out, status: "available" };
   } catch {

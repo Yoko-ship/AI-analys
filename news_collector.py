@@ -18,6 +18,7 @@ CLI:
     python news_collector.py --limit 20      # cap items per source
     python news_collector.py --source cbu    # one source only
     python news_collector.py --backfill-images  # images for stored items (no LLM calls)
+    python news_collector.py --backfill-translations  # EN/UZ summaries for older rows
     python news_collector.py --backfill-facts   # figures for stored filings (no LLM calls)
     python news_collector.py --purge-failed   # drop failed classifications so they retry
 """
@@ -55,6 +56,7 @@ from news_classifier import (  # noqa: E402  (after load_dotenv)
     classify_items,
     prefilter_reject,
     screen_items,
+    translate_summaries,
 )
 from runtime_preflight import NEWS_REQUIREMENTS, preflight  # noqa: E402  (after load_dotenv)
 
@@ -1267,6 +1269,97 @@ def push_snippets(snippets: dict[str, str]) -> int:
     return int((resp.json() or {}).get("updated") or 0)
 
 
+def push_translations(translations: dict[str, dict[str, str]]) -> int:
+    """Push translation-only updates (url → {en, uz}) and return the rows prod changed.
+
+    Deliberately NOT /api/admin/news, for the same reason as ``push_images``: a full upsert
+    there would rewrite the stored classification from these partial records.
+    """
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if not secret:
+        logger.error("ADMIN_API_SECRET is not set — cannot push translations")
+        return 0
+    try:
+        resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/translations",
+                             json={"translations": translations},
+                             headers={"X-Admin-Secret": secret}, timeout=120)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        logger.error("push /api/admin/news/translations failed: %s", exc)
+        return 0
+    return int((resp.json() or {}).get("updated") or 0)
+
+
+def _prod_items_without_translation(days: int) -> list[dict[str, Any]]:
+    """Backfill candidates read from prod's public feed — the cards users actually see."""
+    try:
+        resp = requests.get(f"{DEFAULT_PUSH_URL}/api/news/feed",
+                            params={"limit": 200, "days": days}, timeout=60)
+        resp.raise_for_status()
+        items = (resp.json() or {}).get("items") or []
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("could not read the prod feed for translation candidates: %s", exc)
+        return []
+    return [{"url": it.get("url"), "summary_ru": it.get("summary_ru")}
+            for it in items
+            if it.get("url") and (it.get("summary_ru") or "").strip()
+            and not ((it.get("summary_en") or "").strip() and (it.get("summary_uz") or "").strip())]
+
+
+def backfill_translations(*, limit: int = 60, days: int = 90, push: bool = True,
+                          dry_run: bool = False) -> dict[str, Any]:
+    """Give rows stored before the English and Uzbek columns existed their translations.
+
+    New items need none of this — the classifier writes all three summaries in the same call
+    that classifies them. This is the one-off for history, and it re-translates nothing: only
+    rows whose ``summary_en``/``summary_uz`` are still empty are sent, and the store writes
+    only into empty columns, so a re-run after a failed push costs nothing.
+
+    The classification is never touched: this pushes to /api/admin/news/translations, not to
+    /api/admin/news, so an item's tone, impact and issuer links cannot move.
+    """
+    remote = _prod_items_without_translation(days) if push else []
+    candidates = {it["url"]: it for it in remote}
+    for r in news_store.rows_missing_translations(limit=limit, days=days):
+        candidates.setdefault(r["url"], {"url": r["url"], "summary_ru": r["summary_ru"]})
+    items = [it for it in candidates.values() if (it.get("summary_ru") or "").strip()][:limit]
+    logger.info("translation backfill: %d from the prod feed + %d local-only, %d to translate",
+                len(remote), len(candidates) - len(remote), len(items))
+    if not items:
+        return {"candidates": 0, "translated": 0, "updated_local": 0, "updated_prod": 0}
+
+    from llm_client import LLMError, Usage  # local, like the other LLM-spending backfill
+
+    usage = Usage()
+    try:
+        results = translate_summaries(items, usage=usage)
+    except LLMError as exc:
+        # No key configured. translate_summaries survives a failed CALL, but acquiring the
+        # client happens before any of that, and a cron should read the reason rather than a
+        # traceback. Nothing is stored, so re-running once the key is set costs nothing.
+        logger.error("translation backfill: %s", exc)
+        return {"candidates": len(items), "translated": 0,
+                "updated_local": 0, "updated_prod": 0, "error": str(exc)}
+    translations = {
+        it["url"]: {"en": got.get("en", ""), "uz": got.get("uz", "")}
+        for it, got in zip(items, results)
+        if got.get("en") or got.get("uz")
+    }
+    logger.info("translation backfill: %d of %d item(s) translated "
+                "(%d tokens, ~$%.4f)", len(translations), len(items),
+                usage.total_tokens, usage.est_cost_usd())
+    if dry_run:
+        for url, langs in list(translations.items())[:5]:
+            logger.info("  %s\n    en: %s\n    uz: %s", url, langs["en"][:90], langs["uz"][:90])
+        return {"candidates": len(items), "translated": len(translations),
+                "updated_local": 0, "updated_prod": 0, "dry_run": True}
+    return {
+        "candidates": len(items), "translated": len(translations),
+        "updated_local": news_store.set_translations(translations),
+        "updated_prod": push_translations(translations) if (push and translations) else 0,
+    }
+
+
 def backfill_facts(*, limit: int = 60, push: bool = True, dry_run: bool = False) -> dict[str, Any]:
     """Re-read the openinfo filings we already store and replace their bare snippets.
 
@@ -1529,6 +1622,9 @@ def main() -> None:
     ap.add_argument("--backfill-facts", action="store_true",
                     help="re-read stored openinfo filings and replace bare snippets with their "
                          "own figures (no LLM calls)")
+    ap.add_argument("--backfill-translations", action="store_true",
+                    help="give rows stored before the English/Uzbek summary columns existed "
+                         "their translations (one small LLM call per 10 items)")
     ap.add_argument("--purge-failed", action="store_true",
                     help="delete items whose classification failed so the next run retries them")
     args = ap.parse_args()
@@ -1548,6 +1644,9 @@ def main() -> None:
         result = purge_failed(push=not args.no_push)
     elif args.backfill_images:
         result = backfill_images(limit=args.limit, push=not args.no_push)
+    elif args.backfill_translations:
+        result = backfill_translations(limit=max(args.limit, 60), push=not args.no_push,
+                                       dry_run=args.dry_run)
     elif args.backfill_facts:
         result = backfill_facts(limit=max(args.limit, 60), push=not args.no_push,
                                 dry_run=args.dry_run)

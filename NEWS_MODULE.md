@@ -51,7 +51,7 @@ Either way the returned items can be fed back through `classify_item` and stored
 | `news_store.py` | `news` / `news_nlp` / `news_entities` upsert + read helpers |
 | `news_collector.py` | Orchestrator + CLI (fetch → dedup → classify → store → push) |
 | `reports_catalog.py` | Schema for the three news tables (in `_init_schema`) |
-| `api.py` | `GET /api/news/feed`, `GET /api/news/item/{id}`, `GET /api/news/ticker/{ticker}`, `POST /api/admin/news`, `POST /api/admin/news/images` |
+| `api.py` | `GET /api/news/feed`, `GET /api/news/item/{id}`, `GET /api/news/ticker/{ticker}`, `POST /api/admin/news`, `POST /api/admin/news/images`, `POST /api/admin/news/translations` |
 
 ## Setup
 
@@ -156,6 +156,37 @@ of them calls a model or a translation API** — the whole path stays free.
    is merely `downloadable` the story page offers an opt-in button — downloading a pack is a
    real cost and Chrome requires a user gesture for it — and the consent is remembered in
    `localStorage`.
+
+### Serving the feed in all three UI languages
+
+The site is served in ru / en / uz, but every summary we stored was Russian, so the English
+and Uzbek versions showed a Russian feed with English chrome around it. Fixed at the source
+of the text rather than at the edge:
+
+* **The classifier writes all three summaries in the call it already makes.** `summary_ru`,
+  `summary_en` and `summary_uz` come back from one request — no second call, no translation
+  provider, no key. Measured cost of the extra output: **~$0.14/month** at ~25 classified
+  items a day on grok-4.3 ($2.50/M output). The same applies to the compact filing prompt.
+* **The read path ships one headline per language.** `title_ru` / `title_en` / `title_uz` are
+  each non-null only when the item's own headline is in a *different* language from that
+  reader's — so a Russian headline is promoted-over on the English site exactly as an English
+  one is on the Russian site. One cached response serves all three; there is no `?lang=`.
+* **Missing translations fall back to Russian, never to blank.** Rows collected before the
+  columns existed have only `summary_ru`; a reader gets the wrong language, which is
+  recoverable, instead of an empty card, which is not.
+
+**Why not the browser here.** The on-device translator carries the Russian site (see the
+step-4 note above), but it cannot carry the Uzbek one: checked against real Chrome on
+2026-07-29, `ru→uz`, `uz→ru` and `en→uz` all report **`unavailable`** — only `ru↔en` is
+offered. Uzbek has no browser-side route at all, so the text has to exist on the server.
+
+**Older rows:** `python news_collector.py --backfill-translations` fills `summary_en` /
+`summary_uz` where they are empty, using a translation-only prompt (no issuer universe, no
+re-classification). It pushes to `POST /api/admin/news/translations`, not to
+`/api/admin/news`, for the same reason as the image and snippet routes — a full upsert would
+rewrite the item's classification from a partial record and drop it out of the feed. Only
+empty columns are written, so it can never overwrite what the classifier itself produced and
+a re-run after a failed push costs nothing.
 
 ### Which sources have a Russian edition (audited 2026-07-29)
 
