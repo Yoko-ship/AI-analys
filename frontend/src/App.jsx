@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import heroImage from "./assets/hero-image.png";
 import logoIcon from "./assets/icon.png";
@@ -6306,6 +6306,131 @@ function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
   );
 }
 
+// The board's column headers, pinned under the topbar while the rows scroll past.
+// The real <thead> can't simply be `position: sticky`: its nearest scrollport is
+// .market-table-wrap, which `overflow-x: auto` turns into a scroll container on
+// BOTH axes, and that box never scrolls vertically — a sticky th would stay glued
+// to the top of the table and ride the page up with it. So the header row is
+// mirrored into a fixed bar: the SAME <th> elements (same sort and drag-reorder
+// handlers), the column widths measured off the live table, and the wrap's own
+// horizontal scroll offset, so the two read and behave as one header. Portaled to
+// <body> for the same reason as MarketFloatScroll — the table's ancestors
+// (.market-board overflow:hidden, .app-shell-wrap) would otherwise clip it.
+function MarketStickyHead({ wrapRef, cells, colSignature, rowCount, loading }) {
+  const scrollerRef = useRef(null);
+  const [box, setBox] = useState({ show: false, left: 0, width: 0, top: 0, tableWidth: 0, cols: [] });
+  const lastKey = useRef("");
+  const measureRef = useRef(() => {});
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return undefined;
+    let raf = 0;
+    const hide = () => {
+      if (lastKey.current === "hidden") return;
+      lastKey.current = "hidden";
+      setBox((b) => ({ ...b, show: false }));
+    };
+    // The bar mirrors the slice of the table the viewport actually shows, so its
+    // own scroll offset is the table's scrollLeft plus whatever the wrap has run
+    // off the left edge of the screen.
+    const syncScroll = (el, wrapLeft) => {
+      const sc = scrollerRef.current;
+      if (sc) sc.scrollLeft = el.scrollLeft + (Math.max(wrapLeft, 0) - wrapLeft);
+    };
+    const measure = () => {
+      raf = 0;
+      const el = wrapRef.current;
+      const table = el && el.querySelector(".market-table");
+      const headRow = table && table.querySelector("thead tr");
+      if (!el || !table || !headRow || loading || !rowCount) { hide(); return; }
+      // Pin under the sticky topbar, whose height differs per breakpoint.
+      const topbar = document.querySelector(".topbar");
+      const pin = topbar ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom)) : 0;
+      const headRect = headRow.getBoundingClientRect();
+      const tableRect = table.getBoundingClientRect();
+      const wrapRect = el.getBoundingClientRect();
+      const left = Math.max(wrapRect.left, 0);
+      const width = Math.min(wrapRect.right, window.innerWidth) - left;
+      // Only while the real header sits above the pin line and rows are still
+      // under it — otherwise the bar would hang over a table that has scrolled by.
+      if (headRect.bottom > pin + 1 || tableRect.bottom < pin + headRect.height + 24 || width < 60) { hide(); return; }
+      // Half-pixel rounding: enough to keep the labels over their columns, coarse
+      // enough that sub-pixel noise doesn't re-render the bar on every frame.
+      const round = (v) => Math.round(v * 2) / 2;
+      const cols = Array.from(headRow.children).map((th) => round(th.getBoundingClientRect().width));
+      const key = `${round(left)}|${round(width)}|${pin}|${round(tableRect.width)}|${cols.join(",")}`;
+      syncScroll(el, wrapRect.left);
+      if (key === lastKey.current) return;
+      lastKey.current = key;
+      setBox({ show: true, left, width, top: pin, tableWidth: round(tableRect.width), cols });
+    };
+    measureRef.current = measure;
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };
+    measure();
+    // capture:true reaches window for the wrap's own (non-bubbling) horizontal scroll too.
+    window.addEventListener("scroll", schedule, { passive: true, capture: true });
+    window.addEventListener("resize", schedule);
+    const ro = new ResizeObserver(schedule);
+    ro.observe(wrap);
+    wrap.addEventListener("scroll", schedule, { passive: true });
+    return () => {
+      measureRef.current = () => {};
+      window.removeEventListener("scroll", schedule, { capture: true });
+      window.removeEventListener("resize", schedule);
+      wrap.removeEventListener("scroll", schedule);
+      ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [wrapRef, colSignature, rowCount, loading]);
+
+  // Column widths also move on things no observer reports — a sort caret, a
+  // language switch, a font finishing its load. Re-measuring after every render
+  // is cheap because `lastKey` swallows the no-op ones.
+  useLayoutEffect(() => { measureRef.current(); });
+
+  // A column CSS has hidden (mobile drops the company name) measures 0 wide.
+  // It has to be left out of BOTH the colgroup and the row: a `display: none`
+  // cell drops out of the row entirely under fixed table layout, so every
+  // following header would shift one column to the left.
+  const mirrored = box.cols
+    .map((w, i) => ({ w, i }))
+    .filter(({ w, i }) => w > 0 && cells[i]);
+
+  // Nothing in the DOM until it is actually pinned — a second copy of the header
+  // row hanging around would double every `.market-table thead` query.
+  if (!box.show || !mirrored.length) return null;
+
+  return createPortal(
+    <div
+      className="market-sticky-head"
+      aria-hidden="true"
+      style={{ left: box.left, width: box.width, top: box.top }}
+    >
+      <div className="market-sticky-head__scroller" ref={scrollerRef}>
+        <table
+          className="market-table market-sticky-head__table"
+          style={{ width: box.tableWidth || undefined, minWidth: box.tableWidth || undefined }}
+        >
+          <colgroup>
+            {mirrored.map(({ i, w }) => <col key={i} style={{ width: w }} />)}
+          </colgroup>
+          <thead>
+            <tr>
+              {mirrored.map(({ i }) => React.cloneElement(cells[i], {
+                // The bar is aria-hidden (the real header is the one screen
+                // readers and Tab travel through), so its copies stay unfocusable.
+                tabIndex: -1,
+              }))}
+            </tr>
+          </thead>
+        </table>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function MarketView({
   rows,
   meta,
@@ -6953,6 +7078,14 @@ function MarketView({
     ),
   };
 
+  // One header row, rendered twice: in the table itself and in the pinned bar
+  // (MarketStickyHead), so both carry the same sort and drag-reorder handlers.
+  const headCells = [
+    sortTh("ticker", mt(lang, "ticker")),
+    sortTh("company", mt(lang, "company")),
+    ...visibleOrder.map((k) => sortTh(k, LABEL_OF[k], { movable: true, num: NUM_COLS.has(k) })),
+  ];
+
   return (
     <section className="market-layout">
       <article className="panel market-hero-panel">
@@ -7257,11 +7390,7 @@ function MarketView({
           <div className="market-table-wrap" ref={wrapRef}>
             <table className="market-table">
               <thead>
-                <tr>
-                  {sortTh("ticker", mt(lang, "ticker"))}
-                  {sortTh("company", mt(lang, "company"))}
-                  {visibleOrder.map((k) => sortTh(k, LABEL_OF[k], { movable: true, num: NUM_COLS.has(k) }))}
-                </tr>
+                <tr>{headCells}</tr>
               </thead>
               <tbody>
                 {loading ? (
@@ -7324,6 +7453,13 @@ function MarketView({
               </tbody>
             </table>
           </div>
+          <MarketStickyHead
+            wrapRef={wrapRef}
+            cells={headCells}
+            colSignature={visibleOrder.join("|")}
+            rowCount={visibleRows.length}
+            loading={loading}
+          />
           <MarketFloatScroll
             wrapRef={wrapRef}
             colSignature={visibleOrder.join("|")}
