@@ -488,6 +488,22 @@ iframe {
     display: none;
   }
 
+  /* The pinned header mirrors the real one, so it has to be compacted the same
+     way — it sits over the columns, and 16px of padding would shift every label
+     off its own column. Same for the pinned identity column: the mirrored row
+     lives in its own (overflow: hidden) scroller, so `sticky` holds there too. */
+  .market-sticky-head__table th {
+    padding: 9px 8px;
+  }
+
+  .market-sticky-head__table th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--bg-2, var(--panel));
+    box-shadow: 1px 0 0 var(--border);
+  }
+
   .market-sector-filter,
   .sector-filter {
     flex-wrap: nowrap;

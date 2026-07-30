@@ -230,8 +230,8 @@ test("Рынок shows §3.8 multiplier columns and exports CSV", async ({ page 
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
-  await expect(page.locator(".market-table thead")).toContainText("P/E");
-  await expect(page.locator(".market-table thead")).toContainText("P/B");
+  await expect(page.locator(".market-table-wrap .market-table thead")).toContainText("P/E");
+  await expect(page.locator(".market-table-wrap .market-table thead")).toContainText("P/B");
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.locator(".market-export-btn").click(),

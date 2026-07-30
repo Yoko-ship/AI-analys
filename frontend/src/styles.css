@@ -6963,6 +6963,37 @@ body[data-theme="light"] .market-float-scroll {
 body[data-theme="light"] .market-float-thumb { background: rgba(100, 116, 139, 0.5); }
 body[data-theme="light"] .market-float-thumb:hover { background: rgba(100, 116, 139, 0.8); }
 
+/* Column headers pinned under the topbar while the rows scroll past (see
+   MarketStickyHead). A mirrored copy of the header row, not the real <thead>,
+   which cannot stick — its scrollport is .market-table-wrap, and that box never
+   scrolls vertically. Portaled to <body>, hence position:fixed; the geometry
+   (left/width/top) is set inline from the live table. Below the topbar (100) and
+   the mobile nav drawer (60/55) in the stack, above the board. */
+.market-sticky-head {
+  position: fixed;
+  z-index: 50;
+  overflow: hidden;
+  /* The th background is translucent — an opaque bar behind it keeps the rows
+     from showing through as they pass underneath. */
+  background: var(--panel);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+}
+body[data-theme="light"] .market-sticky-head {
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+}
+
+.market-sticky-head__scroller {
+  overflow: hidden;
+}
+
+/* Widths come from the <colgroup>, measured off the live table, so the mirrored
+   labels sit exactly over their columns. */
+.market-sticky-head__table {
+  table-layout: fixed;
+  min-width: 0;
+}
+
 .market-cols-footer {
   display: flex;
   align-items: center;
