@@ -6786,29 +6786,24 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   padding: 0;
   /* `hidden` first as the fallback for browsers without `clip` (pre-16 Safari).
      `clip` clips exactly the same way but does NOT make the board a scroll
-     container, which is what lets .market-filterbar below stick to the viewport
-     instead of to the top of the board — a sticky element inside an
-     `overflow: hidden` ancestor pins to that ancestor and rides the page up. */
+     container. Kept as `clip` after the filter bar stopped being sticky: it
+     clips identically, and a future sticky child here would silently pin to
+     the board instead of the viewport under `hidden`. */
   overflow: hidden;
   overflow: clip;
 }
 
-/* ── The board's filters, pinned under the topbar ─────────────────────────
+/* ── The board's filters ──────────────────────────────────────────────────
    Instrument class, share class, favourites, search, the column picker and the
-   sector chips stick together as one bar: at row 300 the reader still has the
-   controls that put those rows on screen. Opaque background — rows pass
-   underneath. Below the topbar (100) and the mobile drawer (55/60) in the
-   stack, above the mirrored column header (50), which pins under this bar. */
+   sector chips are one block so they read as one control surface. They scroll
+   with the page by request — this bar was pinned under the topbar for a while
+   and is deliberately not any more. */
 .market-filterbar {
-  position: sticky;
-  top: var(--topbar-h, 80px);
-  z-index: 46;
-  background: var(--panel);
+  position: static;
 }
 
 /* `.segmented-control` carries a 16px bottom margin for the forms it was built
-   for. Inside a bar that is pinned to the top of the screen that margin is 16px
-   of table the reader does not get to see. */
+   for; inside a toolbar it is 16px of table the reader does not get to see. */
 .market-filterbar .segmented-control {
   margin-bottom: 0;
 }
