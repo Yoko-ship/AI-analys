@@ -2864,48 +2864,127 @@ body {
   border-radius: 16px;
 }
 
-/* ── Sponsor slot ────────────────────────────────────────────────────────
-   A block of its own, low on the landing page and labelled — not in the hero.
-   The hero is where the platform says what it is; an unrelated ad standing in
-   that panel reads as the product itself.
-
-   The clip is 1080×1920, so the card is sized to the clip rather than the
-   other way round: a 9:16 frame stretched to a content column would be over a
-   thousand pixels tall. */
-.landing-sponsor {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  margin: 8px 0;
+/* ── Floating sponsor unit ────────────────────────────────────────────────
+   A small player over the page: bottom-right on a desktop, bottom-centre on a
+   phone. Portaled to <body>, so it clears `.app-shell`'s z-index: 1 cap and
+   sits above the board's own floating bars (50/60) without fighting them.
+   Sized to the clip's 9:16 — small enough that the page stays usable behind
+   it, which is the difference between an ad unit and a hijack. */
+.sponsor-overlay {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 200;
+  width: 220px;
 }
 
-.landing-sponsor-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted-light);
-}
-
-.landing-sponsor-media {
-  width: min(100%, 300px);
+.sponsor-overlay-frame {
+  position: relative;
   aspect-ratio: 9 / 16;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: #0b0f18;
+  border-radius: 14px;
   overflow: hidden;
+  background: #05080f;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
 }
 
-.landing-sponsor-media video {
+.sponsor-overlay-frame video {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  cursor: pointer;
 }
 
+/* Controls sit on the video, so they carry their own scrim — a white glyph on
+   a light frame of the clip is otherwise invisible. */
+.sponsor-overlay-sound,
+.sponsor-overlay-close,
+.sponsor-overlay-count {
+  position: absolute;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(6, 10, 18, 0.62);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sponsor-overlay-sound { left: 8px; }
+.sponsor-overlay-close,
+.sponsor-overlay-count { right: 8px; }
+
+.sponsor-overlay-close {
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.sponsor-overlay-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  cursor: default;
+}
+
+.sponsor-overlay-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(6, 10, 18, 0.62);
+  color: #fff;
+  font-size: 19px;
+  padding-left: 4px;
+  cursor: pointer;
+}
+
+/* Naming the thing as advertising is not decoration. */
+.sponsor-overlay-label {
+  position: absolute;
+  left: 8px;
+  bottom: 10px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(6, 10, 18, 0.62);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sponsor-overlay-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.sponsor-overlay-bar i {
+  display: block;
+  height: 100%;
+  background: #f59e0b;
+  transition: width 0.2s linear;
+}
+
+/* On a phone it stays in the corner rather than centring: centred, a 190px
+   card sat squarely over the hero's own call-to-action buttons. */
 @media (max-width: 760px) {
-  .landing-sponsor-media {
-    width: min(100%, 260px);
+  .sponsor-overlay {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: min(46vw, 170px);
   }
 }
 

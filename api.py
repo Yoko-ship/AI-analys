@@ -67,6 +67,7 @@ from reports_catalog import (
     sync_company as catalog_sync_company,
     sync_all as catalog_sync_all,
 )
+from market_audit import audit_session
 from securities_catalog import get_securities_map, get_wiki_info, record_volume, resolve_logo, sync_securities
 from web_auth import WebUser, web_auth_store, is_admin_email
 
@@ -822,11 +823,14 @@ def _quote_to_stock(quote: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-@app.get("/api/market/stocks")
-async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
-    security_type = (type or "").strip().lower()
-    if security_type and security_type not in {"stock", "bond"}:
-        raise HTTPException(status_code=400, detail="type must be stock or bond")
+async def _build_board(security_type: str = "") -> dict[str, Any]:
+    """The market board: the live feed, the listing registry and the exchange's
+    own quotes merged into one set of rows.
+
+    Extracted from the endpoint so every consumer sees the SAME board. /api/coverage
+    used to report on the raw mirror instead, which made it structurally blind to the
+    securities the mirror does not carry — the gap it exists to surface.
+    """
 
     try:
         # Executor-wrapped: a sync HTTP call here stalled the whole event loop
@@ -989,6 +993,39 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
     })
 
 
+@app.get("/api/market/stocks")
+async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
+    security_type = (type or "").strip().lower()
+    if security_type and security_type not in {"stock", "bond"}:
+        raise HTTPException(status_code=400, detail="type must be stock or bond")
+    return await _build_board(security_type)
+
+
+@app.get("/api/market/audit")
+async def api_market_audit() -> dict[str, Any]:
+    """Does the board agree with the exchange? Answered from stored data.
+
+    The board's mismatches with the exchange's own bulletin were always found by a
+    human comparing the two by eye, because nothing in the pipeline ever asserted
+    that the securities we serve are the securities that traded, or that the
+    numbers on a row come from the same session. This is that assertion, exposed
+    so it can be asked at any time rather than discovered.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        stats, quotes = await asyncio.gather(
+            loop.run_in_executor(None, get_all_trade_stats),
+            loop.run_in_executor(None, get_all_quotes),
+        )
+        shares, bonds = await asyncio.gather(_build_board("stock"), _build_board("bond"))
+    except Exception as exc:
+        logger.exception("market audit failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    board = list(shares.get("stocks") or []) + list(bonds.get("stocks") or [])
+    return _json_safe(audit_session(stats, quotes, board, denylist=BOARD_DENYLIST))
+
+
 @app.get("/api/market/trades")
 async def api_market_trades() -> dict[str, Any]:
     """The latest session's totals: turnover, securities changing hands, trades.
@@ -1117,16 +1154,17 @@ async def api_coverage() -> dict[str, Any]:
     Shows price / volume / financials / reports coverage + resolution status and
     any sync error per ticker, plus a per-dataset summary — so gaps are visible
     and actionable instead of silent (ТЗ scalable-pipeline observability).
+
+    Reports on the board we actually serve, not on the raw /stocks mirror: reading
+    the mirror made this report blind to every security outside its fixed universe,
+    which is to say blind to precisely the gap it exists to surface.
     """
     loop = asyncio.get_running_loop()
     try:
-        response = await loop.run_in_executor(
-            None, partial(requests.get, f"{UZSE_STOCK_API_BASE}/stocks", timeout=20)
-        )
-        response.raise_for_status()
-        stocks = (response.json() or {}).get("stocks") or []
+        shares, bonds = await asyncio.gather(_build_board("stock"), _build_board("bond"))
+        stocks = list(shares.get("stocks") or []) + list(bonds.get("stocks") or [])
     except Exception as exc:
-        logger.exception("coverage: UZSE feed failed")
+        logger.exception("coverage: board build failed")
         raise HTTPException(status_code=502, detail="Could not load the securities feed") from exc
 
     coverage = await loop.run_in_executor(None, get_catalog_coverage)
