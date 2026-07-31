@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import heroImage from "./assets/hero-image.png";
+import promoVideo from "./assets/promo.mp4";
+import promoPoster from "./assets/promo-poster.jpg";
 import logoIcon from "./assets/icon.png";
 // Pure, unit-tested helpers. Valuation multiples and period labels live in one
 // module so the market table and the company page cannot compute them differently
@@ -9409,8 +9410,22 @@ function App() {
                     ))}
                   </div>
                 </div>
-                <div className="hero-image">
-                  <img src={heroImage} alt="Stock Analysis Dashboard" />
+                {/* Sponsor spot. A 9:16 clip cannot fill a half-width column,
+                    so the box is capped and centred rather than stretched. The
+                    poster carries the first paint and `preload="none"` keeps the
+                    2.5MB off the wire until someone presses play — measured: a
+                    landing-page visit fetches the 45KB poster and nothing else.
+                    The file is written with +faststart, so playback begins as
+                    soon as the first chunk lands. */}
+                <div className="hero-image hero-promo">
+                  <video
+                    src={promoVideo}
+                    poster={promoPoster}
+                    controls
+                    playsInline
+                    preload="none"
+                    aria-label="Paramedics"
+                  />
                 </div>
               </section>
 
