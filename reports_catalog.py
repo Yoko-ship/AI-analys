@@ -148,6 +148,34 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- The exchange's own session quote per security (uzse.uz/isu_infos):
+        -- the official close, the previous close it is measured against (which
+        -- the exchange CARRIES FORWARD through sessions with no trades, so no
+        -- feed of executions can reproduce it) and the session's own totals.
+        -- This is what makes the board's change % the exchange's change %, for
+        -- every listed security rather than the 78 the /stocks mirror carries.
+        CREATE TABLE IF NOT EXISTS catalog_quotes (
+            isin               TEXT PRIMARY KEY,
+            ticker             TEXT,
+            name               TEXT,
+            market             TEXT,
+            share_type         TEXT,
+            trade_date         TEXT,
+            close_price        REAL,
+            prev_close         REAL,
+            prev_close_date    TEXT,
+            change_value       REAL,
+            change_percent     REAL,
+            open_price         REAL,
+            high_price         REAL,
+            low_price          REAL,
+            quantity           REAL,
+            turnover           REAL,
+            shares_outstanding REAL,
+            market_cap         REAL,
+            updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         -- Exchange-listing registry for issuers that are listed on RFB Tashkent
         -- (openinfo info_rfb.isin_codes) but absent from the live uzse-stock feed
         -- because they have not traded recently. Carries the last-known trade
@@ -1636,6 +1664,69 @@ def get_all_trade_stats() -> dict[str, dict[str, Any]]:
     return out
 
 
+_QUOTE_COLS = (
+    "ticker", "name", "market", "share_type", "trade_date", "close_price", "prev_close",
+    "prev_close_date", "change_value", "change_percent", "open_price", "high_price",
+    "low_price", "quantity", "turnover", "shares_outstanding", "market_cap",
+)
+
+
+def bulk_upsert_quotes(rows: list[dict]) -> int:
+    """Store the exchange's session quotes, newest session wins.
+
+    Forward-only, for the same reason ``bulk_upsert_trade_stats`` is: a quote is
+    written only for a session the security actually traded in, and a re-read of
+    an older page (or a run that starts before the day's first execution) must
+    never replace a fresh session with a stale one.
+    """
+    def _num(v: Any) -> float | None:
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    numeric = {"close_price", "prev_close", "change_value", "change_percent", "open_price",
+               "high_price", "low_price", "quantity", "turnover", "shares_outstanding",
+               "market_cap"}
+    assignments = ", ".join(f"{c}=excluded.{c}" for c in _QUOTE_COLS)
+    conn = get_catalog_conn()
+    n = 0
+    try:
+        with conn:
+            for r in rows or []:
+                isin = str(r.get("isin") or "").strip().upper()
+                day = str(r.get("trade_date") or "").strip()
+                if not isin or not day:
+                    continue
+                values = [_num(r.get(c)) if c in numeric else (r.get(c) or None)
+                          for c in _QUOTE_COLS]
+                cur = conn.execute(
+                    f"""
+                    INSERT INTO catalog_quotes (isin, {', '.join(_QUOTE_COLS)}, updated_at)
+                    VALUES ({','.join('?' * (len(_QUOTE_COLS) + 1))}, datetime('now'))
+                    ON CONFLICT(isin) DO UPDATE SET {assignments}, updated_at=datetime('now')
+                    WHERE excluded.trade_date >= catalog_quotes.trade_date
+                    """,
+                    [isin, *values],
+                )
+                n += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+    finally:
+        conn.close()
+    return n
+
+
+def get_all_quotes() -> dict[str, dict[str, Any]]:
+    """Every stored exchange quote, keyed by ISIN."""
+    conn = get_catalog_conn()
+    try:
+        rows = conn.execute(
+            f"SELECT isin, {', '.join(_QUOTE_COLS)}, updated_at FROM catalog_quotes"
+        ).fetchall()
+    finally:
+        conn.close()
+    return {r["isin"]: dict(r) for r in rows}
+
+
 _LISTING_COLS = (
     "ticker", "isin", "name", "share_type", "listing_date", "shares_outstanding",
     "reference_price", "last_price", "last_trade_date", "open_price", "high_price",
@@ -1713,6 +1804,7 @@ def get_all_listings() -> dict[str, dict[str, Any]]:
 # the market-events timeline), the derived numbers and the org_map facts.
 _PURGE_TABLES = (
     ("catalog_listings", "ticker"),
+    ("catalog_quotes", "ticker"),
     ("catalog_companies", "ticker"),
     ("catalog_reports", "ticker"),
     ("catalog_new_reports", "ticker"),

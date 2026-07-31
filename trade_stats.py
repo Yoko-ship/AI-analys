@@ -56,6 +56,9 @@ def _aggregate(isin: str, lst: list[dict], trade_date: str) -> dict[str, Any]:
         "high_price": max(prices) if prices else None,
         "low_price": min(prices) if prices else None,
         "isin": isin,
+        # Which board the security trades on (STK / BND). Carried so the quote
+        # pass can ask uzse.uz for the right view without a second lookup.
+        "market": next((str(x.get("market_id")) for x in lst if x.get("market_id")), None),
         "trade_date": trade_date,
         "total_value": round(total_value, 2),
         "total_qty": total_qty,

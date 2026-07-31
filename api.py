@@ -52,6 +52,8 @@ from reports_catalog import (
     bulk_replace_financials,
     get_all_trade_stats,
     bulk_upsert_trade_stats,
+    get_all_quotes,
+    bulk_upsert_quotes,
     get_all_listings,
     bulk_upsert_listings,
     purge_delisted,
@@ -140,9 +142,12 @@ UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-produ
 # reachable by direct link — which is the difference from DELISTED_TICKERS, whose
 # rows are deleted outright and are folded in here so the board filter covers both.
 # Extend at runtime via BOARD_DENYLIST_EXTRA (comma-separated) without a code change.
-BOARD_DENYLIST = DELISTED_TICKERS | frozenset({
-    "KFSKP",                                                   # Kafolat sug'urta (preferred)
-} | {t.strip().upper() for t in os.getenv("BOARD_DENYLIST_EXTRA", "").split(",") if t.strip()})
+# KFSKP was suppressed here as a dormant registry line; it is not one — Kafolat's
+# preferred share traded 39 times on 31.07 and closed +17.27%, third on the
+# exchange's own top-gainers board. It was invisible because the /stocks mirror
+# does not carry it, not because it is quiet.
+BOARD_DENYLIST = DELISTED_TICKERS | frozenset(
+    {t.strip().upper() for t in os.getenv("BOARD_DENYLIST_EXTRA", "").split(",") if t.strip()})
 
 
 async def _populate_securities_on_startup() -> None:
@@ -276,6 +281,10 @@ class AdminFinancialsRequest(BaseModel):
 
 class AdminTradeStatsRequest(BaseModel):
     trade_date: str | None = Field(default=None, max_length=16)
+    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+
+
+class AdminQuotesRequest(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
 
 
@@ -747,6 +756,72 @@ def _listing_to_stock(lst: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _apply_quote(row: dict[str, Any], quote: dict[str, Any]) -> None:
+    """Overlay the exchange's session quote on a board row, in place.
+
+    The row's own session decides: a quote is applied only when it is at least as
+    recent as what the row already shows, so a stored quote for a security that
+    has since gone quiet cannot pull a live row backwards. ``close_date`` counts
+    as the row's session even with no trade — the exchange carries the closing
+    price forward, and that carried price is newer than an older real trade.
+    """
+    day = _iso_trade_date(quote.get("trade_date"))
+    close = quote.get("close_price")
+    if not day or close is None:
+        return
+    row_day = _iso_trade_date(row.get("last_trade_date")) or _iso_trade_date(row.get("close_date"))
+    if row_day and row_day > day:
+        return
+
+    row["last_price"] = close
+    row["last_trade_date"] = day
+    if quote.get("prev_close") is not None:
+        row["close_price"] = quote["prev_close"]
+        row["close_date"] = _iso_trade_date(quote.get("prev_close_date")) or row.get("close_date")
+    for src, dst in (("open_price", "open"), ("high_price", "high"), ("low_price", "low")):
+        if quote.get(src) is not None:
+            row[dst] = quote[src]
+    if quote.get("turnover") is not None:
+        row["volume"] = quote["turnover"]
+    if quote.get("quantity") is not None:
+        row["quantity"] = quote["quantity"]
+    if quote.get("shares_outstanding"):
+        row["shares_outstanding"] = quote["shares_outstanding"]
+    shares = row.get("shares_outstanding")
+    if shares and close:
+        row["market_cap"] = shares * close
+    # It traded — the registry's "no recent trades" tag describes an older world.
+    row["inactive"] = None
+
+
+def _quote_to_stock(quote: dict[str, Any]) -> dict[str, Any]:
+    """Shape an exchange quote as a market-feed row for a security no feed carries."""
+    isin = str(quote.get("isin") or "").upper()
+    is_bond = str(quote.get("market") or "").upper() == "BND"
+    close, shares = quote.get("close_price"), quote.get("shares_outstanding")
+    return {
+        "isin": isin,
+        "ticker": quote.get("ticker"),
+        "name": quote.get("name"),
+        "type": "bond" if is_bond else "stock",
+        "share_type": quote.get("share_type") or "ordinary",
+        "close_price": quote.get("prev_close"),
+        "close_date": _iso_trade_date(quote.get("prev_close_date")),
+        "last_price": close,
+        "last_trade_date": _iso_trade_date(quote.get("trade_date")),
+        "open": quote.get("open_price"),
+        "high": quote.get("high_price"),
+        "low": quote.get("low_price"),
+        "volume": quote.get("turnover"),
+        "quantity": quote.get("quantity"),
+        "trade_count": None,
+        "security_type_text": None,
+        "shares_outstanding": shares,
+        "market_cap": (shares * close) if (shares and close) else quote.get("market_cap"),
+        "url": f"https://uzse.uz/isu_infos/{'BND' if is_bond else 'STK'}?isu_cd={isin}",
+    }
+
+
 @app.get("/api/market/stocks")
 async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
     security_type = (type or "").strip().lower()
@@ -855,6 +930,40 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
             row["url"] = f"https://uzse.uz/isu_infos/{kind}?isu_cd={row['isin']}"
         merged.append(row)
         added_inactive += 1
+
+    # Lay the exchange's own session quotes over the board. This is what makes a
+    # row say what the exchange says: the close it published, and the previous
+    # close it measured the day's move against — which it CARRIES FORWARD through
+    # sessions with no trades, so neither the execution feed nor the openinfo
+    # registry can reproduce it. It also completes the board: the /stocks mirror
+    # is a fixed 78-security universe, and the securities outside it were either
+    # missing (KFSKP, EQQU) or priced from a week-old registry row (UQEQ shown at
+    # 32 000 from 24.07 while the exchange closed it at 30 720, +20%).
+    try:
+        quotes = get_all_quotes()
+    except Exception:
+        logger.exception("market/stocks: quote cache read failed")
+        quotes = {}
+    quoted_added = 0
+    if quotes:
+        for row in merged:
+            quote = quotes.get(str(row.get("isin") or "").upper())
+            if quote:
+                _apply_quote(row, quote)
+        on_board = {str(r.get("isin") or "").upper() for r in merged if r.get("isin")}
+        board_tickers = {str(r.get("ticker") or "").upper() for r in merged}
+        for isin, quote in quotes.items():
+            if isin in on_board or str(quote.get("ticker") or "").upper() in board_tickers:
+                continue
+            if (str(quote.get("market") or "").upper() == "BND") != want_bonds:
+                continue
+            merged.append(_quote_to_stock(quote))
+            quoted_added += 1
+        if quoted_added:
+            # A security the catalog has never seen (no mirror row ever carried it)
+            # still needs a name, logo and sector for its own company page.
+            loop.run_in_executor(None, partial(
+                sync_securities, [r for r in merged[-quoted_added:]], _load_logos()))
 
     # Drop board-suppressed tickers (dormant registry lines) from the view. Applied
     # to the fully merged list so it holds regardless of source (live feed or the
@@ -1707,6 +1816,21 @@ async def api_admin_trade_stats(
             None, partial(bulk_upsert_trade_stats, payload.rows, payload.trade_date))
     except Exception as exc:
         logger.exception("admin trade-stats upsert failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "upserted": n}
+
+
+@app.post("/api/admin/quotes")
+async def api_admin_quotes(
+    payload: AdminQuotesRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Store the exchange's own session quotes (close, previous close, change)."""
+    loop = asyncio.get_running_loop()
+    try:
+        n = await loop.run_in_executor(None, partial(bulk_upsert_quotes, payload.rows))
+    except Exception as exc:
+        logger.exception("admin quotes upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True, "upserted": n}
 
