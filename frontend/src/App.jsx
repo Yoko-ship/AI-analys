@@ -6468,17 +6468,11 @@ function MarketStickyHead({ wrapRef, cells, colSignature, rowCount, loading }) {
       const table = el && el.querySelector(".market-table");
       const headRow = table && table.querySelector("thead tr");
       if (!el || !table || !headRow || loading || !rowCount) { hide(); return; }
-      // Pin under the sticky topbar, whose height differs per breakpoint — and
-      // under the board's filter bar when that is itself stuck to the topbar,
-      // otherwise the mirrored header would be drawn over the filters. The bar
-      // counts as stuck only while its top sits at the pin line; on the way down
-      // the page it is just an ordinary block and the header pins to the topbar.
+      // Pin under the sticky topbar, whose height differs per breakpoint. The
+      // filter bar above the table scrolls away with the page (by request), so
+      // the topbar is the only thing this has to clear.
       const topbar = document.querySelector(".topbar");
-      const topbarBottom = topbar ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom)) : 0;
-      const bar = el.closest(".market-board")?.querySelector(".market-filterbar");
-      const barRect = bar ? bar.getBoundingClientRect() : null;
-      const stuck = barRect && barRect.top <= topbarBottom + 1 && barRect.bottom > topbarBottom;
-      const pin = stuck ? Math.round(barRect.bottom) : topbarBottom;
+      const pin = topbar ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom)) : 0;
       const headRect = headRow.getBoundingClientRect();
       const tableRect = table.getBoundingClientRect();
       const wrapRect = el.getBoundingClientRect();
