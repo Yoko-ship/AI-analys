@@ -229,6 +229,11 @@ Schedule it on any host that can reach openinfo:
   | `quotes-1300` | `quotes` | `0 8 * * 2-6` | 13:00 Tue–Sat | quotes/turnover, mid-session |
   | `quotes-1610` | `quotes` | `10 11 * * 1-6` | 16:10 Mon–Sat | quotes/turnover, after the close |
   | `reports-watch` | `reports-watch` | `0 4-18 * * 1-6` | hourly 09:00–23:00 Mon–Sat | issuers that filed since the last sweep |
+  | `news-collector` | `news-collector` | `10 11 * * *` | 16:10 daily | §3.11 news feed (see NEWS_MODULE.md) |
+
+  `news-collector` shares 16:10 with `quotes-1610` deliberately: after the close the site
+  refreshes prices and the feed at the same moment, so a reader is not comparing a fresh
+  board against a feed from that morning. (It ran at 07:30 until 2026-07-31.)
 
   `reports-watch` exists because reporting deadlines do not respect the daily sweep.
   O'zbektelekom filed its half-year report at 11:27 on 2026-07-29, three hours after

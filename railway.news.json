@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "cronSchedule": "30 2 * * *",
+    "cronSchedule": "10 11 * * *",
     "startCommand": "python news_collector.py",
     "restartPolicyType": "NEVER"
   }
