@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import heroImage from "./assets/hero-image.png";
 import promoVideo from "./assets/promo.mp4";
 import promoPoster from "./assets/promo-poster.jpg";
 import logoIcon from "./assets/icon.png";
@@ -9410,22 +9411,8 @@ function App() {
                     ))}
                   </div>
                 </div>
-                {/* Sponsor spot. A 9:16 clip cannot fill a half-width column,
-                    so the box is capped and centred rather than stretched. The
-                    poster carries the first paint and `preload="none"` keeps the
-                    2.5MB off the wire until someone presses play — measured: a
-                    landing-page visit fetches the 45KB poster and nothing else.
-                    The file is written with +faststart, so playback begins as
-                    soon as the first chunk lands. */}
-                <div className="hero-image hero-promo">
-                  <video
-                    src={promoVideo}
-                    poster={promoPoster}
-                    controls
-                    playsInline
-                    preload="none"
-                    aria-label="Paramedics"
-                  />
+                <div className="hero-image">
+                  <img src={heroImage} alt="Stock Analysis Dashboard" />
                 </div>
               </section>
 
@@ -9474,6 +9461,26 @@ function App() {
                       <div className="stat-label">{stat.label}</div>
                     </article>
                   ))}
+                </div>
+              </section>
+
+              {/* Sponsor slot. Deliberately not in the hero: that panel is where
+                  the platform introduces itself, and a third-party ad standing in
+                  it reads as the product. Here it is its own block, labelled as
+                  advertising, after the reader has seen what the site does. */}
+              <section className="landing-sponsor">
+                <div className="landing-sponsor-label">
+                  {language === "en" ? "Advertisement" : language === "uz" ? "Reklama" : "Реклама"}
+                </div>
+                <div className="landing-sponsor-media">
+                  <video
+                    src={promoVideo}
+                    poster={promoPoster}
+                    controls
+                    playsInline
+                    preload="none"
+                    aria-label="Paramedics"
+                  />
                 </div>
               </section>
 
