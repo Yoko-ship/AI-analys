@@ -959,11 +959,14 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
                 continue
             merged.append(_quote_to_stock(quote))
             quoted_added += 1
-        if quoted_added:
-            # A security the catalog has never seen (no mirror row ever carried it)
-            # still needs a name, logo and sector for its own company page.
-            loop.run_in_executor(None, partial(
-                sync_securities, [r for r in merged[-quoted_added:]], _load_logos()))
+        # A security the /stocks feed never carried is absent from the securities
+        # catalog too, so its board row had no name, logo, sector or company page.
+        # Having traded is the qualification: every row the exchange quoted gets
+        # catalogued, whether it reached the board from a feed, the registry or
+        # the quote itself.
+        quoted_rows = [r for r in merged if str(r.get("isin") or "").upper() in quotes]
+        if quoted_rows:
+            loop.run_in_executor(None, partial(sync_securities, quoted_rows, _load_logos()))
 
     # Drop board-suppressed tickers (dormant registry lines) from the view. Applied
     # to the fully merged list so it holds regardless of source (live feed or the
