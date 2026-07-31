@@ -991,8 +991,36 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
 
 @app.get("/api/market/trades")
 async def api_market_trades() -> dict[str, Any]:
+    """The latest session's totals: turnover, securities changing hands, trades.
+
+    Summed from our own per-trade statistics — every execution the exchange
+    published for that session. The ``/trades`` mirror this used to read is a
+    44-row snapshot of a fixed universe, and it reported 120,7 млн over ~900
+    trades for 31.07 while the session the exchange published was 1,56 млрд over
+    6 507. It stays as the fallback for a deployment that holds no statistics yet.
+    """
+    loop = asyncio.get_running_loop()
     try:
-        loop = asyncio.get_running_loop()
+        stats = await loop.run_in_executor(None, get_all_trade_stats)
+    except Exception:
+        logger.exception("market/trades: trade-stats read failed")
+        stats = {}
+    day = max((str(s.get("trade_date") or "") for s in stats.values()), default="")
+    session = [s for s in stats.values() if day and str(s.get("trade_date") or "") == day]
+    if session:
+        stamps = [s.get("updated_at") for s in session if s.get("updated_at")]
+        return _json_safe({
+            "ok": True,
+            "source": "uzse-trade-results",
+            "trade_date": day,
+            "updated_at": _as_utc_iso(max(stamps)) if stamps else None,
+            "securities": len(session),
+            "total_volume": sum((s.get("total_value") or 0) for s in session),
+            "total_quantity": sum((s.get("total_qty") or 0) for s in session),
+            "total_trade_count": sum((s.get("trade_count") or 0) for s in session),
+        })
+
+    try:
         response = await loop.run_in_executor(
             None, partial(requests.get, f"{UZSE_STOCK_API_BASE}/trades", timeout=20))
         response.raise_for_status()

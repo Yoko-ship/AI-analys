@@ -91,6 +91,58 @@ class TestAQuoteOverlaysABoardRow:
         assert row["last_price"] is None
 
 
+class TestTheDaysTurnover:
+    """The session's totals come from the executions we hold, not the mirror's.
+
+    The ``/trades`` mirror is a 44-row snapshot of the same fixed universe: it
+    called 31.07 "120,7 млн over ~900 trades" while the session the exchange
+    published — and the board itself listed — was 1,56 млрд over 6 507.
+    """
+
+    def _totals(self, monkeypatch, stats, mirror_calls=None):
+        def _mirror(*a, **kw):
+            if mirror_calls is not None:
+                mirror_calls.append(a)
+            raise AssertionError("the mirror must not be consulted when we hold statistics")
+
+        monkeypatch.setattr(api, "get_all_trade_stats", lambda: stats)
+        monkeypatch.setattr(api.requests, "get", _mirror)
+        with TestClient(api.app) as client:
+            return client.get("/api/market/trades").json()
+
+    def test_only_the_latest_session_counts(self, monkeypatch) -> None:
+        body = self._totals(monkeypatch, {
+            "UZ7047110000": {"trade_date": "20260731", "total_value": 190_783_267.47,
+                             "total_qty": 27342, "trade_count": 838},
+            "UZ7001100005": {"trade_date": "20260731", "total_value": 4_954_916.68,
+                             "total_qty": 60572, "trade_count": 91},
+            # A backfilled row for a security whose last trade was another week.
+            "UZ7012480008": {"trade_date": "20260716", "total_value": 9_999_999.0,
+                             "total_qty": 1, "trade_count": 1},
+        })
+
+        assert body["trade_date"] == "20260731"
+        assert body["securities"] == 2
+        assert body["total_volume"] == pytest.approx(195_738_184.15)
+        assert body["total_trade_count"] == 929
+
+    def test_an_empty_cache_falls_back_to_the_mirror(self, monkeypatch) -> None:
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"trades": [{"volume": 7.8e6, "quantity": 10, "trade_count": 73}]}
+
+        monkeypatch.setattr(api, "get_all_trade_stats", dict)
+        monkeypatch.setattr(api.requests, "get", lambda *a, **kw: _Resp())
+        with TestClient(api.app) as client:
+            body = client.get("/api/market/trades").json()
+
+        assert body["total_volume"] == pytest.approx(7.8e6)
+        assert body["total_trade_count"] == 73
+
+
 class TestTheBoardIsCompleted:
     """A security no feed carries still trades, and still belongs on the board."""
 
