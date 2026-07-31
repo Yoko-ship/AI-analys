@@ -193,14 +193,15 @@ OPENINFO_PROXY=http://user:pass@your-relay:8080
 `collector_financials.py` runs the full pipeline in one invocation (financials +
 trade-stats + adapter facts + listings) and pushes to the API service via the
 admin endpoints (`/api/admin/financials`, `/api/admin/trade-stats`,
-`/api/admin/facts`, `/api/admin/listings`, all authenticated with
-`ADMIN_API_SECRET`):
+`/api/admin/quotes`, `/api/admin/facts`, `/api/admin/listings`, all authenticated
+with `ADMIN_API_SECRET`):
 
 ```bash
 python collector_financials.py                # full pipeline + push
 python collector_financials.py --facts-only   # only re-run source adapters
 python collector_financials.py --no-facts     # financials + trade-stats only
-python collector_financials.py --trades-only  # only the day's quotes/turnover (~2 min)
+python collector_financials.py --trades-only  # only the day's quotes/turnover (~7 min)
+python collector_financials.py --trades-only --no-quotes  # …without the per-security quote pass
 python collector_financials.py --watch-filings # only the issuers that just filed (~1 min)
 ```
 
@@ -221,7 +222,12 @@ Schedule it on any host that can reach openinfo:
      pushes results to the API service.
 
   Live schedule (one cron expression per service, so intraday quote refreshes are
-  their own services — they run `--trades-only`, ~2 minutes, and cost nothing else):
+  their own services — they run `--trades-only`, ~7 minutes, and cost nothing else).
+  That run has two halves: the execution feed (`uzse.uz/trade_results`, the day's
+  turnover per security) and then one `uzse.uz/isu_infos` page per security that
+  traded, which is the only publisher of the previous close the exchange measures
+  the day's move against — it carries that close forward through sessions with no
+  trades, so nothing derived from executions can stand in for it:
 
   | Service | `APP_MODE` | Cron (UTC) | Tashkent | Scope |
   | --- | --- | --- | --- | --- |
