@@ -547,7 +547,10 @@ iframe {
     max-width: 78px;
   }
 
-  .market-ticker-info span {
+  /* `.market-table td span` (0,1,2) outranked the old `.market-ticker-info span`
+     (0,1,1), so this rule had never once applied — the share class kept its
+     12px and held the identity column at 130px of a 330px screen. */
+  .market-table-wrap .market-ticker-info span {
     font-size: 9.5px;
     white-space: normal;
     line-height: 1.15;
@@ -647,8 +650,16 @@ iframe {
     gap: 10px;
   }
 
+  /* A bare <input> with no padding renders 24px tall — half a fingertip, and
+     the catalog's only way to find a company. */
   .catalog-sidebar .search-input {
     width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
     font-size: 16px;
   }
 
@@ -881,5 +892,134 @@ iframe {
   .disclaimer-note {
     padding: 14px;
     font-size: 12.5px;
+  }
+}
+
+/* ── 11. Phone: getting to the board ─────────────────────────────────────── */
+
+/* Measured on the device registry, 320–480px: the first price sat **1761px**
+   down the page (1845px at 320) — two and a half screens of hero, seven stat
+   cards and the two movers panels before the thing the page exists for. None of
+   the blocks below change shape; they lose the decoration a phone cannot afford
+   and the movers move under the board. */
+@media (max-width: 760px) {
+  /* The kicker says "Рынок" directly above an h1 that says "Цены акций UZSE",
+     under a topbar whose active tab already says "Рынок". The subtitle is
+     another 77px explaining what a price table is. */
+  .market-hero-panel {
+    gap: 10px;
+    padding: 14px 14px;
+  }
+
+  .market-hero-panel .panel-label,
+  .market-hero-copy p {
+    display: none;
+  }
+
+  .market-hero-panel h1 {
+    font-size: 1.35rem;
+    line-height: 1.2;
+  }
+
+  .market-hero-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* 127px per stat card × 4 rows. The numbers stay the same size the eye needs;
+     the padding and the gaps around them do not. */
+  .market-stat-card {
+    gap: 3px;
+    min-height: 0;
+    padding: 10px 11px 12px;
+  }
+
+  .market-stat-card strong {
+    font-size: 1.2rem;
+  }
+
+  .market-stat-card em {
+    font-size: 11px;
+  }
+
+  /* The top movers are worth reading — after the board, not in front of it.
+     `.market-layout` is a grid, so one `order` moves the block without touching
+     the markup or any other breakpoint. */
+  .market-top-movers {
+    order: 3;
+  }
+
+  .market-movers-col {
+    padding: 12px 14px;
+  }
+
+  /* Section 1 gives every `.panel` 16px of side padding. The board is a table
+     that already scrolls sideways — 32px of it was padding, not data. */
+  .market-board {
+    padding: 0;
+  }
+
+  /* Same duplicate-kicker problem as the hero, plus a 1.25rem heading and the
+     row count each on a line of their own. */
+  .market-board-head {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px 10px;
+    padding: 12px 14px;
+  }
+
+  .market-board-head .panel-label {
+    display: none;
+  }
+
+  .market-board-head h2 {
+    font-size: 1.05rem;
+  }
+
+  /* The title and the toggle+count cluster need 439px between them, so on a
+     phone the cluster always wraps. `margin-left: auto` then absorbed the free
+     space and parked it in the middle of its own line. */
+  .market-board-head-right {
+    flex: 0 0 auto;
+    margin-left: 0;
+    gap: 8px;
+  }
+
+  /* ── Touch targets. The audit found the board full of 27–32px controls. ── */
+  .market-view-toggle button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .sector-chip {
+    min-height: 34px;
+    padding: 6px 14px;
+  }
+
+  .market-table-wrap .market-fav-btn {
+    min-width: 30px;
+    min-height: 34px;
+  }
+
+  /* The only way into a company page from the board. */
+  .market-table-wrap .market-ticker-btn {
+    min-height: 34px;
+  }
+
+  .market-source-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+  }
+}
+
+/* At 320px the wordmark is ellipsised mid-word ("UZ Stock Anal…"). */
+@media (max-width: 340px) {
+  .brand-title {
+    font-size: 0.8rem;
   }
 }
