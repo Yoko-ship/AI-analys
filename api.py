@@ -868,7 +868,8 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
         "ok": True,
         "source": "uzse-stock-production",
         "source_url": f"{UZSE_STOCK_API_BASE}/stocks",
-        "updated_at": payload.get("updated_at") if isinstance(payload, dict) else None,
+        # The mirror stamps naive UTC; say so, or the browser reads it as local.
+        "updated_at": _as_utc_iso(payload.get("updated_at")) if isinstance(payload, dict) else None,
         "count": len(merged),
         "inactive_listings": added_inactive,
         "type": security_type or "all",
@@ -898,7 +899,8 @@ async def api_market_trades() -> dict[str, Any]:
     total_trade_count = sum((t.get("trade_count") or 0) for t in trades)
     return _json_safe({
         "ok": True,
-        "updated_at": payload.get("updated_at") if isinstance(payload, dict) else None,
+        # The mirror stamps naive UTC; say so, or the browser reads it as local.
+        "updated_at": _as_utc_iso(payload.get("updated_at")) if isinstance(payload, dict) else None,
         "total_volume": total_volume,
         "total_quantity": total_quantity,
         "total_trade_count": total_trade_count,
@@ -1099,6 +1101,34 @@ async def api_facts(ticker: str, dataset: str | None = None) -> dict[str, Any]:
     return _json_safe({"ok": True, "ticker": ticker, "org_id": org_id, "count": len(facts), "datasets": grouped})
 
 
+def _as_utc_iso(value: Any) -> str | None:
+    """Stamp a naive timestamp as UTC so the browser cannot misread it.
+
+    Both clocks behind the board write naive strings. SQLite's `datetime('now')`
+    is UTC by definition, and the uzse mirror stamps a UTC container: its
+    /health advertises the schedule as `10:00:00+05:00` while the run it fired
+    is stamped `05:30` — the same moment, five hours apart. A naive string
+    reaches `new Date(...)` in the browser, which reads a zone-less ISO string
+    as the READER's local time, so a Tashkent reader was shown 14:00 for data
+    that was in fact five hours younger than that.
+    """
+    if not value:
+        return None
+    s = str(value).strip().replace(" ", "T")
+    if not s:
+        return None
+    if s.endswith("Z") or s.endswith("z"):
+        return s[:-1] + "Z"
+    # An explicit offset (+05:00 / -0500) already says what it means.
+    tail = s[-6:]
+    if len(s) > 6 and tail[0] in "+-" and tail[3] == ":" and tail[1:3].isdigit():
+        return s
+    tail5 = s[-5:]
+    if len(s) > 5 and tail5[0] in "+-" and tail5[1:].isdigit():
+        return s
+    return s + "Z"
+
+
 @app.get("/api/market/trade-stats")
 async def api_market_trade_stats() -> dict[str, Any]:
     """Per-ISIN latest-day trade statistics (turnover, avg price, largest trade)."""
@@ -1108,7 +1138,20 @@ async def api_market_trade_stats() -> dict[str, Any]:
     except Exception as exc:
         logger.exception("trade-stats cache read failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return _json_safe({"ok": True, "count": len(stats), "stats": stats})
+    # When the board was last refreshed BY US — the moment the collector's
+    # quotes run (08:00 / 13:00 / 16:10 Tashkent) wrote these rows. This is what
+    # the page's "Обновлено" badge reports: the uzse mirror's own stamp answers a
+    # different question (when someone else's cache refreshed) and can never
+    # show our schedule.
+    stamps = [s.get("updated_at") for s in stats.values() if s.get("updated_at")]
+    dates = [s.get("trade_date") for s in stats.values() if s.get("trade_date")]
+    return _json_safe({
+        "ok": True,
+        "count": len(stats),
+        "refreshed_at": _as_utc_iso(max(stamps)) if stamps else None,
+        "trade_date": max(dates) if dates else None,
+        "stats": stats,
+    })
 
 
 def _iso_trade_date(value: Any) -> str | None:

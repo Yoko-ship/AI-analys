@@ -2838,6 +2838,26 @@ function formatMarketTimestamp(value, language) {
   }).format(date);
 }
 
+// Tooltip behind the "Обновлено" badge: the trading session the numbers belong
+// to, and the exchange mirror's own stamp — the two facts the headline number
+// deliberately leaves out.
+function marketStampTitle(meta, language) {
+  const lines = [];
+  const session = meta?.trade_date;
+  if (session) {
+    const d = new Date(`${session}T00:00:00`);
+    const shown = Number.isNaN(d.getTime())
+      ? session
+      : new Intl.DateTimeFormat(language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU",
+          { day: "2-digit", month: "short", year: "numeric" }).format(d);
+    lines.push(`${language === "en" ? "Trading session" : language === "uz" ? "Savdo sessiyasi" : "Торговая сессия"}: ${shown}`);
+  }
+  if (meta?.updated_at) {
+    lines.push(`${language === "en" ? "Exchange feed" : language === "uz" ? "Birja lentasi" : "Биржевая лента"}: ${formatMarketTimestamp(meta.updated_at, language)}`);
+  }
+  return lines.join("\n") || undefined;
+}
+
 function marketChange(stock) {
   // last_price is null when no trade happened today; Number(null)=0 so we
   // must guard on the raw value, not the coerced number.
@@ -7187,7 +7207,15 @@ function MarketView({
           <p>{mt(lang, "subtitle")}</p>
         </div>
         <div className="market-hero-actions">
-          <span className="status-badge muted">{mt(lang, "updated")}: {formatMarketTimestamp(meta?.updated_at, lang)}</span>
+          {/* When WE last refreshed the board (the collector's 08:00 / 13:00 /
+              16:10 runs), not when someone else's mirror refreshed its cache —
+              the second is what this used to show, and it can never report our
+              schedule. The mirror's stamp and the session it describes stay in
+              the tooltip; the feed stamp is the fallback if the trade-stats call
+              has not landed yet. */}
+          <span className="status-badge muted" title={marketStampTitle(meta, lang)}>
+            {mt(lang, "updated")}: {formatMarketTimestamp(meta?.refreshed_at || meta?.updated_at, lang)}
+          </span>
           <button className="ghost-btn" type="button" onClick={onRefresh} disabled={loading}>
             {loading ? mt(lang, "loading") : mt(lang, "refresh")}
           </button>
@@ -8569,7 +8597,13 @@ function App() {
       .catch(() => {});
     apiFetch("/api/market/trade-stats")
       .then((r) => r.json())
-      .then((d) => { if (d.ok && d.stats) setMarketTradeStats(d.stats); })
+      .then((d) => {
+        if (!d.ok) return;
+        if (d.stats) setMarketTradeStats(d.stats);
+        // When OUR pipeline last wrote the board. Merged into the market meta
+        // rather than kept apart, because the header badge reads one object.
+        setMarketMeta((prev) => ({ ...prev, refreshed_at: d.refreshed_at || null, trade_date: d.trade_date || null }));
+      })
       .catch(() => {});
   }, [activeView]);
 
@@ -8676,7 +8710,9 @@ function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Could not load stock prices");
       setMarketRows(Array.isArray(data.stocks) ? data.stocks : []);
-      setMarketMeta({ updated_at: data.updated_at || null, count: data.count || 0, type: data.type || marketType });
+      // Merge, don't replace: `refreshed_at`/`trade_date` come from the
+      // trade-stats call, which runs on its own and must survive a reload here.
+      setMarketMeta((prev) => ({ ...prev, updated_at: data.updated_at || null, count: data.count || 0, type: data.type || marketType }));
       setMarketMessage(mt(language, "ready"));
     } catch (error) {
       setMarketMessage(error.message);

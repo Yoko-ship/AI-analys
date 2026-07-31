@@ -21,7 +21,9 @@ const RATIOS = { ok: true, ratios: {
   ALKB: { roe: 12.0, roa: 4.0, net_profit_margin: 15, debt_to_equity: 2.1, total_equity: 6e9 },
   KVTS: { roe: 0.56, roa: 0.24, net_profit_margin: 0.23, debt_to_equity: 76.9, total_equity: 2e9 },
 } };
-const STOCKS = { stocks: [
+// `updated_at` here is the uzse mirror's own stamp, which the API now hands over
+// with an explicit Z — it belongs in the tooltip, not in the headline number.
+const STOCKS = { updated_at: "2026-07-31T14:00:00.003527Z", stocks: [
   { ticker: "AGBA", name: "AGBA Bank", isin: "UZ0001", last_price: 1500, close_price: 1440, volume: 5e6, quantity: 3333, trade_count: 40, market_cap: 3e10, nominal: 1000, sector: "Banks" },
   { ticker: "ALKB", name: "Aloqabank", isin: "UZ0002", last_price: 900, close_price: 930, volume: 2e6, quantity: 2222, trade_count: 21, market_cap: 1.2e10, nominal: 1000, sector: "Banks" },
   { ticker: "KVTS", name: "Kvarts", isin: "UZ0003", last_price: 320, close_price: 300, volume: 8e5, quantity: 2500, trade_count: 12, market_cap: 3e9, nominal: 100, sector: "Industry" },
@@ -92,7 +94,8 @@ async function mockApi(page) {
     if (p === "/api/analyze") return j(ANALYZE);
     if (p === "/api/analyze/export/pdf") return route.fulfill({ status: 200, headers: { "content-type": "application/pdf" }, body: "%PDF-1.4\n%%EOF" });
     if (p.startsWith("/api/periods")) return j(PERIODS);
-    if (p === "/api/market/trade-stats") return j({ stats: {} });
+    // refreshed_at is what OUR collector wrote, in UTC with an explicit Z.
+    if (p === "/api/market/trade-stats") return j({ ok: true, stats: {}, refreshed_at: "2026-07-31T11:10:04Z", trade_date: "2026-07-31" });
     if (p === "/api/market/stocks") return j(STOCKS);
     if (p === "/api/market/trades") return j({ total_volume: 7.8e6, total_trade_count: 73 });
     if (p === "/api/auth/me") return j({ user: null }, 401);
@@ -456,4 +459,23 @@ test("mobile: the column picker is a sheet and the page behind it holds still (�
   await sheet.locator(".market-cols-sheet-close").click();
   await expect(sheet).toHaveCount(0);
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+});
+
+// The badge used to echo the uzse mirror's own stamp — a naive UTC string the
+// browser then read as local time, so a Tashkent reader saw 14:00 for data
+// five hours younger, and the number could never report our own schedule.
+test.describe("the market timestamp", () => {
+  test.use({ timezoneId: "Asia/Tashkent" });
+
+  test("reports our own refresh, in the reader's timezone (§3.8)", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Рынок", exact: true }).click();
+    const badge = page.locator(".market-hero-panel .status-badge").first();
+    // 11:10:04Z is the 16:10 Tashkent quotes run.
+    await expect(badge).toContainText("16:10");
+    await expect(badge).toContainText("31");
+    // The exchange feed's stamp and the session it describes move to the tooltip.
+    await expect(badge).toHaveAttribute("title", /Биржевая лента/);
+    await expect(badge).toHaveAttribute("title", /Торговая сессия/);
+  });
 });
