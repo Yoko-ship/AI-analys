@@ -2470,6 +2470,9 @@ const MARKET_TEXTS = {
     bonds: "Облигации",
     preferredStocks: "Привилегированные",
     ordinaryStocks: "Обыкновенные",
+    // Phone-width pills: the full Russian words are 368px of a 360px screen.
+    preferredShort: "Прив.",
+    ordinaryShort: "Обыкн.",
     bondOne: "облигация",
     instruments: "Инструментов",
     traded: "Сделки сегодня",
@@ -2556,6 +2559,8 @@ const MARKET_TEXTS = {
     bonds: "Bonds",
     preferredStocks: "Preferred",
     ordinaryStocks: "Ordinary",
+    preferredShort: "Preferred",
+    ordinaryShort: "Ordinary",
     bondOne: "bond",
     instruments: "Instruments",
     traded: "Traded today",
@@ -2642,6 +2647,8 @@ const MARKET_TEXTS = {
     bonds: "Obligatsiyalar",
     preferredStocks: "Imtiyozli",
     ordinaryStocks: "Oddiy",
+    preferredShort: "Imtiyozli",
+    ordinaryShort: "Oddiy",
     bondOne: "obligatsiya",
     instruments: "Instrumentlar",
     traded: "Bugun savdo bo'lgan",
@@ -2836,6 +2843,21 @@ function formatMarketTimestamp(value, language) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+// "1 сделок" is what a bare noun gives you in Russian. The card puts the trade
+// count right under the turnover on every row, so the wrong form is on screen
+// seventy times at once. Uzbek takes no plural marker after a numeral, and
+// English needs only the two forms.
+function tradeCountLabel(n, language) {
+  const abs = Math.abs(Math.round(Number(n) || 0));
+  if (language === "uz") return "savdo";
+  if (language === "en") return abs === 1 ? "trade" : "trades";
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return "сделка";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "сделки";
+  return "сделок";
 }
 
 // Tooltip behind the "Обновлено" badge: the trading session the numbers belong
@@ -6588,6 +6610,21 @@ function MarketView({
     return () => { alive = false; };
   }, []);
 
+  // A phone gets a list of cards, not the board table. The table is right on a
+  // desktop — traders read a board by column — but 980px of columns on a 360px
+  // screen leaves only the ticker pinned and everything that matters (last
+  // price, change) off to the right: scroll sideways to read the change and you
+  // lose the price you were comparing it to. The card carries identity, price
+  // and change on one screen, and the columns picked in ⚙ underneath, so nothing
+  // is hidden behind a horizontal scroll.
+  const [isPhone, setIsPhone] = useState(() => window.matchMedia("(max-width: 560px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 560px)");
+    const onChange = () => setIsPhone(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   // Column sorting. sortKey === null falls back to the default (date desc, then |change|).
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("desc");
@@ -6640,6 +6677,8 @@ function MarketView({
     ] },
   ];
   const MARKET_COLS = COL_GROUPS.flatMap((g) => g.cols);
+  // key -> header label, for the card layout (which has no header row to read).
+  const COL_LABEL = Object.fromEntries(MARKET_COLS);
   // Core columns are always shown — listed in the settings panel as locked rows.
   const CORE_COLS = [
     ["ticker", mt(lang, "ticker")],
@@ -7112,7 +7151,7 @@ function MarketView({
     volume: (row) => (
       <td className="num">
         {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
-        {row.stockTradeCount !== null && <span>{formatRatio(row.stockTradeCount, 0, lang)} {mt(lang, "tradeCount")}</span>}
+        {row.stockTradeCount !== null && <span>{formatRatio(row.stockTradeCount, 0, lang)} {tradeCountLabel(row.stockTradeCount, lang)}</span>}
       </td>
     ),
     volQty: (row) => <td className="num">{row.stockQuantity !== null ? formatRatio(row.stockQuantity, 0, lang) : "—"}</td>,
@@ -7229,7 +7268,7 @@ function MarketView({
         <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
         <MarketStatCard label={mt(lang, "unchanged")} value={formatRatio(stats.unchanged, 0, lang)} sub={mt(lang, "date")} />
         {stats.totalMarketCap > 0 && <MarketStatCard label={mt(lang, "marketCap")} value={formatCompactVolume(stats.totalMarketCap, lang)} sub="UZS" />}
-        {trades && <MarketStatCard label={mt(lang, "volume")} value={formatCompactVolume(trades.total_volume, lang)} sub={trades.total_trade_count ? `${formatRatio(trades.total_trade_count, 0, lang)} ${mt(lang, "tradeCount")}` : null} />}
+        {trades && <MarketStatCard label={mt(lang, "volume")} value={formatCompactVolume(trades.total_volume, lang)} sub={trades.total_trade_count ? `${formatRatio(trades.total_trade_count, 0, lang)} ${tradeCountLabel(trades.total_trade_count, lang)}` : null} />}
       </div>
 
       {viewMode === "table" && (stats.topGainers.length > 0 || stats.topLosers.length > 0) && (
@@ -7334,8 +7373,8 @@ function MarketView({
               <div className="segmented-control market-subtype-control">
                 {[
                   ["stock", mt(lang, "all")],
-                  ["ordinary", mt(lang, "ordinaryStocks")],
-                  ["preferred", mt(lang, "preferredStocks")],
+                  ["ordinary", mt(lang, isPhone ? "ordinaryShort" : "ordinaryStocks")],
+                  ["preferred", mt(lang, isPhone ? "preferredShort" : "preferredStocks")],
                 ].map(([value, label]) => (
                   <button key={value} type="button" className={type === value ? "active" : ""} onClick={() => onTypeChange(value)}>
                     {label}
@@ -7361,7 +7400,10 @@ function MarketView({
               <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={mt(lang, "search")} />
             </label>
           )}
-          {viewMode === "table" && (
+          {/* On a phone the CSV lives in the settings sheet instead: four icon
+              buttons plus a search field do not fit a 320px row, and exporting
+              a spreadsheet is not what anyone opens a phone to do. */}
+          {viewMode === "table" && !isPhone && (
             <button type="button" className="market-fav-filter market-export-btn" onClick={exportCsv} title={mt(lang, "exportCsv")}>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
               <span className="market-btn-label">{mt(lang, "exportCsv")}</span>
@@ -7383,10 +7425,55 @@ function MarketView({
                 <MarketColsPopover
                   anchorRef={colsBtnRef}
                   onClose={() => setColsOpen(false)}
-                  title={lang === "en" ? "Columns" : lang === "uz" ? "Ustunlar" : "Колонки"}
+                  title={isPhone
+                    ? (lang === "en" ? "List settings" : lang === "uz" ? "Ro'yxat sozlamalari" : "Настройки списка")
+                    : (lang === "en" ? "Columns" : lang === "uz" ? "Ustunlar" : "Колонки")}
                   closeLabel={lang === "en" ? "Close" : lang === "uz" ? "Yopish" : "Закрыть"}
                 >
                   <>
+                    {/* Cards have no column headers to tap, so the sort a phone
+                        reader would otherwise lose moves in here, next to the
+                        columns it sorts by. A native <select> on purpose: it
+                        opens the OS picker rather than a hand-rolled menu. */}
+                    {isPhone && (
+                      <div className="market-sheet-section">
+                        <div className="market-sheet-label">{lang === "en" ? "Sort by" : lang === "uz" ? "Saralash" : "Сортировка"}</div>
+                        <div className="market-sort">
+                          <select
+                            className="market-sort-select"
+                            value={sortKey || ""}
+                            aria-label={lang === "en" ? "Sort by" : lang === "uz" ? "Saralash" : "Сортировка"}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setSortKey(v || null);
+                              setSortDir(["ticker", "company"].includes(v) ? "asc" : "desc");
+                            }}
+                          >
+                            <option value="">{lang === "en" ? "Default order" : lang === "uz" ? "Standart tartib" : "По умолчанию"}</option>
+                            {[
+                              ["ticker", mt(lang, "ticker")],
+                              ["company", mt(lang, "company")],
+                              ["last", mt(lang, "last")],
+                              ...MARKET_COLS.filter(([k]) => visibleCols.has(k) && !(type === "bond" && EQUITY_ONLY_COLS.has(k))),
+                            ].map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                          </select>
+                          <button
+                            type="button"
+                            className="market-sort-dir"
+                            disabled={!sortKey}
+                            onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                            title={sortDir === "asc"
+                              ? (lang === "en" ? "Ascending" : lang === "uz" ? "O'sish bo'yicha" : "По возрастанию")
+                              : (lang === "en" ? "Descending" : lang === "uz" ? "Kamayish bo'yicha" : "По убыванию")}
+                          >{sortDir === "asc" ? "↑" : "↓"}</button>
+                        </div>
+                        <button type="button" className="market-sheet-export" onClick={exportCsv}>
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                          {mt(lang, "exportCsv")}
+                        </button>
+                        <div className="market-sheet-label">{lang === "en" ? "Columns" : lang === "uz" ? "Ustunlar" : "Колонки"}</div>
+                      </div>
+                    )}
                     <div className="market-cols-search">
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                       <input
@@ -7480,7 +7567,11 @@ function MarketView({
                     })()}
                     </div>
                     <div className="market-cols-footer">
-                      <span className="market-cols-hint">{lang === "en" ? "Drag column headers to reorder" : lang === "uz" ? "Tartib uchun sarlavhalarni torting" : "Перетаскивайте заголовки для порядка"}</span>
+                      {/* A phone has no column headers to drag — the order it
+                          resets is the order metrics appear in each card. */}
+                      <span className="market-cols-hint">{isPhone
+                        ? (lang === "en" ? "Order of the metrics on a card" : lang === "uz" ? "Kartadagi ko'rsatkichlar tartibi" : "Порядок показателей в карточке")
+                        : (lang === "en" ? "Drag column headers to reorder" : lang === "uz" ? "Tartib uchun sarlavhalarni torting" : "Перетаскивайте заголовки для порядка")}</span>
                       <button type="button" className="market-cols-reset" onClick={resetColOrder}>
                         {lang === "en" ? "Reset order" : lang === "uz" ? "Tartibni tiklash" : "Сбросить порядок"}
                       </button>
@@ -7521,6 +7612,79 @@ function MarketView({
           ) : (
             <MarketHeatmap rows={prepared} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} type={type} />
           )
+        ) : isPhone ? (
+          <div className="market-cards">
+            {loading ? (
+              <p className="market-empty-cell">{mt(lang, "loading")}</p>
+            ) : visibleRows.length ? (
+              visibleRows.map((row) => {
+                const sec = smap[row.ticker] || {};
+                const isPreferred = sec.is_preferred || row.share_type === "preferred";
+                const isFav = hasFav(row.ticker);
+                const price = marketDisplayPrice(row);
+                // Identity and price live in the card head; "source" is a link to
+                // the exchange, which is a desktop errand — everything else the
+                // reader ticked in ⚙ becomes a labelled metric underneath.
+                const extras = visibleOrder.filter((k) => k !== "last" && k !== "change" && k !== "source");
+                return (
+                  <article className={`market-card${isFav ? " is-fav" : ""}`} key={`${row.ticker}-${row.isin}`}>
+                    <button
+                      type="button"
+                      className={`market-card-fav ${isFav ? "is-fav" : ""}`}
+                      aria-pressed={isFav}
+                      title={isFav
+                        ? (lang === "en" ? "Remove from favorites" : lang === "uz" ? "Tanlanganlardan olib tashlash" : "Убрать из избранного")
+                        : (lang === "en" ? "Add to favorites" : lang === "uz" ? "Tanlanganlarga qo'shish" : "В избранное")}
+                      onClick={(e) => { e.stopPropagation(); onToggleFavorite && onToggleFavorite(row.ticker, row.name); }}
+                    >{isFav ? "★" : "☆"}</button>
+                    <button
+                      type="button"
+                      className="market-card-id"
+                      onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}
+                    >
+                      <span className="market-card-ticker">{row.ticker || "—"}</span>
+                      <span className="market-card-name">{row.name || "—"}</span>
+                      <span className="market-card-kind">{(row.type === "bond" || sec.type === "bond")
+                        ? mt(lang, "bondOne")
+                        : isPreferred ? mt(lang, "preferred")
+                        : row.share_type ? mt(lang, row.share_type)
+                        : (row.type || "—")}</span>
+                    </button>
+                    <div className="market-card-quote">
+                      <span className="market-card-last">{price == null ? "—" : formatMarketNumber(price, lang)}</span>
+                      <MarketChangeBadge
+                        value={row.changeValue != null ? row.changeValue : (row.closePrice > 0 ? 0 : null)}
+                        percent={row.changePercent != null ? row.changePercent : (row.closePrice > 0 ? 0 : null)}
+                        language={lang}
+                      />
+                    </div>
+                    {extras.length > 0 && (
+                      <dl className="market-card-metrics">
+                        {extras.map((k) => {
+                          // Reuse the table's own cell renderer and keep only its
+                          // contents — one source of truth for every value's
+                          // formatting, fallbacks and "not applicable" wording.
+                          const cell = CELL_OF[k](row);
+                          return (
+                            <div className="market-card-metric" key={k}>
+                              <dt>{COL_LABEL[k] || k}</dt>
+                              <dd title={cell.props.title}>{cell.props.children}</dd>
+                            </div>
+                          );
+                        })}
+                      </dl>
+                    )}
+                  </article>
+                );
+              })
+            ) : (
+              <p className="market-empty-cell">{favOnly
+                ? (lang === "en" ? "No favorites yet — tap ☆ next to a company to track it."
+                   : lang === "uz" ? "Hali tanlanganlar yo'q — kuzatish uchun kompaniya yonidagi ☆ ni bosing."
+                   : "Пока нет избранного — нажмите ☆ рядом с компанией, чтобы следить за ней.")
+                : mt(lang, "empty")}</p>
+            )}
+          </div>
         ) : (
           <>
           <div className="market-table-wrap" ref={wrapRef}>

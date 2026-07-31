@@ -439,7 +439,7 @@ test("mobile: the column picker is a sheet and the page behind it holds still (�
   await page.goto("/");
   await page.locator(".topbar-burger").click();
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
-  await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
+  await expect(page.locator(".market-card").first()).toBeVisible();
 
   await page.mouse.wheel(0, 900);
   await page.waitForTimeout(300);
@@ -477,5 +477,55 @@ test.describe("the market timestamp", () => {
     // The exchange feed's stamp and the session it describes move to the tooltip.
     await expect(badge).toHaveAttribute("title", /Биржевая лента/);
     await expect(badge).toHaveAttribute("title", /Торговая сессия/);
+  });
+});
+
+// A 980px-wide board on a 360px screen pinned the ticker and pushed the two
+// numbers anyone actually scans off to the right: scroll sideways to read the
+// change and the price you were comparing it to is gone. Below 560px the board
+// is a list of cards instead.
+test.describe("the board on a phone", () => {
+  test.use({ viewport: { width: 360, height: 740 } });
+
+  test("is a card list with the price on screen, not a sideways table (§3.12)", async ({ page }) => {
+    await page.goto("/");
+    await page.locator(".topbar-burger").click();
+    await page.getByRole("button", { name: "Рынок", exact: true }).click();
+
+    // By ticker, not by position: the default order is today's movers first.
+    const card = page.locator(".market-card").filter({ hasText: "AGBA" });
+    await expect(card).toBeVisible();
+    await expect(page.locator(".market-table-wrap")).toHaveCount(0);
+    // Ticker, price and change all inside the viewport, no horizontal scroll.
+    await expect(card.locator(".market-card-ticker")).toHaveText("AGBA");
+    await expect(card.locator(".market-card-last")).toHaveText(/1\s*500/);
+    await expect(card.locator(".market-change-badge")).toBeVisible();
+    const box = await card.locator(".market-change-badge").boundingBox();
+    expect(box.x + box.width).toBeLessThanOrEqual(360);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+
+    // The columns ticked in ⚙ become labelled metrics under the price.
+    await expect(card.locator(".market-card-metric").first()).toBeVisible();
+  });
+
+  test("sorts from the settings sheet, since cards have no headers (§3.12)", async ({ page }) => {
+    await page.goto("/");
+    await page.locator(".topbar-burger").click();
+    await page.getByRole("button", { name: "Рынок", exact: true }).click();
+    await expect(page.locator(".market-card").first()).toBeVisible();
+
+    await page.locator(".market-cols-btn").click();
+    const sheet = page.locator(".market-cols-sheet");
+    await expect(sheet).toBeVisible();
+    // Sort and the CSV export move in here; the toolbar keeps search + ★ + ⚙.
+    await expect(sheet.locator(".market-sort-select")).toBeVisible();
+    await expect(sheet.locator(".market-sheet-export")).toBeVisible();
+    await expect(page.locator(".market-controls .market-export-btn")).toHaveCount(0);
+
+    await sheet.locator(".market-sort-select").selectOption("ticker");
+    await sheet.locator(".market-cols-sheet-close").click();
+    // ticker ascending: AGBA, ALKB, KVTS
+    await expect(page.locator(".market-card-ticker").first()).toHaveText("AGBA");
+    await expect(page.locator(".market-card-ticker").nth(2)).toHaveText("KVTS");
   });
 });
