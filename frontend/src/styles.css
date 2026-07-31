@@ -2864,6 +2864,50 @@ body {
   border-radius: 16px;
 }
 
+/* ── Sponsor spot in the landing hero ─────────────────────────────────────
+   The clip is 1080×1920. The hero's right-hand column is ~650px at 1512px
+   wide, and a 9:16 frame that wide would be 1159px tall — taller than the
+   whole panel. So the box keeps the clip's own shape, caps its width and
+   centres it in the column, rather than stretching or cropping it. Every
+   `.hero-image` rule below is written for a 16:10 illustration; the two-class
+   selector outranks each of them at any breakpoint. */
+.hero-image.hero-promo {
+  width: min(100%, 320px);
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  margin-inline: auto;
+  aspect-ratio: 9 / 16;
+  background: #0b0f18;
+}
+
+.hero-image.hero-promo video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+/* Below 1024 the hero is one column and the illustration was pulled above the
+   copy. An ad is not the site's own pitch — it goes after the headline and the
+   two CTAs, not in front of them. Phones show it: this is the one width where a
+   vertical clip is native, and the rule that hides `.hero-image` there was
+   written for decoration nobody would miss. */
+@media (max-width: 1024px) {
+  .hero-image.hero-promo {
+    order: 0;
+    width: min(100%, 280px);
+  }
+}
+
+@media (max-width: 760px) {
+  .hero-image.hero-promo {
+    display: block;
+    width: min(100%, 250px);
+  }
+}
+
 .hero-panel::before {
   content: "";
   position: absolute;
