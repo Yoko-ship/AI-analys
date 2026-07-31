@@ -230,6 +230,36 @@ class TestTheBoardIsCompleted:
 
         assert "UQEQ" in synced
 
+    def test_the_audit_reads_the_board_the_site_serves(self, monkeypatch) -> None:
+        """/api/market/audit must compare the exchange against the merged board,
+        not the mirror — reading the mirror is what made the old coverage report
+        blind to exactly the securities it was supposed to surface."""
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"stocks": [], "updated_at": "2026-07-31T14:00:00"}
+
+        monkeypatch.setattr(api.requests, "get", lambda *a, **kw: _Resp())
+        monkeypatch.setattr(api, "get_all_quotes", lambda: {"UZ7042540003": _quote()})
+        monkeypatch.setattr(api, "get_all_trade_stats", lambda: {
+            "UZ7042540003": {"trade_date": "20260731", "total_value": 30720.0,
+                             "total_qty": 1.0, "trade_count": 1}})
+        monkeypatch.setattr(api, "get_all_listings", lambda: {})
+        monkeypatch.setattr(api, "get_securities_map", lambda: {})
+        monkeypatch.setattr(api, "sync_securities", lambda *a, **kw: 0)
+        monkeypatch.setattr(api, "record_volume", lambda *a, **kw: 0)
+        monkeypatch.setattr(api, "_load_logos", lambda: {})
+
+        with TestClient(api.app) as client:
+            body = client.get("/api/market/audit").json()
+
+        assert body["ok"] is True
+        assert body["trade_date"] == "20260731"
+        # The row exists only because the quote put it there.
+        assert (body["audited"], body["on_board"]) == (1, 1)
+
     def test_a_delisted_ticker_still_cannot_come_back_through_a_quote(self, monkeypatch) -> None:
         body = self._board(monkeypatch, {"UZ7000000001": _quote(
             isin="UZ7000000001", ticker=sorted(api.BOARD_DENYLIST)[0])})
