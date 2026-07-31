@@ -9457,26 +9457,6 @@ function App() {
                 </div>
               </section>
 
-              {/* Sponsor slot. Deliberately not in the hero: that panel is where
-                  the platform introduces itself, and a third-party ad standing in
-                  it reads as the product. Here it is its own block, labelled as
-                  advertising, after the reader has seen what the site does. */}
-              <section className="landing-sponsor">
-                <div className="landing-sponsor-label">
-                  {language === "en" ? "Advertisement" : language === "uz" ? "Reklama" : "Реклама"}
-                </div>
-                <div className="landing-sponsor-media">
-                  <video
-                    src={promoVideo}
-                    poster={promoPoster}
-                    controls
-                    playsInline
-                    preload="none"
-                    aria-label="Paramedics"
-                  />
-                </div>
-              </section>
-
               {/* CTA Section */}
               <section className="landing-cta">
                 <div className="cta-content">
@@ -10435,7 +10415,124 @@ function App() {
       </div>
 
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} language={language} />
+      <SponsorOverlay language={language} />
     </div>
+  );
+}
+
+// Floating sponsor unit — the format the reference used: a small player that
+// sits over the page, starts muted on its own, counts down, and can be closed.
+//
+// Rules it keeps, because an ad that breaks them is a bug: sound never starts
+// on its own (browsers refuse it anyway, and it is rude); the close control
+// always arrives, on a visible countdown; once dismissed or finished it stays
+// gone for the rest of the session; and a reader who asked the OS for reduced
+// motion gets the poster with a play button instead of a moving picture.
+const SPONSOR_SEEN_KEY = "uz_sponsor_seen";
+const SPONSOR_DELAY_MS = 2500;   // let the page settle before anything moves
+const SPONSOR_CLOSE_AFTER = 5;   // seconds before the × replaces the countdown
+
+function SponsorOverlay({ language }) {
+  const [open, setOpen] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [left, setLeft] = useState(SPONSOR_CLOSE_AFTER);
+  const [progress, setProgress] = useState(0);
+  const videoRef = useRef(null);
+  const reduced = typeof window !== "undefined"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  useEffect(() => {
+    try { if (sessionStorage.getItem(SPONSOR_SEEN_KEY)) return undefined; } catch (e) { /* ignore */ }
+    const id = setTimeout(() => setOpen(true), SPONSOR_DELAY_MS);
+    return () => clearTimeout(id);
+  }, []);
+
+  const dismiss = () => {
+    setOpen(false);
+    try { sessionStorage.setItem(SPONSOR_SEEN_KEY, "1"); } catch (e) { /* ignore */ }
+  };
+
+  // Muted autoplay is the only autoplay a browser allows. If it is refused
+  // anyway (some mobile data-saver modes), fall back to the poster and a play
+  // button rather than leaving a dead black rectangle on the page.
+  useEffect(() => {
+    if (!open || reduced) return;
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    v.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+  }, [open, reduced]);
+
+  // The countdown runs on the wall clock, not on playback: a clip that never
+  // starts must still become closable.
+  useEffect(() => {
+    if (!open) return undefined;
+    setLeft(SPONSOR_CLOSE_AFTER);
+    const id = setInterval(() => setLeft((n) => (n <= 1 ? 0 : n - 1)), 1000);
+    return () => clearInterval(id);
+  }, [open]);
+
+  if (!open) return null;
+
+  const label = language === "en" ? "Advertisement" : language === "uz" ? "Reklama" : "Реклама";
+  const closeLabel = language === "en" ? "Close" : language === "uz" ? "Yopish" : "Закрыть";
+  const soundLabel = muted
+    ? (language === "en" ? "Sound on" : language === "uz" ? "Ovozni yoqish" : "Включить звук")
+    : (language === "en" ? "Sound off" : language === "uz" ? "Ovozni o'chirish" : "Выключить звук");
+
+  const toggleSound = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = !v.muted;
+    setMuted(v.muted);
+    if (!v.muted && v.paused) v.play().then(() => setPlaying(true)).catch(() => {});
+  };
+
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) v.play().then(() => setPlaying(true)).catch(() => {});
+    else { v.pause(); setPlaying(false); }
+  };
+
+  return createPortal(
+    <aside className="sponsor-overlay" role="complementary" aria-label={label}>
+      <div className="sponsor-overlay-frame">
+        <video
+          ref={videoRef}
+          src={promoVideo}
+          poster={promoPoster}
+          muted={muted}
+          playsInline
+          preload="auto"
+          onClick={togglePlay}
+          onTimeUpdate={(e) => {
+            const v = e.currentTarget;
+            if (v.duration) setProgress((v.currentTime / v.duration) * 100);
+          }}
+          onEnded={dismiss}
+        />
+
+        <button type="button" className="sponsor-overlay-sound" onClick={toggleSound} title={soundLabel} aria-label={soundLabel}>
+          {muted ? "🔇" : "🔊"}
+        </button>
+
+        {left > 0 ? (
+          <span className="sponsor-overlay-count" aria-hidden="true">{left}</span>
+        ) : (
+          <button type="button" className="sponsor-overlay-close" onClick={dismiss} title={closeLabel} aria-label={closeLabel}>×</button>
+        )}
+
+        {!playing && (
+          <button type="button" className="sponsor-overlay-play" onClick={togglePlay} aria-label={closeLabel === "Close" ? "Play" : "Смотреть"}>▶</button>
+        )}
+
+        <span className="sponsor-overlay-label">{label}</span>
+        <div className="sponsor-overlay-bar"><i style={{ width: `${progress}%` }} /></div>
+      </div>
+    </aside>,
+    document.body
   );
 }
 

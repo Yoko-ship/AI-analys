@@ -229,7 +229,33 @@ def push_quotes(stats: dict[str, dict]) -> int:
     status = _post("/api/admin/quotes", {"rows": quotes})
     if status == 0:
         _stamp_step("quotes", str(quotes[0].get("trade_date") or ""))
+        status = audit_board() or status
     return status
+
+
+def audit_board() -> int:
+    """Ask the deployment whether its board agrees with the exchange, and say so.
+
+    Every past mismatch was found by a human comparing our board to the exchange's
+    bulletin, because a wrong number is still a number: nothing failed. This runs
+    the same comparison in the pipeline, against what the site is serving right
+    now, and turns a disagreement into a red run instead of a quiet week.
+    """
+    import market_audit
+
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+    try:
+        verdict = requests.get(f"{base}/api/market/audit", timeout=120).json()
+    except Exception:
+        log.exception("market audit request failed")
+        return 1
+    log.info("%s", market_audit.format_verdict(verdict))
+    _stamp_step("market_audit", "ok" if verdict.get("ok") else "MISMATCH")
+    if not verdict.get("ok"):
+        failed = [c["name"] for c in verdict.get("checks") or [] if not c.get("ok")]
+        log.error("the board disagrees with the exchange: %s", ", ".join(failed))
+        return 1
+    return 0
 
 
 def push_listings() -> int:
