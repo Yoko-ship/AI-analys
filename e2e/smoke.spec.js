@@ -95,7 +95,9 @@ async function mockApi(page) {
     if (p === "/api/analyze/export/pdf") return route.fulfill({ status: 200, headers: { "content-type": "application/pdf" }, body: "%PDF-1.4\n%%EOF" });
     if (p.startsWith("/api/periods")) return j(PERIODS);
     // refreshed_at is what OUR collector wrote, in UTC with an explicit Z.
-    if (p === "/api/market/trade-stats") return j({ ok: true, stats: {}, refreshed_at: "2026-07-31T11:10:04Z", trade_date: "2026-07-31" });
+    // Production stores the session as compacted YYYYMMDD, so that is what the
+    // badge tooltip has to render.
+    if (p === "/api/market/trade-stats") return j({ ok: true, stats: {}, refreshed_at: "2026-07-31T11:10:04Z", trade_date: "20260731" });
     if (p === "/api/market/stocks") return j(STOCKS);
     if (p === "/api/market/trades") return j({ total_volume: 7.8e6, total_trade_count: 73 });
     if (p === "/api/auth/me") return j({ user: null }, 401);
@@ -476,6 +478,6 @@ test.describe("the market timestamp", () => {
     await expect(badge).toContainText("31");
     // The exchange feed's stamp and the session it describes move to the tooltip.
     await expect(badge).toHaveAttribute("title", /Биржевая лента/);
-    await expect(badge).toHaveAttribute("title", /Торговая сессия/);
+    await expect(badge).toHaveAttribute("title", /Торговая сессия: 31 июл\. 2026/);
   });
 });

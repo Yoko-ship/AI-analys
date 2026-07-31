@@ -2860,9 +2860,15 @@ function marketStampTitle(meta, language) {
   const lines = [];
   const session = meta?.trade_date;
   if (session) {
-    const d = new Date(`${session}T00:00:00`);
+    // `catalog_trade_stats.trade_date` is compacted YYYYMMDD in production
+    // (that is the form the day-vs-day comparisons use), while older rows and
+    // the listings registry carry ISO. Accept both rather than printing
+    // "20260731" at a reader.
+    const raw = String(session);
+    const iso = /^\d{8}$/.test(raw) ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6)}` : raw;
+    const d = new Date(`${iso}T00:00:00`);
     const shown = Number.isNaN(d.getTime())
-      ? session
+      ? raw
       : new Intl.DateTimeFormat(language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU",
           { day: "2-digit", month: "short", year: "numeric" }).format(d);
     lines.push(`${language === "en" ? "Trading session" : language === "uz" ? "Savdo sessiyasi" : "Торговая сессия"}: ${shown}`);
