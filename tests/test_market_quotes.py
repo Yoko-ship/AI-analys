@@ -94,7 +94,7 @@ class TestAQuoteOverlaysABoardRow:
 class TestTheBoardIsCompleted:
     """A security no feed carries still trades, and still belongs on the board."""
 
-    def _board(self, monkeypatch, quotes, mirror=(), listings=None, kind=None):
+    def _board(self, monkeypatch, quotes, mirror=(), listings=None, kind=None, synced=None):
         class _Resp:
             def __init__(self, payload):
                 self._payload = payload
@@ -111,7 +111,12 @@ class TestTheBoardIsCompleted:
         monkeypatch.setattr(api, "get_all_quotes", lambda: quotes)
         monkeypatch.setattr(api, "get_all_listings", lambda: listings or {})
         monkeypatch.setattr(api, "get_securities_map", lambda: {})
-        monkeypatch.setattr(api, "sync_securities", lambda *a, **kw: 0)
+        def _sync(rows, logos):
+            if synced is not None:
+                synced.extend(str(r.get("ticker") or "") for r in rows)
+            return len(rows)
+
+        monkeypatch.setattr(api, "sync_securities", _sync)
         monkeypatch.setattr(api, "record_volume", lambda *a, **kw: 0)
         monkeypatch.setattr(api, "_load_logos", lambda: {})
         with TestClient(api.app) as client:
@@ -160,6 +165,18 @@ class TestTheBoardIsCompleted:
         rows = [r for r in body["stocks"] if r["ticker"] == "UQEQ"]
         assert len(rows) == 1
         assert rows[0]["close_price"] == pytest.approx(25600.0)
+
+    def test_a_quoted_security_is_catalogued(self, monkeypatch) -> None:
+        """Without a catalog row a board line has no name, logo, sector or company
+        page — which is what a security outside the mirror's universe always had.
+        Trading is the qualification, whichever source put the row on the board."""
+        synced: list[str] = []
+        self._board(monkeypatch, {"UZ7042540003": _quote()}, mirror=[
+            {"ticker": "UQEQ", "isin": "UZ7042540003", "last_price": 32000.0,
+             "close_price": 32000.0, "last_trade_date": "24.07.2026"},
+        ], synced=synced)
+
+        assert "UQEQ" in synced
 
     def test_a_delisted_ticker_still_cannot_come_back_through_a_quote(self, monkeypatch) -> None:
         body = self._board(monkeypatch, {"UZ7000000001": _quote(
