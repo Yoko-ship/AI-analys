@@ -6306,6 +6306,89 @@ function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
   );
 }
 
+// The column picker ("Обзор / Объёмы / Фин. показатели / Мультипликаторы").
+// It used to be an absolutely-positioned child of the toolbar, which meant it
+// rode the page up on the first scroll gesture and — now that the toolbar is
+// sticky and .market-board clips — would have been cut off at the board edge.
+// Portaled to <body> instead: a fixed popover re-anchored to its button on
+// every scroll/resize, and on a phone a bottom sheet with its own scrollport,
+// so a thumb drag moves the list of columns and not the page behind it.
+function MarketColsPopover({ anchorRef, onClose, title, closeLabel, children }) {
+  const [pos, setPos] = useState(null);
+  const [sheet, setSheet] = useState(() => window.matchMedia("(max-width: 760px)").matches);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 760px)");
+    const onChange = () => setSheet(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  // Desktop geometry only — the sheet is pinned to the viewport bottom by CSS
+  // and has nothing to measure.
+  useLayoutEffect(() => {
+    if (sheet) { setPos(null); return undefined; }
+    let raf = 0;
+    const place = () => {
+      raf = 0;
+      const btn = anchorRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const width = Math.min(300, window.innerWidth - 24);
+      // Right-aligned to the button, but never off either edge of the viewport.
+      const left = Math.max(12, Math.min(r.right - width, window.innerWidth - width - 12));
+      const top = Math.max(8, Math.min(r.bottom + 8, window.innerHeight - 200));
+      setPos({ top, left, width, maxHeight: Math.max(200, window.innerHeight - top - 16) });
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(place); };
+    place();
+    // capture:true so an inner scrollport's (non-bubbling) scroll re-anchors too.
+    window.addEventListener("scroll", schedule, { passive: true, capture: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule, { capture: true });
+      window.removeEventListener("resize", schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [anchorRef, sheet]);
+
+  // Esc closes. On the sheet the page behind is frozen as well, so the scroll
+  // gesture belongs to the sheet alone — the complaint that "scroll gets in the
+  // way" on a phone was the page scrolling under an open filter panel.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    if (!sheet) return () => window.removeEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose, sheet]);
+
+  return createPortal(
+    <>
+      <div className={`market-cols-backdrop${sheet ? " is-sheet" : ""}`} onClick={onClose} />
+      <div
+        className={`market-cols-dropdown${sheet ? " market-cols-sheet" : ""}`}
+        role="menu"
+        style={sheet || !pos ? undefined : { top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
+      >
+        {sheet && (
+          <div className="market-cols-sheet-head">
+            <span className="market-cols-sheet-grip" aria-hidden="true" />
+            <span className="market-cols-sheet-title">{title}</span>
+            <button type="button" className="market-cols-sheet-close" onClick={onClose} aria-label={closeLabel}>×</button>
+          </div>
+        )}
+        {children}
+      </div>
+    </>,
+    document.body
+  );
+}
+
 // The board's column headers, pinned under the topbar while the rows scroll past.
 // The real <thead> can't simply be `position: sticky`: its nearest scrollport is
 // .market-table-wrap, which `overflow-x: auto` turns into a scroll container on
@@ -6344,9 +6427,17 @@ function MarketStickyHead({ wrapRef, cells, colSignature, rowCount, loading }) {
       const table = el && el.querySelector(".market-table");
       const headRow = table && table.querySelector("thead tr");
       if (!el || !table || !headRow || loading || !rowCount) { hide(); return; }
-      // Pin under the sticky topbar, whose height differs per breakpoint.
+      // Pin under the sticky topbar, whose height differs per breakpoint — and
+      // under the board's filter bar when that is itself stuck to the topbar,
+      // otherwise the mirrored header would be drawn over the filters. The bar
+      // counts as stuck only while its top sits at the pin line; on the way down
+      // the page it is just an ordinary block and the header pins to the topbar.
       const topbar = document.querySelector(".topbar");
-      const pin = topbar ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom)) : 0;
+      const topbarBottom = topbar ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom)) : 0;
+      const bar = el.closest(".market-board")?.querySelector(".market-filterbar");
+      const barRect = bar ? bar.getBoundingClientRect() : null;
+      const stuck = barRect && barRect.top <= topbarBottom + 1 && barRect.bottom > topbarBottom;
+      const pin = stuck ? Math.round(barRect.bottom) : topbarBottom;
       const headRect = headRow.getBoundingClientRect();
       const tableRect = table.getBoundingClientRect();
       const wrapRect = el.getBoundingClientRect();
@@ -6540,6 +6631,7 @@ function MarketView({
     return new Set(["change", "open", "high", "low", "volume", "date", "source"]);
   });
   const [colsOpen, setColsOpen] = useState(false);
+  const colsBtnRef = useRef(null); // the popover is portaled — it anchors off this
   const [colsSearch, setColsSearch] = useState("");
   const [openGroups, setOpenGroups] = useState(() => new Set(["overview", "volumes", "financials"]));
   const toggleGroup = (k) => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
@@ -7187,6 +7279,11 @@ function MarketView({
           </div>
         </div>
 
+        {/* Every filter the board has — instrument class, share class, favourites,
+            search, the column picker and the sector chips — lives in one block so
+            it can stick under the topbar as a unit. Scrolling to row 300 must not
+            cost the reader the controls that put those rows on screen. */}
+        <div className="market-filterbar">
         <div className="market-controls">
           {/* Level 1: instrument class — stocks vs bonds are not comparable
               (price/capitalisation vs coupon/maturity), so they never share a table. */}
@@ -7228,7 +7325,7 @@ function MarketView({
               title={lang === "en" ? "Show favorites only" : lang === "uz" ? "Faqat tanlanganlar" : "Только избранное"}
             >
               <span className="fav-star">{favOnly ? "★" : "☆"}</span>
-              {lang === "en" ? "Favorites" : lang === "uz" ? "Tanlanganlar" : "Избранное"}
+              <span className="market-btn-label">{lang === "en" ? "Favorites" : lang === "uz" ? "Tanlanganlar" : "Избранное"}</span>
             </button>
           )}
           {viewMode === "table" && (
@@ -7239,13 +7336,14 @@ function MarketView({
           {viewMode === "table" && (
             <button type="button" className="market-fav-filter market-export-btn" onClick={exportCsv} title={mt(lang, "exportCsv")}>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-              {mt(lang, "exportCsv")}
+              <span className="market-btn-label">{mt(lang, "exportCsv")}</span>
             </button>
           )}
           {viewMode === "table" && (
             <div className="market-cols-wrap">
               <button
                 type="button"
+                ref={colsBtnRef}
                 className={`market-cols-btn ${colsOpen ? "active" : ""}`}
                 aria-haspopup="true" aria-expanded={colsOpen}
                 onClick={() => setColsOpen((o) => !o)}
@@ -7254,9 +7352,13 @@ function MarketView({
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>
               {colsOpen && (
-                <>
-                  <div className="market-cols-backdrop" onClick={() => setColsOpen(false)} />
-                  <div className="market-cols-dropdown" role="menu">
+                <MarketColsPopover
+                  anchorRef={colsBtnRef}
+                  onClose={() => setColsOpen(false)}
+                  title={lang === "en" ? "Columns" : lang === "uz" ? "Ustunlar" : "Колонки"}
+                  closeLabel={lang === "en" ? "Close" : lang === "uz" ? "Yopish" : "Закрыть"}
+                >
+                  <>
                     <div className="market-cols-search">
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                       <input
@@ -7266,6 +7368,10 @@ function MarketView({
                         placeholder={lang === "en" ? "Search" : lang === "uz" ? "Qidirish" : "Поиск"}
                       />
                     </div>
+                    {/* Its own scrollport: the groups scroll here, the search box
+                        and the reset footer stay put, and `overscroll-behavior`
+                        (CSS) stops the page behind from taking over the gesture. */}
+                    <div className="market-cols-body">
                     {(() => {
                       const q = colsSearch.trim().toLowerCase();
                       const matches = (label) => !q || label.toLowerCase().includes(q);
@@ -7344,14 +7450,15 @@ function MarketView({
                         </>
                       );
                     })()}
+                    </div>
                     <div className="market-cols-footer">
                       <span className="market-cols-hint">{lang === "en" ? "Drag column headers to reorder" : lang === "uz" ? "Tartib uchun sarlavhalarni torting" : "Перетаскивайте заголовки для порядка"}</span>
                       <button type="button" className="market-cols-reset" onClick={resetColOrder}>
                         {lang === "en" ? "Reset order" : lang === "uz" ? "Tartibni tiklash" : "Сбросить порядок"}
                       </button>
                     </div>
-                  </div>
-                </>
+                  </>
+                </MarketColsPopover>
               )}
             </div>
           )}
@@ -7378,6 +7485,7 @@ function MarketView({
             ))}
           </div>
         )}
+        </div>
 
         {viewMode === "heatmap" ? (
           loading ? (
@@ -8286,6 +8394,32 @@ function App() {
     }
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  // Anything that pins itself under the topbar (the board's filter bar, the
+  // mirrored column header) needs the topbar's live height, and that height is
+  // not a constant: 80px on a desktop, 60px below 1180px, and taller again the
+  // moment a language switch wraps the nav. Measure it once here and publish it
+  // as --topbar-h so the CSS never has to restate the breakpoints.
+  useEffect(() => {
+    const bar = document.querySelector(".topbar");
+    if (!bar) return undefined;
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      const h = Math.round(bar.getBoundingClientRect().height);
+      if (h > 0) document.documentElement.style.setProperty("--topbar-h", `${h}px`);
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(apply); };
+    apply();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(bar);
+    window.addEventListener("resize", schedule);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));

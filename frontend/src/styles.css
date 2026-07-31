@@ -6779,7 +6779,33 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 
 .market-board {
   padding: 0;
+  /* `hidden` first as the fallback for browsers without `clip` (pre-16 Safari).
+     `clip` clips exactly the same way but does NOT make the board a scroll
+     container, which is what lets .market-filterbar below stick to the viewport
+     instead of to the top of the board — a sticky element inside an
+     `overflow: hidden` ancestor pins to that ancestor and rides the page up. */
   overflow: hidden;
+  overflow: clip;
+}
+
+/* ── The board's filters, pinned under the topbar ─────────────────────────
+   Instrument class, share class, favourites, search, the column picker and the
+   sector chips stick together as one bar: at row 300 the reader still has the
+   controls that put those rows on screen. Opaque background — rows pass
+   underneath. Below the topbar (100) and the mobile drawer (55/60) in the
+   stack, above the mirrored column header (50), which pins under this bar. */
+.market-filterbar {
+  position: sticky;
+  top: var(--topbar-h, 80px);
+  z-index: 46;
+  background: var(--panel);
+}
+
+/* `.segmented-control` carries a 16px bottom margin for the forms it was built
+   for. Inside a bar that is pinned to the top of the screen that margin is 16px
+   of table the reader does not get to see. */
+.market-filterbar .segmented-control {
+  margin-bottom: 0;
 }
 
 .market-board-head,
@@ -6983,6 +7009,15 @@ body[data-theme="light"] .market-sticky-head {
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
 }
 
+/* Both floating bars are portaled to <body>, while everything the drawer is
+   drawn inside sits under `.app-shell`, which caps its whole subtree at
+   z-index 1 — so no z-index the drawer gives itself can lift it over a
+   body-level bar. Hide them for as long as the drawer is open. */
+body:has(.topbar.is-nav-open) .market-sticky-head,
+body:has(.topbar.is-nav-open) .market-float-scroll {
+  display: none;
+}
+
 .market-sticky-head__scroller {
   overflow: hidden;
 }
@@ -7087,6 +7122,15 @@ body[data-theme="light"] .market-sticky-head {
   padding: 12px 24px 0;
 }
 
+/* Inside the pinned bar the chips carry their own bottom padding — the 20px
+   margin `.sector-filter` uses to clear the table would sit outside the
+   opaque background and let rows show through the gap. */
+.market-filterbar .market-sector-filter {
+  margin-bottom: 0;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ── Market table: logo + ticker cell ────────────────────────── */
 .market-ticker-cell {
   display: flex;
@@ -7153,19 +7197,90 @@ body[data-theme="light"] .market-sticky-head {
 }
 .market-cols-btn:hover { color: var(--text); }
 .market-cols-btn.active { background: var(--panel-elevated); color: var(--text); box-shadow: var(--shadow-sm); }
-.market-cols-backdrop { position: fixed; inset: 0; z-index: 40; }
+/* The picker is portaled to <body> (see MarketColsPopover), so both layers are
+   fixed and have to clear the topbar (100) rather than the board. */
+.market-cols-backdrop { position: fixed; inset: 0; z-index: 120; }
 .market-cols-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 41;
+  position: fixed;
+  z-index: 121;
+  display: flex;
+  flex-direction: column;
   min-width: 248px;
+  max-height: 70vh;
   padding: 8px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--panel-elevated);
   box-shadow: var(--shadow-lg);
 }
+/* Only the group list scrolls: the search box and the reset footer stay put,
+   and `overscroll-behavior: contain` keeps the page behind from taking over the
+   gesture when the list hits its end. */
+.market-cols-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Phone: the picker is a bottom sheet ──────────────────────────────────
+   A 248px popover hanging off a 42px button is a thumb-sized target list on a
+   phone, and the page used to scroll away underneath it. The sheet is anchored
+   to the bottom edge, sized to the content up to 78vh, and the body is frozen
+   while it is open. */
+.market-cols-sheet {
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  min-width: 0;
+  max-height: min(78vh, 620px);
+  padding: 0 10px calc(10px + env(safe-area-inset-bottom));
+  border-radius: 18px 18px 0 0;
+  border-bottom: none;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35);
+}
+.market-cols-backdrop.is-sheet { background: rgba(2, 6, 16, 0.45); }
+.market-cols-sheet-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 40px 10px;
+  margin-bottom: 4px;
+}
+.market-cols-sheet-grip {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-hover);
+}
+.market-cols-sheet-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.market-cols-sheet-close {
+  position: absolute;
+  right: 2px;
+  top: 10px;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.market-cols-sheet .market-cols-row { min-height: 42px; }
 .market-cols-title {
   font-size: 11px;
   font-weight: 700;
@@ -7760,11 +7875,20 @@ body[data-theme="light"] .market-controls {
 
 @media (max-width: 1000px) {
   .market-hero-panel,
-  .market-board-head,
-  .market-controls {
+  .market-board-head {
     align-items: stretch;
     flex-direction: column;
   }
+
+  /* The controls wrap instead of stacking: a column of five full-width rows is
+     ~250px of pinned toolbar, which would leave a tablet almost no table. */
+  .market-controls {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .market-controls .market-type-levels { flex: 1 0 100%; }
+  .market-controls .market-search { flex: 1 1 160px; min-width: 0; }
 
   .market-hero-actions {
     justify-content: flex-start;

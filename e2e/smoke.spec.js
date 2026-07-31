@@ -385,3 +385,75 @@ test("mobile: hamburger opens the nav drawer (§3.12)", async ({ page }) => {
   await expect(page.locator(".topbar")).not.toHaveClass(/is-nav-open/);
   await expect(page.getByText(/Цены акций/)).toBeVisible();
 });
+
+// The board's filters used to scroll away with the page: by row 30 the reader had
+// a table and no way to narrow it, and the column picker — an absolutely
+// positioned child of that toolbar — went with them.
+test("the board's filters stay on screen while the rows scroll (§3.8)", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
+
+  const bar = page.locator(".market-filterbar");
+  await page.mouse.wheel(0, 2000);
+  await page.waitForTimeout(300);
+
+  const topbar = await page.locator("header.topbar").boundingBox();
+  const box = await bar.boundingBox();
+  // Pinned directly under the topbar, not scrolled off the top of the viewport.
+  expect(box.y).toBeGreaterThanOrEqual(topbar.height - 2);
+  expect(box.y).toBeLessThanOrEqual(topbar.height + 2);
+  await expect(page.locator(".market-filterbar .market-type-control")).toBeVisible();
+  await expect(page.locator(".market-filterbar .market-search input")).toBeVisible();
+});
+
+// "Фин. показатели", "Мультипликаторы" and the rest live inside this menu, so a
+// menu that scrolls out of reach is a filter that cannot be used.
+test("the column picker follows its button while the page scrolls (§3.8)", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await page.locator(".market-cols-btn").click();
+
+  const menu = page.locator(".market-cols-dropdown");
+  const button = page.locator(".market-cols-btn");
+  await expect(menu).toContainText("Фин. показатели");
+
+  await page.mouse.wheel(0, 1500);
+  await page.waitForTimeout(300);
+  const after = await menu.boundingBox();
+  const btn = await button.boundingBox();
+  // Re-anchored under a button that is itself pinned, so it is still on screen
+  // rather than 1500px above it.
+  expect(Math.abs(after.y - (btn.y + btn.height + 8))).toBeLessThan(3);
+  expect(after.y).toBeGreaterThan(0);
+  expect(after.y).toBeLessThan(await page.evaluate(() => window.innerHeight));
+});
+
+// On a phone the picker is a bottom sheet, and the page behind it is frozen:
+// the complaint was that scrolling "gets in the way" of filtering.
+test("mobile: the column picker is a sheet and the page behind it holds still (§3.12)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.goto("/");
+  await page.locator(".topbar-burger").click();
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
+
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(300);
+  const scrollBefore = await page.evaluate(() => window.scrollY);
+
+  await page.locator(".market-cols-btn").click();
+  const sheet = page.locator(".market-cols-sheet");
+  await expect(sheet).toBeVisible();
+  const box = await sheet.boundingBox();
+  expect(Math.round(box.y + box.height)).toBe(780); // sits on the bottom edge
+
+  await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+
+  await sheet.locator(".market-cols-sheet-close").click();
+  await expect(sheet).toHaveCount(0);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+});

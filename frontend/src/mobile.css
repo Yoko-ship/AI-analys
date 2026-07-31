@@ -344,8 +344,7 @@ iframe {
     letter-spacing: 0.08em;
   }
 
-  .market-board-head,
-  .market-controls {
+  .market-board-head {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
@@ -369,12 +368,105 @@ iframe {
     border-radius: 10px;
   }
 
-  .market-type-levels {
+  /* The filter bar is pinned to the top of the screen on a phone too, so every
+     pixel it spends is a pixel of table the reader loses. Two rows: the class
+     pills on one line (scrolled sideways if a translation overruns), then
+     search + the icon buttons. */
+  .market-controls {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
+    padding: 10px 12px;
   }
 
-  .market-search {
+  /* "Акции Облигации" + "Все Обыкновенные Привилегированные" is 492px of pill;
+     no phone is that wide. It scrolls sideways rather than wrapping (a second
+     line is 40px of pinned bar), and keeps a 4px scrollbar so the reader can
+     see there is more to the right — the native bar shows up only when the row
+     actually overflows, which a permanent fade could not manage. */
+  .market-controls .market-type-levels {
+    flex: 1 0 100%;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    /* The standard properties win in Chrome 121+ (they switch it to the
+       arrow-less overlay bar and make it ignore the ::-webkit- rules below,
+       which are here for the WebKit versions that only understand those). */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) transparent;
+  }
+
+  .market-controls .market-type-levels::-webkit-scrollbar {
+    display: block;
+    height: 4px;
+  }
+
+  .market-controls .market-type-levels::-webkit-scrollbar-thumb {
+    background: var(--border-hover);
+    border-radius: 2px;
+  }
+
+  /* Desktop Chrome answers a styled ::-webkit-scrollbar with the classic bar —
+     track, end arrows and all. Only the thumb should show. */
+  .market-controls .market-type-levels::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .market-controls .market-type-levels::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .market-controls .segmented-control {
+    flex-wrap: nowrap;
+    padding: 3px;
+  }
+
+  .market-controls .segmented-control button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 7px 11px;
+    font-size: 0.79rem;
+  }
+
+  .market-controls .market-search {
+    flex: 1 1 110px;
     min-width: 0;
+  }
+
+  .market-controls .market-search input {
+    height: 38px;
+  }
+
+  /* Icon-only: the labels cost ~200px of a 383px row and both buttons keep
+     their `title`, which is what a screen reader falls back to. */
+  .market-controls .market-cols-wrap {
+    flex: 0 0 auto;
+  }
+
+  .market-controls .market-fav-filter,
+  .market-controls .market-cols-btn {
+    flex: 0 0 auto;
+    height: 38px;
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .market-btn-label {
+    display: none;
+  }
+
+  .market-filterbar .market-sector-filter {
+    padding: 7px 12px;
+  }
+
+  .market-filterbar .sector-chip {
+    padding: 5px 12px;
+    font-size: 0.82rem;
   }
 
   /* The board table stays a table — traders read it by column — but on a phone

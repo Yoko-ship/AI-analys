@@ -385,10 +385,19 @@ command branches on `APP_MODE=news-collector`.
 > Windows (it mis-parses its own `index.cjs?namespace=…` module path). The Railway MCP server
 > (`railway setup agent -y`) is the remaining option for direct agent control.
 
-Intended schedule: **`30 2 * * *` = 02:30 UTC = 07:30 Tashkent**, once daily (Railway evaluates
-cron in UTC; the container's `TZ=Asia/Tashkent` does not change that). Early morning is
-deliberate — openinfo filings cluster through the previous afternoon and evening (14:00–21:12
-local in the sampled window), so a 07:30 run catches a complete filing day.
+Live schedule: **`10 11 * * *` = 11:10 UTC = 16:10 Tashkent**, once daily (Railway evaluates
+cron in UTC; the container's `TZ=Asia/Tashkent` does not change that). Set 2026-07-31, moved
+there from 02:30 UTC / 07:30 local so the feed refreshes alongside the post-close quotes run
+(`quotes-1610`, same 16:10) — a reader who opens the site after the session sees one moment
+of data, prices and news together, rather than a board from 16:10 next to a feed from 07:30.
+
+What the earlier slot bought, and what moving it costs: openinfo filings cluster through the
+afternoon and evening (14:00–21:12 local in the sampled window), so a 07:30 run always saw a
+complete filing day, while a 16:10 run leaves the evening's filings for the next day's run —
+up to ~24h later on the feed page. It is a phase change, not a cadence change: the run is
+still once a day, so the depth table below is unchanged, and material facts still reach the
+board within the hour through `reports-watch`, which is what the news feed's timing was never
+responsible for.
 
 **The cadence is bounded by how deep each feed is** — an item that falls off a feed between
 runs is lost for good. Measured 2026-07-25:
