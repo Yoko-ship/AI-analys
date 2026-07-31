@@ -2983,8 +2983,9 @@ function buildMarketStats(rows) {
   const topGainers = withChange.filter((r) => r.changePercent > 0).sort((a, b) => b.changePercent - a.changePercent).slice(0, 5);
   const topLosers = withChange.filter((r) => r.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, 5);
   const totalVolume = todays.reduce((s, r) => s + (Number.isFinite(r.stockVolume) ? r.stockVolume : 0), 0);
+  const totalTrades = todays.reduce((s, r) => s + (Number.isFinite(r.stockTradeCount) ? r.stockTradeCount : 0), 0);
   const totalMarketCap = rows.reduce((s, r) => s + (Number.isFinite(r.marketCap) && r.marketCap > 0 ? r.marketCap : 0), 0);
-  return { boardDay, traded, advancers, decliners, unchanged, topGrowth, topDrop, topGainers, topLosers, totalVolume, totalMarketCap };
+  return { boardDay, traded, advancers, decliners, unchanged, topGrowth, topDrop, topGainers, topLosers, totalVolume, totalTrades, totalMarketCap };
 }
 
 const SCORE_EXPLANATION_TEXTS = {
@@ -6562,7 +6563,6 @@ function MarketStickyHead({ wrapRef, cells, colSignature, rowCount, loading }) {
 function MarketView({
   rows,
   meta,
-  trades,
   loading,
   message,
   query,
@@ -7246,7 +7246,12 @@ function MarketView({
         <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
         <MarketStatCard label={mt(lang, "unchanged")} value={formatRatio(stats.unchanged, 0, lang)} sub={mt(lang, "date")} />
         {stats.totalMarketCap > 0 && <MarketStatCard label={mt(lang, "marketCap")} value={formatCompactVolume(stats.totalMarketCap, lang)} sub="UZS" />}
-        {trades && <MarketStatCard label={mt(lang, "volume")} value={formatCompactVolume(trades.total_volume, lang)} sub={trades.total_trade_count ? `${formatRatio(trades.total_trade_count, 0, lang)} ${tradeCountLabel(trades.total_trade_count, lang)}` : null} />}
+        {/* The day's turnover is the sum of the rows below it, not a separate
+            feed's idea of the day: the mirror's /trades snapshot covers a fixed
+            44 securities and called 31.07 "120,7 млн over ~900 trades" while the
+            board it sits above listed 1,56 млрд over 6 507 — and it cannot
+            answer per tab, so the shares view was quoting bond turnover too. */}
+        {stats.totalVolume > 0 && <MarketStatCard label={mt(lang, "volume")} value={formatCompactVolume(stats.totalVolume, lang)} sub={stats.totalTrades ? `${formatRatio(stats.totalTrades, 0, lang)} ${tradeCountLabel(stats.totalTrades, lang)}` : null} />}
       </div>
 
       {viewMode === "table" && (stats.topGainers.length > 0 || stats.topLosers.length > 0) && (
@@ -8403,7 +8408,6 @@ function App() {
   const [historyMode, setHistoryMode] = useState("all");
   const [marketRows, setMarketRows] = useState([]);
   const [marketMeta, setMarketMeta] = useState({ updated_at: null, count: 0 });
-  const [marketTrades, setMarketTrades] = useState(null);
   const [marketType, setMarketType] = useState("stock");
   const [marketQuery, setMarketQuery] = useState("");
   const [marketLoading, setMarketLoading] = useState(false);
@@ -8593,7 +8597,6 @@ function App() {
     loadMarketStocks().catch((error) => {
       addToast(error.message, "error");
     });
-    loadMarketTrades();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, marketType, language]);
 
@@ -8736,16 +8739,6 @@ function App() {
       throw error;
     } finally {
       setMarketLoading(false);
-    }
-  };
-
-  const loadMarketTrades = async () => {
-    try {
-      const res = await apiFetch("/api/market/trades");
-      const data = await res.json();
-      if (res.ok) setMarketTrades(data);
-    } catch {
-      // trades are optional — don't block the page
     }
   };
 
@@ -9541,14 +9534,13 @@ function App() {
             <MarketView
               rows={marketRows}
               meta={marketMeta}
-              trades={marketTrades}
               loading={marketLoading}
               message={marketMessage}
               query={marketQuery}
               onQueryChange={setMarketQuery}
               type={marketType}
               onTypeChange={setMarketType}
-              onRefresh={() => { loadMarketStocks().catch((error) => addToast(error.message, "error")); loadMarketTrades(); }}
+              onRefresh={() => { loadMarketStocks().catch((error) => addToast(error.message, "error")); }}
               onAnalyze={(ticker) => {
                 setAnalysisCompany(ticker || "");
                 setActiveView("analysis");
