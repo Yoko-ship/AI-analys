@@ -186,6 +186,49 @@ def push_trade_stats() -> int:
     status = _post("/api/admin/trade-stats", {"trade_date": data.get("trade_date"), "rows": rows})
     if status == 0:
         _stamp_step("trade_stats", str(data.get("trade_date") or ""))
+    if not SKIP_QUOTES:
+        try:
+            status = push_quotes(stats) or status
+        except Exception:
+            log.exception("quotes step failed")
+            status = status or 1
+    return status
+
+
+# Set by --no-quotes; the quote pass costs one page per security that traded.
+SKIP_QUOTES = False
+
+
+def push_quotes(stats: dict[str, dict]) -> int:
+    """Read the exchange's own quote for each security that traded, and push it.
+
+    The board's change % is close-to-close against the exchange's previous close,
+    and the exchange CARRIES that close forward through sessions with no trades —
+    UQEQ closed at 25 600 on 30.07 without a single execution, so its +20% on
+    31.07 exists in no execution feed and in no registry. Only the exchange's own
+    security page states it, so we read exactly the securities that traded (the
+    ones whose price moved) straight from uzse.uz.
+    """
+    import uzse_quotes as uq
+
+    targets = sorted(
+        (isin, str((row or {}).get("market") or "STK"))
+        for isin, row in (stats or {}).items() if isin
+    )
+    if not targets:
+        log.warning("no traded securities to quote")
+        return 0
+    log.info("reading exchange quotes for %d securities ...", len(targets))
+    quotes = uq.fetch_session_quotes(targets)
+    log.info("quotes: %d of %d securities answered with a session quote",
+             len(quotes), len(targets))
+    if not quotes:
+        return 1
+    for q in quotes:
+        q.pop("history", None)
+    status = _post("/api/admin/quotes", {"rows": quotes})
+    if status == 0:
+        _stamp_step("quotes", str(quotes[0].get("trade_date") or ""))
     return status
 
 
@@ -375,6 +418,8 @@ def main() -> int:
     ap.add_argument("--no-financials", action="store_true", help="skip the financials step")
     ap.add_argument("--no-trades", action="store_true", help="skip the trade-stats step")
     ap.add_argument("--trades-only", action="store_true", help="only fetch+push trade stats")
+    ap.add_argument("--no-quotes", action="store_true",
+                    help="skip the exchange-quote pass that follows the trade stats")
     ap.add_argument("--no-facts", action="store_true", help="skip the source-adapter fact step")
     ap.add_argument("--facts-only", action="store_true", help="only run+push the source-adapter facts")
     ap.add_argument("--no-listings", action="store_true", help="skip the exchange-listing registry step")
@@ -387,6 +432,9 @@ def main() -> int:
     ap.add_argument("--watch-hours", type=int, default=None,
                     help="how far back the filing feed is read (default REPORTS_WATCH_HOURS or 48)")
     args = ap.parse_args()
+
+    global SKIP_QUOTES
+    SKIP_QUOTES = bool(args.no_quotes)
 
     # Loudly name any package this pipeline needs but the image does not carry:
     # the per-issuer `except Exception` guards below would otherwise turn a
