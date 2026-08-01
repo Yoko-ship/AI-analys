@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from delisted import DELISTED_TICKERS
 from entity_resolver import ORG_OVERRIDES, UNRELIABLE_FINANCIALS
+import dbx
 from db import APP_DATA_DIR, sqlite_connect
 from openinfo_collector import (
     OPENINFO_API_BASE,
@@ -268,11 +269,11 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     """)
     # Columns added after the table shipped (CREATE IF NOT EXISTS won't touch
     # an existing table) — idempotent per-column migration.
-    have = {r[1] for r in conn.execute("PRAGMA table_info(catalog_trade_stats)")}
+    have = set(dbx.columns(conn, "catalog_trade_stats"))
     for col in ("open_price", "high_price", "low_price", "close_price"):
         if col not in have:
             conn.execute(f"ALTER TABLE catalog_trade_stats ADD COLUMN {col} REAL")
-    have_news = {r[1] for r in conn.execute("PRAGMA table_info(news)")}
+    have_news = set(dbx.columns(conn, "news"))
     if "image_url" not in have_news:
         conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")
     # The site is served in three languages but every summary we stored was Russian, so an
@@ -290,7 +291,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     # different one (bank revenue exists in openinfo's indicators and nowhere in
     # the NSBU form). Recording which period each such field came from is what
     # keeps the row honest instead of passing a full-year figure off as a quarter.
-    have_fin = {r[1] for r in conn.execute("PRAGMA table_info(catalog_financials)")}
+    have_fin = set(dbx.columns(conn, "catalog_financials"))
     if "field_periods" not in have_fin:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN field_periods TEXT")
     # ТЗ Дополнение 1 §Б.4: a published figure names the report it was read from.
@@ -1576,11 +1577,22 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                     cleared.add((ticker, row_form))
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO catalog_financials
+                    -- ON CONFLICT rather than INSERT OR REPLACE: the SQLite
+                    -- form deletes the old row and inserts a new one, which
+                    -- drops any column this statement does not name, and it
+                    -- exists in no other dialect.
+                    INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
                          field_periods, updated_at)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
+                        revenue=excluded.revenue, gross_profit=excluded.gross_profit,
+                        cash=excluded.cash, total_liabilities=excluded.total_liabilities,
+                        net_income=excluded.net_income,
+                        operating_income=excluded.operating_income,
+                        field_periods=excluded.field_periods,
+                        updated_at=excluded.updated_at
                     """,
                     (ticker, row_form, year, quarter,
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),

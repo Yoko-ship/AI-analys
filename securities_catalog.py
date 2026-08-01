@@ -147,11 +147,12 @@ def _manual_info(ticker: str, language: str) -> dict[str, str] | None:
     return {"title": entry.get("title"), "text": text, "url": entry.get("url")}
 
 
-def _get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+def _get_conn():
+    """Backend-agnostic (ТЗ §10.1). WAL and friends belong to dbx's SQLite
+    factory — they configure SQLite, not "a database"."""
+    from db import sqlite_connect
+
+    return sqlite_connect(str(DB_PATH))
 
 
 def _init_db(conn: sqlite3.Connection) -> None:

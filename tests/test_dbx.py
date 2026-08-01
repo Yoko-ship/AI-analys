@@ -12,6 +12,7 @@ anything ambiguous is refused rather than guessed at.
 from __future__ import annotations
 
 import os
+import sqlite3
 import threading
 
 import pytest
@@ -220,3 +221,63 @@ class TestBackendSwitch:
             dbx.connect("whatever.db")
         dbx.reset_pools()
         os.environ["DATABASE_BACKEND"] = "sqlite"
+
+
+class TestCommentsAndNamedParameters:
+    """Two bugs the port surfaced, both silent in the wrong way."""
+
+    def test_a_comment_is_not_code(self):
+        """A statement was refused for EXPLAINING itself: a comment reading
+        "ON CONFLICT rather than INSERT OR REPLACE" tripped the rule it
+        documented."""
+        sql = ("-- ON CONFLICT rather than INSERT OR REPLACE\n"
+               "INSERT INTO t VALUES (?) ON CONFLICT(a) DO NOTHING")
+        dbx.check_supported(sql)                       # must not raise
+        got = dbx.translate(sql, dbx.POSTGRES)
+        assert got.count("%s") == 1                    # only the real placeholder
+
+    def test_a_question_mark_in_a_comment_is_not_a_placeholder(self):
+        """psycopg binds by counting %s — one introduced inside a comment
+        shifts every parameter after it."""
+        sql = "SELECT * FROM t -- why? because\nWHERE id = ?"
+        assert dbx.translate(sql, dbx.POSTGRES).count("%s") == 1
+
+    def test_block_comments_too(self):
+        sql = "/* is this ? a placeholder */ SELECT ?"
+        assert dbx.translate(sql, dbx.POSTGRES).count("%s") == 1
+
+    def test_refusal_still_fires_on_real_code(self):
+        with pytest.raises(dbx.UnsupportedStatement):
+            dbx.check_supported("INSERT OR REPLACE INTO t VALUES (1)")
+
+    def test_named_parameters_reach_the_driver_as_a_mapping(self, tmp_path, monkeypatch):
+        """Wrapping a dict in tuple() yields the KEYS and binds nonsense."""
+        monkeypatch.setenv("DATABASE_BACKEND", "sqlite")
+        dbx.reset_pools()
+        conn = dbx.connect(str(tmp_path / "n.db"))
+        conn.execute("CREATE TABLE t (form TEXT, year INTEGER)")
+        conn.execute("INSERT INTO t VALUES (:form, :year)", {"form": "NSBU", "year": 2025})
+        conn.commit()
+        row = conn.execute("SELECT form, year FROM t WHERE form = :form",
+                           {"form": "NSBU"}).fetchone()
+        assert row["form"] == "NSBU" and row["year"] == 2025
+        conn.close()
+        dbx.reset_pools()
+
+    def test_named_parameters_are_rewritten_for_postgres(self):
+        got = dbx._NAMED.sub(r"%(\1)s", "SELECT * FROM t WHERE form = :form AND y = :year")
+        assert "%(form)s" in got and "%(year)s" in got
+
+    def test_a_cast_is_not_a_parameter(self):
+        assert dbx._NAMED.sub(r"%(\1)s", "SELECT x::text FROM t") == "SELECT x::text FROM t"
+
+
+class TestIntrospectionAcceptsRawConnections:
+    def test_a_raw_sqlite_connection_still_answers(self, tmp_path):
+        """Migrations are handed either kind; guessing wrong returned "no
+        columns", which reads as "the column is missing" and produces a
+        duplicate-column error two lines later."""
+        raw = sqlite3.connect(str(tmp_path / "raw.db"))
+        raw.execute("CREATE TABLE t (a TEXT, b INTEGER)")
+        assert set(dbx.columns(raw, "t")) == {"a", "b"}
+        assert "t" in dbx.tables(raw)

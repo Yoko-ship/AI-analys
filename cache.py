@@ -124,10 +124,11 @@ class AnalysisCache:
                 CREATE INDEX IF NOT EXISTS idx_created_at
                 ON analysis_cache(created_at)
             """)
-            columns = {
-                row["name"]
-                for row in conn.execute("PRAGMA table_info(analysis_cache)").fetchall()
-            }
+            # Portable column list: PRAGMA table_info would tie this file to
+            # SQLite, and dbx.columns answers the same question on either backend.
+            import dbx
+
+            columns = set(dbx.columns(conn, "analysis_cache"))
             if "result_json" not in columns:
                 conn.execute(
                     "ALTER TABLE analysis_cache ADD COLUMN result_json TEXT"

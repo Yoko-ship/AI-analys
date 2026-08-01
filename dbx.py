@@ -31,6 +31,7 @@ import queue
 import re
 import sqlite3
 import threading
+from decimal import Decimal
 from contextlib import contextmanager
 from typing import Any, Iterable, Iterator, Sequence
 
@@ -54,6 +55,17 @@ def backend() -> str:
 
 def postgres_url() -> str:
     return (os.getenv("DATABASE_URL") or os.getenv("DATABASE_PUBLIC_URL") or "").strip()
+
+
+def postgres_schema() -> str:
+    """Which schema this process reads and writes.
+
+    Defaults to `public`. Setting `DATABASE_SCHEMA` is how the whole application
+    can be pointed at an isolated copy — to run the test suite against the real
+    PostgreSQL without touching what it serves, or to rehearse a cutover beside
+    live data rather than on top of it.
+    """
+    return (os.getenv("DATABASE_SCHEMA") or "public").strip() or "public"
 
 
 # ---------------------------------------------------------------------------
@@ -86,10 +98,15 @@ _FUNCTION_MAP: tuple[tuple[re.Pattern[str], str], ...] = (
 
 
 def _split_literals(sql: str) -> list[tuple[str, bool]]:
-    """Break a statement into (fragment, is_literal) parts.
+    """Break a statement into (fragment, inert) parts.
 
-    Quote state is tracked by scanning, not matched by pattern: `'it''s'` and a
-    `?` inside quotes both defeat any regex that tries.
+    Inert means "not code": a string literal or a comment. Both must survive
+    untouched, and for the same reason — a `?` inside either is not a
+    placeholder. Getting this wrong is not cosmetic: psycopg binds by counting
+    `%s`, so one introduced inside a comment shifts every parameter after it.
+
+    Quote and comment state are tracked by scanning, not matched by pattern:
+    `'it''s'` and `-- why? because` both defeat any regex that tries.
     """
     parts: list[tuple[str, bool]] = []
     buf: list[str] = []
@@ -109,6 +126,24 @@ def _split_literals(sql: str) -> list[tuple[str, bool]]:
                 buf = []
                 quote = None
             i += 1
+            continue
+        if ch == "-" and sql[i:i + 2] == "--":
+            if buf:
+                parts.append(("".join(buf), False))
+                buf = []
+            end = sql.find("\n", i)
+            end = len(sql) if end == -1 else end
+            parts.append((sql[i:end], True))
+            i = end
+            continue
+        if ch == "/" and sql[i:i + 2] == "/*":
+            if buf:
+                parts.append(("".join(buf), False))
+                buf = []
+            end = sql.find("*/", i + 2)
+            end = len(sql) if end == -1 else end + 2
+            parts.append((sql[i:end], True))
+            i = end
             continue
         if ch in ("'", '"'):
             if buf:
@@ -143,6 +178,12 @@ def translate(sql: str, target: str) -> str:
     return "".join(out)
 
 
+# `:name` outside a literal — SQLite's named placeholder, PostgreSQL's is
+# `%(name)s`. The negative lookbehind keeps `::cast` and `a:b` out of it.
+_NAMED = re.compile(r"(?<![:\w]):([a-zA-Z_]\w*)")
+_NAMED_REPLACEMENT = "%(" + chr(92) + "1)s"
+
+
 class UnsupportedStatement(RuntimeError):
     """A statement that cannot be translated safely and must be rewritten."""
 
@@ -155,15 +196,45 @@ _REFUSED = (
 )
 
 
+def _code_only(sql: str) -> str:
+    """The statement with literals and comments removed."""
+    return "".join(f for f, inert in _split_literals(sql) if not inert)
+
+
 def check_supported(sql: str) -> None:
+    """Refuse what cannot be translated — judged on the CODE.
+
+    Scanning the raw text made a statement illegal for explaining itself: a
+    comment reading "ON CONFLICT rather than INSERT OR REPLACE" tripped the very
+    rule it was documenting.
+    """
+    code = _code_only(sql)
     for pattern, message in _REFUSED:
-        if pattern.search(sql):
+        if pattern.search(code):
             raise UnsupportedStatement(f"{message}: {sql.strip()[:120]}")
 
 
 # ---------------------------------------------------------------------------
 # Rows
 # ---------------------------------------------------------------------------
+
+def _py(value: Any) -> Any:
+    """A driver value in the type the application already works with.
+
+    PostgreSQL NUMERIC arrives as `decimal.Decimal`, and Python refuses to mix
+    Decimal with float — `net_income / roe * 100.0` raises rather than computes.
+    Every arithmetic site in the project consumes floats, so conversion happens
+    here, once, rather than at a hundred call sites.
+
+    What that costs, stated plainly: exactness ends at this boundary. The value
+    is STORED exactly, round-trips exactly, and sums exactly in SQL — which is
+    what removed 3 894 float artefacts and what §10.1 asks for. Arithmetic done
+    in Python is still float arithmetic. Carrying Decimal all the way through
+    the calculation layer is a further, separate change; doing it implicitly
+    here would mean every formula silently changing type mid-migration.
+    """
+    return float(value) if isinstance(value, Decimal) else value
+
 
 class Row(dict):
     """A row addressable by name AND by index, as `sqlite3.Row` is.
@@ -175,7 +246,7 @@ class Row(dict):
     __slots__ = ("_order",)
 
     def __init__(self, columns: Sequence[str], values: Sequence[Any]) -> None:
-        super().__init__(zip(columns, values))
+        super().__init__(zip(columns, (_py(v) for v in values)))
         self._order = list(columns)
 
     def __getitem__(self, key: Any) -> Any:
@@ -196,9 +267,27 @@ class Cursor:
         self._raw = raw
         self._target = target
 
-    def execute(self, sql: str, params: Sequence[Any] | None = None) -> "Cursor":
+    def execute(self, sql: str, params: Any = None) -> "Cursor":
+        """Positional or NAMED parameters — the codebase uses both.
+
+        A dict must reach the driver as a dict; wrapping it in `tuple()` yields
+        the keys and binds nonsense.
+        """
         check_supported(sql)
-        self._raw.execute(translate(sql, self._target), tuple(params or ()))
+        statement = translate(sql, self._target)
+        if isinstance(params, dict):
+            if self._target == POSTGRES:
+                statement = _NAMED.sub(_NAMED_REPLACEMENT, statement)
+            self._raw.execute(statement, params)
+        elif params:
+            self._raw.execute(statement, tuple(params))
+        else:
+            # No parameters means no parameter PARSING. psycopg scans for `%`
+            # whenever a params argument is present -- even an empty tuple --
+            # and the schema DDL is full of `LIKE 'sqlite_%'`, which then reads
+            # as an incomplete placeholder. Passing nothing is not an
+            # optimisation; it is the difference between running and raising.
+            self._raw.execute(statement)
         return self
 
     def executemany(self, sql: str, seq: Iterable[Sequence[Any]]) -> "Cursor":
@@ -403,6 +492,11 @@ def _factory_for(target: str, sqlite_path: str) -> Any:
             import psycopg
 
             raw = psycopg.connect(url, autocommit=False, connect_timeout=15)
+            schema = postgres_schema()
+            if schema != "public":
+                # `public` stays on the path so shared extensions still resolve.
+                raw.execute(f'SET search_path TO "{schema}", public')
+                raw.commit()
             return Connection(raw, POSTGRES, pool)
 
         return make_pg
@@ -437,11 +531,30 @@ def reset_pools() -> None:
 # Introspection — the portable replacement for PRAGMA
 # ---------------------------------------------------------------------------
 
-def tables(conn: Connection) -> list[str]:
-    if conn.target == POSTGRES:
+def _target_of(conn: Any) -> str:
+    """The backend a connection speaks.
+
+    Accepts a raw DB-API connection as well as a `dbx.Connection`: migrations
+    and one-off scripts are handed either, and guessing wrong here silently
+    returns "no columns", which reads as "the column is missing" and produces a
+    duplicate-column error two lines later.
+    """
+    return getattr(conn, "target", SQLITE)
+
+
+def _raw_of(conn: Any) -> Any:
+    return getattr(conn, "_raw", conn)
+
+
+def tables(conn: Any) -> list[str]:
+    if _target_of(conn) == POSTGRES:
+        # The CONFIGURED schema, not a hard-coded 'public'. Asking the wrong
+        # schema returns "no columns", which every caller reads as "the column
+        # is missing" and then fails adding one that is already there.
         rows = conn.execute(
             "SELECT table_name FROM information_schema.tables "
-            "WHERE table_schema = 'public' ORDER BY table_name").fetchall()
+            "WHERE table_schema = ? ORDER BY table_name",
+            (postgres_schema(),)).fetchall()
     else:
         rows = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' "
@@ -449,15 +562,15 @@ def tables(conn: Connection) -> list[str]:
     return [r[0] for r in rows]
 
 
-def columns(conn: Connection, table: str) -> list[str]:
-    if conn.target == POSTGRES:
+def columns(conn: Any, table: str) -> list[str]:
+    if _target_of(conn) == POSTGRES:
         rows = conn.execute(
             "SELECT column_name FROM information_schema.columns "
-            "WHERE table_schema = 'public' AND table_name = ? "
-            "ORDER BY ordinal_position", (table,)).fetchall()
+            "WHERE table_schema = ? AND table_name = ? "
+            "ORDER BY ordinal_position", (postgres_schema(), table)).fetchall()
         return [r[0] for r in rows]
     # Straight to the driver: `check_supported` refuses PRAGMA in application
     # SQL, and this function is the sanctioned replacement for it.
-    raw = conn._raw.cursor()
+    raw = _raw_of(conn).cursor()
     raw.execute(f"PRAGMA table_info({table})")
     return [r[1] for r in raw.fetchall()]
