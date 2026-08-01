@@ -115,7 +115,11 @@ def init(conn: sqlite3.Connection | None = None) -> None:
             CREATE TABLE IF NOT EXISTS bond_coupons (
               ticker      TEXT NOT NULL REFERENCES bond_reference(ticker),
               coupon_no   INTEGER NOT NULL,
-              period_from TEXT NOT NULL, period_to TEXT NOT NULL,
+              -- The issuer files what a coupon pays and when payment opens, not
+              -- the accrual period behind it (ТЗ Доп.1 §А.4 assumed a schedule
+              -- from a reference nobody publishes). Demanding the period here
+              -- would only have it invented, so it stays open.
+              period_from TEXT, period_to TEXT,
               pay_date    TEXT NOT NULL,
               amount      REAL,
               is_paid     INTEGER NOT NULL DEFAULT 0,
@@ -361,6 +365,35 @@ def upsert_bond_reference(rows: Sequence[dict[str, Any]]) -> int:
             conn.execute(
                 f"INSERT INTO bond_reference ({','.join(fields)}, synced_at) "
                 f"VALUES ({placeholders}) ON CONFLICT(ticker) DO UPDATE SET {updates}", values)
+            written += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return written
+
+
+def upsert_bond_coupons(rows: Sequence[dict[str, Any]]) -> int:
+    """The coupons an issuer has actually filed, replacing that issue's set.
+
+    Rewritten per ticker rather than merged: the filings ARE the schedule, so a
+    coupon that vanished from the source has to vanish here too — a merge would
+    keep a payment the issuer withdrew.
+    """
+    init()
+    conn = _conn()
+    fields = ("ticker", "coupon_no", "period_from", "period_to", "pay_date", "amount", "is_paid")
+    written = 0
+    try:
+        for ticker in {str(r.get("ticker") or "").upper() for r in rows or [] if r.get("ticker")}:
+            conn.execute("DELETE FROM bond_coupons WHERE ticker = ?", (ticker,))
+        for row in rows or []:
+            ticker = str(row.get("ticker") or "").upper()
+            if not ticker or not row.get("pay_date"):
+                continue
+            values = [ticker] + [row.get(f) for f in fields[1:]]
+            conn.execute(
+                f"INSERT INTO bond_coupons ({','.join(fields)}) "
+                f"VALUES ({','.join('?' * len(fields))})", values)
             written += 1
         conn.commit()
     finally:

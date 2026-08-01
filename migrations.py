@@ -92,6 +92,23 @@ MIGRATIONS: tuple[Migration, ...] = (
               run_sql(
                   "CREATE INDEX IF NOT EXISTS ix_bond_reference_isin "
                   "ON bond_reference (isin)")),
+    # The issuer files what a coupon PAYS and when payment opens; it does not
+    # file the accrual period the payment covers. The original NOT NULL demanded
+    # two dates that no source states, which would have meant inventing them.
+    # The table has never held a row — nothing wrote to it before the terms
+    # loader — so it is rebuilt rather than migrated in place.
+    Migration(6, "bonds: coupon periods are nullable — only the payment is filed",
+              run_sql(
+                  "DROP TABLE IF EXISTS bond_coupons",
+                  """CREATE TABLE bond_coupons (
+                       ticker      TEXT NOT NULL REFERENCES bond_reference(ticker),
+                       coupon_no   INTEGER NOT NULL,
+                       period_from TEXT, period_to TEXT,
+                       pay_date    TEXT NOT NULL,
+                       amount      REAL,
+                       is_paid     INTEGER NOT NULL DEFAULT 0,
+                       PRIMARY KEY (ticker, coupon_no)
+                     )""")),
 )
 
 

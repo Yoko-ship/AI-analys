@@ -110,9 +110,13 @@ def reference_state(reference: dict[str, Any] | None) -> dict[str, Any]:
     reference = reference or {}
     missing = [f for f in REQUIRED_REFERENCE_FIELDS if _num(reference.get(f)) is None
                and not reference.get(f)]
-    nominal = _num(reference.get("nominal"))
+    nominal, rate = _num(reference.get("nominal")), _num(reference.get("coupon_rate"))
     return {"is_complete": not missing, "missing": missing,
             "has_nominal": nominal is not None and nominal > 0,
+            # The coupon is filed per payment; the maturity is filed only once
+            # the issuer starts redeeming. So accrued interest and the running
+            # yield are knowable long before a redemption date exists.
+            "has_coupon": bool(nominal and rate),
             "source_url": reference.get("source_url"),
             "synced_at": reference.get("synced_at")}
 
@@ -298,37 +302,60 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
         out["status"] = "ok"
         out["reason"] = None
 
-    if not ref_state["is_complete"]:
-        for field in ("accrued", "clean", "dirty", "ytm", "duration",
-                      "modified_duration", "spread", "simple_yield"):
-            out[field] = _unavailable(missing=ref_state["missing"] or None)
-        # Price as a percentage of par depends on the par and on nothing else.
-        # Gating it behind the yield switch hid the one reading that IS
-        # available: 105 310 in one issue and 10 062 465 in another are not
-        # comparable numbers, 105.3% and 100.6% are — which is the whole reason
-        # §А.3 was written. The yields above stay a dash regardless.
-        nominal_only = _num((reference or {}).get("nominal"))
-        out["price_pct"] = (price_pct(price, nominal_only) if ref_state["has_nominal"]
-                            else _unavailable(missing=ref_state["missing"] or None))
-        return out
-
+    reference = reference or {}
     nominal = _num(reference.get("nominal"))
     rate = _num(reference.get("coupon_rate"))
-    freq = _num(reference.get("coupon_freq")) or 1
-    days_from_coupon = _num((reference or {}).get("days_from_coupon")) or 0
-    accrued = accrued_interest(nominal, rate, days_from_coupon, when=today)
+    freq = int(_num(reference.get("coupon_freq")) or 1) or 1
+    maturity = _as_date(reference.get("maturity_date"))
+    today = today or date.today()
+
+    # Stage one — the par, which the exchange publishes. Price as a percentage
+    # of par depends on it and on nothing else: 105 310 in one issue and
+    # 10 062 465 in another are not comparable numbers, 105.3% and 100.6% are.
+    out["price_pct"] = (price_pct(price, nominal) if ref_state["has_nominal"]
+                        else _unavailable(missing=ref_state["missing"] or None))
+
+    # A filed redemption date in the past explains a missing price better than
+    # "no trades" does — ACMT1B2 stopped printing because it is being redeemed.
+    if maturity and maturity <= today and price is None:
+        out["status"] = "matured"
+        out["reason"] = f"выпуск погашается с {maturity.isoformat()}"
+
+    # Stage two — the coupon, which the issuer files payment by payment. It
+    # needs no maturity: what a bond has earned since its last coupon is
+    # knowable years before anyone files a redemption date.
+    if not ref_state["has_coupon"]:
+        for field in ("accrued", "clean", "dirty", "simple_yield", "ytm",
+                      "duration", "modified_duration", "spread"):
+            out[field] = _unavailable(missing=ref_state["missing"] or None)
+        return out
+
+    days_from_coupon = _days_since_coupon(reference, coupons, freq, today)
+    accrued = (accrued_interest(nominal, rate, days_from_coupon, when=today)
+               if days_from_coupon is not None
+               else _unavailable("нет даты последней купонной выплаты"))
     clean = price
     dirty = dirty_price(clean, accrued.get("value"))
+    out.update({
+        "accrued": accrued,
+        "clean": _metric(clean, "ok") if clean is not None else _unavailable("нет цены"),
+        "dirty": _metric(dirty, "ok") if dirty is not None else _unavailable("нет цены"),
+        "simple_yield": simple_yield((nominal or 0) * (rate or 0) / 100.0, price),
+    })
+
+    # Stage three — the maturity, which exists only once the issuer files the
+    # redemption window. Without it there are no cashflows to discount, and a
+    # term reconstructed from "N days after placement began" lands days away
+    # from the filed date — near enough to look right and not near enough to be.
+    if not ref_state["is_complete"]:
+        for field in ("ytm", "duration", "modified_duration", "spread"):
+            out[field] = _unavailable(missing=ref_state["missing"] or None)
+        return out
+
     flows = coupon_cashflows(reference, coupons or [], today)
     ytm = yield_to_maturity(flows, dirty) if dirty else _unavailable()
     duration = macaulay_duration(flows, dirty, ytm.get("value")) if dirty else _unavailable()
-
     out.update({
-        "price_pct": price_pct(price, nominal),
-        "accrued": accrued,
-        "clean": _metric(clean, "ok"),
-        "dirty": _metric(dirty, "ok") if dirty is not None else _unavailable(),
-        "simple_yield": simple_yield((nominal or 0) * (rate or 0) / 100.0, price),
         "ytm": ytm,
         "duration": duration,
         "modified_duration": modified_duration(duration.get("value"), ytm.get("value"), freq),

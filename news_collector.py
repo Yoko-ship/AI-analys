@@ -267,6 +267,11 @@ _GENERIC_IMAGE_RE = re.compile(
     r"(?:^|[/_-])(?:social|share|default|placeholder|logo|preview|banner|no[_-]?image)[\w-]*"
     r"\.(?:jpe?g|png|webp|gif|svg)$", re.I)
 _HEAD_MAX_BYTES = 150_000
+# How many stored items the end-of-run retry pass may fetch. Small on purpose: it runs
+# every day, so an item that misses today is tried again tomorrow rather than the whole
+# backlog being hammered in one pass. The manual `--backfill-images` run is uncapped by
+# comparison (`--limit`), for when a source is fixed and the backlog should clear at once.
+_BACKFILL_IMAGE_CAP = int(os.getenv("NEWS_BACKFILL_IMAGE_CAP", "12"))
 
 
 def _og_image(session: requests.Session, page_url: str, timeout: int = 15) -> str | None:
@@ -1238,7 +1243,12 @@ def backfill_images(*, limit: int = 40, days: int = 90, push: bool = True) -> di
     # (e.g. after a failed push) costs no requests.
     for url, img in news_store.image_urls_for(list(candidates)).items():
         candidates[url]["image_url"] = img
-    items = list(candidates.values())[:limit]
+    # Every candidate goes to `enrich_images`, which applies the cap ITSELF, and does it
+    # to the list it has already narrowed to page-image sources. Capping here instead
+    # spent the whole budget on openinfo filings — the largest group with no image and
+    # the one group that can never have one — and the two outlets that do publish a
+    # preview never made the list.
+    items = list(candidates.values())
     found = enrich_images(items, _source_registry(), max_fetch=limit)
     images = {it["url"]: it["image_url"] for it in items if it.get("image_url")}
     return {
@@ -1601,10 +1611,24 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     if push and records:
         code = push_news(records)
         pushed = len(records) if code == 0 else 0
+
+    # 4) another attempt at the images that missed. kun.uz answers 200 with a page whose
+    # <head> carries no og:image at all — a shell, the same byte count for any article —
+    # and then serves the real thing minutes later, so a single attempt at collection time
+    # is a coin toss and an item that loses it stays imageless for its whole 30 days. This
+    # gives every stored item still without a picture one more chance per run, capped and
+    # paced like any other page fetch, and only for the two sources that publish one.
+    filled = 0
+    if push:
+        try:
+            filled = backfill_images(limit=_BACKFILL_IMAGE_CAP, days=30, push=True).get("found", 0)
+        except Exception:  # noqa: BLE001 — a picture is never worth failing the run for
+            logger.exception("image backfill pass failed")
     return {
         "fetched": len(raw), "new": len(fresh), "prefiltered": len(fresh) - len(kept),
         "classified": len(records), "triaged_out": triaged_out,
         "classify_failed": failed, "with_image": sum(1 for r in relevant if r.get("image_url")),
+        "backfilled_images": filled,
         "relevant": len(relevant), "stored": stored, "pushed": pushed,
         "tokens": usage.total_tokens, "cached_input_pct": round(usage.cache_hit_rate * 100, 1),
         "est_cost_usd": round(usage.est_cost_usd(), 4),
