@@ -2723,6 +2723,23 @@ async def api_admin_openinfo_probe(
 _admin_catalog_sync_running = threading.Event()
 
 
+@app.post("/api/admin/catalog/register")
+async def api_admin_catalog_register(_: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Register the catalog's issuers and reports in the provenance registry.
+
+    Idempotent, and safe to run at any time: a report already registered keeps
+    the state it reached, so this never resets something already parsed.
+    """
+    from reports_catalog import backfill_report_links
+
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, provenance.sync_from_catalog)
+    # Figures cached before provenance existed are linked to the filing they were
+    # read from — the mapping is deterministic, so nothing has to be re-downloaded.
+    backfilled = await loop.run_in_executor(None, backfill_report_links)
+    return {"ok": True, **result, "backfilled": backfilled}
+
+
 @app.post("/api/admin/catalog-sync")
 async def api_admin_catalog_sync(
     force: bool = False,

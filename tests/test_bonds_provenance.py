@@ -213,7 +213,12 @@ class TestProvenance:
         assert summary["reports_total"] == sum(i["reports"] for i in summary["items"])
 
     def test_staleness_is_a_stated_fact(self):
-        from datetime import datetime, timezone
+        """ТЗ Б.6: the catalog was ten days behind the market and the screen
+        showed only a date. Age is measured from the MOST RECENT sync, so the
+        clock is moved rather than a stale row planted — a fresher real row
+        would otherwise dominate the maximum and make the assertion meaningless.
+        """
+        from datetime import datetime, timedelta, timezone
 
         conn = provenance._conn()
         try:
@@ -222,9 +227,16 @@ class TestProvenance:
             conn.commit()
         finally:
             conn.close()
-        summary = provenance.summary(now=datetime(2026, 8, 1, tzinfo=timezone.utc))
-        assert summary["staleness_hours"] > 240          # ten days behind the market
+        fresh = provenance.summary()
+        assert fresh["last_sync"] is not None
+        anchor = datetime.fromisoformat(fresh["last_sync"])
+        if anchor.tzinfo is None:
+            anchor = anchor.replace(tzinfo=timezone.utc)
+        summary = provenance.summary(now=anchor + timedelta(days=10))
+        assert summary["staleness_hours"] == pytest.approx(240.0, abs=1.0)
         assert summary["is_stale"] is True
+        # ...and inside the window it is not stale.
+        assert provenance.summary(now=anchor + timedelta(hours=2))["is_stale"] is False
 
     def test_the_queue_holds_what_has_not_been_parsed(self):
         rid = provenance.upsert_report("TEST4", "NSBU", "quarter", 2026, 2)
@@ -294,3 +306,128 @@ class TestRollout:
         report = rollout.compare(["X"], boom, lambda s: {})
         assert report["failures"][0]["subject"] == "X"
         assert report["ready_to_enable"] is False
+
+
+# ---------------------------------------------------------------------------
+# The registry is FED, not merely built (ТЗ Дополнение 1 §Б.2)
+# ---------------------------------------------------------------------------
+
+class TestProvenanceWiring:
+    """A provenance layer nothing writes to is a well-tested empty room.
+
+    These pin the connection: the catalog seeds the registry, a parse moves the
+    report through its states, and the published figure names the report.
+    """
+
+    def test_the_catalog_seeds_the_registry(self):
+        result = provenance.sync_from_catalog()
+        summary = provenance.summary()
+        assert result["issuers"] > 0
+        # ТЗ Б.1: the list is ISSUERS, not tickers — 73 rows are 66 organisations.
+        assert summary["issuers"] == len(summary["items"])
+        assert summary["reports_total"] == sum(i["reports"] for i in summary["items"])
+
+    def test_registering_twice_does_not_reset_a_parsed_report(self):
+        provenance.sync_from_catalog()
+        rows = provenance.queue(1)
+        if not rows:
+            pytest.skip("no catalogued reports in this environment")
+        report_id = rows[0]["id"]
+        provenance.set_state(report_id, "validated")
+        provenance.sync_from_catalog()
+        assert provenance.report(report_id)["state"] == "validated"
+
+    def test_a_parse_records_its_figures_and_returns_the_link(self):
+        import reports_catalog as rc
+
+        provenance.sync_from_catalog()
+        rows = [r for r in provenance.queue(500) if r["report_form"] == "NSBU"]
+        if not rows:
+            pytest.skip("no NSBU reports registered in this environment")
+        row = rows[0]
+        ticker = provenance.ticker_of(row["id"])
+        if not ticker:
+            pytest.skip("report is not resolvable to a ticker here")
+        report_id = rc._register_parse(
+            ticker, "NSBU", row["period_year"],
+            row["period_quarter"], {"ok": True},
+            {"revenue": 1000.0, "net_income": 100.0})
+        assert report_id == row["id"]
+        stored = provenance.report(report_id)
+        assert stored["state"] == "validated"
+        assert {f["field"] for f in stored["figures"]} == {"revenue", "net_income"}
+        assert stored["used_by"]["financials"] is True
+
+    def test_a_report_that_yields_nothing_keeps_its_reason(self):
+        import reports_catalog as rc
+
+        provenance.sync_from_catalog()
+        rows = [r for r in provenance.queue(500) if r["report_form"] == "NSBU"]
+        if not rows:
+            pytest.skip("no NSBU reports registered in this environment")
+        row = rows[-1]
+        ticker = provenance.ticker_of(row["id"])
+        if not ticker:
+            pytest.skip("report is not resolvable to a ticker here")
+        report_id = rc._register_parse(ticker, "NSBU", row["period_year"],
+                                       row["period_quarter"], {"ok": True}, {})
+        stored = provenance.report(report_id)
+        assert stored["state"] == "parse_failed" and stored["state_reason"]
+
+    def test_a_download_failure_is_a_state_not_a_silence(self):
+        import reports_catalog as rc
+
+        provenance.sync_from_catalog()
+        rows = [r for r in provenance.queue(500) if r["report_form"] == "NSBU"]
+        if not rows:
+            pytest.skip("no NSBU reports registered in this environment")
+        row = rows[0]
+        ticker = provenance.ticker_of(row["id"])
+        if not ticker:
+            pytest.skip("report is not resolvable to a ticker here")
+        report_id = rc._register_parse(ticker, "NSBU", row["period_year"],
+                                       row["period_quarter"],
+                                       {"ok": False, "error": "404"}, {})
+        assert provenance.report(report_id)["state"] == "download_failed"
+
+    def test_an_unregistered_report_publishes_without_a_link(self):
+        """A missing link is a finding (SRC-03), not something to paper over."""
+        import reports_catalog as rc
+
+        assert rc._register_parse("NOSUCHTICKER", "NSBU", 1999, None,
+                                  {"ok": True}, {"revenue": 1.0}) is None
+
+    def test_published_figures_expose_their_source(self):
+        import reports_catalog as rc
+
+        rows = rc.get_all_financials()
+        assert rows, "no financials in this environment"
+        assert all("report_id" in row for row in rows.values())
+
+    def test_the_backfill_links_figures_cached_before_provenance_existed(self):
+        """Every cached row came from the filing for its own period — that
+        mapping is deterministic, so the link is recovered without re-downloading.
+        """
+        import reports_catalog as rc
+
+        result = rc.backfill_report_links()
+        assert set(result) == {"linked", "unresolved"}
+        rows = rc.get_all_financials()
+        if not rows:
+            pytest.skip("no financials in this environment")
+        linked = sum(1 for v in rows.values() if v.get("report_id"))
+        # Not "all": a row whose report is absent from the catalog stays unlinked
+        # on purpose, and SRC-03 reports it rather than a guess being recorded.
+        assert linked > 0
+        for row in rows.values():
+            if row.get("report_id"):
+                stored = provenance.report(row["report_id"])
+                assert stored is not None
+                assert stored["state"] in provenance.PUBLISHABLE
+
+    def test_the_backfill_is_idempotent(self):
+        import reports_catalog as rc
+
+        rc.backfill_report_links()
+        second = rc.backfill_report_links()
+        assert second["linked"] == 0

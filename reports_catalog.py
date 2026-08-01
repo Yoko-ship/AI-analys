@@ -293,6 +293,13 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     have_fin = {r[1] for r in conn.execute("PRAGMA table_info(catalog_financials)")}
     if "field_periods" not in have_fin:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN field_periods TEXT")
+    # ТЗ Дополнение 1 §Б.4: a published figure names the report it was read from.
+    # Until this column was filled, "where did this revenue come from?" had no
+    # answer — nobody could say which filing, which form or which period, or
+    # whether the number was parsed at all rather than taken off the wrong field.
+    # That is the gap the whole FIN group of defects grew out of.
+    if "report_id" not in have_fin:
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN report_id INTEGER")
     conn.commit()
 
 
@@ -1367,7 +1374,7 @@ _FINANCIAL_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
 
 
 def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
-                            values: dict[str, Any]) -> None:
+                            values: dict[str, Any], report_id: int | None = None) -> None:
     """Store the six NSBU headline indicators for a ticker/period.
 
     Every value here is parsed from the (year, quarter) statement itself, so the
@@ -1388,20 +1395,23 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
             INSERT INTO catalog_financials
                 (ticker, form, year, quarter, revenue, gross_profit, cash,
                  total_liabilities, net_income, operating_income,
-                 field_periods, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                 field_periods, report_id, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
             ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                 revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                 cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                 net_income=excluded.net_income, operating_income=excluded.operating_income,
                 field_periods=excluded.field_periods,
+                -- A re-parse that cannot name its source must not erase the
+                -- link the previous one established.
+                report_id=COALESCE(excluded.report_id, catalog_financials.report_id),
                 updated_at=datetime('now')
             """,
             (ticker, form, year, quarter,
              values.get("revenue"), values.get("gross_profit"), values.get("cash"),
              values.get("total_liabilities"), values.get("net_income"),
              values.get("operating_income"),
-             _encode_field_periods(values.get("field_periods"))),
+             _encode_field_periods(values.get("field_periods")), report_id),
         )
     conn.close()
 
@@ -1936,7 +1946,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         f"""
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
                f.total_liabilities, f.net_income, f.operating_income,
-               f.field_periods, f.updated_at
+               f.field_periods, f.report_id, f.updated_at
         FROM catalog_financials f
         JOIN (
             SELECT f.ticker AS ticker, MAX{period_rank} AS rank
@@ -1969,6 +1979,10 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             # — a bank's revenue is only published as an annual indicator, so the
             # cell must say which period it describes rather than borrow the row's.
             "field_periods": _decode_field_periods(r["field_periods"]),
+            # The report this row was read from (ТЗ Дополнение 1 §Б.2). Every
+            # figure carries its first source, so a disagreement about a number
+            # is settled by opening the filing rather than by argument.
+            "report_id": r["report_id"],
             "updated_at": r["updated_at"],
         }
     _attach_annual_companion(conn, out, form)
@@ -2866,6 +2880,111 @@ def refresh_financials_from_pdf(tickers: list[str] | None = None, limit: int = 8
             "skipped_unresolved": len(unresolved), "errors": errors[:10]}
 
 
+# Fields whose value the six headline indicators are read from. Recorded against
+# the report so a figure can be traced to its filing (ТЗ Дополнение 1 §Б.4).
+_PROVENANCE_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities",
+                      "net_income", "operating_income", "total_assets", "equity")
+
+
+def _register_parse(ticker: str, form: str, year: int, quarter: int | None,
+                    data: dict[str, Any] | None, values: dict[str, Any] | None) -> int | None:
+    """Move a report through its parse states and record what came out of it.
+
+    Returns the registry id to stamp on the published row, or None when the
+    report is not in the registry — in which case the figure is published
+    without a source link and SRC-03 will say so, which is the correct outcome:
+    a missing link is a finding, not something to paper over.
+    """
+    try:
+        import provenance
+
+        period_type = "annual" if not quarter else "quarter"
+        report_id = provenance.report_id_for(ticker, form, period_type, year, quarter)
+        if report_id is None:
+            return None
+        if not (data or {}).get("ok"):
+            provenance.set_state(report_id, "download_failed",
+                                 str((data or {}).get("error") or "источник не отдал файл"))
+            return report_id
+        provenance.set_state(report_id, "parsed")
+        usable = [k for k in _PROVENANCE_FIELDS if (values or {}).get(k) is not None]
+        if not usable:
+            # We have the report and could not get numbers out of it. That is
+            # information, and the report keeps its reason instead of vanishing.
+            provenance.set_state(report_id, "parse_failed",
+                                 "в отчёте не найдено ни одного показателя")
+            return report_id
+        provenance.record_figures(report_id, [
+            # The parser hands over values without the row they were read from,
+            # so `page` and `raw_label` stay empty for now: the traceability this
+            # gives today is which filing, form and period — not which line.
+            {"field": k, "value": values[k], "unit_scale": NSBU_THOUSANDS_UZS}
+            for k in usable
+        ])
+        provenance.set_state(report_id, "validated")
+        return report_id
+    except Exception:  # noqa: BLE001 — provenance must never break a collection
+        logger.exception("provenance: could not register parse for %s %s %s", ticker, year, quarter)
+        return None
+
+
+def backfill_report_links(limit: int | None = None) -> dict[str, int]:
+    """Link figures cached BEFORE provenance existed to the report they came from.
+
+    Every row in ``catalog_financials`` was produced by the parse path from the
+    filing for its own (ticker, form, year, quarter) — that mapping is
+    deterministic, so the link can be recovered without re-downloading anything.
+    The figures are recorded and the report is marked validated, because that is
+    what actually happened; only the record of it was missing.
+
+    A row whose report is not in the registry is left alone. SRC-03 will report
+    it, which is correct: an unlinked figure is a finding, not a gap to fill with
+    a guess.
+    """
+    try:
+        import provenance
+
+        provenance.sync_from_catalog()
+    except Exception:  # noqa: BLE001
+        logger.exception("provenance: backfill could not seed the registry")
+        return {"linked": 0, "unresolved": 0}
+
+    conn = get_catalog_conn()
+    try:
+        rows = conn.execute(
+            "SELECT ticker, form, year, quarter, revenue, gross_profit, cash, "
+            "       total_liabilities, net_income, operating_income "
+            "FROM catalog_financials WHERE report_id IS NULL"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    linked = unresolved = 0
+    for row in rows[:limit] if limit else rows:
+        quarter = row["quarter"] or None
+        period_type = "annual" if not quarter else "quarter"
+        report_id = provenance.report_id_for(row["ticker"], row["form"], period_type,
+                                             row["year"], quarter)
+        if report_id is None:
+            unresolved += 1
+            continue
+        figures = [{"field": k, "value": row[k], "unit_scale": NSBU_THOUSANDS_UZS}
+                   for k in _FINANCIAL_KEYS if row[k] is not None]
+        if figures:
+            provenance.record_figures(report_id, figures)
+            provenance.set_state(report_id, "validated")
+        conn = get_catalog_conn()
+        with conn:
+            conn.execute(
+                "UPDATE catalog_financials SET report_id=? WHERE ticker=? AND form=? "
+                "AND year=? AND quarter=?",
+                (report_id, row["ticker"], row["form"], row["year"], row["quarter"]))
+        conn.close()
+        linked += 1
+    logger.info("provenance backfill: linked %d, unresolved %d", linked, unresolved)
+    return {"linked": linked, "unresolved": unresolved}
+
+
 def refresh_financials_cache(tickers: list[str] | None = None, *,
                              form: str = "NSBU",
                              limit: int | None = None,
@@ -2893,6 +3012,14 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
         # Bootstrap the catalog on a fresh backend (only when scanning all tickers).
         if sync_missing and not tickers:
             synced = _sync_missing_companies(form, sync_limit)
+        # Register whatever the catalog now knows in the provenance registry, so
+        # a report discovered this morning has a state before anyone parses it.
+        try:
+            import provenance
+
+            provenance.sync_from_catalog()
+        except Exception:  # noqa: BLE001 — never block a collection on bookkeeping
+            logger.exception("provenance: catalog sync failed")
         conn = get_catalog_conn()
         candidates = _fin_candidates(conn, form, ttl_days, tickers)
         conn.close()
@@ -2914,8 +3041,14 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                             alt_vals = alt_ratios.get("source_values") or {}
                             if any(alt_vals.get(k) is not None for k in _FINANCIAL_KEYS):
                                 year, quarter, vals, ratios = alt["year"], alt["quarter"], alt_vals, alt_ratios
+                # ТЗ Дополнение 1 §Б.2/§Б.3: the report this parse consumed moves
+                # through its states and the figures are recorded against it, so
+                # every number we publish can name the filing it came from. A
+                # failure here is logged and never allowed to stop the parse —
+                # provenance is a record of the work, not a precondition for it.
+                report_id = _register_parse(ticker, form, year, quarter, data, vals)
                 if any(vals.get(k) is not None for k in _FINANCIAL_KEYS):
-                    upsert_financials_cache(ticker, form, year, quarter, vals)
+                    upsert_financials_cache(ticker, form, year, quarter, vals, report_id)
                     # Cache the ratios computed from the same statements: this is
                     # what fills the company-page Key Metrics block and sector
                     # averages — previously only a manual, login-gated analysis
