@@ -124,6 +124,9 @@ def reference_state(reference: dict[str, Any] | None) -> dict[str, Any]:
             "coupon_rate": rate,
             "coupon_freq": _num(reference.get("coupon_freq")),
             "maturity_date": reference.get("maturity_date"),
+            # How many securities the issue IS, as registered — a different size
+            # from what they are worth today, and the one the regulator states.
+            "issue_volume": _num(reference.get("issue_volume")),
             "source_url": reference.get("source_url"),
             "synced_at": reference.get("synced_at")}
 

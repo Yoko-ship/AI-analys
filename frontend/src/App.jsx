@@ -5592,11 +5592,16 @@ function BondsTable({ language, onOpen }) {
             {data.items.map((b) => (
               <tr key={b.ticker} onClick={() => onOpen && onOpen(b.ticker)} className="bond-row">
                 <td><strong>{b.ticker}</strong></td>
-                <td>{b.name || "—"}</td>
+                {/* The issuer's legal name runs to sixty characters and four of
+                    the twelve issues share one — truncated here rather than
+                    allowed to set the table's width. */}
+                <td style={{ maxWidth: 230, overflow: "hidden", textOverflow: "ellipsis" }}
+                    title={b.issuer || b.name || ""}>{b.issuer || b.name || "—"}</td>
                 <td className="num">{fmtPrice(b.price, lang)}</td>
                 <td className={`num tone-${marketTone(b.change_pct)}`}>{pct(b.change_pct)}</td>
                 <td className="num">{money(b.turnover)}</td>
                 <td className="num">{Number.isFinite(b.trades) ? b.trades : "—"}</td>
+                <td className="num">{fmtNumber(b.reference?.issue_volume, lang, 0)}</td>
                 <td className="num">{money(b.issue_value)}</td>
                 <td className="num">{metric(b.price_pct)}</td>
                 <td className="num">
