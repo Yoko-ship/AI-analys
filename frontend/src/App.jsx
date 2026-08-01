@@ -7088,6 +7088,10 @@ function MarketView({
   // issuer, not missing data; «проверяется» means the statement behind it failed
   // validation; a range status means the figure exists and is not believable.
   const MULTIPLE_STATUS_TEXT = {
+    // ТЗ v1.3 §12.6: on the market tab the auditor is visible without its rule
+    // codes. A withheld metric is a dash whose tooltip says why; the reader does
+    // not need to know which rule fired, only which numbers they can trust.
+    audit_blocked: ["снято аудитом", "audit olib tashladi", "withheld by audit"],
     loss_making: ["убыток", "zarar", "loss"],
     unverified: ["проверяется", "tekshirilmoqda", "under review"],
     out_of_range: ["вне диапазона", "diapazondan tashqari", "out of range"],
