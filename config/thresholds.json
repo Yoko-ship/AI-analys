@@ -1,0 +1,28 @@
+{
+  "_comment": "ТЗ v1.2 §11.4 — quality and range thresholds live here, not as literals in code. Changing one must not require a release. formulas.py deep-merges this file over its built-in defaults, so a partial file is fine.",
+
+  "quality": {
+    "flat_share_max": 0.5,
+    "coverage_min": 0.6,
+    "min_points": 2,
+    "illiquid_flat_share": 0.8,
+    "illiquid_coverage": 0.25,
+    "window_days": 365
+  },
+
+  "volatility": {
+    "window_days": 30,
+    "min_observations": 10,
+    "trading_days_per_year": 252
+  },
+
+  "returns": {
+    "base_staleness_max_days": 30
+  },
+
+  "moving_average": {
+    "ma20_calendar_days": 28,
+    "ma50_calendar_days": 70,
+    "min_observations": 3
+  }
+}
