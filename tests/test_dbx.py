@@ -33,7 +33,7 @@ class TestLiteralSafety:
         sql = "INSERT INTO t (msg, at) VALUES ('call datetime(''now'') later', datetime('now'))"
         got = dbx.translate(sql, dbx.POSTGRES)
         assert "'call datetime(''now'') later'" in got
-        assert got.rstrip().endswith("now())")
+        assert got.count("datetime(") == 1  # the one inside the literal, and no other
 
     def test_escaped_quotes_do_not_end_the_literal(self):
         sql = "SELECT 'it''s ? fine' AS a, ? AS b"
@@ -79,12 +79,56 @@ class TestDialect:
         assert "ON CONFLICT(a) DO UPDATE SET b = excluded.b" in got
 
 
+class TestTheClockIsText:
+    """Every DATETIME column crossed over as TEXT, so the clock has to be text too.
+
+    `published_at >= now()` does not compare in PostgreSQL — it raises, because the
+    implicit casts to text went away in 8.3. This is what took the whole news module
+    down after the cutover, and these are the shapes that took it down.
+    """
+
+    def test_now_renders_in_sqlites_own_format(self):
+        got = dbx.translate("SELECT datetime('now')", dbx.POSTGRES)
+        assert "to_char(" in got and "'YYYY-MM-DD HH24:MI:SS'" in got
+        assert "AT TIME ZONE 'UTC'" in got  # SQLite's datetime('now') is UTC
+
+    def test_a_window_arrives_as_a_parameter_not_a_literal(self):
+        """`datetime('now', ?)` with `-30 days` bound — the shape the feed uses."""
+        got = dbx.translate(
+            "SELECT * FROM news WHERE published_at >= datetime('now', ?) LIMIT ?",
+            dbx.POSTGRES)
+        assert "::interval" in got
+        assert "datetime(" not in got
+        # One placeholder in, one placeholder out: the rewrite must not shift binding.
+        assert got.count("%s") == 2
+
+    def test_the_date_form_is_text_too(self):
+        got = dbx.translate("SELECT date('now')", dbx.POSTGRES)
+        assert "'YYYY-MM-DD'" in got and "current_date" not in got
+
+    def test_group_concat_becomes_string_agg_with_sqlites_separator(self):
+        got = dbx.translate(
+            "SELECT (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e) AS t", dbx.POSTGRES)
+        assert "string_agg(e.ticker, ',')" in got
+
+    def test_a_group_concat_we_cannot_prove_is_left_alone(self):
+        """Its own separator, DISTINCT, an expression — rewritten by hand or not at all."""
+        for sql in ("SELECT GROUP_CONCAT(a, '; ') FROM t",
+                    "SELECT GROUP_CONCAT(DISTINCT a) FROM t",
+                    "SELECT GROUP_CONCAT(upper(a)) FROM t"):
+            assert "string_agg" not in dbx.translate(sql, dbx.POSTGRES)
+
+
 class TestRefusals:
     """Ambiguity is refused, not guessed at."""
 
     def test_insert_or_replace_is_refused(self):
         with pytest.raises(dbx.UnsupportedStatement, match="ON CONFLICT"):
             dbx.check_supported("INSERT OR REPLACE INTO t VALUES (1)")
+
+    def test_insert_or_ignore_is_refused(self):
+        with pytest.raises(dbx.UnsupportedStatement, match="ON CONFLICT DO NOTHING"):
+            dbx.check_supported("INSERT OR IGNORE INTO t VALUES (1)")
 
     def test_pragma_is_refused(self):
         with pytest.raises(dbx.UnsupportedStatement, match="PRAGMA"):

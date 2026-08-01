@@ -1446,10 +1446,11 @@ def _maybe_seed_financials(conn: sqlite3.Connection, form: str = "NSBU") -> None
                     for r in rows:
                         conn.execute(
                             """
-                            INSERT OR IGNORE INTO catalog_financials
+                            INSERT INTO catalog_financials
                                 (ticker, form, year, quarter, revenue, gross_profit, cash,
                                  total_liabilities, net_income, operating_income, updated_at)
                             VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                            ON CONFLICT DO NOTHING
                             """,
                             (r.get("ticker"), r.get("form") or form, r.get("year") or 0,
                              r.get("quarter") or 0, r.get("revenue"), r.get("gross_profit"),

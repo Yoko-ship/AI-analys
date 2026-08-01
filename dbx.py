@@ -78,9 +78,25 @@ def postgres_schema() -> str:
 # `datetime(''now'')` appearing in quoted text cannot match a pattern written
 # with single quotes. That property is the whole licence for a whole-string
 # substitution here — anything without it goes in _FUNCTION_MAP below.
+#
+# The clock renders as TEXT, in the exact format SQLite's own `datetime()` writes.
+# That is not a stylistic choice: every DATETIME column crossed into PostgreSQL as
+# TEXT (see `pg_migrate._TYPE_MAP`), and PostgreSQL dropped the implicit casts to
+# text in 8.3 — so `published_at >= now()` does not compare, it raises. Rendering
+# the clock as the same string the stored rows are written in keeps one comparison
+# working on both backends, and keeps what we write in one format rather than two.
+_PG_UTC = "now() AT TIME ZONE 'UTC'"
+_PG_NOW = f"to_char({_PG_UTC}, 'YYYY-MM-DD HH24:MI:SS')"
+# `datetime('now', ?)` — the window is a bound parameter (`-30 days`), which is why
+# this cannot be spelled with a literal interval. The placeholder count is unchanged
+# by the rewrite, so parameter binding is unaffected.
+_PG_NOW_OFFSET = f"to_char(({_PG_UTC}) + (?)::interval, 'YYYY-MM-DD HH24:MI:SS')"
+
 _LITERAL_SPANNING: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\bdatetime\s*\(\s*'now'\s*\)", re.I), "now()"),
-    (re.compile(r"\bdate\s*\(\s*'now'\s*\)", re.I), "current_date"),
+    (re.compile(r"\bdatetime\s*\(\s*'now'\s*,\s*\?\s*\)", re.I), _PG_NOW_OFFSET),
+    (re.compile(r"\bdatetime\s*\(\s*'now'\s*\)", re.I), _PG_NOW),
+    (re.compile(r"\bdate\s*\(\s*'now'\s*\)", re.I),
+     f"to_char({_PG_UTC}, 'YYYY-MM-DD')"),
 )
 
 # Substitutions safe in any position OUTSIDE a string literal. Ordered: longer
@@ -94,6 +110,12 @@ _FUNCTION_MAP: tuple[tuple[re.Pattern[str], str], ...] = (
     # PostgreSQL is the first backend that can honour that.
     (re.compile(r"\bREAL\b"), "NUMERIC"),
     (re.compile(r"\bjulianday\s*\(", re.I), "extract(epoch from "),
+    # Only the one-argument form over a plain column, which is provably
+    # `string_agg(col, ',')` — SQLite's default separator IS a comma. A call with
+    # its own separator, DISTINCT, ORDER BY or an expression inside is left alone
+    # and fails loudly on PostgreSQL, where it can be rewritten deliberately.
+    (re.compile(r"\bGROUP_CONCAT\s*\(\s*([A-Za-z_][\w.]*)\s*\)", re.I),
+     r"string_agg(\1, ',')"),
 )
 
 
@@ -191,6 +213,12 @@ class UnsupportedStatement(RuntimeError):
 _REFUSED = (
     (re.compile(r"\bINSERT\s+OR\s+REPLACE\b", re.I),
      "INSERT OR REPLACE has no equivalent — use INSERT ... ON CONFLICT DO UPDATE"),
+    # Appending ON CONFLICT DO NOTHING to the end of the statement would be the
+    # obvious translation, and it is wrong the moment a statement ends in RETURNING
+    # or already carries a conflict clause. Both backends accept the explicit form,
+    # so the call site writes it rather than the layer guessing at it.
+    (re.compile(r"\bINSERT\s+OR\s+IGNORE\b", re.I),
+     "INSERT OR IGNORE has no equivalent — use INSERT ... ON CONFLICT DO NOTHING"),
     (re.compile(r"\bPRAGMA\b", re.I),
      "PRAGMA is SQLite-only — use dbx.columns()/dbx.tables()"),
 )
