@@ -771,7 +771,7 @@ const NEWS_ARTICLE_TX = {
     tone90: "Тон · 90 дн", basedOn: "публикаций за 90 дней",
     moreNews: "Другие новости эмитента", openCompany: "Открыть карточку эмитента",
     rxTitle: "Котировки вокруг публикации", rxVolume: "Объём к среднему",
-    rxSince: "С публикации", rxSessions: "сессии",
+    rxSince: "С публикации",
     rxNoSession: "После публикации торгов по бумаге ещё не было.",
     rxSameDay: "Сессия того же дня — публикация могла выйти и после её закрытия.",
     rxIlliquid: "Бумага торгуется редко: движение может отражать одну сделку.",
@@ -802,7 +802,7 @@ const NEWS_ARTICLE_TX = {
     tone90: "Tone · 90d", basedOn: "items over 90 days",
     moreNews: "More from this issuer", openCompany: "Open the issuer page",
     rxTitle: "Quotes around the publication", rxVolume: "Volume vs average",
-    rxSince: "Since publication", rxSessions: "sessions",
+    rxSince: "Since publication",
     rxNoSession: "The security has not traded since this was published.",
     rxSameDay: "Same-day session — the story may also have come out after it closed.",
     rxIlliquid: "This security trades rarely: the move may rest on a single trade.",
@@ -833,7 +833,7 @@ const NEWS_ARTICLE_TX = {
     tone90: "Ohang · 90 kun", basedOn: "90 kunlik nashrlar",
     moreNews: "Emitentning boshqa yangiliklari", openCompany: "Emitent kartasini ochish",
     rxTitle: "E'lon atrofidagi kotirovkalar", rxVolume: "Hajm — o'rtachaga nisbatan",
-    rxSince: "E'londan beri", rxSessions: "sessiya",
+    rxSince: "E'londan beri",
     rxNoSession: "E'londan keyin bu qog'oz bo'yicha savdo bo'lmagan.",
     rxSameDay: "O'sha kungi sessiya — e'lon u yopilgandan keyin ham chiqqan bo'lishi mumkin.",
     rxIlliquid: "Qog'oz kam savdo qilinadi: harakat bitta bitimga tayanishi mumkin.",
@@ -957,7 +957,9 @@ function NewsPriceReaction({ newsId, language, securitiesMap, onOpenCompany, tx 
                         <dt>{tx.rxSince}</dt>
                         <dd className={since > 0 ? "pos" : since < 0 ? "neg" : ""}>
                           {formatSignedPercent(since)}
-                          <span className="led-rx-sessions">{` · ${r.sessions_after} ${tx.rxSessions}`}</span>
+                          <span className="led-rx-sessions">
+                            {` · ${r.sessions_after} ${sessionCountLabel(r.sessions_after, language)}`}
+                          </span>
                         </dd>
                       </div>
                     )}
@@ -2988,6 +2990,18 @@ function tradeCountLabel(n, language) {
   if (mod10 === 1 && mod100 !== 11) return "сделка";
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "сделки";
   return "сделок";
+}
+
+// Same three Russian forms, for the sessions counted since a story was published.
+function sessionCountLabel(n, language) {
+  const abs = Math.abs(Math.round(Number(n) || 0));
+  if (language === "uz") return "sessiya";
+  if (language === "en") return abs === 1 ? "session" : "sessions";
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return "сессия";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "сессии";
+  return "сессий";
 }
 
 // Tooltip behind the "Обновлено" badge: the trading session the numbers belong
