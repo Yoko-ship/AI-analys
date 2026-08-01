@@ -253,6 +253,37 @@ def coupon_cashflows(reference: dict[str, Any], coupons: Iterable[dict[str, Any]
     return sorted(flows)
 
 
+def _as_date(value: Any) -> date | None:
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value or "")[:10])
+    except ValueError:
+        return None
+
+
+def _days_since_coupon(reference: dict[str, Any], coupons: Sequence[dict[str, Any]] | None,
+                       freq: int, today: date) -> float | None:
+    """Days of coupon earned and not yet paid.
+
+    Counted from the last coupon the issuer has actually filed. Filings arrive
+    per payment, so the newest one can be older than a full period — the issuer
+    simply has not filed the next yet. Since the coupon is periodic by the
+    formula in the decision itself, the elapsed time is folded back into the
+    current period rather than reported as months of accrual, which would put
+    the accrued interest above a whole coupon.
+    """
+    explicit = _num(reference.get("days_from_coupon"))
+    if explicit is not None:
+        return explicit
+    paid = sorted(d for d in (_as_date(c.get("pay_date")) for c in coupons or []) if d and d <= today)
+    if not paid:
+        return None
+    period = 365.0 / max(freq, 1)
+    elapsed = (today - paid[-1]).days
+    return float(elapsed % period) if period else float(elapsed)
+
+
 # ---------------------------------------------------------------------------
 # The row the bonds table shows
 # ---------------------------------------------------------------------------
@@ -385,6 +416,7 @@ def build_bond_board(board: Iterable[dict[str, Any]],
     total_issue_value = sum(r["issue_value"] for r in rows if r.get("issue_value"))
     with_reference = sum(1 for r in rows if r["reference"]["is_complete"])
     with_nominal = sum(1 for r in rows if r["reference"].get("has_nominal"))
+    with_coupon = sum(1 for r in rows if r["reference"].get("has_coupon"))
     return {
         "count": len(rows),
         "items": rows,
@@ -392,8 +424,10 @@ def build_bond_board(board: Iterable[dict[str, Any]],
         "issue_value_total": total_issue_value,
         "issue_value_note": "стоимость выпусков, не капитализация акционерного рынка",
         "with_reference": with_reference,
-        # Two counters, because the contour now turns on in two stages: the par
-        # value arrives from the exchange, the coupon and the maturity do not.
+        # Three counters, because the contour turns on in three stages: the par
+        # comes from the exchange, the coupon from the issuer's payment filings,
+        # and the maturity only once a redemption window is filed.
         "with_nominal": with_nominal,
+        "with_coupon": with_coupon,
         "day_count_basis": day_count_basis(),
     }

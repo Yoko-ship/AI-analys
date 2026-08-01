@@ -330,7 +330,24 @@ def push_bond_reference(listing_rows: list[dict]) -> int:
     if not rows:
         log.info("bond reference: nothing to push")
         return 0
-    return _post("/api/admin/bonds/reference", {"rows": rows})
+
+    # The coupon and the redemption date come from the issuer's material facts
+    # on openinfo — there is no prospectus document to read, and the rate is
+    # inverted from the filed payments rather than parsed out of prose.
+    coupons: list[dict] = []
+    try:
+        import bond_terms
+
+        terms = bond_terms.collect_bond_terms(rows)
+        by_ticker = {t["ticker"]: t for t in terms["reference"]}
+        rows = [{**r, **by_ticker.get(r["ticker"], {})} for r in rows]
+        coupons = terms["coupons"]
+        log.info("bond terms: %d issues with a coupon, %d coupons filed",
+                 sum(1 for t in by_ticker.values() if t.get("coupon_rate")), len(coupons))
+    except Exception:  # noqa: BLE001 — the par must land even if openinfo is down
+        log.exception("bond terms step failed — pushing the exchange half only")
+
+    return _post("/api/admin/bonds/reference", {"rows": rows, "coupons": coupons})
 
 
 def push_financials_aliases() -> int:
