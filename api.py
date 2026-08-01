@@ -78,6 +78,8 @@ import heatmap  # noqa: E402
 import instruments  # noqa: E402
 import invariants  # noqa: E402
 import obs  # noqa: E402
+import cache_layer  # noqa: E402
+import migrations  # noqa: E402
 import bonds  # noqa: E402
 import provenance  # noqa: E402
 
@@ -1555,6 +1557,41 @@ async def api_catalog_queue(limit: int = 200,
     """What has not been parsed — a work queue, not a shelf of links."""
     rows = provenance.queue(max(1, min(limit, 1000)))
     return _json_safe({"ok": True, "count": len(rows), "items": rows})
+
+
+@app.get("/ready")
+async def api_ready() -> Response:
+    """Readiness, not liveness (ТЗ §10.4.1/§10.4.6).
+
+    503 while the database is behind the code: serving from a shape the code
+    does not expect is not an honest 200. /health stays a liveness probe.
+    """
+    from reports_catalog import get_catalog_conn
+
+    conn = get_catalog_conn()
+    try:
+        schema = migrations.status(conn)
+    finally:
+        conn.close()
+    payload = {"ok": schema["ready"], "schema": schema, "cache": cache_layer.backend()}
+    return JSONResponse(payload, status_code=200 if schema["ready"] else 503)
+
+
+@app.post("/api/admin/migrate")
+async def api_admin_migrate(_: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Apply pending migrations. Additive only, ordered, recorded, idempotent."""
+    from reports_catalog import get_catalog_conn
+
+    loop = asyncio.get_running_loop()
+
+    def _run() -> dict[str, Any]:
+        conn = get_catalog_conn()
+        try:
+            return migrations.upgrade(conn)
+        finally:
+            conn.close()
+
+    return _json_safe(await loop.run_in_executor(None, _run))
 
 
 @app.get("/api/config")
@@ -3676,6 +3713,49 @@ async def api_notifications(current_user: WebUser = Depends(_require_user)) -> d
     except Exception as exc:
         logger.exception("notifications failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# ТЗ §10.11 — v2 lives BESIDE v1, and v1 is switched off only after the
+# acceptance set passes. Every /api route is therefore also reachable under
+# /api/v2 with the same handler: no fork, no second implementation, nothing to
+# drift. Clients migrate at their own pace and a rollback is a URL, not a
+# release.
+#
+# Registered here, before the SPA catch-all: FastAPI matches in registration
+# order, and a catch-all added first would swallow every v2 path.
+# ---------------------------------------------------------------------------
+
+def _mount_v2_alias() -> int:
+    from fastapi.routing import APIRoute
+
+    aliased = 0
+    for route in list(app.router.routes):
+        if not isinstance(route, APIRoute):
+            continue
+        path = route.path
+        if not path.startswith("/api/") or path.startswith("/api/v2/"):
+            continue
+        app.router.add_api_route(
+            f"/api/v2{path[len('/api'):]}",
+            route.endpoint,
+            methods=list(route.methods or []),
+            response_model=route.response_model,
+            status_code=route.status_code,
+            dependencies=list(route.dependencies or []),
+            summary=route.summary,
+            description=route.description,
+            # Out of the schema: one route documented twice reads as two
+            # different endpoints, which is the confusion this alias avoids.
+            include_in_schema=False,
+            name=f"{route.name}__v2" if route.name else None,
+        )
+        aliased += 1
+    return aliased
+
+
+API_V2_ROUTES = _mount_v2_alias()
+logger.info("api: %d routes also served under /api/v2", API_V2_ROUTES)
 
 
 @app.get("/{full_path:path}")

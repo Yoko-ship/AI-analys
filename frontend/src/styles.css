@@ -10301,3 +10301,14 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .audit-detail pre { font-size: 12px; margin: 0 0 10px; padding: 10px; overflow-x: auto;
   background: rgba(148,163,184,0.08); border-radius: 8px; }
 .audit-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Bonds (Дополнение 1 §А.2) and the issuer-grouped report catalog (§Б.6). */
+.bonds-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.bonds-note { font-size: 12px; line-height: 1.5; max-width: 760px; margin: 0 0 12px; }
+.bond-row { cursor: pointer; }
+.bond-row:hover { background: rgba(148,163,184,0.06); }
+.catalog-issuers .catalog-filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.catalog-issuers .catalog-filters input { padding: 6px 10px; border-radius: 8px; min-width: 220px;
+  border: 1px solid var(--border, rgba(255,255,255,0.14)); background: transparent; color: var(--text); }
+.catalog-tickers { display: flex; gap: 4px; flex-wrap: wrap; }
+.catalog-stale { color: #fbbf24; }
