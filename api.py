@@ -78,6 +78,8 @@ import heatmap  # noqa: E402
 import instruments  # noqa: E402
 import invariants  # noqa: E402
 import obs  # noqa: E402
+import bonds  # noqa: E402
+import provenance  # noqa: E402
 
 # ТЗ §11.6: each change ships behind a flag so it can be turned off without a
 # rollback. The interface reads them from /api/config rather than guessing.
@@ -134,7 +136,16 @@ def _cors_origins() -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
-app = FastAPI(title="UZ Stock Analyzer API", version="1.0.0")
+# ТЗ §10.10: /docs and /openapi.json describe every route including the ones
+# authorisation protects, together with their request shapes. That is a fine
+# thing to hand a developer on staging and a poor thing to publish.
+_EXPOSE_SCHEMA = os.getenv("APP_ENV", "production").strip().lower() in {"local", "dev", "staging"}
+app = FastAPI(
+    title="UZ Stock Analyzer API", version="1.2.0",
+    docs_url="/docs" if _EXPOSE_SCHEMA else None,
+    redoc_url="/redoc" if _EXPOSE_SCHEMA else None,
+    openapi_url="/openapi.json" if _EXPOSE_SCHEMA else None,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
@@ -147,8 +158,25 @@ WEB_SOURCE_DIR = Path(__file__).with_name("web")
 WEB_DIST_DIR = WEB_SOURCE_DIR / "dist"
 WEB_DIR = WEB_DIST_DIR if (WEB_DIST_DIR / "index.html").exists() else WEB_SOURCE_DIR
 ASSET_DIR = WEB_DIR / "assets" if WEB_DIR == WEB_DIST_DIR else WEB_DIR
+
+
+class _ImmutableAssets(StaticFiles):
+    """Content-hashed bundles, cached for a year (ТЗ §10.9).
+
+    Vite writes the content hash into every asset filename, so `index-a1b2c3.js`
+    can never change meaning — a new build is a new name. Serving it with no
+    cache header at all, which is what happened before, made the browser
+    revalidate a file that is immutable by construction on every single load.
+    """
+
+    def file_response(self, *args, **kwargs):  # type: ignore[override]
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
 if ASSET_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=ASSET_DIR), name="assets")
+    app.mount("/assets", _ImmutableAssets(directory=ASSET_DIR), name="assets")
 
 LOGO_DIR = Path(__file__).with_name("logos")
 if LOGO_DIR.exists():
@@ -1440,6 +1468,95 @@ async def api_instruments(request: Request, include_inactive: bool = True) -> Re
         raise HTTPException(status_code=502, detail="catalog unavailable") from exc
 
 
+@app.get("/api/bonds")
+async def api_bonds(request: Request) -> Response:
+    """The bond contour (Дополнение 1 §А.6).
+
+    Eleven issues trade genuinely and appear nowhere in the interface. They get
+    their own section with the metrics that CAN be computed honestly from what
+    the source publishes, and an explicit `no_bond_reference` for everything
+    that needs a nominal, a coupon and a maturity — none of which any endpoint
+    carries yet.
+    """
+    try:
+        inputs = await _market_inputs()
+        references, coupons = provenance.bond_references(), provenance.bond_coupons()
+        payload = bonds.build_bond_board(inputs["board"], inputs["securities"],
+                                         references, coupons)
+        payload["ok"] = True
+        payload["trade_date"] = inputs["trade_date"]
+        return _etag_json(request, payload, max_age=60)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("bonds failed")
+        raise HTTPException(status_code=502, detail="bonds unavailable") from exc
+
+
+@app.get("/api/bonds/{ticker}")
+async def api_bond_detail(ticker: str) -> dict[str, Any]:
+    ticker = ticker.upper()
+    inputs = await _market_inputs()
+    references, coupons = provenance.bond_references(), provenance.bond_coupons()
+    payload = bonds.build_bond_board(inputs["board"], inputs["securities"], references, coupons)
+    row = next((r for r in payload["items"] if r["ticker"] == ticker), None)
+    if not row:
+        raise HTTPException(status_code=404, detail="bond not found")
+    return _json_safe({"ok": True, **row, "coupons": coupons.get(ticker, [])})
+
+
+@app.get("/api/bonds/{ticker}/coupons")
+async def api_bond_coupons(ticker: str) -> dict[str, Any]:
+    rows = provenance.bond_coupons().get(ticker.upper(), [])
+    return _json_safe({"ok": True, "ticker": ticker.upper(), "count": len(rows), "items": rows})
+
+
+@app.post("/api/admin/bonds/reference")
+async def api_admin_bond_reference(payload: dict[str, Any],
+                                   _: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Load the issue reference — the second half of the contour (§А.4).
+
+    `is_complete` is the master switch: while the nominal, coupon rate and
+    maturity are missing every yield metric stays a dash, and the moment they
+    arrive the metrics turn on with no code change.
+    """
+    written = provenance.upsert_bond_reference(payload.get("rows") or [])
+    return {"ok": True, "upserted": written}
+
+
+@app.get("/api/catalog/reports/summary")
+async def api_catalog_reports_summary(request: Request) -> Response:
+    """Counters AND the issuer list from ONE query (Дополнение 1 §Б.5).
+
+    The header said 85 companies and the list returned 73 because they were two
+    queries nobody compared. Reading both from the same statement makes them
+    unable to disagree, and the catalog's own age is a stated fact rather than a
+    date the reader has to subtract from today.
+    """
+    payload = provenance.summary()
+    payload["ok"] = True
+    return _etag_json(request, payload, max_age=120)
+
+
+@app.get("/api/catalog/reports/{report_id}")
+async def api_catalog_report(report_id: int) -> dict[str, Any]:
+    """One report: its parse state, the figures taken from it, and why it was
+    rejected if it was. `used_by` answers the reverse question — is this report
+    behind a number we publish?"""
+    row = provenance.report(report_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="report not found")
+    return _json_safe({"ok": True, **row})
+
+
+@app.get("/api/catalog/reports/queue")
+async def api_catalog_queue(limit: int = 200,
+                            _: None = Depends(_require_admin)) -> dict[str, Any]:
+    """What has not been parsed — a work queue, not a shelf of links."""
+    rows = provenance.queue(max(1, min(limit, 1000)))
+    return _json_safe({"ok": True, "count": len(rows), "items": rows})
+
+
 @app.get("/api/config")
 async def api_config(request: Request) -> Response:
     """Thresholds and feature flags the interface is allowed to know about.
@@ -1506,6 +1623,12 @@ async def _audit_context(with_history: int = 0):
                 for months in (1, 3, 6, 12, 36, 60)
             }
 
+    references, coupons = provenance.bond_references(), provenance.bond_coupons()
+    bond_board = bonds.build_bond_board(board, inputs["securities"], references, coupons)
+    catalog_reports = provenance.summary()
+    source_reports = [provenance.report(r["id"]) or r
+                      for r in provenance.queue(200)]
+
     return AuditContext(
         board=board, securities=inputs["securities"], financials=inputs["financials"],
         ratios=inputs["ratios"], listings=inputs["listings"], stats=inputs["stats"],
@@ -1513,6 +1636,12 @@ async def _audit_context(with_history: int = 0):
         published_summary=summary, published_catalog=catalog,
         published_metrics_by_period=metrics_by_period,
         published_ma_windows=formulas.company_metrics([], months=12)["ma_windows"],
+        published_bonds=bond_board["items"],
+        bond_references=references,
+        bond_coupons=coupons,
+        published_catalog_reports=catalog_reports,
+        source_reports=source_reports,
+        parse_queue=provenance.queue(1000),
     )
 
 
@@ -1636,6 +1765,71 @@ async def api_audit_rules(request: Request) -> Response:
                    "severity": r.severity, "threshold": r.threshold, "note": r.note}
                   for r in ALL_RULES],
     }, max_age=3600)
+
+
+@app.get("/api/audit/diff")
+async def api_audit_diff(from_run: str | None = None, to_run: str | None = None,
+                         _: None = Depends(_require_admin)) -> dict[str, Any]:
+    """What changed between two runs (ТЗ v1.3 §12.5).
+
+    Without this a regression reads as one more line in a list nobody finishes.
+    Findings are matched by fingerprint, so the answer is in three buckets:
+    appeared, resolved, still open.
+    """
+    from audit import find_findings, list_runs
+    from audit.store import fingerprint
+
+    runs = list_runs(50)
+    if not to_run:
+        to_run = runs[0]["id"] if runs else None
+    if not from_run:
+        from_run = runs[1]["id"] if len(runs) > 1 else None
+    if not to_run or not from_run:
+        raise HTTPException(status_code=404, detail="not enough runs to compare")
+
+    def keyed(run_id: str) -> dict[str, dict[str, Any]]:
+        # Every row the run touched, resolved ones included: a finding that was
+        # fixed between the two runs is exactly what the diff is asked about.
+        return {fingerprint(f["rule_code"], f["ticker"], f["metric"]): f
+                for f in find_findings(run_id=run_id, limit=5000, include_resolved=True)}
+
+    before, after = keyed(from_run), keyed(to_run)
+    appeared = [v for k, v in after.items() if k not in before]
+    resolved = [v for k, v in before.items() if k not in after]
+    return _json_safe({
+        "ok": True, "from_run": from_run, "to_run": to_run,
+        "appeared": appeared, "resolved": resolved,
+        "still_open": [v for k, v in after.items() if k in before],
+        "summary": {"appeared": len(appeared), "resolved": len(resolved),
+                    "regressions": sum(1 for f in appeared if f["severity"] == "blocking")},
+    })
+
+
+@app.get("/api/audit/export")
+async def api_audit_export(run_id: str | None = None,
+                           _: None = Depends(_require_admin)) -> Response:
+    """The full report as CSV (ТЗ v1.3 §12.5)."""
+    import csv
+    import io
+
+    from audit import find_findings, latest_run
+
+    if not run_id:
+        run = latest_run()
+        run_id = (run or {}).get("id")
+    rows = find_findings(run_id=run_id, limit=5000) if run_id else []
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=";")
+    writer.writerow(["rule_code", "severity", "ticker", "metric", "expected", "actual",
+                     "deviation", "status", "seen_count", "first_seen", "last_seen", "message"])
+    for row in rows:
+        writer.writerow([row.get(k) for k in (
+            "rule_code", "severity", "ticker", "metric", "expected", "actual", "deviation",
+            "status", "seen_count", "first_seen", "last_seen", "message")])
+    # BOM so Excel opens the Cyrillic messages correctly rather than as mojibake.
+    body = "﻿" + buffer.getvalue()
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="audit-{run_id or "empty"}.csv"'})
 
 
 @app.get("/api/audit/badge/{ticker}")
@@ -3311,20 +3505,41 @@ async def api_company_metrics(ticker: str, months: int = 12) -> dict[str, Any]:
 
     ticker = ticker.upper()
     months = max(1, min(months, 60))
+    # ТЗ §12: every number on the card can be replayed step by step under one
+    # trace_id — input, decision with its reason, output.
+    trace = obs.Trace(endpoint="company/metrics", ticker=ticker, months=months)
     try:
         isin = await _resolve_isin(ticker)
         if not isin:
-            return {"ok": False, "ticker": ticker, "error": "ISIN not found"}
+            trace.reject("resolve_isin", reason="ISIN not found")
+            return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found",
+                                 "trace_id": trace.trace_id}, status_code=404)
+        trace.step("resolve_isin", out={"isin": isin})
         data = await _full_history(isin)
-        metrics = formulas.company_metrics(data.get("points") or [], months=months)
+        points = data.get("points") or []
+        trace.step("history_fetch", out={"points": len(points)})
+        metrics = formulas.company_metrics(points, months=months)
+        window, absolute, quality = metrics["window"], metrics["absolute"], metrics["quality"]
+        trace.step("window_metrics", out={"code": window["code"], "points": window["points"],
+                                          "vwap": window["vwap"].get("value"),
+                                          "method": window["vwap"].get("method")})
+        trace.step("absolute_metrics", decision="no_window_param",
+                   out={k: (v or {}).get("value") for k, v in absolute.items()})
+        trace.step("quality", decision=quality["data_tier"], reason=quality.get("reason"),
+                   out={"candles": quality["candles_enabled"]})
         return {
             "ok": True, "ticker": ticker, "isin": isin,
             "as_of": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "trace_id": trace.trace_id,
             **metrics,
         }
     except Exception as exc:
+        trace.reject("metrics", reason=str(exc))
         logger.exception("metrics failed for %s", ticker)
-        return {"ok": False, "ticker": ticker, "error": str(exc)}
+        return JSONResponse({"ok": False, "ticker": ticker, "error": str(exc),
+                             "trace_id": trace.trace_id}, status_code=502)
+    finally:
+        trace.close()
 
 
 @app.get("/api/price-history/{ticker}")
@@ -3336,7 +3551,11 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
     try:
         isin = await _resolve_isin(ticker)
         if not isin:
-            return {"ok": False, "ticker": ticker, "error": "ISIN not found", "points": []}
+            # ТЗ §10.4.6: an unknown instrument is a 404. Returning 200 with a
+            # failure body is why neither the browser, retries nor monitoring
+            # could tell a fault from a normal answer.
+            return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found",
+                                 "points": []}, status_code=404)
         from openinfo_collector import fetch_price_history
         data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, months))
         points = [

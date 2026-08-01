@@ -10270,3 +10270,34 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 /* Dates need the full panel width, so this variant stacks label over value. */
 .led .led-sig--rows > div { flex-direction: column; align-items: flex-start; gap: 2px; }
 .led .led-sig--rows dd { text-align: left; font-weight: 500; }
+
+/* /admin/audit (ТЗ v1.3 §12.6). An internal tool: dense, monospaced where the
+   values matter, and expanded to the calculation INPUT on click — a finding you
+   cannot reproduce is a finding somebody will argue with instead of fixing. */
+.audit-page { display: flex; flex-direction: column; gap: 0; }
+.audit-controls { display: flex; gap: 8px; align-items: center; margin: 16px 0 8px; flex-wrap: wrap; }
+.audit-secret { min-width: 220px; padding: 7px 10px; border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.14)); background: transparent; color: var(--text); }
+.audit-error { color: #f87171; font-size: 13px; margin: 6px 0 0; }
+.audit-run { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 13px;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border, rgba(255,255,255,0.08)); }
+.audit-chip { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; opacity: 0.85; }
+.audit-chip.is-failed { color: #f87171; }
+.audit-chip.is-warning { color: #fbbf24; }
+.audit-chip.is-ok { color: #34d399; }
+.audit-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+.audit-filters select, .audit-filters input { padding: 6px 10px; border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.14)); background: transparent; color: var(--text); }
+.audit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.audit-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.1)); }
+.audit-table td { padding: 7px 8px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.05)); vertical-align: top; }
+.audit-table td.num, .audit-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.audit-row { cursor: pointer; }
+.audit-row:hover { background: rgba(148,163,184,0.06); }
+.audit-row.is-blocking code { color: #f87171; }
+.audit-row.is-warning code { color: #fbbf24; }
+.audit-detail pre { font-size: 12px; margin: 0 0 10px; padding: 10px; overflow-x: auto;
+  background: rgba(148,163,184,0.08); border-radius: 8px; }
+.audit-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

@@ -52,6 +52,7 @@ _AUDIT_DEFAULTS: dict[str, Any] = {
         "spike_change_pct": 15.0,
         "spike_max_trades": 3,
         "max_runtime_seconds": 300,
+        "ytm_tolerance": 0.05,
     },
 }
 
@@ -330,3 +331,36 @@ def months_between(period: Any, today: date | None = None) -> int | None:
     end = date(year, min(12, quarter * 3), 28)
     now = today or date.today()
     return (now.year - end.year) * 12 + (now.month - end.month)
+
+
+def ytm_bisection(cashflows: Sequence[tuple[float, float]], dirty: float,
+                  low: float = -0.9, high: float = 10.0,
+                  tolerance: float = 1e-10, max_iterations: int = 400) -> float | None:
+    """Yield to maturity by BISECTION — production solves it with Newton.
+
+    Two different root-finders on the same equation is the whole point: Newton
+    can converge to a different root, or report convergence at a point bisection
+    would reject. Returns a percentage, or None when the root is not bracketed.
+    """
+    if not cashflows or dirty is None or dirty <= 0:
+        return None
+
+    def pv(rate: float) -> float:
+        try:
+            return sum(cf / (1.0 + rate) ** t for t, cf in cashflows) - dirty
+        except (OverflowError, ZeroDivisionError):
+            return float("inf")
+
+    lo, hi = pv(low), pv(high)
+    if lo * hi > 0:
+        return None
+    for _ in range(max_iterations):
+        mid = (low + high) / 2.0
+        value = pv(mid)
+        if abs(value) < tolerance or (high - low) < tolerance:
+            return mid * 100.0
+        if lo * value <= 0:
+            high = mid
+        else:
+            low, lo = mid, value
+    return ((low + high) / 2.0) * 100.0
