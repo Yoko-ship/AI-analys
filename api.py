@@ -1741,6 +1741,16 @@ def _schedule_audit(trigger: str) -> bool:
                         report["summary"]["blocking"])
         except Exception:  # noqa: BLE001 — never propagate into the ingest path
             logger.exception("scheduled audit after %s failed", trigger)
+        try:
+            # The invariant report is the fourth level of testing and belongs on
+            # the same trigger: both answer "is what we just loaded sane?", and
+            # an empty report is the only normal outcome for either.
+            report = await _run_invariants()
+            level = logger.warning if not report["ok"] else logger.info
+            level("invariants after %s: %d finding(s), ok=%s", trigger,
+                  len(report["findings"]), report["ok"])
+        except Exception:  # noqa: BLE001
+            logger.exception("scheduled invariants after %s failed", trigger)
 
     try:
         asyncio.get_running_loop().create_task(_go())
@@ -1907,9 +1917,8 @@ async def api_audit_badge(ticker: str) -> dict[str, Any]:
     return _json_safe({"ok": True, **ticker_badge(ticker)})
 
 
-@app.get("/api/admin/invariants")
-async def api_admin_invariants(_: None = Depends(_require_admin)) -> dict[str, Any]:
-    """Daily property check on live data (ТЗ §11.5). Empty is the good outcome."""
+async def _run_invariants() -> dict[str, Any]:
+    """The fourth level of testing (ТЗ §11.5), on this morning's data."""
     inputs = await _market_inputs()
     payload = _multiples_payload(inputs)
     map_payload = heatmap.build_heatmap(inputs["board"], inputs["securities"],
@@ -1919,7 +1928,7 @@ async def api_admin_invariants(_: None = Depends(_require_admin)) -> dict[str, A
         listings=inputs["listings"], financials=inputs["financials"],
         ratios=inputs["ratios"], sectors=COMPANY_SECTORS)
     cap = fundamentals.market_capitalisation(inputs["board"], inputs["securities"])
-    report = invariants.run([
+    return invariants.run([
         ("multiples_agree", lambda: invariants.check_multiples_agree_across_classes(
             payload["by_issuer"])),
         ("multiples_in_range", lambda: invariants.check_multiples_in_range(payload["items"])),
@@ -1929,7 +1938,12 @@ async def api_admin_invariants(_: None = Depends(_require_admin)) -> dict[str, A
         ("catalog", lambda: invariants.check_catalog(catalog)),
         ("market_cap", lambda: invariants.check_market_cap(cap)),
     ])
-    return _json_safe(report)
+
+
+@app.get("/api/admin/invariants")
+async def api_admin_invariants(_: None = Depends(_require_admin)) -> dict[str, Any]:
+    """The same check the scheduler runs, on demand. Empty is the good outcome."""
+    return _json_safe(await _run_invariants())
 
 
 @app.get("/api/admin/trace/{trace_id}")
@@ -2686,6 +2700,7 @@ async def api_admin_trade_stats(
     except Exception as exc:
         logger.exception("admin trade-stats upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    _schedule_audit("ingest:trade-stats")
     return {"ok": True, "upserted": n}
 
 
@@ -2723,6 +2738,7 @@ async def api_admin_financials(
     except Exception as exc:
         logger.exception("admin financials %s failed", payload.mode)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    _schedule_audit("ingest:financials")
     return {"ok": True, ("replaced" if payload.mode == "replace" else "upserted"): n}
 
 
