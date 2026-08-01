@@ -99,6 +99,92 @@ def _uzse_bond_nominal(isin: str) -> float | None:
     return val
 
 
+_BOND_SERIES_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def _uzse_bond_series(session: Any, isin: str) -> dict[str, Any] | None:
+    """Par value and issue size for a bond ISIN, from the exchange's own card.
+
+    ``/isu_infos/{isin}/detail`` answers with the whole ISSUER, not one line:
+    asking about ACMT2B5 returns all four ACMT series, each with ``parval`` and
+    ``list_shrs``. One request therefore fills every bond of that issuer, which
+    is why the result is cached under each ISIN in the response and not only
+    under the one asked for — the walk below then costs one request per issuer
+    instead of one per series.
+    """
+    if isin in _BOND_SERIES_CACHE:
+        return _BOND_SERIES_CACHE[isin]
+    try:
+        data = session.get(f"{_UZSE_BASE}/isu_infos/{isin}/detail",
+                           params={"locale": "ru"}, timeout=30).json()
+    except Exception:  # noqa: BLE001
+        _BOND_SERIES_CACHE[isin] = None
+        return None
+    for rec in (data if isinstance(data, list) else [data]):
+        if not isinstance(rec, dict) or rec.get("error"):
+            continue
+        for sh in rec.get("shares") or []:
+            code = str(sh.get("isu_cd") or "").strip().upper()
+            if not code:
+                continue
+            parval, count = _num(sh.get("parval")), _num(sh.get("list_shrs"))
+            _BOND_SERIES_CACHE[code] = {
+                "isin": code,
+                "ticker": str(sh.get("isu_srt_cd") or "").strip().upper() or None,
+                # A par of 0 is the card's way of saying "not stated" (the OACM
+                # share line carries exactly that) — it is not a par of zero.
+                "nominal": parval if parval else None,
+                "issue_volume": count if count else None,
+            }
+    _BOND_SERIES_CACHE.setdefault(isin, None)
+    return _BOND_SERIES_CACHE[isin]
+
+
+def collect_bond_reference_rows(listing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The issue reference for every exchange bond (ТЗ Дополнение 1 §А.4).
+
+    §А.3 recorded that no endpoint publishes a nominal and built the whole bond
+    contour inert on that finding. Half of it does not hold: the exchange's own
+    security card carries ``parval`` (100 000 across the ACMT series) and its BND
+    page prints "Номинал (UZS)" outright. So the par and the issue size are read
+    from the exchange, and the price starts reading as a percentage of par.
+
+    The coupon rate, the maturity date and the payment schedule are genuinely
+    absent — searched for on the issue page and in the card, they are not there.
+    Those columns are left NULL on purpose: ``is_complete`` stays false, every
+    yield metric keeps its ``no_bond_reference`` status, and a fabricated coupon
+    never enters the table. Takes the listing rows already collected so the walk
+    costs no second pass over openinfo.
+    """
+    session = _make_session()
+    rows: list[dict[str, Any]] = []
+    for row in listing_rows or []:
+        isin = str(row.get("isin") or "").strip().upper()
+        ticker = str(row.get("ticker") or "").strip().upper()
+        # UZ6… is the exchange's bond range; UZ7… is equity.
+        if not ticker or not isin.startswith("UZ6"):
+            continue
+        series = _uzse_bond_series(session, isin) or {}
+        nominal = series.get("nominal")
+        if nominal is None:
+            # Fall back to the HTML card, which states the par in words when the
+            # JSON line for this series is missing from the issuer's record.
+            nominal = _uzse_bond_nominal(isin)
+        if nominal is None:
+            log.info("bond %s (%s): exchange states no par value", ticker, isin)
+            continue
+        rows.append({
+            "ticker": ticker,
+            "isin": isin,
+            "nominal": nominal,
+            "currency": "UZS",
+            "issue_volume": series.get("issue_volume") or _num(row.get("shares_outstanding")),
+            "source_url": f"{_UZSE_BASE}/isu_infos/BND?isu_cd={isin}",
+        })
+    log.info("bond reference: %d issues with a par value from the exchange", len(rows))
+    return rows
+
+
 def _uzse_share_count(session: Any, isin: str) -> float | None:
     """Issued share count from UZSE's isu_infos detail endpoint.
 

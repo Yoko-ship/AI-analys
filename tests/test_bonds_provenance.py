@@ -83,6 +83,113 @@ class TestWithoutReference:
         assert bonds.bond_row(bond_row())["day_count_basis"] == "ACT/365"
 
 
+class TestNominalOnly:
+    """The exchange publishes the par value; nobody publishes the coupon.
+
+    §А.3 said no endpoint carried a nominal, and the contour was built inert on
+    that. The exchange's own card returns ``parval`` — 100 000 across the ACMT
+    series — so the half that IS available must turn on without dragging the
+    yields, which still have no coupon and no maturity to stand on.
+    """
+
+    NOMINAL_ONLY = {"nominal": 100_000.0, "issue_volume": 1_000_000.0,
+                    "source_url": "https://uzse.uz/isu_infos/BND?isu_cd=UZ6058977AE0"}
+
+    def test_price_reads_as_a_percentage_of_par_without_a_coupon(self):
+        row = bonds.bond_row(bond_row(price=105_310.56), reference=self.NOMINAL_ONLY)
+        assert row["reference"]["is_complete"] is False
+        assert row["reference"]["has_nominal"] is True
+        assert row["price_pct"]["value"] == pytest.approx(105.31056)
+
+    def test_the_yields_do_not_turn_on_with_it(self):
+        """A par cannot produce a yield. Only the coupon and the maturity can,
+        and an invented coupon is the same error as an invented par."""
+        row = bonds.bond_row(bond_row(price=105_310.56), reference=self.NOMINAL_ONLY)
+        for field in ("ytm", "duration", "accrued", "spread", "simple_yield"):
+            assert row[field]["value"] is None
+            assert row[field]["status"] == bonds.STATUS_NO_REFERENCE
+        assert set(row["price_pct"].keys()) >= {"value", "status"}
+
+    def test_a_known_par_with_no_quote_blames_the_quote(self):
+        """ACMT1B2 and CTFB3 have a par and no last price. Saying
+        `no_bond_reference` there would blame the reference for the wrong gap."""
+        row = bonds.bond_row(bond_row("ACMT1B2", price=None, trades=575),
+                             reference=self.NOMINAL_ONLY)
+        assert row["price_pct"]["value"] is None
+        assert row["price_pct"]["status"] == "no_price"
+        assert row["status"] == "no_price"
+
+    def test_a_par_of_zero_is_not_a_par(self):
+        row = bonds.bond_row(bond_row(price=105_310.56), reference={"nominal": 0})
+        assert row["reference"]["has_nominal"] is False
+        assert row["price_pct"]["status"] == bonds.STATUS_NO_REFERENCE
+
+    def test_the_board_counts_both_stages_separately(self):
+        board = bonds.build_bond_board(
+            [bond_row(), bond_row("CTFB3", cap=1.0)],
+            references={"ACMT2B5": self.NOMINAL_ONLY})
+        assert board["with_nominal"] == 1     # the par arrived
+        assert board["with_reference"] == 0   # the coupon and maturity did not
+
+
+class TestReferenceCollector:
+    """What the loader is allowed to write, and what it must leave empty."""
+
+    DETAIL = [{"company_name": "AGAT CREDIT", "shares": [
+        {"type": "Простая акция", "isu_cd": "UZ7058970011", "isu_srt_cd": "OACM",
+         "list_shrs": 0, "parval": 0.0},
+        {"type": "Облигация", "isu_cd": "UZ6058977AB6", "isu_srt_cd": "ACMT1B2",
+         "list_shrs": 300000, "parval": 100000.0},
+        {"type": "Облигация", "isu_cd": "UZ6058977AE0", "isu_srt_cd": "ACMT2B5",
+         "list_shrs": 1000000, "parval": 100000.0},
+    ]}]
+
+    def _collect(self, monkeypatch, listing_rows):
+        import listings_collector as lc
+
+        calls = []
+
+        class _Resp:
+            def json(self_inner): return TestReferenceCollector.DETAIL
+
+        class _Session:
+            def get(self_inner, url, **kw):
+                calls.append(url)
+                return _Resp()
+
+        monkeypatch.setattr(lc, "_make_session", lambda: _Session())
+        monkeypatch.setattr(lc, "_BOND_SERIES_CACHE", {})
+        monkeypatch.setattr(lc, "_uzse_bond_nominal", lambda *a, **k: None)
+        return lc.collect_bond_reference_rows(listing_rows), calls
+
+    def test_the_par_and_the_issue_size_are_read_from_the_exchange(self, monkeypatch):
+        rows, _ = self._collect(monkeypatch, [
+            {"ticker": "ACMT2B5", "isin": "UZ6058977AE0"}])
+        assert rows[0]["nominal"] == 100_000.0
+        assert rows[0]["issue_volume"] == 1_000_000.0
+        assert rows[0]["source_url"].endswith("UZ6058977AE0")
+
+    def test_the_coupon_and_the_maturity_are_never_invented(self, monkeypatch):
+        """The whole point of §А.3: a plausible coupon is not a coupon."""
+        rows, _ = self._collect(monkeypatch, [
+            {"ticker": "ACMT2B5", "isin": "UZ6058977AE0"}])
+        for field in ("coupon_rate", "coupon_freq", "maturity_date", "issue_date"):
+            assert field not in rows[0]
+        assert bonds.reference_state(rows[0])["is_complete"] is False
+
+    def test_one_request_fills_every_series_of_the_issuer(self, monkeypatch):
+        """The card answers with the whole issuer, so asking per series would
+        be four identical requests for one answer."""
+        rows, calls = self._collect(monkeypatch, [
+            {"ticker": "ACMT2B5", "isin": "UZ6058977AE0"},
+            {"ticker": "ACMT1B2", "isin": "UZ6058977AB6"}])
+        assert len(rows) == 2 and len(calls) == 1
+
+    def test_equities_are_not_given_a_bond_reference(self, monkeypatch):
+        rows, calls = self._collect(monkeypatch, [{"ticker": "UZHM", "isin": "UZ7011340005"}])
+        assert rows == [] and calls == []
+
+
 class TestWithReference:
     def _reference(self, **kw):
         base = {"nominal": 100_000.0, "coupon_rate": 12.0, "coupon_freq": 1,
