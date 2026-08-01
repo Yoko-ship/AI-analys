@@ -10430,7 +10430,7 @@ function App() {
 // motion gets the poster with a play button instead of a moving picture.
 const SPONSOR_SEEN_KEY = "uz_sponsor_seen";
 const SPONSOR_DELAY_MS = 2500;   // let the page settle before anything moves
-const SPONSOR_CLOSE_AFTER = 5;   // seconds before the × replaces the countdown
+const SPONSOR_CLOSE_AFTER = 15;  // seconds before the × replaces the countdown
 
 function SponsorOverlay({ language }) {
   const [open, setOpen] = useState(false);
