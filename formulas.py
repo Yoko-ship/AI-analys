@@ -71,6 +71,30 @@ _DEFAULT_THRESHOLDS: dict[str, dict[str, Any]] = {
         "ma50_calendar_days": 70,
         "min_observations": 3,
     },
+    # ТЗ §7 — a statement that breaks one of these cannot be published as a
+    # number. 7 of 89 cached rows do (TGPG, MXUS, UZML, KSCM, UZNGP, GRBK, BNGP).
+    "financials": {
+        "gross_profit_vs_revenue_max": 1.0,
+        "net_income_vs_revenue_max": 1.5,
+        "liabilities_vs_assets_max": 1.5,
+        "half_year_vs_annual_max": 5,
+        "roe_implied_vs_published_max": 8,
+    },
+    # ТЗ §8 — outside these a multiple is a data error, not a valuation.
+    "multiples": {
+        "pe_range": [0.5, 200],
+        "pb_range": [0.05, 20],
+        "roe_abs_max": 100,
+        "cap_vs_price_shares_max": 1.5,
+    },
+    # ТЗ §9 — below either of these one trade is deciding a tile's colour.
+    "market_map": {
+        "min_trades_confident": 5,
+        "min_quantity_confident": 10,
+    },
+    "catalog": {
+        "inactive_after_days": 90,
+    },
 }
 
 _THRESHOLDS_PATH = Path(__file__).resolve().parent / "config" / "thresholds.json"
@@ -128,6 +152,12 @@ def _num(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return out if math.isfinite(out) else None
+
+
+# Public alias: the API layer and the other domain modules parse untrusted
+# numbers through the same coercion the formulas use, so "1 234,56", None and
+# NaN cannot mean one thing in a calculation and another in a response.
+to_number = _num
 
 
 def _as_date(value: Any) -> date | None:

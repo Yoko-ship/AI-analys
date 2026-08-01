@@ -5006,7 +5006,24 @@ function squarifyTreemap(items, x, y, w, h) {
   return out;
 }
 
-function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, type }) {
+function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, type, mapData }) {
+  // Per-tile classification from /api/heatmap (ТЗ §9). The server decides what a
+  // tile IS — priced, traded-but-unpriced, dormant, or resting on a single trade
+  // — because the same judgement has to hold for the aggregates it also returns.
+  const tileMeta = React.useMemo(() => {
+    const by = new Map();
+    (mapData?.tiles || []).forEach((t) => by.set(String(t.ticker || "").toUpperCase(), t));
+    return by;
+  }, [mapData]);
+  const metaOf = (r) => tileMeta.get(String(r?.ticker || "").toUpperCase()) || null;
+  const tileStatus = (r) => {
+    const meta = metaOf(r);
+    if (meta) return meta.status;
+    // Before the response lands, fall back to the same rule the server applies.
+    if (!Number.isFinite(r?.changePercent)) return r?.inactive ? "inactive" : "not_traded";
+    return "ok";
+  };
+  const lowConfidence = (r) => metaOf(r)?.confidence === "low";
   const lang = normalizeLanguage(language);
   const wrapRef = React.useRef(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -5062,10 +5079,26 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
     if (pct === null || !Number.isFinite(pct)) return "—";
     return `${pct > 0 ? "+" : ""}${formatRatio(pct, 2, lang)}%`;
   };
+  // ТЗ §9: a group moves by TURNOVER, not by headcount. A simple mean gave a
+  // security that traded one share the same say as one that traded 98.4 mn on
+  // 860 trades, so the sector reported a move nobody could have made. Tiles
+  // without a real price never vote — they are not "unchanged".
   const avgOf = (rs) => {
-    const c = rs.filter((r) => Number.isFinite(r.changePercent));
-    return c.length ? c.reduce((a, r) => a + r.changePercent, 0) / c.length : null;
+    const counted = rs.filter((r) => Number.isFinite(r.changePercent)
+      && tileStatus(r) === "ok");
+    if (!counted.length) return null;
+    const weight = counted.reduce((s, r) => s + (Number.isFinite(r.stockVolume) ? r.stockVolume : 0), 0);
+    if (weight > 0) {
+      return counted.reduce((s, r) => s + r.changePercent * (r.stockVolume || 0), 0) / weight;
+    }
+    return counted.reduce((a, r) => a + r.changePercent, 0) / counted.length;
   };
+  // How many tiles actually entered that number, out of how many are shown —
+  // ТЗ §9 requires the count to travel with the aggregate.
+  const countedOf = (rs) => ({
+    counted: rs.filter((r) => Number.isFinite(r.changePercent) && tileStatus(r) === "ok").length,
+    total: rs.length,
+  });
 
   // Top level splits share class (ordinary vs preferred); each block is then the
   // usual sector→stock treemap. Blocks stack vertically; heights are ∝ traded
@@ -5166,22 +5199,45 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
             )}
             {group.sectors.map((sec) => {
               const label = sectorLabel(lang, sec.sector);
-              const withChange = sec.stocks.filter((s) => Number.isFinite(s.row.changePercent));
-              const avg = withChange.length ? withChange.reduce((a, s) => a + s.row.changePercent, 0) / withChange.length : null;
+              // Turnover-weighted, over priced tiles only — the same rule as the
+              // block header and the server's own aggregate (ТЗ §9).
+              const sectorRows = sec.stocks.map((s) => s.row);
+              const avg = avgOf(sectorRows);
+              const tally = countedOf(sectorRows);
               return (
                 <React.Fragment key={`${group.key}-${sec.sector}`}>
                   {sec.header && (
                     <div className="heatmap-tree-label" style={{ left: sec.rect.x, top: sec.rect.y, width: sec.rect.w, height: sec.headerH }}>
                       <span>{label}</span>
                       {avg !== null && (
-                        <span className={`htl-avg tone-${avg > 0.1 ? "good" : avg < -0.1 ? "danger" : "neutral"}`}>{formatPct(avg)}</span>
+                        <>
+                          <span className={`htl-avg tone-${avg > 0.1 ? "good" : avg < -0.1 ? "danger" : "neutral"}`}>{formatPct(avg)}</span>
+                          {/* "12 из 21" — how many tiles the number rests on. */}
+                          {tally.counted < tally.total && (
+                            <span className="htl-count" title={lang === "ru"
+                              ? "учтены только бумаги с ценой, вес по обороту"
+                              : lang === "uz" ? "faqat narxli qog'ozlar, aylanma bo'yicha vazn"
+                              : "priced securities only, weighted by turnover"}>
+                              {tally.counted} {lang === "ru" ? "из" : lang === "uz" ? "dan" : "of"} {tally.total}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
                   {sec.stocks.map((st) => {
                     const row = st.row;
+                    const status = tileStatus(row);
                     const tileStyle = heatmapTileStyle(row.changePercent);
                     const isNeutral = !tileStyle.background;
+                    // ТЗ §9: a tile with no price gets its own look, not the
+                    // neutral grey that reads as "unchanged"; a tile resting on
+                    // fewer than five trades is framed so "+20 %" cannot be read
+                    // without also reading "1 trade, 1 share".
+                    const statusClass = status === "no_price" ? " is-no-price"
+                      : status === "not_traded" ? " is-not-traded"
+                      : status === "inactive" ? " is-inactive" : "";
+                    const confClass = lowConfidence(row) ? " is-low-confidence" : "";
                     const w = st.w - GAP, h = st.h - GAP;
                     if (w < 1 || h < 1) return null;
                     const tickerSize = Math.max(8, Math.min(Math.min(w, h) / 2.9, w / 4.4, 19));
@@ -5191,7 +5247,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
                       <button
                         key={row.ticker}
                         type="button"
-                        className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}`}
+                        className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}${statusClass}${confClass}`}
                         style={{ left: st.x + GAP / 2, top: st.y + GAP / 2, width: w, height: h, ...tileStyle }}
                         onClick={() => onAnalyze(row.ticker)}
                         onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
@@ -5247,6 +5303,22 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
             </div>
             <div className="heatmap-tt-name">{name}</div>
             {price != null && <div className="heatmap-tt-price">{formatMarketNumber(price, lang)}</div>}
+            {/* ТЗ §9: the tooltip carries the ACTUAL figures behind the colour,
+                so a move that rests on one lot cannot be read as a market. */}
+            {(() => {
+              const meta = metaOf(r);
+              if (!meta) return null;
+              if (meta.status !== "ok") {
+                return <div className="heatmap-tt-note">{meta.reason}</div>;
+              }
+              if (meta.confidence !== "low") return null;
+              const parts = [
+                meta.trades != null ? `${meta.trades} ${lang === "ru" ? "сдел." : lang === "uz" ? "bitim" : "trades"}` : null,
+                meta.quantity != null ? `${formatMarketNumber(meta.quantity, lang)} ${lang === "ru" ? "бум." : lang === "uz" ? "qog'oz" : "sec."}` : null,
+                meta.turnover != null ? `${formatMarketNumber(meta.turnover, lang)} ${lang === "ru" ? "сум" : lang === "uz" ? "so'm" : "UZS"}` : null,
+              ].filter(Boolean);
+              return <div className="heatmap-tt-note is-warn">{parts.join(", ")}</div>;
+            })()}
             <div className="heatmap-tt-stats">
               {stats.map(([k, v]) => (
                 <div className="heatmap-tt-row" key={k}><span>{k}</span><span>{v}</span></div>
@@ -6739,6 +6811,40 @@ function MarketView({
     return () => { alive = false; };
   }, []);
 
+  // Multiples come from the server, computed per ISSUER (ТЗ §8). Keyed by
+  // ticker, but both classes of an issuer carry the same object — that is the
+  // point: the board used to divide ONE class's capitalisation by the WHOLE
+  // issuer's profit, so no pair of classes could agree. A statement that failed
+  // validation arrives with its multiples already suppressed and the reason
+  // attached, so nothing here has to decide what is publishable.
+  const [multiples, setMultiples] = useState({});
+  const [marketSummary, setMarketSummary] = useState(null);
+  const [mapData, setMapData] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/market/multiples")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !d || !d.ok) return;
+        const byTicker = {};
+        (d.items || []).forEach((it) => { byTicker[it.ticker] = it; });
+        setMultiples(byTicker);
+      })
+      .catch(() => {});
+    fetch("/api/market/summary")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setMarketSummary(d); })
+      .catch(() => {});
+    // The market map in ONE request (ТЗ §9): tiles, sector aggregates and the
+    // counts behind them. It used to be stitched together on the client from
+    // endpoints with different instrument universes.
+    fetch("/api/heatmap")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setMapData(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   // Column sorting. sortKey === null falls back to the default (date desc, then |change|).
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("desc");
@@ -6955,16 +7061,57 @@ function MarketView({
   // latest filing is a cumulative quarter, so P/E means the same thing in every
   // row. Without it the column silently mixes 3-, 6- and 12-month profits.
   const earningsOf = (r) => finEarnings(finOf(r.ticker));
+  // ТЗ §8: the server owns this arithmetic. `valuationRatios` remains only as a
+  // fallback for the moment before /api/market/multiples answers — it computes
+  // at CLASS level and is therefore wrong for a two-class issuer, so it must
+  // never outlive the response.
+  const multiplesOf = (r) => multiples[String(r.ticker || "").toUpperCase()] || null;
   const valuationOf = (r) => {
+    const server = multiplesOf(r);
+    if (server) return { pe: server.pe, pb: server.pb, server: true };
     const rat = ratioOf(r.ticker) || {};
-    return valuationRatios({
+    const local = valuationRatios({
       marketCap: mktCapOf(r),
       netIncome: earningsOf(r).netIncome,
       equity: rat.total_equity,
       roePercent: rat.roe,
     });
+    return {
+      pe: { value: local.pe, status: local.pe == null ? "no_financials" : "ok" },
+      pb: { value: local.pb, status: local.pb == null ? "no_financials" : "ok" },
+      server: false,
+    };
   };
-  const peOf = (r) => valuationOf(r).pe;
+  const peOf = (r) => valuationOf(r).pe?.value ?? null;
+
+  // ТЗ §8: a multiple the server withheld says WHY. «убыток» is a fact about the
+  // issuer, not missing data; «проверяется» means the statement behind it failed
+  // validation; a range status means the figure exists and is not believable.
+  const MULTIPLE_STATUS_TEXT = {
+    loss_making: ["убыток", "zarar", "loss"],
+    unverified: ["проверяется", "tekshirilmoqda", "under review"],
+    out_of_range: ["вне диапазона", "diapazondan tashqari", "out of range"],
+    shares_inconsistent: ["сверка акций", "aksiyalar sverkasi", "share count"],
+    incomplete: ["нет всех классов", "barcha sinflar yo'q", "classes missing"],
+    no_market_cap: ["нет капитализации", "kapitalizatsiya yo'q", "no market cap"],
+    no_share_count: ["нет числа акций", "aksiyalar soni yo'q", "no share count"],
+  };
+  const statusText = (status) => {
+    const words = MULTIPLE_STATUS_TEXT[status];
+    return words ? words[lang === "uz" ? 1 : lang === "en" ? 2 : 0] : null;
+  };
+  const multipleCell = (row, metric, digits, suffix = "×") => {
+    if (metric?.value != null) {
+      return <td className="num">{formatRatio(metric.value, digits, lang)}{suffix}</td>;
+    }
+    const label = statusText(metric?.status);
+    if (!label) return <td className="num">{noSecLabel(row)}</td>;
+    const reasons = (metric?.reasons || []).join("; ")
+      || (metric?.computed != null
+        ? `${formatRatio(metric.computed, digits, lang)}${suffix} ∉ [${metric.allowed?.join(", ")}]`
+        : metric?.note || "");
+    return <td className="num"><span className="cell-status" title={reasons || undefined}>{label}</span></td>;
+  };
   // Issuers openinfo records as having no tradable securities at all
   // (is_listing=false, empty RFB/OTC share registries — e.g. MNGM, OCBK):
   // market-value cells state that fact instead of an ambiguous dash.
@@ -6982,7 +7129,7 @@ function MarketView({
   // all (verified 10-year lookback): state "no trades" — the same fact the
   // trade-date column shows — rather than an ambiguous dash.
   const neverTraded = (r) => (!r.last_trade_date && !r.ts ? mt(lang, "noTrade") : "—");
-  const pbOf = (r) => valuationOf(r).pb;
+  const pbOf = (r) => valuationOf(r).pb?.value ?? null;
 
   // One financials cell, with the reporting period it belongs to underneath it.
   // The period is not decoration: these figures mix completed annuals with
@@ -7300,21 +7447,24 @@ function MarketView({
     finOperating: (row) => finCell(row, "operating_income", { naWhenTopLine: true }),
     mktCap: (row) => <td className="num">{(() => { const v = mktCapOf(row); return v == null ? noSecLabel(row) : formatRatio(v, 0, lang); })()}</td>,
     pe: (row) => {
-      const v = peOf(row);
-      if (v == null) return <td className="num">{noSecLabel(row)}</td>;
+      const m = valuationOf(row).pe;
+      if (m?.value == null) return multipleCell(row, m, 1);
       // Name the earnings period on the cell: this is the one multiple whose
       // denominator can come from a different filing than the row's own figures.
-      const { period, months } = earningsOf(row);
+      const period = m.base_period || earningsOf(row).period;
+      const months = m.base_months || earningsOf(row).months;
       return (
-        <td className="num" title={period ? `${lang === "ru" ? "прибыль за" : lang === "uz" ? "foyda" : "earnings for"} ${period} · ${months} ${lang === "ru" ? "мес." : lang === "uz" ? "oy" : "months"}` : undefined}>
-          <strong>{formatRatio(v, 1, lang)}×</strong>
+        <td className="num" title={period ? `${lang === "ru" ? "прибыль за" : lang === "uz" ? "foyda" : "earnings for"} ${period}${months ? ` · ${months} ${lang === "ru" ? "мес." : lang === "uz" ? "oy" : "months"}` : ""}` : undefined}>
+          <strong>{formatRatio(m.value, 1, lang)}×</strong>
           {period && <span className="fin-cell-period">{period}</span>}
         </td>
       );
     },
-    pb: (row) => <td className="num">{(() => { const v = pbOf(row); return v == null ? noSecLabel(row) : `${formatRatio(v, 2, lang)}×`; })()}</td>,
-    roe: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roe; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
-    roa: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.roa; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
+    pb: (row) => multipleCell(row, valuationOf(row).pb, 2),
+    roe: (row) => multipleCell(row, multiplesOf(row)?.roe
+      ?? { value: ratioOf(row.ticker)?.roe, status: "ok" }, 2, ""),
+    roa: (row) => multipleCell(row, multiplesOf(row)?.roa
+      ?? { value: ratioOf(row.ticker)?.roa, status: "ok" }, 2, ""),
     netMargin: (row) => <td className="num">{(() => {
       const v = ratioOf(row.ticker)?.net_profit_margin;
       if (v != null) return formatRatio(v, 2, lang);
@@ -7379,7 +7529,26 @@ function MarketView({
         <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(stats.advancers, 0, lang)} sub={formatLeader(stats.topGrowth)} tone="good" />
         <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
         <MarketStatCard label={mt(lang, "unchanged")} value={formatRatio(stats.unchanged, 0, lang)} sub={mt(lang, "date")} />
-        {stats.totalMarketCap > 0 && <MarketStatCard label={mt(lang, "marketCap")} value={formatCompactVolume(stats.totalMarketCap, lang)} sub="UZS" />}
+        {/* ТЗ §8: the market's capitalisation is its ACTIVE SHARES. The client
+            sum counted bonds, which carry no ownership, and dormant listings —
+            23 of them, 29 088 bn — inside a figure labelled "the market". The
+            server now answers with the total and with what it left out. */}
+        {(() => {
+          const server = marketSummary?.market_cap;
+          const value = server?.value ?? stats.totalMarketCap;
+          if (!(value > 0)) return null;
+          const ex = server?.excluded || {};
+          const excludedNote = [
+            ex.bonds?.instruments ? `${lang === "ru" ? "облигации" : lang === "uz" ? "obligatsiyalar" : "bonds"}: ${ex.bonds.instruments}` : null,
+            ex.inactive_listings?.instruments ? `${lang === "ru" ? "неактивные" : lang === "uz" ? "faol emas" : "inactive"}: ${ex.inactive_listings.instruments}` : null,
+          ].filter(Boolean).join(", ");
+          return (
+            <MarketStatCard
+              label={mt(lang, "marketCap")}
+              value={formatCompactVolume(value, lang)}
+              sub={excludedNote ? `UZS · ${lang === "ru" ? "без" : lang === "uz" ? "hisobsiz" : "excl."} ${excludedNote}` : "UZS"} />
+          );
+        })()}
         {/* The day's turnover is the sum of the rows below it, not a separate
             feed's idea of the day: the mirror's /trades snapshot covers a fixed
             44 securities and called 31.07 "120,7 млн over ~900 trades" while the
@@ -7675,7 +7844,7 @@ function MarketView({
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
           ) : (
-            <MarketHeatmap rows={prepared} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} type={type} />
+            <MarketHeatmap rows={prepared} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} type={type} mapData={mapData} />
           )
         ) : (
           <>

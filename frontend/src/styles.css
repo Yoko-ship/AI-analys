@@ -10023,6 +10023,32 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .compare-avg-row td { border-top: 2px solid var(--accent, rgba(245,166,35,0.4)); }
 .compare-avg-row td strong { color: var(--accent, #f5a623); }
 
+/* ТЗ v1.2 §8/§9 — a withheld number states its reason instead of vanishing.
+   The dotted underline marks a cell that is deliberately not a figure: "убыток"
+   is a fact about the issuer, "проверяется" is a fact about the statement. */
+.cell-status { font-size: 12px; color: var(--muted); border-bottom: 1px dotted currentColor; cursor: help; }
+
+/* How many tiles entered a sector's number ("12 из 21"). Without it a
+   turnover-weighted move looks like it describes every security shown. */
+.htl-count { font-size: 10px; color: var(--muted); margin-left: 6px; white-space: nowrap; }
+
+/* Tiles that are NOT a price move. Grey alone read as "unchanged", which is how
+   ten securities with no price at all came to sit in the sector averages. */
+.heatmap-tree-tile.is-no-price,
+.heatmap-tree-tile.is-not-traded,
+.heatmap-tree-tile.is-inactive {
+  background-image: repeating-linear-gradient(135deg,
+    rgba(148, 163, 184, 0.30) 0 3px, transparent 3px 7px);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+.heatmap-tree-tile.is-no-price { border-style: solid; border-color: rgba(251, 191, 36, 0.65); }
+.heatmap-tree-tile.is-inactive { opacity: 0.55; }
+/* Below the confidence thresholds one trade is deciding the colour. */
+.heatmap-tree-tile.is-low-confidence { outline: 1px dashed rgba(226, 232, 240, 0.75); outline-offset: -2px; }
+
+.heatmap-tt-note { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+.heatmap-tt-note.is-warn { color: #fbbf24; }
+
 /* Price statistics (ТЗ v1.2 §5/§6). Two blocks, visually separated, because
    they answer different questions: one follows the period button, the other
    must not. A reader who cannot see the split reads a 12-month YTD as a
