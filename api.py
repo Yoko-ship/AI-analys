@@ -84,7 +84,7 @@ import obs  # noqa: E402
 FEATURE_FLAGS: dict[str, bool] = {
     key: os.getenv(f"FLAG_{key.upper()}", "1").strip().lower() not in {"0", "false", "no"}
     for key in ("catalog_v2", "metrics_v2", "tiers_v1", "multiples_v2",
-                "market_validation_v1", "map_v2")
+                "market_validation_v1", "map_v2", "audit_v1")
 }
 from securities_catalog import get_securities_map, get_wiki_info, record_volume, resolve_logo, sync_securities
 from web_auth import WebUser, web_auth_store, is_admin_email
@@ -1284,8 +1284,45 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
                 **{k: v for k, v in multiples.items()},
             })
     rows.sort(key=lambda r: r["ticker"])
+    _apply_audit_blocks(rows)
     return {"ok": True, "count": len(rows), "issuers": len(groups),
             "items": rows, "by_issuer": by_issuer}
+
+
+def _apply_audit_blocks(rows: list[dict[str, Any]]) -> int:
+    """Withhold every metric an open BLOCKING finding covers (ТЗ v1.3 §12.2).
+
+    This is the line between a report and a control. The auditor is allowed to
+    take a number off the screen: the cell becomes a dash carrying the rule that
+    withheld it. Without this the module would only describe problems it had no
+    power to stop, and a wrong figure would keep being published next to a
+    perfectly accurate description of why it is wrong.
+
+    An audit outage must never blank the board, so a failure here leaves the
+    data untouched.
+    """
+    try:
+        from audit import blocking_index
+
+        index = blocking_index()
+    except Exception:  # noqa: BLE001
+        logger.exception("audit blocking index unavailable; publishing unfiltered")
+        return 0
+    if not index:
+        return 0
+    blocked = 0
+    for row in rows:
+        metrics = index.get(str(row.get("ticker") or "").upper())
+        if not metrics:
+            continue
+        for metric in metrics:
+            current = row.get(metric)
+            if isinstance(current, dict) and current.get("value") is not None:
+                row[metric] = {"value": None, "status": "audit_blocked",
+                               "note": "значение снято аудитором данных",
+                               "audit_metric": metric}
+                blocked += 1
+    return blocked
 
 
 @app.get("/api/market/multiples")
@@ -1416,6 +1453,199 @@ async def api_config(request: Request) -> Response:
         "thresholds": formulas.thresholds(),
         "flags": FEATURE_FLAGS,
     }, max_age=300)
+
+
+async def _audit_context(with_history: int = 0):
+    """Assemble everything the auditor looks at (ТЗ v1.3 §12).
+
+    Raw sources AND what the API currently publishes — the auditor's whole
+    method is to recompute the first and compare against the second.
+    """
+    from audit.checks import AuditContext
+
+    inputs = await _market_inputs()
+    multiples = _multiples_payload(inputs)
+    map_payload = heatmap.build_heatmap(inputs["board"], inputs["securities"],
+                                        inputs["stats"], inputs["trade_date"])
+    catalog = instruments.build_catalog(
+        securities=inputs["securities"], board=inputs["board"], listings=inputs["listings"],
+        financials=inputs["financials"], ratios=inputs["ratios"], sectors=COMPANY_SECTORS)
+    cap = fundamentals.market_capitalisation(inputs["board"], inputs["securities"])
+    board = inputs["board"]
+    traded = [r for r in board if (formulas.to_number(r.get("trade_count")) or 0) > 0
+              or (formulas.to_number(r.get("volume")) or 0) > 0]
+    up = down = flat = 0
+    for row in traded:
+        change = heatmap.day_change(formulas.to_number(row.get("last_price")),
+                                    formulas.to_number(row.get("close_price")))
+        if change is None:
+            continue
+        up += change > 0.05
+        down += change < -0.05
+        flat += -0.05 <= change <= 0.05
+    summary = {"instruments": len(board), "traded_today": len(traded), "up": up, "down": down,
+               "flat": flat, "market_cap": cap,
+               "turnover_today": sum((formulas.to_number(r.get("volume")) or 0) for r in traded),
+               "trades_today": sum((formulas.to_number(r.get("trade_count")) or 0) for r in traded)}
+
+    # XSC-03 needs the same security's absolute block under every period button.
+    # History is expensive, so it is sampled unless explicitly asked for.
+    history: dict[str, list] = {}
+    metrics_by_period: dict[str, dict[int, Any]] = {}
+    if with_history:
+        active = [i for i in catalog["items"] if i["is_active"] and i["isin"]][:int(with_history)]
+        for item in active:
+            try:
+                data = await _full_history(item["isin"])
+            except Exception:  # noqa: BLE001 — one unreachable series is a finding, not a crash
+                continue
+            points = data.get("points") or []
+            history[item["ticker"]] = points
+            metrics_by_period[item["ticker"]] = {
+                months: formulas.company_metrics(points, months=months)["absolute"]
+                for months in (1, 3, 6, 12, 36, 60)
+            }
+
+    return AuditContext(
+        board=board, securities=inputs["securities"], financials=inputs["financials"],
+        ratios=inputs["ratios"], listings=inputs["listings"], stats=inputs["stats"],
+        history=history, published_multiples=multiples["items"], published_map=map_payload,
+        published_summary=summary, published_catalog=catalog,
+        published_metrics_by_period=metrics_by_period,
+        published_ma_windows=formulas.company_metrics([], months=12)["ma_windows"],
+    )
+
+
+_audit_lock = threading.Lock()
+_audit_last_started = 0.0
+_AUDIT_MIN_INTERVAL = 120.0
+
+
+def _schedule_audit(trigger: str) -> bool:
+    """Run the auditor after a data load, in the background (ТЗ v1.3 §12.7).
+
+    The check is worth having precisely because data changes without anyone
+    looking, so it fires on the load rather than on a person remembering. It
+    never blocks the ingest that triggered it and never raises into it: a failed
+    audit is a failed audit, not a failed collection.
+    """
+    global _audit_last_started
+    if not FEATURE_FLAGS.get("audit_v1", True):
+        return False
+    now = time.time()
+    with _audit_lock:
+        if now - _audit_last_started < _AUDIT_MIN_INTERVAL:
+            return False
+        _audit_last_started = now
+
+    async def _go() -> None:
+        from audit import run_audit
+        try:
+            ctx = await _audit_context()
+            report = run_audit(ctx, trigger=trigger)
+            logger.info("audit after %s: %s, blocking=%d", trigger, report["status"],
+                        report["summary"]["blocking"])
+        except Exception:  # noqa: BLE001 — never propagate into the ingest path
+            logger.exception("scheduled audit after %s failed", trigger)
+
+    try:
+        asyncio.get_running_loop().create_task(_go())
+        return True
+    except RuntimeError:
+        return False
+
+
+@app.post("/api/audit/run")
+async def api_audit_run(payload: dict[str, Any] | None = None,
+                        _: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Run the auditor (ТЗ §12.5). Scope: all, one group, one rule, one ticker."""
+    from audit import run_audit
+
+    payload = payload or {}
+    trace = obs.Trace(endpoint="audit/run")
+    try:
+        ctx = await _audit_context(with_history=int(payload.get("with_history") or 0))
+        trace.step("context", instruments=len(ctx.board),
+                   published=len(ctx.published_multiples), history=len(ctx.history))
+        report = run_audit(
+            ctx, trigger=str(payload.get("trigger") or "manual"),
+            codes=payload.get("codes"), group=payload.get("group"),
+            ticker=payload.get("ticker"), trace_id=trace.trace_id)
+        trace.step("audit", decision=report["status"], **report["summary"])
+        return _json_safe(report)
+    finally:
+        trace.close()
+
+
+@app.get("/api/audit/runs")
+async def api_audit_runs(limit: int = 20, _: None = Depends(_require_admin)) -> dict[str, Any]:
+    from audit import list_runs
+    return _json_safe({"ok": True, "items": list_runs(max(1, min(limit, 200)))})
+
+
+@app.get("/api/audit/runs/{run_id}")
+async def api_audit_run_detail(run_id: str, _: None = Depends(_require_admin)) -> dict[str, Any]:
+    from audit import find_findings, get_run
+
+    run = get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="run not found")
+    return _json_safe({"ok": True, "run": run, "findings": find_findings(run_id=run_id)})
+
+
+@app.get("/api/audit/findings")
+async def api_audit_findings(severity: str | None = None, group: str | None = None,
+                             status: str | None = None, ticker: str | None = None,
+                             limit: int = 200,
+                             _: None = Depends(_require_admin)) -> dict[str, Any]:
+    from audit import find_findings
+    return _json_safe({"ok": True, "items": find_findings(
+        severity=severity, group=group, status=status, ticker=ticker,
+        limit=max(1, min(limit, 2000)))})
+
+
+@app.patch("/api/audit/findings/{finding_id}")
+async def api_audit_update_finding(finding_id: int, payload: dict[str, Any],
+                                   _: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Move a finding to `accepted` (a known exception) or `confirmed`/`fixed`.
+
+    §12.2: no finding disappears silently — a decision about one is recorded on
+    it, with its note, rather than expressed by deleting the row.
+    """
+    from audit import update_finding
+
+    try:
+        row = update_finding(finding_id, status=str(payload.get("status")),
+                             note=payload.get("note"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not row:
+        raise HTTPException(status_code=404, detail="finding not found")
+    return _json_safe({"ok": True, "finding": row})
+
+
+@app.get("/api/audit/rules")
+async def api_audit_rules(request: Request) -> Response:
+    """The rule book, readable without credentials: what is checked and why."""
+    from audit import ALL_RULES, GROUPS
+    return _etag_json(request, {
+        "ok": True,
+        "groups": GROUPS,
+        "count": len(ALL_RULES),
+        "items": [{"code": r.code, "group": r.group, "title": r.title,
+                   "severity": r.severity, "threshold": r.threshold, "note": r.note}
+                  for r in ALL_RULES],
+    }, max_age=3600)
+
+
+@app.get("/api/audit/badge/{ticker}")
+async def api_audit_badge(ticker: str) -> dict[str, Any]:
+    """Can this security's numbers be trusted right now? (ТЗ §12.5/§12.6)
+
+    Public: this is the fact the reader needs. They do not need rule codes.
+    """
+    from audit import ticker_badge
+    return _json_safe({"ok": True, **ticker_badge(ticker)})
 
 
 @app.get("/api/admin/invariants")
@@ -2212,6 +2442,7 @@ async def api_admin_quotes(
     except Exception as exc:
         logger.exception("admin quotes upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    _schedule_audit("ingest:quotes")
     return {"ok": True, "upserted": n}
 
 
