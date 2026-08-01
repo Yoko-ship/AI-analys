@@ -1546,12 +1546,15 @@ async def api_admin_bond_reference(payload: dict[str, Any],
                                    _: None = Depends(_require_admin)) -> dict[str, Any]:
     """Load the issue reference — the second half of the contour (§А.4).
 
-    `is_complete` is the master switch: while the nominal, coupon rate and
-    maturity are missing every yield metric stays a dash, and the moment they
-    arrive the metrics turn on with no code change.
+    Three switches, not one: the par (from the exchange) turns on the price as a
+    percentage of par, the coupon rate (from the issuer's payment filings) turns
+    on accrued interest and the running yield, and only a FILED redemption date
+    turns on yield to maturity and duration. Each arrives from a different place
+    and at a different time, and each turns its metrics on with no code change.
     """
     written = provenance.upsert_bond_reference(payload.get("rows") or [])
-    return {"ok": True, "upserted": written}
+    coupons = provenance.upsert_bond_coupons(payload.get("coupons") or [])
+    return {"ok": True, "upserted": written, "coupons": coupons}
 
 
 @app.get("/api/catalog/reports/summary")
