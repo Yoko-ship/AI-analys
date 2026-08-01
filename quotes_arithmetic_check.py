@@ -44,6 +44,15 @@ MONTHS = int(os.environ.get("MONTHS", "60"))
 TOL = 1e-6
 
 
+def norm_day(value) -> str:
+    """DD.MM.YYYY / YYYY-MM-DD / YYYYMMDD -> YYYYMMDD."""
+    text = str(value or "").strip()
+    if len(text) == 10 and text[2] == "." and text[5] == ".":
+        return text[6:] + text[3:5] + text[:2]
+    digits = text.replace("-", "")
+    return digits if len(digits) == 8 and digits.isdigit() else ""
+
+
 def board() -> list[dict]:
     rows: list[dict] = []
     for kind in ("stock", "bond"):
@@ -62,6 +71,16 @@ def near(a, b) -> bool:
 
 def main() -> int:
     rows = [r for r in board() if r.get("isin")]
+    # The session the board describes is the latest day any row reports. A
+    # security traded in it only if its own trade date IS that day — the rule
+    # the interface already uses to decide whether stored statistics belong
+    # beside a live quote. The trade-stats feed carries the LAST KNOWN stats for
+    # every security, so counting its rows says "all 108 traded", which is the
+    # same mistake as reading trade_count off a board row that never has one.
+    board_day = max((norm_day(r.get("last_trade_date")) for r in rows), default="")
+    traded_set = {str(r.get("isin")).upper() for r in rows
+                  if norm_day(r.get("last_trade_date")) == board_day and board_day}
+    print(f"board session {board_day}: {len(traded_set)} of {len(rows)} traded in it")
     if LIMIT:
         rows = rows[:LIMIT]
     print(f"verifying {len(rows)} securities against the openinfo trade archive\n")
@@ -114,7 +133,21 @@ def main() -> int:
 
         ours_change = ((ours_last - ours_prev) / ours_prev * 100.0
                        if ours_prev else None)
-        last_ok, prev_ok = near(ours_last, true_last), near(ours_prev, true_prev)
+
+        # WHICH previous close is the right one depends on whether the security
+        # traded in the session the board is showing.
+        #
+        # It did: the exchange's previous close IS the previous session's close,
+        # so both must match the archive.
+        #
+        # It did not: the exchange carries the close forward and reports
+        # prev == close, change 0 %. Demanding that our `prev` match a session
+        # three weeks ago would be demanding we disagree with the exchange. Only
+        # the price is checkable, and there is no change to check — TGPG's -20 %
+        # happened on 15.07 and is not news today.
+        traded_now = isin in traded_set
+        last_ok = near(ours_last, true_last)
+        prev_ok = near(ours_prev, true_prev) if traded_now else near(ours_prev, ours_last)
         if last_ok and prev_ok:
             ok += 1
         else:
