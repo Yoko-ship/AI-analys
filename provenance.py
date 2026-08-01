@@ -156,14 +156,18 @@ def upsert_report(org_id: str, report_form: str, period_type: str, period_year: 
             "AND period_type=? AND period_year=? AND IFNULL(period_quarter,-1)=IFNULL(?,-1)",
             (org_id, report_form, period_type, period_year, period_quarter)).fetchone()
         if row is None:
+            # RETURNING, not lastrowid: the latter is a SQLite attribute and
+            # psycopg does not have it. RETURNING is standard and says exactly
+            # which row was written even under concurrency.
             cur = conn.execute(
                 "INSERT INTO source_reports (org_id, report_form, period_type, period_year, "
                 "period_quarter, title, pdf_url, excel_url, file_hash, state, discovered_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?, 'discovered', ?)",
+                "VALUES (?,?,?,?,?,?,?,?,?, 'discovered', ?) RETURNING id",
                 (org_id, report_form, period_type, period_year, period_quarter, title,
                  pdf_url, excel_url, hash_value, _now()))
+            new_id = int(cur.fetchone()[0])
             conn.commit()
-            return int(cur.lastrowid)
+            return new_id
         if hash_value and row["file_hash"] and hash_value != row["file_hash"]:
             conn.execute(
                 "UPDATE source_reports SET file_hash=?, state='discovered', "

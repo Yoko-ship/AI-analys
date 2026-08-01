@@ -38,11 +38,16 @@ class Migration:
     apply: Step
 
 
-def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+def _columns(conn: Any, table: str) -> set[str]:
+    """Portable column list — PRAGMA would tie migrations to SQLite."""
+    import dbx
+
     try:
-        return {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
-    except sqlite3.Error:
-        return set()
+        return set(dbx.columns(conn, table))
+    except Exception as exc:  # an ABSENT TABLE has no columns; anything else is a fault
+        if "no such table" in str(exc).lower() or "does not exist" in str(exc).lower():
+            return set()
+        raise
 
 
 def add_column(table: str, column: str, ddl: str) -> Step:
