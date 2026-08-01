@@ -14,6 +14,14 @@ each security:
     change %    must equal (last - prev) / prev * 100 on those two closes
 
 That holds on any day of the week, and it is what the column claims to show.
+
+A security that has NEVER TRADED has no two closes to compare, and an earlier
+version of this file reported those as "no usable archive" and left it there —
+which quietly counted "we did not check" as "we cannot know". It can be known:
+uzse.uz publishes a standing reference price for them, and that price is exactly
+what the board should show. Those securities are therefore verified on PRICE
+against the exchange, and only the change % is left unverified, because for a
+security that has never traded there is no change to verify.
 """
 from __future__ import annotations
 
@@ -25,6 +33,7 @@ import time
 import requests
 
 from openinfo_collector import fetch_price_history
+from uzse_quotes import fetch_quote
 
 APP = os.environ.get("APP_URL", "https://ai-analys-production.up.railway.app").rstrip("/")
 LIMIT = int(os.environ.get("LIMIT", "0"))
@@ -58,6 +67,7 @@ def main() -> int:
     print(f"verifying {len(rows)} securities against the openinfo trade archive\n")
 
     ok = price_wrong = prev_wrong = no_history = no_price = 0
+    never_traded_ok = never_traded_bad = 0
     problems: list[dict] = []
 
     for i, row in enumerate(rows, 1):
@@ -72,7 +82,23 @@ def main() -> int:
             [p for p in points if p.get("close") and float(p["close"]) > 0],
             key=lambda p: str(p["date"]))
         if len(sessions) < 2:
-            no_history += 1
+            # Never traded: no change to check, but the exchange still quotes a
+            # price and the board must match it.
+            market = "BND" if str(row.get("type") or "").lower() == "bond" else "STK"
+            quote = fetch_quote(isin, market)
+            time.sleep(0.25)
+            theirs = (quote or {}).get("close_price")
+            if theirs is None:
+                no_history += 1
+                continue
+            if near(row.get("last_price"), theirs):
+                never_traded_ok += 1
+            else:
+                never_traded_bad += 1
+                problems.append({
+                    "ticker": ticker,
+                    "issue": "never traded; board price disagrees with uzse",
+                    "archive_last": theirs, "archive_date": "uzse reference"})
             continue
         last, prev = sessions[-1], sessions[-2]
         true_last, true_prev = float(last["close"]), float(prev["close"])
@@ -109,11 +135,16 @@ def main() -> int:
             print(f"  ...{i}/{len(rows)}")
 
     total = len(rows)
-    print(f"\ncorrect (price AND previous close match the archive): {ok}/{total}")
-    print(f"  last price wrong        {price_wrong}")
-    print(f"  previous close wrong    {prev_wrong}")
-    print(f"  board has no price      {no_price}")
-    print(f"  no usable archive       {no_history}")
+    verified = ok + never_traded_ok
+    print(f"\nVERIFIED CORRECT: {verified}/{total}")
+    print(f"  traded      — price and previous close match the archive  {ok}")
+    print(f"  never traded — price matches the exchange's quote         {never_traded_ok}")
+    print("problems:")
+    print(f"  last price wrong          {price_wrong}")
+    print(f"  previous close wrong      {prev_wrong}")
+    print(f"  board has no price        {no_price}")
+    print(f"  never traded, disagrees   {never_traded_bad}")
+    print(f"  no source at all          {no_history}")
 
     if problems:
         print("\nDETAIL:")
@@ -128,7 +159,7 @@ def main() -> int:
                       f"({p['previous_session']} -> {p['session']})")
         with open("quotes_arithmetic_report.json", "w", encoding="utf-8") as fh:
             json.dump(problems, fh, ensure_ascii=False, indent=1)
-    return 0 if ok == total else 1
+    return 0 if verified == total else 1
 
 
 if __name__ == "__main__":
