@@ -486,6 +486,90 @@ def absolute_metrics(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Around a dated event (the news story page)
+# ---------------------------------------------------------------------------
+
+def price_reaction(points: Sequence[dict[str, Any]], when: Any,
+                   *, baseline_sessions: int = 30) -> dict[str, Any]:
+    """What the price did around a story, stated as two dated closes.
+
+    Deliberately NOT called a reaction to the news in anything it returns: this
+    measures a coincidence of timing and nothing more, and every field carries the
+    date it belongs to so a reader can see the span for themselves.
+
+    The publication day is the awkward part. We know the day a story was filed,
+    not whether it landed before or after that day's session, and the sources
+    disagree about timezone anyway — so the base is the last close STRICTLY BEFORE
+    the publication day, which is unambiguous, and the session that follows is
+    flagged ``same_day`` when it falls on the publication day itself. The interface
+    can then hedge the sentence instead of the number being quietly wrong.
+
+    An issuer that has not traded since is `no_session_yet`, never a zero: on this
+    market that is the common case, not the exception (see ``data_quality``).
+    """
+    day = _as_date(when)
+    empty = {"before": None, "after": None, "latest": None, "sessions_after": 0,
+             "change": _metric(None, "no_data"), "since": _metric(None, "no_data"),
+             "volume": _metric(None, "no_data"),
+             "volume_vs_normal": _metric(None, "no_data"),
+             "data_tier": None, "quality_note": None}
+    if day is None:
+        return {**empty, "status": "no_date"}
+    if not points:
+        return {**empty, "status": "no_history"}
+
+    quality = data_quality(points)
+    common = {"data_tier": quality.get("data_tier"), "quality_note": quality.get("reason")}
+
+    before = None
+    for p in points:
+        if p["d"] < day:
+            before = p
+        else:
+            break
+    after = next((p for p in points if p["d"] >= day), None)
+    latest = points[-1]
+    latest_view = {"date": latest["date"], "close": latest["close"]}
+
+    if before is None:
+        # The story predates everything we hold, so there is no base to measure from.
+        return {**empty, **common, "status": "no_prior_close", "latest": latest_view}
+    before_view = {"date": before["date"], "close": before["close"]}
+    if after is None:
+        return {**empty, **common, "status": "no_session_yet",
+                "before": before_view, "latest": latest_view}
+
+    # The baseline is the sessions BEFORE the story: comparing the day's volume with a
+    # window that already contains it would flatten exactly the spike being measured.
+    prior = [p for p in points if p["d"] < day][-max(1, baseline_sessions):]
+    normal = sum(p.get("volume") or 0.0 for p in prior) / len(prior) if prior else 0.0
+    volume = after.get("volume")
+    sessions_after = sum(1 for p in points if p["d"] >= after["d"])
+
+    return {
+        **common,
+        "status": "ok",
+        "before": before_view,
+        "after": {"date": after["date"], "close": after["close"],
+                  "same_day": after["d"] == day},
+        "latest": latest_view,
+        "sessions_after": sessions_after,
+        "change": _metric(_pct_change(after["close"], before["close"]), "ok",
+                          base_date=before["date"], date=after["date"]),
+        "since": _metric(_pct_change(latest["close"], before["close"]), "ok",
+                         base_date=before["date"], date=latest["date"]),
+        "volume": _metric(volume, "ok" if volume is not None else "no_data",
+                          date=after["date"]),
+        "volume_vs_normal": (
+            _metric(volume / normal, "ok", baseline_sessions=len(prior),
+                    baseline_volume=normal)
+            if volume is not None and normal > 0
+            else _metric(None, "no_baseline",
+                         note="до публикации сделок не было")),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Data quality (ТЗ §5 / §6)
 # ---------------------------------------------------------------------------
 

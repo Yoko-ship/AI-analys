@@ -10258,6 +10258,40 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .led-iss-news .led-panel-h { margin-bottom: 4px; }
 .led .led-iss-news .led-lt:first-of-type { border-top: 0; padding-top: 0; }
 
+/* Quotes around the publication. The two dated closes are the whole point, so they
+   are the only thing at reading size; everything qualifying them sits below, smaller. */
+.led .led-rx-grid { display: grid; gap: 10px; }
+.led .led-rx-row { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 12px 16px; }
+.led .led-rx-tk { display: flex; align-items: baseline; gap: 9px; width: 100%; padding: 0;
+  background: none; border: 0; cursor: pointer; font: inherit; color: inherit; text-align: left; }
+.led .led-rx-tk b { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--muted);
+  padding: 2px 7px; border-radius: 999px; background: var(--surface-2); flex: none; }
+.led .led-rx-tk span { font-size: 13px; color: var(--muted); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.led .led-rx-tk:hover span { color: var(--accent); }
+.led .led-rx-span { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px;
+  font-size: 17px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.led .led-rx-leg { display: inline-flex; align-items: baseline; gap: 6px; }
+/* The date is what makes the pair honest — it is small, but it is never optional. */
+.led .led-rx-leg i { font-style: normal; font-size: 11px; letter-spacing: .04em;
+  color: var(--muted-light); text-transform: lowercase; }
+.led .led-rx-arrow { color: var(--muted-light); font-size: 14px; }
+.led .led-rx-chg { margin-left: auto; font-weight: 700; }
+.led .led-rx-chg.pos { color: var(--success); }
+.led .led-rx-chg.neg { color: var(--danger); }
+.led .led-rx-meta { display: flex; flex-wrap: wrap; gap: 4px 22px; margin: 10px 0 0; }
+.led .led-rx-meta > div { display: grid; gap: 2px; }
+.led .led-rx-meta dt { font-size: 10.5px; letter-spacing: .04em; color: var(--muted-light); }
+.led .led-rx-meta dd { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.led .led-rx-meta dd.pos { color: var(--success); }
+.led .led-rx-meta dd.neg { color: var(--danger); }
+.led .led-rx-sessions { font-weight: 400; color: var(--muted-light); }
+.led .led-rx-none { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.led .led-rx-hedge { margin: 8px 0 0; font-size: 11.5px; color: var(--muted-light); }
+@media (max-width: 420px) {
+  .led .led-rx-chg { margin-left: 0; width: 100%; }
+}
+
 .led .led-art-related { margin-top: 34px; }
 .led .led-art-related .led-panel-h { margin-bottom: 18px; }
 

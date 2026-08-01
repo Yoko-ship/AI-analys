@@ -84,6 +84,20 @@ const NEWS_ITEMS = [
     sectors: [], relevance_score: 0.9, coverage_weight: 0.95, tickers: [], rank: 0.6 },
 ];
 
+// What the price did around story 11 — two dated closes, as `formulas.price_reaction`
+// returns them. Never a claim that the story moved the price.
+const REACTION = {
+  ticker: "AGBA", isin: "UZ0001", status: "ok", data_tier: "full", quality_note: null,
+  before: { date: "2026-07-23", close: 1440 },
+  after: { date: "2026-07-24", close: 1500, same_day: true },
+  latest: { date: "2026-07-26", close: 1530 },
+  sessions_after: 3,
+  change: { value: 4.1666, status: "ok", base_date: "2026-07-23", date: "2026-07-24" },
+  since: { value: 6.25, status: "ok", base_date: "2026-07-23", date: "2026-07-26" },
+  volume: { value: 24000, status: "ok", date: "2026-07-24" },
+  volume_vs_normal: { value: 2.4, status: "ok", baseline_sessions: 30, baseline_volume: 10000 },
+};
+
 async function mockApi(page) {
   await page.route("**/api/**", (route) => {
     const p = new URL(route.request().url()).pathname;
@@ -115,6 +129,10 @@ async function mockApi(page) {
       const items = NEWS_ITEMS.filter((n) => (n.tickers || []).includes(tk));
       return j({ ok: true, ticker: tk, count: items.length, items,
                  sentiment: { ticker: tk, count: 4, weighted_tone: 0.31, positive: 3, neutral: 1, negative: 0 } });
+    }
+    // Before the item route below, which would otherwise swallow it.
+    if (p.startsWith("/api/news/item/") && p.endsWith("/reaction")) {
+      return j({ ok: true, id: 11, published_at: "2026-07-24 09:00:00", items: [REACTION] });
     }
     if (p.startsWith("/api/news/item/")) {
       const id = Number(p.slice("/api/news/item/".length));
@@ -219,6 +237,36 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
   await page.locator(".led-back").click();
   await expect(page).toHaveURL(/\/news$/);
   await expect(page.locator(".led-lead")).toBeVisible();
+});
+
+test("the story page shows what the price did around it, and hedges it (§3.11)", async ({ page }) => {
+  await page.goto("/news/11");
+  const rx = page.locator(".led-rx");
+  await expect(rx).toBeVisible();
+  // Both closes carry their date: the pair means nothing without them.
+  await expect(rx.locator(".led-rx-leg").first()).toContainText("1 440");
+  await expect(rx.locator(".led-rx-leg").nth(1)).toContainText("1 500");
+  await expect(rx.locator(".led-rx-chg")).toHaveText("+4.2%");
+  await expect(rx.locator(".led-rx-meta")).toContainText("×2.4");
+  await expect(rx.locator(".led-rx-meta")).toContainText("+6.3%");
+  // A same-day session cannot be attributed to the story, and the note says so —
+  // once, under the block, rather than on every row.
+  await expect(rx.locator(".led-art-hint")).toContainText("не доказанная реакция");
+  await expect(rx.locator(".led-art-hint")).toContainText("того же дня");
+});
+
+test("an issuer that has not traded since publication is not shown as a zero (§3.11)", async ({ page }) => {
+  await page.route("**/api/news/item/*/reaction", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ ok: true, id: 11, items: [{
+      ticker: "AGBA", status: "no_session_yet", data_tier: "illiquid",
+      before: { date: "2026-07-23", close: 1440 }, after: null,
+      change: { value: null, status: "no_data" },
+    }] }),
+  }));
+  await page.goto("/news/11");
+  await expect(page.locator(".led-rx-none")).toContainText("торгов по бумаге ещё не было");
+  await expect(page.locator(".led-rx-chg")).toHaveCount(0);
 });
 
 test("an openinfo filing says the link opens the issuer card, not an article (§3.11)", async ({ page }) => {
