@@ -372,3 +372,99 @@ def bond_coupons() -> dict[str, list[dict[str, Any]]]:
         return out
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Bridging the existing catalog into the registry
+# ---------------------------------------------------------------------------
+
+def sync_from_catalog() -> dict[str, int]:
+    """Register what the catalog already knows as `discovered` reports.
+
+    The project has been collecting `catalog_companies` and `catalog_reports` for
+    a long time; what it never had was a state for each report or a link from a
+    published figure back to one. So the registry is seeded from those tables
+    rather than started empty — the provenance layer describes the filings we
+    actually hold, from the first run.
+
+    Idempotent: a report already registered keeps its state, so a nightly sync
+    does not reset something that has been parsed.
+    """
+    init()
+    conn = _conn()
+    issuers = reports = 0
+    try:
+        # ТЗ Б.6: the catalog is a list of ISSUERS. 73 ticker rows are 66
+        # organisations; keying by ticker is why a bond series showed "0 отчётов"
+        # while its issuer's filings sat under another ticker.
+        for row in conn.execute(
+                "SELECT org_id, MIN(company_name) AS name, MAX(last_synced_at) AS synced "
+                "FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != '' "
+                "GROUP BY org_id"):
+            conn.execute(
+                "INSERT INTO issuers (org_id, name, synced_at) VALUES (?,?,?) "
+                "ON CONFLICT(org_id) DO UPDATE SET name=excluded.name, "
+                "synced_at=COALESCE(excluded.synced_at, issuers.synced_at)",
+                (row["org_id"], row["name"], row["synced"]))
+            issuers += 1
+
+        for row in conn.execute(
+                "SELECT r.ticker, r.report_form, r.period_type, r.year, r.quarter, "
+                "       r.title, r.pdf_url, r.excel_url, c.org_id "
+                "FROM catalog_reports r LEFT JOIN catalog_companies c ON c.ticker = r.ticker "
+                "WHERE r.year IS NOT NULL"):
+            org_id = row["org_id"] or f"ticker:{row['ticker']}"
+            quarter = row["quarter"] or None
+            existing = conn.execute(
+                "SELECT id FROM source_reports WHERE org_id=? AND report_form=? AND "
+                "period_type=? AND period_year=? AND IFNULL(period_quarter,-1)=IFNULL(?,-1)",
+                (org_id, row["report_form"], row["period_type"], row["year"], quarter)
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    "UPDATE source_reports SET pdf_url=COALESCE(?, pdf_url), "
+                    "excel_url=COALESCE(?, excel_url), title=COALESCE(?, title) WHERE id=?",
+                    (row["pdf_url"], row["excel_url"], row["title"], existing["id"]))
+            else:
+                conn.execute(
+                    "INSERT INTO source_reports (org_id, report_form, period_type, "
+                    "period_year, period_quarter, title, pdf_url, excel_url, state, "
+                    "discovered_at) VALUES (?,?,?,?,?,?,?,?, 'discovered', ?)",
+                    (org_id, row["report_form"], row["period_type"], row["year"], quarter,
+                     row["title"], row["pdf_url"], row["excel_url"], _now()))
+                reports += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return {"issuers": issuers, "reports_registered": reports}
+
+
+def report_id_for(ticker: str, report_form: str, period_type: str, year: int,
+                  quarter: int | None = None) -> int | None:
+    """The registry id of a report, resolved the way the parser identifies it."""
+    init()
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT r.id FROM source_reports r "
+            "LEFT JOIN catalog_companies c ON c.org_id = r.org_id "
+            "WHERE (c.ticker = ? OR r.org_id = ?) AND r.report_form = ? "
+            "AND r.period_type = ? AND r.period_year = ? "
+            "AND IFNULL(r.period_quarter,-1) = IFNULL(?,-1) LIMIT 1",
+            (ticker, f"ticker:{ticker}", report_form, period_type, year,
+             quarter or None)).fetchone()
+        return int(row["id"]) if row else None
+    finally:
+        conn.close()
+
+
+def ticker_of(report_id: int) -> str | None:
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT COALESCE(c.ticker, REPLACE(r.org_id,'ticker:','')) AS ticker "
+            "FROM source_reports r LEFT JOIN catalog_companies c ON c.org_id = r.org_id "
+            "WHERE r.id = ? LIMIT 1", (report_id,)).fetchone()
+        return row["ticker"] if row else None
+    finally:
+        conn.close()
