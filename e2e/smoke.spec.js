@@ -489,8 +489,11 @@ test("the sponsor overlay starts muted, becomes closable, and stays closed (§ad
 
   await expect(page.locator(".sponsor-overlay-label")).toHaveText("Реклама");
   expect(await page.locator(".sponsor-overlay video").evaluate((v) => v.muted)).toBe(true);
-  // The countdown holds the close control back, then hands it over.
+  // The countdown holds the close control back for a full 15s, then hands it
+  // over. Ten seconds in it is still a counter, not an ×.
   await expect(page.locator(".sponsor-overlay-count")).toBeVisible();
+  await page.waitForTimeout(10000);
+  await expect(page.locator(".sponsor-overlay-close")).toHaveCount(0);
   await expect(page.locator(".sponsor-overlay-close")).toBeVisible({ timeout: 12000 });
 
   await page.locator(".sponsor-overlay-close").click();
