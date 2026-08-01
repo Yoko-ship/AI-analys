@@ -770,6 +770,12 @@ const NEWS_ARTICLE_TX = {
     issuers: "Эмитенты в этой новости", price: "Цена", change: "Изм.",
     tone90: "Тон · 90 дн", basedOn: "публикаций за 90 дней",
     moreNews: "Другие новости эмитента", openCompany: "Открыть карточку эмитента",
+    rxTitle: "Котировки вокруг публикации", rxVolume: "Объём к среднему",
+    rxSince: "С публикации", rxSessions: "сессии",
+    rxNoSession: "После публикации торгов по бумаге ещё не было.",
+    rxSameDay: "Сессия того же дня — публикация могла выйти и после её закрытия.",
+    rxIlliquid: "Бумага торгуется редко: движение может отражать одну сделку.",
+    rxNote: "Это два закрытия биржи и даты, к которым они относятся, — совпадение по времени, а не доказанная реакция рынка на эту новость.",
   },
   en: {
     back: "All news", loading: "Loading the story…",
@@ -795,6 +801,12 @@ const NEWS_ARTICLE_TX = {
     issuers: "Issuers in this story", price: "Price", change: "Chg.",
     tone90: "Tone · 90d", basedOn: "items over 90 days",
     moreNews: "More from this issuer", openCompany: "Open the issuer page",
+    rxTitle: "Quotes around the publication", rxVolume: "Volume vs average",
+    rxSince: "Since publication", rxSessions: "sessions",
+    rxNoSession: "The security has not traded since this was published.",
+    rxSameDay: "Same-day session — the story may also have come out after it closed.",
+    rxIlliquid: "This security trades rarely: the move may rest on a single trade.",
+    rxNote: "These are two exchange closes and the dates they belong to — a coincidence in time, not a demonstrated market reaction to this story.",
   },
   uz: {
     back: "Barcha yangiliklar", loading: "Yangilik yuklanmoqda…",
@@ -820,6 +832,12 @@ const NEWS_ARTICLE_TX = {
     issuers: "Ushbu yangilikdagi emitentlar", price: "Narx", change: "O'zg.",
     tone90: "Ohang · 90 kun", basedOn: "90 kunlik nashrlar",
     moreNews: "Emitentning boshqa yangiliklari", openCompany: "Emitent kartasini ochish",
+    rxTitle: "E'lon atrofidagi kotirovkalar", rxVolume: "Hajm — o'rtachaga nisbatan",
+    rxSince: "E'londan beri", rxSessions: "sessiya",
+    rxNoSession: "E'londan keyin bu qog'oz bo'yicha savdo bo'lmagan.",
+    rxSameDay: "O'sha kungi sessiya — e'lon u yopilgandan keyin ham chiqqan bo'lishi mumkin.",
+    rxIlliquid: "Qog'oz kam savdo qilinadi: harakat bitta bitimga tayanishi mumkin.",
+    rxNote: "Bu — birjaning ikki yopilishi va ular tegishli sanalar: vaqt bo'yicha mos kelish, bu yangilikka bozor reaksiyasi isboti emas.",
   },
 };
 
@@ -859,6 +877,103 @@ function newsAddsDetail(snippet, summary) {
 // recent headlines. Assembled entirely from what we already serve — `/api/securities` is
 // loaded app-wide (so a cold deep link has prices too) and `/api/news/ticker/{t}` is a plain
 // DB read — so it adds no model call and no source fetch.
+// A short date for the two closes the reaction block compares — the year is noise
+// when both sessions are days apart, and the full stamp already sits in the byline.
+function newsShortDay(dateStr, language) {
+  if (!dateStr) return "";
+  const d = new Date(String(dateStr).replace(" ", "T"));
+  if (isNaN(d.getTime())) return String(dateStr);
+  const loc = language === "en" ? "en-US" : language === "uz" ? "uz-UZ" : "ru-RU";
+  return d.toLocaleDateString(loc, { day: "numeric", month: "short" });
+}
+
+// What the tagged issuers' prices did around the story. Loaded on its own, after the
+// article text: the first call for an issuer reaches openinfo for the full series and
+// the reader should not wait on that to read the story.
+//
+// The wording is the point. This block never says the news moved the price — it shows
+// two dated closes and says so underneath, because that is all the data supports.
+function NewsPriceReaction({ newsId, language, securitiesMap, onOpenCompany, tx }) {
+  const [state, setState] = React.useState({ loading: true, items: [] });
+  useTranslationTick();
+
+  React.useEffect(() => {
+    let alive = true;
+    setState({ loading: true, items: [] });
+    fetch(`/api/news/item/${encodeURIComponent(newsId)}/reaction`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setState({ loading: false, items: (d && d.ok && d.items) || [] }); })
+      .catch(() => { if (alive) setState({ loading: false, items: [] }); });
+    return () => { alive = false; };
+  }, [newsId]);
+
+  // An issuer we could not price at all adds nothing to the page — the issuer block
+  // above already names it. Only rows that carry a real comparison are shown.
+  const rows = state.items.filter((r) => r.status === "ok" || r.status === "no_session_yet");
+  if (state.loading || !rows.length) return null;
+  // Most stories are same-day, so printing that caveat on every row would turn it into
+  // wallpaper. It belongs with the note that already qualifies the whole block.
+  const sameDay = rows.some((r) => r.after && r.after.same_day);
+
+  return (
+    <section className="led-art-block led-rx">
+      <h3 className="led-panel-h">{tx.rxTitle}</h3>
+      <div className="led-rx-grid">
+        {rows.map((r) => {
+          const sec = (securitiesMap && securitiesMap[r.ticker]) || null;
+          const change = r.change && typeof r.change.value === "number" ? r.change.value : null;
+          const since = r.since && typeof r.since.value === "number" ? r.since.value : null;
+          const ratio = r.volume_vs_normal && typeof r.volume_vs_normal.value === "number"
+            ? r.volume_vs_normal.value : null;
+          const cls = change == null ? "" : change > 0 ? "pos" : change < 0 ? "neg" : "";
+          return (
+            <article className="led-rx-row" key={r.ticker}>
+              <button type="button" className="led-rx-tk" title={tx.openCompany}
+                onClick={() => onOpenCompany && onOpenCompany(r.ticker)}>
+                <b>{r.ticker}</b>{sec && sec.name ? <span>{sec.name}</span> : null}
+              </button>
+              {r.status === "no_session_yet" ? (
+                <p className="led-rx-none">{tx.rxNoSession}</p>
+              ) : (
+                <>
+                  <div className="led-rx-span">
+                    <span className="led-rx-leg">
+                      <i>{newsShortDay(r.before.date, language)}</i>
+                      {formatMarketNumber(r.before.close, language)}
+                    </span>
+                    <span className="led-rx-arrow" aria-hidden="true">→</span>
+                    <span className="led-rx-leg">
+                      <i>{newsShortDay(r.after.date, language)}</i>
+                      {formatMarketNumber(r.after.close, language)}
+                    </span>
+                    <b className={`led-rx-chg ${cls}`}>{formatSignedPercent(change)}</b>
+                  </div>
+                  <dl className="led-rx-meta">
+                    {ratio != null && (
+                      <div><dt>{tx.rxVolume}</dt><dd>{`×${ratio.toFixed(1)}`}</dd></div>
+                    )}
+                    {since != null && r.sessions_after > 1 && (
+                      <div>
+                        <dt>{tx.rxSince}</dt>
+                        <dd className={since > 0 ? "pos" : since < 0 ? "neg" : ""}>
+                          {formatSignedPercent(since)}
+                          <span className="led-rx-sessions">{` · ${r.sessions_after} ${tx.rxSessions}`}</span>
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                  {r.data_tier === "illiquid" && <p className="led-rx-hedge">{tx.rxIlliquid}</p>}
+                </>
+              )}
+            </article>
+          );
+        })}
+      </div>
+      <p className="led-art-hint">{sameDay ? `${tx.rxNote} ${tx.rxSameDay}` : tx.rxNote}</p>
+    </section>
+  );
+}
+
 function NewsIssuerContext({ tickers, currentId, language, securitiesMap, onOpenCompany, onOpenNews, tx }) {
   const [byTicker, setByTicker] = React.useState({});
   useTranslationTick();
@@ -1093,6 +1208,16 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
                 securitiesMap={securitiesMap}
                 onOpenCompany={onOpenCompany}
                 onOpenNews={onOpenNews}
+                tx={tx}
+              />
+            )}
+
+            {tickers.length > 0 && item.id && (
+              <NewsPriceReaction
+                newsId={item.id}
+                language={language}
+                securitiesMap={securitiesMap}
+                onOpenCompany={onOpenCompany}
                 tx={tx}
               />
             )}
@@ -5443,11 +5568,15 @@ function BondsTable({ language, onOpen }) {
           <thead>
             <tr>
               <th>{t("Тикер", "Ticker", "Ticker")}</th>
-              <th>{t("Выпуск", "Chiqarilish", "Issue")}</th>
+              <th>{t("Эмитент", "Emitent", "Issuer")}</th>
               <th className="num">{t("Цена", "Narx", "Price")}</th>
               <th className="num">{t("Изм.", "O'zg.", "Chg")}</th>
               <th className="num">{t("Оборот", "Aylanma", "Turnover")}</th>
               <th className="num">{t("Сделки", "Bitimlar", "Trades")}</th>
+              {/* Two different sizes: how many securities the issue is, and what
+                  they are worth at today's price. The second is not equity
+                  capitalisation and is never summed into it. */}
+              <th className="num">{t("Выпуск, бумаг", "Chiqarilish, dona", "Issue, securities")}</th>
               <th className="num">{t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}</th>
               <th className="num">% {t("номинала", "nominal", "of par")}</th>
               {/* Two yields, never merged into one column: the coupon is what

@@ -350,3 +350,80 @@ class TestEdges:
         assert cfg["quality"]["flat_share_max"] == 0.5
         assert cfg["volatility"]["min_observations"] == 10
         assert cfg["returns"]["base_staleness_max_days"] == 30
+
+
+# ---------------------------------------------------------------------------
+# Around a dated event — the news story page
+# ---------------------------------------------------------------------------
+
+class TestPriceReaction:
+    """Two dated closes spanning a publication, and the honesty around them."""
+
+    def pts(self, closes, start="2026-07-01", volume=10.0):
+        return formulas.normalize_points(daily(start, closes, volume=volume))
+
+    def test_the_base_is_the_last_close_before_the_publication_day(self):
+        # 01.07=100, 02.07=110, 03.07=121 — a story filed on the 2nd measures 100→110,
+        # never 110→121: we do not know whether it landed before that day's session.
+        got = formulas.price_reaction(self.pts([100.0, 110.0, 121.0]), "2026-07-02")
+        assert got["status"] == "ok"
+        assert got["before"] == {"date": "2026-07-01", "close": 100.0}
+        assert got["after"]["date"] == "2026-07-02"
+        assert got["change"]["value"] == pytest.approx(10.0)
+
+    def test_a_session_on_the_publication_day_says_so(self):
+        """The interface has to hedge that sentence, so the flag has to reach it."""
+        got = formulas.price_reaction(self.pts([100.0, 110.0]), "2026-07-02")
+        assert got["after"]["same_day"] is True
+        later = formulas.price_reaction(
+            formulas.normalize_points(
+                series([("2026-07-01", 100, 102, 98, 100, 10, 1000),
+                        ("2026-07-05", 110, 112, 108, 110, 10, 1100)])),
+            "2026-07-02")
+        assert later["after"]["same_day"] is False
+        assert later["after"]["date"] == "2026-07-05"
+
+    def test_an_issuer_that_has_not_traded_since_is_not_a_zero(self):
+        """The common case on this market — it must not read as "no move"."""
+        got = formulas.price_reaction(self.pts([100.0, 110.0]), "2026-07-09")
+        assert got["status"] == "no_session_yet"
+        assert got["change"]["value"] is None
+        assert got["before"]["date"] == "2026-07-02"
+
+    def test_a_story_older_than_our_history_has_no_base(self):
+        got = formulas.price_reaction(self.pts([100.0, 110.0]), "2026-06-01")
+        assert got["status"] == "no_prior_close"
+        assert got["change"]["value"] is None
+
+    def test_it_reports_the_move_since_as_well_as_the_first_session(self):
+        got = formulas.price_reaction(self.pts([100.0, 110.0, 99.0]), "2026-07-02")
+        assert got["change"]["value"] == pytest.approx(10.0)     # 100 -> 110
+        assert got["since"]["value"] == pytest.approx(-1.0)      # 100 -> 99
+        assert got["sessions_after"] == 2
+
+    def test_volume_is_measured_against_the_sessions_before_the_story(self):
+        """A baseline that included the spike would flatten what it is measuring."""
+        rows = [("2026-07-0%d" % (i + 1), 100, 102, 98, 100, 10.0, 1000.0) for i in range(5)]
+        rows.append(("2026-07-06", 100, 102, 98, 100, 50.0, 5000.0))
+        got = formulas.price_reaction(formulas.normalize_points(series(rows)), "2026-07-06")
+        assert got["volume"]["value"] == pytest.approx(50.0)
+        assert got["volume_vs_normal"]["value"] == pytest.approx(5.0)
+        assert got["volume_vs_normal"]["baseline_sessions"] == 5
+
+    def test_no_trading_before_the_story_is_no_baseline_not_a_ratio(self):
+        rows = [("2026-07-01", 100, 102, 98, 100, 0.0, 0.0),
+                ("2026-07-02", 100, 102, 98, 110, 40.0, 4400.0)]
+        got = formulas.price_reaction(formulas.normalize_points(series(rows)), "2026-07-02")
+        assert got["volume_vs_normal"]["status"] == "no_baseline"
+        assert got["volume_vs_normal"]["value"] is None
+
+    def test_an_illiquid_series_says_which_it_is(self):
+        """§6: a move on a flat, barely-traded series is not the same claim."""
+        flat = formulas.normalize_points(daily("2026-05-01", [100.0] * 60, flat=True))
+        got = formulas.price_reaction(flat, "2026-06-20")
+        assert got["data_tier"] in {"illiquid", "sparse"}
+        assert got["quality_note"]
+
+    def test_no_history_and_no_date_are_distinguished(self):
+        assert formulas.price_reaction([], "2026-07-02")["status"] == "no_history"
+        assert formulas.price_reaction(self.pts([100.0]), None)["status"] == "no_date"

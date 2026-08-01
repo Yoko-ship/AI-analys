@@ -2366,6 +2366,43 @@ async def api_news_item(news_id: int, related: int = 6) -> dict[str, Any]:
                        "disclaimer": NEWS_DISCLAIMER})
 
 
+@app.get("/api/news/item/{news_id}/reaction")
+async def api_news_reaction(news_id: int, max_tickers: int = 3) -> dict[str, Any]:
+    """What the tagged issuers' prices did around this story (§3.11).
+
+    Its own endpoint rather than a field on /api/news/item: the first call for an
+    issuer reaches openinfo for the full series, and an article page must not wait
+    on that to render its text. Repeat calls are served from the same ten-minute
+    memo the company card uses, so a reader moving between stories about one issuer
+    pays for the history once.
+
+    Nothing here claims the story MOVED the price — `formulas.price_reaction` returns
+    two dated closes and the interface says so in as many words.
+    """
+    loop = asyncio.get_running_loop()
+    item = await loop.run_in_executor(None, partial(news_store.get_news_item, news_id))
+    if item is None:
+        raise HTTPException(status_code=404, detail="news item not found")
+    tickers = [t for t in (item.get("tickers") or [])][:max(1, min(max_tickers, 5))]
+    published = item.get("published_at")
+    out: list[dict[str, Any]] = []
+    for ticker in tickers:
+        try:
+            isin = await _resolve_isin(ticker)
+            if not isin:
+                out.append({"ticker": ticker, "status": "no_isin"})
+                continue
+            data = await _full_history(isin)
+            points = formulas.normalize_points(data.get("points") or [])
+            out.append({"ticker": ticker, "isin": isin,
+                        **formulas.price_reaction(points, published)})
+        except Exception:  # noqa: BLE001 — one unreachable series is not a broken page
+            logger.exception("news reaction failed for %s", ticker)
+            out.append({"ticker": ticker, "status": "unavailable"})
+    return _json_safe({"ok": True, "id": item.get("id"), "published_at": published,
+                       "items": out})
+
+
 @app.get("/api/news/ticker/{ticker}")
 async def api_news_ticker(ticker: str, limit: int = 30, days: int = 90) -> dict[str, Any]:
     """Per-issuer news + coverage-weighted background tone (the §3.4 info dimension)."""
