@@ -132,6 +132,123 @@ class TestNominalOnly:
         assert board["with_reference"] == 0   # the coupon and maturity did not
 
 
+class TestCouponWithoutMaturity:
+    """The middle stage: a coupon is filed for years before a redemption date.
+
+    The issuer files each coupon payment as it happens (#32) but files a
+    redemption window only when it starts redeeming (#31). Accrued interest and
+    the running yield need the first and not the second, so gating them behind
+    the maturity kept eleven of twelve issues showing a dash for a number their
+    own filings state.
+    """
+
+    COUPON_ONLY = {"nominal": 100_000.0, "coupon_rate": 28.0, "coupon_freq": 12}
+
+    def _coupons(self, *offsets):
+        return [{"coupon_no": i + 1, "amount": 2301.37,
+                 "pay_date": (date.today() - timedelta(days=off)).isoformat()}
+                for i, off in enumerate(offsets)]
+
+    def test_accrued_and_running_yield_turn_on_without_a_maturity(self):
+        row = bonds.bond_row(bond_row(price=105_310.56), reference=self.COUPON_ONLY,
+                             coupons=self._coupons(40, 10))
+        assert row["reference"]["has_coupon"] is True
+        assert row["reference"]["is_complete"] is False
+        assert row["accrued"]["value"] == pytest.approx(100_000 * 0.28 * 10 / 365)
+        assert row["simple_yield"]["value"] == pytest.approx(28_000 / 105_310.56 * 100)
+        assert row["dirty"]["value"] > row["clean"]["value"]
+
+    def test_the_discounting_metrics_still_wait_for_the_redemption_date(self):
+        row = bonds.bond_row(bond_row(price=105_310.56), reference=self.COUPON_ONLY,
+                             coupons=self._coupons(10))
+        for field in ("ytm", "duration", "modified_duration", "spread"):
+            assert row[field]["value"] is None
+            assert row[field]["status"] == bonds.STATUS_NO_REFERENCE
+
+    def test_an_unfiled_coupon_does_not_inflate_the_accrual(self):
+        """Filings arrive per payment, so the newest can be older than a period.
+        Counting the whole gap would put accrued interest above a full coupon —
+        which is what BND-09 exists to catch."""
+        row = bonds.bond_row(bond_row(price=105_310.56), reference=self.COUPON_ONLY,
+                             coupons=self._coupons(70))
+        period_coupon = 100_000 * 0.28 / 12
+        assert row["accrued"]["value"] < period_coupon
+
+    def test_no_coupon_ever_paid_is_a_reason_not_a_zero(self):
+        row = bonds.bond_row(bond_row(price=105_310.56), reference=self.COUPON_ONLY)
+        assert row["accrued"]["value"] is None
+        assert row["accrued"]["status"] == bonds.STATUS_NO_REFERENCE
+
+    def test_a_redeemed_issue_says_so_instead_of_no_price(self):
+        """ACMT1B2 stopped printing a price because it is being redeemed."""
+        reference = {**self.COUPON_ONLY,
+                     "maturity_date": (date.today() - timedelta(days=5)).isoformat()}
+        row = bonds.bond_row(bond_row("ACMT1B2", price=None, trades=575), reference=reference)
+        assert row["status"] == "matured"
+        assert "погашается" in row["reason"]
+
+
+class TestTermsFromFilings:
+    """The rate is inverted from the filed payments, never parsed from prose."""
+
+    def _accruals(self, amount, count=4, step=30):
+        return [{"amount": amount, "pay_date": date(2026, 1, 1) + timedelta(days=step * i)}
+                for i in range(count)]
+
+    def test_the_rate_comes_back_whole_from_the_filed_amount(self):
+        import bond_terms
+
+        rate, period, kind = bond_terms._coupon_rate(100_000.0, self._accruals(2301.37))
+        assert (rate, period, kind) == (28.0, 30, "fixed")
+
+    def test_a_longer_month_is_the_same_coupon(self):
+        """2 378.08 over 31 days and 2 301.37 over 30 are both 28 %."""
+        import bond_terms
+
+        mixed = self._accruals(2301.37, 3) + [{"amount": 2378.08, "pay_date": date(2026, 4, 1)}]
+        rate, _period, kind = bond_terms._coupon_rate(100_000.0, mixed)
+        assert (rate, kind) == (28.0, "fixed")
+
+    def test_amounts_that_do_not_share_a_rate_get_no_rate(self):
+        import bond_terms
+
+        moving = self._accruals(2301.37, 2) + [{"amount": 3500.0, "pay_date": date(2026, 3, 2)}]
+        rate, _period, kind = bond_terms._coupon_rate(100_000.0, moving)
+        assert rate is None and kind == "floating"
+
+    def test_a_quarterly_issue_is_read_as_quarterly(self):
+        import bond_terms
+
+        rate, period, _kind = bond_terms._coupon_rate(100_000_000.0,
+                                                      self._accruals(5_917_808.22, 3, step=91))
+        assert (rate, period) == (24.0, 90)
+
+    def test_the_series_is_matched_on_par_and_quantity_then_sequence(self):
+        """AGAT's four series share a par and three share a quantity — neither
+        field alone is a key, and a coupon on the wrong series is worse than
+        none."""
+        import bond_terms
+
+        issues = [{"nominal": 100_000.0, "quantity": 400_000.0, "sequence": 3, "id": "third"},
+                  {"nominal": 100_000.0, "quantity": 400_000.0, "sequence": 4, "id": "fourth"},
+                  {"nominal": 100_000.0, "quantity": 300_000.0, "sequence": 2, "id": "second"}]
+        assert bond_terms.match_issue(
+            {"ticker": "ACMT2B4", "nominal": 100_000, "issue_volume": 400_000}, issues)["id"] == "fourth"
+        assert bond_terms.match_issue(
+            {"ticker": "ACMT1B2", "nominal": 100_000, "issue_volume": 300_000}, issues)["id"] == "second"
+        # Nothing distinguishes a ticker whose digit matches neither candidate.
+        assert bond_terms.match_issue(
+            {"ticker": "ACMT9B9", "nominal": 100_000, "issue_volume": 400_000}, issues) is None
+
+    def test_the_issue_sequence_is_read_from_the_registration_number(self):
+        import bond_terms
+
+        assert bond_terms._issue_sequence("RU303P1079T0") == 3
+        assert bond_terms._issue_sequence("Q0845-2") == 2
+        assert bond_terms._issue_sequence("1079-5") == 5
+        assert bond_terms._issue_sequence("Q0845") == 1
+
+
 class TestReferenceCollector:
     """What the loader is allowed to write, and what it must leave empty."""
 
