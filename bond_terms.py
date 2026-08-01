@@ -244,7 +244,11 @@ def _coupon_rate(nominal: float, accruals: Sequence[dict[str, Any]]) -> tuple[fl
             log.info("coupon amounts disagree (%.2f implies %.1f days, period %d) — no rate stated",
                      amount, implied_days, period)
             return None, period, "floating"
-    return round(rate, 4), period, "fixed"
+    # The filed amount is rounded to the tiyin ("Изоҳ: фоизли даромад миқдори
+    # бир тийинга қадар аниқлик билан белгиланади"), so inverting 2 054.79 over
+    # 30 days lands at 24.9999 rather than 25. Two decimals give the rate back
+    # its own precision without inventing any: a real 11.5% survives unchanged.
+    return round(rate, 2), period, "fixed"
 
 
 def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
