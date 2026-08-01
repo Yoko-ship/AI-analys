@@ -24,5 +24,29 @@
     "ma20_calendar_days": 28,
     "ma50_calendar_days": 70,
     "min_observations": 3
+  },
+
+  "financials": {
+    "gross_profit_vs_revenue_max": 1.0,
+    "net_income_vs_revenue_max": 1.5,
+    "liabilities_vs_assets_max": 1.5,
+    "half_year_vs_annual_max": 5,
+    "roe_implied_vs_published_max": 8
+  },
+
+  "multiples": {
+    "pe_range": [0.5, 200],
+    "pb_range": [0.05, 20],
+    "roe_abs_max": 100,
+    "cap_vs_price_shares_max": 1.5
+  },
+
+  "market_map": {
+    "min_trades_confident": 5,
+    "min_quantity_confident": 10
+  },
+
+  "catalog": {
+    "inactive_after_days": 90
   }
 }

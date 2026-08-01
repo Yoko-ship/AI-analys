@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import hmac
+import json
 import logging
 import os
 import secrets
@@ -16,7 +18,7 @@ import requests
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -68,6 +70,22 @@ from reports_catalog import (
     sync_all as catalog_sync_all,
 )
 from market_audit import audit_session
+# ТЗ v1.2 domain layer: every formula lives in these, and nothing above them
+# recomputes one. The API is serialisation and cache headers only (§11.1).
+import formulas  # noqa: E402
+import fundamentals  # noqa: E402
+import heatmap  # noqa: E402
+import instruments  # noqa: E402
+import invariants  # noqa: E402
+import obs  # noqa: E402
+
+# ТЗ §11.6: each change ships behind a flag so it can be turned off without a
+# rollback. The interface reads them from /api/config rather than guessing.
+FEATURE_FLAGS: dict[str, bool] = {
+    key: os.getenv(f"FLAG_{key.upper()}", "1").strip().lower() not in {"0", "false", "no"}
+    for key in ("catalog_v2", "metrics_v2", "tiers_v1", "multiples_v2",
+                "market_validation_v1", "map_v2")
+}
 from securities_catalog import get_securities_map, get_wiki_info, record_volume, resolve_logo, sync_securities
 from web_auth import WebUser, web_auth_store, is_admin_email
 
@@ -1145,6 +1163,299 @@ async def api_market_ratios() -> dict[str, Any]:
         for ticker, row in ratios.items()
     }
     return _json_safe({"ok": True, "count": len(ratios), "ratios": ratios})
+
+
+# ---------------------------------------------------------------------------
+# ТЗ v1.2 §7–§9, §4, §10.9 — one calc layer, one universe, cached by content.
+# ---------------------------------------------------------------------------
+
+def _etag_json(request: Request, payload: dict[str, Any], max_age: int) -> Response:
+    """Serve a payload with a content ETag (ТЗ §10.9).
+
+    The cache key is the data, not the clock: while the numbers have not changed
+    the same response is valid however old it is. Before this, static bundles
+    carried no cache header at all and the browser refetched an immutable file on
+    every load.
+    """
+    body = _json_safe(payload)
+    etag = '"%s"' % hashlib.sha256(
+        json.dumps(body, sort_keys=True, default=str, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()[:32]
+    headers = {"ETag": etag, "Cache-Control": f"public, max-age={max_age}"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    return JSONResponse(body, headers=headers)
+
+
+def _earnings_for(fin: dict[str, Any] | None) -> dict[str, Any]:
+    """The 12-month profit a multiple divides by, and the period it covers.
+
+    NSBU quarterlies accumulate from 1 January, so an issuer's latest filing is
+    3, 6 or 9 months of profit depending only on when it filed. Prefer the last
+    complete fiscal year the collector stores alongside it, so P/E means the same
+    thing in every row (ТЗ §7).
+    """
+    if not fin:
+        return {"net_income": None, "period": None, "months": None}
+    annual = fin.get("annual")
+    if annual and annual.get("net_income") is not None:
+        return {"net_income": annual["net_income"],
+                "period": fundamentals.period_label(annual), "months": 12}
+    return {"net_income": fin.get("net_income"),
+            "period": fundamentals.period_label(fin),
+            "months": fundamentals.period_months(fin)}
+
+
+async def _market_inputs() -> dict[str, Any]:
+    """Board, catalog, statements and ratios — fetched once, shared by every
+    screen below so they cannot disagree about what exists."""
+    loop = asyncio.get_running_loop()
+    shares, bonds = await asyncio.gather(_build_board("stock"), _build_board("bond"))
+    securities, financials, ratios, listings, stats = await asyncio.gather(
+        loop.run_in_executor(None, get_securities_map),
+        loop.run_in_executor(None, get_all_financials),
+        loop.run_in_executor(None, get_all_ratios),
+        loop.run_in_executor(None, get_all_listings),
+        loop.run_in_executor(None, get_all_trade_stats),
+    )
+    board = list(shares.get("stocks") or []) + list(bonds.get("stocks") or [])
+    # Statement sums are stored in thousands of UZS; scale at the boundary so
+    # every division below is like-for-like against a full-UZS market cap.
+    def _scale(row: dict[str, Any], fields) -> dict[str, Any]:
+        return {**row, **{k: row[k] * NSBU_THOUSANDS_UZS
+                          for k in fields if isinstance(row.get(k), (int, float))}}
+
+    financials = {
+        t: ({**_scale(r, FIN_MONEY_FIELDS), "annual": _scale(r["annual"], FIN_MONEY_FIELDS)}
+            if r.get("annual") else _scale(r, FIN_MONEY_FIELDS))
+        for t, r in (financials or {}).items()
+    }
+    ratios = {t: _scale(r, RATIO_MONEY_FIELDS) for t, r in (ratios or {}).items()}
+    # The session the board describes: the latest day any row reports. The feed
+    # writes DD.MM.YYYY and the day statistics YYYYMMDD, so compare normalised
+    # values — ordering the raw strings put "31.01" above "05.02".
+    trade_date = None
+    for row in board:
+        day = instruments._norm_day(row.get("last_trade_date"))
+        if day and (trade_date is None or day > trade_date):
+            trade_date = day
+    return {"board": board, "securities": securities, "financials": financials,
+            "ratios": ratios, "listings": listings, "stats": stats,
+            "trade_date": trade_date.isoformat() if trade_date else None}
+
+
+def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Issuer-level multiples for every listed share class (ТЗ §8)."""
+    securities, financials, ratios = (inputs["securities"], inputs["financials"],
+                                      inputs["ratios"])
+    board_by_ticker = {str(r.get("ticker") or "").upper(): r for r in inputs["board"]}
+
+    # Share classes are grouped by issuer using the catalog, enriched with the
+    # board's capitalisation and share count for each class.
+    catalog_rows = []
+    for ticker, meta in (securities or {}).items():
+        row = board_by_ticker.get(str(ticker).upper()) or {}
+        catalog_rows.append({
+            "ticker": str(ticker).upper(), **meta,
+            "market_cap": row.get("market_cap"),
+            "shares_outstanding": row.get("shares_outstanding") or meta.get("shares_outstanding"),
+        })
+    groups = fundamentals.group_by_issuer(catalog_rows)
+
+    rows: list[dict[str, Any]] = []
+    by_issuer: dict[str, Any] = {}
+    for key, classes in groups.items():
+        tickers = [c["ticker"] for c in classes]
+        # The issuer's statement is whichever class carries one — they describe
+        # the same legal entity, so a preferred-only filing still applies.
+        fin = next((financials.get(t) for t in tickers if financials.get(t)), None)
+        rat = next((ratios.get(t) for t in tickers if ratios.get(t)), None)
+        multiples = fundamentals.issuer_multiples(classes, fin, rat, _earnings_for(fin))
+        by_issuer[key] = {"tickers": tickers, "multiples": multiples}
+        for cls in classes:
+            rows.append({
+                "ticker": cls["ticker"],
+                "issuer": key,
+                "issuer_classes": tickers,
+                "share_class": "preferred" if cls.get("is_preferred") else "ordinary",
+                # Class-specific, by design (ТЗ §8).
+                "market_cap_class": cls.get("market_cap"),
+                # Issuer-level, identical across the classes above.
+                **{k: v for k, v in multiples.items()},
+            })
+    rows.sort(key=lambda r: r["ticker"])
+    return {"ok": True, "count": len(rows), "issuers": len(groups),
+            "items": rows, "by_issuer": by_issuer}
+
+
+@app.get("/api/market/multiples")
+async def api_market_multiples(request: Request) -> Response:
+    """P/E, P/B, ROE, ROA, margin and D/E — computed once, per ISSUER.
+
+    Both classes of an issuer receive identical values by construction; only
+    price, change, volume and the class's own capitalisation differ. This is the
+    endpoint that makes KFSK 203.6 / KFSKP 0.19 impossible.
+    """
+    trace = obs.Trace(endpoint="market/multiples")
+    try:
+        inputs = await _market_inputs()
+        trace.step("inputs", instruments=len(inputs["board"]),
+                   financials=len(inputs["financials"]), ratios=len(inputs["ratios"]))
+        payload = _multiples_payload(inputs)
+        suppressed = sum(1 for r in payload["items"]
+                         if not (r.get("validation") or {}).get("valid", True))
+        trace.step("multiples", issuers=payload["issuers"], suppressed=suppressed)
+        payload["trace_id"] = trace.trace_id
+        return _etag_json(request, payload, max_age=300)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        trace.reject("multiples", reason=str(exc))
+        logger.exception("market multiples failed")
+        raise HTTPException(status_code=502, detail="multiples unavailable") from exc
+    finally:
+        trace.close()
+
+
+@app.get("/api/market/summary")
+async def api_market_summary(request: Request) -> Response:
+    """The headline cards: capitalisation with its exclusions, and the counters."""
+    try:
+        inputs = await _market_inputs()
+        cap = fundamentals.market_capitalisation(inputs["board"], inputs["securities"])
+        board = inputs["board"]
+        traded = [r for r in board if (formulas.to_number(r.get("trade_count")) or 0) > 0
+                  or (formulas.to_number(r.get("volume")) or 0) > 0]
+        up = down = flat = 0
+        for row in traded:
+            change = heatmap.day_change(formulas.to_number(row.get("last_price")),
+                                        formulas.to_number(row.get("close_price")))
+            if change is None:
+                continue
+            if change > 0.05:
+                up += 1
+            elif change < -0.05:
+                down += 1
+            else:
+                flat += 1
+        return _etag_json(request, {
+            "ok": True,
+            "instruments": len(board),
+            "traded_today": len(traded),
+            "up": up, "down": down, "flat": flat,
+            "market_cap": cap,
+            "turnover_today": sum((formulas.to_number(r.get("volume")) or 0) for r in traded),
+            "trades_today": sum((formulas.to_number(r.get("trade_count")) or 0) for r in traded),
+            "trade_date": inputs["trade_date"],
+        }, max_age=60)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("market summary failed")
+        raise HTTPException(status_code=502, detail="summary unavailable") from exc
+
+
+@app.get("/api/heatmap")
+async def api_heatmap(request: Request) -> Response:
+    """The market map: tiles, sectors and metadata in ONE response (ТЗ §9)."""
+    trace = obs.Trace(endpoint="heatmap")
+    try:
+        inputs = await _market_inputs()
+        payload = heatmap.build_heatmap(inputs["board"], inputs["securities"],
+                                        inputs["stats"], inputs["trade_date"])
+        trace.step("tiles", **payload["counts"])
+        payload["ok"] = True
+        payload["trace_id"] = trace.trace_id
+        return _etag_json(request, payload, max_age=60)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        trace.reject("heatmap", reason=str(exc))
+        logger.exception("heatmap failed")
+        raise HTTPException(status_code=502, detail="heatmap unavailable") from exc
+    finally:
+        trace.close()
+
+
+@app.get("/api/instruments")
+async def api_instruments(request: Request, include_inactive: bool = True) -> Response:
+    """The single instrument universe (ТЗ §4).
+
+    Inactive listings are returned by default and flagged, never dropped: a
+    security that stopped trading is a fact about the market, and hiding it is
+    how five references came to hold five different counts.
+    """
+    try:
+        inputs = await _market_inputs()
+        catalog = instruments.build_catalog(
+            securities=inputs["securities"], board=inputs["board"],
+            listings=inputs["listings"], financials=inputs["financials"],
+            ratios=inputs["ratios"], sectors=COMPANY_SECTORS)
+        if not include_inactive:
+            catalog = {**catalog,
+                       "items": [i for i in catalog["items"] if i["is_active"]]}
+        catalog["ok"] = True
+        return _etag_json(request, catalog, max_age=300)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("instruments failed")
+        raise HTTPException(status_code=502, detail="catalog unavailable") from exc
+
+
+@app.get("/api/config")
+async def api_config(request: Request) -> Response:
+    """Thresholds and feature flags the interface is allowed to know about.
+
+    ТЗ §10.10: thresholds are configuration in the repository, not constants in
+    code — and the screen reads the same ones the calc layer applied, so a label
+    can never claim a window the server did not use.
+    """
+    return _etag_json(request, {
+        "ok": True,
+        "thresholds": formulas.thresholds(),
+        "flags": FEATURE_FLAGS,
+    }, max_age=300)
+
+
+@app.get("/api/admin/invariants")
+async def api_admin_invariants(_: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Daily property check on live data (ТЗ §11.5). Empty is the good outcome."""
+    inputs = await _market_inputs()
+    payload = _multiples_payload(inputs)
+    map_payload = heatmap.build_heatmap(inputs["board"], inputs["securities"],
+                                        inputs["stats"], inputs["trade_date"])
+    catalog = instruments.build_catalog(
+        securities=inputs["securities"], board=inputs["board"],
+        listings=inputs["listings"], financials=inputs["financials"],
+        ratios=inputs["ratios"], sectors=COMPANY_SECTORS)
+    cap = fundamentals.market_capitalisation(inputs["board"], inputs["securities"])
+    report = invariants.run([
+        ("multiples_agree", lambda: invariants.check_multiples_agree_across_classes(
+            payload["by_issuer"])),
+        ("multiples_in_range", lambda: invariants.check_multiples_in_range(payload["items"])),
+        ("statements_suppressed", lambda: invariants.check_invalid_statements_are_suppressed(
+            payload["items"])),
+        ("market_map", lambda: invariants.check_map(map_payload)),
+        ("catalog", lambda: invariants.check_catalog(catalog)),
+        ("market_cap", lambda: invariants.check_market_cap(cap)),
+    ])
+    return _json_safe(report)
+
+
+@app.get("/api/admin/trace/{trace_id}")
+async def api_admin_trace(trace_id: str, _: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Replay one number's chain of derivation (ТЗ §12)."""
+    record = obs.get_trace(trace_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="trace not found or expired")
+    return _json_safe(record)
+
+
+@app.get("/api/admin/traces")
+async def api_admin_traces(limit: int = 50,
+                           _: None = Depends(_require_admin)) -> dict[str, Any]:
+    return _json_safe({"ok": True, "items": obs.recent_traces(max(1, min(limit, 200)))})
 
 
 @app.get("/api/coverage")
