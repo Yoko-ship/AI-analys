@@ -5264,7 +5264,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
 // Company detail page components
 // ---------------------------------------------------------------------------
 
-function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustments, lang }) {
+function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustments, lang, quality, metricsWindows }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const RANGES = [
     { label: t("1М", "1O", "1M"), months: 1 },   // month   → daily
@@ -5338,7 +5338,14 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   // ticks), so bars can only be rolled *up*: the interval follows the selected
   // range — daily for short spans, then calendar week / month / quarter — so
   // bars stay wide and readable instead of hundreds of daily slivers.
-  const hasOHLC = daily.every((p) => p.open > 0 && p.high > 0 && p.low > 0);
+  //
+  // ТЗ §6: OHLC correctness is a property of a POINT, not of the series. This
+  // used to be `daily.every(...)`, so one malformed record from the source
+  // switched candles off for the whole instrument.
+  const ohlcOk = (p) => p.open > 0 && p.high > 0 && p.low > 0 && p.close > 0
+    && p.low <= Math.min(p.open, p.close) && Math.max(p.open, p.close) <= p.high;
+  const ohlcCount = daily.reduce((n, p) => n + (ohlcOk(p) ? 1 : 0), 0);
+  const hasOHLC = ohlcCount > 0;
   const bucketKind = months <= 6 ? "day" : months <= 36 ? "week" : "month";
   const intervalLabel = {
     day: t("дневные", "kunlik", "daily"),
@@ -5378,12 +5385,22 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
     }));
   };
   const candles = hasOHLC ? aggregate(daily) : daily;
-  const canCandle = hasOHLC;
+  // ТЗ §6: candles are switched off BY THE SYSTEM at tier sparse/illiquid, not
+  // by hand. 15 of 77 securities break the thresholds — CTFB3 is 87 % flat
+  // candles on 32 % calendar coverage — and were drawn like a daily trader.
+  const tier = quality?.data_tier || null;
+  const tierBlocksCandles = quality ? quality.candles_enabled === false : false;
+  const canCandle = hasOHLC && !tierBlocksCandles;
   const showCandles = chartType === "candle" && canCandle;
   const points = showCandles ? candles : daily;
+  // Without candles the series is a step, not a slope: a line between two
+  // trades three weeks apart draws prices that never existed.
+  const stepLine = tierBlocksCandles;
 
-  const lows = hasOHLC ? points.map((p) => p.low) : points.map((p) => p.close);
-  const highs = hasOHLC ? points.map((p) => p.high) : points.map((p) => p.close);
+  // Per point, again: a single record without a low must not drag the whole
+  // price scale to NaN.
+  const lows = points.map((p) => (ohlcOk(p) ? p.low : p.close));
+  const highs = points.map((p) => (ohlcOk(p) ? p.high : p.close));
   const minP = Math.min(...lows), maxP = Math.max(...highs);
   const rangeP = maxP - minP || 1;
   const maxVol = Math.max(...points.map((p) => p.volume), 1);
@@ -5393,17 +5410,54 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   const vy = (v) => volBot - (v / maxVol) * (volBot - volTop);
   const candleW = Math.max(2, Math.min(15, (innerW / points.length) * 0.62));
 
-  const lineD = points.map((p, i) => `${i === 0 ? "M" : "L"}${xs(i).toFixed(1)},${ys(p.close).toFixed(1)}`).join(" ");
+  const lineD = points.map((p, i) => {
+    const x = xs(i).toFixed(1), y = ys(p.close).toFixed(1);
+    if (i === 0) return `M${x},${y}`;
+    // A step carries the previous price forward to the day it actually changed.
+    return stepLine ? `L${x},${ys(points[i - 1].close).toFixed(1)} L${x},${y}` : `L${x},${y}`;
+  }).join(" ");
   const areaD = `${lineD} L${xs(points.length - 1).toFixed(1)},${priceBot.toFixed(1)} L${xs(0).toFixed(1)},${priceBot.toFixed(1)} Z`;
   const isUp = points[points.length - 1].close >= points[0].close;
   const color = isUp ? "#22c55e" : "#ef4444";
 
-  const sma = (n) => points.map((_, i) => {
-    if (i < n - 1) return null;
-    let s = 0;
-    for (let j = i - n + 1; j <= i; j++) s += points[j].close;
-    return s / n;
-  });
+  // ТЗ §6: moving averages are always computed on the RAW DAILY series over a
+  // calendar window, whatever the display bucket is. Averaging 20 weekly
+  // candles spans 134 calendar days, not 28 — which is why "MA20" drew one
+  // line in candle mode and a different one in line mode on 72 of 72
+  // securities. The window comes from the server's threshold config.
+  const MA_DAYS = { ma20: metricsWindows?.ma20 || 28, ma50: metricsWindows?.ma50 || 70 };
+  const MA_MIN_OBS = 3;
+  const calendarMA = (days) => {
+    const out = new Array(daily.length).fill(null);
+    let start = 0, sum = 0;
+    for (let i = 0; i < daily.length; i++) {
+      sum += daily[i].close;
+      const cutoff = new Date(daily[i].date);
+      cutoff.setDate(cutoff.getDate() - (days - 1));
+      while (start < i && new Date(daily[start].date) < cutoff) {
+        sum -= daily[start].close;
+        start += 1;
+      }
+      const n = i - start + 1;
+      out[i] = n >= MA_MIN_OBS ? sum / n : null;
+    }
+    return out;
+  };
+  // The MA is a daily series; the chart may be drawing weekly or monthly
+  // buckets. Each drawn point carries the date of the last day in its bucket,
+  // so the value is read off that day rather than recomputed on the buckets.
+  const alignToPoints = (dailySeries) => {
+    const byDate = new Map();
+    daily.forEach((p, i) => byDate.set(p.date, dailySeries[i]));
+    return points.map((p) => (byDate.has(p.date) ? byDate.get(p.date) : null));
+  };
+  // Not memoised on purpose: this sits after the component's early returns, so
+  // a hook here would be a conditional hook. Both passes are O(n) over a few
+  // hundred points.
+  const ma20Daily = calendarMA(MA_DAYS.ma20);
+  const ma50Daily = calendarMA(MA_DAYS.ma50);
+  const ma20Available = ma20Daily.some((v) => v != null);
+  const ma50Available = ma50Daily.some((v) => v != null);
   const maPath = (arr) => {
     let d = "", started = false;
     arr.forEach((v, i) => {
@@ -5413,8 +5467,8 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
     });
     return d;
   };
-  const ma20 = maOn.ma20 && points.length >= 20 ? sma(20) : null;
-  const ma50 = maOn.ma50 && points.length >= 50 ? sma(50) : null;
+  const ma20 = maOn.ma20 && ma20Available ? alignToPoints(ma20Daily) : null;
+  const ma50 = maOn.ma50 && ma50Available ? alignToPoints(ma50Daily) : null;
 
   const yTicks = 4;
   const yLabels = Array.from({ length: yTicks + 1 }, (_, i) => {
@@ -5463,10 +5517,29 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
           )}
           {showCandles && <span className="chart-interval-tag" title={t("Интервал одной свечи", "Bitta shamning oralig'i", "Interval per candle")}>{intervalLabel}</span>}
           <span className="chart-opt-sep" />
-          <button type="button" className={`chart-opt-btn chart-ma-ma20 ${maOn.ma20 ? "active" : ""}`} disabled={points.length < 20} onClick={() => setMaOn((s) => ({ ...s, ma20: !s.ma20 }))}>MA20</button>
-          <button type="button" className={`chart-opt-btn chart-ma-ma50 ${maOn.ma50 ? "active" : ""}`} disabled={points.length < 50} onClick={() => setMaOn((s) => ({ ...s, ma50: !s.ma50 }))}>MA50</button>
+          <button type="button" className={`chart-opt-btn chart-ma-ma20 ${maOn.ma20 ? "active" : ""}`}
+            disabled={!ma20Available}
+            title={`${MA_DAYS.ma20} ${t("календарных дней", "kalendar kun", "calendar days")}`}
+            onClick={() => setMaOn((s) => ({ ...s, ma20: !s.ma20 }))}>MA20</button>
+          <button type="button" className={`chart-opt-btn chart-ma-ma50 ${maOn.ma50 ? "active" : ""}`}
+            disabled={!ma50Available}
+            title={`${MA_DAYS.ma50} ${t("календарных дней", "kalendar kun", "calendar days")}`}
+            onClick={() => setMaOn((s) => ({ ...s, ma50: !s.ma50 }))}>MA50</button>
         </div>
       </div>
+
+      {tierBlocksCandles && (
+        <p className="cpc-tier-note muted">
+          {t("Свечи отключены: сделок слишком мало, чтобы дневной диапазон что-то значил",
+             "Shamlar o'chirilgan: kunlik diapazon uchun bitimlar juda kam",
+             "Candles are off: too few trades for a daily range to mean anything")}
+          {quality?.reason ? ` — ${quality.reason}` : ""}
+          {". "}
+          {t("Цена показана ступенями — между сделками она не менялась.",
+             "Narx pog'onalar bilan ko'rsatilgan — bitimlar orasida u o'zgarmagan.",
+             "The price is drawn as steps — between trades it did not move.")}
+        </p>
+      )}
 
       <svg viewBox={`0 0 ${W} ${H}`} className="company-price-chart-svg" style={{ width: "100%", height: "auto" }}
         onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
@@ -5483,7 +5556,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
 
         {/* Volume bars */}
         {points.map((p, i) => {
-          const up = hasOHLC ? p.close >= p.open : (i > 0 ? p.close >= points[i - 1].close : true);
+          const up = ohlcOk(p) ? p.close >= p.open : (i > 0 ? p.close >= points[i - 1].close : true);
           const vh = Math.max(0.5, volBot - vy(p.volume));
           return <rect key={`v${i}`} x={xs(i) - candleW / 2} y={vy(p.volume)} width={candleW} height={vh}
             fill={up ? "#22c55e" : "#ef4444"} opacity={hover === i ? 0.9 : 0.32} />;
@@ -5492,9 +5565,15 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
         {/* Price series */}
         {showCandles ? (
           points.map((p, i) => {
+            const x = xs(i);
+            // A point whose OHLC does not hold gets a close tick, not an
+            // invented body — and the rest of the series still draws.
+            if (!ohlcOk(p)) {
+              return <line key={`c${i}`} x1={x - candleW / 2} y1={ys(p.close)} x2={x + candleW / 2} y2={ys(p.close)}
+                stroke="currentColor" strokeOpacity="0.45" strokeWidth="1.5" />;
+            }
             const up = p.close >= p.open;
             const c = up ? "#22c55e" : "#ef4444";
-            const x = xs(i);
             const yO = ys(p.open), yC = ys(p.close);
             const bodyTop = Math.min(yO, yC), bodyH = Math.max(1, Math.abs(yC - yO));
             return (
@@ -5543,7 +5622,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
           : { left: `calc(${(hx / W) * 100}% + 12px)` }}>
           <div className="cpc-tt-date">{fmtDate(hp.date, true)}</div>
           <div className="cpc-tt-row"><span>{t("Закрытие", "Yopilish", "Close")}</span><b>{fmtFull(hp.close)}</b></div>
-          {hasOHLC && (
+          {ohlcOk(hp) && (
             <>
               <div className="cpc-tt-row"><span>{t("Откр.", "Ochil.", "Open")}</span><b>{fmtFull(hp.open)}</b></div>
               <div className="cpc-tt-row"><span>{t("Макс.", "Maks.", "High")}</span><b>{fmtFull(hp.high)}</b></div>
@@ -5580,104 +5659,137 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   );
 }
 
-// Derived price statistics from loaded history (ТЗ §3.4: VWAP, волатильность, QoQ/YoY/YTD).
-function computePriceStats(history) {
-  const pts = (history || []).map((h) => {
-    if (Array.isArray(h)) return { date: h[0], close: Number(h[1]) || 0, high: null, low: null, volume: 0 };
-    return {
-      date: h.date || h.trade_date,
-      close: Number(h.close ?? h.price ?? h.close_price ?? 0),
-      high: h.high != null ? Number(h.high) : null,
-      low: h.low != null ? Number(h.low) : null,
-      volume: Number(h.volume ?? h.trading_volume ?? 0) || 0,
-    };
-  }).filter((p) => p.close > 0 && p.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  if (pts.length < 2) return null;
-  const last = pts[pts.length - 1];
-  const lastDate = new Date(last.date);
+// Price statistics come from the server (ТЗ v1.2 §3/§5). This file used to
+// recompute them from whatever slice the chart had loaded, which is where
+// every defect in §2.1 came from: VWAP as sum(close*volume)/volume (+33 % on
+// UZHM), volatility over the last 21 points whatever calendar they covered,
+// and YTD/YOY/QOQ measured inside the loaded window — so the period button
+// moved YTD on 76 of 77 securities and flipped its sign on 44.
+//
+// The contract has two blocks and the split is the point:
+//   window    may change with the period button
+//   absolute  may NOT — it is computed on the full history, server-side
+// Nothing here does arithmetic on prices; it formats what the server decided.
 
-  let pv = 0, vv = 0;
-  pts.forEach((p) => { if (p.volume > 0) { pv += p.close * p.volume; vv += p.volume; } });
-  const vwap = vv > 0 ? pv / vv : null;
+const METRIC_REASONS = {
+  no_data: ["нет истории", "tarix yo'q", "no history"],
+  no_volume: ["за период не было сделок", "davrda bitim bo'lmagan", "no trades in the period"],
+  turnover_missing: ["оборот известен не по всем точкам", "aylanma barcha nuqtalar uchun ma'lum emas", "turnover missing on some points"],
+  insufficient_data: ["слишком мало наблюдений", "kuzatuvlar juda kam", "too few observations"],
+  base_too_stale: ["нет сделок рядом с базой сравнения", "taqqoslash bazasi yaqinida bitim yo'q", "no trade near the comparison base"],
+  no_base: ["нет базы для сравнения", "taqqoslash bazasi yo'q", "no comparison base"],
+};
 
-  const recent = pts.slice(-21);
-  const rets = [];
-  for (let i = 1; i < recent.length; i++) {
-    if (recent[i - 1].close > 0) rets.push((recent[i].close - recent[i - 1].close) / recent[i - 1].close);
-  }
-  let vol = null;
-  if (rets.length >= 2) {
-    const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
-    const variance = rets.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (rets.length - 1);
-    vol = Math.sqrt(variance) * 100;
-  }
-
-  let maxRange = null;
-  pts.forEach((p) => {
-    if (p.high != null && p.low != null && p.close > 0) {
-      const r = ((p.high - p.low) / p.close) * 100;
-      if (maxRange == null || r > maxRange) maxRange = r;
-    }
-  });
-
-  const changeFrom = (days) => {
-    const target = new Date(lastDate);
-    target.setDate(target.getDate() - days);
-    let base = null;
-    for (const p of pts) { if (new Date(p.date) <= target) base = p; }
-    if (!base || base.close <= 0 || base === last) return null;
-    return ((last.close - base.close) / base.close) * 100;
-  };
-
-  let ytdBase = null;
-  const yr = lastDate.getFullYear();
-  for (const p of pts) { if (new Date(p.date).getFullYear() === yr) { ytdBase = p; break; } }
-  const ytd = ytdBase && ytdBase.close > 0 && ytdBase !== last
-    ? ((last.close - ytdBase.close) / ytdBase.close) * 100 : null;
-
-  let periodHigh = null, periodLow = null, sumClose = 0;
-  pts.forEach((p) => {
-    const hi = p.high != null ? p.high : p.close;
-    const lo = p.low != null ? p.low : p.close;
-    if (periodHigh == null || hi > periodHigh) periodHigh = hi;
-    if (periodLow == null || lo < periodLow) periodLow = lo;
-    sumClose += p.close;
-  });
-  const periodAvg = pts.length ? sumClose / pts.length : null;
-
-  return { vwap, vol, maxRange, qoq: changeFrom(90), yoy: changeFrom(365), ytd, periodHigh, periodLow, periodAvg };
+function metricReason(metric, lang) {
+  if (!metric || metric.value != null) return null;
+  const idx = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
+  const words = METRIC_REASONS[metric.status];
+  const base = words ? words[idx] : metric.status;
+  return metric.note ? `${base} (${metric.note})` : base;
 }
 
-function PriceStatsStrip({ history, lang }) {
-  const stats = React.useMemo(() => computePriceStats(history), [history]);
-  if (!stats) return null;
-  const fmtPct = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`);
-  const fmtNum = (v) => (v == null ? "—" : v.toLocaleString(lang === "en" ? "en-US" : "ru-RU", { maximumFractionDigits: 2 }));
-  const tone = (v) => (v == null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "");
-  const items = [
-    { label: "VWAP", value: fmtNum(stats.vwap) },
-    { label: lang === "en" ? "Period high" : lang === "uz" ? "Davr maks." : "Макс. за период", value: fmtNum(stats.periodHigh) },
-    { label: lang === "en" ? "Period low" : lang === "uz" ? "Davr min." : "Мин. за период", value: fmtNum(stats.periodLow) },
-    { label: lang === "en" ? "Period avg" : lang === "uz" ? "Davr o'rtacha" : "Средняя за период", value: fmtNum(stats.periodAvg) },
-    { label: lang === "en" ? "Volatility (20d)" : lang === "uz" ? "Volatillik (20k)" : "Волатильность (20д)", value: stats.vol == null ? "—" : `${stats.vol.toFixed(2)}%` },
-    { label: lang === "en" ? "Max daily range" : lang === "uz" ? "Maks. kunlik diapazon" : "Макс. дневной диапазон", value: stats.maxRange == null ? "—" : `${stats.maxRange.toFixed(2)}%` },
-    { label: "QoQ", value: fmtPct(stats.qoq), tone: tone(stats.qoq) },
-    { label: "YoY", value: fmtPct(stats.yoy), tone: tone(stats.yoy) },
-    { label: "YTD", value: fmtPct(stats.ytd), tone: tone(stats.ytd) },
+// A number never reaches the screen without its status: either the value, or a
+// dash that can say why. ТЗ §3: "Прочерк с причиной честнее неверного числа."
+function MetricValue({ metric, format, tone, lang }) {
+  if (!metric || metric.value == null) {
+    const reason = metricReason(metric, lang);
+    return <span className="price-stat-value is-empty" title={reason || undefined}>—</span>;
+  }
+  const cls = tone ? (metric.value > 0 ? "pos" : metric.value < 0 ? "neg" : "") : "";
+  return <span className={`price-stat-value ${cls}`}>{format(metric.value)}</span>;
+}
+
+function PriceStatsStrip({ metrics, loading, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  if (loading) return <div className="price-stats-strip is-loading muted">{t("Считаем…", "Hisoblanmoqda…", "Computing…")}</div>;
+  if (!metrics || !metrics.window) return null;
+
+  const { window: win, absolute: abs, quality } = metrics;
+  const numLocale = lang === "en" ? "en-US" : "ru-RU";
+  const fmtNum = (v) => Number(v).toLocaleString(numLocale, { maximumFractionDigits: 2 });
+  const fmtPct = (v) => `${v > 0 ? "+" : ""}${Number(v).toFixed(2)}%`;
+
+  // Window block — allowed to move with the period button, and labelled with
+  // the period so nobody has to guess which span it describes.
+  const windowItems = [
+    { key: "vwap", label: "VWAP", metric: win.vwap, format: fmtNum },
+    { key: "max", label: t("Максимум", "Maksimum", "High"), metric: win.max_close, format: fmtNum },
+    { key: "min", label: t("Минимум", "Minimum", "Low"), metric: win.min_close, format: fmtNum },
+    // ТЗ §6: this is a mean of closing prices, not a volume-weighted average.
+    // Calling it "средняя за период" invited exactly that misreading.
+    { key: "mean", label: t("Среднее закрытий", "Yopilishlar o'rtachasi", "Mean close"), metric: win.mean_close, format: fmtNum },
   ];
+
+  const volWindow = abs?.volatility?.window_days;
+  const absoluteItems = [
+    { key: "ytd", label: "YTD", metric: abs.ytd, format: fmtPct, tone: true },
+    { key: "yoy", label: "YoY", metric: abs.yoy, format: fmtPct, tone: true },
+    { key: "qoq", label: "QoQ", metric: abs.qoq, format: fmtPct, tone: true },
+    {
+      key: "vol",
+      label: t(`Волатильность (${volWindow || 30}д, годовая)`,
+               `Volatillik (${volWindow || 30}k, yillik)`,
+               `Volatility (${volWindow || 30}d, ann.)`),
+      metric: abs.volatility,
+      format: (v) => `${Number(v).toFixed(2)}%`,
+    },
+    {
+      key: "range",
+      label: t("Макс. дневной диапазон", "Maks. kunlik diapazon", "Max daily range"),
+      metric: abs.max_day_range,
+      format: (v) => `${Number(v).toFixed(2)}%`,
+    },
+  ];
+
+  const TIER_LABEL = {
+    full: [null, null, null],
+    sparse: ["редкие сделки", "kam bitimlar", "sparse trading"],
+    illiquid: ["неликвидная бумага", "likvid bo'lmagan qog'oz", "illiquid security"],
+    no_data: ["нет данных", "ma'lumot yo'q", "no data"],
+  };
+  const tierIdx = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
+  const tierText = quality ? (TIER_LABEL[quality.data_tier] || [])[tierIdx] : null;
+
+  const renderGroup = (title, note, items) => (
+    <div className="price-stats-group">
+      <div className="price-stats-group-head">
+        <span className="price-stats-group-title">{title}</span>
+        {note && <span className="price-stats-group-note muted">{note}</span>}
+      </div>
+      <div className="price-stats-strip">
+        {items.map((it) => (
+          <div className="price-stat" key={it.key}>
+            <span className="price-stat-label">{it.label}</span>
+            <MetricValue metric={it.metric} format={it.format} tone={it.tone} lang={lang} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="price-stats-strip">
-      {items.map((it) => (
-        <div className="price-stat" key={it.label}>
-          <span className="price-stat-label">{it.label}</span>
-          <span className={`price-stat-value ${it.tone || ""}`}>{it.value}</span>
-        </div>
-      ))}
+    <div className="price-stats-blocks">
+      {renderGroup(
+        t("За период", "Davr uchun", "Selected period"),
+        `${win.label || ""}${win.points ? ` · ${win.points} ${t("точек", "nuqta", "points")}` : ""}`,
+        windowItems,
+      )}
+      {renderGroup(
+        t("Не зависит от периода", "Davrga bog'liq emas", "Independent of the period"),
+        t("считается по всей истории", "butun tarix bo'yicha hisoblanadi", "computed on the full history"),
+        absoluteItems,
+      )}
+      {tierText && (
+        <p className="price-stats-tier muted">
+          {t("Качество данных", "Ma'lumot sifati", "Data quality")}: {tierText}
+          {quality?.reason ? ` — ${quality.reason}` : ""}
+        </p>
+      )}
     </div>
   );
 }
 
-function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow }) {
+function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, priceMetricsLoading }) {
   const marketCapVal = safeNumber(marketRow?.market_cap ?? marketRow?.marketCap) || null;
   const nominalVal = safeNumber(marketRow?.nominal) || null;
   const metrics = companyData?.ratios?.metrics || {};
@@ -5711,8 +5823,9 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments,
     <div className="company-overview-layout">
       {/* Full-width price chart */}
       <div className="company-chart-panel panel">
-        <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} adjustments={priceAdjustments} lang={lang} />
-        <PriceStatsStrip history={priceHistory} lang={lang} />
+        <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} adjustments={priceAdjustments} lang={lang}
+          quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows} />
+        <PriceStatsStrip metrics={priceMetrics} loading={priceMetricsLoading} lang={lang} />
       </div>
 
       {/* Below chart: description + sidebar */}
@@ -5960,6 +6073,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
   const [priceAdjustments, setPriceAdjustments] = React.useState([]);
   const [priceMonths, setPriceMonths] = React.useState(12);
   const [priceLoading, setPriceLoading] = React.useState(false);
+  // Window + absolute price metrics from /api/company/{ticker}/metrics.
+  const [metrics, setMetrics] = React.useState(null);
+  const [metricsLoading, setMetricsLoading] = React.useState(false);
   const [secInfo, setSecInfo] = React.useState((securitiesMap || {})[ticker] || null);
   const [infoLoading, setInfoLoading] = React.useState(false);
   const [companyData, setCompanyData] = React.useState(null);
@@ -5990,6 +6106,22 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
       })
       .catch(() => { if (alive) setPriceError(true); })
       .finally(() => { if (alive) setPriceLoading(false); });
+    return () => { alive = false; };
+  }, [ticker, priceMonths, priceRetry]);
+
+  // Metrics are the server's job (ТЗ §3, second principle: one calc layer, and
+  // the screen is not one of its implementations). The absolute block in the
+  // response is identical whatever `priceMonths` is — that is the invariant
+  // this endpoint exists to hold, and it is asserted in tests/test_formulas.py.
+  React.useEffect(() => {
+    if (!ticker) return undefined;
+    let alive = true;
+    setMetricsLoading(true);
+    fetch(`/api/company/${encodeURIComponent(ticker)}/metrics?months=${priceMonths}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setMetrics(d.ok ? d : null); })
+      .catch(() => { if (alive) setMetrics(null); })
+      .finally(() => { if (alive) setMetricsLoading(false); });
     return () => { alive = false; };
   }, [ticker, priceMonths, priceRetry]);
 
@@ -6153,12 +6285,14 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
             priceAdjustments={priceAdjustments}
             priceMonths={priceMonths} onMonthsChange={setPriceMonths}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
-            marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading} />
+            marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading}
+            priceMetrics={metrics} priceMetricsLoading={metricsLoading} />
         )}
         {tab === "chart" && (
           <div className="panel" style={{ padding: 24 }}>
             <h3 className="section-heading" style={{ marginBottom: 16 }}>{lang === "ru" ? `История цен — ${ticker}` : `Price History — ${ticker}`}</h3>
-            <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={setPriceMonths} lang={lang} />
+            <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={setPriceMonths} lang={lang}
+              quality={metrics?.quality} metricsWindows={metrics?.ma_windows} />
           </div>
         )}
         {tab === "dividends" && (

@@ -2692,40 +2692,110 @@ async def api_catalog_analyze(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+async def _resolve_isin(ticker: str) -> str | None:
+    """ISIN for a ticker: local catalog first, listing registry, then the feed.
+
+    The ISIN is known locally (securities catalog / listing registry) — resolve
+    there first. The live feed only lists actively traded tickers, so inactive
+    listings used to die with "ISIN not found"; it remains the last-resort
+    fallback for brand-new tickers.
+    """
+    import os
+    import requests as _req
+
+    ticker = ticker.upper()
+    loop = asyncio.get_running_loop()
+    try:
+        smap = await loop.run_in_executor(None, get_securities_map)
+        isin = str((smap.get(ticker) or {}).get("isin") or "").strip() or None
+        if isin:
+            return isin
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        listings = await loop.run_in_executor(None, get_all_listings)
+        isin = str(((listings or {}).get(ticker) or {}).get("isin") or "").strip() or None
+        if isin:
+            return isin
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        uzse_base = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
+        resp = await loop.run_in_executor(None, lambda: _req.get(f"{uzse_base}/stocks", timeout=15))
+        stocks = resp.json().get("stocks", []) if resp.ok else []
+        return next((s["isin"] for s in stocks if s.get("ticker", "").upper() == ticker), None)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+# Full history per ISIN, kept briefly in-process. The metrics endpoint needs the
+# WHOLE series on every call (absolute metrics are computed on it by definition),
+# so without this a period switch would refetch five years from openinfo.
+_HISTORY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_HISTORY_CACHE_TTL = 600.0
+_HISTORY_CACHE_MAX = 256
+
+
+async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
+    """Full price history for an ISIN, memoised for _HISTORY_CACHE_TTL seconds."""
+    from openinfo_collector import fetch_price_history
+
+    key = f"{isin}:{months}"
+    now = time.time()
+    hit = _HISTORY_CACHE.get(key)
+    if hit and now - hit[0] < _HISTORY_CACHE_TTL:
+        return hit[1]
+    loop = asyncio.get_running_loop()
+    data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, months))
+    if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
+        oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
+        _HISTORY_CACHE.pop(oldest, None)
+    _HISTORY_CACHE[key] = (now, data)
+    return data
+
+
+@app.get("/api/company/{ticker}/metrics")
+async def api_company_metrics(ticker: str, months: int = 12) -> dict[str, Any]:
+    """Window and absolute price metrics for one instrument (ТЗ v1.2 §5).
+
+    The two blocks are the contract: ``window`` follows the period button,
+    ``absolute`` never does. Both are computed by formulas.py from one full
+    history fetch, so the card, the market screen and the export cannot each
+    arrive at a different VWAP or a different YTD.
+    """
+    from datetime import datetime, timezone
+
+    import formulas
+
+    ticker = ticker.upper()
+    months = max(1, min(months, 60))
+    try:
+        isin = await _resolve_isin(ticker)
+        if not isin:
+            return {"ok": False, "ticker": ticker, "error": "ISIN not found"}
+        data = await _full_history(isin)
+        metrics = formulas.company_metrics(data.get("points") or [], months=months)
+        return {
+            "ok": True, "ticker": ticker, "isin": isin,
+            "as_of": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            **metrics,
+        }
+    except Exception as exc:
+        logger.exception("metrics failed for %s", ticker)
+        return {"ok": False, "ticker": ticker, "error": str(exc)}
+
+
 @app.get("/api/price-history/{ticker}")
 async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
     """Close price history for a ticker via UZSE ISIN lookup."""
-    import os
-    import requests as _req
-    from openinfo_collector import fetch_price_history
-
     ticker = ticker.upper()
     months = max(1, min(months, 60))
     loop = asyncio.get_running_loop()
     try:
-        # The ISIN is known locally (securities catalog / listing registry) —
-        # resolve there first. The live feed only lists actively traded
-        # tickers, so inactive listings used to die with "ISIN not found";
-        # it remains the last-resort fallback for brand-new tickers.
-        isin: str | None = None
-        try:
-            smap = await loop.run_in_executor(None, get_securities_map)
-            isin = str((smap.get(ticker) or {}).get("isin") or "").strip() or None
-        except Exception:  # noqa: BLE001
-            pass
-        if not isin:
-            try:
-                listings = await loop.run_in_executor(None, get_all_listings)
-                isin = str(((listings or {}).get(ticker) or {}).get("isin") or "").strip() or None
-            except Exception:  # noqa: BLE001
-                pass
-        if not isin:
-            uzse_base = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
-            resp = await loop.run_in_executor(None, lambda: _req.get(f"{uzse_base}/stocks", timeout=15))
-            stocks = resp.json().get("stocks", []) if resp.ok else []
-            isin = next((s["isin"] for s in stocks if s.get("ticker", "").upper() == ticker), None)
+        isin = await _resolve_isin(ticker)
         if not isin:
             return {"ok": False, "ticker": ticker, "error": "ISIN not found", "points": []}
+        from openinfo_collector import fetch_price_history
         data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, months))
         points = [
             {
