@@ -117,6 +117,13 @@ def reference_state(reference: dict[str, Any] | None) -> dict[str, Any]:
             # the issuer starts redeeming. So accrued interest and the running
             # yield are knowable long before a redemption date exists.
             "has_coupon": bool(nominal and rate),
+            # The terms themselves, so a reader can see WHAT was found and not
+            # only that something was: a 28% coupon is the answer to "why is
+            # this trading at 120% of par", and it belongs on the screen.
+            "nominal": nominal,
+            "coupon_rate": rate,
+            "coupon_freq": _num(reference.get("coupon_freq")),
+            "maturity_date": reference.get("maturity_date"),
             "source_url": reference.get("source_url"),
             "synced_at": reference.get("synced_at")}
 
