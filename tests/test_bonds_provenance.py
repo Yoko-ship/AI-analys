@@ -337,57 +337,49 @@ class TestProvenanceWiring:
         provenance.sync_from_catalog()
         assert provenance.report(report_id)["state"] == "validated"
 
-    def test_a_parse_records_its_figures_and_returns_the_link(self):
+    def _own_report(self, quarter=None):
+        """A report this test owns.
+
+        Picking one off the shared queue made these tests order-dependent: an
+        earlier test moves a report out of `discovered` and the next one asserts
+        against a different row. Each creates its own instead.
+        """
         import reports_catalog as rc
 
-        provenance.sync_from_catalog()
-        rows = [r for r in provenance.queue(500) if r["report_form"] == "NSBU"]
-        if not rows:
-            pytest.skip("no NSBU reports registered in this environment")
-        row = rows[0]
-        ticker = provenance.ticker_of(row["id"])
-        if not ticker:
-            pytest.skip("report is not resolvable to a ticker here")
-        report_id = rc._register_parse(
-            ticker, "NSBU", row["period_year"],
-            row["period_quarter"], {"ok": True},
-            {"revenue": 1000.0, "net_income": 100.0})
-        assert report_id == row["id"]
+        org = "TESTWIRE"
+        conn = provenance._conn()
+        try:
+            conn.execute("INSERT INTO catalog_companies (ticker, company_name, org_id) "
+                         "VALUES (?,?,?) ON CONFLICT(ticker) DO UPDATE SET org_id=excluded.org_id",
+                         ("ZZWIRE", "Wire Test", org))
+            conn.commit()
+        finally:
+            conn.close()
+        year = 2001 if quarter is None else 2002
+        report_id = provenance.upsert_report(org, "NSBU",
+                                             "annual" if quarter is None else "quarter",
+                                             year, quarter)
+        return rc, "ZZWIRE", report_id, year, quarter
+
+    def test_a_parse_records_its_figures_and_returns_the_link(self):
+        rc, ticker, report_id, year, quarter = self._own_report()
+        got = rc._register_parse(ticker, "NSBU", year, quarter, {"ok": True},
+                                 {"revenue": 1000.0, "net_income": 100.0})
+        assert got == report_id
         stored = provenance.report(report_id)
         assert stored["state"] == "validated"
         assert {f["field"] for f in stored["figures"]} == {"revenue", "net_income"}
         assert stored["used_by"]["financials"] is True
 
     def test_a_report_that_yields_nothing_keeps_its_reason(self):
-        import reports_catalog as rc
-
-        provenance.sync_from_catalog()
-        rows = [r for r in provenance.queue(500) if r["report_form"] == "NSBU"]
-        if not rows:
-            pytest.skip("no NSBU reports registered in this environment")
-        row = rows[-1]
-        ticker = provenance.ticker_of(row["id"])
-        if not ticker:
-            pytest.skip("report is not resolvable to a ticker here")
-        report_id = rc._register_parse(ticker, "NSBU", row["period_year"],
-                                       row["period_quarter"], {"ok": True}, {})
+        rc, ticker, report_id, year, quarter = self._own_report(quarter=3)
+        rc._register_parse(ticker, "NSBU", year, quarter, {"ok": True}, {})
         stored = provenance.report(report_id)
         assert stored["state"] == "parse_failed" and stored["state_reason"]
 
     def test_a_download_failure_is_a_state_not_a_silence(self):
-        import reports_catalog as rc
-
-        provenance.sync_from_catalog()
-        rows = [r for r in provenance.queue(500) if r["report_form"] == "NSBU"]
-        if not rows:
-            pytest.skip("no NSBU reports registered in this environment")
-        row = rows[0]
-        ticker = provenance.ticker_of(row["id"])
-        if not ticker:
-            pytest.skip("report is not resolvable to a ticker here")
-        report_id = rc._register_parse(ticker, "NSBU", row["period_year"],
-                                       row["period_quarter"],
-                                       {"ok": False, "error": "404"}, {})
+        rc, ticker, report_id, year, quarter = self._own_report(quarter=4)
+        rc._register_parse(ticker, "NSBU", year, quarter, {"ok": False, "error": "404"}, {})
         assert provenance.report(report_id)["state"] == "download_failed"
 
     def test_an_unregistered_report_publishes_without_a_link(self):
@@ -431,3 +423,18 @@ class TestProvenanceWiring:
         rc.backfill_report_links()
         second = rc.backfill_report_links()
         assert second["linked"] == 0
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _clean_wire_fixtures():
+    """Remove the rows TestProvenanceWiring creates for itself."""
+    yield
+    conn = provenance._conn()
+    try:
+        conn.execute("DELETE FROM report_figures WHERE report_id IN "
+                     "(SELECT id FROM source_reports WHERE org_id = 'TESTWIRE')")
+        conn.execute("DELETE FROM source_reports WHERE org_id = 'TESTWIRE'")
+        conn.execute("DELETE FROM catalog_companies WHERE ticker = 'ZZWIRE'")
+        conn.commit()
+    finally:
+        conn.close()
