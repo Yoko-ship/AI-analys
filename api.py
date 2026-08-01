@@ -2804,6 +2804,35 @@ async def api_admin_openinfo_probe(
 _admin_catalog_sync_running = threading.Event()
 
 
+@app.post("/api/admin/pg/copy")
+async def api_admin_pg_copy(payload: dict[str, Any] | None = None,
+                            _: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Copy the SQLite databases into PostgreSQL (ТЗ §10.1, phase one).
+
+    It runs HERE, on the service, because this is where the volume is mounted —
+    a developer's machine holds a partial copy with test rows in it, and seeding
+    production from that would be worse than not migrating at all.
+
+    Additive and reversible: the copied tables sit beside the web-auth ones, the
+    SQLite files are untouched, and nothing that serves a request changes until
+    DATABASE_BACKEND is flipped. Pass `{"schema": "..."}` to rehearse into a
+    throwaway schema first.
+    """
+    import pg_migrate
+
+    payload = payload or {}
+    loop = asyncio.get_running_loop()
+    report = await loop.run_in_executor(None, partial(
+        pg_migrate.migrate,
+        schema=str(payload.get("schema") or "public"),
+        dry_run=bool(payload.get("dry_run")),
+        only=payload.get("only")))
+    if not report.get("ok"):
+        # A partial copy that reports success is how a bad cutover happens.
+        return JSONResponse(_json_safe(report), status_code=500)
+    return _json_safe(report)
+
+
 @app.post("/api/admin/logos/materialise")
 async def api_admin_materialise_logos(_: None = Depends(_require_admin)) -> dict[str, Any]:
     """Pull externally hosted logos into our own storage (Дополнение 1 §Б.7).
