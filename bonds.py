@@ -19,14 +19,22 @@ So the contour is closed explicitly, in two halves.
 data we already hold — price, change, turnover, trades, issue value, history
 quality — plus the structural exclusion of equity multiples.
 
-**The second half needs a reference the source does not publish.** No endpoint
-carries a nominal, a coupon rate, a maturity date, accrued interest or a yield.
-Without a nominal you cannot show a price as a percentage of par, which is how a
-bond is actually read — 100 301 in one issue and 10 062 465 in another are
-different pars, and comparing them in absolute sums is meaningless. So every
-reference-dependent metric returns `no_bond_reference` until `bond_reference` is
-filled. Inventing a par of 100 000 "because it usually is" is the same class of
-error as interpolating a gap in a price series.
+**The second half needs a reference — and the source publishes half of it.**
+§А.3 recorded that no endpoint carries a nominal, a coupon rate or a maturity
+date. That was half wrong: the exchange's own security card
+(``/isu_infos/{isin}/detail``) returns ``parval`` — 100 000 for every ACMT
+series — and the BND page prints "Номинал (UZS)" in the open. So the par is
+loaded from the exchange (``listings_collector.collect_bond_reference_rows``)
+and the price is shown as a percentage of it, which is how a bond is actually
+read: 100 301 in one issue and 10 062 465 in another are different pars, and
+comparing them in absolute sums is meaningless.
+
+What remains genuinely absent is the coupon rate, the maturity date and the
+payment schedule — nowhere on the exchange's pages, nowhere in the API. Accrued
+interest, yield, duration and spread therefore keep returning
+`no_bond_reference` until those arrive. Inventing a coupon "because the issue
+looks like the others" is the same class of error as interpolating a gap in a
+price series.
 """
 from __future__ import annotations
 
@@ -88,14 +96,23 @@ REQUIRED_REFERENCE_FIELDS = ("nominal", "coupon_rate", "maturity_date")
 def reference_state(reference: dict[str, Any] | None) -> dict[str, Any]:
     """Is the issue reference complete enough to compute yields from?
 
-    ``is_complete`` is the master switch of the whole contour (ТЗ А.4): while it
-    is false no reference-dependent metric is computed or displayed, and the
-    moment the reference is filled they turn on with no code change.
+    ``is_complete`` is the master switch for the YIELDS (ТЗ А.4): while it is
+    false no discounting metric is computed or displayed, and the moment the
+    coupon and the maturity arrive they turn on with no code change.
+
+    ``has_nominal`` is a second, smaller switch, and it exists because the
+    exchange does publish the par value even though §А.3 recorded that nothing
+    did: ``/isu_infos/{isin}/detail`` carries ``parval`` and the BND page prints
+    "Номинал (UZS)" outright. A par alone cannot produce a yield, but it does
+    produce the reading a bond is actually quoted in. Holding that behind the
+    yield switch withheld a number we have.
     """
     reference = reference or {}
     missing = [f for f in REQUIRED_REFERENCE_FIELDS if _num(reference.get(f)) is None
                and not reference.get(f)]
+    nominal = _num(reference.get("nominal"))
     return {"is_complete": not missing, "missing": missing,
+            "has_nominal": nominal is not None and nominal > 0,
             "source_url": reference.get("source_url"),
             "synced_at": reference.get("synced_at")}
 
@@ -111,8 +128,13 @@ def _unavailable(reason: str = NO_REFERENCE_NOTE, **extra: Any) -> dict[str, Any
 def price_pct(price: Any, nominal: Any) -> dict[str, Any]:
     """Price as a percentage of par — how a bond is actually quoted."""
     p, n = _num(price), _num(nominal)
-    if p is None or n is None or n <= 0:
+    if n is None or n <= 0:
         return _unavailable()
+    if p is None:
+        # The par is known and the price is not — ACMT1B2 and CTFB3 are exactly
+        # this case. Answering `no_bond_reference` here would blame the issue
+        # reference for a missing quote; the row's own status already says why.
+        return _metric(None, "no_price", note="нет последней цены")
     return _metric(p / n * 100.0, "ok", nominal=n)
 
 
@@ -277,9 +299,17 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
         out["reason"] = None
 
     if not ref_state["is_complete"]:
-        for field in ("price_pct", "accrued", "clean", "dirty", "ytm", "duration",
+        for field in ("accrued", "clean", "dirty", "ytm", "duration",
                       "modified_duration", "spread", "simple_yield"):
             out[field] = _unavailable(missing=ref_state["missing"] or None)
+        # Price as a percentage of par depends on the par and on nothing else.
+        # Gating it behind the yield switch hid the one reading that IS
+        # available: 105 310 in one issue and 10 062 465 in another are not
+        # comparable numbers, 105.3% and 100.6% are — which is the whole reason
+        # §А.3 was written. The yields above stay a dash regardless.
+        nominal_only = _num((reference or {}).get("nominal"))
+        out["price_pct"] = (price_pct(price, nominal_only) if ref_state["has_nominal"]
+                            else _unavailable(missing=ref_state["missing"] or None))
         return out
 
     nominal = _num(reference.get("nominal"))
@@ -327,6 +357,7 @@ def build_bond_board(board: Iterable[dict[str, Any]],
     rows.sort(key=lambda r: r["ticker"])
     total_issue_value = sum(r["issue_value"] for r in rows if r.get("issue_value"))
     with_reference = sum(1 for r in rows if r["reference"]["is_complete"])
+    with_nominal = sum(1 for r in rows if r["reference"].get("has_nominal"))
     return {
         "count": len(rows),
         "items": rows,
@@ -334,5 +365,8 @@ def build_bond_board(board: Iterable[dict[str, Any]],
         "issue_value_total": total_issue_value,
         "issue_value_note": "стоимость выпусков, не капитализация акционерного рынка",
         "with_reference": with_reference,
+        # Two counters, because the contour now turns on in two stages: the par
+        # value arrives from the exchange, the coupon and the maturity do not.
+        "with_nominal": with_nominal,
         "day_count_basis": day_count_basis(),
     }

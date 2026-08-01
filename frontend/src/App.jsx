@@ -5411,13 +5411,23 @@ function BondsTable({ language, onOpen }) {
           {t("базис дней", "kun bazisi", "day count")}: {data.day_count_basis}
         </span>
       </div>
-      {data.with_reference === 0 && (
+      {/* The contour turns on in two stages, so the note has to say WHICH half
+          is missing: the exchange publishes the par value, and nobody publishes
+          the coupon or the maturity. One sentence for both states would be
+          wrong in whichever state it is not describing. */}
+      {data.with_reference === 0 && (data.with_nominal ? (
+        <p className="bonds-note muted">
+          {t("Цена показана в процентах от номинала — номинал взят с биржи. Доходность к погашению и дюрация не считаются: купонная ставка и дата погашения не публикуются ни на бирже, ни в API.",
+             "Narx nominalga nisbatan foizda ko'rsatilgan — nominal birjadan olingan. Daromadlilik va duratsiya hisoblanmaydi: kupon stavkasi va to'lov sanasi e'lon qilinmaydi.",
+             "Price is shown as a percentage of par, with the par taken from the exchange. Yield to maturity and duration are not computed: the coupon rate and the maturity date are published neither by the exchange nor by the API.")}
+        </p>
+      ) : (
         <p className="bonds-note muted">
           {t("Доходность, дюрация и цена в процентах от номинала не считаются: источник не публикует номинал, купон и дату погашения. Как только справочник выпусков загружен, метрики появляются сами.",
              "Daromadlilik va duratsiya hisoblanmaydi: manba nominal, kupon va to'lov sanasini e'lon qilmaydi.",
              "Yield, duration and price as a percentage of par are not computed: the source publishes no nominal, coupon or maturity. They appear by themselves once the issue reference is loaded.")}
         </p>
-      )}
+      ))}
       <div className="market-table-scroll">
         <table className="market-table bonds-table">
           <thead>

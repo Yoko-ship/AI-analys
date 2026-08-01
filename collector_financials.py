@@ -305,7 +305,32 @@ def push_listings() -> int:
     if not rows:
         log.warning("no listings collected")
         return 1
-    return _post("/api/admin/listings", {"rows": rows})
+    status = _post("/api/admin/listings", {"rows": rows})
+    # The bond issue reference rides on the same walk: the listing rows already
+    # name every UZ6… ISIN, so filling the par value costs one request per bond
+    # issuer and no second pass over openinfo.
+    try:
+        status = push_bond_reference(rows) or status
+    except Exception:  # noqa: BLE001 — a missing par must not fail the listings push
+        log.exception("bond reference step failed")
+    return status
+
+
+def push_bond_reference(listing_rows: list[dict]) -> int:
+    """Push the bond issue reference (ТЗ Дополнение 1 §А.4).
+
+    Only the par value and the issue size — the exchange publishes those. The
+    coupon and the maturity stay NULL, so ``is_complete`` stays false and every
+    yield metric keeps showing a dash with its reason. What changes is that the
+    price becomes readable as a percentage of par.
+    """
+    import listings_collector as lc
+
+    rows = lc.collect_bond_reference_rows(listing_rows)
+    if not rows:
+        log.info("bond reference: nothing to push")
+        return 0
+    return _post("/api/admin/bonds/reference", {"rows": rows})
 
 
 def push_financials_aliases() -> int:
