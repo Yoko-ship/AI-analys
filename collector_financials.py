@@ -211,13 +211,45 @@ def push_quotes(stats: dict[str, dict]) -> int:
     """
     import uzse_quotes as uq
 
-    targets = sorted(
+    traded = {
         (isin, str((row or {}).get("market") or "STK"))
         for isin, row in (stats or {}).items() if isin
-    )
+    }
+
+    # ...and every catalogued security that has no quote at all.
+    #
+    # Reading only what traded is right for the change %, and wrong for the
+    # price. A security that last traded on 30.07 is absent from the 31.07
+    # statistics, so it received no quote — and if the live mirror also carries
+    # no last price for it, the board showed an em-dash for a security the
+    # exchange is perfectly willing to quote. Measured against the trade
+    # archive, twelve of a hundred and eight rows were empty this way: UTYK at
+    # 370 000, TKDM at 2 626, UTGA at 116 000 — all recent, all published.
+    #
+    # Their quote page reads prev == close, change 0 %, which is the exchange
+    # saying "no session", and that is the honest thing to show for them.
+    backfill: set[tuple[str, str]] = set()
+    try:
+        from reports_catalog import get_all_quotes
+        from securities_catalog import get_securities_map
+
+        have = {str(k).upper() for k in (get_all_quotes() or {})}
+        for ticker, meta in (get_securities_map() or {}).items():
+            isin = str((meta or {}).get("isin") or "").strip().upper()
+            if not isin or isin in have:
+                continue
+            market = "BND" if str((meta or {}).get("type") or "").lower() == "bond" else "STK"
+            if (isin, market) not in traded:
+                backfill.add((isin, market))
+    except Exception:  # noqa: BLE001 — a backfill must never cost us the session
+        log.warning("quote backfill list unavailable", exc_info=True)
+
+    targets = sorted(traded | backfill)
     if not targets:
         log.warning("no traded securities to quote")
         return 0
+    if backfill:
+        log.info("quotes: %d traded + %d without any quote", len(traded), len(backfill))
     log.info("reading exchange quotes for %d securities ...", len(targets))
     quotes = uq.fetch_session_quotes(targets)
     log.info("quotes: %d of %d securities answered with a session quote",
