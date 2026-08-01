@@ -2928,6 +2928,13 @@ function enrichMarketStock(stock) {
     sharesOutstanding: safeNumber(stock?.shares_outstanding) || null,
     changeValue: change.value,
     changePercent: change.percent,
+    // Did this security trade in the session the board is showing? The
+    // exchange carries a close forward through sessions with no executions, so
+    // last == prev proves nothing on its own — a security CAN trade and close
+    // exactly flat, and that is a real 0 %. Only activity separates the two.
+    tradedToday: (safeNumber(stock?.trade_count) || 0) > 0
+      || (safeNumber(stock?.volume) || 0) > 0
+      || (safeNumber(stock?.quantity) || 0) > 0,
     tone: marketTone(change.percent),
   };
 }
@@ -7913,7 +7920,28 @@ function MarketView({
   const NUM_COLS = new Set(MOVABLE_KEYS.filter((k) => k !== "date" && k !== "source"));
   const CELL_OF = {
     last: (row) => <td className="num">{(() => { const p = marketDisplayPrice(row); return p == null ? "—" : formatMarketNumber(p, lang); })()}</td>,
-    change: (row) => <td className="num"><MarketChangeBadge value={row.changeValue != null ? row.changeValue : (row.closePrice > 0 ? 0 : null)} percent={row.changePercent != null ? row.changePercent : (row.closePrice > 0 ? 0 : null)} language={lang} /></td>,
+    // ТЗ §2.4/§9: "отсутствие данных показывается как нулевое изменение" was
+    // the defect. This cell substituted 0 whenever a close price existed, so a
+    // security that has not traded since 15.07 read as "unchanged today" beside
+    // securities that genuinely did not move. Measured against the trade
+    // archive, seven rows showed 0 % where the last real session moved by up to
+    // 20 %. No trading in this session means no change to report — the cell
+    // says so, and names the day the price is actually from.
+    change: (row) => {
+      if (!row.tradedToday) {
+        const when = row.last_trade_date || row.ts?.trade_date;
+        return (
+          <td className="num">
+            <span className="cell-status" title={when
+              ? `${lang === "ru" ? "цена за" : lang === "uz" ? "narx" : "price from"} ${when}`
+              : undefined}>
+              {lang === "en" ? "no trades" : lang === "uz" ? "bitim yo'q" : "нет сделок"}
+            </span>
+          </td>
+        );
+      }
+      return <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>;
+    },
     open: (row) => <td className="num">{(() => { const v = row.openPrice !== null ? row.openPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
     high: (row) => <td className="num">{(() => { const v = row.highPrice !== null ? row.highPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
     low: (row) => <td className="num">{(() => { const v = row.lowPrice !== null ? row.lowPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
