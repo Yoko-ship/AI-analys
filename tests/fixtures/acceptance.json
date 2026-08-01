@@ -1,0 +1,122 @@
+{
+  "_comment": "ТЗ v1.2 §13 / v1.3 §12.8 — the acceptance set, in ONE file. It is used twice: as a test of the AUDITOR (the rule must find the known problem) and as a test of the CALCULATION LAYER (after the fix the number must be right). Keeping it here rather than inline in two test files is the point: a case fixed in one place and forgotten in the other is exactly how a defect returns two months later. Every row was verified by hand against the live API on 31.07.2026. `was` is what the system showed then; `should_be` is what it must show now.",
+
+  "vwap": [
+    {"ticker": "UQEQ", "window": "1y", "was": 27756.90, "should_be": 27284.06,
+     "why": "VWAP is turnover/volume, not sum(close*volume)/volume"},
+    {"ticker": "UQEQ", "window": "3y", "was": 15939.71, "should_be": 15617.33, "why": "same"},
+    {"ticker": "UZHM", "window": "1y", "was": 4007.99, "should_be": 3010.46,
+     "why": "worst divergence in the catalog: +33.14 %"}
+  ],
+
+  "absolute_metrics": [
+    {"ticker": "UQEQ", "metric": "volatility_20d", "was": 11.32, "should_be": null,
+     "status": "insufficient_data", "why": "7 observations in the window, not 20"},
+    {"ticker": "YGSY", "metric": "volatility_window", "was": "21 points",
+     "should_be": null, "status": "insufficient_data",
+     "why": "the 21 points spanned 293 days; a 30-day window has too few"},
+    {"ticker": "UQEQ", "metric": "ytd", "was": "changes with the period button",
+     "should_be": -26.86, "why": "computed on full history; identical at 1M/3M/6M/1Y/3Y/5Y"},
+    {"ticker": "BNGPP", "metric": "ytd_spread_across_periods", "was": 542.9,
+     "should_be": 0, "unit": "percentage points",
+     "why": "one security cannot have six different year-to-date returns"},
+    {"ticker": "UQEQ", "metric": "yoy", "was": null, "should_be": null,
+     "status": "base_too_stale", "why": "a null must carry its reason"},
+    {"ticker": "UQEQ", "metric": "max_day_range", "was": 30.21, "should_be": null,
+     "status": "insufficient_data", "why": "too few valid OHLC points"}
+  ],
+
+  "moving_average": [
+    {"ticker": "UQEQ", "metric": "ma20_calendar_days", "was": 141, "should_be": 28,
+     "tolerance_pct": 20, "why": "averaging 20 weekly candles is not a 20-day average"},
+    {"ticker": "UQEQ", "metric": "ma20_modes_agree", "was": false, "should_be": true,
+     "why": "line and candle mode must draw one line"}
+  ],
+
+  "quality": [
+    {"ticker": "MXUS", "metric": "data_tier", "should_be": "no_data",
+     "why": "a page without history is a state, not an error"},
+    {"ticker": "UQEQ", "metric": "candles_enabled_36m", "was": true, "should_be": false,
+     "reason": "flat_share 65.3 %"},
+    {"ticker": "HMKB", "metric": "candles_enabled_12m", "was": true, "should_be": true,
+     "why": "245 points — a liquid security keeps its candles"}
+  ],
+
+  "multiples": [
+    {"ticker": "KFSK", "metric": "pe", "was": 203.56, "should_be": "issuer_earnings",
+     "why": "the denominator is the issuer's profit, not the class's"},
+    {"ticker": "KFSKP", "metric": "pe", "was": 0.19, "should_be": "equal_to_KFSK",
+     "why": "one issuer, one profit, one P/E"},
+    {"ticker": "ALKB", "metric": "pb", "was": 0.774, "should_be": "recomputed"},
+    {"ticker": "ALKBP", "metric": "bvps_ratio_vs_ALKB", "was": 1042.5,
+     "should_be": "<= 3x", "why": "a thousandfold gap is a units error in the share count"},
+    {"ticker": "UTGAP", "metric": "roe", "was": 10715.33, "should_be": null,
+     "status": "out_of_range"},
+    {"ticker": "UZMT", "metric": "roe", "was": 179.26, "should_be": null,
+     "status": "out_of_range", "period": "2019"}
+  ],
+
+  "financials": [
+    {"ticker": "UQEQ", "metric": "revenue_6m_vs_annual", "was": 131,
+     "should_be": "rejected_at_input", "unit": "x",
+     "why": "a half-year revenue 131 times the annual is a parse error"},
+    {"tickers": ["UQEQ", "SANE", "PLST", "PLSTP"], "metric": "statement",
+     "should_be": "unverified", "why": "shown as «данные проверяются», never as a figure"},
+    {"metric": "revenue_column_periods", "was": "3, 6, 9 and 12 months mixed",
+     "should_be": "one period per column, sort normalised to 12 months"},
+    {"tickers": ["UTGAP", "UZMT"], "metric": "roe_in_sorting",
+     "should_be": "excluded", "why": "outliers may not rank beside real values"}
+  ],
+
+  "market_map": [
+    {"ticker": "UQEQ", "metric": "tile", "was": "+20 % coloured like any other",
+     "should_be": "marked: 1 trade, 1 security, 30 720 sums; excluded from the top without a mark"},
+    {"tickers": ["SANE", "YGSY", "ORGS", "KSCM", "KPBA", "TGPG", "JASM", "UZASP",
+                 "KSCMP", "BECMP"],
+     "metric": "change_pct", "was": 0, "should_be": null, "status": "not_traded",
+     "why": "no data is not zero, and must not vote in a sector average"},
+    {"ticker": "UTYK", "metric": "last_price", "was": null, "should_be": "present",
+     "why": "8 trades on 34 050 000 sums — a join gap, not an absent price"},
+    {"ticker": "ACMT1B2", "metric": "last_price", "was": null, "should_be": "present",
+     "why": "16 trades on 22 093 140 sums"},
+    {"ticker": "KASU", "metric": "change_pct", "was": 0, "should_be": "non-zero",
+     "why": "price 0.01 sum: rounding before the division erases every move"},
+    {"sector": "finance", "metric": "aggregate", "was": 1.17,
+     "should_be": "turnover-weighted", "why": "a simple mean with zeros in it"}
+  ],
+
+  "catalog": [
+    {"metric": "instrument_universes", "was": [82, 85, 96, 107, 108], "should_be": 1},
+    {"tickers": ["UTGAP", "UTGA", "UZNF"], "metric": "sector",
+     "should_be": "identical across every reference"},
+    {"metric": "market_capitalisation", "was": 265659,
+     "should_be": "active shares only", "unit": "bn sums",
+     "excluded": {"inactive_listings": 29088, "bonds": 798}}
+  ],
+
+  "bonds": [
+    {"metric": "issues_visible", "was": 0, "should_be": 11,
+     "why": "a traded contour that exists in the data and not in the interface"},
+    {"ticker": "ACMT2B5", "metric": "trades", "should_be": 8622,
+     "why": "these are real sessions, not a rounding of zero"},
+    {"metric": "issue_value", "was": "summed into equity capitalisation",
+     "should_be": "its own line", "unit": "798 bn"},
+    {"ticker": "ACMT1B2", "metric": "change_pct", "was": -100, "should_be": null,
+     "status": "no_price", "why": "575 securities traded that day"},
+    {"metric": "share_class", "was": "ordinary", "should_be": "bond",
+     "why": "the wrong class is how a bond reaches the equity branches at all"},
+    {"metric": "yield_metrics", "should_be": null, "status": "no_bond_reference",
+     "why": "no nominal, coupon or maturity is published anywhere; an invented par is not a fallback"}
+  ],
+
+  "source_catalog": [
+    {"metric": "header_vs_list", "was": [85, 73], "should_be": "one query, cannot disagree"},
+    {"metric": "reports_header_vs_sum", "was": [2021, 1659], "should_be": "equal"},
+    {"metric": "keyed_by", "was": "ticker", "should_be": "issuer",
+     "why": "73 rows are 66 organisations; five bond series showed 0 reports"},
+    {"metric": "published_figure_source", "was": "absent", "should_be": "report_id",
+     "why": "«where did this revenue come from» must be answerable"},
+    {"metric": "staleness", "was": "10 days, shown as a bare date",
+     "should_be": "stated in words when older than the threshold"}
+  ]
+}

@@ -5349,6 +5349,209 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
 // a machine-to-machine credential and the browser is not a machine.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Bonds (ТЗ Дополнение 1 §А.2)
+//
+// Eleven issues trade genuinely and had no place in the interface at all. They
+// get their own table rather than a row in the equity board, because the columns
+// differ: an issue has a value, not a capitalisation, and it has no earnings, so
+// P/E and P/B are not blank for it — they do not apply.
+// ---------------------------------------------------------------------------
+
+function BondsTable({ language, onOpen }) {
+  const lang = normalizeLanguage(language);
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [data, setData] = React.useState(null);
+  const [error, setError] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/bonds")
+      .then((r) => r.json())
+      .then((d) => { if (alive) { if (d && d.ok) setData(d); else setError(true); } })
+      .catch(() => { if (alive) setError(true); });
+    return () => { alive = false; };
+  }, []);
+
+  if (error) return <p className="muted">{t("Раздел облигаций недоступен", "Obligatsiyalar bo'limi mavjud emas", "Bonds section unavailable")}</p>;
+  if (!data) return <p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p>;
+
+  const money = (v) => (Number.isFinite(v) ? formatCompactNumber(v, lang) : "—");
+  const pct = (v) => (Number.isFinite(v) ? `${v > 0 ? "+" : ""}${formatRatio(v, 2, lang)}%` : "—");
+  const metric = (m) => {
+    if (!m) return <span className="cell-status">—</span>;
+    if (m.value != null) return formatRatio(m.value, 2, lang);
+    return <span className="cell-status" title={m.note || m.status}>—</span>;
+  };
+
+  return (
+    <div className="bonds-wrap">
+      <div className="bonds-head">
+        <span className="panel-label">{t("Облигации", "Obligatsiyalar", "Bonds")}</span>
+        <span className="muted">
+          {data.count} {t("выпусков", "chiqarilish", "issues")}
+          {" · "}
+          {/* NOT the equity market's capitalisation, and labelled so nobody
+              adds the two together. */}
+          {t("стоимость выпусков", "chiqarilish qiymati", "issue value")}: {money(data.issue_value_total)}
+          {" · "}
+          {t("базис дней", "kun bazisi", "day count")}: {data.day_count_basis}
+        </span>
+      </div>
+      {data.with_reference === 0 && (
+        <p className="bonds-note muted">
+          {t("Доходность, дюрация и цена в процентах от номинала не считаются: источник не публикует номинал, купон и дату погашения. Как только справочник выпусков загружен, метрики появляются сами.",
+             "Daromadlilik va duratsiya hisoblanmaydi: manba nominal, kupon va to'lov sanasini e'lon qilmaydi.",
+             "Yield, duration and price as a percentage of par are not computed: the source publishes no nominal, coupon or maturity. They appear by themselves once the issue reference is loaded.")}
+        </p>
+      )}
+      <div className="market-table-scroll">
+        <table className="market-table bonds-table">
+          <thead>
+            <tr>
+              <th>{t("Тикер", "Ticker", "Ticker")}</th>
+              <th>{t("Выпуск", "Chiqarilish", "Issue")}</th>
+              <th className="num">{t("Цена", "Narx", "Price")}</th>
+              <th className="num">{t("Изм.", "O'zg.", "Chg")}</th>
+              <th className="num">{t("Оборот", "Aylanma", "Turnover")}</th>
+              <th className="num">{t("Сделки", "Bitimlar", "Trades")}</th>
+              <th className="num">{t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}</th>
+              <th className="num">% {t("номинала", "nominal", "of par")}</th>
+              <th className="num">{t("Доходность", "Daromadlilik", "YTM")}</th>
+              <th>{t("Качество", "Sifat", "Quality")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.items.map((b) => (
+              <tr key={b.ticker} onClick={() => onOpen && onOpen(b.ticker)} className="bond-row">
+                <td><strong>{b.ticker}</strong></td>
+                <td>{b.name || "—"}</td>
+                <td className="num">{Number.isFinite(b.price) ? formatMarketNumber(b.price, lang) : "—"}</td>
+                <td className={`num tone-${marketTone(b.change_pct)}`}>{pct(b.change_pct)}</td>
+                <td className="num">{money(b.turnover)}</td>
+                <td className="num">{Number.isFinite(b.trades) ? b.trades : "—"}</td>
+                <td className="num">{money(b.issue_value)}</td>
+                <td className="num">{metric(b.price_pct)}</td>
+                <td className="num">{metric(b.ytm)}</td>
+                <td>
+                  {b.status !== "ok"
+                    ? <span className="cell-status" title={b.reason || ""}>
+                        {b.status === "no_price"
+                          ? t("нет цены", "narx yo'q", "no price")
+                          : t("нет сделок", "bitim yo'q", "not traded")}
+                      </span>
+                    : <span className="muted">{b.quality?.data_tier || "—"}</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// The reporting catalog, by ISSUER (ТЗ Дополнение 1 §Б.6)
+//
+// 73 ticker rows are 66 organisations. Listing by ticker is why five bond series
+// showed "0 отчётов" while their issuer's filings sat under another ticker, and
+// why the header's count never matched the list. Both now come from one request.
+// ---------------------------------------------------------------------------
+
+function CatalogIssuersPanel({ language }) {
+  const lang = normalizeLanguage(language);
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [data, setData] = React.useState(null);
+  const [pendingOnly, setPendingOnly] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/catalog/reports/summary")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setData(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  if (!data) return null;
+
+  const search = query.trim().toLowerCase();
+  const items = data.items.filter((i) => {
+    if (pendingOnly && !(i.pending || i.failed)) return false;
+    if (!search) return true;
+    return String(i.name || "").toLowerCase().includes(search)
+      || (i.tickers || []).some((tk) => tk.toLowerCase().includes(search));
+  });
+
+  return (
+    <div className="panel catalog-issuers" style={{ padding: 24, marginBottom: 16 }}>
+      <div className="panel-label">{t("Первоисточники", "Birlamchi manbalar", "Source reports")}</div>
+      <h3 className="section-heading">
+        {t("Эмитенты и состояние разбора", "Emitentlar va tahlil holati",
+           "Issuers and parse state")}
+      </h3>
+      {/* One request, so the counter and the list cannot disagree — that
+          disagreement (85 against 73) is what this screen is being fixed for. */}
+      <p className="muted" style={{ marginTop: 4 }}>
+        {data.issuers} {t("эмитентов", "emitent", "issuers")} · {data.reports_total} {t("отчётов", "hisobot", "reports")}
+        {data.is_stale && (
+          <span className="catalog-stale">
+            {" · "}
+            {t("каталог обновлялся", "katalog yangilangan", "catalog synced")}
+            {" "}{Math.round(data.staleness_hours)} {t("ч назад", "soat oldin", "h ago")}
+          </span>
+        )}
+      </p>
+
+      <div className="catalog-filters">
+        <input value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("Эмитент или тикер", "Emitent yoki ticker", "Issuer or ticker")} />
+        {/* ТЗ Б.6: this filter is what turns the catalog from a shelf of links
+            into a work queue. */}
+        <button type="button" className={`chart-opt-btn ${pendingOnly ? "active" : ""}`}
+          onClick={() => setPendingOnly((v) => !v)}>
+          {t("Не разобрано", "Tahlil qilinmagan", "Not parsed")}
+        </button>
+      </div>
+
+      <div className="market-table-scroll">
+        <table className="market-table catalog-table">
+          <thead>
+            <tr>
+              <th>{t("Эмитент", "Emitent", "Issuer")}</th>
+              <th>{t("Бумаги", "Qog'ozlar", "Securities")}</th>
+              <th className="num">{t("Отчётов", "Hisobot", "Reports")}</th>
+              <th className="num">{t("Разобрано", "Tahlil qilingan", "Parsed")}</th>
+              <th className="num">{t("В очереди", "Navbatda", "Queued")}</th>
+              <th className="num">{t("Ошибок", "Xatolar", "Failed")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((i) => (
+              <tr key={i.org_id}>
+                <td>{i.name}</td>
+                <td className="catalog-tickers">
+                  {(i.tickers || []).length
+                    ? i.tickers.map((tk) => <span key={tk} className="led-chip">{tk}</span>)
+                    : <span className="muted">—</span>}
+                </td>
+                <td className="num">{i.reports}</td>
+                <td className="num">{i.published}</td>
+                <td className="num">{i.pending || 0}</td>
+                <td className={`num ${i.failed ? "tone-neg" : ""}`}>{i.failed || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+
 function AuditAdminPage({ language }) {
   const lang = normalizeLanguage(language);
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
@@ -8154,7 +8357,12 @@ function MarketView({
         )}
         </div>
 
-        {viewMode === "heatmap" ? (
+        {/* ТЗ Дополнение 1 §А.2: bonds get their own table, not a row in the
+            equity board — an issue has a value rather than a capitalisation, and
+            no earnings for a multiple to divide by. */}
+        {viewMode === "table" && type === "bond" ? (
+          <BondsTable language={lang} onOpen={onAnalyze} />
+        ) : viewMode === "heatmap" ? (
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
           ) : (
@@ -8521,7 +8729,7 @@ function CatalogCompareTable({ result, language }) {
   );
 }
 
-function CatalogView({ language, companies, token, addToast, onNavigateToAnalysis, initialStatus }) {
+function CatalogView({ language, companies, token, addToast, onNavigateToAnalysis, initialStatus, user }) {
   const lang = normalizeLanguage(language);
   const [status, setStatus] = useState(initialStatus || null);
   const [catalogComps, setCatalogComps] = useState([]);
@@ -8727,11 +8935,18 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
               {status.last_sync && <span className="status-badge muted">{clg(lang, "lastSync")}: {formatMarketTimestamp(status.last_sync, lang)}</span>}
             </>
           ) : <span className="status-badge muted">{clg(lang, "loading")}</span>}
-          <button className="ghost-btn" type="button" onClick={() => handleSync()} disabled={syncing}>
-            {syncing ? clg(lang, "syncing") : clg(lang, "syncAll")}
-          </button>
+          {/* ТЗ Дополнение 1 §Б.6: «Синхронизировать всё» calls an administrative
+              route and belongs in the administrative section. It stood in the
+              public interface, where any visitor could start a full re-sync. */}
+          {user?.is_admin && (
+            <button className="ghost-btn" type="button" onClick={() => handleSync()} disabled={syncing}>
+              {syncing ? clg(lang, "syncing") : clg(lang, "syncAll")}
+            </button>
+          )}
         </div>
       </article>
+
+      <CatalogIssuersPanel language={language} />
 
       <div className="catalog-body">
         {/* Sidebar: company list */}
@@ -10095,6 +10310,7 @@ function App() {
               addToast={addToast}
               onNavigateToAnalysis={(t) => { setAnalysisCompany(t); setActiveView("analysis"); }}
               initialStatus={catalogStatus}
+              user={user}
             />
           )}
 

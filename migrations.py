@@ -1,0 +1,163 @@
+"""migrations.py — versioned, ordered, recorded schema changes (ТЗ §10.1/§10.10).
+
+The project has been changing its schema with ``CREATE TABLE IF NOT EXISTS`` and
+a hand-written ``ALTER TABLE`` guarded by ``PRAGMA table_info``. That works right
+up until it doesn't: nothing records what has been applied, so nobody can say
+which shape a given deployment is in, a change cannot be ordered against another,
+and there is no way to fail a deploy whose database is behind the code.
+
+This is the smallest thing that fixes that and stays honest about the stack we
+are actually on. Each migration has a version, a name and a forward step; the
+applied ones are recorded in ``schema_migrations`` with when and how long they
+took; running twice is a no-op. ТЗ names Alembic because it names PostgreSQL —
+the guarantees asked for are ordering, idempotence and a record, and those are
+what this provides on the database the project runs on today.
+
+Migrations must be additive. A column is added, never dropped; a table is
+created, never renamed in place. Deployment is not atomic — the old code runs
+against the new schema for the length of a rollout — so a destructive step turns
+a routine deploy into an outage.
+"""
+from __future__ import annotations
+
+import logging
+import sqlite3
+import time
+from dataclasses import dataclass
+from typing import Any, Callable, Sequence
+
+logger = logging.getLogger(__name__)
+
+Step = Callable[[sqlite3.Connection], None]
+
+
+@dataclass(frozen=True)
+class Migration:
+    version: int
+    name: str
+    apply: Step
+
+
+def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    try:
+        return {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    except sqlite3.Error:
+        return set()
+
+
+def add_column(table: str, column: str, ddl: str) -> Step:
+    """An additive column, applied only when it is absent.
+
+    Idempotent by inspection rather than by catching an error, so a genuine
+    failure is still a failure.
+    """
+    def step(conn: sqlite3.Connection) -> None:
+        if column not in _columns(conn, table):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+    return step
+
+
+def run_sql(*statements: str) -> Step:
+    def step(conn: sqlite3.Connection) -> None:
+        for statement in statements:
+            conn.execute(statement)
+    return step
+
+
+# ---------------------------------------------------------------------------
+# The register. Append only; never renumber, never edit an applied migration —
+# a deployment that already ran version 3 will not run it again, so changing it
+# means two environments hold different shapes under the same version number.
+# ---------------------------------------------------------------------------
+
+MIGRATIONS: tuple[Migration, ...] = (
+    Migration(1, "financials: field_periods",
+              add_column("catalog_financials", "field_periods", "TEXT")),
+    Migration(2, "financials: report_id — every figure names its filing",
+              add_column("catalog_financials", "report_id", "INTEGER")),
+    Migration(3, "audit: rule/run/finding registry",
+              run_sql(
+                  "CREATE INDEX IF NOT EXISTS ix_findings_rule "
+                  "ON audit_findings (rule_code, status)")),
+    Migration(4, "provenance: report state index",
+              run_sql(
+                  "CREATE INDEX IF NOT EXISTS ix_reports_org "
+                  "ON source_reports (org_id, period_year DESC)")),
+    Migration(5, "bonds: reference lookup by isin",
+              run_sql(
+                  "CREATE INDEX IF NOT EXISTS ix_bond_reference_isin "
+                  "ON bond_reference (isin)")),
+)
+
+
+def _ensure_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+          version    INTEGER PRIMARY KEY,
+          name       TEXT NOT NULL,
+          applied_at TEXT NOT NULL DEFAULT (datetime('now')),
+          duration_ms INTEGER
+        )
+        """
+    )
+
+
+def applied(conn: sqlite3.Connection) -> set[int]:
+    _ensure_table(conn)
+    return {r[0] for r in conn.execute("SELECT version FROM schema_migrations")}
+
+
+def pending(conn: sqlite3.Connection,
+            register: Sequence[Migration] = MIGRATIONS) -> list[Migration]:
+    done = applied(conn)
+    return [m for m in sorted(register, key=lambda m: m.version) if m.version not in done]
+
+
+def upgrade(conn: sqlite3.Connection,
+            register: Sequence[Migration] = MIGRATIONS) -> dict[str, Any]:
+    """Apply every pending migration in order, recording each one.
+
+    A migration that raises stops the run: applying the rest out of order would
+    leave a shape nobody can name. What has already been applied stays applied
+    and recorded, so a retry resumes rather than restarts.
+    """
+    _ensure_table(conn)
+    ran: list[str] = []
+    for migration in pending(conn, register):
+        started = time.time()
+        try:
+            migration.apply(conn)
+            conn.execute(
+                "INSERT INTO schema_migrations (version, name, duration_ms) VALUES (?,?,?)",
+                (migration.version, migration.name,
+                 int((time.time() - started) * 1000)))
+            conn.commit()
+        except Exception as exc:  # noqa: BLE001
+            conn.rollback()
+            logger.exception("migration %d (%s) failed", migration.version, migration.name)
+            return {"ok": False, "applied": ran, "failed": migration.version,
+                    "error": str(exc)}
+        ran.append(f"{migration.version}:{migration.name}")
+        logger.info("migration %d applied: %s", migration.version, migration.name)
+    return {"ok": True, "applied": ran, "current_version": current_version(conn)}
+
+
+def current_version(conn: sqlite3.Connection) -> int:
+    _ensure_table(conn)
+    row = conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()
+    return int(row[0] or 0)
+
+
+def status(conn: sqlite3.Connection,
+           register: Sequence[Migration] = MIGRATIONS) -> dict[str, Any]:
+    """What shape is this database in? (ТЗ §10.4: /ready must be able to say.)"""
+    waiting = pending(conn, register)
+    return {
+        "current_version": current_version(conn),
+        "latest_version": max((m.version for m in register), default=0),
+        "pending": [{"version": m.version, "name": m.name} for m in waiting],
+        # §10.4.6: a 503 while the database is behind the code is the honest
+        # answer — serving from a shape the code does not expect is not.
+        "ready": not waiting,
+    }

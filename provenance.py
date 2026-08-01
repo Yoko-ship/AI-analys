@@ -265,9 +265,20 @@ def summary(now: datetime | None = None) -> dict[str, Any]:
             "SELECT i.org_id, i.name, i.synced_at, COUNT(r.id) AS reports, "
             "SUM(CASE WHEN r.state IN ('validated','published') THEN 1 ELSE 0 END) AS published, "
             "SUM(CASE WHEN r.state IN ('rejected','parse_failed','download_failed') "
-            "         THEN 1 ELSE 0 END) AS failed "
+            "         THEN 1 ELSE 0 END) AS failed, "
+            "SUM(CASE WHEN r.state = 'discovered' THEN 1 ELSE 0 END) AS pending "
             "FROM issuers i LEFT JOIN source_reports r ON r.org_id = i.org_id "
             "GROUP BY i.org_id, i.name, i.synced_at ORDER BY i.name")]
+        # ТЗ Б.6: an issuer's SECURITIES hang off the issuer, bond series
+        # included. Listing by ticker is what made five series show "0 отчётов"
+        # while their issuer's filings sat under another ticker.
+        tickers: dict[str, list[str]] = {}
+        for row in conn.execute(
+                "SELECT org_id, ticker FROM catalog_companies "
+                "WHERE org_id IS NOT NULL AND org_id != '' ORDER BY ticker"):
+            tickers.setdefault(row["org_id"], []).append(row["ticker"])
+        for issuer in issuers:
+            issuer["tickers"] = tickers.get(issuer["org_id"], [])
         last_sync = conn.execute("SELECT MAX(synced_at) AS s FROM issuers").fetchone()["s"]
     finally:
         conn.close()
@@ -378,6 +389,26 @@ def bond_coupons() -> dict[str, list[dict[str, Any]]]:
 # Bridging the existing catalog into the registry
 # ---------------------------------------------------------------------------
 
+_FORM_TITLES = {"NSBU": "НСБУ", "MSFO": "МСФО", "Audition": "Аудиторское заключение"}
+
+
+def compose_title(report_form: str, period_type: str, year: Any,
+                  quarter: Any = None) -> str:
+    """A readable name for a report whose stored title is empty (ТЗ Б.1).
+
+    Every title in the database is blank, so the interface assembles one on the
+    client from the form and the period. Composing it once, here, means the
+    catalog, the audit report and any export say the same thing — three places
+    inventing the same string is three chances to disagree.
+    """
+    form = _FORM_TITLES.get(str(report_form), str(report_form or "Отчёт"))
+    if quarter:
+        return f"{form}, {year} Q{int(quarter)}"
+    if str(period_type) == "annual":
+        return f"{form}, годовой {year}"
+    return f"{form}, {year}"
+
+
 def sync_from_catalog() -> dict[str, int]:
     """Register what the catalog already knows as `discovered` reports.
 
@@ -424,14 +455,19 @@ def sync_from_catalog() -> dict[str, int]:
                 conn.execute(
                     "UPDATE source_reports SET pdf_url=COALESCE(?, pdf_url), "
                     "excel_url=COALESCE(?, excel_url), title=COALESCE(?, title) WHERE id=?",
-                    (row["pdf_url"], row["excel_url"], row["title"], existing["id"]))
+                    (row["pdf_url"], row["excel_url"],
+                     row["title"] or compose_title(row["report_form"], row["period_type"],
+                                                   row["year"], quarter),
+                     existing["id"]))
             else:
                 conn.execute(
                     "INSERT INTO source_reports (org_id, report_form, period_type, "
                     "period_year, period_quarter, title, pdf_url, excel_url, state, "
                     "discovered_at) VALUES (?,?,?,?,?,?,?,?, 'discovered', ?)",
                     (org_id, row["report_form"], row["period_type"], row["year"], quarter,
-                     row["title"], row["pdf_url"], row["excel_url"], _now()))
+                     row["title"] or compose_title(row["report_form"], row["period_type"],
+                                                   row["year"], quarter),
+                     row["pdf_url"], row["excel_url"], _now()))
                 reports += 1
         conn.commit()
     finally:
