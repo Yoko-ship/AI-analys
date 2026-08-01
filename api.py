@@ -79,6 +79,7 @@ import instruments  # noqa: E402
 import invariants  # noqa: E402
 import obs  # noqa: E402
 import cache_layer  # noqa: E402
+import logo_store  # noqa: E402
 import migrations  # noqa: E402
 import bonds  # noqa: E402
 import provenance  # noqa: E402
@@ -232,6 +233,28 @@ async def _populate_securities_on_startup() -> None:
 
 @app.on_event("startup")
 async def _on_startup() -> None:
+    # ТЗ §10.10: migrations are applied before deploy, so a process that has just
+    # started serves a shape it recognises. Additive and idempotent, so a boot
+    # with nothing pending costs one query; a failure leaves /ready answering 503
+    # rather than a request answering wrongly.
+    try:
+        from reports_catalog import get_catalog_conn
+
+        def _migrate() -> dict[str, Any]:
+            conn = get_catalog_conn()
+            try:
+                return migrations.upgrade(conn)
+            finally:
+                conn.close()
+
+        result = await asyncio.get_running_loop().run_in_executor(None, _migrate)
+        if result.get("applied"):
+            logger.info("startup migrations applied: %s", ", ".join(result["applied"]))
+        elif not result.get("ok"):
+            logger.error("startup migrations FAILED at version %s: %s",
+                         result.get("failed"), result.get("error"))
+    except Exception:
+        logger.exception("startup migrations could not run")
     # The catalog DB lives on a mounted volume, so rows removed from the site
     # survive a redeploy. Purge on boot — idempotent, and it makes deleting a
     # ticker a code change rather than a manual DB step.
@@ -1368,7 +1391,12 @@ async def api_market_multiples(request: Request) -> Response:
         inputs = await _market_inputs()
         trace.step("inputs", instruments=len(inputs["board"]),
                    financials=len(inputs["financials"]), ratios=len(inputs["ratios"]))
-        payload = _multiples_payload(inputs)
+        # ТЗ §10.9: keyed by the session the data describes, not by a clock.
+        # While that has not moved the answer cannot have changed, so the entry
+        # stays valid however old it is — and a new session simply misses.
+        cache_key = cache_layer.key("market:multiples", inputs["trade_date"] or "none",
+                                    len(inputs["board"]), len(inputs["financials"]))
+        payload = cache_layer.cached(cache_key, lambda: _multiples_payload(inputs))
         suppressed = sum(1 for r in payload["items"]
                          if not (r.get("validation") or {}).get("valid", True))
         trace.step("multiples", issuers=payload["issuers"], suppressed=suppressed)
@@ -2758,6 +2786,23 @@ async def api_admin_openinfo_probe(
 
 
 _admin_catalog_sync_running = threading.Event()
+
+
+@app.post("/api/admin/logos/materialise")
+async def api_admin_materialise_logos(_: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Pull externally hosted logos into our own storage (Дополнение 1 §Б.7).
+
+    Idempotent — a logo already stored is left alone. Run it after adding a new
+    company, or the interface starts depending on somebody else's service again.
+    """
+    loop = asyncio.get_running_loop()
+    return _json_safe(await loop.run_in_executor(None, logo_store.materialise_all))
+
+
+@app.get("/api/admin/logos/audit")
+async def api_admin_logo_audit(_: None = Depends(_require_admin)) -> dict[str, Any]:
+    """How much of the interface still depends on a third party."""
+    return _json_safe({"ok": True, **logo_store.audit()})
 
 
 @app.post("/api/admin/catalog/register")

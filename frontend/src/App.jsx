@@ -1,5 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+// ТЗ §10.7: rounding lives in lib/format.js and thresholds come from the
+// server via lib/flags.js, so a label cannot claim a window the calculation
+// layer did not apply.
+import { compact as fmtCompact, metric as fmtMetric, num as fmtNumber, pct as fmtPct, price as fmtPrice } from "./lib/format.js";
+import { loadConfig, threshold as cfgThreshold } from "./lib/flags.js";
 import heroImage from "./assets/hero-image.png";
 import promoVideo from "./assets/promo.mp4";
 import promoPoster from "./assets/promo-poster.jpg";
@@ -5376,12 +5381,13 @@ function BondsTable({ language, onOpen }) {
   if (error) return <p className="muted">{t("Раздел облигаций недоступен", "Obligatsiyalar bo'limi mavjud emas", "Bonds section unavailable")}</p>;
   if (!data) return <p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p>;
 
-  const money = (v) => (Number.isFinite(v) ? formatCompactNumber(v, lang) : "—");
-  const pct = (v) => (Number.isFinite(v) ? `${v > 0 ? "+" : ""}${formatRatio(v, 2, lang)}%` : "—");
+  const money = (v) => fmtCompact(v, lang);
+  const pct = (v) => fmtPct(v, lang);
   const metric = (m) => {
-    if (!m) return <span className="cell-status">—</span>;
-    if (m.value != null) return formatRatio(m.value, 2, lang);
-    return <span className="cell-status" title={m.note || m.status}>—</span>;
+    if (m?.value != null) return fmtMetric(m, lang);
+    // A withheld value carries its reason; an em-dash alone would read as "we
+    // did not bother" rather than "the source does not publish it".
+    return <span className="cell-status" title={m?.note || m?.status || ""}>—</span>;
   };
 
   return (
@@ -5426,7 +5432,7 @@ function BondsTable({ language, onOpen }) {
               <tr key={b.ticker} onClick={() => onOpen && onOpen(b.ticker)} className="bond-row">
                 <td><strong>{b.ticker}</strong></td>
                 <td>{b.name || "—"}</td>
-                <td className="num">{Number.isFinite(b.price) ? formatMarketNumber(b.price, lang) : "—"}</td>
+                <td className="num">{fmtPrice(b.price, lang)}</td>
                 <td className={`num tone-${marketTone(b.change_pct)}`}>{pct(b.change_pct)}</td>
                 <td className="num">{money(b.turnover)}</td>
                 <td className="num">{Number.isFinite(b.trades) ? b.trades : "—"}</td>
@@ -5628,8 +5634,7 @@ function AuditAdminPage({ language }) {
   };
 
   const groups = [...new Set(rules.map((r) => r.group))];
-  const num = (v) => (v == null ? "—" : Number(v).toLocaleString(lang === "en" ? "en-US" : "ru-RU",
-    { maximumFractionDigits: 4 }));
+  const num = (v) => fmtNumber(v, lang, 4);
 
   return (
     <div className="page-wrap audit-page">
@@ -5923,7 +5928,12 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   // candles spans 134 calendar days, not 28 — which is why "MA20" drew one
   // line in candle mode and a different one in line mode on 72 of 72
   // securities. The window comes from the server's threshold config.
-  const MA_DAYS = { ma20: metricsWindows?.ma20 || 28, ma50: metricsWindows?.ma50 || 70 };
+  // The window the SERVER applied: from the metrics response when it has
+  // arrived, otherwise from /api/config — never a literal invented here.
+  const MA_DAYS = {
+    ma20: metricsWindows?.ma20 || cfgThreshold("moving_average.ma20_calendar_days", 28),
+    ma50: metricsWindows?.ma50 || cfgThreshold("moving_average.ma50_calendar_days", 70),
+  };
   const MA_MIN_OBS = 3;
   const calendarMA = (days) => {
     const out = new Array(daily.length).fill(null);
@@ -9186,7 +9196,9 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
 }
 
 function App() {
-  const defaultReportYear = Math.max(2000, new Date().getFullYear() - 1);
+  // Thresholds and flags are fetched once, before anything reads them, so the
+  // interface applies the SAME numbers the calculation layer did (ТЗ §10.10).
+  useEffect(() => { loadConfig(); }, []);  const defaultReportYear = Math.max(2000, new Date().getFullYear() - 1);
   const reportYearOptions = Array.from({ length: 12 }, (_, index) => String(defaultReportYear + 1 - index));
   const [language, setLanguage] = useState(() => normalizeLanguage(localStorage.getItem(LANGUAGE_KEY) || "ru"));
   const [theme, setTheme] = useState(() => {
