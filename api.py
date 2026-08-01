@@ -1498,21 +1498,56 @@ async def api_instruments(request: Request, include_inactive: bool = True) -> Re
         raise HTTPException(status_code=502, detail="catalog unavailable") from exc
 
 
+async def _bond_history_quality(inputs: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """The data tier of each bond, from its own price history.
+
+    §А.2 puts history quality in the bond table for the same reason the equity
+    screens carry it: these issues trade in ones and twos, and a price series
+    with 87% flat candles cannot support the same chart as one with 226 points.
+    The bonds board shipped with the column and without the input, so every row
+    showed a dash where the tier belongs.
+
+    One history per issue, memoised for ten minutes and fetched concurrently; a
+    failure costs that row its tier and nothing else, because a board must not
+    go dark over an enrichment.
+    """
+    securities = inputs["securities"]
+    targets = []
+    for row in inputs["board"]:
+        ticker = str(row.get("ticker") or "").upper()
+        meta = securities.get(ticker) or {}
+        if bonds.is_bond(row, meta) and (row.get("isin") or meta.get("isin")):
+            targets.append((ticker, row.get("isin") or meta.get("isin")))
+
+    async def one(ticker: str, isin: str):
+        try:
+            data = await _full_history(isin)
+            points = formulas.normalize_points(data.get("points") or [])
+            return ticker, formulas.data_quality(points)
+        except Exception:  # noqa: BLE001 — a missing tier is a dash, not a 502
+            logger.debug("bond history quality failed for %s", ticker, exc_info=True)
+            return ticker, None
+
+    results = await asyncio.gather(*(one(t, i) for t, i in targets))
+    return {t: q for t, q in results if q}
+
+
 @app.get("/api/bonds")
 async def api_bonds(request: Request) -> Response:
     """The bond contour (Дополнение 1 §А.6).
 
-    Eleven issues trade genuinely and appear nowhere in the interface. They get
+    Twelve issues trade genuinely and appeared nowhere in the interface. They get
     their own section with the metrics that CAN be computed honestly from what
-    the source publishes, and an explicit `no_bond_reference` for everything
-    that needs a nominal, a coupon and a maturity — none of which any endpoint
-    carries yet.
+    the sources publish: the par from the exchange, the coupon from the issuer's
+    own payment filings, and an explicit `no_bond_reference` for the discounting
+    metrics, which need a redemption date nobody files until they redeem.
     """
     try:
         inputs = await _market_inputs()
         references, coupons = provenance.bond_references(), provenance.bond_coupons()
+        quality = await _bond_history_quality(inputs)
         payload = bonds.build_bond_board(inputs["board"], inputs["securities"],
-                                         references, coupons)
+                                         references, coupons, quality)
         payload["ok"] = True
         payload["trade_date"] = inputs["trade_date"]
         return _etag_json(request, payload, max_age=60)
@@ -1528,7 +1563,9 @@ async def api_bond_detail(ticker: str) -> dict[str, Any]:
     ticker = ticker.upper()
     inputs = await _market_inputs()
     references, coupons = provenance.bond_references(), provenance.bond_coupons()
-    payload = bonds.build_bond_board(inputs["board"], inputs["securities"], references, coupons)
+    quality = await _bond_history_quality(inputs)
+    payload = bonds.build_bond_board(inputs["board"], inputs["securities"],
+                                     references, coupons, quality)
     row = next((r for r in payload["items"] if r["ticker"] == ticker), None)
     if not row:
         raise HTTPException(status_code=404, detail="bond not found")

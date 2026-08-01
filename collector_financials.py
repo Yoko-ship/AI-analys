@@ -350,6 +350,21 @@ def push_bond_reference(listing_rows: list[dict]) -> int:
     return _post("/api/admin/bonds/reference", {"rows": rows, "coupons": coupons})
 
 
+def register_catalog() -> int:
+    """Link the figures just pushed to the filings they came from (§Б.2/§Б.3).
+
+    The parse that produces a figure runs HERE and moves the report through its
+    states in the collector's own registry; the push carries values only. So
+    prod's registry never advanced past `discovered` — 1703 reports, 0 published,
+    every published number without a source link. This asks prod to re-derive the
+    links from what it now holds, which is deterministic per (ticker, form,
+    period) and needs no download. Idempotent: a report keeps the state it
+    reached.
+    """
+    log.info("registering pushed figures against their filings ...")
+    return _post("/api/admin/catalog/register", {})
+
+
 def push_financials_aliases() -> int:
     """Copy each issuer's financials onto its sibling tickers, then push to prod.
 
@@ -609,6 +624,20 @@ def main() -> int:
             rc_status = reconcile_and_push() or rc_status
         except Exception:
             log.exception("reconcile step failed")
+            rc_status = rc_status or 1
+
+    # Every push above writes figures; this is what gives them a filing to point
+    # at. Runs last so it links whatever this run produced, and runs on prod
+    # because the states belong to prod's registry — the collector's parse moves
+    # reports through states in ITS OWN database, which no push ever carries.
+    # Until this was wired, prod's registry read 1703 reports and 0 published:
+    # every figure on the site was unlinked and the catalog was a queue of
+    # everything (ТЗ Дополнение 1 §Б.2).
+    if not (args.no_push or args.trades_only or args.facts_only):
+        try:
+            rc_status = register_catalog() or rc_status
+        except Exception:
+            log.exception("catalog register step failed")
             rc_status = rc_status or 1
 
     if not args.no_push:

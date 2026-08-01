@@ -188,6 +188,39 @@ class TestCouponWithoutMaturity:
         assert "погашается" in row["reason"]
 
 
+class TestHistoryQuality:
+    """The tier column shipped with no input behind it for a week."""
+
+    def test_the_board_carries_the_tier_it_is_given(self):
+        board = bonds.build_bond_board(
+            [bond_row()], quality={"ACMT2B5": {"data_tier": "full", "points": 226}})
+        assert board["items"][0]["quality"]["data_tier"] == "full"
+
+    def test_the_endpoint_asks_for_history_of_bonds_only(self, monkeypatch):
+        """A share on the same board must not cost an openinfo fetch, and one
+        unreadable history must not take the board down with it."""
+        import asyncio
+
+        import api
+
+        asked = []
+
+        async def fake_history(isin, months=60):
+            asked.append(isin)
+            if isin == "UZ6BAD":
+                raise RuntimeError("openinfo is down")
+            return {"points": [{"date": "2026-07-31", "close": 100}]}
+
+        monkeypatch.setattr(api, "_full_history", fake_history)
+        inputs = {"board": [{"ticker": "ACMT2B5", "type": "bond", "isin": "UZ6OK"},
+                            {"ticker": "CTFB3", "type": "bond", "isin": "UZ6BAD"},
+                            {"ticker": "UZHM", "type": "stock", "isin": "UZ7EQ"}],
+                  "securities": {}}
+        got = asyncio.run(api._bond_history_quality(inputs))
+        assert sorted(asked) == ["UZ6BAD", "UZ6OK"]
+        assert "ACMT2B5" in got and "CTFB3" not in got
+
+
 class TestTermsFromFilings:
     """The rate is inverted from the filed payments, never parsed from prose."""
 
