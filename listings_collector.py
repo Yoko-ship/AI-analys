@@ -131,6 +131,9 @@ def _uzse_bond_series(session: Any, isin: str) -> dict[str, Any] | None:
             _BOND_SERIES_CACHE[code] = {
                 "isin": code,
                 "ticker": str(sh.get("isu_srt_cd") or "").strip().upper() or None,
+                # The issuer's own name, for the issuers that file bonds but no
+                # financials and so are absent from the catalog's org map.
+                "issuer": rec.get("company_name"),
                 # A par of 0 is the card's way of saying "not stated" (the OACM
                 # share line carries exactly that) — it is not a par of zero.
                 "nominal": parval if parval else None,
@@ -179,6 +182,7 @@ def collect_bond_reference_rows(listing_rows: list[dict[str, Any]]) -> list[dict
             "nominal": nominal,
             "currency": "UZS",
             "issue_volume": series.get("issue_volume") or _num(row.get("shares_outstanding")),
+            "issuer": series.get("issuer") or row.get("name"),
             "source_url": f"{_UZSE_BASE}/isu_infos/BND?isu_cd={isin}",
         })
     log.info("bond reference: %d issues with a par value from the exchange", len(rows))
