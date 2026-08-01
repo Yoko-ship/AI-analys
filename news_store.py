@@ -152,7 +152,8 @@ def upsert_news(items: list[dict[str, Any]]) -> int:
                     # link nowhere. The story itself is kept — only the tag is dropped.
                     continue
                 conn.execute(
-                    "INSERT OR IGNORE INTO news_entities (news_id, ticker) VALUES (?,?)",
+                    "INSERT INTO news_entities (news_id, ticker) VALUES (?,?) "
+                    "ON CONFLICT DO NOTHING",
                     (news_id, ticker),
                 )
             written += 1
@@ -680,10 +681,13 @@ def get_related_news(news_id: int, *, limit: int = 6, days: int = 180) -> list[d
     tickers = [t for t in (base["tickers_csv"] or "").split(",") if t]
     if tickers:
         placeholders = ",".join("?" * len(tickers))
+        # A story naming two of these issuers must still be one row. Semi-joining on
+        # `IN (SELECT …)` says that directly; the JOIN + `GROUP BY n.id` it replaces
+        # only worked because SQLite tolerates selected columns that are not grouped.
         rows = conn.execute(
-            f"{select} JOIN news_entities x ON x.news_id = n.id"
-            f" WHERE x.ticker IN ({placeholders}) AND n.id <> ? AND p.relevant = 1"
-            f" GROUP BY n.id {recent}",
+            f"{select} WHERE n.id IN (SELECT x.news_id FROM news_entities x"
+            f"                         WHERE x.ticker IN ({placeholders}))"
+            f" AND n.id <> ? AND p.relevant = 1 {recent}",
             (*tickers, news_id, window, cap),
         ).fetchall()
         for r in rows:
