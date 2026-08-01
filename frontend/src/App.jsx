@@ -597,9 +597,9 @@ function useTranslationTick() {
 }
 
 // Editorial news card ("Ledger" direction): serif headline, source image when the
-// source provides one (else a category-tinted placeholder), source name shown in
-// the byline, our own summary, and the AI tone/impact signal. Opens our own
-// /news/{id} story page — the source link lives there, on the article itself.
+// source provides one, source name shown in the byline, our own summary, and the AI
+// tone/impact signal. Opens our own /news/{id} story page — the source link lives
+// there, on the article itself.
 function EdNewsCard({ item, language, variant, onOpen }) {
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const isLead = variant === "lead";
@@ -613,15 +613,19 @@ function EdNewsCard({ item, language, variant, onOpen }) {
   // is not the summary, so there the dek goes back to doing its normal job.
   const summary = head.original && !head.machine ? "" : edSummary(item, language);
   const toneCls = _TONE_CLS[item.tone] || "neu";
-  const cat = item.type || "market";
+  // Half our feed is issuer filings and central-bank notices that will never carry a
+  // picture. A coloured slab in the photo's place only announces the absence — louder
+  // than the headline on a phone — so an item without one simply has no figure and the
+  // headline moves up into the space.
+  const art = Boolean(item.image_url) && imgOk;
   return (
-    <a className={isLead ? "led-lead" : "led-story"} href={newsArticlePath(item)}
+    <a className={`${isLead ? "led-lead" : "led-story"}${art ? "" : " led-noart"}`} href={newsArticlePath(item)}
       {...(inApp ? { onClick: interceptNav(() => onOpen(item)) } : { target: "_blank", rel: "noopener noreferrer" })}>
-      <div className={isLead ? "led-figure" : "led-thumb"} data-cat={cat}>
-        {item.image_url && imgOk && (
+      {art && (
+        <div className={isLead ? "led-figure" : "led-thumb"}>
           <img src={item.image_url} alt="" loading="lazy" onError={() => setImgOk(false)} />
-        )}
-      </div>
+        </div>
+      )}
       <div className="led-body">
         <div className="led-eyebrow">
           <span className="led-cat">{etx.cat[item.type] || item.type}</span>
@@ -1012,7 +1016,6 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
   const sourceLead = summary && item.snippet
     && (isDisclosure || newsAddsDetail(item.snippet, summary)) ? item.snippet : "";
   const toneCls = _TONE_CLS[item.tone] || "neu";
-  const cat = item.type || "market";
   const host = newsHost(item.url);
   const tickers = Array.isArray(item.tickers) ? item.tickers : [];
   const sectors = Array.isArray(item.sectors) ? item.sectors : [];
@@ -1040,7 +1043,7 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
             </div>
 
             {item.image_url && imgOk && (
-              <div className="led-figure led-art-figure" data-cat={cat}>
+              <div className="led-figure led-art-figure">
                 <img src={item.image_url} alt="" loading="lazy" onError={() => setImgOk(false)} />
               </div>
             )}

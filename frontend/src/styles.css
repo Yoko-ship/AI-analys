@@ -10103,8 +10103,10 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 
 /* lead story */
 .led .led-lead { display: block; cursor: pointer; }
+/* The background shows only while a lazy image decodes, so it is a quiet surface tone
+   rather than a colour: an item with no picture renders no figure at all (`EdNewsCard`). */
 .led .led-figure { height: clamp(190px, 33vw, 320px); border-radius: 6px; overflow: hidden; margin-bottom: 20px;
-  background: linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 42%, #06101f)); }
+  background: var(--panel); }
 .led .led-figure img, .led .led-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .led .led-lead-title { font-family: var(--led-serif); font-weight: 400; font-size: clamp(26px, 3.6vw, 38px); line-height: 1.16; letter-spacing: -.02em; margin: 0; color: var(--text); text-wrap: balance; max-width: 22ch; }
 .led .led-lead:hover .led-lead-title { color: var(--accent-hover); }
@@ -10114,15 +10116,17 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 
 .led .led-rule { height: 1px; background: var(--border); margin: 34px 0; }
 
-/* stacked stories */
-.led .led-stack { display: grid; gap: 28px; }
-.led .led-story { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 20px; align-items: start; cursor: pointer; }
+/* Stacked stories. Because a story without a picture spans the full width while one with
+   a picture is indented past its thumb, the left edge alone no longer reads as a list —
+   a hairline between entries does that job instead. */
+.led .led-stack { display: grid; }
+.led .led-story { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 20px; align-items: start; cursor: pointer;
+  padding: 24px 0; border-top: 1px solid var(--border); }
+.led .led-stack .led-story:first-child { padding-top: 0; border-top: 0; }
 @media (max-width: 540px) { .led .led-story { grid-template-columns: 1fr; } }
-.led .led-thumb { height: 96px; border-radius: 4px; overflow: hidden;
-  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 68%, var(--panel)), color-mix(in srgb, var(--accent) 22%, var(--panel))); }
-.led .led-thumb[data-cat="regulatory"] { background: linear-gradient(150deg, #3a4a63, #161d2a); }
-.led .led-thumb[data-cat="corporate_event"] { background: linear-gradient(150deg, #5a4a34, #241c12); }
-.led .led-thumb[data-cat="financial_report"] { background: linear-gradient(150deg, #2f5b46, #14261d); }
+.led .led-thumb { height: 96px; border-radius: 4px; overflow: hidden; background: var(--panel); }
+/* No picture, no column for one: the headline takes the whole card width. */
+.led .led-story.led-noart { grid-template-columns: minmax(0, 1fr); }
 .led .led-story-title { font-family: var(--led-serif); font-weight: 400; font-size: 20px; line-height: 1.24; letter-spacing: -.01em; margin: .3em 0 0; color: var(--text); text-wrap: balance; }
 .led .led-story:hover .led-story-title { color: var(--accent-hover); }
 .led .led-story-dek { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; max-width: 60ch; line-height: 1.5; }

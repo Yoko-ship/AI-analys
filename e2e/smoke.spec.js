@@ -61,7 +61,8 @@ const NEWS_ITEMS = [
     title: "Биржа расширяет листинг банков",
     snippet: "Листинговый комитет допустил к торгам четыре выпуска акций.",
     summary_ru: "Краткое изложение первой новости.",
-    image_url: null, published_at: "2026-07-24 09:00:00", type: "market", tone: "positive", tone_score: 0.42,
+    image_url: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+    published_at: "2026-07-24 09:00:00", type: "market", tone: "positive", tone_score: 0.42,
     impact: "high", direction: "up", sectors: ["banking"], relevance_score: 0.81, coverage_weight: 0.7,
     tickers: ["AGBA"], rank: 0.71 },
   { id: 12, url: "https://uzdaily.uz/story-two", source: "UzDaily", source_id: "uzdaily", lang: "ru",
@@ -174,6 +175,20 @@ test("Новости renders the editorial feed (§3.11)", async ({ page }) => {
   await expect(page.locator(".led-lead")).toContainText("Биржа расширяет листинг банков");
   await expect(page.locator(".led-stack .led-story").first()).toContainText("ЦБ уточнил требования");
   await expect(page.locator(".led-latest")).toBeVisible();
+});
+
+// Filings and central-bank notices never carry a picture. A card without one gets no
+// figure at all — a coloured block in the photo's place only announces the absence.
+test("a story with no picture renders no figure (§3.11)", async ({ page }) => {
+  await page.goto("/news");
+  // The lead has an image, so it keeps its figure...
+  await expect(page.locator(".led-lead .led-figure img")).toBeVisible();
+  // ...while the two imageless stories carry neither a thumb nor the placeholder class.
+  const imageless = page.locator(".led-stack .led-story");
+  await expect(imageless).toHaveCount(2);
+  await expect(page.locator(".led-stack .led-thumb")).toHaveCount(0);
+  await expect(imageless.first()).toHaveClass(/led-noart/);
+  await expect(page.locator(".led-art-figure")).toHaveCount(0);
 });
 
 test("a story opens on its own /news/{id} page instead of the source site (§3.11)", async ({ page }) => {
