@@ -5414,11 +5414,18 @@ function BondsTable({ language, onOpen }) {
           {t("базис дней", "kun bazisi", "day count")}: {data.day_count_basis}
         </span>
       </div>
-      {/* The contour turns on in two stages, so the note has to say WHICH half
-          is missing: the exchange publishes the par value, and nobody publishes
-          the coupon or the maturity. One sentence for both states would be
-          wrong in whichever state it is not describing. */}
-      {data.with_reference === 0 && (data.with_nominal ? (
+      {/* The contour turns on in three stages, so the note has to say WHICH one
+          is missing: the par comes from the exchange, the coupon from the
+          issuer's payment filings, and the maturity only once a redemption
+          window is filed. One sentence for all three would be wrong in whichever
+          state it is not describing. */}
+      {data.with_reference === 0 && (data.with_coupon ? (
+        <p className="bonds-note muted">
+          {t("Купон, НКД и текущая доходность посчитаны по существенным фактам эмитента, номинал — по данным биржи. Доходность к погашению и дюрация не считаются: дату погашения эмитент публикует только когда начинает выкуп, а срок «N дней с начала размещения» — это не дата.",
+             "Kupon, YHD va joriy daromadlilik emitentning muhim faktlari bo'yicha, nominal — birja ma'lumoti bo'yicha hisoblangan. Daromadlilik va duratsiya hisoblanmaydi: to'lov sanasi faqat qaytarib sotib olish boshlanganda e'lon qilinadi.",
+             "The coupon, the accrued interest and the running yield are computed from the issuer's material facts, the par from the exchange. Yield to maturity and duration are not: an issuer files a redemption date only when it starts redeeming, and \"N days after placement began\" is not a date.")}
+        </p>
+      ) : data.with_nominal ? (
         <p className="bonds-note muted">
           {t("Цена показана в процентах от номинала — номинал взят с биржи. Доходность к погашению и дюрация не считаются: купонная ставка и дата погашения не публикуются ни на бирже, ни в API.",
              "Narx nominalga nisbatan foizda ko'rsatilgan — nominal birjadan olingan. Daromadlilik va duratsiya hisoblanmaydi: kupon stavkasi va to'lov sanasi e'lon qilinmaydi.",
@@ -5443,6 +5450,11 @@ function BondsTable({ language, onOpen }) {
               <th className="num">{t("Сделки", "Bitimlar", "Trades")}</th>
               <th className="num">{t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}</th>
               <th className="num">% {t("номинала", "nominal", "of par")}</th>
+              {/* Two yields, never merged into one column: the coupon is what
+                  the issuer pays on par, the running yield is what that coupon
+                  is worth at today's price, and YTM is neither. */}
+              <th className="num">{t("Купон", "Kupon", "Coupon")}</th>
+              <th className="num">{t("Тек. дох.", "Joriy dar.", "Running")}</th>
               <th className="num">{t("Доходность", "Daromadlilik", "YTM")}</th>
               <th>{t("Качество", "Sifat", "Quality")}</th>
             </tr>
@@ -5458,13 +5470,21 @@ function BondsTable({ language, onOpen }) {
                 <td className="num">{Number.isFinite(b.trades) ? b.trades : "—"}</td>
                 <td className="num">{money(b.issue_value)}</td>
                 <td className="num">{metric(b.price_pct)}</td>
+                <td className="num">
+                  {b.reference?.coupon_rate != null
+                    ? `${fmtNumber(b.reference.coupon_rate, lang, 2)}%`
+                    : <span className="cell-status" title={t("эмитент не подавал начислений по этому выпуску", "", "the issuer has filed no accrual for this issue")}>—</span>}
+                </td>
+                <td className="num">{metric(b.simple_yield)}</td>
                 <td className="num">{metric(b.ytm)}</td>
                 <td>
                   {b.status !== "ok"
                     ? <span className="cell-status" title={b.reason || ""}>
-                        {b.status === "no_price"
-                          ? t("нет цены", "narx yo'q", "no price")
-                          : t("нет сделок", "bitim yo'q", "not traded")}
+                        {b.status === "matured"
+                          ? t("в погашении", "qaytarilmoqda", "redeeming")
+                          : b.status === "no_price"
+                            ? t("нет цены", "narx yo'q", "no price")
+                            : t("нет сделок", "bitim yo'q", "not traded")}
                       </span>
                     : <span className="muted">{b.quality?.data_tier || "—"}</span>}
                 </td>
