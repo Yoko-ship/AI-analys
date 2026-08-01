@@ -39,6 +39,14 @@ class AuditContext:
     published_metrics_by_period: dict[str, dict[int, Any]] = field(default_factory=dict)
     # The MA windows the server declares, which both chart modes must obey.
     published_ma_windows: dict[str, Any] = field(default_factory=dict)
+    # Дополнение 1: the bond contour and the reporting catalog.
+    published_bonds: list[dict[str, Any]] = field(default_factory=list)
+    bond_references: dict[str, dict[str, Any]] = field(default_factory=dict)
+    bond_coupons: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    published_catalog_reports: dict[str, Any] = field(default_factory=dict)
+    source_reports: list[dict[str, Any]] = field(default_factory=list)
+    parse_queue: list[dict[str, Any]] | None = None
+    previous_counters: dict[str, Any] = field(default_factory=dict)
     previous_tiers: dict[str, str] = field(default_factory=dict)
     today: date | None = None
 
@@ -1022,3 +1030,311 @@ def xsc_05(ctx: AuditContext):
     if header is not None and rows is not None and abs(header - rows) > 0.5:
         yield Finding("XSC-05", "число инструментов в шапке не равно числу строк", None,
                       "instruments", rows, header, abs(header - rows), {})
+
+
+# ===========================================================================
+# BND — the bond contour (Дополнение 1 §А.7)
+# ===========================================================================
+
+def _bond_tickers(ctx: AuditContext) -> set[str]:
+    out = set()
+    for row in ctx.board:
+        ticker = str(row.get("ticker") or "").upper()
+        meta = ctx.securities.get(ticker) or {}
+        if str(row.get("type") or meta.get("type") or "").lower() == "bond":
+            out.add(ticker)
+    return out
+
+
+@check("BND-01")
+def bnd_01(ctx: AuditContext):
+    """A bond whose class says `ordinary` falls into the equity branches of the
+    code — which is how nine issues came to carry an equity capitalisation."""
+    for row in ctx.board:
+        ticker = str(row.get("ticker") or "").upper()
+        meta = ctx.securities.get(ticker) or {}
+        if str(row.get("type") or meta.get("type") or "").lower() != "bond":
+            continue
+        declared = str(row.get("share_type") or meta.get("share_type") or "").lower()
+        if declared and not declared.startswith("bond"):
+            yield Finding("BND-01", "у облигации класс инструмента не bond", ticker,
+                          "share_class", None, None, None, {"share_type": declared})
+
+
+@check("BND-02")
+def bnd_02(ctx: AuditContext):
+    """Equity multiples on a debt instrument are not empty — they are undefined."""
+    bonds = _bond_tickers(ctx)
+    for row in ctx.published_multiples:
+        ticker = str(row.get("ticker") or "").upper()
+        if ticker not in bonds:
+            continue
+        for metric in ("pe", "pb", "roe"):
+            if _value(row.get(metric)) is not None:
+                yield Finding("BND-02", f"у облигации опубликован {metric}", ticker, metric,
+                              None, _value(row.get(metric)), None, {})
+
+
+@check("BND-03")
+def bnd_03(ctx: AuditContext):
+    """Issue value may never be summed into the equity market's capitalisation."""
+    cap = ctx.published_summary.get("market_cap") or {}
+    total = ind.num(cap.get("value"))
+    if total is None:
+        return
+    issue_value = 0.0
+    tickers: list[str] = []
+    for row in ctx.board:
+        ticker = str(row.get("ticker") or "").upper()
+        if ticker not in _bond_tickers(ctx):
+            continue
+        value = ind.num(row.get("market_cap"))
+        if value:
+            issue_value += value
+            tickers.append(ticker)
+    if issue_value <= 0:
+        return
+    reported = ind.num(((cap.get("excluded") or {}).get("bonds") or {}).get("amount")) or 0.0
+    if abs(reported - issue_value) > max(1.0, issue_value * 0.001):
+        yield Finding("BND-03", "стоимость выпусков не исключена из капитализации акций",
+                      None, "market_cap", issue_value, reported, abs(issue_value - reported),
+                      {"bond_tickers": tickers[:20], "issue_value": issue_value})
+
+
+@check("BND-04")
+def bnd_04(ctx: AuditContext):
+    for row in ctx.published_bonds:
+        reference = row.get("reference") or {}
+        if not reference.get("is_complete"):
+            yield Finding("BND-04", "справочник выпуска не заполнен", row.get("ticker"),
+                          "reference", None, None, None, {"missing": reference.get("missing")})
+
+
+@check("BND-05")
+def bnd_05(ctx: AuditContext):
+    today = ctx.today or date.today()
+    for row in ctx.published_bonds:
+        reference = ctx.bond_references.get(str(row.get("ticker") or "").upper()) or {}
+        maturity = ind.day(reference.get("maturity_date"))
+        if maturity and maturity < today and row.get("status") == "ok":
+            yield Finding("BND-05", "выпуск погашен, но торгуется и не помечен",
+                          row.get("ticker"), "maturity_date", None, None, None,
+                          {"maturity_date": str(maturity)})
+
+
+@check("BND-06")
+def bnd_06(ctx: AuditContext):
+    bounds = ind.threshold("bonds.price_pct_range", [20, 200]) or [20, 200]
+    for row in ctx.published_bonds:
+        pct = _value(row.get("price_pct"))
+        if pct is None:
+            continue
+        if not (float(bounds[0]) <= pct <= float(bounds[1])):
+            yield Finding("BND-06", "цена далеко за пределами коридора от номинала",
+                          row.get("ticker"), "price_pct", None, pct, None,
+                          {"price_pct": pct, "allowed": bounds})
+
+
+@check("BND-07")
+def bnd_07(ctx: AuditContext):
+    for ticker, coupons in (ctx.bond_coupons or {}).items():
+        periods = []
+        for coupon in coupons:
+            start, end = ind.day(coupon.get("period_from")), ind.day(coupon.get("period_to"))
+            if start and end:
+                periods.append((start, end, coupon.get("coupon_no")))
+        periods.sort()
+        for (_a_start, a_end, a_no), (b_start, _b_end, b_no) in zip(periods, periods[1:]):
+            if b_start < a_end:
+                yield Finding("BND-07", "купонные периоды пересекаются", ticker, "coupons",
+                              None, None, None, {"coupons": [a_no, b_no]})
+            elif (b_start - a_end).days > 1:
+                yield Finding("BND-07", "между купонными периодами разрыв", ticker, "coupons",
+                              None, float((b_start - a_end).days), None,
+                              {"coupons": [a_no, b_no], "gap_days": (b_start - a_end).days})
+
+
+@check("BND-08")
+def bnd_08(ctx: AuditContext):
+    for row in ctx.published_bonds:
+        if (row.get("ytm") or {}).get("status") == "not_converged":
+            yield Finding("BND-08", "доходность к погашению не сошлась", row.get("ticker"),
+                          "ytm", None, None, None, {})
+
+
+@check("BND-09")
+def bnd_09(ctx: AuditContext):
+    for row in ctx.published_bonds:
+        accrued = _value(row.get("accrued"))
+        reference = ctx.bond_references.get(str(row.get("ticker") or "").upper()) or {}
+        nominal, rate = ind.num(reference.get("nominal")), ind.num(reference.get("coupon_rate"))
+        freq = ind.num(reference.get("coupon_freq")) or 1
+        if accrued is None or nominal is None or rate is None:
+            continue
+        period_coupon = nominal * rate / 100.0 / freq
+        if accrued > period_coupon * 1.001:
+            yield Finding("BND-09", "НКД превышает купон за период", row.get("ticker"),
+                          "accrued", period_coupon, accrued, accrued - period_coupon, {})
+
+
+@check("BND-10")
+def bnd_10(ctx: AuditContext):
+    """Recompute the yield by bisection — a different method from production's
+    Newton iteration, which is the point of checking it at all."""
+    tol = ind.threshold("audit.ytm_tolerance", 0.05)
+    for row in ctx.published_bonds:
+        published = _value(row.get("ytm"))
+        flows = row.get("cashflows")
+        dirty = _value(row.get("dirty"))
+        if published is None or not flows or not dirty:
+            continue
+        mine = ind.ytm_bisection([(float(t), float(c)) for t, c in flows], float(dirty))
+        if mine is None:
+            continue
+        if abs(mine - published) > tol:
+            yield Finding("BND-10", "независимый пересчёт доходности не совпал",
+                          row.get("ticker"), "ytm", mine, published, abs(mine - published),
+                          {"dirty": dirty, "cashflows": flows[:8]})
+
+
+@check("BND-11")
+def bnd_11(ctx: AuditContext):
+    for row in ctx.published_bonds:
+        traded = (ind.num(row.get("trades")) or 0) > 0 or (ind.num(row.get("turnover")) or 0) > 0
+        if traded and row.get("price") is None:
+            yield Finding("BND-11", "есть сделки, но нет цены", row.get("ticker"), "price",
+                          None, None, None,
+                          {"trades": row.get("trades"), "turnover": row.get("turnover")})
+
+
+@check("BND-12")
+def bnd_12(ctx: AuditContext):
+    for row in ctx.published_bonds:
+        if not row.get("day_count_basis"):
+            yield Finding("BND-12", "в ответе не указан базис расчёта дней", row.get("ticker"),
+                          "day_count_basis", None, None, None, {})
+
+
+# ===========================================================================
+# SRC — the reporting catalog as a provenance layer (Дополнение 1 §Б.8)
+# ===========================================================================
+
+@check("SRC-01")
+def src_01(ctx: AuditContext):
+    summary = ctx.published_catalog_reports or {}
+    if not summary:
+        return
+    header = ind.num(summary.get("issuers"))
+    listed = len(summary.get("items") or [])
+    if header is not None and abs(header - listed) > 0.5:
+        yield Finding("SRC-01", "счётчик в шапке не равен длине списка", None, "issuers",
+                      float(listed), header, abs(header - listed), {})
+
+
+@check("SRC-02")
+def src_02(ctx: AuditContext):
+    summary = ctx.published_catalog_reports or {}
+    if not summary:
+        return
+    header = ind.num(summary.get("reports_total"))
+    per_issuer = sum(ind.num(i.get("reports")) or 0 for i in (summary.get("items") or []))
+    if header is not None and abs(header - per_issuer) > 0.5:
+        yield Finding("SRC-02", "сумма отчётов по эмитентам не равна общей", None,
+                      "reports_total", per_issuer, header, abs(header - per_issuer), {})
+
+
+@check("SRC-03")
+def src_03(ctx: AuditContext):
+    """Every published figure must name the report it came from.
+
+    Until it does, "where did this revenue come from" has no answer, and that
+    gap is where the whole FIN group of defects grew.
+    """
+    for ticker, fin in ctx.financials.items():
+        if fin and not fin.get("report_id"):
+            yield Finding("SRC-03", "у публикуемого числа нет ссылки на отчёт", ticker,
+                          "report_id", None, None, None,
+                          {"year": fin.get("year"), "quarter": fin.get("quarter")})
+
+
+@check("SRC-04")
+def src_04(ctx: AuditContext):
+    for report in ctx.source_reports or []:
+        used = (report.get("used_by") or {}).get("financials")
+        if report.get("state") in ("rejected", "parse_failed") and used:
+            yield Finding("SRC-04", "отклонённый отчёт используется в публикуемых числах",
+                          report.get("org_id"), "report", None, None, None,
+                          {"report_id": report.get("id"), "state": report.get("state")})
+
+
+@check("SRC-05")
+def src_05(ctx: AuditContext):
+    summary = ctx.published_catalog_reports or {}
+    hours = ind.num(summary.get("staleness_hours"))
+    limit = ind.num(summary.get("staleness_warn_hours")) or 24.0
+    if hours is not None and hours > limit:
+        yield Finding("SRC-05", "каталог отчётности устарел", None, "staleness_hours",
+                      limit, hours, hours - limit, {"last_sync": summary.get("last_sync")})
+
+
+@check("SRC-06")
+def src_06(ctx: AuditContext):
+    for issuer in (ctx.published_catalog_reports or {}).get("items") or []:
+        if not issuer.get("synced_at"):
+            yield Finding("SRC-06", "эмитент ни разу не синхронизирован", issuer.get("org_id"),
+                          "synced_at", None, None, None, {"name": issuer.get("name")})
+
+
+@check("SRC-07")
+def src_07(ctx: AuditContext):
+    """A bond series must show its ISSUER's filings, not a zero."""
+    for issuer in (ctx.published_catalog_reports or {}).get("items") or []:
+        if (ind.num(issuer.get("reports")) or 0) == 0 and issuer.get("org_id"):
+            yield Finding("SRC-07", "у эмитента ноль отчётов при наличии бумаг",
+                          issuer.get("org_id"), "reports", None, 0.0, None,
+                          {"name": issuer.get("name")})
+
+
+@check("SRC-08")
+def src_08(ctx: AuditContext):
+    if ctx.parse_queue is None:
+        return
+    current = len(ctx.parse_queue)
+    previous = ind.num((ctx.previous_counters or {}).get("parse_queue"))
+    if previous is not None and current > previous:
+        yield Finding("SRC-08", "очередь неразобранных отчётов выросла", None, "parse_queue",
+                      previous, float(current), current - previous, {})
+
+
+@check("SRC-09")
+def src_09(ctx: AuditContext):
+    for report in ctx.source_reports or []:
+        if report.get("state") in ("published", "validated") and not (
+                report.get("pdf_url") or report.get("excel_url")):
+            yield Finding("SRC-09", "у опубликованного отчёта нет ссылки на первоисточник",
+                          report.get("org_id"), "pdf_url", None, None, None,
+                          {"report_id": report.get("id")})
+
+
+@check("SRC-10")
+def src_10(ctx: AuditContext):
+    """The unit scale recorded at parse time must match what is published.
+
+    This is the FIN-06 defect caught one layer earlier: the parser knows it read
+    a figure in thousands, and if publication forgets that, the two disagree by
+    exactly a thousand.
+    """
+    for report in ctx.source_reports or []:
+        ticker = str(report.get("ticker") or "").upper()
+        published_row = ctx.financials.get(ticker) or {}
+        for figure in report.get("figures") or []:
+            scale = ind.num(figure.get("unit_scale")) or 1.0
+            parsed = ind.num(figure.get("value"))
+            published = ind.num(published_row.get(figure.get("field")))
+            if published is None or not parsed:
+                continue
+            implied = published / parsed
+            if abs(implied - scale) > max(0.01, scale * 0.01):
+                yield Finding("SRC-10", "масштаб единиц при публикации не совпал с разбором",
+                              ticker, figure.get("field"), scale, implied,
+                              abs(implied - scale), {"report_id": report.get("id")})

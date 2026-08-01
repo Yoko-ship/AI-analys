@@ -94,6 +94,13 @@ _DEFAULT_THRESHOLDS: dict[str, dict[str, Any]] = {
     },
     "catalog": {
         "inactive_after_days": 90,
+        "staleness_warn_hours": 24,
+    },
+    # Дополнение 1 §А.5 — the day-count basis is configuration and is echoed in
+    # every bond response.
+    "bonds": {
+        "day_count_basis": "ACT/365",
+        "price_pct_range": [20, 200],
     },
 }
 

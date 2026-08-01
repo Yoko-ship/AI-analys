@@ -231,7 +231,14 @@ def latest_run(status: str | None = None) -> dict[str, Any] | None:
 
 def find_findings(*, run_id: str | None = None, severity: str | None = None,
                   group: str | None = None, status: str | None = None,
-                  ticker: str | None = None, limit: int = 500) -> list[dict[str, Any]]:
+                  ticker: str | None = None, limit: int = 500,
+                  include_resolved: bool = False) -> list[dict[str, Any]]:
+    """Findings, open by default.
+
+    `include_resolved` returns every row a run touched whatever its status has
+    since become — which is what a run-to-run diff needs, and what the open list
+    must never show.
+    """
     init()
     sql = ["SELECT * FROM audit_findings WHERE 1=1"]
     args: list[Any] = []
@@ -243,7 +250,7 @@ def find_findings(*, run_id: str | None = None, severity: str | None = None,
         sql.append("AND rule_code LIKE ?"); args.append(f"{group}-%")
     if status:
         sql.append("AND status = ?"); args.append(status)
-    else:
+    elif not include_resolved:
         sql.append("AND status IN ('new','confirmed')")
     if ticker:
         sql.append("AND ticker = ?"); args.append(ticker.upper())

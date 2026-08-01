@@ -71,8 +71,10 @@ class TestRuleBook:
         counts: dict[str, int] = {}
         for rule in rules_mod.ALL_RULES:
             counts[rule.group] = counts.get(rule.group, 0) + 1
-        assert counts == {"FIN": 15, "MUL": 12, "MKT": 14, "CND": 12, "CAT": 6, "XSC": 5}
-        assert len(rules_mod.ALL_RULES) == 64
+        assert counts == {"FIN": 15, "MUL": 12, "MKT": 14, "CND": 12, "CAT": 6, "XSC": 5,
+                          # Дополнение 1: the bond contour and the report catalog.
+                          "BND": 12, "SRC": 10}
+        assert len(rules_mod.ALL_RULES) == 86
 
     def test_every_rule_has_an_implementation(self):
         implemented = set(registry())
@@ -318,7 +320,7 @@ class TestRunner:
         report = run_audit(AuditContext(published_ma_windows={"ma20": 28, "ma50": 70}),
                            persist=False)
         assert report["status"] == "ok"
-        assert report["rules_run"] == 64 and report["summary"]["blocking"] == 0
+        assert report["rules_run"] == 86 and report["summary"]["blocking"] == 0
 
     def test_a_blocking_finding_fails_the_run(self):
         ctx = AuditContext(published_multiples=[
@@ -341,11 +343,13 @@ class TestRunner:
         finally:
             checks_mod._REGISTRY["FIN-01"] = original
         assert report["rules_failed"] == [{"rule": "FIN-01", "error": "source unavailable"}]
-        assert report["rules_run"] == 64
+        assert report["rules_run"] == 86
 
     def test_a_group_can_be_run_alone(self):
         report = run_audit(AuditContext(), group="MUL", persist=False)
         assert report["rules_run"] == 12
+        assert run_audit(AuditContext(), group="BND", persist=False)["rules_run"] == 12
+        assert run_audit(AuditContext(), group="SRC", persist=False)["rules_run"] == 10
 
     def test_a_full_pass_reports_whether_it_fits_the_budget(self):
         report = run_audit(AuditContext(), persist=False)

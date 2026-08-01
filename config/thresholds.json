@@ -47,6 +47,13 @@
   },
 
   "catalog": {
-    "inactive_after_days": 90
+    "inactive_after_days": 90,
+    "staleness_warn_hours": 24
+  },
+
+  "bonds": {
+    "_comment": "ACT/365 | ACT/360 | ACT/ACT. Stated in every bond response so two developers cannot assume different bases and both believe they are right.",
+    "day_count_basis": "ACT/365",
+    "price_pct_range": [20, 200]
   }
 }

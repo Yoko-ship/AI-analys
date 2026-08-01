@@ -37,6 +37,8 @@ const VIEW_PATHS = {
   reference: "/reference",
   profile: "/profile",
   auth: "/login",
+  // ТЗ v1.3 §12.6 — internal, reached by direct link, not from the nav.
+  auditAdmin: "/admin/audit",
 };
 
 function viewToPath(view, ticker, newsId) {
@@ -5336,6 +5338,227 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
 // Company detail page components
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// /admin/audit — the auditor's own screen (ТЗ v1.3 §12.6)
+//
+// The market tab shows the auditor without its vocabulary: a withheld metric is
+// a dash with a reason. This page is the other audience — it shows the run, the
+// rule, the security, the expected and actual values, and the INPUT that
+// produced the finding, so the calculation can be reproduced locally instead of
+// argued about. The admin secret is held in the field, never persisted: this is
+// a machine-to-machine credential and the browser is not a machine.
+// ---------------------------------------------------------------------------
+
+function AuditAdminPage({ language }) {
+  const lang = normalizeLanguage(language);
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [secret, setSecret] = React.useState("");
+  const [run, setRun] = React.useState(null);
+  const [findings, setFindings] = React.useState([]);
+  const [rules, setRules] = React.useState([]);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const [filters, setFilters] = React.useState({ severity: "", group: "", ticker: "" });
+  const [expanded, setExpanded] = React.useState(null);
+
+  const headers = React.useCallback(() => ({ "X-Admin-Secret": secret }), [secret]);
+
+  React.useEffect(() => {
+    fetch("/api/audit/rules").then((r) => r.json())
+      .then((d) => { if (d && d.ok) setRules(d.items || []); })
+      .catch(() => {});
+  }, []);
+
+  const loadFindings = React.useCallback(async () => {
+    const params = new URLSearchParams();
+    if (filters.severity) params.set("severity", filters.severity);
+    if (filters.group) params.set("group", filters.group);
+    if (filters.ticker) params.set("ticker", filters.ticker.toUpperCase());
+    params.set("limit", "500");
+    const res = await fetch(`/api/audit/findings?${params}`, { headers: headers() });
+    if (!res.ok) throw new Error(res.status === 401
+      ? t("неверный секрет", "noto'g'ri maxfiy kalit", "invalid secret")
+      : `HTTP ${res.status}`);
+    const data = await res.json();
+    setFindings(data.items || []);
+  }, [filters, headers, t]);
+
+  const refresh = async () => {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch("/api/audit/runs?limit=1", { headers: headers() });
+      if (res.ok) {
+        const data = await res.json();
+        setRun((data.items || [])[0] || null);
+      }
+      await loadFindings();
+    } catch (e) { setError(String(e.message || e)); }
+    finally { setBusy(false); }
+  };
+
+  const runAudit = async () => {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch("/api/audit/run", {
+        method: "POST", headers: { ...headers(), "Content-Type": "application/json" },
+        body: JSON.stringify({ trigger: "manual", with_history: 8 }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const report = await res.json();
+      setRun({ id: report.run_id, status: report.status, rules_run: report.rules_run,
+               blocking: report.summary.blocking, warnings: report.summary.warnings,
+               infos: report.summary.infos, duration_ms: report.duration_ms,
+               instruments: report.instruments, finished_at: new Date().toISOString() });
+      await loadFindings();
+    } catch (e) { setError(String(e.message || e)); }
+    finally { setBusy(false); }
+  };
+
+  const setStatus = async (id, status) => {
+    try {
+      await fetch(`/api/audit/findings/${id}`, {
+        method: "PATCH", headers: { ...headers(), "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      await loadFindings();
+    } catch { /* the list simply does not change */ }
+  };
+
+  const groups = [...new Set(rules.map((r) => r.group))];
+  const num = (v) => (v == null ? "—" : Number(v).toLocaleString(lang === "en" ? "en-US" : "ru-RU",
+    { maximumFractionDigits: 4 }));
+
+  return (
+    <div className="page-wrap audit-page">
+      <div className="panel" style={{ padding: 24 }}>
+        <div className="panel-label">{t("Служебное", "Xizmat", "Internal")}</div>
+        <h2>{t("Аудитор данных и расчётов", "Ma'lumot auditori", "Data & calculation auditor")}</h2>
+        <p className="muted" style={{ maxWidth: 720, lineHeight: 1.6 }}>
+          {t("Аудитор пересчитывает те же величины независимым путём и сравнивает с опубликованным. Blocking-находка снимает число с публикации.",
+             "Auditor bir xil qiymatlarni mustaqil yo'l bilan qayta hisoblaydi va e'lon qilingani bilan solishtiradi.",
+             "The auditor recomputes the same quantities by an independent route and compares them with what was published. A blocking finding removes the number from publication.")}
+        </p>
+
+        <div className="audit-controls">
+          <input type="password" className="audit-secret" value={secret} autoComplete="off"
+            placeholder={t("Админ-секрет", "Admin maxfiy kaliti", "Admin secret")}
+            onChange={(e) => setSecret(e.target.value)} />
+          <button type="button" className="chart-opt-btn" disabled={!secret || busy}
+            onClick={refresh}>{t("Обновить", "Yangilash", "Refresh")}</button>
+          <button type="button" className="chart-opt-btn active" disabled={!secret || busy}
+            onClick={runAudit}>{busy ? t("Идёт прогон…", "Ishlamoqda…", "Running…")
+              : t("Прогнать аудит", "Auditni ishga tushirish", "Run audit")}</button>
+        </div>
+        {error && <p className="audit-error">{error}</p>}
+
+        {run && (
+          <div className="audit-run">
+            <span className={`audit-chip is-${run.status}`}>{run.status}</span>
+            <span>{t("правил", "qoidalar", "rules")}: <b>{run.rules_run}</b></span>
+            <span>{t("инструментов", "vositalar", "instruments")}: <b>{run.instruments}</b></span>
+            <span className="tone-neg">blocking: <b>{run.blocking}</b></span>
+            <span>warning: <b>{run.warnings}</b></span>
+            <span>info: <b>{run.infos}</b></span>
+            <span>{run.duration_ms} ms</span>
+            <span className="muted">{run.finished_at}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="panel" style={{ padding: 24, marginTop: 16 }}>
+        <div className="audit-filters">
+          <select value={filters.severity}
+            onChange={(e) => setFilters((f) => ({ ...f, severity: e.target.value }))}>
+            <option value="">{t("любой уровень", "har qanday daraja", "any severity")}</option>
+            <option value="blocking">blocking</option>
+            <option value="warning">warning</option>
+            <option value="info">info</option>
+          </select>
+          <select value={filters.group}
+            onChange={(e) => setFilters((f) => ({ ...f, group: e.target.value }))}>
+            <option value="">{t("все группы", "barcha guruhlar", "all groups")}</option>
+            {groups.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <input value={filters.ticker} placeholder={t("тикер", "ticker", "ticker")}
+            onChange={(e) => setFilters((f) => ({ ...f, ticker: e.target.value }))} />
+          <button type="button" className="chart-opt-btn" disabled={!secret}
+            onClick={() => loadFindings().catch((e) => setError(String(e.message || e)))}>
+            {t("Применить", "Qo'llash", "Apply")}
+          </button>
+          <a className="chart-opt-btn" href="/api/audit/export" target="_blank" rel="noreferrer">
+            CSV
+          </a>
+        </div>
+
+        {findings.length === 0 ? (
+          <p className="muted" style={{ padding: "24px 0" }}>
+            {t("Находок нет. Пустой отчёт — единственное нормальное состояние.",
+               "Topilma yo'q. Bo'sh hisobot — yagona normal holat.",
+               "No findings. An empty report is the only normal outcome.")}
+          </p>
+        ) : (
+          <table className="audit-table">
+            <thead>
+              <tr>
+                <th>{t("Правило", "Qoida", "Rule")}</th>
+                <th>{t("Бумага", "Qog'oz", "Security")}</th>
+                <th>{t("Метрика", "Metrika", "Metric")}</th>
+                <th className="num">{t("Ожидалось", "Kutilgan", "Expected")}</th>
+                <th className="num">{t("Фактически", "Haqiqiy", "Actual")}</th>
+                <th>{t("Сообщение", "Xabar", "Message")}</th>
+                <th>{t("Статус", "Holat", "Status")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {findings.map((f) => (
+                <React.Fragment key={f.id}>
+                  <tr className={`audit-row is-${f.severity}`}
+                    onClick={() => setExpanded(expanded === f.id ? null : f.id)}>
+                    <td><code>{f.rule_code}</code></td>
+                    <td>{f.ticker || "—"}</td>
+                    <td>{f.metric || "—"}</td>
+                    <td className="num">{num(f.expected)}</td>
+                    <td className="num">{num(f.actual)}</td>
+                    <td>{f.message}</td>
+                    <td>
+                      <span className="audit-chip">{f.status}</span>
+                      {f.seen_count > 1 && <span className="muted"> ×{f.seen_count}</span>}
+                    </td>
+                  </tr>
+                  {expanded === f.id && (
+                    <tr className="audit-detail">
+                      <td colSpan={7}>
+                        {/* The input is what turns a finding into a test in five
+                            minutes rather than a day of argument. */}
+                        <pre>{JSON.stringify(f.input || {}, null, 2)}</pre>
+                        <div className="audit-actions">
+                          <button type="button" className="chart-opt-btn"
+                            onClick={() => setStatus(f.id, "confirmed")}>
+                            {t("Подтвердить", "Tasdiqlash", "Confirm")}
+                          </button>
+                          <button type="button" className="chart-opt-btn"
+                            onClick={() => setStatus(f.id, "accepted")}>
+                            {t("Принять как исключение", "Istisno sifatida qabul qilish",
+                               "Accept as exception")}
+                          </button>
+                          <span className="muted">
+                            {t("впервые", "birinchi marta", "first seen")}: {f.first_seen}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustments, lang, quality, metricsWindows }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const RANGES = [
@@ -5671,6 +5894,31 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
         {xLabels.map((tick, i) => (
           <text key={`xl${i}`} x={tick.x} y={H - 6} textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
         ))}
+
+        {/* ТЗ §6: on a step chart the points carry the day's volume in their
+            size, so a run of identical prices does not read as steady trading;
+            and a move that stopped exactly at the ±20 % daily limit is marked,
+            because it is a rule of the exchange, not a decision of the market. */}
+        {!showCandles && stepLine && points.map((p, i) => {
+          const share = maxVol > 0 ? (p.volume || 0) / maxVol : 0;
+          const r = 1.6 + Math.sqrt(Math.max(share, 0)) * 3.4;
+          const prev = i > 0 ? points[i - 1].close : null;
+          const move = prev && prev > 0 ? ((p.close - prev) / prev) * 100 : null;
+          const atLimit = move != null && Math.abs(Math.abs(move) - 20) < 0.5;
+          return (
+            <g key={`pt${i}`}>
+              <circle cx={xs(i)} cy={ys(p.close)} r={r} fill={color} fillOpacity="0.75" />
+              {atLimit && (
+                <rect x={xs(i) - 4.5} y={ys(p.close) - 4.5} width="9" height="9"
+                  fill="none" stroke="#fbbf24" strokeWidth="1.2">
+                  <title>{t("движение упёрлось в дневной лимит ±20 %",
+                            "harakat kunlik ±20 % limitga tayandi",
+                            "move hit the ±20 % daily limit")}</title>
+                </rect>
+              )}
+            </g>
+          );
+        })}
 
         {!showCandles && <circle cx={xs(points.length - 1)} cy={ys(points[points.length - 1].close)} r="4" fill={color} />}
 
@@ -6820,6 +7068,11 @@ function MarketView({
   const [multiples, setMultiples] = useState({});
   const [marketSummary, setMarketSummary] = useState(null);
   const [mapData, setMapData] = useState(null);
+  const [instruments, setInstruments] = useState({});
+  // ТЗ §4: dormant listings are hidden by default and reachable by a switch —
+  // not dropped, because a security that stopped trading is a fact about the
+  // market and hiding it permanently is how five references came to disagree.
+  const [showInactive, setShowInactive] = useState(false);
   useEffect(() => {
     let alive = true;
     fetch("/api/market/multiples")
@@ -6841,6 +7094,18 @@ function MarketView({
     fetch("/api/heatmap")
       .then((r) => r.json())
       .then((d) => { if (alive && d && d.ok) setMapData(d); })
+      .catch(() => {});
+    // The single instrument universe (ТЗ §4). `is_active` here follows TRADING —
+    // ninety days without an execution — rather than a registry flag, which is
+    // what the "показать неактивные" switch below actually filters on.
+    fetch("/api/instruments")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !d || !d.ok) return;
+        const by = {};
+        (d.items || []).forEach((i) => { by[i.ticker] = i; });
+        setInstruments(by);
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -7044,10 +7309,18 @@ function MarketView({
     smap[r.ticker]?.is_preferred === true ||
     smap[r.ticker]?.share_type === "preferred" ||
     r.share_type === "preferred";
-  const prepared =
+  const byClass =
     type === "preferred" ? preparedAll.filter(isPreferredSec)
     : type === "ordinary" ? preparedAll.filter((r) => !isPreferredSec(r))
     : preparedAll;
+  // ТЗ §4: activity is a fact about trading, taken from /api/instruments, not a
+  // flag on the row — the registry's own flag disagreed with the tape.
+  const isDormant = (r) => {
+    const item = instruments[String(r.ticker || "").toUpperCase()];
+    return item ? item.is_active === false : r.inactive === true;
+  };
+  const dormantCount = byClass.filter(isDormant).length;
+  const prepared = showInactive ? byClass : byClass.filter((r) => !isDormant(r));
   const search = String(query || "").trim().toLowerCase();
 
   // Gather sectors present in current data
@@ -7083,6 +7356,20 @@ function MarketView({
     };
   };
   const peOf = (r) => valuationOf(r).pe?.value ?? null;
+
+  // A flow figure scaled to twelve months, for SORTING only (ТЗ §7). Returns
+  // null rather than a raw value when the period is unknown: ordering by a
+  // number whose span nobody knows is the defect, not the fix.
+  const annualisedFin = (r, field) => {
+    const fin = finOf(r.ticker);
+    const value = fin?.[field];
+    if (!Number.isFinite(value)) return null;
+    const months = Number.isFinite(fin?.period_months)
+      ? fin.period_months
+      : (fin?.quarter > 0 ? fin.quarter * 3 : (fin?.year ? 12 : null));
+    if (!months || months <= 0) return null;
+    return (value * 12) / months;
+  };
 
   // ТЗ §8: a multiple the server withheld says WHY. «убыток» is a fact about the
   // issuer, not missing data; «проверяется» means the statement behind it failed
@@ -7187,12 +7474,18 @@ function MarketView({
     avgTrade: (r) => avgTradeValue(r),
     bigTrade: (r) => r.ts?.largest_value,
     volShare: (r) => r.stockVolume,
-    finRevenue: (r) => finOf(r.ticker)?.revenue,
-    finGross: (r) => finOf(r.ticker)?.gross_profit,
+    // ТЗ §7: a column that mixes reporting periods may not be ordered by its
+    // raw values. The cached rows span twelve different (year, months)
+    // combinations, so a full year always outranked a peer's four quarters for
+    // no reason the reader could see. The CELL keeps its own period and label;
+    // only the SORT runs on the twelve-month normalisation. Balance-sheet lines
+    // are a position on a date and are never scaled.
+    finRevenue: (r) => annualisedFin(r, "revenue"),
+    finGross: (r) => annualisedFin(r, "gross_profit"),
     finCash: (r) => finOf(r.ticker)?.cash,
     finLiab: (r) => finOf(r.ticker)?.total_liabilities,
-    finNet: (r) => finOf(r.ticker)?.net_income,
-    finOperating: (r) => finOf(r.ticker)?.operating_income,
+    finNet: (r) => annualisedFin(r, "net_income"),
+    finOperating: (r) => annualisedFin(r, "operating_income"),
     mktCap: (r) => mktCapOf(r),
     pe: (r) => peOf(r),
     pb: (r) => pbOf(r),
@@ -7683,6 +7976,23 @@ function MarketView({
             >
               <span className="fav-star">{favOnly ? "★" : "☆"}</span>
               <span className="market-btn-label">{lang === "en" ? "Favorites" : lang === "uz" ? "Tanlanganlar" : "Избранное"}</span>
+            </button>
+          )}
+          {/* ТЗ §4: dormant listings are hidden, not dropped — the count says
+              how many, so their absence is a stated fact rather than a silence. */}
+          {dormantCount > 0 && (
+            <button
+              type="button"
+              className={`market-fav-filter ${showInactive ? "active" : ""}`}
+              aria-pressed={showInactive}
+              onClick={() => setShowInactive((v) => !v)}
+              title={lang === "en" ? "No trades for 90 days"
+                : lang === "uz" ? "90 kun bitimlarsiz" : "Без сделок более 90 дней"}
+            >
+              <span className="market-btn-label">
+                {lang === "en" ? "Inactive" : lang === "uz" ? "Faol emas" : "Неактивные"}
+                {` (${dormantCount})`}
+              </span>
             </button>
           )}
           {viewMode === "table" && (
@@ -9789,6 +10099,10 @@ function App() {
           )}
 
           {activeView === "reference" && <ReferenceView language={language} />}
+
+          {/* Reached by direct link only — it is deliberately absent from
+              navItems, because it is a tool for whoever maintains the data. */}
+          {activeView === "auditAdmin" && <AuditAdminPage language={language} />}
 
           {activeView === "news" && <NewsView language={language} onOpenCompany={openCompanyPage} onOpenNews={openNewsArticle} user={user} apiFetch={apiFetch} />}
 
