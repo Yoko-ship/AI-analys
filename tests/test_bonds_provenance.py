@@ -682,6 +682,116 @@ class TestProvenanceWiring:
         assert second["linked"] == 0
 
 
+class TestRegisterCost:
+    """/api/admin/catalog/register has to fit in the collector's HTTP timeout.
+
+    It walked the catalog a row at a time — a SELECT and a write per filing, and
+    the whole walk twice because the backfill re-seeded the registry the caller
+    had just seeded. That is free against a local SQLite file and 7 670 network
+    round trips against PostgreSQL: the collector's 120s read timeout expired
+    mid-request and the daily run went red on 2026-08-03. What must not come
+    back is the SCALING, so that is what these measure.
+    """
+
+    def _count_statements(self, monkeypatch) -> dict[str, int]:
+        import dbx
+
+        counter = {"n": 0}
+        raw_execute, raw_many = dbx.Cursor.execute, dbx.Cursor.executemany
+
+        def execute(self, sql, params=None):
+            counter["n"] += 1
+            return raw_execute(self, sql, params)
+
+        def executemany(self, sql, seq):
+            counter["n"] += 1          # one batch is one round trip
+            return raw_many(self, sql, seq)
+
+        monkeypatch.setattr(dbx.Cursor, "execute", execute)
+        monkeypatch.setattr(dbx.Cursor, "executemany", executemany)
+        return counter
+
+    def test_registering_does_not_scale_with_the_catalog(self, monkeypatch):
+        import reports_catalog as rc
+
+        conn = rc.get_catalog_conn()
+        try:
+            catalogued = conn.execute(
+                "SELECT COUNT(*) AS n FROM catalog_reports WHERE year IS NOT NULL"
+            ).fetchone()["n"]
+        finally:
+            conn.close()
+        if catalogued < 50:
+            pytest.skip("catalog too small for the cost to say anything")
+
+        # Warm the pool first: schema DDL is applied once per physical
+        # connection, and the steady state is what a running server pays.
+        provenance.sync_from_catalog()
+        rc.backfill_report_links(seed=False)
+
+        counter = self._count_statements(monkeypatch)
+        provenance.sync_from_catalog()
+        rc.backfill_report_links(seed=False)
+        # A constant, not one per filing. The bound is loose on purpose — the
+        # order of magnitude is the assertion, not the exact count.
+        assert counter["n"] < 50, f"{counter['n']} statements for {catalogued} filings"
+
+    def test_two_tickers_of_one_issuer_collapse_to_one_report(self):
+        """A batch cannot deduplicate by re-reading its own writes.
+
+        ALKB and ALKBP are Aloqabank: the catalog holds one filing under both
+        tickers and the registry's UNIQUE key holds it once. The row-at-a-time
+        loop collapsed them by accident — the batch has to mean it, or the whole
+        insert is rejected.
+        """
+        org, tickers = "TESTDUP", ("ZZDUPA", "ZZDUPB")
+        self._purge(org, tickers)
+        conn = provenance._conn()
+        try:
+            for ticker in tickers:
+                conn.execute(
+                    "INSERT INTO catalog_companies (ticker, company_name, org_id) "
+                    "VALUES (?,?,?) ON CONFLICT(ticker) DO UPDATE SET org_id=excluded.org_id",
+                    (ticker, "Dup Test", org))
+                conn.execute(
+                    "INSERT INTO catalog_reports (ticker, report_form, period_type, "
+                    "year, quarter, pdf_url) VALUES (?,?,?,?,?,?)",
+                    (ticker, "NSBU", "annual", 2003, 0,
+                     "http://example/b.pdf" if ticker == "ZZDUPB" else None))
+            conn.commit()
+        finally:
+            conn.close()
+
+        try:
+            provenance.sync_from_catalog()
+            conn = provenance._conn()
+            try:
+                rows = conn.execute(
+                    "SELECT id, pdf_url FROM source_reports WHERE org_id=?", (org,)).fetchall()
+            finally:
+                conn.close()
+            assert len(rows) == 1
+            # COALESCE precedence survives the merge: the non-null url wins,
+            # whichever order the two rows arrive in.
+            assert rows[0]["pdf_url"] == "http://example/b.pdf"
+        finally:
+            self._purge(org, tickers)
+
+    @staticmethod
+    def _purge(org, tickers):
+        marks = ",".join("?" * len(tickers))
+        conn = provenance._conn()
+        try:
+            conn.execute("DELETE FROM report_figures WHERE report_id IN "
+                         "(SELECT id FROM source_reports WHERE org_id = ?)", (org,))
+            conn.execute("DELETE FROM source_reports WHERE org_id = ?", (org,))
+            conn.execute(f"DELETE FROM catalog_reports WHERE ticker IN ({marks})", tickers)
+            conn.execute(f"DELETE FROM catalog_companies WHERE ticker IN ({marks})", tickers)
+            conn.commit()
+        finally:
+            conn.close()
+
+
 @pytest.fixture(autouse=True, scope="module")
 def _clean_wire_fixtures():
     """Remove the rows TestProvenanceWiring creates for itself."""

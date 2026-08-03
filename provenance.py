@@ -58,7 +58,16 @@ def init(conn: sqlite3.Connection | None = None) -> None:
     own = conn is None
     conn = conn or _conn()
     try:
-        conn.executescript(
+        import dbx
+
+        dbx.ensure_schema(conn, "provenance", _create_schema)
+    finally:
+        if own:
+            conn.close()
+
+
+def _create_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS issuers (
               org_id    TEXT PRIMARY KEY,
@@ -126,11 +135,8 @@ def init(conn: sqlite3.Connection | None = None) -> None:
               PRIMARY KEY (ticker, coupon_no)
             );
             """
-        )
-        conn.commit()
-    finally:
-        if own:
-            conn.close()
+    )
+    conn.commit()
 
 
 def file_hash(payload: bytes | str) -> str:
@@ -205,6 +211,93 @@ def set_state(report_id: int, state: str, reason: str | None = None) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def report_index() -> dict[tuple, int]:
+    """Every registered report keyed the way `report_id_for` resolves one.
+
+    `report_id_for` opens a connection and runs a join per lookup, which is the
+    right shape for one question and the wrong shape for a backfill asking it
+    once per cached figure. One issuer's several tickers each get their own
+    entry, because that is what the join in `report_id_for` produces.
+    """
+    init()
+    conn = _conn()
+    index: dict[tuple, int] = {}
+    try:
+        for row in conn.execute(
+                "SELECT r.id, r.report_form, r.period_type, r.period_year, "
+                "       r.period_quarter, "
+                "       COALESCE(c.ticker, REPLACE(r.org_id,'ticker:','')) AS ticker "
+                "FROM source_reports r "
+                "LEFT JOIN catalog_companies c ON c.org_id = r.org_id"):
+            key = (str(row["ticker"]), str(row["report_form"]), str(row["period_type"]),
+                   int(row["period_year"]),
+                   int(row["period_quarter"]) if row["period_quarter"] else -1)
+            # `LIMIT 1` in the single-lookup form: the first match wins.
+            index.setdefault(key, int(row["id"]))
+    finally:
+        conn.close()
+    return index
+
+
+def set_state_bulk(report_ids: Sequence[int], state: str,
+                   reason: str | None = None) -> int:
+    """`set_state` for many reports over one connection."""
+    if state not in STATES:
+        raise ValueError(f"unknown report state: {state}")
+    ids = [int(i) for i in report_ids or []]
+    if not ids:
+        return 0
+    conn = _conn()
+    try:
+        stamps = ""
+        if state == "parsed":
+            stamps = ", parsed_at = '%s'" % _now()
+        elif state == "published":
+            stamps = ", published_at = '%s'" % _now()
+        conn.executemany(
+            f"UPDATE source_reports SET state=?, state_reason=?{stamps} WHERE id=?",
+            [(state, reason, report_id) for report_id in ids])
+        conn.commit()
+    finally:
+        conn.close()
+    return len(ids)
+
+
+def record_figures_bulk(items: Iterable[tuple[int, Iterable[dict[str, Any]]]]) -> int:
+    """`record_figures` for many reports over one connection.
+
+    Deduplicated on (report_id, field), last write winning — the same order the
+    one-at-a-time upserts resolved in. Two tickers of one issuer resolve to one
+    report, so the pair genuinely repeats within a single backfill, and
+    PostgreSQL refuses an ON CONFLICT batch that would touch a row twice.
+    """
+    by_target: dict[tuple[int, str], tuple] = {}
+    for report_id, figures in items or []:
+        for figure in figures or []:
+            field = str(figure.get("field") or "").strip()
+            if not field:
+                continue
+            by_target[(int(report_id), field)] = (
+                int(report_id), field, figure.get("value"),
+                int(figure.get("unit_scale") or 1),
+                figure.get("page"), figure.get("raw_label"))
+    params = list(by_target.values())
+    if not params:
+        return 0
+    conn = _conn()
+    try:
+        conn.executemany(
+            "INSERT INTO report_figures (report_id, field, value, unit_scale, page, raw_label) "
+            "VALUES (?,?,?,?,?,?) ON CONFLICT(report_id, field) DO UPDATE SET "
+            "value=excluded.value, unit_scale=excluded.unit_scale, page=excluded.page, "
+            "raw_label=excluded.raw_label",
+            params)
+        conn.commit()
+    finally:
+        conn.close()
+    return len(params)
 
 
 def record_figures(report_id: int, figures: Iterable[dict[str, Any]]) -> int:
@@ -457,25 +550,39 @@ def sync_from_catalog() -> dict[str, int]:
 
     Idempotent: a report already registered keeps its state, so a nightly sync
     does not reset something that has been parsed.
+
+    Reads first, then writes in batches. The row-at-a-time version issued a
+    SELECT and a write per catalogued report, which is free against a local
+    SQLite file and a network round trip each against PostgreSQL: measured over
+    1 883 filings, /api/admin/catalog/register spent 7 670 statements and
+    outlasted the collector's 120s read timeout, failing the daily run of
+    2026-08-03. The same work is now 7.
     """
     init()
     conn = _conn()
-    issuers = reports = 0
     try:
         # ТЗ Б.6: the catalog is a list of ISSUERS. 73 ticker rows are 66
         # organisations; keying by ticker is why a bond series showed "0 отчётов"
         # while its issuer's filings sat under another ticker.
-        for row in conn.execute(
-                "SELECT org_id, MIN(company_name) AS name, MAX(last_synced_at) AS synced "
-                "FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != '' "
-                "GROUP BY org_id"):
-            conn.execute(
-                "INSERT INTO issuers (org_id, name, synced_at) VALUES (?,?,?) "
-                "ON CONFLICT(org_id) DO UPDATE SET name=excluded.name, "
-                "synced_at=COALESCE(excluded.synced_at, issuers.synced_at)",
-                (row["org_id"], row["name"], row["synced"]))
-            issuers += 1
+        issuer_rows = [(r["org_id"], r["name"], r["synced"]) for r in conn.execute(
+            "SELECT org_id, MIN(company_name) AS name, MAX(last_synced_at) AS synced "
+            "FROM catalog_companies WHERE org_id IS NOT NULL AND org_id != '' "
+            "GROUP BY org_id")]
 
+        # What is already registered, in one read rather than one per report.
+        existing = {
+            _registry_key(r["org_id"], r["report_form"], r["period_type"],
+                          r["period_year"], r["period_quarter"]): r["id"]
+            for r in conn.execute(
+                "SELECT id, org_id, report_form, period_type, period_year, "
+                "       period_quarter FROM source_reports")}
+
+        # Two tickers of one issuer file the SAME report (ALKB and ALKBP share
+        # Aloqabank's filings), so the catalog holds several rows per registry
+        # key. The old loop collapsed them by re-reading its own writes; a batch
+        # has to collapse them here or the UNIQUE constraint rejects it — with
+        # the same COALESCE precedence, a later non-null value winning.
+        merged: dict[tuple, dict[str, Any]] = {}
         for row in conn.execute(
                 "SELECT r.ticker, r.report_form, r.period_type, r.year, r.quarter, "
                 "       r.title, r.pdf_url, r.excel_url, c.org_id "
@@ -483,33 +590,66 @@ def sync_from_catalog() -> dict[str, int]:
                 "WHERE r.year IS NOT NULL"):
             org_id = row["org_id"] or f"ticker:{row['ticker']}"
             quarter = row["quarter"] or None
-            existing = conn.execute(
-                "SELECT id FROM source_reports WHERE org_id=? AND report_form=? AND "
-                "period_type=? AND period_year=? AND IFNULL(period_quarter,-1)=IFNULL(?,-1)",
-                (org_id, row["report_form"], row["period_type"], row["year"], quarter)
-            ).fetchone()
-            if existing:
-                conn.execute(
-                    "UPDATE source_reports SET pdf_url=COALESCE(?, pdf_url), "
-                    "excel_url=COALESCE(?, excel_url), title=COALESCE(?, title) WHERE id=?",
-                    (row["pdf_url"], row["excel_url"],
-                     row["title"] or compose_title(row["report_form"], row["period_type"],
-                                                   row["year"], quarter),
-                     existing["id"]))
+            key = _registry_key(org_id, row["report_form"], row["period_type"],
+                                row["year"], quarter)
+            item = merged.get(key)
+            if item is None:
+                merged[key] = {
+                    "org_id": org_id, "report_form": row["report_form"],
+                    "period_type": row["period_type"], "year": row["year"],
+                    "quarter": quarter, "pdf_url": row["pdf_url"],
+                    "excel_url": row["excel_url"],
+                    "title": row["title"] or compose_title(
+                        row["report_form"], row["period_type"], row["year"], quarter),
+                }
+                continue
+            for field in ("pdf_url", "excel_url", "title"):
+                if row[field] is not None:
+                    item[field] = row[field]
+
+        updates, inserts = [], []
+        now = _now()
+        for key, item in merged.items():
+            report_id = existing.get(key)
+            if report_id is not None:
+                updates.append((item["pdf_url"], item["excel_url"], item["title"], report_id))
             else:
-                conn.execute(
-                    "INSERT INTO source_reports (org_id, report_form, period_type, "
-                    "period_year, period_quarter, title, pdf_url, excel_url, state, "
-                    "discovered_at) VALUES (?,?,?,?,?,?,?,?, 'discovered', ?)",
-                    (org_id, row["report_form"], row["period_type"], row["year"], quarter,
-                     row["title"] or compose_title(row["report_form"], row["period_type"],
-                                                   row["year"], quarter),
-                     row["pdf_url"], row["excel_url"], _now()))
-                reports += 1
+                inserts.append((item["org_id"], item["report_form"], item["period_type"],
+                                item["year"], item["quarter"], item["title"],
+                                item["pdf_url"], item["excel_url"], now))
+
+        if issuer_rows:
+            conn.executemany(
+                "INSERT INTO issuers (org_id, name, synced_at) VALUES (?,?,?) "
+                "ON CONFLICT(org_id) DO UPDATE SET name=excluded.name, "
+                "synced_at=COALESCE(excluded.synced_at, issuers.synced_at)",
+                issuer_rows)
+        if updates:
+            conn.executemany(
+                "UPDATE source_reports SET pdf_url=COALESCE(?, pdf_url), "
+                "excel_url=COALESCE(?, excel_url), title=COALESCE(?, title) WHERE id=?",
+                updates)
+        if inserts:
+            conn.executemany(
+                "INSERT INTO source_reports (org_id, report_form, period_type, "
+                "period_year, period_quarter, title, pdf_url, excel_url, state, "
+                "discovered_at) VALUES (?,?,?,?,?,?,?,?, 'discovered', ?)",
+                inserts)
         conn.commit()
     finally:
         conn.close()
-    return {"issuers": issuers, "reports_registered": reports}
+    return {"issuers": len(issuer_rows), "reports_registered": len(inserts)}
+
+
+def _registry_key(org_id: Any, report_form: Any, period_type: Any,
+                  period_year: Any, period_quarter: Any) -> tuple:
+    """The tuple `source_reports`' UNIQUE constraint is built on.
+
+    `IFNULL(period_quarter,-1)` in SQL; an annual report has no quarter and two
+    of them must still collide, so the sentinel travels into Python unchanged.
+    """
+    return (str(org_id), str(report_form), str(period_type), int(period_year),
+            int(period_quarter) if period_quarter else -1)
 
 
 def report_id_for(ticker: str, report_form: str, period_type: str, year: int,
