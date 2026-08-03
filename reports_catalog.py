@@ -306,7 +306,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
 def get_catalog_conn() -> sqlite3.Connection:
     conn = sqlite_connect(_catalog_db_path())
-    _init_schema(conn)
+    dbx.ensure_schema(conn, "catalog", _init_schema)
     return conn
 
 
@@ -2941,7 +2941,7 @@ def _register_parse(ticker: str, form: str, year: int, quarter: int | None,
         return None
 
 
-def backfill_report_links(limit: int | None = None) -> dict[str, int]:
+def backfill_report_links(limit: int | None = None, *, seed: bool = True) -> dict[str, int]:
     """Link figures cached BEFORE provenance existed to the report they came from.
 
     Every row in ``catalog_financials`` was produced by the parse path from the
@@ -2953,14 +2953,20 @@ def backfill_report_links(limit: int | None = None) -> dict[str, int]:
     A row whose report is not in the registry is left alone. SRC-03 will report
     it, which is correct: an unlinked figure is a finding, not a gap to fill with
     a guess.
-    """
-    try:
-        import provenance
 
-        provenance.sync_from_catalog()
-    except Exception:  # noqa: BLE001
-        logger.exception("provenance: backfill could not seed the registry")
-        return {"linked": 0, "unresolved": 0}
+    Resolves and writes in bulk. Row-at-a-time it opened four connections and
+    asked the registry a fresh question per cached figure; ``seed`` exists so a
+    caller that has just run ``sync_from_catalog`` itself does not pay for it
+    twice.
+    """
+    import provenance
+
+    if seed:
+        try:
+            provenance.sync_from_catalog()
+        except Exception:  # noqa: BLE001
+            logger.exception("provenance: backfill could not seed the registry")
+            return {"linked": 0, "unresolved": 0}
 
     conn = get_catalog_conn()
     try:
@@ -2972,28 +2978,39 @@ def backfill_report_links(limit: int | None = None) -> dict[str, int]:
     finally:
         conn.close()
 
+    index = provenance.report_index()
     linked = unresolved = 0
+    figure_items: list[tuple[int, list[dict[str, Any]]]] = []
+    validated: list[int] = []
+    links: list[tuple] = []
     for row in rows[:limit] if limit else rows:
         quarter = row["quarter"] or None
         period_type = "annual" if not quarter else "quarter"
-        report_id = provenance.report_id_for(row["ticker"], row["form"], period_type,
-                                             row["year"], quarter)
+        report_id = index.get((str(row["ticker"]), str(row["form"]), period_type,
+                               int(row["year"]), int(quarter) if quarter else -1))
         if report_id is None:
             unresolved += 1
             continue
         figures = [{"field": k, "value": row[k], "unit_scale": NSBU_THOUSANDS_UZS}
                    for k in _FINANCIAL_KEYS if row[k] is not None]
         if figures:
-            provenance.record_figures(report_id, figures)
-            provenance.set_state(report_id, "validated")
-        conn = get_catalog_conn()
-        with conn:
-            conn.execute(
-                "UPDATE catalog_financials SET report_id=? WHERE ticker=? AND form=? "
-                "AND year=? AND quarter=?",
-                (report_id, row["ticker"], row["form"], row["year"], row["quarter"]))
-        conn.close()
+            figure_items.append((report_id, figures))
+            validated.append(report_id)
+        links.append((report_id, row["ticker"], row["form"], row["year"], row["quarter"]))
         linked += 1
+
+    provenance.record_figures_bulk(figure_items)
+    # Several tickers of one issuer resolve to one report; state it once.
+    provenance.set_state_bulk(list(dict.fromkeys(validated)), "validated")
+    if links:
+        conn = get_catalog_conn()
+        try:
+            with conn:
+                conn.executemany(
+                    "UPDATE catalog_financials SET report_id=? WHERE ticker=? AND form=? "
+                    "AND year=? AND quarter=?", links)
+        finally:
+            conn.close()
     logger.info("provenance backfill: linked %d, unresolved %d", linked, unresolved)
     return {"linked": linked, "unresolved": unresolved}
 

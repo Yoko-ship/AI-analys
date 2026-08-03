@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import hashlib
 import hmac
 import json
@@ -2940,7 +2941,11 @@ async def api_admin_catalog_register(_: None = Depends(_require_admin)) -> dict[
     result = await loop.run_in_executor(None, provenance.sync_from_catalog)
     # Figures cached before provenance existed are linked to the filing they were
     # read from — the mapping is deterministic, so nothing has to be re-downloaded.
-    backfilled = await loop.run_in_executor(None, backfill_report_links)
+    # `seed=False`: the registry was just synced on the line above, and running
+    # it twice per request is half of why this endpoint outlasted the collector's
+    # 120s timeout and turned the daily run red.
+    backfilled = await loop.run_in_executor(
+        None, functools.partial(backfill_report_links, seed=False))
     return {"ok": True, **result, "backfilled": backfilled}
 
 

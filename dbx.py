@@ -358,11 +358,29 @@ class Connection:
         self._raw = raw
         self._target = target
         self._pool = pool
+        self._schemas: set[str] = set()
         self.row_factory = None            # accepted and ignored: rows are Rows
 
     @property
     def target(self) -> str:
         return self._target
+
+    def ensure_schema(self, key: str, initializer: Any) -> None:
+        """Run a schema initializer ONCE per physical connection.
+
+        `CREATE TABLE IF NOT EXISTS` costs nothing on SQLite and a network round
+        trip per statement on PostgreSQL. Call sites here open a connection per
+        operation, so the catalog's 22-statement schema was replayed on every
+        acquire — thousands of times inside one request, which is what pushed
+        /api/admin/catalog/register past the collector's 120s timeout. Because
+        connections are pooled and reused, once-per-connection caps the replays
+        at `pool_size` for the life of the process; a connection that dies is
+        rebuilt with an empty set and re-initialises itself.
+        """
+        if key in self._schemas:
+            return
+        initializer(self)
+        self._schemas.add(key)
 
     def cursor(self) -> Cursor:
         return Cursor(self._raw.cursor(), self._target)
@@ -553,6 +571,19 @@ def reset_pools() -> None:
         for pool in _pools.values():
             pool.drain()
         _pools.clear()
+
+
+def ensure_schema(conn: Any, key: str, initializer: Any) -> None:
+    """Apply a schema initializer once per connection, whatever the connection is.
+
+    A raw DB-API connection has no memo, so it pays the initializer every time —
+    exactly the old behaviour, which is what migrations and the odd test want.
+    """
+    hook = getattr(conn, "ensure_schema", None)
+    if hook is None:
+        initializer(conn)
+        return
+    hook(key, initializer)
 
 
 # ---------------------------------------------------------------------------
