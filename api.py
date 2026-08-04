@@ -829,6 +829,18 @@ def _listing_to_stock(lst: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _carries(row: dict[str, Any], close: Any) -> bool:
+    """Is the row showing no price of its own but carrying exactly this close?"""
+    if row.get("last_price") is not None:
+        return False
+    try:
+        carried, quoted = float(row.get("close_price")), float(close)
+    except (TypeError, ValueError):
+        return False
+    scale = max(abs(carried), abs(quoted))
+    return scale == 0 or abs(carried - quoted) / scale <= 1e-9
+
+
 def _apply_quote(row: dict[str, Any], quote: dict[str, Any]) -> None:
     """Overlay the exchange's session quote on a board row, in place.
 
@@ -837,12 +849,23 @@ def _apply_quote(row: dict[str, Any], quote: dict[str, Any]) -> None:
     has since gone quiet cannot pull a live row backwards. ``close_date`` counts
     as the row's session even with no trade — the exchange carries the closing
     price forward, and that carried price is newer than an older real trade.
+
+    A carried close is the last trade's close, though — the exchange repeats it,
+    it does not restate it. So when the mirror carries no price of its own and
+    the close it is carrying is the close our quote names, that quote IS the
+    session behind it, and waiting for a newer one leaves the row with a date it
+    cannot explain and no price at all. Eight rows sat like that (UTGA, UZML,
+    TRSBP, TKDMP, FRAZP, UPOSP and two bonds) while uzse.uz dated and priced
+    every one of them. A carried close that DIFFERS is a session the mirror knows
+    and the quote does not, and there the quote still waits.
     """
     day = _iso_trade_date(quote.get("trade_date"))
     close = quote.get("close_price")
     if not day or close is None:
         return
-    row_day = _iso_trade_date(row.get("last_trade_date")) or _iso_trade_date(row.get("close_date"))
+    row_day = _iso_trade_date(row.get("last_trade_date"))
+    if not row_day and not _carries(row, close):
+        row_day = _iso_trade_date(row.get("close_date"))
     if row_day and row_day > day:
         return
 
