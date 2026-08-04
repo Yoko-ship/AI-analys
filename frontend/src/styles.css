@@ -7122,6 +7122,48 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   color: var(--bg, #0b1220);
   background: var(--accent);
 }
+/* Teaches the modifier at the one moment it is actionable: one column sorted,
+   a second waiting to be added. Retires itself once used or dismissed. */
+.market-sort-teach {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px 3px 10px;
+  border: 1px dashed var(--accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.market-sort-teach b { font-weight: 700; }
+.market-sort-teach kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.4));
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--panel, rgba(148, 163, 184, 0.14));
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+}
+.market-sort-teach-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.market-sort-teach-close:hover { background: rgba(148, 163, 184, 0.22); color: var(--text); }
+
 .market-sort-chain-reset {
   padding: 3px 8px;
   border: 0;
@@ -7233,7 +7275,14 @@ body:has(.topbar.is-nav-open) .market-float-scroll {
   padding: 9px 12px;
   border-top: 1px solid rgba(148, 163, 184, 0.16);
 }
-.market-cols-hint { font-size: 11px; color: var(--text-muted, #94a3b8); }
+.market-cols-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted, #94a3b8);
+}
 .market-cols-reset {
   font-size: 11px;
   color: var(--accent);

@@ -7479,6 +7479,23 @@ function MarketView({
   };
   const cancelLongPress = () => clearTimeout(longPress.current.timer);
   useEffect(() => () => clearTimeout(longPress.current.timer), []);
+  // A modifier nobody is told about is a feature nobody has. The hint appears the
+  // moment it becomes actionable — right after the first column is sorted, not on
+  // a cold page where it would be noise — and retires for good once the reader has
+  // either built a two-key order or dismissed it.
+  const [sortHintSeen, setSortHintSeen] = useState(() => {
+    try { return localStorage.getItem("uz_market_sort_hint") === "seen"; } catch (e) { return false; }
+  });
+  const dismissSortHint = () => {
+    setSortHintSeen(true);
+    try { localStorage.setItem("uz_market_sort_hint", "seen"); } catch (e) { /* ignore */ }
+  };
+  useEffect(() => {
+    if (sortKeys.length > 1 && !sortHintSeen) dismissSortHint();
+  }, [sortKeys.length, sortHintSeen]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Touch has no Shift key, so the hint must name the gesture that device HAS.
+  const coarsePointer = typeof window !== "undefined" && typeof window.matchMedia === "function"
+    && window.matchMedia("(pointer: coarse)").matches;
 
   // User-configurable quote columns (ticker/company/last are always shown).
   // Quote columns grouped into collapsible sections in the settings dropdown.
@@ -8530,7 +8547,19 @@ function MarketView({
                     })()}
                     </div>
                     <div className="market-cols-footer">
-                      <span className="market-cols-hint">{lang === "en" ? "Drag column headers to reorder" : lang === "uz" ? "Tartib uchun sarlavhalarni torting" : "Перетаскивайте заголовки для порядка"}</span>
+                      {/* The two things the headers do that a header does not look
+                          like it does. This panel is where a reader comes looking
+                          for table controls, so both are stated here as well. */}
+                      <span className="market-cols-hint">
+                        <span>{lang === "en" ? "Drag column headers to reorder" : lang === "uz" ? "Tartib uchun sarlavhalarni torting" : "Перетаскивайте заголовки для порядка"}</span>
+                        <span>{coarsePointer
+                          ? (lang === "en" ? "Press and hold a header to sort by two columns"
+                            : lang === "uz" ? "Ikki ustun bo‘yicha saralash — sarlavhani uzoq bosing"
+                            : "Долгое нажатие — сортировка по двум колонкам")
+                          : (lang === "en" ? "Shift + click to sort by two columns"
+                            : lang === "uz" ? "Shift + bosish — ikki ustun bo‘yicha saralash"
+                            : "Shift + клик — сортировка по двум колонкам")}</span>
+                      </span>
                       <button type="button" className="market-cols-reset" onClick={resetColOrder}>
                         {lang === "en" ? "Reset order" : lang === "uz" ? "Tartibni tiklash" : "Сбросить порядок"}
                       </button>
@@ -8566,9 +8595,13 @@ function MarketView({
 
         {/* A sort built from two headers is invisible once you scroll — the carets
             are off in the columns that made it. Spell the chain out, in order, with
-            one control to undo it. Shown only when the order is actually compound:
-            a single sorted column already says so at its own header. */}
-        {viewMode === "table" && sortKeys.length > 1 && (
+            one control back to the board's default order.
+
+            It shows from the FIRST sorted column, not the second, for two reasons:
+            until now a header click could never be undone (there was no way back to
+            "latest session first"), and one sorted column is exactly the moment the
+            reader is ready to be told a second one can be added. */}
+        {viewMode === "table" && sortKeys.length > 0 && (
           <div className="market-sort-chain">
             <span className="market-sort-chain-label">
               {lang === "en" ? "Sorted by" : lang === "uz" ? "Saralash" : "Сортировка"}:
@@ -8583,11 +8616,31 @@ function MarketView({
                   : lang === "uz" ? "Yoʻnalishni almashtirish uchun bosing, olib tashlash uchun yana bosing"
                   : "Клик — сменить направление, ещё раз — убрать"}
               >
-                <span className="market-sort-chain-rank">{i + 1}</span>
+                {sortKeys.length > 1 && <span className="market-sort-chain-rank">{i + 1}</span>}
                 <span>{SORT_LABEL_OF[key] || key}</span>
                 <span className="market-sort-caret">{dir === "asc" ? "▲" : "▼"}</span>
               </button>
             ))}
+            {sortKeys.length === 1 && !sortHintSeen && (
+              <span className="market-sort-teach">
+                {coarsePointer ? (
+                  lang === "en" ? <>press and hold another column to sort by <b>two</b></>
+                    : lang === "uz" ? <>ikkinchi kalit uchun boshqa ustunni <b>uzoq bosing</b></>
+                    : <>удерживайте другую колонку, чтобы сортировать по <b>двум</b></>
+                ) : (
+                  lang === "en" ? <><kbd>Shift</kbd> + click another column to sort by <b>two</b></>
+                    : lang === "uz" ? <><kbd>Shift</kbd> + boshqa ustunni bosing — <b>ikkita</b> kalit</>
+                    : <><kbd>Shift</kbd> + клик по другой колонке — сортировка по <b>двум</b></>
+                )}
+                <button
+                  type="button"
+                  className="market-sort-teach-close"
+                  onClick={dismissSortHint}
+                  aria-label={lang === "en" ? "Got it" : lang === "uz" ? "Tushunarli" : "Понятно"}
+                  title={lang === "en" ? "Got it" : lang === "uz" ? "Tushunarli" : "Понятно"}
+                >×</button>
+              </span>
+            )}
             <button type="button" className="market-sort-chain-reset" onClick={clearSort}>
               {lang === "en" ? "Reset" : lang === "uz" ? "Tiklash" : "Сбросить"}
             </button>
