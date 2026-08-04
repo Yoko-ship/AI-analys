@@ -200,6 +200,37 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- openinfo's dividend calendar, mapped onto our tickers (see dividends.py).
+        -- The source publishes one market-wide calendar keyed by organization_id
+        -- and carries our ticker on barely half its rows, so the mapping is done
+        -- once at snapshot time and stored — a company page then reads an indexed
+        -- table instead of asking openinfo to resolve "UNVB" as a company name,
+        -- which is what used to answer «Дивиденды не объявлялись» for every issuer.
+        -- One row per (security, filing): ordinary and preferred lines each get a
+        -- copy, because the filing declares both amounts and the page shows the
+        -- column that matches the security.
+        CREATE TABLE IF NOT EXISTS catalog_dividends (
+            ticker            TEXT NOT NULL,
+            filing_id         TEXT NOT NULL,
+            org_id            TEXT,
+            organization      TEXT,
+            decision_date     TEXT,
+            pub_date          TEXT,
+            ordinary_amount   REAL,
+            ordinary_percent  REAL,
+            ordinary_start    TEXT,
+            ordinary_end      TEXT,
+            preferred_amount  REAL,
+            preferred_percent REAL,
+            preferred_start   TEXT,
+            preferred_end     TEXT,
+            link              TEXT,
+            matched_by        TEXT,
+            updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (ticker, filing_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cat_div_ticker ON catalog_dividends(ticker);
+
         -- Generic, forward-compatible fact store (scalable-pipeline design).
         -- Any source (adapter) can land any (entity, dataset, field, period) value
         -- without a schema change, so new datasets/fields published in the future

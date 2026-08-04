@@ -6527,7 +6527,14 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
                 <td className="dividend-num muted">{r.ordinary_percent ? `${fmt(r.ordinary_percent)}%` : "—"}</td>
                 <td className="dividend-num">{r.preferred_amount ? fmt(r.preferred_amount) : "—"}</td>
                 <td className="dividend-num muted">{r.preferred_percent ? `${fmt(r.preferred_percent)}%` : "—"}</td>
-                <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{(r.ordinary_start || r.ordinary_end) ? `${fmtDate(r.ordinary_start)} – ${fmtDate(r.ordinary_end)}` : "—"}</td>
+                {/* The payment window belongs to the share class being viewed: a
+                    filing declares a separate one for the preferred line, and a
+                    preferred page showing the ordinary window dates the wrong payout. */}
+                <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{(() => {
+                  const start = isPreferred ? (r.preferred_start || r.ordinary_start) : r.ordinary_start;
+                  const end = isPreferred ? (r.preferred_end || r.ordinary_end) : r.ordinary_end;
+                  return (start || end) ? `${fmtDate(start)} – ${fmtDate(end)}` : "—";
+                })()}</td>
                 <td>{r.link && <a href={r.link} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>→</a>}</td>
               </tr>
             ))}
