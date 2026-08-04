@@ -257,6 +257,7 @@ def quotes_from_archive(targets: list[tuple[str, str]]) -> list[dict]:
     session = _make_session()
     exchange = uq._session()
     rows: list[dict] = []
+    registry_silent = 0
     for isin, market in targets:
         point = lc._last_conclusion(session, isin)
         day = str((point or {}).get("date") or "").replace("-", "")
@@ -278,8 +279,12 @@ def quotes_from_archive(targets: list[tuple[str, str]]) -> list[dict]:
             "turnover": _num(point.get("trading_value")),
         }
         # The name and the share count still come from the exchange's registry —
-        # that record answers for a security whose quote page cannot.
-        detail = uq.fetch_issue_detail(isin, session=exchange) or {}
+        # that record answers for a security whose quote page cannot. It is an
+        # enrichment, so when uzse.uz stops answering we stop asking rather than
+        # spend two minutes of retries per security on it; the board's own share
+        # count stands and the price above is what this pass came for.
+        detail = {} if registry_silent >= 3 else (uq.fetch_issue_detail(isin, session=exchange) or {})
+        registry_silent = 0 if detail else registry_silent + 1
         for key in ("ticker", "name", "share_type", "nominal", "shares_outstanding"):
             if detail.get(key):
                 row[key] = detail[key]

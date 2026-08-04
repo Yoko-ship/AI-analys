@@ -379,15 +379,28 @@ def fetch_session_quotes(targets: Iterable[tuple[str, str]], *, pace: float = 0.
     """
     session = _session()
     out: list[dict[str, Any]] = []
-    counts = {"targets": 0, "unreadable": 0, "idle": 0, "settled": 0, "quoted": 0}
-    for isin, market in targets:
-        counts["targets"] += 1
+    targets = list(targets)
+    counts = {"targets": len(targets), "unreadable": 0, "idle": 0, "settled": 0, "quoted": 0}
+    consecutive = 0
+    for index, (isin, market) in enumerate(targets):
+        # Retrying is what keeps one bad minute from becoming a hole in the board,
+        # and it is also what turns uzse.uz being down into an hours-long run: a
+        # hundred pages x four attempts x a thirty-second timeout. When the site
+        # has stopped answering entirely, say so after a few and stop asking —
+        # Railway skips a cron run whose predecessor is still going.
+        if consecutive >= 5:
+            counts["unreadable"] += len(targets) - index
+            logger.error("uzse quotes: %d pages in a row unreadable — abandoning the "
+                         "pass with %d securities unread", consecutive, len(targets) - index)
+            break
         quote = fetch_quote(isin, market=market or "STK", session=session)
         if pace:
             time.sleep(pace)
         if not quote:
             counts["unreadable"] += 1
+            consecutive += 1
             continue
+        consecutive = 0
         if not quote.get("traded") or not quote.get("trade_date"):
             settled = settled_quote(quote) if settle else None
             if settled is None:

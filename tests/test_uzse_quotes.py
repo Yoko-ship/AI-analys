@@ -154,6 +154,28 @@ class TestASecurityThatHasGoneQuiet:
         assert outcome == {"targets": 1, "unreadable": 0, "idle": 0,
                            "settled": 1, "quoted": 1}
 
+    def test_a_site_that_has_stopped_answering_ends_the_pass(self, monkeypatch) -> None:
+        """Retrying keeps a bad minute from becoming a hole in the board; it also
+        turns uzse.uz being down into a hundred pages x four attempts x a
+        thirty-second timeout, and Railway skips a cron run whose predecessor is
+        still going. Five unreadable in a row is the site being down."""
+        asked: list[str] = []
+
+        def _dead(isin, market="STK", session=None):
+            asked.append(isin)
+            return None
+
+        monkeypatch.setattr(uq, "fetch_quote", _dead)
+        outcome: dict[str, int] = {}
+        quotes = uq.fetch_session_quotes([(f"UZ70000000{i:02d}", "STK") for i in range(40)],
+                                         pace=0, outcome=outcome)
+
+        assert quotes == []
+        assert len(asked) == 5
+        # ...and the securities never asked about are still reported unread, so
+        # the caller sees a failed pass rather than a quiet one.
+        assert outcome["unreadable"] == 40
+
     def test_a_security_that_never_traded_still_yields_nothing(self) -> None:
         """MXUS has no last-trade date at all — every history row is carried
         forward at 500 on zero volume. There is no session to publish."""
