@@ -713,8 +713,72 @@ test.describe("mobile multi-sort", () => {
     await expect(tickers).toHaveText(["BBB", "AAA", "CCC"]);
 
     // A short tap must still REPLACE, or the chain would grow on every touch.
-    await volTh.tap();
+    // Aimed away from the header's own ℹ marker, which deliberately swallows
+    // the tap so that asking what a column means never reorders the board.
+    await volTh.tap({ position: { x: 6, y: 6 } });
     await expect(page.locator(".market-sort-chain-chip")).toHaveCount(1);
     await expect(tickers).toHaveText(["CCC", "BBB", "AAA"]);
   });
+});
+
+// Every economic label carries its own definition (ТЗ §3.2). The glossary page was
+// deleted; these markers are where the terms live now, so they have to actually
+// answer — and they must not fire the sort or the drag on the header underneath.
+test("a column header explains its own term without sorting the board", async ({ page }) => {
+  await page.route("**/api/market/stocks**", (route) => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify(SORT_STOCKS),
+  }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  const tickers = page.locator(".market-table-wrap .market-table tbody .market-ticker-btn");
+  await expect(tickers.first()).toBeVisible();
+
+  const volTh = page.locator('.market-table thead th[data-sort-key="volume"]');
+  const marker = volTh.locator(".term-info-btn");
+  await expect(marker).toBeVisible();
+
+  // Hover opens it, and it says what OUR column counts — turnover in soum, not
+  // a share count — which is the whole reason the definition is worth carrying.
+  await marker.hover();
+  const tip = page.locator(".term-tooltip");
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText("Оборот");
+  await expect(tip).toContainText("не количество бумаг");
+
+  // The header underneath is a sort control and a drag handle. Asking what the
+  // column means must do neither: no chip appeared, so nothing sorted.
+  await expect(page.locator(".market-sort-chain")).toHaveCount(0);
+  await marker.click();
+  await expect(page.locator(".market-sort-chain")).toHaveCount(0);
+
+  // Clicking the header proper still sorts, so the marker stole nothing.
+  await volTh.click();
+  await expect(page.locator(".market-sort-chain-chip")).toHaveCount(1);
+});
+
+// A column that is not an economic term must not sprout a marker promising an
+// explanation there is none of.
+test("only economic columns carry a term marker", async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("uz_market_cols", JSON.stringify(["volume", "source", "pe"]))
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
+  await expect(page.locator('th[data-sort-key="volume"] .term-info-btn')).toHaveCount(1);
+  await expect(page.locator('th[data-sort-key="pe"] .term-info-btn')).toHaveCount(1);
+  // «UZSE» is a link to the exchange and «Компания» is a name — neither is a term.
+  await expect(page.locator('th[data-sort-key="source"] .term-info-btn')).toHaveCount(0);
+  await expect(page.locator('th[data-sort-key="company"] .term-info-btn')).toHaveCount(0);
+});
+
+// The definitions follow the site's language — the glossary they replaced was
+// Russian only, so an English reader met Russian text on an English page.
+test("term definitions follow the interface language", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("#languageSelect").selectOption("en");
+  await page.getByRole("button", { name: "Market", exact: true }).click();
+  await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
+  await page.locator('th[data-sort-key="volume"] .term-info-btn').hover();
+  await expect(page.locator(".term-tooltip")).toContainText("turnover in soum");
 });
