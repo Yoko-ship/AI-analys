@@ -10210,6 +10210,18 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .led-title { font-family: var(--led-serif); font-weight: 400; font-size: clamp(32px, 5vw, 50px); letter-spacing: -.02em; margin: .1em 0 0; color: var(--text); text-wrap: balance; }
 .led .led-sub { color: var(--muted); font-size: 14.5px; max-width: 58ch; margin: 8px 0 0; line-height: 1.55; }
 
+/* Section menu: одна лента / экономика / корпоративные. A masthead rule rather
+   than pills — the head already carries the section's weight, and buttons under
+   it would compete with the lead headline. */
+.led .news-tabs { display: flex; gap: 26px; flex-wrap: wrap; margin: -18px 0 26px; }
+.led .news-tab { appearance: none; background: none; border: 0; padding: 0 0 8px;
+  font: inherit; font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
+  font-weight: 700; color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-top: -2px; transition: color .12s ease; }
+.led .news-tab:hover { color: var(--text); }
+.led .news-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.led .news-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
 .led .led-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 44px; align-items: start; }
 @media (max-width: 900px) { .led .led-cols { grid-template-columns: 1fr; gap: 30px; } }
 
