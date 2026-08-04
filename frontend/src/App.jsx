@@ -5668,106 +5668,6 @@ function BondsTable({ language, onOpen }) {
 }
 
 
-// ---------------------------------------------------------------------------
-// The reporting catalog, by ISSUER (ТЗ Дополнение 1 §Б.6)
-//
-// 73 ticker rows are 66 organisations. Listing by ticker is why five bond series
-// showed "0 отчётов" while their issuer's filings sat under another ticker, and
-// why the header's count never matched the list. Both now come from one request.
-// ---------------------------------------------------------------------------
-
-function CatalogIssuersPanel({ language }) {
-  const lang = normalizeLanguage(language);
-  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
-  const [data, setData] = React.useState(null);
-  const [pendingOnly, setPendingOnly] = React.useState(false);
-  const [query, setQuery] = React.useState("");
-
-  React.useEffect(() => {
-    let alive = true;
-    fetch("/api/catalog/reports/summary")
-      .then((r) => r.json())
-      .then((d) => { if (alive && d && d.ok) setData(d); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  if (!data) return null;
-
-  const search = query.trim().toLowerCase();
-  const items = data.items.filter((i) => {
-    if (pendingOnly && !(i.pending || i.failed)) return false;
-    if (!search) return true;
-    return String(i.name || "").toLowerCase().includes(search)
-      || (i.tickers || []).some((tk) => tk.toLowerCase().includes(search));
-  });
-
-  return (
-    <div className="panel catalog-issuers" style={{ padding: 24, marginBottom: 16 }}>
-      <div className="panel-label">{t("Первоисточники", "Birlamchi manbalar", "Source reports")}</div>
-      <h3 className="section-heading">
-        {t("Эмитенты и состояние разбора", "Emitentlar va tahlil holati",
-           "Issuers and parse state")}
-      </h3>
-      {/* One request, so the counter and the list cannot disagree — that
-          disagreement (85 against 73) is what this screen is being fixed for. */}
-      <p className="muted" style={{ marginTop: 4 }}>
-        {data.issuers} {t("эмитентов", "emitent", "issuers")} · {data.reports_total} {t("отчётов", "hisobot", "reports")}
-        {data.is_stale && (
-          <span className="catalog-stale">
-            {" · "}
-            {t("каталог обновлялся", "katalog yangilangan", "catalog synced")}
-            {" "}{Math.round(data.staleness_hours)} {t("ч назад", "soat oldin", "h ago")}
-          </span>
-        )}
-      </p>
-
-      <div className="catalog-filters">
-        <input value={query} onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("Эмитент или тикер", "Emitent yoki ticker", "Issuer or ticker")} />
-        {/* ТЗ Б.6: this filter is what turns the catalog from a shelf of links
-            into a work queue. */}
-        <button type="button" className={`chart-opt-btn ${pendingOnly ? "active" : ""}`}
-          onClick={() => setPendingOnly((v) => !v)}>
-          {t("Не разобрано", "Tahlil qilinmagan", "Not parsed")}
-        </button>
-      </div>
-
-      <div className="market-table-scroll">
-        <table className="market-table catalog-table">
-          <thead>
-            <tr>
-              <th>{t("Эмитент", "Emitent", "Issuer")}</th>
-              <th>{t("Бумаги", "Qog'ozlar", "Securities")}</th>
-              <th className="num">{t("Отчётов", "Hisobot", "Reports")}</th>
-              <th className="num">{t("Разобрано", "Tahlil qilingan", "Parsed")}</th>
-              <th className="num">{t("В очереди", "Navbatda", "Queued")}</th>
-              <th className="num">{t("Ошибок", "Xatolar", "Failed")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((i) => (
-              <tr key={i.org_id}>
-                <td>{i.name}</td>
-                <td className="catalog-tickers">
-                  {(i.tickers || []).length
-                    ? i.tickers.map((tk) => <span key={tk} className="led-chip">{tk}</span>)
-                    : <span className="muted">—</span>}
-                </td>
-                <td className="num">{i.reports}</td>
-                <td className="num">{i.published}</td>
-                <td className="num">{i.pending || 0}</td>
-                <td className={`num ${i.failed ? "tone-neg" : ""}`}>{i.failed || 0}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-
 function AuditAdminPage({ language }) {
   const lang = normalizeLanguage(language);
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
@@ -9283,8 +9183,6 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
           )}
         </div>
       </article>
-
-      <CatalogIssuersPanel language={language} />
 
       <div className="catalog-body">
         {/* Sidebar: company list */}
