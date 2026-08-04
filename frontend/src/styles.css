@@ -7062,6 +7062,78 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 .market-table th.market-th-sortable.sorted .market-sort-caret { opacity: 1; }
 .market-table th.market-th-sortable:hover .market-sort-caret { opacity: 0.7; }
 
+/* Rank inside a multi-key order. Only rendered when the chain has more than one
+   key, so it never appears as a lone "1" beside a single sorted column. */
+.market-sort-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bg, #0b1220);
+  background: var(--accent);
+}
+
+/* The order spelled out, because the carets that built it scroll away sideways. */
+.market-sort-chain {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 2px;
+}
+.market-sort-chain-label {
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+}
+.market-sort-chain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.28));
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.market-sort-chain-chip:hover {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: var(--accent);
+}
+.market-sort-chain-chip .market-sort-caret { opacity: 1; color: var(--accent); }
+.market-sort-chain-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bg, #0b1220);
+  background: var(--accent);
+}
+.market-sort-chain-reset {
+  padding: 3px 8px;
+  border: 0;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.market-sort-chain-reset:hover { color: var(--text); }
+
 /* Drag-to-reorder headers */
 .market-table th.market-th-movable { cursor: grab; }
 .market-table th.market-th-movable:active { cursor: grabbing; }

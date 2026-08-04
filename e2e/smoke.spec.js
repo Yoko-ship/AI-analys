@@ -566,3 +566,57 @@ test("the sponsor overlay starts muted, becomes closable, and stays closed (§ad
   await page.waitForTimeout(4000);
   await expect(page.locator(".sponsor-overlay")).toHaveCount(0);
 });
+
+// The board is read with two questions at once — "what traded most recently" and
+// "what traded most heavily" — and a single sort key could only ever answer one:
+// clicking ОБЪЁМ threw away the date order that put those rows on screen. The
+// chain has to hold, and each key may only decide the rows the ones before it
+// tied on.
+test("the board sorts on a chain of keys, not just the last one clicked", async ({ page }) => {
+  // Two sessions, and volumes that deliberately disagree with the dates: the
+  // heaviest row of all is on the OLDER day, so a volume-only sort would head
+  // the table with it and a date-only sort cannot separate the two tied rows.
+  await page.route("**/api/market/stocks**", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ updated_at: "2026-07-31T14:00:00Z", stocks: [
+      { ticker: "AAA", name: "Alpha", isin: "UZ00A", last_price: 100, close_price: 100,
+        volume: 1e6, quantity: 10, trade_count: 2, last_trade_date: "31.07.2026" },
+      { ticker: "BBB", name: "Beta", isin: "UZ00B", last_price: 100, close_price: 100,
+        volume: 5e6, quantity: 50, trade_count: 5, last_trade_date: "31.07.2026" },
+      { ticker: "CCC", name: "Gamma", isin: "UZ00C", last_price: 100, close_price: 100,
+        volume: 9e6, quantity: 90, trade_count: 9, last_trade_date: "30.07.2026" },
+    ] }),
+  }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  const tickers = page.locator(".market-table-wrap .market-table tbody .market-ticker-btn");
+  await expect(tickers.first()).toBeVisible();
+
+  const dateTh = page.locator('.market-table thead th[data-sort-key="date"]');
+  const volTh = page.locator('.market-table thead th[data-sort-key="volume"]');
+
+  // One key: the newest session leads, and the two rows on it stay in feed order.
+  await dateTh.click();
+  await expect(tickers).toHaveText(["AAA", "BBB", "CCC"]);
+
+  // Shift-click APPENDS. The date still decides first — CCC's 9 млн does not
+  // jump the queue — and volume only breaks the 31.07 tie.
+  await volTh.click({ modifiers: ["Shift"] });
+  await expect(tickers).toHaveText(["BBB", "AAA", "CCC"]);
+  await expect(page.locator(".market-sort-chain-chip")).toHaveCount(2);
+
+  // Second shift-click on the same header flips that key alone.
+  await volTh.click({ modifiers: ["Shift"] });
+  await expect(tickers).toHaveText(["AAA", "BBB", "CCC"]);
+
+  // Third drops it back out of the chain, and the summary row goes with it.
+  await volTh.click({ modifiers: ["Shift"] });
+  await expect(page.locator(".market-sort-chain")).toHaveCount(0);
+
+  // A plain click still collapses to one key — the old behaviour, unbroken.
+  await volTh.click({ modifiers: ["Shift"] });
+  await expect(page.locator(".market-sort-chain-chip")).toHaveCount(2);
+  await volTh.click();
+  await expect(tickers).toHaveText(["CCC", "BBB", "AAA"]);
+  await expect(page.locator(".market-sort-chain")).toHaveCount(0);
+});
