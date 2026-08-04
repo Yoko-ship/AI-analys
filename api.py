@@ -2411,6 +2411,11 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
     model-estimated tone / impact / direction — an analytical signal, not advice — plus the
     ``rank`` it was ordered by. ``order=recent`` returns plain newest-first instead.
     Low-relevance items are skipped and the same story from several outlets is merged.
+
+    ``type`` takes one of the classifier's four classes, a comma-separated list, or
+    one of the two reading groups the news section offers — ``economy`` (market +
+    regulatory) and ``corporate`` (corporate_event + financial_report). The groups
+    partition all four, so nothing is unreachable from both tabs.
     """
     loop = asyncio.get_running_loop()
     items = await loop.run_in_executor(

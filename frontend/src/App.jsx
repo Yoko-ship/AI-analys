@@ -242,6 +242,13 @@ const NEWS_TX = {
     subtitle: "Главные новости экономики, рынка и эмитентов Узбекистана — собраны из узбекских источников и отсортированы ИИ по возможному влиянию на котировки.",
     latest: "Свежее", empty: "Пока нет свежих новостей. Загляните позже.",
     loadingText: "Загружаем ленту…", error: "Не удалось загрузить новости.",
+    tabs: { all: "Все", economy: "Экономика", corporate: "Корпоративные" },
+    tabHint: {
+      all: "Экономика и эмитенты в одной ленте",
+      economy: "Макроэкономика, ставки и регулирование — то, что двигает рынок целиком",
+      corporate: "События и отчётность конкретных эмитентов",
+    },
+    emptyTab: "В этом разделе пока пусто — посмотрите «Все».",
     cat: { report: "Отчётность", listing: "Листинг", delisting: "Делистинг" },
     forms: { NAS: "НСБУ", NSBU: "НСБУ", IFRS: "МСФО", MSFO: "МСФО", Audit: "Аудит", Audition: "Аудит" },
   },
@@ -250,6 +257,13 @@ const NEWS_TX = {
     subtitle: "The economy, market and issuer news that matters in Uzbekistan — gathered from Uzbek sources and AI-sorted by likely price impact.",
     latest: "Latest", empty: "No recent news yet. Check back soon.",
     loadingText: "Loading the feed…", error: "Could not load the news feed.",
+    tabs: { all: "All", economy: "Economy", corporate: "Corporate" },
+    tabHint: {
+      all: "The economy and the issuers in one feed",
+      economy: "Macro, rates and regulation — what moves the market as a whole",
+      corporate: "Events and reporting of individual issuers",
+    },
+    emptyTab: "Nothing here yet — try “All”.",
     cat: { report: "Filing", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
@@ -258,6 +272,13 @@ const NEWS_TX = {
     subtitle: "O'zbekiston iqtisodiyoti, bozori va emitentlari bo'yicha muhim yangiliklar — o'zbek manbalaridan yig'iladi va sun'iy intellekt tomonidan ta'sir bo'yicha saralanadi.",
     latest: "So'nggi", empty: "Hozircha yangi yangiliklar yo'q. Keyinroq qayting.",
     loadingText: "Lenta yuklanmoqda…", error: "Yangiliklarni yuklab bo'lmadi.",
+    tabs: { all: "Barchasi", economy: "Iqtisodiyot", corporate: "Korporativ" },
+    tabHint: {
+      all: "Iqtisodiyot va emitentlar bitta lentada",
+      economy: "Makroiqtisodiyot, stavkalar va tartibga solish — bozorni butunlay harakatga keltiradigan narsalar",
+      corporate: "Aniq emitentlarning voqealari va hisobotlari",
+    },
+    emptyTab: "Bu bo'limda hozircha bo'sh — «Barchasi»ni ko'ring.",
     cat: { report: "Hisobot", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
@@ -646,21 +667,52 @@ function EdNewsCard({ item, language, variant, onOpen }) {
   );
 }
 
+// The two reading modes, over the four classes the §3.11 classifier already
+// assigns — so this is a filter on data we hold, not a second pipeline. They
+// partition all four types, so every story is reachable from one of them.
+const NEWS_TABS = [
+  { key: "all", type: null },
+  { key: "economy", type: "economy" },       // market + regulatory
+  { key: "corporate", type: "corporate" },   // corporate_event + financial_report
+];
+
+function newsTabFromLocation() {
+  if (typeof window === "undefined") return "all";
+  const wanted = new URLSearchParams(window.location.search).get("tab");
+  return NEWS_TABS.some((t) => t.key === wanted) ? wanted : "all";
+}
+
 function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
   const tx = NEWS_TX[language] || NEWS_TX.ru;
   useTranslationTick();
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const [state, setState] = React.useState({ loading: true, error: false, items: [] });
   const [reloadKey, setReloadKey] = React.useState(0);
+  // Kept in the URL so a tab can be linked and survives a reload — as a query,
+  // not a path, because /news/{slug} is already the article route.
+  const [tab, setTab] = React.useState(newsTabFromLocation);
+  React.useEffect(() => {
+    const onPop = () => setTab(newsTabFromLocation());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  const selectTab = React.useCallback((key) => {
+    setTab(key);
+    try {
+      window.history.replaceState({}, "", key === "all" ? "/news" : `/news?tab=${key}`);
+    } catch { /* history is unavailable in some embedded views */ }
+  }, []);
+
   React.useEffect(() => {
     let alive = true;
     setState({ loading: true, error: false, items: [] });
-    fetch("/api/news/feed?limit=60&days=30")
+    const group = (NEWS_TABS.find((t) => t.key === tab) || {}).type;
+    fetch(`/api/news/feed?limit=60&days=30${group ? `&type=${group}` : ""}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setState({ loading: false, error: !d || !d.ok, items: (d && d.items) || [] }); })
       .catch(() => { if (alive) setState({ loading: false, error: true, items: [] }); });
     return () => { alive = false; };
-  }, [reloadKey]);
+  }, [reloadKey, tab]);
 
   const { loading, error, items } = state;
   const lead = items[0];
@@ -679,8 +731,19 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
       <header className="led-head">
         <div className="led-kicker">{tx.eyebrow}</div>
         <h1 className="led-title">{tx.title}</h1>
-        <p className="led-sub">{tx.subtitle}</p>
+        <p className="led-sub">{(tx.tabHint && tx.tabHint[tab]) || tx.subtitle}</p>
       </header>
+
+      <nav className="news-tabs" aria-label={tx.title}>
+        {NEWS_TABS.map((t) => (
+          <button key={t.key} type="button"
+            className={`news-tab ${tab === t.key ? "active" : ""}`}
+            aria-current={tab === t.key ? "page" : undefined}
+            onClick={() => selectTab(t.key)}>
+            {(tx.tabs && tx.tabs[t.key]) || t.key}
+          </button>
+        ))}
+      </nav>
 
       {user && user.is_admin && apiFetch && (
         <NewsAdminPanel language={language} apiFetch={apiFetch} onStored={() => setReloadKey((k) => k + 1)} />
@@ -694,7 +757,7 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
       ) : error ? (
         <div className="led-empty">{tx.error}</div>
       ) : !items.length ? (
-        <div className="led-empty">{tx.empty}</div>
+        <div className="led-empty">{tab === "all" ? tx.empty : (tx.emptyTab || tx.empty)}</div>
       ) : (
         <div className="led-cols">
           <main className="led-main">

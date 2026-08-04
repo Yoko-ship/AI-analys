@@ -546,9 +546,42 @@ def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[
     return [it for _w, _t, it in kept]
 
 
+# The two reading modes the news section offers, over the four classes the
+# classifier already assigns (news_classifier.NewsType). Between them they cover
+# all four, so no item is reachable from neither tab:
+#
+#   экономика     — the market as a whole: rates, macro, regulation
+#   корпоративные — one issuer: its events and its reporting
+NEWS_GROUPS: dict[str, tuple[str, ...]] = {
+    "economy": ("market", "regulatory"),
+    "corporate": ("corporate_event", "financial_report"),
+}
+
+
+def resolve_news_types(news_type: Any) -> list[str]:
+    """The classifier types a feed request means.
+
+    Accepts a group name ("economy"), a single class ("regulatory"), a
+    comma-separated list, or a list — so the tab bar can ask for a group and the
+    API keeps taking a bare type as it always did.
+    """
+    if not news_type:
+        return []
+    raw = news_type if isinstance(news_type, (list, tuple, set)) else str(news_type).split(",")
+    out: list[str] = []
+    for name in raw:
+        key = str(name).strip().lower()
+        if not key:
+            continue
+        for value in NEWS_GROUPS.get(key, (key,)):
+            if value not in out:
+                out.append(value)
+    return out
+
+
 def get_news_feed(
     *, limit: int = 60, days: int = 30, only_relevant: bool = True,
-    news_type: str | None = None, order: str = "rank",
+    news_type: Any = None, order: str = "rank",
     min_relevance: float | None = None,
 ) -> list[dict[str, Any]]:
     """Public editorial feed: relevant, classified items, **ranked by likely impact**.
@@ -578,9 +611,10 @@ def get_news_feed(
     params: list[Any] = []
     if only_relevant:
         q.append("AND p.relevant = 1")
-    if news_type:
-        q.append("AND p.type = ?")
-        params.append(news_type)
+    wanted = resolve_news_types(news_type)
+    if wanted:
+        q.append(f"AND p.type IN ({','.join('?' * len(wanted))})")
+        params.extend(wanted)
     if days:
         q.append("AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))")
         params.append(f"-{int(days)} days")
