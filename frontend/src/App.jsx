@@ -2674,6 +2674,8 @@ const MARKET_TEXTS = {
     csvGenerated: "Выгружено",
     csvSession: "Торговая сессия",
     csvFilter: "Фильтр",
+    csvSort: "Сортировка",
+    csvSortDefault: "по дате сделки, затем по модулю изменения",
     csvRows: "Строк",
     csvFav: "только избранное",
     csvSearch: "поиск",
@@ -2760,6 +2762,8 @@ const MARKET_TEXTS = {
     csvGenerated: "Exported",
     csvSession: "Trading session",
     csvFilter: "Filter",
+    csvSort: "Sorted by",
+    csvSortDefault: "trade date, then absolute change",
     csvRows: "Rows",
     csvFav: "favorites only",
     csvSearch: "search",
@@ -2846,6 +2850,8 @@ const MARKET_TEXTS = {
     csvGenerated: "Yuklab olingan",
     csvSession: "Savdo sessiyasi",
     csvFilter: "Filtr",
+    csvSort: "Saralash",
+    csvSortDefault: "bitim sanasi, soʻng oʻzgarish moduli",
     csvRows: "Qatorlar",
     csvFav: "faqat tanlanganlar",
     csvSearch: "qidiruv",
@@ -7560,6 +7566,19 @@ function MarketView({
     });
   };
   const clearSort = () => setSortKeys([]);
+  // A phone has no Shift key, and the board stays a table there. Long-press on a
+  // header is the touch equivalent of the modifier: it appends instead of replacing.
+  const longPress = useRef({ timer: null, fired: false });
+  const startLongPress = (key) => {
+    longPress.current.fired = false;
+    clearTimeout(longPress.current.timer);
+    longPress.current.timer = setTimeout(() => {
+      longPress.current.fired = true;
+      onSort(key, true);
+    }, 500);
+  };
+  const cancelLongPress = () => clearTimeout(longPress.current.timer);
+  useEffect(() => () => clearTimeout(longPress.current.timer), []);
 
   // User-configurable quote columns (ticker/company/last are always shown).
   // Quote columns grouped into collapsible sections in the settings dropdown.
@@ -7606,6 +7625,9 @@ function MarketView({
     ["company", mt(lang, "company")],
     ["last", mt(lang, "last")],
   ];
+  // Every sortable column by its screen label — the sort chain and the CSV header
+  // both name keys the reader only ever sees as column titles.
+  const SORT_LABEL_OF = Object.fromEntries([...CORE_COLS, ...MARKET_COLS]);
   const [visibleCols, setVisibleCols] = useState(() => {
     try { const s = JSON.parse(localStorage.getItem("uz_market_cols")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
     return new Set(["change", "open", "high", "low", "volume", "date", "source"]);
@@ -8025,6 +8047,11 @@ function MarketView({
       })()].map(cell).join(sep),
       [mt(lang, "csvSession"), session].map(cell).join(sep),
       [mt(lang, "csvFilter"), filters].map(cell).join(sep),
+      // The file is the table as it stands on screen, so the row ORDER is part of
+      // what is being exported — state it rather than let the reader guess.
+      [mt(lang, "csvSort"), sortKeys.length
+        ? sortKeys.map(({ key, dir }) => `${SORT_LABEL_OF[key] || key} ${dir === "asc" ? "↑" : "↓"}`).join(" → ")
+        : mt(lang, "csvSortDefault")].map(cell).join(sep),
       [mt(lang, "csvRows"), visibleRows.length].map(cell).join(sep),
       [mt(lang, "csvMoneyNote"), ""].map(cell).join(sep),
       [mt(lang, "csvSources"), ""].map(cell).join(sep),
@@ -8105,9 +8132,9 @@ function MarketView({
     ].filter(Boolean).join(" ");
     // ⌘ on a Mac, Ctrl elsewhere — Shift works everywhere and is the one we teach.
     const isAdditive = (e) => e.shiftKey || e.metaKey || e.ctrlKey;
-    const hint = lang === "en" ? "Shift+click — add as a secondary sort"
-      : lang === "uz" ? "Shift+bosish — qoʻshimcha saralash kaliti"
-      : "Shift+клик — добавить второй ключ сортировки";
+    const hint = lang === "en" ? "Shift+click (or long-press) — add as a secondary sort"
+      : lang === "uz" ? "Shift+bosish (yoki uzoq bosish) — qoʻshimcha saralash kaliti"
+      : "Shift+клик (или долгое нажатие) — добавить второй ключ сортировки";
     const dragHint = lang === "en" ? "Drag to reorder · click to sort"
       : lang === "uz" ? "Tartibni o'zgartirish uchun torting · saralash uchun bosing"
       : "Перетащите, чтобы переставить · нажмите для сортировки";
@@ -8115,8 +8142,18 @@ function MarketView({
     <th
       key={key}
       className={cls}
-      onClick={(e) => onSort(key, isAdditive(e))}
+      data-sort-key={key}
+      onClick={(e) => {
+        // The long-press already sorted; the tap that ends it must not sort again.
+        if (longPress.current.fired) { longPress.current.fired = false; return; }
+        onSort(key, isAdditive(e));
+      }}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(key, isAdditive(e)); } }}
+      onTouchStart={() => startLongPress(key)}
+      onTouchMove={cancelLongPress}
+      onTouchEnd={cancelLongPress}
+      onTouchCancel={cancelLongPress}
+      onContextMenu={(e) => { if (longPress.current.fired) e.preventDefault(); }}
       role="button"
       tabIndex={0}
       /* ARIA asks for aria-sort on ONE header at a time, so the chain's later keys
