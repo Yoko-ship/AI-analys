@@ -140,6 +140,43 @@ class TestWhatItMustNotReport:
         assert verdict["ok"] is True
 
 
+class TestWhoPricedTheRow:
+    """The board carried Kapitalbank at 1 030 "as of 23.02.2024" — openinfo's
+    listing registry — while the exchange's own closing series and openinfo's
+    execution record for that same day both read 5 284.8. A market cap 5.13x too
+    small, from a row that named the very session it was getting wrong.
+    """
+
+    def _registry_row(self, **over) -> dict:
+        row = {"isin": "UZ7047440001", "ticker": "KPBA", "last_price": 1030.0,
+               "close_price": 1030.0, "last_trade_date": "2024-02-23", "inactive": True}
+        row.update(over)
+        return row
+
+    def test_a_registry_row_that_names_a_trade_date(self) -> None:
+        verdict = audit_session({}, {}, [self._registry_row()])
+
+        assert verdict["ok"] is False
+        assert _failed(verdict) == ["no_row_is_priced_from_the_registry"]
+
+    def test_a_security_that_has_never_traded_is_not_a_finding(self) -> None:
+        """TGBK, UZGF, UTHK: listed, never traded, and the registry's reference
+        price is the only price in existence for them."""
+        verdict = audit_session({}, {}, [self._registry_row(last_trade_date=None)])
+
+        assert verdict["ok"] is True
+
+    def test_a_row_the_exchange_priced_is_not_a_finding(self) -> None:
+        verdict = audit_session({}, {}, [self._registry_row(inactive=None)])
+
+        assert verdict["ok"] is True
+
+    def test_a_suppressed_ticker_is_not_a_finding(self) -> None:
+        verdict = audit_session({}, {}, [self._registry_row()], denylist={"KPBA"})
+
+        assert verdict["ok"] is True
+
+
 class TestASessionStillBeingTraded:
     """The 13:00 run reads the feed, then the pages, while the day goes on.
 
