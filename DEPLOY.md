@@ -283,6 +283,15 @@ Schedule it on any host that can reach openinfo:
     security's page reads 0/0/0, which is what the 08:00 run meets every weekday; it takes
     each page's settled history row instead and exits 0. Only a pass where **no page at all**
     could be read is an error.
+  - **A run waits for uzse.uz before calling it down.** The site goes away for minutes at a
+    time — it was unreachable for over an hour on the evening of 2026-08-04, from Railway as
+    well as from a home connection — and giving up on the first miss costs a whole slot,
+    which is hours for quotes and a day for the collector. The trade feed and the quote pass
+    each retry `UZSE_RETRY_ATTEMPTS` times (default 3) with `UZSE_RETRY_WAIT_SECONDS`
+    between them (default 300), and the quote pass re-asks only the pages that could not be
+    READ — a page that answered "no session" answered. Worst case a step spends ten minutes
+    waiting; the tightest gap in the schedule is 08:00 to 13:00, and Railway skips a run
+    whose predecessor is still going, so the bound matters.
   - Friday's finished session is picked up by **`quotes-1300` on Saturday**. That is the only
     scheduled run that can see it, which is why quotes-1300 runs Tue–Sat rather than Mon–Fri.
   - `quotes-1300` audits a session that is *still being traded*: the feed is summed at 13:00

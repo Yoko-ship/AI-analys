@@ -25,6 +25,7 @@ import argparse
 import logging
 import os
 import sys
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
@@ -130,6 +131,32 @@ def _stamp_step(step: str, detail: str = "") -> None:
         log.exception("step stamp failed: %s", step)
 
 
+# uzse.uz goes away for minutes at a time and comes back — it was unreachable for
+# over an hour on the evening of 2026-08-04, from this repo's Railway host as well
+# as from a home connection. Giving up on the first miss costs a whole scheduled
+# slot (the next quotes run is hours away, the next collector a day), so a run
+# waits and asks again before it calls the exchange down.
+RETRY_ATTEMPTS = int(os.getenv("UZSE_RETRY_ATTEMPTS", "3"))
+RETRY_WAIT_SECONDS = int(os.getenv("UZSE_RETRY_WAIT_SECONDS", "300"))
+
+
+def _wait_and_retry(attempt: int, why: str) -> bool:
+    """Sleep before another attempt; False when there are none left.
+
+    Bounded on purpose: at the defaults the longest a step can spend waiting is
+    two intervals, ten minutes, and Railway SKIPS a cron run whose predecessor is
+    still going. The tightest gap in the schedule is 08:00 to 13:00.
+    """
+    import time
+
+    if attempt >= RETRY_ATTEMPTS:
+        return False
+    log.warning("%s — waiting %ds, then attempt %d of %d",
+                why, RETRY_WAIT_SECONDS, attempt + 1, RETRY_ATTEMPTS)
+    time.sleep(RETRY_WAIT_SECONDS)
+    return True
+
+
 def board_securities() -> list[dict]:
     """Every row the deployment is serving on the market board.
 
@@ -151,21 +178,23 @@ def board_securities() -> list[dict]:
 
 def push_trade_stats() -> int:
     """Fetch the latest-day per-trade stats from UZSE and push to prod."""
-    log.info("fetching UZSE trade stats (latest day) ...")
-    data = ts.fetch_trade_stats()
-    stats = data.get("stats") or {}
-    rows = list(stats.values())
-    log.info("trade stats: %d securities for %s", len(rows), data.get("trade_date"))
-    if rows and not data.get("complete"):
+    for attempt in range(1, RETRY_ATTEMPTS + 1):
+        log.info("fetching UZSE trade stats (latest day) ...")
+        data = ts.fetch_trade_stats()
+        stats = data.get("stats") or {}
+        rows = list(stats.values())
+        log.info("trade stats: %d securities for %s", len(rows), data.get("trade_date"))
+        if data.get("reachable") and data.get("complete"):
+            break
         # A short read is a session with real ISINs and understated turnover, and
-        # the board cannot tell it from a quiet day. Publish nothing.
-        log.error("the trade feed stopped mid-session — refusing to publish "
-                  "%d securities that may be missing executions", len(rows))
-        return 1
-    if not rows:
-        if not data.get("reachable"):
-            log.error("the trade feed did not answer — no session could be read")
+        # the board cannot tell it from a quiet day — so it is retried, not
+        # published, exactly like a feed that never answered.
+        why = ("the trade feed did not answer" if not data.get("reachable")
+               else f"the trade feed stopped mid-session with {len(rows)} securities")
+        if not _wait_and_retry(attempt, why):
+            log.error("%s — giving up after %d attempts", why, attempt)
             return 1
+    if not rows:
         # The feed is a two-day window, so a Monday-morning run reads Sat+Sun and
         # the exchange truthfully answers "nothing traded". Nothing to push and
         # nothing wrong: the stored session stays the newest one there is, and the
@@ -336,24 +365,35 @@ def push_quotes(stats: dict[str, dict]) -> int:
         return 0
     log.info("reading exchange quotes for %d securities (%d traded today) ...",
              len(targets), len(traded))
-    outcome: dict[str, int] = {}
-    quotes = uq.fetch_session_quotes(targets, settle=True, outcome=outcome)
-    log.info("quotes: %d of %d securities answered (%d live session, %d settled from "
-             "the exchange's history, %d silent, %d unreadable)",
-             len(quotes), len(targets), len(quotes) - outcome.get("settled", 0),
-             outcome.get("settled", 0), outcome.get("idle", 0), outcome.get("unreadable", 0))
+    quotes: list[dict] = []
+    pending, settled, idle = list(targets), 0, 0
+    for attempt in range(1, RETRY_ATTEMPTS + 1):
+        outcome: dict[str, Any] = {}
+        answered = uq.fetch_session_quotes(pending, settle=True, outcome=outcome)
+        quotes.extend(answered)
+        settled += outcome.get("settled", 0)
+        idle += outcome.get("idle", 0)
+        log.info("quotes: %d of %d securities answered (%d live session, %d settled from "
+                 "the exchange's history, %d silent, %d unreadable)",
+                 len(quotes), len(targets), len(quotes) - settled, settled,
+                 idle, outcome.get("unreadable", 0))
+        # Only the pages that could not be READ are worth asking about again: a
+        # page that answered "no session" answered.
+        pending = list(outcome.get("unread") or [])
+        if not pending or not _wait_and_retry(
+                attempt, f"{len(pending)} exchange pages unreadable"):
+            break
     if not quotes:
         # Two different empties. Before the first execution of the day every page
         # reads 0/0/0 — the 08:00 run meets that every weekday, and refusing to
         # overwrite a real stored session with an empty one is the correct
         # behaviour, not a failed run. A page that could not be read at all is
         # the failure this return code is for.
-        if outcome.get("unreadable") == len(targets):
+        if pending:
             log.error("quotes: not one of %d pages could be read", len(targets))
             return 1
         log.info("quotes: the exchange has not opened a session yet "
-                 "(%d pages idle, %d unreadable) — keeping the stored quotes",
-                 outcome.get("idle", 0), outcome.get("unreadable", 0))
+                 "(%d pages idle) — keeping the stored quotes", idle)
         return audit_board()
     quoted = {str(q.get("isin") or "").upper() for q in quotes}
     unquoted = [t for t in targets if t[0] not in quoted]
