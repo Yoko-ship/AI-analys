@@ -183,6 +183,40 @@ class TestASecurityThatHasGoneQuiet:
                                                isin="UZ7012480008")) is None
 
 
+class TestTheHeadingIsNotTheSession:
+    """ACMT1B2's page heads it "16.07.2026 — 100 000,01": 17.07's price against
+    16.07's date. Its history has both sessions and they agree on nothing —
+    100 000,01 over 43 units on the 17th, 100 500 over 412 on the 16th. Taking
+    the heading's date would publish the wrong one, and the board carries the
+    right one only because the store refuses to move a quote backwards.
+
+    The exchange carries a close forward at zero volume, so the newest history
+    row that HAS a quantity is the last session traded, and the heading is not
+    needed to find it. Captured verbatim on 2026-08-04.
+    """
+
+    @pytest.fixture()
+    def acmt(self) -> dict:
+        return uq.parse_quote(_page("acmt1b2_stale_header"), isin="UZ6058977AB6",
+                              market="BND")
+
+    def test_the_heading_disagrees_with_the_history(self, acmt) -> None:
+        assert acmt["last_trade_date"] == "20260716"
+        assert acmt["last_price"] == pytest.approx(100000.01)   # ...which is the 17th's
+        newest = acmt["history"][0]
+        assert (newest["date"], newest["close"]) == ("20260717", pytest.approx(100000.01))
+
+    def test_the_history_decides(self, acmt) -> None:
+        settled = uq.settled_quote(acmt)
+
+        assert settled["trade_date"] == "20260717"
+        assert settled["close_price"] == pytest.approx(100000.01)
+        assert settled["quantity"] == pytest.approx(43.0)
+        assert settled["turnover"] == pytest.approx(4_300_000.36)
+        assert settled["prev_close"] == pytest.approx(100500.0)
+        assert settled["change_percent"] == pytest.approx(-0.4975, abs=0.0005)
+
+
 class TestTheParserRefusesWhatItCannotRead:
     def test_a_page_for_another_security_is_not_ours(self) -> None:
         """uzse.uz answers an unknown ISIN with its default security, not a 404."""

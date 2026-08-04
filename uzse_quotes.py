@@ -234,19 +234,30 @@ def settled_quote(parsed: dict[str, Any] | None) -> dict[str, Any] | None:
     that was meant to backfill them dropped them at the same "did it trade today?"
     test.
 
-    The page answers anyway. Its header states the date of the security's last
-    trade, and its daily history prints that session's close, change, quantity and
-    turnover — settled, and still there tomorrow morning after the session table
-    has rolled over. This turns that row into the same quote shape, so a quiet
-    security is priced by the exchange rather than left blank.
+    The page answers anyway — in its daily history, which prints each recent
+    session's close, change, quantity and turnover, settled, and still there
+    tomorrow morning after the session table has rolled over.
+
+    **The session is found in that history, not from the page's heading.** The
+    heading is a separate field and it is not always right: ACMT1B2's reads
+    "16.07.2026 — 100 000,01", which is 17.07's price against 16.07's date, and
+    the two sessions differ in every number (100 000,01 over 43 units against
+    100 500 over 412). Trusting it would have published the wrong one. The
+    exchange carries a close forward at zero volume, so the newest history row
+    with a quantity IS the last session the security traded in — no heading
+    required, and a security that has never traded has no such row.
     """
     if not parsed:
         return None
-    day = parsed.get("last_trade_date")
     history = parsed.get("history") or []
-    row = next((h for h in history if h.get("date") == day), None)
-    if not day or not row or row.get("close") is None:
+    row = next((h for h in history
+                if (h.get("quantity") or 0) > 0 and h.get("close") is not None), None)
+    if not row:
         return None
+    day = row["date"]
+    if parsed.get("last_trade_date") not in (None, day):
+        logger.warning("uzse settled %s: the page heads it %s, its history says %s",
+                       parsed.get("isin"), parsed.get("last_trade_date"), day)
 
     previous = next((h for h in history if h.get("date") < day), None)
     change = row.get("change")
