@@ -3851,54 +3851,53 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
         return {"ok": False, "ticker": ticker, "error": str(exc), "points": []}
 
 
-def _normalize_dividends(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Map raw openinfo dividend-calendar rows to a stable frontend shape."""
-    def _num(value: Any) -> float | None:
-        try:
-            if value in (None, "", "-"):
-                return None
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
-    rows = []
-    for item in items:
-        rows.append({
-            "decision_date": item.get("decision_date"),
-            "pub_date": item.get("pub_date"),
-            "organization": item.get("organization"),
-            "ordinary_amount": _num(item.get("common_share_amount")),
-            "ordinary_percent": _num(item.get("common_share_percent")),
-            "ordinary_start": item.get("common_share_start_date"),
-            "ordinary_end": item.get("common_share_end_date"),
-            "preferred_amount": _num(item.get("priviliged_share_amount")),
-            "preferred_percent": _num(item.get("priviliged_share_percent")),
-            "preferred_start": item.get("priviliged_share_start_date"),
-            "preferred_end": item.get("priviliged_share_end_date"),
-            "link": item.get("link"),
-        })
-    rows.sort(key=lambda r: str(r.get("decision_date") or ""), reverse=True)
-    return rows
-
-
 @app.get("/api/dividends/{ticker}")
 async def api_dividends(ticker: str) -> dict[str, Any]:
-    """Dividend history for a ticker, resolved via the company's legal name."""
-    from openinfo_collector import resolve_company, fetch_dividends
+    """Dividend history for one security, from the stored calendar snapshot.
+
+    Served from ``catalog_dividends`` (see dividends.py), which maps openinfo's
+    market-wide calendar onto our tickers by org id. The endpoint used to ask
+    openinfo to resolve the *ticker* as a company name on every request — "UNVB"
+    is not a company name, so the lookup failed and the page reported
+    «Дивиденды не объявлялись» while openinfo held nine payouts for that bank.
+    """
+    import dividends as dividends_store
 
     ticker = ticker.upper()
     loop = asyncio.get_running_loop()
     try:
-        company = await loop.run_in_executor(None, partial(resolve_company, ticker))
-        company_name = (company or {}).get("company_name") or ticker
-        data = await loop.run_in_executor(None, partial(fetch_dividends, company_name, None, 50))
-        if not data.get("count") and company_name != ticker:
-            data = await loop.run_in_executor(None, partial(fetch_dividends, ticker, None, 50))
-        items = _normalize_dividends(data.get("items") or [])
-        return {"ok": True, "ticker": ticker, "company_name": company_name, "count": len(items), "items": items}
+        payload = await loop.run_in_executor(None, partial(dividends_store.dividends_for, ticker))
+        return _json_safe(payload)
     except Exception as exc:
         logger.exception("dividends failed for %s", ticker)
         return {"ok": False, "ticker": ticker, "error": str(exc), "items": []}
+
+
+@app.post("/api/admin/dividends/refresh")
+async def api_admin_dividends_refresh(
+    force: bool = False,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Re-read openinfo's dividend calendar and rewrite the snapshot.
+
+    The read path refreshes itself once the snapshot goes stale; this is the
+    handle for the collector and for a deploy that must not wait for the first
+    visitor to warm the table.
+    """
+    import dividends as dividends_store
+
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, partial(dividends_store.refresh, force=force))
+    return _json_safe(result)
+
+
+@app.get("/api/admin/dividends/state")
+async def api_admin_dividends_state(_: None = Depends(_require_admin)) -> dict[str, Any]:
+    """How much of the calendar is stored and how old it is."""
+    import dividends as dividends_store
+
+    loop = asyncio.get_running_loop()
+    return _json_safe({"ok": True, **await loop.run_in_executor(None, dividends_store.snapshot_state)})
 
 
 @app.get("/api/catalog/company/{ticker}/reports")

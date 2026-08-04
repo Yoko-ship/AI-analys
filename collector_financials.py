@@ -522,6 +522,19 @@ def register_catalog() -> int:
     return _post("/api/admin/catalog/register", {})
 
 
+def refresh_dividends() -> int:
+    """Ask prod to re-read openinfo's dividend calendar into its snapshot.
+
+    The read path refreshes itself once the snapshot goes stale, but only when
+    somebody opens a Дивиденды tab. Doing it from the daily run means the first
+    visitor of the day reads a table that is already current, and a payout
+    announced overnight is on the page before anyone asks for it. The work runs
+    on prod, where the snapshot lives — the collector has no volume to write to.
+    """
+    log.info("refreshing the dividend calendar snapshot ...")
+    return _post("/api/admin/dividends/refresh?force=1", {})
+
+
 def push_financials_aliases() -> int:
     """Copy each issuer's financials onto its sibling tickers, then push to prod.
 
@@ -795,6 +808,13 @@ def main() -> int:
             rc_status = register_catalog() or rc_status
         except Exception:
             log.exception("catalog register step failed")
+            rc_status = rc_status or 1
+
+    if not (args.no_push or args.trades_only or args.facts_only):
+        try:
+            rc_status = refresh_dividends() or rc_status
+        except Exception:
+            log.exception("dividend refresh step failed")
             rc_status = rc_status or 1
 
     if not args.no_push:
