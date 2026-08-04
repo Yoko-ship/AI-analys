@@ -29,6 +29,11 @@ import {
   onTranslation,
   translateHeadline,
 } from "./lib/translate.js";
+import { pickLeadIndex } from "./lib/newsfeed.js";
+// ТЗ §3.2: one glossary for the whole site. The /reference page and every ⓘ
+// marker in the interface read the same entries, so a term cannot be explained
+// two different ways depending on where the reader met it.
+import { glossaryGroups, termFor } from "./lib/glossary.js";
 
 // --- Client-side routing: each view maps to a real URL path ------------------
 const VIEW_PATHS = {
@@ -579,8 +584,12 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
   }, [reloadKey, tab]);
 
   const { loading, error, items } = state;
-  const lead = items[0];
-  const stack = items.slice(1);
+  // Which story gets the masthead when the top-ranked one cannot be illustrated
+  // — see lib/newsfeed.js. Nothing is dropped: the story that would have led
+  // simply leads the stack instead.
+  const leadIndex = React.useMemo(() => pickLeadIndex(items), [items]);
+  const lead = items[leadIndex];
+  const stack = items.filter((_, i) => i !== leadIndex);
   // The main column follows the API's impact ranking; the rail is literally "latest", so it
   // needs its own chronological copy rather than the top of the ranked list.
   const latest = React.useMemo(
@@ -5866,16 +5875,51 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   const ma20 = maOn.ma20 && ma20Available ? alignToPoints(ma20Daily) : null;
   const ma50 = maOn.ma50 && ma50Available ? alignToPoints(ma50Daily) : null;
 
+  // Grid lines land on round numbers inside the data range — 5K / 10K / 15K —
+  // instead of five samples of it (9.8K, 14.5K, 19.3K), which read as data
+  // rather than as a scale. The plotted range is untouched: only where the
+  // lines are drawn changes.
   const yTicks = 4;
-  const yLabels = Array.from({ length: yTicks + 1 }, (_, i) => {
-    const v = minP + (i / yTicks) * rangeP;
-    return { y: ys(v), label: abbrev(v) };
-  });
+  const niceStep = (span, count) => {
+    const raw = span / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / mag;
+    return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+  };
+  const yStep = rangeP > 0 ? niceStep(rangeP, yTicks) : 0;
+  const yLabels = [];
+  if (yStep > 0) {
+    const first = Math.ceil(minP / yStep) * yStep;
+    for (let v = first; v <= maxP + yStep * 1e-9; v += yStep) yLabels.push({ y: ys(v), label: abbrev(v) });
+  }
+  // A flat or near-flat series can leave one round number in range (or none) —
+  // then an even split of the range is the only honest axis left.
+  if (yLabels.length < 2) {
+    yLabels.length = 0;
+    for (let i = 0; i <= yTicks; i++) {
+      const v = minP + (i / yTicks) * rangeP;
+      yLabels.push({ y: ys(v), label: abbrev(v) });
+    }
+  }
+
+  // The last point always gets a label. When the regular grid lands a candle or
+  // two short of it the two strings print on top of each other (three years of
+  // weekly buckets did exactly that), so a tick too close to its neighbour
+  // yields — and the endpoint wins the collision.
+  const X_LABEL_GAP = 64;
   const xStep = Math.max(1, Math.floor(points.length / 6));
-  const xLabels = points
-    .map((p, i) => ({ i, p }))
-    .filter(({ i }) => i % xStep === 0 || i === points.length - 1)
-    .map(({ i, p }) => ({ x: xs(i), label: fmtAxis(p.date) }));
+  const xLabels = [];
+  points.forEach((p, i) => {
+    const isLast = i === points.length - 1;
+    if (i % xStep !== 0 && !isLast) return;
+    const x = xs(i);
+    const prev = xLabels[xLabels.length - 1];
+    if (prev && x - prev.x < X_LABEL_GAP) {
+      if (!isLast) return;
+      xLabels.pop();
+    }
+    xLabels.push({ x, label: fmtAxis(p.date) });
+  });
 
   const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -6912,6 +6956,102 @@ function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
 // Portaled to <body> instead: a fixed popover re-anchored to its button on
 // every scroll/resize, and on a phone a bottom sheet with its own scrollport,
 // so a thumb drag moves the list of columns and not the page behind it.
+/**
+ * The ⓘ beside an economic label: what this term means, on hover, at the point
+ * the reader met it. Definitions come from lib/glossary.js by id.
+ *
+ * It is portaled to <body> for the same reason the column picker is — inside the
+ * board's horizontal scrollport a positioned child is clipped by the scroll box,
+ * so a tooltip on the rightmost header would be cut in half or scroll away from
+ * the header that opened it.
+ *
+ * Hover opens it on a mouse; tap toggles it on a phone, where there is no hover
+ * at all. Every pointer event stops at the marker: the header underneath sorts on
+ * click and drags to reorder, and asking what a column means must do neither.
+ */
+function TermInfo({ termId, lang, label }) {
+  const entry = termFor(termId, lang);
+  const btnRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return undefined; }
+    let raf = 0;
+    const place = () => {
+      raf = 0;
+      const btn = btnRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const width = Math.min(320, window.innerWidth - 24);
+      const left = Math.max(12, Math.min(r.left + r.width / 2 - width / 2, window.innerWidth - width - 12));
+      // Below the marker by default; above it when the viewport bottom is closer
+      // than the tooltip is tall, so it is never half off-screen.
+      const below = window.innerHeight - r.bottom;
+      setPos({ left, width, top: below > 190 ? r.bottom + 8 : null, bottom: below > 190 ? null : window.innerHeight - r.top + 8 });
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(place); };
+    place();
+    // capture:true — the table's own scrollport does not bubble its scroll event.
+    window.addEventListener("scroll", schedule, { passive: true, capture: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule, { capture: true });
+      window.removeEventListener("resize", schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    const onDocDown = (e) => { if (!btnRef.current || !btnRef.current.contains(e.target)) setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDocDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDocDown);
+    };
+  }, [open]);
+
+  // A term with no entry yet renders nothing rather than an ⓘ that explains nothing.
+  if (!entry) return null;
+
+  const stop = (e) => { e.stopPropagation(); };
+  return (
+    <>
+      <button
+        type="button"
+        ref={btnRef}
+        className={`term-info-btn${open ? " open" : ""}`}
+        aria-label={`${label || entry.term} — ${lang === "en" ? "what this means" : lang === "uz" ? "bu nimani anglatadi" : "что это значит"}`}
+        aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen((v) => !v); }}
+        onMouseDown={stop}
+        onPointerDown={stop}
+        onTouchStart={stop}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); } }}
+        onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      >ℹ</button>
+      {open && pos && createPortal(
+        <div
+          className="term-tooltip"
+          role="tooltip"
+          style={{ left: pos.left, width: pos.width, ...(pos.top != null ? { top: pos.top } : { bottom: pos.bottom }) }}
+        >
+          <div className="term-tooltip-term">{entry.term}</div>
+          <div className="term-tooltip-def">{entry.def}</div>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function MarketColsPopover({ anchorRef, onClose, title, closeLabel, children }) {
   const [pos, setPos] = useState(null);
   const [sheet, setSheet] = useState(() => window.matchMedia("(max-width: 760px)").matches);
