@@ -10104,33 +10104,6 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .disclaimer-note__label::before { content: "⚠"; font-size: 15px; }
 .disclaimer-note__text { margin: 0; font-size: 14px; line-height: 1.62; color: var(--text-secondary, var(--text, #eef3ff)); }
 
-/* ── Reference view (glossary / tariffs / trading modes) ─────── */
-.reference-view { display: flex; flex-direction: column; gap: 20px; }
-.reference-hero { padding: 24px 28px; }
-.reference-title { margin: 6px 0 4px; font-size: 26px; font-weight: 700; }
-.reference-tabs { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-.reference-tab { padding: 8px 18px; border-radius: 999px; border: 1px solid var(--border, rgba(255,255,255,0.1)); background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 600; }
-.reference-tab.active { background: var(--accent, #f5a623); color: #1a1200; border-color: transparent; }
-.reference-panel { padding: 24px 28px; }
-.reference-search { width: 100%; max-width: 420px; padding: 10px 14px; margin-bottom: 20px; border-radius: 10px; border: 1px solid var(--border, rgba(255,255,255,0.1)); background: var(--panel); color: var(--text); font-size: 14px; }
-.glossary-group { margin-bottom: 26px; }
-.glossary-group-title { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent, #f5a623); margin: 0 0 12px; font-weight: 700; }
-.glossary-list { margin: 0; display: grid; gap: 12px; }
-.glossary-item { display: grid; grid-template-columns: 220px 1fr; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.06)); }
-.glossary-item dt { font-weight: 700; color: var(--text); font-size: 14px; }
-.glossary-item dd { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
-.tariff-group { margin-bottom: 22px; }
-.reference-table { width: 100%; border-collapse: collapse; }
-.reference-table td { padding: 10px 12px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.06)); font-size: 14px; color: var(--text); vertical-align: top; }
-.reference-table-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
-.reference-table-time { width: 72px; font-weight: 700; color: var(--accent, #f5a623); font-variant-numeric: tabular-nums; }
-.reference-modes { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
-.reference-modes li { color: var(--muted); font-size: 14px; line-height: 1.5; }
-.reference-source { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
-@media (max-width: 640px) {
-  .glossary-item { grid-template-columns: 1fr; gap: 4px; }
-}
-
 /* History repeat button (ТЗ Блок 5) */
 .history-repeat-btn { background: transparent; border: 1px solid var(--border, rgba(255,255,255,0.14)); color: var(--accent, #f5a623); border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; }
 .history-repeat-btn:hover:not(:disabled) { background: var(--accent, #f5a623); color: #1a1200; }

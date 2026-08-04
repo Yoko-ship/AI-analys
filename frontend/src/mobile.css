@@ -888,15 +888,9 @@ iframe {
   }
 }
 
-/* ── 10. Reference ───────────────────────────────────────────────────────── */
+/* ── 10. Disclaimer ──────────────────────────────────────────────────────── */
 
 @media (max-width: 760px) {
-  .reference-view table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
   .disclaimer-note {
     padding: 14px;
     font-size: 12.5px;
