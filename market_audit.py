@@ -158,6 +158,26 @@ def audit_session(stats: dict[str, dict], quotes: dict[str, dict], board: list[d
         "each traded security's row carries a price and a positive previous close, "
         "so the board can state the exchange's move", uncomputable))
 
+    # A row the exchange has never quoted falls back to openinfo's listing
+    # registry, whose reference price is usually the nominal and, when it is not,
+    # can be years out of date and simply wrong: the board carried Kapitalbank at
+    # 1 030 from February 2024 while both the exchange's own closing series and
+    # openinfo's execution record for that very day said 5 284.8. A registry row
+    # that names a trade date is the case that must never happen — the exchange
+    # published that session, so its price is the one to serve. A registry row
+    # with no trade date at all is a security that has never traded, and the
+    # reference price is the only price there is.
+    registry_priced = {
+        str(row.get("ticker") or isin)
+        for isin, row in rows.items()
+        if row.get("inactive") and str(row.get("last_trade_date") or "").strip()
+        and str(row.get("ticker") or "").upper() not in suppressed
+    }
+    checks.append(_check(
+        "no_row_is_priced_from_the_registry", not registry_priced,
+        "every security that has ever traded is priced by the exchange, not by "
+        "openinfo's listing registry", registry_priced))
+
     return {
         "ok": all(c["ok"] for c in checks),
         "trade_date": day or None,
