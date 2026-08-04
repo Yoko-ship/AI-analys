@@ -24,6 +24,12 @@ import trade_stats as ts
 import uzse_quotes as uq
 
 
+@pytest.fixture(autouse=True)
+def instant_retries(monkeypatch) -> None:
+    """Retry the same number of times, without the five-minute wait."""
+    monkeypatch.setattr(cf, "RETRY_WAIT_SECONDS", 0)
+
+
 @pytest.fixture()
 def pushed(monkeypatch) -> list[tuple[str, dict]]:
     """Capture every admin push instead of making one."""
@@ -63,7 +69,7 @@ class TestAnEmptySessionIsNotAFailure:
             outcome = kw.get("outcome")
             if outcome is not None:
                 outcome.update({"targets": 2, "unreadable": 0, "idle": 2,
-                                "settled": 0, "quoted": 0})
+                                "settled": 0, "quoted": 0, "unread": []})
             return []
 
         monkeypatch.setattr(uq, "fetch_session_quotes", _quotes)
@@ -74,11 +80,14 @@ class TestAnEmptySessionIsNotAFailure:
 
 class TestWhatIsStillAFailure:
     def test_a_feed_that_never_answered(self, monkeypatch, pushed) -> None:
+        attempts = []
         monkeypatch.setattr(ts, "fetch_trade_stats",
-                            lambda *a, **k: _feed(trade_date=None, count=0, stats={},
-                                                  reachable=False, complete=False))
+                            lambda *a, **k: attempts.append(1) or _feed(
+                                trade_date=None, count=0, stats={},
+                                reachable=False, complete=False))
 
         assert cf.push_trade_stats() == 1
+        assert len(attempts) == cf.RETRY_ATTEMPTS  # waited and asked again first
 
     def test_a_feed_that_stopped_halfway(self, monkeypatch, pushed) -> None:
         """Real ISINs, understated turnover, and no way for the board to know."""
@@ -92,12 +101,61 @@ class TestWhatIsStillAFailure:
             outcome = kw.get("outcome")
             if outcome is not None:
                 outcome.update({"targets": 1, "unreadable": 1, "idle": 0,
-                                "settled": 0, "quoted": 0})
+                                "settled": 0, "quoted": 0, "unread": list(targets)})
             return []
 
         monkeypatch.setattr(uq, "fetch_session_quotes", _quotes)
 
         assert cf.push_quotes(_feed()["stats"]) == 1
+
+
+class TestWaitingForTheExchangeToComeBack:
+    """uzse.uz was unreachable for over an hour on the evening of 2026-08-04 —
+    from Railway as well as from a home connection — and then answered normally.
+    Giving up on the first miss costs a whole scheduled slot: the next quotes run
+    is hours away and the next collector a day.
+    """
+
+    def test_the_feed_is_asked_again_and_the_run_continues(self, monkeypatch, pushed) -> None:
+        answers = [_feed(trade_date=None, count=0, stats={}, reachable=False, complete=False),
+                   _feed()]
+        monkeypatch.setattr(ts, "fetch_trade_stats", lambda *a, **k: answers.pop(0))
+        monkeypatch.setattr(cf, "push_quotes", lambda stats: 0)
+
+        assert cf.push_trade_stats() == 0
+        assert answers == []
+        assert "/api/admin/trade-stats" in [path for path, _ in pushed]
+
+    def test_only_the_unread_pages_are_asked_again(self, monkeypatch, pushed) -> None:
+        monkeypatch.setattr(cf, "board_securities", lambda: [
+            {"isin": "UZ7003040001", "_market": "STK"},
+            {"isin": "UZ7043380003", "_market": "STK"},
+        ])
+        asked: list[list] = []
+
+        def _quotes(targets, **kw):
+            targets = list(targets)
+            asked.append(targets)
+            # `or {}` would swallow the update — an empty dict is falsy.
+            outcome = kw["outcome"]
+            if len(asked) == 1:
+                # One page answered, the other could not be read at all.
+                outcome.update({"targets": 2, "unreadable": 1, "idle": 0, "settled": 0,
+                                "quoted": 1, "unread": [("UZ7043380003", "STK")]})
+                return [{"isin": "UZ7003040001", "trade_date": "20260804", "close_price": 1.0}]
+            outcome.update({"targets": 1, "unreadable": 0, "idle": 0, "settled": 1,
+                            "quoted": 1, "unread": []})
+            return [{"isin": "UZ7043380003", "trade_date": "20260729", "close_price": 2.0}]
+
+        monkeypatch.setattr(uq, "fetch_session_quotes", _quotes)
+        monkeypatch.setattr(cf, "quotes_from_archive", lambda targets: [])
+
+        assert cf.push_quotes(_feed()["stats"]) == 0
+        # The second pass asks about the unreadable one only — a page that
+        # answered "no session" answered.
+        assert asked[1] == [("UZ7043380003", "STK")]
+        rows = next(body["rows"] for path, body in pushed if path == "/api/admin/quotes")
+        assert {r["isin"] for r in rows} == {"UZ7003040001", "UZ7043380003"}
 
 
 class TestTheQuotePassCoversTheWholeBoard:

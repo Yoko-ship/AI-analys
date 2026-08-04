@@ -152,7 +152,7 @@ class TestASecurityThatHasGoneQuiet:
 
         assert [q["trade_date"] for q in quotes] == ["20260729"]
         assert outcome == {"targets": 1, "unreadable": 0, "idle": 0,
-                           "settled": 1, "quoted": 1}
+                           "settled": 1, "quoted": 1, "unread": []}
 
     def test_a_site_that_has_stopped_answering_ends_the_pass(self, monkeypatch) -> None:
         """Retrying keeps a bad minute from becoming a hole in the board; it also

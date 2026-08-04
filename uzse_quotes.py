@@ -387,11 +387,15 @@ def fetch_session_quotes(targets: Iterable[tuple[str, str]], *, pace: float = 0.
     An empty result means two different things — "the exchange has not opened
     yet, every page reads 0/0/0" and "no page could be read at all" — and only
     the second is a failure. The caller cannot tell them apart from the list.
+    ``outcome["unread"]`` names the securities whose page could not be read, so a
+    caller that waits and tries again asks only about those.
     """
     session = _session()
     out: list[dict[str, Any]] = []
     targets = list(targets)
-    counts = {"targets": len(targets), "unreadable": 0, "idle": 0, "settled": 0, "quoted": 0}
+    unread: list[tuple[str, str]] = []
+    counts: dict[str, Any] = {"targets": len(targets), "unreadable": 0, "idle": 0,
+                              "settled": 0, "quoted": 0}
     consecutive = 0
     for index, (isin, market) in enumerate(targets):
         # Retrying is what keeps one bad minute from becoming a hole in the board,
@@ -400,6 +404,7 @@ def fetch_session_quotes(targets: Iterable[tuple[str, str]], *, pace: float = 0.
         # has stopped answering entirely, say so after a few and stop asking —
         # Railway skips a cron run whose predecessor is still going.
         if consecutive >= 5:
+            unread.extend(targets[index:])
             counts["unreadable"] += len(targets) - index
             logger.error("uzse quotes: %d pages in a row unreadable — abandoning the "
                          "pass with %d securities unread", consecutive, len(targets) - index)
@@ -409,6 +414,7 @@ def fetch_session_quotes(targets: Iterable[tuple[str, str]], *, pace: float = 0.
             time.sleep(pace)
         if not quote:
             counts["unreadable"] += 1
+            unread.append((isin, market))
             consecutive += 1
             continue
         consecutive = 0
@@ -436,6 +442,7 @@ def fetch_session_quotes(targets: Iterable[tuple[str, str]], *, pace: float = 0.
             quote["market_cap"] = shares * price if (shares and price) else None
         out.append(quote)
     counts["quoted"] = len(out)
+    counts["unread"] = unread
     if outcome is not None:
         outcome.update(counts)
     return out
