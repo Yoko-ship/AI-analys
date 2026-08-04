@@ -31,6 +31,8 @@ from typing import Any, Iterable
 
 import requests
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from numeric_parse import parse_decimal
 
@@ -154,6 +156,11 @@ def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict
         high_price = _num(values[1]) if len(values) > 1 else None
         low_price = _num(values[2]) if len(values) > 2 else None
 
+    # "Дата | Цена закрытия | Изменение | Кол-во ЦБ | Объём торгов" — the exchange's
+    # own settled row for each of the last ~21 sessions. It is the only place a
+    # finished session's numbers survive: the session table above it describes
+    # whatever day is current, so by 08:00 the next morning it reads 0/0/0 and
+    # yesterday's turnover exists nowhere else we can reach.
     closes: list[dict[str, Any]] = []
     for row in history.find_all("tr")[1:]:
         cells = _cells(row)
@@ -163,7 +170,9 @@ def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict
         close = _num(cells[1])
         if day and close is not None:
             closes.append({"date": day, "close": close,
-                           "quantity": _num(cells[3]) if len(cells) > 3 else None})
+                           "change": _signed(cells[2]) if len(cells) > 2 else None,
+                           "quantity": _num(cells[3]) if len(cells) > 3 else None,
+                           "turnover": _num(cells[4]) if len(cells) > 4 else None})
 
     traded = bool(quantity and quantity > 0)
     # The session the page describes is dated by the trade that proves it: a page
@@ -214,8 +223,85 @@ def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict
     }
 
 
+def settled_quote(parsed: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The exchange's own settled row for the session this security last traded in.
+
+    ``parse_quote`` describes the session the page is currently showing, and that
+    session is empty for most securities most of the time — before the day's first
+    execution, and for every security that has gone quiet. Nine board rows showed
+    no price at all for that reason (UTGA, FRAZP, UZML, TRSBP, TKDMP, MXUS, UPOSP
+    and two bonds) while uzse.uz published one for each of them, because the pass
+    that was meant to backfill them dropped them at the same "did it trade today?"
+    test.
+
+    The page answers anyway. Its header states the date of the security's last
+    trade, and its daily history prints that session's close, change, quantity and
+    turnover — settled, and still there tomorrow morning after the session table
+    has rolled over. This turns that row into the same quote shape, so a quiet
+    security is priced by the exchange rather than left blank.
+    """
+    if not parsed:
+        return None
+    day = parsed.get("last_trade_date")
+    history = parsed.get("history") or []
+    row = next((h for h in history if h.get("date") == day), None)
+    if not day or not row or row.get("close") is None:
+        return None
+
+    previous = next((h for h in history if h.get("date") < day), None)
+    change = row.get("change")
+    prev_close = previous["close"] if previous else None
+    if prev_close is None and change is not None:
+        prev_close = row["close"] - change
+    if prev_close is not None:
+        derived = row["close"] - prev_close
+        if change is not None and abs(derived - change) > 0.011:
+            # The exchange's own two numbers disagree — say which one we used
+            # rather than publish a percentage it never printed.
+            logger.warning("uzse settled %s %s: change %s but close-prev = %s",
+                           parsed.get("isin"), day, change, derived)
+        change = derived
+
+    percent = (change / abs(prev_close) * 100) if (prev_close and change is not None) else None
+    return {
+        **parsed,
+        "trade_date": day,
+        "traded": True,
+        "settled": True,
+        "close_price": row["close"],
+        "prev_close": prev_close,
+        "prev_close_date": previous["date"] if previous else None,
+        "change_value": change,
+        "change_percent": round(percent, 4) if percent is not None else None,
+        "quantity": row.get("quantity"),
+        "turnover": row.get("turnover"),
+        # The session's open/high/low are published only while it is the current
+        # session; the history keeps the close. Saying nothing is the honest
+        # answer, and the upsert keeps whatever it already holds for that day.
+        "open_price": None,
+        "high_price": None,
+        "low_price": None,
+    }
+
+
 def _session() -> requests.Session:
+    """A session that survives uzse.uz having a bad minute.
+
+    A read here is not a nice-to-have: a page that times out is a security that
+    silently keeps yesterday's quote, and the pass reads a hundred of them in a
+    row. uzse.uz answers most of them in under a second and then, without
+    warning, stops answering for a while — sixteen consecutive reads timed out
+    at 30s while measuring this. Retrying with backoff (the same shape
+    openinfo_http uses) turns that minute into a slow pass instead of a hole in
+    the board.
+    """
     s = requests.Session()
+    retry = Retry(total=3, connect=3, read=3, backoff_factor=1.5,
+                  status_forcelist=(429, 500, 502, 503, 504),
+                  allowed_methods=("GET", "HEAD"), respect_retry_after_header=True)
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=4, pool_maxsize=8)
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
     s.headers.update(_HTML_HEADERS)
     return s
 
@@ -270,7 +356,8 @@ def fetch_issue_detail(isin: str, session: requests.Session | None = None) -> di
 
 
 def fetch_session_quotes(targets: Iterable[tuple[str, str]], *, pace: float = 0.25,
-                         with_detail: bool = True) -> list[dict[str, Any]]:
+                         with_detail: bool = True, settle: bool = False,
+                         outcome: dict[str, int] | None = None) -> list[dict[str, Any]]:
     """Quotes for the securities that traded in the latest session.
 
     ``targets``: ``[(isin, market)]`` — the exchange's own execution feed says
@@ -278,18 +365,39 @@ def fetch_session_quotes(targets: Iterable[tuple[str, str]], *, pace: float = 0.
     whose price moved. Securities that did not trade keep their stored quote:
     their close is unchanged by definition, and re-reading them would attribute
     an empty session row to a day they never traded.
+
+    ``settle`` takes the exchange's settled row for the last session a security
+    DID trade in when the current one is empty (see ``settled_quote``) — which is
+    every security before the day's first execution, and every quiet security all
+    the time. Forward-only storage makes that safe: a settled row is dated the
+    session it describes, so it can only fill a gap, never overwrite a newer one.
+
+    ``outcome``, when given, is filled with why each target produced no quote.
+    An empty result means two different things — "the exchange has not opened
+    yet, every page reads 0/0/0" and "no page could be read at all" — and only
+    the second is a failure. The caller cannot tell them apart from the list.
     """
     session = _session()
     out: list[dict[str, Any]] = []
+    counts = {"targets": 0, "unreadable": 0, "idle": 0, "settled": 0, "quoted": 0}
     for isin, market in targets:
+        counts["targets"] += 1
         quote = fetch_quote(isin, market=market or "STK", session=session)
         if pace:
             time.sleep(pace)
         if not quote:
+            counts["unreadable"] += 1
             continue
         if not quote.get("traded") or not quote.get("trade_date"):
-            logger.info("uzse quote %s: page shows no trade for the current session", isin)
-            continue
+            settled = settled_quote(quote) if settle else None
+            if settled is None:
+                counts["idle"] += 1
+                logger.info("uzse quote %s: page shows no trade for the current session", isin)
+                continue
+            counts["settled"] += 1
+            logger.info("uzse quote %s: quiet today, taking the exchange's settled %s row",
+                        isin, settled["trade_date"])
+            quote = settled
         if with_detail:
             detail = fetch_issue_detail(isin, session=session) or {}
             if pace:
@@ -303,6 +411,9 @@ def fetch_session_quotes(targets: Iterable[tuple[str, str]], *, pace: float = 0.
             shares, price = quote.get("shares_outstanding"), quote.get("close_price")
             quote["market_cap"] = shares * price if (shares and price) else None
         out.append(quote)
+    counts["quoted"] = len(out)
+    if outcome is not None:
+        outcome.update(counts)
     return out
 
 

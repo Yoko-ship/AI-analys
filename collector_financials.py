@@ -130,6 +130,25 @@ def _stamp_step(step: str, detail: str = "") -> None:
         log.exception("step stamp failed: %s", step)
 
 
+def board_securities() -> list[dict]:
+    """Every row the deployment is serving on the market board.
+
+    The collector's own database is a scratch copy rebuilt from nothing on each
+    run, so asking IT which securities exist answers "none" — which is why the
+    quote pass's backfill list, written against the local securities catalog,
+    has always come back empty on Railway and nine board rows kept showing no
+    price. The deployment is the only place that knows what the site serves.
+    """
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+    rows: list[dict] = []
+    for kind in ("stock", "bond"):
+        board = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60).json()
+        for row in (board if isinstance(board, list) else board.get("stocks") or []):
+            row["_market"] = "BND" if kind == "bond" else "STK"
+            rows.append(row)
+    return rows
+
+
 def push_trade_stats() -> int:
     """Fetch the latest-day per-trade stats from UZSE and push to prod."""
     log.info("fetching UZSE trade stats (latest day) ...")
@@ -137,20 +156,30 @@ def push_trade_stats() -> int:
     stats = data.get("stats") or {}
     rows = list(stats.values())
     log.info("trade stats: %d securities for %s", len(rows), data.get("trade_date"))
-    if not rows:
-        log.warning("no trade stats fetched")
+    if rows and not data.get("complete"):
+        # A short read is a session with real ISINs and understated turnover, and
+        # the board cannot tell it from a quiet day. Publish nothing.
+        log.error("the trade feed stopped mid-session — refusing to publish "
+                  "%d securities that may be missing executions", len(rows))
         return 1
+    if not rows:
+        if not data.get("reachable"):
+            log.error("the trade feed did not answer — no session could be read")
+            return 1
+        # The feed is a two-day window, so a Monday-morning run reads Sat+Sun and
+        # the exchange truthfully answers "nothing traded". Nothing to push and
+        # nothing wrong: the stored session stays the newest one there is, and the
+        # audit below still asserts it is coherent.
+        log.info("the exchange published no session in the feed's window — "
+                 "keeping the stored session")
+        return audit_board()
     # Board rows whose security did not trade today otherwise show dashes in
     # the qty/avg-price/avg-trade/largest columns forever, even though their
     # price/OHLC columns already display the LAST trading day. Backfill that
     # same day's stats from openinfo's trade-results archive so the whole row
     # is coherently "as of the last trade date".
     try:
-        base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
-        board_rows = []
-        for kind in ("stock", "bond"):
-            board = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60).json()
-            board_rows.extend(board if isinstance(board, list) else board.get("stocks") or [])
+        board_rows = board_securities()
         targets = []
         seen: set[str] = set()
         no_date: list[str] = []
@@ -199,6 +228,69 @@ def push_trade_stats() -> int:
 SKIP_QUOTES = False
 
 
+def quotes_from_archive(targets: list[tuple[str, str]]) -> list[dict]:
+    """The exchange's execution record for securities its page cannot date.
+
+    uzse.uz publishes about twenty-one sessions of daily closes, so a security
+    whose last trade is older than that falls out of the page entirely — and its
+    header field can be wrong where the trade record is not. Kapitalbank is the
+    case that found this: the page heads KPBA with "23.02.2024 — 1 030" while its
+    own carried-forward close reads 5 284.8, and openinfo's execution archive
+    records the trade of 23.02.2024 as 418 shares at 5 284.8. Two sources agree
+    against the third, and the board was publishing the third — a market cap 5.13
+    times too small.
+
+    Only securities the page could not quote reach here, and the row is dated the
+    session it describes, so the forward-only upsert cannot let an archived trade
+    displace a live one.
+    """
+    import listings_collector as lc
+    import uzse_quotes as uq
+    from openinfo_collector import _make_session
+
+    def _num(v):
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    session = _make_session()
+    exchange = uq._session()
+    rows: list[dict] = []
+    for isin, market in targets:
+        point = lc._last_conclusion(session, isin)
+        day = str((point or {}).get("date") or "").replace("-", "")
+        close = _num((point or {}).get("close"))
+        if len(day) != 8 or close is None:
+            continue
+        change = _num(point.get("change"))
+        prev = close - change if change is not None else None
+        row = {
+            "isin": isin, "market": market, "trade_date": day,
+            "close_price": close,
+            "prev_close": prev,
+            "change_value": change,
+            "change_percent": round(change / abs(prev) * 100, 4) if (prev and change is not None) else None,
+            "open_price": _num(point.get("open")),
+            "high_price": _num(point.get("high")),
+            "low_price": _num(point.get("low")),
+            "quantity": _num(point.get("trading_volume")),
+            "turnover": _num(point.get("trading_value")),
+        }
+        # The name and the share count still come from the exchange's registry —
+        # that record answers for a security whose quote page cannot.
+        detail = uq.fetch_issue_detail(isin, session=exchange) or {}
+        for key in ("ticker", "name", "share_type", "nominal", "shares_outstanding"):
+            if detail.get(key):
+                row[key] = detail[key]
+        if row.get("shares_outstanding"):
+            row["market_cap"] = row["shares_outstanding"] * close
+        rows.append(row)
+        log.info("uzse quote %s: page cannot date it — archive says %s at %s",
+                 isin, day, close)
+    return rows
+
+
 def push_quotes(stats: dict[str, dict]) -> int:
     """Read the exchange's own quote for each security that traded, and push it.
 
@@ -206,8 +298,16 @@ def push_quotes(stats: dict[str, dict]) -> int:
     and the exchange CARRIES that close forward through sessions with no trades —
     UQEQ closed at 25 600 on 30.07 without a single execution, so its +20% on
     31.07 exists in no execution feed and in no registry. Only the exchange's own
-    security page states it, so we read exactly the securities that traded (the
-    ones whose price moved) straight from uzse.uz.
+    security page states it.
+
+    Every security the board serves is read, not only the ones that traded. The
+    page answers for a quiet security too — the date it last traded, and that
+    session's close, change, quantity and turnover, from its own daily history —
+    and reading only the traded ones is what left nine rows priced at an em-dash
+    while uzse.uz published a price for each of them. It is also what makes a
+    finished session readable the next morning: by 08:00 the page's session table
+    has rolled over to a day with no trades yet, and the history row is the only
+    surviving statement of what yesterday actually closed at.
     """
     import uzse_quotes as uq
 
@@ -216,51 +316,59 @@ def push_quotes(stats: dict[str, dict]) -> int:
         for isin, row in (stats or {}).items() if isin
     }
 
-    # ...and every catalogued security that has no quote at all.
-    #
-    # Reading only what traded is right for the change %, and wrong for the
-    # price. A security that last traded on 30.07 is absent from the 31.07
-    # statistics, so it received no quote — and if the live mirror also carries
-    # no last price for it, the board showed an em-dash for a security the
-    # exchange is perfectly willing to quote. Measured against the trade
-    # archive, twelve of a hundred and eight rows were empty this way: UTYK at
-    # 370 000, TKDM at 2 626, UTGA at 116 000 — all recent, all published.
-    #
-    # Their quote page reads prev == close, change 0 %, which is the exchange
-    # saying "no session", and that is the honest thing to show for them.
-    backfill: set[tuple[str, str]] = set()
+    listed: set[tuple[str, str]] = set()
     try:
-        from reports_catalog import get_all_quotes
-        from securities_catalog import get_securities_map
+        for row in board_securities():
+            isin = str(row.get("isin") or "").strip().upper()
+            if isin:
+                listed.add((isin, str(row.get("_market") or "STK")))
+    except Exception:  # noqa: BLE001 — this must never cost us the session
+        log.warning("board security list unavailable", exc_info=True)
 
-        have = {str(k).upper() for k in (get_all_quotes() or {})}
-        for ticker, meta in (get_securities_map() or {}).items():
-            isin = str((meta or {}).get("isin") or "").strip().upper()
-            if not isin or isin in have:
-                continue
-            market = "BND" if str((meta or {}).get("type") or "").lower() == "bond" else "STK"
-            if (isin, market) not in traded:
-                backfill.add((isin, market))
-    except Exception:  # noqa: BLE001 — a backfill must never cost us the session
-        log.warning("quote backfill list unavailable", exc_info=True)
-
-    targets = sorted(traded | backfill)
+    targets = sorted(traded | listed)
     if not targets:
         log.warning("no traded securities to quote")
         return 0
-    if backfill:
-        log.info("quotes: %d traded + %d without any quote", len(traded), len(backfill))
-    log.info("reading exchange quotes for %d securities ...", len(targets))
-    quotes = uq.fetch_session_quotes(targets)
-    log.info("quotes: %d of %d securities answered with a session quote",
-             len(quotes), len(targets))
+    log.info("reading exchange quotes for %d securities (%d traded today) ...",
+             len(targets), len(traded))
+    outcome: dict[str, int] = {}
+    quotes = uq.fetch_session_quotes(targets, settle=True, outcome=outcome)
+    log.info("quotes: %d of %d securities answered (%d live session, %d settled from "
+             "the exchange's history, %d silent, %d unreadable)",
+             len(quotes), len(targets), len(quotes) - outcome.get("settled", 0),
+             outcome.get("settled", 0), outcome.get("idle", 0), outcome.get("unreadable", 0))
     if not quotes:
-        return 1
+        # Two different empties. Before the first execution of the day every page
+        # reads 0/0/0 — the 08:00 run meets that every weekday, and refusing to
+        # overwrite a real stored session with an empty one is the correct
+        # behaviour, not a failed run. A page that could not be read at all is
+        # the failure this return code is for.
+        if outcome.get("unreadable") == len(targets):
+            log.error("quotes: not one of %d pages could be read", len(targets))
+            return 1
+        log.info("quotes: the exchange has not opened a session yet "
+                 "(%d pages idle, %d unreadable) — keeping the stored quotes",
+                 outcome.get("idle", 0), outcome.get("unreadable", 0))
+        return audit_board()
+    quoted = {str(q.get("isin") or "").upper() for q in quotes}
+    unquoted = [t for t in targets if t[0] not in quoted]
+    if unquoted:
+        try:
+            archived = quotes_from_archive(unquoted)
+            log.info("quotes: %d of %d unquoted securities recovered from the "
+                     "execution archive", len(archived), len(unquoted))
+            quotes.extend(archived)
+        except Exception:  # noqa: BLE001 — a fallback must not cost us the session
+            log.exception("archive quote fallback failed")
+
     for q in quotes:
         q.pop("history", None)
     status = _post("/api/admin/quotes", {"rows": quotes})
     if status == 0:
-        _stamp_step("quotes", str(quotes[0].get("trade_date") or ""))
+        # The newest session in the batch, not whichever row happened to be first:
+        # a settled row is dated the day its security last traded, which for a
+        # quiet one is months ago.
+        _stamp_step("quotes", max((str(q.get("trade_date") or "") for q in quotes), default=""))
         status = audit_board() or status
     return status
 
