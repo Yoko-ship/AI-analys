@@ -6496,6 +6496,8 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
   // the silent filings ARE the record, so they stay on screen.
   const silent = payouts === 0 ? 0 : rows.length - payouts;
   const visible = (showSilent || payouts === 0) ? rows : declared;
+  const latestYear = latestAmt && latest?.decision_date ? String(latest.decision_date).slice(0, 4) : null;
+  const latestIsRecent = latestYear && (new Date().getFullYear() - Number(latestYear)) <= 1;
 
   return (
     <div className="company-dividends">
@@ -6509,7 +6511,15 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
           <div className="dividend-card panel">
             <div className="dividend-card-label">{t("Дивидендная доходность", "Dividend daromadliligi", "Dividend yield")}</div>
             <div className="dividend-card-val">{yieldPct.toFixed(2)}%</div>
-            <div className="muted" style={{ fontSize: 12 }}>{t("к текущей цене", "joriy narxga", "to current price")}</div>
+            {/* The last payout is not always a recent one: SQBN's ordinary line was
+                last paid in 2019 while its preferred line still pays every year. A
+                bare "к текущей цене" then reads as this year's yield, so the caption
+                names the year the figure actually comes from. */}
+            <div className="muted" style={{ fontSize: 12 }}>
+              {latestYear && !latestIsRecent
+                ? t(`по выплате ${latestYear} г. к текущей цене`, `${latestYear}-yil to'lovi bo'yicha`, `on the ${latestYear} payout, at the current price`)
+                : t("к текущей цене", "joriy narxga", "to current price")}
+            </div>
           </div>
         )}
         <div className="dividend-card panel">
