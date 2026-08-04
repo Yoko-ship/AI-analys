@@ -79,8 +79,8 @@ class TestAQuoteOverlaysABoardRow:
         assert row["last_trade_date"] == "2026-08-03"
 
     def test_a_carried_forward_close_outranks_an_older_trade(self) -> None:
-        """No trade today, but the exchange carried a close into yesterday: that
-        session is newer than our week-old quote, so the quote waits."""
+        """No trade today, and the exchange is carrying a close our quote does not
+        know: that is a session newer than ours, so the quote waits."""
         row = {"ticker": "UQEQ", "isin": "UZ7042540003", "last_price": None,
                "close_price": 26000.0, "last_trade_date": None, "close_date": "30.07.2026"}
 
@@ -89,6 +89,26 @@ class TestAQuoteOverlaysABoardRow:
 
         assert row["close_price"] == pytest.approx(26000.0)
         assert row["last_price"] is None
+
+    def test_the_carried_close_is_the_quoted_session_when_they_agree(self) -> None:
+        """UTGA last traded on 29.07 at 116 000 and the exchange has repeated that
+        close every session since — so the mirror's 03.08 "close date" is that
+        same trade, not a later one. The row was showing the date and no price.
+        """
+        row = {"ticker": "UTGA", "isin": "UZ7043380003", "last_price": None,
+               "close_price": 116000.0, "last_trade_date": None,
+               "close_date": "03.08.2026", "quantity": None, "volume": None}
+
+        api._apply_quote(row, _quote(
+            ticker="UTGA", isin="UZ7043380003", trade_date="20260729",
+            close_price=116000.0, prev_close=116000.0, prev_close_date="20260728",
+            change_value=0.0, change_percent=0.0, quantity=3.0, turnover=348000.0,
+            open_price=None, high_price=None, low_price=None, shares_outstanding=None))
+
+        assert row["last_price"] == pytest.approx(116000.0)
+        assert row["last_trade_date"] == "2026-07-29"
+        assert row["quantity"] == pytest.approx(3.0)
+        assert row["volume"] == pytest.approx(348000.0)
 
 
 class TestTheDaysTurnover:
