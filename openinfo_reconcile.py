@@ -224,6 +224,30 @@ def pl_value(row):
     return 0.0 if (profit is not None or loss is not None) else None
 
 
+def prior_value(row):
+    """The same P&L cell for the comparative period printed beside it.
+
+    NSBU form 2 carries FOUR value columns: value1/value2 are "доходы (прибыль)"
+    and "расходы (убытки)" for the reporting period, value3/value4 the same pair
+    "за соответствующий период прошлого года". Reading across a row in the Excel
+    lands on the second pair as easily as the first — O'zRTXB's H1 2026 revenue
+    is 237.6 bn and the cell beside it reads 264.7 bn, which is H1 2025, and the
+    two look like a contradiction until you notice each pair balances against
+    itself (010 - 020 = 030 holds in both).
+
+    Only the jsc / insurance form has the comparative. The bank and microfinance
+    forms publish a single ``value`` column and no prior period at all.
+    """
+    if row is None or "value" in row:
+        return None
+    profit, loss = _num(row.get("value3")), _num(row.get("value4"))
+    if profit:
+        return profit
+    if loss:
+        return -loss
+    return 0.0 if (profit is not None or loss is not None) else None
+
+
 def bal_value(row):
     """Balance cell: end of period = first NON-ZERO of value2, value1, value.
 
@@ -281,6 +305,7 @@ def extract_metrics(detail):
         "tickets": detail.get("organization_ticket_name"),
         "gross_profit": None,
         "operating_income": None,
+        "prior": None,
     }
     if org in ("bank", "microfinance"):
         # The microfinance form is the bank form with different wording: its P&L
@@ -296,10 +321,22 @@ def extract_metrics(detail):
                                 or _by_title(bal, ["денежные средства в кассе"]))
     else:  # jsc / insurance
         rev_row = _by_tnum(pl, "010") or _by_title(pl, ["выручка"])
+        net_row = _by_title(pl, ["чистая прибыль", "отчетного периода"])
+        gross_row = _by_title(pl, ["валовая прибыль"])
+        oper_row = _by_title(pl, ["прибыль", "от основной деятельности"])
         out["revenue"] = pl_value(rev_row)
-        out["net_income"] = pl_value(_by_title(pl, ["чистая прибыль", "отчетного периода"]))
-        out["gross_profit"] = pl_value(_by_title(pl, ["валовая прибыль"]))
-        out["operating_income"] = pl_value(_by_title(pl, ["прибыль", "от основной деятельности"]))
+        out["net_income"] = pl_value(net_row)
+        out["gross_profit"] = pl_value(gross_row)
+        out["operating_income"] = pl_value(oper_row)
+        # ...and the comparative the same form prints beside each of them. Only
+        # the P&L has one: the balance sheet's two columns are "на начало года"
+        # and "на конец периода", which is a different statement, so cash and
+        # liabilities have no prior-year figure here and must not be given one.
+        prior = {"revenue": prior_value(rev_row),
+                 "gross_profit": prior_value(gross_row),
+                 "net_income": prior_value(net_row),
+                 "operating_income": prior_value(oper_row)}
+        out["prior"] = prior if any(v is not None for v in prior.values()) else None
         lt = bal_value(_by_title(bal, ["долгосрочные обязательства", "всего"]))
         cur = bal_value(_by_title(bal, ["текущие обязательства", "всего"]))
         out["total_liabilities"] = None if lt is None and cur is None else (lt or 0.0) + (cur or 0.0)
@@ -669,6 +706,9 @@ def period_year_quarter(reporting_year, period_type, today=None, pub_date=None):
     return year, q
 
 
+PRIOR_KEYS = ("revenue", "gross_profit", "net_income", "operating_income")
+
+
 def _figures(ticker, metrics, meta):
     """One period's figures in both unit conventions, with its period label."""
     row = {"ticker": ticker, "year": meta["year"], "quarter": meta["quarter"],
@@ -678,6 +718,23 @@ def _figures(ticker, metrics, meta):
         v = metrics.get(k)
         row[f"{k}_thousand"] = None if v is None else round(v, 2)
         row[f"{k}_full"] = None if v is None else round(v * NSBU_THOUSANDS, 2)
+    # The comparative the SAME filing prints for the year before — the issuer's
+    # own restated figure for that period, which is what a year-on-year change
+    # should be struck against. It is labelled with its own period so nothing can
+    # read it as belonging to this one.
+    prior = metrics.get("prior")
+    row["prior"] = None
+    if prior:
+        prior_year = meta["year"] - 1
+        row["prior"] = {
+            "year": prior_year, "quarter": meta["quarter"],
+            "period_months": period_months(prior_year, meta["quarter"]),
+            "is_ytd": bool(meta["quarter"]),
+            **{f"{k}_thousand": (None if prior.get(k) is None else round(prior[k], 2))
+               for k in PRIOR_KEYS},
+            **{f"{k}_full": (None if prior.get(k) is None else round(prior[k] * NSBU_THOUSANDS, 2))
+               for k in PRIOR_KEYS},
+        }
     return row
 
 
@@ -712,6 +769,15 @@ def admin_push_row(row):
     out = {"ticker": row["ticker"], "year": row["year"], "quarter": row["quarter"]}
     for k in METRIC_KEYS:
         out[k] = row.get(f"{k}_thousand")
+    prior = row.get("prior")
+    if prior:
+        # Rides on the row it was filed with, labelled with its own period. It is
+        # NOT pushed as a period of its own: the comparative column carries the
+        # P&L only, and a half-empty period row would be picked up by anything
+        # that ranks periods and divide a ratio by a balance sheet that is not
+        # there.
+        out["prior"] = {"year": prior["year"], "quarter": prior["quarter"],
+                        **{k: prior.get(f"{k}_thousand") for k in PRIOR_KEYS}}
     return out
 
 

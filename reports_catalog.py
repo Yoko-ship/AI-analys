@@ -301,6 +301,13 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     # That is the gap the whole FIN group of defects grew out of.
     if "report_id" not in have_fin:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN report_id INTEGER")
+    # The comparative period the same filing prints beside its own figures (NSBU
+    # form 2's value3/value4, "за соответствующий период прошлого года"), as JSON
+    # with its own period label. It rides on the row it was filed with rather than
+    # becoming a period of its own — the comparative is P&L only, and a row with
+    # no balance sheet would be ranked as a period and divide ratios by nothing.
+    if "prior_period" not in have_fin:
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN prior_period TEXT")
     conn.commit()
 
 
@@ -1519,20 +1526,22 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
-                         field_periods, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                         field_periods, prior_period, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                         net_income=excluded.net_income, operating_income=excluded.operating_income,
                         field_periods=excluded.field_periods,
+                        prior_period=excluded.prior_period,
                         updated_at=datetime('now')
                     """,
                     (ticker, str(r.get("form") or form), year, quarter,
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
                      _num(r.get("operating_income")),
-                     _encode_field_periods(r.get("field_periods"))),
+                     _encode_field_periods(r.get("field_periods")),
+                     _encode_prior_period(r.get("prior"))),
                 )
                 n += 1
     finally:
@@ -1585,21 +1594,23 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
-                         field_periods, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                         field_periods, prior_period, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                         net_income=excluded.net_income,
                         operating_income=excluded.operating_income,
                         field_periods=excluded.field_periods,
+                        prior_period=excluded.prior_period,
                         updated_at=excluded.updated_at
                     """,
                     (ticker, row_form, year, quarter,
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
                      _num(r.get("operating_income")),
-                     _encode_field_periods(r.get("field_periods"))),
+                     _encode_field_periods(r.get("field_periods")),
+                     _encode_prior_period(r.get("prior"))),
                 )
                 n += 1
     finally:
@@ -1916,6 +1927,41 @@ def _encode_field_periods(value: Any) -> str | None:
     return json.dumps(decoded, ensure_ascii=False, sort_keys=True) if decoded else None
 
 
+_PRIOR_KEYS = ("revenue", "gross_profit", "net_income", "operating_income")
+
+
+def _decode_prior_period(raw: Any) -> dict[str, Any] | None:
+    """Parse the stored comparative period, tolerating rows written before it."""
+    if not raw:
+        return None
+    parsed = raw if isinstance(raw, dict) else None
+    if parsed is None:
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(parsed, dict) or parsed.get("year") is None:
+        return None
+    out: dict[str, Any] = {"year": int(parsed["year"]), "quarter": int(parsed.get("quarter") or 0)}
+    out["is_ytd"] = bool(out["quarter"])
+    out["period_months"] = _period_months(out["year"], out["quarter"])
+    for key in _PRIOR_KEYS:
+        out[key] = _financials_num(parsed.get(key))
+    return out
+
+
+def _encode_prior_period(value: Any) -> str | None:
+    """Serialize the comparative period for storage; None when it says nothing."""
+    if not isinstance(value, dict) or value.get("year") is None:
+        return None
+    payload = {"year": int(value["year"]), "quarter": int(value.get("quarter") or 0)}
+    for key in _PRIOR_KEYS:
+        payload[key] = _financials_num(value.get(key))
+    if all(payload[key] is None for key in _PRIOR_KEYS):
+        return None
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
 def _financials_enrich_enabled() -> bool:
     """Whether to apply org/fact enrichment when reading financials.
 
@@ -1969,7 +2015,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         f"""
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
                f.total_liabilities, f.net_income, f.operating_income,
-               f.field_periods, f.report_id, f.updated_at
+               f.field_periods, f.prior_period, f.report_id, f.updated_at
         FROM catalog_financials f
         JOIN (
             SELECT f.ticker AS ticker, MAX{period_rank} AS rank
@@ -2002,6 +2048,11 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             # — a bank's revenue is only published as an annual indicator, so the
             # cell must say which period it describes rather than borrow the row's.
             "field_periods": _decode_field_periods(r["field_periods"]),
+            # The comparative the SAME filing prints for the year before — P&L
+            # only, labelled with its own period, so a year-on-year change is
+            # struck against the issuer's own restated figure rather than against
+            # a separately-filed report that may have been restated since.
+            "prior": _decode_prior_period(r["prior_period"]),
             # The report this row was read from (ТЗ Дополнение 1 §Б.2). Every
             # figure carries its first source, so a disagreement about a number
             # is settled by opening the filing rather than by argument.
