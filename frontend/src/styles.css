@@ -7062,6 +7062,70 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 .market-table th.market-th-sortable.sorted .market-sort-caret { opacity: 1; }
 .market-table th.market-th-sortable:hover .market-sort-caret { opacity: 0.7; }
 
+/* ── Term explanations (lib/glossary.js) ──────────────────────────────────────
+   The ⓘ that says what an economic label means. Deliberately always visible
+   rather than hover-only: a marker nobody can see teaches nobody, which is the
+   same mistake the multi-sort modifier made. Subdued until approached. */
+.term-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+  opacity: 0.45;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.term-info-btn:hover,
+.term-info-btn:focus-visible,
+.term-info-btn.open {
+  opacity: 1;
+  color: var(--accent);
+  background: rgba(148, 163, 184, 0.2);
+}
+.market-table th.market-th-sortable .term-info-btn { text-transform: none; letter-spacing: 0; }
+
+/* Portaled to <body>: inside the board's horizontal scrollport it would be
+   clipped, and z-index inside .app-shell cannot climb over the nav drawer. */
+.term-tooltip {
+  position: fixed;
+  z-index: 400;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.28));
+  border-radius: 10px;
+  background: var(--panel, #111a2e);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  pointer-events: none;
+  animation: term-tooltip-in 0.12s ease-out;
+}
+.term-tooltip-term {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+}
+.term-tooltip-def {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+@keyframes term-tooltip-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* Rank inside a multi-key order. Only rendered when the chain has more than one
    key, so it never appears as a lone "1" beside a single sorted column. */
 .market-sort-rank {
