@@ -5390,24 +5390,24 @@ function BondsTable({ language, onOpen }) {
         <table className="market-table bonds-table">
           <thead>
             <tr>
-              <th>{t("Тикер", "Ticker", "Ticker")}</th>
-              <th>{t("Эмитент", "Emitent", "Issuer")}</th>
+              <th>{t("Тикер", "Ticker", "Ticker")}<TermInfo termId="ticker" lang={lang} /></th>
+              <th>{t("Эмитент", "Emitent", "Issuer")}<TermInfo termId="issuer" lang={lang} /></th>
               <th className="num">{t("Цена", "Narx", "Price")}</th>
-              <th className="num">{t("Изм.", "O'zg.", "Chg")}</th>
-              <th className="num">{t("Оборот", "Aylanma", "Turnover")}</th>
+              <th className="num">{t("Изм.", "O'zg.", "Chg")}<TermInfo termId="change" lang={lang} /></th>
+              <th className="num">{t("Оборот", "Aylanma", "Turnover")}<TermInfo termId="volume" lang={lang} /></th>
               <th className="num">{t("Сделки", "Bitimlar", "Trades")}</th>
               {/* Two different sizes: how many securities the issue is, and what
                   they are worth at today's price. The second is not equity
                   capitalisation and is never summed into it. */}
               <th className="num">{t("Выпуск, бумаг", "Chiqarilish, dona", "Issue, securities")}</th>
               <th className="num">{t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}</th>
-              <th className="num">% {t("номинала", "nominal", "of par")}</th>
+              <th className="num">% {t("номинала", "nominal", "of par")}<TermInfo termId="parPercent" lang={lang} /></th>
               {/* Two yields, never merged into one column: the coupon is what
                   the issuer pays on par, the running yield is what that coupon
                   is worth at today's price, and YTM is neither. */}
-              <th className="num">{t("Купон", "Kupon", "Coupon")}</th>
-              <th className="num">{t("Тек. дох.", "Joriy dar.", "Running")}</th>
-              <th className="num">{t("Доходность", "Daromadlilik", "YTM")}</th>
+              <th className="num">{t("Купон", "Kupon", "Coupon")}<TermInfo termId="coupon" lang={lang} /></th>
+              <th className="num">{t("Тек. дох.", "Joriy dar.", "Running")}<TermInfo termId="runningYield" lang={lang} /></th>
+              <th className="num">{t("Доходность", "Daromadlilik", "YTM")}<TermInfo termId="ytm" lang={lang} /></th>
               <th>{t("Качество", "Sifat", "Quality")}</th>
             </tr>
           </thead>
@@ -5896,9 +5896,15 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   // then an even split of the range is the only honest axis left.
   if (yLabels.length < 2) {
     yLabels.length = 0;
+    const seen = new Set();
     for (let i = 0; i <= yTicks; i++) {
       const v = minP + (i / yTicks) * rangeP;
-      yLabels.push({ y: ys(v), label: abbrev(v) });
+      // A price that never moved would otherwise stack the same number five
+      // times down the panel and call it a scale.
+      const label = abbrev(v);
+      if (seen.has(label)) continue;
+      seen.add(label);
+      yLabels.push({ y: ys(v), label });
     }
   }
 
@@ -5994,8 +6000,14 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
           <line key={i} x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y} stroke="currentColor" strokeOpacity="0.08" />
         ))}
 
-        {/* Volume bars */}
+        {/* Volume bars. A bucket with no trades gets no bar: the 0.5px floor
+            below is there so a small volume stays visible, and applying it to
+            zero painted a red/green dashed line across the whole baseline that
+            looked like an axis and meant "no trades". The baseline is drawn
+            once, in the colour of the grid. */}
+        <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot} stroke="currentColor" strokeOpacity="0.08" />
         {points.map((p, i) => {
+          if (!(p.volume > 0)) return null;
           const up = ohlcOk(p) ? p.close >= p.open : (i > 0 ? p.close >= points[i - 1].close : true);
           const vh = Math.max(0.5, volBot - vy(p.volume));
           return <rect key={`v${i}`} x={xs(i) - candleW / 2} y={vy(p.volume)} width={candleW} height={vh}
@@ -6036,8 +6048,12 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
         {yLabels.map((tick, i) => (
           <text key={`yl${i}`} x={PAD.left - 6} y={tick.y + 4} textAnchor="end" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
         ))}
+        {/* Centred everywhere except at the ends, where half of "июнь 26 г."
+            would hang outside the viewBox and get clipped by the frame. */}
         {xLabels.map((tick, i) => (
-          <text key={`xl${i}`} x={tick.x} y={H - 6} textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
+          <text key={`xl${i}`} x={tick.x} y={H - 6}
+            textAnchor={tick.x < PAD.left + 26 ? "start" : tick.x > W - PAD.right - 26 ? "end" : "middle"}
+            fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
         ))}
 
         {/* ТЗ §6: on a step chart the points carry the day's volume in their
@@ -8011,6 +8027,10 @@ function MarketView({
       <span className="market-th-inner">
         {movable && <span className="market-th-grip" aria-hidden="true">⋮⋮</span>}
         <span>{label}</span>
+        {/* Renders nothing for a column that is not an economic term (компания,
+            UZSE) — the marker promises an explanation and must not appear
+            without one. */}
+        <TermInfo termId={key} lang={lang} label={label} />
         <span className="market-sort-caret">{rank >= 0 ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
         {/* The rank only earns its space once the order actually has more than one
             key — a lone "1" beside a single sorted column says nothing. */}
@@ -11851,7 +11871,7 @@ function HeroKpiStrip({ analysisResult, chartData, language }) {
   );
 }
 
-function MetricRing({ label, percent, display, tone = "neutral" }) {
+function MetricRing({ label, percent, display, tone = "neutral", termId, lang }) {
   const value = clampPercent(percent);
   const radius = 38;
   const circumference = 2 * Math.PI * radius;
@@ -11872,7 +11892,7 @@ function MetricRing({ label, percent, display, tone = "neutral" }) {
       <div className="metric-ring-center">
         <strong>{display}</strong>
       </div>
-      <span>{label}</span>
+      <span>{label}{termId && <TermInfo termId={termId} lang={lang} label={label} />}</span>
     </div>
   );
 }
@@ -11927,30 +11947,35 @@ function FinancialVisuals({ result, language, score }) {
   const rings = [
     {
       label: language === "en" ? "ROE" : language === "uz" ? "ROE" : "ROE",
+      termId: "roe",
       percent: roePct === null ? null : Math.min(100, Math.max(0, roePct / 30 * 100)),
       display: roePct === null ? "—" : `${formatRatio(roePct, 1, language)}%`,
       tone: roePct === null ? "neutral" : roePct >= 15 ? "good" : roePct >= 5 ? "warning" : "danger",
     },
     {
       label: language === "en" ? "Net margin" : language === "uz" ? "Sof marja" : "Чистая маржа",
+      termId: "netMargin",
       percent: netMarginPct === null ? null : Math.min(100, Math.max(0, netMarginPct / 25 * 100)),
       display: netMarginPct === null ? "—" : `${formatRatio(netMarginPct, 1, language)}%`,
       tone: netMarginPct === null ? "neutral" : netMarginPct >= 10 ? "good" : netMarginPct >= 3 ? "warning" : "danger",
     },
     ebitdaMarginPct === null ? null : {
       label: language === "en" ? "EBITDA margin" : language === "uz" ? "EBITDA marjasi" : "Маржа EBITDA",
+      termId: "ebitda",
       percent: Math.min(100, Math.max(0, ebitdaMarginPct / 40 * 100)),
       display: `${formatRatio(ebitdaMarginPct, 1, language)}%`,
       tone: ebitdaMarginPct >= 15 ? "good" : ebitdaMarginPct >= 5 ? "warning" : "danger",
     },
     {
       label: vt(language, "leverage"),
+      termId: "debtEq",
       percent: debtToEquity === null ? null : 100 / (1 + Math.max(0, debtToEquity)),
       display: debtToEquity === null ? "—" : `D/E ${formatRatio(debtToEquity, 2, language)}`,
       tone: debtToEquity === null ? "neutral" : debtToEquity <= 1 ? "good" : debtToEquity <= 2 ? "warning" : "danger",
     },
     debtToEbitda === null ? null : {
       label: language === "en" ? "Debt/EBITDA" : language === "uz" ? "Qarz/EBITDA" : "Долг/EBITDA",
+      termId: "debtEbitda",
       percent: Math.min(100, Math.max(0, 100 - debtToEbitda / 6 * 100)),
       display: `${formatRatio(debtToEbitda, 2, language)}×`,
       tone: debtToEbitda <= 2 ? "good" : debtToEbitda <= 4 ? "warning" : "danger",
@@ -11996,7 +12021,7 @@ function FinancialVisuals({ result, language, score }) {
         </div>
         <div className="metric-rings-grid">
           {rings.map((ring) => (
-            <MetricRing key={ring.label} {...ring} />
+            <MetricRing key={ring.label} {...ring} lang={normalizeLanguage(language)} />
           ))}
         </div>
       </article>
