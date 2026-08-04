@@ -1213,11 +1213,17 @@ async def api_market_financials() -> dict[str, Any]:
                for k in FIN_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
         }
 
-    financials = {
-        ticker: ({**_scaled(row), "annual": _scaled(row["annual"])} if row.get("annual")
-                 else _scaled(row))
-        for ticker, row in financials.items()
-    }
+    def _with_companions(row: dict[str, Any]) -> dict[str, Any]:
+        out = _scaled(row)
+        # Both companions are money in the same thousands, so both scale with the
+        # row. `prior` is the comparative the filing itself prints for the year
+        # before — the year-on-year denominator.
+        for key in ("annual", "prior"):
+            if row.get(key):
+                out[key] = _scaled(row[key])
+        return out
+
+    financials = {ticker: _with_companions(row) for ticker, row in financials.items()}
     return _json_safe({
         "ok": True,
         "count": len(financials),

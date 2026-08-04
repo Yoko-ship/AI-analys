@@ -85,6 +85,10 @@ def collect_rows() -> list[dict]:
                 # own — prod serves what we push verbatim, so the provenance has to
                 # travel with the figures or the row lies about its own period.
                 "field_periods": period.get("field_periods") or {},
+                # The comparative the filing prints for the year before, so a
+                # ticker the structured reconciliation cannot resolve does not
+                # lose the one it already had.
+                "prior": period.get("prior"),
                 **{k: period.get(k) for k in KEYS},
             })
     return rows
