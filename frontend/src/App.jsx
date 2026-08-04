@@ -4883,10 +4883,10 @@ function CompareSummaryText({ summary, language }) {
   );
 }
 
-function MarketStatCard({ label, value, sub, tone = "neutral" }) {
+function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
   return (
     <article className={`market-stat-card tone-${tone}`}>
-      <span>{label}</span>
+      <span>{label}{termId && <TermInfo termId={termId} lang={lang} label={label} />}</span>
       <strong>{value}</strong>
       {sub ? <em>{sub}</em> : null}
     </article>
@@ -8217,7 +8217,7 @@ function MarketView({
             44 securities and called 31.07 "120,7 млн over ~900 trades" while the
             board it sits above listed 1,56 млрд over 6 507 — and it cannot
             answer per tab, so the shares view was quoting bond turnover too. */}
-        {stats.totalVolume > 0 && <MarketStatCard label={mt(lang, "volume")} value={formatCompactVolume(stats.totalVolume, lang)} sub={stats.totalTrades ? `${formatRatio(stats.totalTrades, 0, lang)} ${tradeCountLabel(stats.totalTrades, lang)}` : null} />}
+        {stats.totalVolume > 0 && <MarketStatCard label={mt(lang, "volume")} termId="volume" lang={lang} value={formatCompactVolume(stats.totalVolume, lang)} sub={stats.totalTrades ? `${formatRatio(stats.totalTrades, 0, lang)} ${tradeCountLabel(stats.totalTrades, lang)}` : null} />}
       </div>
 
       {viewMode === "table" && (stats.topGainers.length > 0 || stats.topLosers.length > 0) && (
@@ -8753,6 +8753,16 @@ function clg(language, key) {
   return cur !== undefined ? cur : key;
 }
 
+// The catalog tables label their rows with the filing's own field names; the
+// glossary keys them by term. One map, used by both tables.
+const FIN_TERM_OF = {
+  revenue: "finRevenue",
+  net_income: "finNet",
+  total_assets: "totalAssets",
+  equity: "equity",
+  total_liabilities: "finLiab",
+};
+
 function CatalogRatioTable({ result, language }) {
   const lang = language;
   const metrics = result.metrics || {};
@@ -8802,7 +8812,7 @@ function CatalogRatioTable({ result, language }) {
       <table className="catalog-source-table">
         <tbody>
           {Object.entries(vals).filter(([, v]) => v !== null).map(([k, v]) => (
-            <tr key={k}><td>{valLabels[k] || k}</td><td className="num">{fmtRaw(v)}</td></tr>
+            <tr key={k}><td>{valLabels[k] || k}<TermInfo termId={FIN_TERM_OF[k]} lang={lang} label={valLabels[k]} /></td><td className="num">{fmtRaw(v)}</td></tr>
           ))}
         </tbody>
       </table>
@@ -8933,7 +8943,7 @@ function CatalogCompareTable({ result, language }) {
           <tbody>
             {Object.keys({ ...v1, ...v2 }).map((k) => (
               <tr key={k}>
-                <td>{valLabels[k] || k}</td>
+                <td>{valLabels[k] || k}<TermInfo termId={FIN_TERM_OF[k]} lang={normalizeLanguage(language)} label={valLabels[k]} /></td>
                 <td className="num">{fmtN(v1[k])}</td>
                 <td className="num">{fmtN(v2[k])}</td>
                 <td className={`num ${diff(v1[k], v2[k]) > 0 ? "tone-good" : diff(v1[k], v2[k]) < 0 ? "tone-danger" : ""}`}>

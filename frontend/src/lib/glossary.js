@@ -171,6 +171,16 @@ export const TERMS = {
     en: { term: "Net income", def: "What remains after all costs, interest and tax — the bottom line. A loss is shown as a negative number; a zero means zero, not missing data." },
     uz: { term: "Sof foyda", def: "Barcha xarajatlar, foizlar va soliqlardan keyin qolgan mablag‘ — hisobotning yakuniy qatori. Zarar manfiy son bilan ko‘rsatiladi; nol — bu aynan nol, ma’lumot yo‘qligi emas." },
   },
+  totalAssets: {
+    ru: { term: "Активы", def: "Всё, чем компания владеет на отчётную дату: деньги, запасы, оборудование, здания, дебиторская задолженность. Активы всегда равны сумме обязательств и собственного капитала — это и есть балансовое равенство." },
+    en: { term: "Total assets", def: "Everything the company owns at the reporting date: cash, inventory, equipment, buildings, receivables. Assets always equal liabilities plus equity — that is the balance-sheet identity." },
+    uz: { term: "Aktivlar", def: "Kompaniya hisobot sanasida egalik qiladigan hamma narsa: pul, zaxiralar, uskuna, binolar, debitorlik qarzi. Aktivlar doimo majburiyatlar va o‘z kapitali yig‘indisiga teng — bu balans tengligi." },
+  },
+  equity: {
+    ru: { term: "Собственный капитал", def: "Активы минус обязательства — доля владельцев в компании. Отрицательный капитал означает, что долгов больше, чем имущества." },
+    en: { term: "Equity", def: "Assets less liabilities — the owners' stake in the company. Negative equity means the debts exceed what the company owns." },
+    uz: { term: "O‘z kapitali", def: "Aktivlardan majburiyatlar ayirilgani — egalarning kompaniyadagi ulushi. Manfiy kapital qarzlar mol-mulkdan ko‘pligini bildiradi." },
+  },
   finCash: {
     ru: { term: "Наличность в кассе", def: "Денежные средства и их эквиваленты на отчётную дату. Это положение на дату, а не результат за период, — поэтому величину нельзя сравнивать с выручкой напрямую." },
     en: { term: "Cash", def: "Cash and equivalents at the reporting date. It is a position on a date, not a result over a period, so it does not compare directly with revenue." },
