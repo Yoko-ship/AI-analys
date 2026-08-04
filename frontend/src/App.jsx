@@ -6467,6 +6467,11 @@ function CompanyFinancialsTab({ ratios, lang }) {
 }
 
 function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
+  // openinfo's calendar also carries decisions that declared nothing — Aloqabank
+  // files four of them dated 11.06.2013 alone, and they render as rows of dashes
+  // that read like a broken table. They stay available behind the toggle, because
+  // "the meeting resolved to pay nothing" is an answer to the question the tab asks.
+  const [showSilent, setShowSilent] = React.useState(false);
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const locale = lang === "en" ? "en-US" : "ru-RU";
   const fmt = (v) => v == null ? "—" : Number(v).toLocaleString(locale, { maximumFractionDigits: 2 });
@@ -6484,7 +6489,13 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
   const latest = rows.find((r) => (r[amtKey] || 0) > 0) || rows[0];
   const latestAmt = latest ? latest[amtKey] : null;
   const yieldPct = (latestAmt && lastPrice) ? (latestAmt / lastPrice) * 100 : null;
-  const payouts = rows.filter((r) => (r.ordinary_amount || 0) > 0 || (r.preferred_amount || 0) > 0).length;
+  const declared = rows.filter((r) => (r.ordinary_amount || 0) > 0 || (r.preferred_amount || 0) > 0);
+  const payouts = declared.length;
+  // O'zsanoatqurilishbank files 92 calendar entries and declared a payout in 9 of
+  // them. When an issuer declared nothing at all there is nothing to fold away —
+  // the silent filings ARE the record, so they stay on screen.
+  const silent = payouts === 0 ? 0 : rows.length - payouts;
+  const visible = (showSilent || payouts === 0) ? rows : declared;
 
   return (
     <div className="company-dividends">
@@ -6520,7 +6531,7 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
+            {visible.map((r, i) => (
               <tr key={i}>
                 <td>{fmtDate(r.decision_date)}</td>
                 <td className="dividend-num">{r.ordinary_amount ? fmt(r.ordinary_amount) : "—"}</td>
@@ -6541,6 +6552,14 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
           </tbody>
         </table>
       </div>
+      {silent > 0 && (
+        <button type="button" className="ghost-btn" style={{ fontSize: 12, marginTop: 10 }}
+                onClick={() => setShowSilent((v) => !v)}>
+          {showSilent
+            ? t("Скрыть решения без выплаты", "To'lovsiz qarorlarni yashirish", "Hide no-payout decisions")
+            : t(`Показать ещё ${silent} решений без выплаты`, `Yana ${silent} ta to'lovsiz qaror`, `Show ${silent} more no-payout decisions`)}
+        </button>
+      )}
       {yieldPct != null && (
         <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>
           {t("Доходность рассчитана по последней цене и без учёта даты закрытия реестра.", "Daromadlilik oxirgi narx bo'yicha hisoblangan.", "Yield is computed against the latest price, before the record date.")}
