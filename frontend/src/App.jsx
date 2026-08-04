@@ -39,7 +39,6 @@ const VIEW_PATHS = {
   news: "/news",
   analysis: "/analysis",
   compare: "/compare",
-  reference: "/reference",
   profile: "/profile",
   auth: "/login",
   // ТЗ v1.3 §12.6 — internal, reached by direct link, not from the nav.
@@ -92,141 +91,6 @@ function DisclaimerNote({ language, variant = "footer" }) {
     </div>
   );
 }
-
-// ── Reference content (ТЗ §3.2: термины, тарифы, режимы торгов) ─────────────
-const GLOSSARY = [
-  {
-    group: "Рыночные термины",
-    terms: [
-      { term: "Тикер", def: "Короткий буквенный или числовой код бумаги на бирже. Например, Hamkorbank — HMKB, его префы — HMKBP." },
-      { term: "Bid", def: "Цена, по которой покупатель готов купить акцию прямо сейчас." },
-      { term: "Ask", def: "Цена, по которой продавец готов продать акцию прямо сейчас." },
-      { term: "Спред bid/ask", def: "Разница между Ask и Bid. Чем уже спред — тем выше ликвидность; широкий спред означает, что войти и выйти дорого." },
-      { term: "VWAP", def: "Средневзвешенная по объёму цена за период. Учитывает, сколько акций куплено по каждой цене — профессиональный ориентир «справедливой» цены дня." },
-      { term: "Free-float", def: "Доля акций, реально торгующихся на бирже. Чем ниже free-float — тем ниже ликвидность и тем легче двигать цену." },
-      { term: "Концентрация владения", def: "Мера того, насколько акции сосредоточены у небольшого числа акционеров. Высокая концентрация = риск резкого движения цены при выходе крупного держателя." },
-      { term: "Ликвидность", def: "Свойство бумаги быть быстро купленной или проданной по цене близкой к рыночной, без существенных потерь и при узком спреде." },
-      { term: "Волатильность", def: "Мера того, насколько резко и быстро меняется цена. Высокая — цена скачет, низкая — движется плавно." },
-    ],
-  },
-  {
-    group: "Периоды и сравнения",
-    terms: [
-      { term: "QoQ (Quarter over Quarter)", def: "Изменение показателя относительно предыдущего квартала." },
-      { term: "YoY (Year over Year)", def: "Изменение относительно того же периода прошлого года. Устраняет сезонный эффект." },
-      { term: "YTD (Year to Date)", def: "Изменение с начала текущего года по сегодняшний день." },
-      { term: "Скользящее среднее", def: "Среднее значение за последние N периодов, пересчитываемое каждый день." },
-    ],
-  },
-  {
-    group: "Финансовые показатели",
-    terms: [
-      { term: "Выручка", def: "Все деньги, полученные компанией от продажи товаров или услуг за период, без вычета расходов. Первая строчка отчёта." },
-      { term: "EBITDA", def: "Прибыль до вычета процентов, налогов и амортизации. Показывает, сколько компания зарабатывает от операционной деятельности." },
-      { term: "Чистая прибыль", def: "То, что осталось после всех расходов: себестоимости, операционных затрат, процентов и налогов. Итоговая строчка отчёта." },
-      { term: "ROE (Return on Equity)", def: "Рентабельность собственного капитала — сколько чистой прибыли компания зарабатывает на каждый сум вложенного акционерами капитала." },
-      { term: "ROA (Return on Assets)", def: "Рентабельность активов — сколько прибыли компания получает на каждый сум всех своих активов." },
-      { term: "Маржа чистой прибыли", def: "Доля чистой прибыли в выручке. Показывает, сколько прибыли остаётся с каждого заработанного сума." },
-      { term: "D/E (Debt to Equity)", def: "Соотношение общего долга к собственному капиталу. D/E = 2 означает 2 сума заёмных на каждый сум собственных." },
-      { term: "Долг/EBITDA", def: "Сколько лет нужно работать, чтобы выплатить весь долг из операционной прибыли. До 2× — низкая нагрузка, выше 4× — высокая." },
-      { term: "Покрытие процентов", def: "Соотношение EBITDA к годовым процентным платежам. Ниже 2× — тревожный сигнал." },
-      { term: "Коэффициент текущей ликвидности", def: "Оборотные активы / краткосрочные обязательства. Норма — выше 1,5." },
-      { term: "Коэффициент быстрой ликвидности", def: "То же, но без учёта запасов — более консервативная оценка платёжеспособности." },
-    ],
-  },
-  {
-    group: "Мультипликаторы",
-    terms: [
-      { term: "P/E (Price to Earnings)", def: "Цена акции / прибыль на акцию. Низкий P/E относительно отрасли — возможный признак недооценки, высокий — переоценки или ожиданий роста." },
-      { term: "P/B (Price to Book)", def: "Цена акции / балансовая стоимость акции. P/B < 1 означает, что рынок оценивает компанию дешевле её собственного капитала." },
-      { term: "EV/EBITDA", def: "Стоимость бизнеса (включая долг) / EBITDA. Более полный аналог P/E, учитывающий долговую нагрузку." },
-    ],
-  },
-  {
-    group: "Инструменты и корпоративные события",
-    terms: [
-      { term: "Акция", def: "Ценная бумага, дающая владельцу долю в компании (статус совладельца / акционера)." },
-      { term: "Привилегированные акции (префы)", def: "Дают приоритет по дивидендам, но обычно без права голоса. На бирже обозначаются буквой P (например HMKBP)." },
-      { term: "Облигация", def: "Долговая бумага: даёте компании или государству в долг, они возвращают номинал и купонный доход в срок." },
-      { term: "Эмитент", def: "Юрлицо, выпускающее ценные бумаги и несущее по ним обязательства перед владельцами." },
-      { term: "Листинг", def: "Включение ценных бумаг в официальный список биржи, после чего ими можно торговать." },
-      { term: "Делистинг", def: "Исключение ценных бумаг из биржевого списка (по инициативе компании или биржи)." },
-      { term: "Дивиденды", def: "Часть прибыли, распределяемая компанией между акционерами." },
-    ],
-  },
-];
-
-const TARIFFS = {
-  source: "uzse.uz/exchange/rates",
-  note: "Комиссия взимается и с покупателя, и с продавца. Маркет-мейкеры освобождаются. Данные приведены справочно — актуальные тарифы уточняйте на сайте биржи.",
-  groups: [
-    {
-      title: "Рынок акций (секции листинга)",
-      rows: [
-        { name: "Основной борд (-G1-)", rate: "0,36% (до 10 млрд сум) / 0,26% (свыше 10 млрд)" },
-        { name: "Переговорный борд (-T1-)", rate: "0,26% (до 100 млрд) / 0,16% (свыше 100 млрд)" },
-        { name: "Борд FoP (-NC-)", rate: "0,1%" },
-        { name: "Репо-борд (-R1-)", rate: "0,045%" },
-      ],
-    },
-    {
-      title: "Рынок облигаций (секции листинга)",
-      rows: [
-        { name: "Основной борд (-G1-)", rate: "0,0555%" },
-        { name: "Переговорный борд (-T1-)", rate: "0,0555%" },
-        { name: "Репо-борд (-R1-)", rate: "0,0155%" },
-      ],
-    },
-    {
-      title: "Внелистинговая площадка (акции)",
-      rows: [
-        { name: "Основной борд", rate: "0,48% (до 10 млрд) / 0,38% (свыше 10 млрд)" },
-        { name: "Переговорный борд", rate: "0,48% (до 100 млрд) / 0,38% (свыше 100 млрд)" },
-        { name: "Репо-борд", rate: "0,105%" },
-      ],
-    },
-    {
-      title: "Внелистинговая площадка (облигации) и IPO/SPO",
-      rows: [
-        { name: "Облигации: основной / переговорный борд", rate: "0,131%" },
-        { name: "Облигации: репо-борд", rate: "0,091%" },
-        { name: "Размещение акций (IPO/SPO/PO)", rate: "0,30%" },
-      ],
-    },
-  ],
-};
-
-const TRADING_SCHEDULE = {
-  source: "uzse.uz/exchange/schedule",
-  markets: [
-    {
-      title: "Акции (STK) — основная сессия",
-      rows: [
-        { time: "09:30", event: "Начало аукциона открытия" },
-        { time: "10:00", event: "Исполнение аукциона открытия; старт торгов по множественной цене" },
-        { time: "11:00", event: "Начало режима переговорных сделок (РПС)" },
-        { time: "15:30", event: "Окончание торгов по множественной цене; аукцион закрытия" },
-        { time: "16:00", event: "Окончание аукционных торгов; завершение РПС" },
-        { time: "16:02", event: "Завершение торгов" },
-      ],
-    },
-    {
-      title: "Облигации (BND) и РЕПО",
-      rows: [
-        { time: "10:00", event: "Старт торгов по множественной цене" },
-        { time: "11:00", event: "Начало переговорных сделок" },
-        { time: "16:00", event: "Возобновление сессии по множественной цене; завершение переговорных сделок" },
-      ],
-    },
-  ],
-  modes: [
-    "Основная сессия — торги по множественной цене (аукцион спроса и предложения).",
-    "Аукцион открытия и закрытия — сбор заявок и расчёт единой цены.",
-    "Режим переговорных сделок (РПС) — адресные сделки между участниками.",
-    "Режим РЕПО — сделки с обратным выкупом.",
-    "Типы заявок: лимитные, рыночные (только для акций) и переговорные.",
-  ],
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // News (ТЗ §3.2, item 6) — market-news section built to the hero-lead + card-grid
@@ -1336,155 +1200,6 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
   );
 }
 
-function ReferenceView({ language }) {
-  const [tab, setTab] = React.useState("glossary");
-  const [search, setSearch] = React.useState("");
-  const [listingFeed, setListingFeed] = React.useState(null);
-  React.useEffect(() => {
-    if (tab !== "listing" || listingFeed) return;
-    fetch("/api/listings/feed")
-      .then((r) => r.json())
-      .then((d) => { if (d.ok) setListingFeed(d); })
-      .catch(() => {});
-  }, [tab, listingFeed]);
-  const tabs = [
-    { key: "glossary", label: language === "uz" ? "Atamalar" : language === "en" ? "Glossary" : "Термины" },
-    { key: "tariffs", label: language === "uz" ? "Tariflar" : language === "en" ? "Tariffs" : "Тарифы" },
-    { key: "schedule", label: language === "uz" ? "Savdo rejimi" : language === "en" ? "Trading modes" : "Режимы торгов" },
-    { key: "listing", label: language === "uz" ? "Listing / delisting" : language === "en" ? "Listing / delisting" : "Листинг / делистинг" },
-  ];
-  const q = search.trim().toLowerCase();
-  const filteredGlossary = GLOSSARY.map((g) => ({
-    ...g,
-    terms: g.terms.filter((it) => !q || it.term.toLowerCase().includes(q) || it.def.toLowerCase().includes(q)),
-  })).filter((g) => g.terms.length);
-
-  return (
-    <section className="reference-view">
-      <div className="reference-hero panel">
-        <div className="panel-label">{language === "uz" ? "Ma'lumotnoma" : language === "en" ? "Reference" : "Справочник"}</div>
-        <h1 className="reference-title">{language === "uz" ? "Fond bozori ma'lumotnomasi" : language === "en" ? "Stock market reference" : "Справочник фондового рынка"}</h1>
-        <p className="muted">{language === "uz" ? "Atamalar, birja tariflari va savdo rejimlari." : language === "en" ? "Terms, exchange tariffs and trading modes." : "Термины, биржевые тарифы и режимы торгов."}</p>
-        <div className="reference-tabs">
-          {tabs.map((tb) => (
-            <button key={tb.key} type="button" className={`reference-tab ${tab === tb.key ? "active" : ""}`} onClick={() => setTab(tb.key)}>{tb.label}</button>
-          ))}
-        </div>
-      </div>
-
-      {tab === "glossary" && (
-        <div className="reference-panel panel">
-          <input className="reference-search" placeholder={language === "uz" ? "Atama qidirish…" : language === "en" ? "Search terms…" : "Поиск термина…"} value={search} onChange={(e) => setSearch(e.target.value)} />
-          {filteredGlossary.length ? filteredGlossary.map((g) => (
-            <div key={g.group} className="glossary-group">
-              <h3 className="glossary-group-title">{g.group}</h3>
-              <dl className="glossary-list">
-                {g.terms.map((it) => (
-                  <div key={it.term} className="glossary-item">
-                    <dt>{it.term}</dt>
-                    <dd>{it.def}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          )) : <p className="muted">{language === "en" ? "Nothing found." : "Ничего не найдено."}</p>}
-        </div>
-      )}
-
-      {tab === "tariffs" && (
-        <div className="reference-panel panel">
-          {TARIFFS.groups.map((grp) => (
-            <div key={grp.title} className="tariff-group">
-              <h3 className="glossary-group-title">{grp.title}</h3>
-              <table className="reference-table">
-                <tbody>
-                  {grp.rows.map((r) => (
-                    <tr key={r.name}><td>{r.name}</td><td className="reference-table-val">{r.rate}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
-          <p className="reference-source">{TARIFFS.note}</p>
-          <p className="reference-source">{language === "en" ? "Source" : "Источник"}: {TARIFFS.source}</p>
-        </div>
-      )}
-
-      {tab === "schedule" && (
-        <div className="reference-panel panel">
-          {TRADING_SCHEDULE.markets.map((m) => (
-            <div key={m.title} className="tariff-group">
-              <h3 className="glossary-group-title">{m.title}</h3>
-              <table className="reference-table">
-                <tbody>
-                  {m.rows.map((r) => (
-                    <tr key={r.time + r.event}><td className="reference-table-time">{r.time}</td><td>{r.event}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
-          <div className="tariff-group">
-            <h3 className="glossary-group-title">{language === "uz" ? "Savdo rejimlari" : language === "en" ? "Trading modes" : "Режимы торгов"}</h3>
-            <ul className="reference-modes">
-              {TRADING_SCHEDULE.modes.map((m) => <li key={m}>{m}</li>)}
-            </ul>
-          </div>
-          <p className="reference-source">{language === "en" ? "Source" : "Источник"}: {TRADING_SCHEDULE.source}</p>
-        </div>
-      )}
-
-      {tab === "listing" && (
-        <div className="reference-panel panel">
-          {!listingFeed ? (
-            <p className="muted">{language === "en" ? "Loading…" : language === "uz" ? "Yuklanmoqda…" : "Загрузка…"}</p>
-          ) : (
-            <>
-              <div className="tariff-group">
-                <h3 className="glossary-group-title">{language === "uz" ? "Yaqinda ro'yxatga olingan" : language === "en" ? "Recently listed" : "Недавно листингованы"}</h3>
-                {listingFeed.listed?.length ? (
-                  <table className="reference-table">
-                    <tbody>
-                      {listingFeed.listed.slice(0, 40).map((it) => (
-                        <tr key={`l-${it.ticker}-${it.isin}`}>
-                          <td><strong>{it.ticker}</strong>{it.name ? ` · ${it.name}` : ""}</td>
-                          <td className="reference-table-val">{it.listing_date || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : <p className="muted">{language === "en" ? "No data." : "Нет данных."}</p>}
-              </div>
-              <div className="tariff-group">
-                <h3 className="glossary-group-title">{language === "uz" ? "Nofaol / delisting ehtimoli" : language === "en" ? "Inactive / possible delisting" : "Неактивны / возможный делистинг"}</h3>
-                {listingFeed.inactive?.length ? (
-                  <table className="reference-table">
-                    <tbody>
-                      {listingFeed.inactive.slice(0, 40).map((it) => (
-                        <tr key={`i-${it.ticker}-${it.isin}`}>
-                          <td><strong>{it.ticker}</strong>{it.name ? ` · ${it.name}` : ""}</td>
-                          <td className="reference-table-val">{language === "en" ? "last trade" : "посл. сделка"}: {it.last_trade_date || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : <p className="muted">{language === "en" ? "No data." : "Нет данных."}</p>}
-              </div>
-              <p className="reference-source">
-                {language === "en"
-                  ? `Sources: RFB listing registry (openinfo) + the exchange's live feed. Inactive = no trade seen by any source in ${listingFeed.inactive_days} days.`
-                  : language === "uz"
-                  ? `Manbalar: RFB listing reestri (openinfo) va birjaning jonli tasmasi. Nofaol = ${listingFeed.inactive_days} kun ichida hech bir manbada savdo yo'q.`
-                  : `Источники: реестр листинга РФБ (openinfo) и живая лента биржи. Неактивны = ни один источник не видел сделок ${listingFeed.inactive_days} дн.`}
-              </p>
-            </>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
 // Modern SVG Icons for landing page
 const Icons = {
   chart: (
@@ -1555,7 +1270,7 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "Платформа для анализа компаний Узбекистана",
-    nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ", catalog: "Каталог", reference: "Справочник", news: "Новости" },
+    nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ", catalog: "Каталог", news: "Новости" },
     catalog: {
       title: "Каталог отчётности",
       subtitle: "Все доступные отчёты листинговых компаний с openinfo.uz",
@@ -1827,7 +1542,7 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "Company analysis platform for Uzbekistan",
-    nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis", catalog: "Catalog", reference: "Reference", news: "News" },
+    nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis", catalog: "Catalog", news: "News" },
     catalog: {
       title: "Report Catalog",
       subtitle: "All available reports of listed companies from openinfo.uz",
@@ -2098,7 +1813,7 @@ const TEXTS = {
     pageTitle: "UZ Stock Analyzer",
     brand: "UZ Stock Analyzer",
     subtitle: "O'zbekiston kompaniyalarini tahlil qilish platformasi",
-    nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil", catalog: "Katalog", reference: "Ma'lumotnoma", news: "Yangiliklar" },
+    nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil", catalog: "Katalog", news: "Yangiliklar" },
     catalog: {
       title: "Hisobotlar katalogi",
       subtitle: "openinfo.uz'dan barcha ro'yxatga olingan kompaniyalarning hisobotlari",
@@ -10440,8 +10155,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "heatmap", "catalog", "news", "reference", "profile", "analysis", "compare"]
-    : ["main", "market", "heatmap", "catalog", "news", "reference", "auth", "analysis", "compare"];
+    ? ["main", "market", "heatmap", "catalog", "news", "profile", "analysis", "compare"]
+    : ["main", "market", "heatmap", "catalog", "news", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -10667,8 +10382,6 @@ function App() {
               user={user}
             />
           )}
-
-          {activeView === "reference" && <ReferenceView language={language} />}
 
           {/* Reached by direct link only — it is deliberately absent from
               navItems, because it is a tool for whoever maintains the data. */}
