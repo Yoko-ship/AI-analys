@@ -194,58 +194,67 @@ def _parse_date(s):
 # --------------------------------------------------------------------------- #
 # metric extraction (proven against the reconciliation oracle)
 # --------------------------------------------------------------------------- #
+def _signed_pair(row, profit_key, loss_key):
+    """One доходы/расходы column pair as a signed number.
+
+    A result line puts a PROFIT in the "доходы (прибыль)" column and a LOSS in
+    "расходы (убытки)", as an unsigned magnitude — so "the first non-zero, keeping
+    its stored sign" publishes every loss as a profit of the same size, and the
+    board cannot tell a loss-maker from a top earner nor P/E from its negation.
+    """
+    profit, loss = _num(row.get(profit_key)), _num(row.get(loss_key))
+    if profit:
+        return profit
+    if loss:
+        return -loss
+    return 0.0 if (profit is not None or loss is not None) else None
+
+
 def pl_value(row):
-    """P&L cell, read in the sign convention its own form uses.
+    """P&L cell for the REPORTING period, in the sign convention its form uses.
 
-    Two layouts exist and they carry sign differently:
+    Two layouts exist:
 
-      * bank / microfinance — one ``value`` column, already signed.
-      * jsc / insurance (NSBU form 2) — a "доходы (прибыль)" column and a
-        "расходы (убытки)" column for the reporting period, then the same pair for
-        the prior year. A result line puts a PROFIT in value1 and a LOSS in
-        value2, as an unsigned magnitude: Qizilqumsement's Q1 2026 loss of 64.2 bn
-        sits in value2 exactly as its FY2025 profit of 527 m sits in value1.
-        Returning "the first non-zero, keeping its stored sign" therefore
-        published every loss as a profit of the same size — and the market board
-        cannot tell a loss-maker from a top earner, nor P/E from its negation.
+      * bank / microfinance — one ``value`` column, already signed, no comparative.
+      * jsc / insurance (NSBU form 2) — FOUR columns. **value3/value4 are
+        "За отчетный период", value1/value2 the comparative "За соответствующий
+        период прошлого года"** — that order, and not the intuitive one.
 
-    value3/value4 are the comparative prior-year pair and are never read here.
+    This was read the wrong way round until 2026-08-04, so every non-bank
+    issuer's revenue, gross profit, operating income and net income on the board
+    was a year stale, and nothing caught it because each pair balances against
+    itself (010 - 020 = 030 holds in both).
+
+    Chronology settles it and needs no assumption: a filing's comparative is the
+    same quarter one year earlier, so for the same quarter in consecutive years
+    ``newer.value1 == older.value3``. O'zRTXB's 2025-06-30 filing carries
+    237 634 918 in value3 and its 2026-06-30 filing carries the same number in
+    value1 — a report published in July 2025 cannot hold H1 2026 figures, so
+    237 634 918 is H1 2025 and value3 is the reporting period. Measured across
+    thirty matched year-pairs and eight issuers: thirty for value3, none against.
+    The balance sheet is NOT reversed — its value1 is "на начало года" (the same
+    number repeats across Q1/Q2/Q3 of a year, as 1 January must) and value2 the
+    period end, which is what ``bal_value`` already reads.
     """
     if row is None:
         return None
     if "value" in row:
         v = _num(row.get("value"))
         return v if v is not None else None
-    profit, loss = _num(row.get("value1")), _num(row.get("value2"))
-    if profit:
-        return profit
-    if loss:
-        return -loss
-    return 0.0 if (profit is not None or loss is not None) else None
+    return _signed_pair(row, "value3", "value4")
 
 
 def prior_value(row):
     """The same P&L cell for the comparative period printed beside it.
 
-    NSBU form 2 carries FOUR value columns: value1/value2 are "доходы (прибыль)"
-    and "расходы (убытки)" for the reporting period, value3/value4 the same pair
-    "за соответствующий период прошлого года". Reading across a row in the Excel
-    lands on the second pair as easily as the first — O'zRTXB's H1 2026 revenue
-    is 237.6 bn and the cell beside it reads 264.7 bn, which is H1 2025, and the
-    two look like a contradiction until you notice each pair balances against
-    itself (010 - 020 = 030 holds in both).
-
-    Only the jsc / insurance form has the comparative. The bank and microfinance
-    forms publish a single ``value`` column and no prior period at all.
+    value1/value2 — "за соответствующий период прошлого года". See ``pl_value``
+    for why that is the pair that looks like the reporting one. Only the jsc /
+    insurance form has a comparative at all; the bank and microfinance forms
+    publish a single ``value`` column.
     """
     if row is None or "value" in row:
         return None
-    profit, loss = _num(row.get("value3")), _num(row.get("value4"))
-    if profit:
-        return profit
-    if loss:
-        return -loss
-    return 0.0 if (profit is not None or loss is not None) else None
+    return _signed_pair(row, "value1", "value2")
 
 
 def bal_value(row):

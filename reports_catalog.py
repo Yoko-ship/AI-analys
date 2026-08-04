@@ -302,10 +302,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     if "report_id" not in have_fin:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN report_id INTEGER")
     # The comparative period the same filing prints beside its own figures (NSBU
-    # form 2's value3/value4, "за соответствующий период прошлого года"), as JSON
-    # with its own period label. It rides on the row it was filed with rather than
-    # becoming a period of its own — the comparative is P&L only, and a row with
-    # no balance sheet would be ranked as a period and divide ratios by nothing.
+    # form 2's value1/value2, "за соответствующий период прошлого года" — the
+    # reporting period is value3/value4, see openinfo_reconcile.pl_value), as
+    # JSON with its own period label. It rides on the row it was filed with
+    # rather than becoming a period of its own — the comparative is P&L only, and
+    # a row with no balance sheet would be ranked as a period and divide ratios
+    # by nothing.
     if "prior_period" not in have_fin:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN prior_period TEXT")
     conn.commit()

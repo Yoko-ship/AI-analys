@@ -3120,6 +3120,22 @@ function finValue(v, lang) {
   return Number.isFinite(v) ? formatCompactNumber(v, lang) : "—";
 }
 
+// One comparison for one sort key. Returns 0 on a tie so the next key in the
+// chain can decide — which is the whole reason multi-key sorting works at all.
+function compareSortValues(av, bv, dir) {
+  const sign = dir === "asc" ? 1 : -1;
+  if (typeof av === "string" || typeof bv === "string") {
+    return sign * String(av).localeCompare(String(bv));
+  }
+  // Empty values (no trade / missing) always sink to the bottom, regardless of direction.
+  const aEmpty = av === null || av === undefined || Number.isNaN(av);
+  const bEmpty = bv === null || bv === undefined || Number.isNaN(bv);
+  if (aEmpty && bEmpty) return 0;
+  if (aEmpty) return 1;
+  if (bEmpty) return -1;
+  return sign * (av - bv);
+}
+
 function buildMarketStats(rows) {
   // Movers, counters and the day's turnover follow the exchange's daily
   // bulletin: only securities that traded on the LATEST session count.
@@ -7511,18 +7527,39 @@ function MarketView({
     return () => { alive = false; };
   }, []);
 
-  // Column sorting. sortKey === null falls back to the default (date desc, then |change|).
-  const [sortKey, setSortKey] = useState(null);
-  const [sortDir, setSortDir] = useState("desc");
-  const onSort = (key) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      // text columns read best ascending, numeric/date columns descending
-      setSortDir(["ticker", "company"].includes(key) ? "asc" : "desc");
-    }
+  // Column sorting, as an ORDERED chain of keys. An empty chain falls back to the
+  // default (date desc, then |change|) — which is itself two-level, and used to be
+  // the only two-level order the board could express: one click on any header threw
+  // it away. "Latest session first, biggest turnover within the day" is the question
+  // the board is actually read with, and it needs two columns to ask.
+  //
+  // Plain click collapses back to a single key (the old behaviour, unchanged).
+  // Shift/⌘/Ctrl-click appends: first press adds the column, second flips its
+  // direction, third drops it out of the chain again.
+  const [sortKeys, setSortKeys] = useState([]);
+  // Text columns read best ascending, numeric/date columns descending.
+  const defaultSortDir = (key) => (["ticker", "company"].includes(key) ? "asc" : "desc");
+  const sortRankOf = (key) => sortKeys.findIndex((s) => s.key === key);
+  const sortDirOf = (key) => sortKeys.find((s) => s.key === key)?.dir || null;
+  const onSort = (key, additive = false) => {
+    setSortKeys((prev) => {
+      const i = prev.findIndex((s) => s.key === key);
+      if (!additive) {
+        // Re-clicking the only active key flips it; anything else starts over.
+        if (prev.length === 1 && i === 0) return [{ key, dir: prev[0].dir === "asc" ? "desc" : "asc" }];
+        return [{ key, dir: defaultSortDir(key) }];
+      }
+      if (i < 0) return [...prev, { key, dir: defaultSortDir(key) }];
+      const next = [...prev];
+      if (next[i].dir === defaultSortDir(key)) {
+        next[i] = { key, dir: next[i].dir === "asc" ? "desc" : "asc" };
+        return next;
+      }
+      next.splice(i, 1);
+      return next;
+    });
   };
+  const clearSort = () => setSortKeys([]);
 
   // User-configurable quote columns (ticker/company/last are always shown).
   // Quote columns grouped into collapsible sections in the settings dropdown.
@@ -7910,7 +7947,7 @@ function MarketView({
       return `${row.ticker || ""} ${row.name || ""} ${row.isin || ""}`.toLowerCase().includes(search);
     })
     .sort((a, b) => {
-      if (!sortKey) {
+      if (!sortKeys.length) {
         // Same normalization as the `date` accessor — the default "most recently
         // traded first" order was wrong across month boundaries for exactly the
         // same reason (mixed DD.MM.YYYY / YYYY-MM-DD compared lexicographically).
@@ -7919,20 +7956,14 @@ function MarketView({
         if (aDate !== bDate) return bDate.localeCompare(aDate);
         return Math.abs(b.changePercent ?? -Infinity) - Math.abs(a.changePercent ?? -Infinity);
       }
-      const acc = sortAccessors[sortKey] || (() => null);
-      const av = acc(a);
-      const bv = acc(b);
-      const dir = sortDir === "asc" ? 1 : -1;
-      if (typeof av === "string" || typeof bv === "string") {
-        return dir * String(av).localeCompare(String(bv));
+      // Each key decides only the rows the keys before it tied on.
+      for (const { key, dir } of sortKeys) {
+        const acc = sortAccessors[key];
+        if (!acc) continue;
+        const c = compareSortValues(acc(a), acc(b), dir);
+        if (c) return c;
       }
-      // Empty values (no trade / missing) always sink to the bottom, regardless of direction.
-      const aEmpty = av === null || av === undefined || Number.isNaN(av);
-      const bEmpty = bv === null || bv === undefined || Number.isNaN(bv);
-      if (aEmpty && bEmpty) return 0;
-      if (aEmpty) return 1;
-      if (bEmpty) return -1;
-      return dir * (av - bv);
+      return 0;
     });
   const stats = buildMarketStats(prepared);
 
@@ -8061,23 +8092,41 @@ function MarketView({
 
   const sortTh = (key, label, opts = {}) => {
     const { movable = false, num = false } = opts;
+    const rank = sortRankOf(key);
+    const dir = sortDirOf(key);
+    const chained = sortKeys.length > 1;
     const cls = [
       "market-th-sortable",
       num ? "market-th-num" : "",
-      sortKey === key ? "sorted" : "",
+      rank >= 0 ? "sorted" : "",
       movable ? "market-th-movable" : "",
       movable && dragCol === key ? "dragging" : "",
       movable && dragOverCol === key && dragCol && dragCol !== key ? "drag-over" : "",
     ].filter(Boolean).join(" ");
+    // ⌘ on a Mac, Ctrl elsewhere — Shift works everywhere and is the one we teach.
+    const isAdditive = (e) => e.shiftKey || e.metaKey || e.ctrlKey;
+    const hint = lang === "en" ? "Shift+click — add as a secondary sort"
+      : lang === "uz" ? "Shift+bosish — qoʻshimcha saralash kaliti"
+      : "Shift+клик — добавить второй ключ сортировки";
+    const dragHint = lang === "en" ? "Drag to reorder · click to sort"
+      : lang === "uz" ? "Tartibni o'zgartirish uchun torting · saralash uchun bosing"
+      : "Перетащите, чтобы переставить · нажмите для сортировки";
     return (
     <th
       key={key}
       className={cls}
-      onClick={() => onSort(key)}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(key); } }}
+      onClick={(e) => onSort(key, isAdditive(e))}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(key, isAdditive(e)); } }}
       role="button"
       tabIndex={0}
-      aria-sort={sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+      /* ARIA asks for aria-sort on ONE header at a time, so the chain's later keys
+         announce their rank through the accessible name instead. */
+      aria-sort={rank === 0 ? (dir === "asc" ? "ascending" : "descending") : "none"}
+      aria-label={rank > 0
+        ? `${label} — ${lang === "en" ? "sort" : lang === "uz" ? "saralash" : "сортировка"} ${rank + 1}, ${
+            dir === "asc" ? (lang === "en" ? "ascending" : lang === "uz" ? "oʻsish" : "по возрастанию")
+              : (lang === "en" ? "descending" : lang === "uz" ? "kamayish" : "по убыванию")}`
+        : undefined}
       draggable={movable}
       onDragStart={movable ? (e) => { setDragCol(key); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", key); } catch (_) { /* ignore */ } } : undefined}
       onDragOver={movable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragOverCol !== key) setDragOverCol(key); } : undefined}
@@ -8085,12 +8134,15 @@ function MarketView({
       onDragLeave={movable ? () => { setDragOverCol((c) => (c === key ? null : c)); } : undefined}
       onDrop={movable ? (e) => { e.preventDefault(); let from = dragCol; if (!from) { try { from = e.dataTransfer.getData("text/plain"); } catch (_) { from = null; } } moveCol(from, key); setDragCol(null); setDragOverCol(null); } : undefined}
       onDragEnd={movable ? () => { setDragCol(null); setDragOverCol(null); } : undefined}
-      title={movable ? (lang === "en" ? "Drag to reorder · click to sort" : lang === "uz" ? "Tartibni o'zgartirish uchun torting · saralash uchun bosing" : "Перетащите, чтобы переставить · нажмите для сортировки") : undefined}
+      title={movable ? `${dragHint} · ${hint}` : hint}
     >
       <span className="market-th-inner">
         {movable && <span className="market-th-grip" aria-hidden="true">⋮⋮</span>}
         <span>{label}</span>
-        <span className="market-sort-caret">{sortKey === key ? (sortDir === "asc" ? "▲" : "▼") : "↕"}</span>
+        <span className="market-sort-caret">{rank >= 0 ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
+        {/* The rank only earns its space once the order actually has more than one
+            key — a lone "1" beside a single sorted column says nothing. */}
+        {chained && rank >= 0 && <span className="market-sort-rank" aria-hidden="true">{rank + 1}</span>}
       </span>
     </th>
     );
@@ -8572,6 +8624,36 @@ function MarketView({
                 {sectorLabel(lang, s)}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* A sort built from two headers is invisible once you scroll — the carets
+            are off in the columns that made it. Spell the chain out, in order, with
+            one control to undo it. Shown only when the order is actually compound:
+            a single sorted column already says so at its own header. */}
+        {viewMode === "table" && sortKeys.length > 1 && (
+          <div className="market-sort-chain">
+            <span className="market-sort-chain-label">
+              {lang === "en" ? "Sorted by" : lang === "uz" ? "Saralash" : "Сортировка"}:
+            </span>
+            {sortKeys.map(({ key, dir }, i) => (
+              <button
+                key={key}
+                type="button"
+                className="market-sort-chain-chip"
+                onClick={() => onSort(key, true)}
+                title={lang === "en" ? "Click to flip, again to remove"
+                  : lang === "uz" ? "Yoʻnalishni almashtirish uchun bosing, olib tashlash uchun yana bosing"
+                  : "Клик — сменить направление, ещё раз — убрать"}
+              >
+                <span className="market-sort-chain-rank">{i + 1}</span>
+                <span>{SORT_LABEL_OF[key] || key}</span>
+                <span className="market-sort-caret">{dir === "asc" ? "▲" : "▼"}</span>
+              </button>
+            ))}
+            <button type="button" className="market-sort-chain-reset" onClick={clearSort}>
+              {lang === "en" ? "Reset" : lang === "uz" ? "Tiklash" : "Сбросить"}
+            </button>
           </div>
         )}
         </div>
