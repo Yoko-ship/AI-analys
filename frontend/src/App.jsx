@@ -5,6 +5,10 @@ import { createPortal } from "react-dom";
 // layer did not apply.
 import { compact as fmtCompact, metric as fmtMetric, num as fmtNumber, pct as fmtPct, price as fmtPrice } from "./lib/format.js";
 import { loadConfig, threshold as cfgThreshold } from "./lib/flags.js";
+// Sector membership is one rule, shared by the Рынок filter bar and the heat map
+// (see frontend/src/lib/sectors.js and tests/sectors.test.js) — they used to read
+// two different maps and file the same ticker under two different sectors.
+import { SECTOR_ORDER, orderSectors, sectorOf } from "./lib/sectors.js";
 import heroImage from "./assets/hero-image.png";
 import promoVideo from "./assets/promo.mp4";
 import promoPoster from "./assets/promo-poster.jpg";
@@ -4906,8 +4910,6 @@ function MarketChangeBadge({ value, percent, language }) {
   );
 }
 
-const SECTOR_ORDER = ["finance", "funds", "energy", "manufacturing", "telecom", "mining", "transport", "logistics", "other"];
-
 function heatmapTileStyle(changePercent) {
   if (changePercent === null || !Number.isFinite(changePercent)) return {};
   const abs = Math.abs(changePercent);
@@ -5007,13 +5009,9 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
 
   const companyMap = {};
   (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
-  // Fold any sector outside SECTOR_ORDER (e.g. "trade", "professional") into the
-  // "other" catch-all — otherwise the SECTOR_ORDER filter below drops those tiles.
-  const KNOWN_SECTORS = new Set(SECTOR_ORDER);
-  const sectorOf = (t) => {
-    const s = companyMap[t]?.sector || securitiesMap?.[t]?.sector || "other";
-    return KNOWN_SECTORS.has(s) ? s : "other";
-  };
+  // Sector membership comes from lib/sectors.js — the same call the Рынок filter
+  // bar makes, so a ticker cannot be Фонды in the table and Прочее on the map.
+  const sectorKeyOf = (t) => sectorOf(t, securitiesMap, companyMap);
   const isPreferredRow = (row) =>
     securitiesMap?.[row.ticker]?.is_preferred === true ||
     securitiesMap?.[row.ticker]?.share_type === "preferred" ||
@@ -5079,9 +5077,9 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
   const GHEADER = 22;  // share-class block header strip
   const buildSectors = (groupRows, bodyY, bodyH) => {
     const sectorGroups = {};
-    groupRows.forEach((row) => { (sectorGroups[sectorOf(row.ticker)] ||= []).push(row); });
+    groupRows.forEach((row) => { (sectorGroups[sectorKeyOf(row.ticker)] ||= []).push(row); });
     Object.values(sectorGroups).forEach((g) => g.sort((a, b) => weight(b) - weight(a)));
-    const orderedSectors = SECTOR_ORDER.filter((s) => sectorGroups[s]?.length);
+    const orderedSectors = orderSectors(Object.keys(sectorGroups));
     const sectorItems = orderedSectors.map((s) => ({
       sector: s,
       rows: sectorGroups[s],
@@ -7546,6 +7544,13 @@ function MarketView({
   };
 
   const smap = securitiesMap || {};
+  // Fallback sector source for a ticker the securities catalog has not reached;
+  // the heat map builds the same map from the same list.
+  const companyMap = React.useMemo(() => {
+    const by = {};
+    (companies || []).forEach((c) => { if (c?.ticker) by[c.ticker] = c; });
+    return by;
+  }, [companies]);
   const fmap = financials || {};
   // Financials are company-level, so a preferred share shares its common
   // sibling's figures (and vice versa) — mirror the logo sibling fallback
@@ -7634,8 +7639,12 @@ function MarketView({
   const prepared = showInactive ? byClass : byClass.filter((r) => !isDormant(r));
   const search = String(query || "").trim().toLowerCase();
 
-  // Gather sectors present in current data
-  const presentSectors = [...new Set(prepared.map((r) => smap[r.ticker]?.sector).filter(Boolean))].sort();
+  // Gather sectors present in current data. Same resolver as the heat map, so a
+  // chip here and a block there always hold the same tickers — and a row the
+  // securities catalog has not reached lands under Прочее instead of answering
+  // to no chip at all.
+  const rowSector = (r) => sectorOf(r.ticker, smap, companyMap);
+  const presentSectors = [...new Set(prepared.map(rowSector))].sort();
 
   // §3.8 multipliers. Inputs are gathered here; the arithmetic lives in the one
   // shared valuationRatios() so this table and the company page cannot disagree.
@@ -7815,7 +7824,7 @@ function MarketView({
   const visibleRows = prepared
     .filter((row) => {
       if (favOnly && !hasFav(row.ticker)) return false;
-      if (marketSector && smap[row.ticker]?.sector !== marketSector) return false;
+      if (marketSector && rowSector(row) !== marketSector) return false;
       if (!search) return true;
       return `${row.ticker || ""} ${row.name || ""} ${row.isin || ""}`.toLowerCase().includes(search);
     })
