@@ -33,7 +33,7 @@ import { pickLeadIndex } from "./lib/newsfeed.js";
 // ТЗ §3.2: one glossary for the whole site. The /reference page and every ⓘ
 // marker in the interface read the same entries, so a term cannot be explained
 // two different ways depending on where the reader met it.
-import { glossaryGroups, termFor } from "./lib/glossary.js";
+import { termFor } from "./lib/glossary.js";
 
 // --- Client-side routing: each view maps to a real URL path ------------------
 const VIEW_PATHS = {
