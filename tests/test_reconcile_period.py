@@ -109,26 +109,30 @@ class TestPeriodMonths:
 class TestProfitAndLossSign:
     """NSBU form 2 (jsc/insurance) has a "прибыль" column and an "убыток" column,
     both holding unsigned magnitudes. Reading "the first non-zero, keeping its
-    stored sign" published every loss as a profit of the same size."""
+    stored sign" published every loss as a profit of the same size.
 
-    def test_a_profit_sits_in_the_first_column(self) -> None:
-        assert orc.pl_value({"value1": "527145.00", "value2": "0.00"}) == 527145.0
+    The pair that carries the REPORTING period is value3/value4 — see
+    ``pl_value`` and tests/test_prior_period.py for the chronology that settles
+    it. value1/value2 is the prior-year comparative."""
 
-    def test_a_loss_sits_in_the_second_column_and_is_negative(self) -> None:
+    def test_a_profit_sits_in_the_profit_column(self) -> None:
+        assert orc.pl_value({"value3": "527145.00", "value4": "0.00"}) == 527145.0
+
+    def test_a_loss_sits_in_the_loss_column_and_is_negative(self) -> None:
         # Qizilqumsement Q1 2026: a 64.2 bn loss, served as a 64.2 bn profit.
-        assert orc.pl_value({"value1": "0.00", "value2": "64238084.00"}) == -64238084.0
+        assert orc.pl_value({"value3": "0.00", "value4": "64238084.00"}) == -64238084.0
 
     def test_a_zero_line_is_zero_not_missing(self) -> None:
-        assert orc.pl_value({"value1": "0.00", "value2": "0.00"}) == 0.0
+        assert orc.pl_value({"value3": "0.00", "value4": "0.00"}) == 0.0
 
     def test_an_absent_row_is_missing(self) -> None:
         assert orc.pl_value(None) is None
 
-    def test_the_prior_year_columns_are_never_read(self) -> None:
-        # value3/value4 are the comparative pair — reading them would publish last
-        # year's figure as this period's.
-        assert orc.pl_value({"value1": "0.00", "value2": "0.00",
-                             "value3": "999.00", "value4": "0.00"}) == 0.0
+    def test_the_prior_year_columns_are_never_read_as_this_period(self) -> None:
+        # value1/value2 is the comparative pair — reading it as the reporting
+        # period is exactly the year-stale board this replaced.
+        assert orc.pl_value({"value3": "0.00", "value4": "0.00",
+                             "value1": "999.00", "value2": "0.00"}) == 0.0
 
     def test_a_single_column_form_keeps_its_own_sign(self) -> None:
         # Banks and microfinance organisations publish one signed column.
@@ -143,8 +147,9 @@ def _jsc_detail(reporting_year: str, revenue: float, net: float,
                 liabilities: float = 1000.0, cash: float = 50.0, ticker: str = "AAA") -> dict:
     """A jsc quarter/annual detail carrying one revenue and one net-profit line."""
     def pair(value: float) -> dict:
-        return ({"value1": f"{value:.2f}", "value2": "0.00"} if value >= 0
-                else {"value1": "0.00", "value2": f"{-value:.2f}"})
+        # value3/value4 is the reporting period; value1/value2 the comparative.
+        return ({"value3": f"{value:.2f}", "value4": "0.00"} if value >= 0
+                else {"value3": "0.00", "value4": f"{-value:.2f}"})
 
     return {
         "org_type": "jsc",

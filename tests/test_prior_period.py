@@ -1,20 +1,29 @@
-"""The comparative column is a different period, not a different number.
+"""Which of NSBU form 2's four value columns is the reporting period.
 
-O'zRTXB's H1 2026 report gives revenue as 237 634 918 (thousand UZS) and prints
-264 737 847 in the cell beside it. Read across the row in openinfo's Excel and
-the second one looks like the figure the board is getting wrong — it is the same
-line for H1 2025. NSBU form 2 carries FOUR value columns: value1/value2 are
-"доходы (прибыль)" and "расходы (убытки)" for the reporting period, value3/value4
-the same pair "за соответствующий период прошлого года".
+It is **value3/value4**, and value1/value2 is the prior-year comparative — the
+opposite of the intuitive order, and the opposite of what this code did until
+2026-08-04. Nothing caught it because each pair balances against itself:
 
-Each pair balances against itself, which is what proves they are two statements
-and not one:
+    value1/value2:  264 737 847 - 33 883 416 = 230 854 431 = row 030 value1
+    value3/value4:  237 634 918 - 28 451 551 = 209 183 367 = row 030 value3
 
-    отчётный:  237 634 918 - 28 451 551 = 209 183 367 = row 030 value1
-    прошлый:   264 737 847 - 33 883 416 = 230 854 431 = row 030 value3
+Chronology settles it, and assumes nothing. A filing's comparative is the same
+quarter one year earlier, so for the same quarter in consecutive years the newer
+report's comparative must equal the older report's own period. O'zRTXB:
 
-So the comparative is collected as what it is — labelled with its own period,
-carried on the filing that printed it, and never mistaken for this period's.
+    2025-06-30 filing (published 2025-07-29):  value1=208 988 570  value3=237 634 918
+    2026-06-30 filing (published 2026-07-30):  value1=237 634 918  value3=264 737 847
+
+237 634 918 is in a report published in **July 2025**, so it cannot be H1 2026 —
+it is H1 2025, sitting in value3 of its own filing and in value1 of the next.
+Measured over thirty matched year-pairs across eight issuers: thirty say value3,
+none say value1. The balance sheet is NOT reversed — its value1 is "на начало
+года" (the same number repeats across Q1/Q2/Q3 of a year) and value2 the period
+end.
+
+For four months the board published every non-bank issuer's revenue, gross
+profit, operating income and net income one year stale. These tests are that
+mistake, pinned as data.
 """
 from __future__ import annotations
 
@@ -55,26 +64,28 @@ def metrics() -> dict:
 
 
 class TestWhichColumnIsWhich:
-    def test_the_reporting_period_is_the_first_pair(self, metrics) -> None:
-        assert metrics["revenue"] == pytest.approx(237_634_918)
-        assert metrics["gross_profit"] == pytest.approx(209_183_367)
-        assert metrics["operating_income"] == pytest.approx(135_029_437)
-        assert metrics["net_income"] == pytest.approx(186_787_068)
+    def test_the_reporting_period_is_the_THIRD_pair(self, metrics) -> None:
+        """H1 2026, as O'zRTXB's own filing of 30.07.2026 states it."""
+        assert metrics["revenue"] == pytest.approx(264_737_847)
+        assert metrics["gross_profit"] == pytest.approx(230_854_431)
+        assert metrics["operating_income"] == pytest.approx(157_748_082)
+        assert metrics["net_income"] == pytest.approx(221_484_280)
 
-    def test_the_comparative_is_the_second_pair(self, metrics) -> None:
+    def test_the_comparative_is_the_first_pair(self, metrics) -> None:
+        """H1 2025 — the figure this board published as H1 2026 for four months."""
         assert metrics["prior"] == {
-            "revenue": pytest.approx(264_737_847),
-            "gross_profit": pytest.approx(230_854_431),
-            "operating_income": pytest.approx(157_748_082),
-            "net_income": pytest.approx(221_484_280),
+            "revenue": pytest.approx(237_634_918),
+            "gross_profit": pytest.approx(209_183_367),
+            "operating_income": pytest.approx(135_029_437),
+            "net_income": pytest.approx(186_787_068),
         }
 
     def test_a_loss_in_the_comparative_keeps_its_sign(self) -> None:
         """A result line puts a profit in the доходы column and a LOSS in the
-        расходы one, unsigned — the same trap value1/value2 already had."""
+        расходы one, unsigned — the same trap the reporting pair has."""
         loss = orc.prior_value({"tnum": "270", "title": "Чистая прибыль (убыток) отчетного периода",
-                                "value1": "1.0", "value2": "0.0",
-                                "value3": "0.00", "value4": "64238084.00"})
+                                "value3": "1.0", "value4": "0.0",
+                                "value1": "0.00", "value2": "64238084.00"})
 
         assert loss == pytest.approx(-64_238_084)
 
@@ -101,10 +112,11 @@ class TestItIsLabelledWithItsOwnPeriod:
         row = orc._figures("URTS", metrics, {"year": 2026, "quarter": 2})
 
         assert (row["year"], row["quarter"]) == (2026, 2)
+        assert row["revenue_full"] == pytest.approx(264_737_847_000)
         assert (row["prior"]["year"], row["prior"]["quarter"]) == (2025, 2)
         assert row["prior"]["period_months"] == 6
-        assert row["prior"]["revenue_thousand"] == pytest.approx(264_737_847)
-        assert row["prior"]["revenue_full"] == pytest.approx(264_737_847_000)
+        assert row["prior"]["revenue_thousand"] == pytest.approx(237_634_918)
+        assert row["prior"]["revenue_full"] == pytest.approx(237_634_918_000)
 
     def test_an_annual_report_compares_with_the_year_before_it(self, metrics) -> None:
         row = orc._figures("URTS", metrics, {"year": 2025, "quarter": 0})
@@ -118,11 +130,12 @@ class TestItIsLabelledWithItsOwnPeriod:
         rows = orc.admin_push_rows(orc._figures("URTS", metrics, {"year": 2026, "quarter": 2}))
 
         assert [(r["year"], r["quarter"]) for r in rows] == [(2026, 2)]
+        assert rows[0]["revenue"] == pytest.approx(264_737_847)
         assert rows[0]["prior"] == {"year": 2025, "quarter": 2,
-                                    "revenue": pytest.approx(264_737_847),
-                                    "gross_profit": pytest.approx(230_854_431),
-                                    "operating_income": pytest.approx(157_748_082),
-                                    "net_income": pytest.approx(221_484_280)}
+                                    "revenue": pytest.approx(237_634_918),
+                                    "gross_profit": pytest.approx(209_183_367),
+                                    "operating_income": pytest.approx(135_029_437),
+                                    "net_income": pytest.approx(186_787_068)}
 
 
 @pytest.fixture()
