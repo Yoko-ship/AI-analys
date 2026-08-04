@@ -567,56 +567,154 @@ test("the sponsor overlay starts muted, becomes closable, and stays closed (§ad
   await expect(page.locator(".sponsor-overlay")).toHaveCount(0);
 });
 
-// The board is read with two questions at once — "what traded most recently" and
-// "what traded most heavily" — and a single sort key could only ever answer one:
-// clicking ОБЪЁМ threw away the date order that put those rows on screen. The
-// chain has to hold, and each key may only decide the rows the ones before it
-// tied on.
-test("the board sorts on a chain of keys, not just the last one clicked", async ({ page }) => {
-  // Two sessions, and volumes that deliberately disagree with the dates: the
-  // heaviest row of all is on the OLDER day, so a volume-only sort would head
-  // the table with it and a date-only sort cannot separate the two tied rows.
+// Two sessions, and volumes that deliberately disagree with the dates: the heaviest
+// row of all sits on the OLDER day, so a volume-only sort heads the table with it and
+// a date-only sort cannot separate the two rows that tie.
+const SORT_STOCKS = { updated_at: "2026-07-31T14:00:00Z", stocks: [
+  { ticker: "AAA", name: "Alpha", isin: "UZ00A", last_price: 100, close_price: 100,
+    volume: 1e6, quantity: 10, trade_count: 2, last_trade_date: "31.07.2026" },
+  { ticker: "BBB", name: "Beta", isin: "UZ00B", last_price: 100, close_price: 100,
+    volume: 5e6, quantity: 50, trade_count: 5, last_trade_date: "31.07.2026" },
+  { ticker: "CCC", name: "Gamma", isin: "UZ00C", last_price: 100, close_price: 100,
+    volume: 9e6, quantity: 90, trade_count: 9, last_trade_date: "30.07.2026" },
+] };
+
+async function sortBoard(page) {
   await page.route("**/api/market/stocks**", (route) => route.fulfill({
-    status: 200, contentType: "application/json",
-    body: JSON.stringify({ updated_at: "2026-07-31T14:00:00Z", stocks: [
-      { ticker: "AAA", name: "Alpha", isin: "UZ00A", last_price: 100, close_price: 100,
-        volume: 1e6, quantity: 10, trade_count: 2, last_trade_date: "31.07.2026" },
-      { ticker: "BBB", name: "Beta", isin: "UZ00B", last_price: 100, close_price: 100,
-        volume: 5e6, quantity: 50, trade_count: 5, last_trade_date: "31.07.2026" },
-      { ticker: "CCC", name: "Gamma", isin: "UZ00C", last_price: 100, close_price: 100,
-        volume: 9e6, quantity: 90, trade_count: 9, last_trade_date: "30.07.2026" },
-    ] }),
+    status: 200, contentType: "application/json", body: JSON.stringify(SORT_STOCKS),
   }));
   await page.goto("/");
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
   const tickers = page.locator(".market-table-wrap .market-table tbody .market-ticker-btn");
   await expect(tickers.first()).toBeVisible();
+  return {
+    tickers,
+    dateTh: page.locator('.market-table thead th[data-sort-key="date"]'),
+    volTh: page.locator('.market-table thead th[data-sort-key="volume"]'),
+    chips: page.locator(".market-sort-chain-chip"),
+  };
+}
 
-  const dateTh = page.locator('.market-table thead th[data-sort-key="date"]');
-  const volTh = page.locator('.market-table thead th[data-sort-key="volume"]');
+// The board is read with two questions at once — "what traded most recently" and
+// "what traded most heavily" — and a single sort key could only ever answer one:
+// clicking ОБЪЁМ threw away the date order that put those rows on screen. The chain
+// has to hold, and each key may only decide the rows the ones before it tied on.
+test("the board sorts on a chain of keys, not just the last one clicked", async ({ page }) => {
+  const { tickers, dateTh, volTh, chips } = await sortBoard(page);
 
   // One key: the newest session leads, and the two rows on it stay in feed order.
   await dateTh.click();
   await expect(tickers).toHaveText(["AAA", "BBB", "CCC"]);
+  await expect(chips).toHaveCount(1);
 
-  // Shift-click APPENDS. The date still decides first — CCC's 9 млн does not
-  // jump the queue — and volume only breaks the 31.07 tie.
+  // Shift-click APPENDS. The date still decides first — CCC's 9 млн does not jump
+  // the queue — and volume only breaks the 31.07 tie.
   await volTh.click({ modifiers: ["Shift"] });
   await expect(tickers).toHaveText(["BBB", "AAA", "CCC"]);
-  await expect(page.locator(".market-sort-chain-chip")).toHaveCount(2);
+  await expect(chips).toHaveCount(2);
 
   // Second shift-click on the same header flips that key alone.
   await volTh.click({ modifiers: ["Shift"] });
   await expect(tickers).toHaveText(["AAA", "BBB", "CCC"]);
+  await expect(chips).toHaveCount(2);
 
-  // Third drops it back out of the chain, and the summary row goes with it.
+  // Third drops it back out of the chain, leaving the date behind it intact.
   await volTh.click({ modifiers: ["Shift"] });
-  await expect(page.locator(".market-sort-chain")).toHaveCount(0);
+  await expect(chips).toHaveCount(1);
+  await expect(tickers).toHaveText(["AAA", "BBB", "CCC"]);
 
   // A plain click still collapses to one key — the old behaviour, unbroken.
   await volTh.click({ modifiers: ["Shift"] });
-  await expect(page.locator(".market-sort-chain-chip")).toHaveCount(2);
+  await expect(chips).toHaveCount(2);
   await volTh.click();
+  await expect(chips).toHaveCount(1);
   await expect(tickers).toHaveText(["CCC", "BBB", "AAA"]);
+
+  // And there is a way back to the board's own order, which a sorted header alone
+  // never offered: before this, the default could not be restored at all.
+  await page.locator(".market-sort-chain-reset").click();
   await expect(page.locator(".market-sort-chain")).toHaveCount(0);
+  await expect(tickers).toHaveText(["AAA", "BBB", "CCC"]);
+});
+
+// A modifier nobody is told about is a feature nobody has: shift-click is invisible,
+// and the chain row that would demonstrate it only exists once you have already done
+// it. So the hint has to arrive on the FIRST sort — and then get out of the way.
+test("the board teaches the multi-sort modifier once, then stops", async ({ page }) => {
+  const { dateTh, volTh } = await sortBoard(page);
+  const teach = page.locator(".market-sort-teach");
+
+  // Not on a cold board — there is nothing to add a second key to yet.
+  await expect(teach).toHaveCount(0);
+
+  await dateTh.click();
+  await expect(teach).toBeVisible();
+  await expect(teach).toContainText("Shift");
+
+  // Using it retires it: a reader who has built a two-key order has been taught.
+  await volTh.click({ modifiers: ["Shift"] });
+  await expect(teach).toHaveCount(0);
+
+  // And it stays retired across a reload — the lesson is not repeated every visit.
+  await page.reload();
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await page.locator('.market-table thead th[data-sort-key="date"]').click();
+  await expect(page.locator(".market-sort-chain-chip")).toHaveCount(1);
+  await expect(teach).toHaveCount(0);
+});
+
+// Dismissing is the other way to be done with it, and it must stick just as hard.
+test("dismissing the multi-sort hint keeps it dismissed", async ({ page }) => {
+  const { dateTh } = await sortBoard(page);
+  await dateTh.click();
+  await expect(page.locator(".market-sort-teach")).toBeVisible();
+  await page.locator(".market-sort-teach-close").click();
+  await expect(page.locator(".market-sort-teach")).toHaveCount(0);
+  // The chain row itself stays — it is the way back to the default order.
+  await expect(page.locator(".market-sort-chain-chip")).toHaveCount(1);
+
+  await page.reload();
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await page.locator('.market-table thead th[data-sort-key="date"]').click();
+  await expect(page.locator(".market-sort-chain-chip")).toHaveCount(1);
+  await expect(page.locator(".market-sort-teach")).toHaveCount(0);
+});
+
+// A phone has no Shift key and the board stays a table there, so the gesture has to
+// change and the hint has to name the one that device actually has. Touch emulation
+// is what makes `(pointer: coarse)` true — the wording is chosen off that query.
+test.describe("mobile multi-sort", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("long-press appends a sort key, and the hint says so (§3.12)", async ({ page }) => {
+    await page.route("**/api/market/stocks**", (route) => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify(SORT_STOCKS),
+    }));
+    await page.goto("/");
+    await page.locator(".topbar-burger").tap();
+    await page.getByRole("button", { name: "Рынок", exact: true }).tap();
+    const tickers = page.locator(".market-table-wrap .market-table tbody .market-ticker-btn");
+    await expect(tickers.first()).toBeVisible();
+
+    const dateTh = page.locator('.market-table thead th[data-sort-key="date"]');
+    await dateTh.scrollIntoViewIfNeeded();
+    await dateTh.tap();
+    await expect(tickers).toHaveText(["AAA", "BBB", "CCC"]);
+    // The hint must not tell a phone to press a key it does not have.
+    await expect(page.locator(".market-sort-teach")).toContainText("удерживайте");
+
+    // Hold past the 500ms threshold, then release: the touch equivalent of Shift.
+    const volTh = page.locator('.market-table thead th[data-sort-key="volume"]');
+    await volTh.scrollIntoViewIfNeeded();
+    await volTh.dispatchEvent("touchstart");
+    await page.waitForTimeout(700);
+    await volTh.dispatchEvent("touchend");
+    await expect(page.locator(".market-sort-chain-chip")).toHaveCount(2);
+    await expect(tickers).toHaveText(["BBB", "AAA", "CCC"]);
+
+    // A short tap must still REPLACE, or the chain would grow on every touch.
+    await volTh.tap();
+    await expect(page.locator(".market-sort-chain-chip")).toHaveCount(1);
+    await expect(tickers).toHaveText(["CCC", "BBB", "AAA"]);
+  });
 });
