@@ -1701,6 +1701,13 @@ def bulk_upsert_quotes(rows: list[dict]) -> int:
     written only for a session the security actually traded in, and a re-read of
     an older page (or a run that starts before the day's first execution) must
     never replace a fresh session with a stale one.
+
+    A LATER session replaces the row outright. The SAME session may only add to
+    it: the exchange publishes a finished session's close, change, quantity and
+    turnover in its daily history, but not that session's open/high/low, so the
+    morning run that settles yesterday's numbers carries no OHLC — and writing
+    those NULLs over the columns the 16:10 run captured would lose them to a
+    read that knew strictly less.
     """
     def _num(v: Any) -> float | None:
         try:
@@ -1711,7 +1718,10 @@ def bulk_upsert_quotes(rows: list[dict]) -> int:
     numeric = {"close_price", "prev_close", "change_value", "change_percent", "open_price",
                "high_price", "low_price", "quantity", "turnover", "shares_outstanding",
                "market_cap"}
-    assignments = ", ".join(f"{c}=excluded.{c}" for c in _QUOTE_COLS)
+    assignments = ", ".join(
+        f"{c}=CASE WHEN excluded.trade_date > catalog_quotes.trade_date "
+        f"THEN excluded.{c} ELSE COALESCE(excluded.{c}, catalog_quotes.{c}) END"
+        for c in _QUOTE_COLS)
     conn = get_catalog_conn()
     n = 0
     try:

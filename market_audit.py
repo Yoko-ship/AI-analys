@@ -64,12 +64,22 @@ def _check(name: str, ok: bool, detail: str, offenders: Iterable[str] = ()) -> d
 
 
 def audit_session(stats: dict[str, dict], quotes: dict[str, dict], board: list[dict],
-                  denylist: Iterable[str] = ()) -> dict[str, Any]:
+                  denylist: Iterable[str] = (), today: str | None = None) -> dict[str, Any]:
     """Audit the latest session the execution feed knows about.
 
     ``stats``: per-ISIN execution statistics; ``quotes``: per-ISIN exchange quotes;
     ``board``: the merged market rows as served. Returns a verdict with one entry
     per check; ``ok`` is false when any check fails.
+
+    ``today`` (YYYYMMDD, exchange time) says which session is still running. Both
+    turnover paths grow all session long and they are read minutes apart — the
+    feed first, then the pages — so during the day their totals are *supposed* to
+    differ: the 13:00 run summed 68 securities' executions and then read pages
+    that had gone on trading, and reported 16 "disagreements" that had all
+    settled by 16:10. While the session is open the only wrong direction is
+    backwards: a page BEHIND the executions we already summed cannot be
+    explained by more trading. Once the day has turned, both sides are final and
+    equality is required again.
     """
     suppressed = {str(t).upper() for t in denylist or ()}
     day = max((str(s.get("trade_date") or "") for s in stats.values()), default="")
@@ -108,23 +118,32 @@ def audit_session(stats: dict[str, dict], quotes: dict[str, dict], board: list[d
         f"{len(expected) - len(missing_rows)}/{len(expected)} traded securities are on "
         "the board with that session's date", missing_rows))
 
-    turnover_off, quantity_off = set(), set()
+    live = bool(day) and str(today or "") == day
+    turnover_off, quantity_off, ahead = set(), set(), set()
     for isin, stat in expected.items():
         quote = quotes.get(isin) or {}
         if str(quote.get("trade_date") or "") != day:
             continue  # already reported as a missing quote
-        if not _agree(_num(quote.get("turnover")), _num(stat.get("total_value"))):
-            turnover_off.add(_label(isin))
-        if not _agree(_num(quote.get("quantity")), _num(stat.get("total_qty"))):
-            quantity_off.add(_label(isin))
+        for page_value, feed_value, offenders in (
+            (_num(quote.get("turnover")), _num(stat.get("total_value")), turnover_off),
+            (_num(quote.get("quantity")), _num(stat.get("total_qty")), quantity_off),
+        ):
+            if _agree(page_value, feed_value):
+                continue
+            if live and page_value is not None and feed_value is not None and page_value > feed_value:
+                ahead.add(_label(isin))  # the session went on after we summed it
+                continue
+            offenders.add(_label(isin))
+    still_trading = (" (the session is still open, so a page ahead of the feed is "
+                     f"the session continuing — {len(ahead)} such)" if live else "")
     checks.append(_check(
         "turnover_agrees_with_the_executions", not turnover_off,
         "the session turnover on each security's page equals the sum of its "
-        "executions in the trade feed", turnover_off))
+        "executions in the trade feed" + still_trading, turnover_off))
     checks.append(_check(
         "quantity_agrees_with_the_executions", not quantity_off,
         "the securities traded on each page equal the quantity summed from its "
-        "executions", quantity_off))
+        "executions" + still_trading, quantity_off))
 
     uncomputable = set()
     for isin in expected:
@@ -142,6 +161,10 @@ def audit_session(stats: dict[str, dict], quotes: dict[str, dict], board: list[d
     return {
         "ok": all(c["ok"] for c in checks),
         "trade_date": day or None,
+        # Whether the audited session was still running when this was answered —
+        # a reader comparing two runs needs to know which of them was final.
+        "session_open": live,
+        "still_trading": sorted(ahead),
         "traded": len(traded),
         "audited": len(expected),
         "quoted": sum(1 for i in expected

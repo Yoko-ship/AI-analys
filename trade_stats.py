@@ -13,12 +13,26 @@ from collections import defaultdict
 from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
 UZSE_TRADE_URL = "https://uzse.uz/trade_results/"
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/125.0 Safari/537.36")
+
+
+def _feed_session() -> requests.Session:
+    """Retry the feed rather than end the session on one bad page."""
+    s = requests.Session()
+    retry = Retry(total=3, connect=3, read=3, backoff_factor=1.5,
+                  status_forcelist=(429, 500, 502, 503, 504),
+                  allowed_methods=("GET", "HEAD"), respect_retry_after_header=True)
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=4, pool_maxsize=8)
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+    return s
 
 # Fields carrying the per-trade numbers, and a stable id used to dedupe.
 _KEYS = ("total_value", "total_qty", "trade_count", "avg_price",
@@ -120,22 +134,38 @@ def backfill_last_day_stats(targets: list[tuple[str, str]]) -> list[dict[str, An
 def fetch_trade_stats(max_pages: int = 400, session: requests.Session | None = None) -> dict[str, Any]:
     """Paginate the trade feed for the latest trading day and aggregate per ISIN.
 
-    Returns ``{"trade_date": "YYYYMMDD", "count": n, "stats": {isin: {...}}}``.
+    Returns ``{"trade_date": "YYYYMMDD", "count": n, "reachable": bool,
+    "complete": bool, "stats": {isin: {...}}}``.
+
+    ``reachable`` separates the two ways this comes back empty. The feed holds
+    only yesterday and today (see DEPLOY.md), so a Monday-morning run reads a
+    Saturday+Sunday window and the exchange correctly answers "nothing traded" —
+    an empty session, not a fault. A feed that never answered is a fault. Only
+    the first page has to land for the exchange to have spoken.
+
+    ``complete`` says the pagination reached the end of the session rather than
+    stopping on an error. A page that fails halfway used to end the walk and
+    return what had been gathered so far, which is a *smaller* session — real
+    ISINs, real executions, turnover short by however many pages were missed,
+    and nothing anywhere saying so. Truncated totals are worse than none.
     """
-    s = session or requests.Session()
+    s = session or _feed_session()
     headers = {"User-Agent": _UA, "Accept": "application/json"}
     seen: set = set()
     trades: list[dict] = []
     latest_day: str | None = None
+    reachable = complete = False
 
     for page in range(1, max_pages + 1):
         try:
             resp = s.get(UZSE_TRADE_URL, headers=headers, params={"page": page}, timeout=30)
             res = resp.json().get("results") or []
+            reachable = True
         except Exception:
             logger.exception("trade feed page %d failed", page)
             break
         if not res:
+            complete = True
             break
         if latest_day is None:
             latest_day = max(str(x.get("trade_date")) for x in res)
@@ -153,6 +183,7 @@ def fetch_trade_stats(max_pages: int = 400, session: requests.Session | None = N
             trades.append(x)
             added += 1
         if reached_older or added == 0:
+            complete = True
             break
 
     by: dict[str, list] = defaultdict(list)
@@ -165,7 +196,8 @@ def fetch_trade_stats(max_pages: int = 400, session: requests.Session | None = N
         if not isin:
             continue
         stats[isin] = _aggregate(isin, lst, latest_day)
-    return {"trade_date": latest_day, "count": len(stats), "stats": stats}
+    return {"trade_date": latest_day, "count": len(stats),
+            "reachable": reachable, "complete": complete, "stats": stats}
 
 
 if __name__ == "__main__":

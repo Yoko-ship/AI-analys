@@ -222,12 +222,18 @@ Schedule it on any host that can reach openinfo:
      pushes results to the API service.
 
   Live schedule (one cron expression per service, so intraday quote refreshes are
-  their own services — they run `--trades-only`, ~7 minutes, and cost nothing else).
-  That run has two halves: the execution feed (`uzse.uz/trade_results`, the day's
-  turnover per security) and then one `uzse.uz/isu_infos` page per security that
-  traded, which is the only publisher of the previous close the exchange measures
-  the day's move against — it carries that close forward through sessions with no
-  trades, so nothing derived from executions can stand in for it:
+  their own services — they run `--trades-only` and cost nothing else). That run has
+  two halves: the execution feed (`uzse.uz/trade_results`, the day's turnover per
+  security) and then one `uzse.uz/isu_infos` page per security **the board serves**,
+  which is the only publisher of the previous close the exchange measures the day's
+  move against — it carries that close forward through sessions with no trades, so
+  nothing derived from executions can stand in for it. Every listed security is read,
+  not only the ones that traded: the page also states, in its own daily history, the
+  date a quiet security last traded and that session's close, change, quantity and
+  turnover, so a security nobody has traded in a month is still priced by the
+  exchange rather than from a registry row. That history is what makes a finished
+  session readable the next morning, after the page's session table has rolled over
+  to a day with no trades yet:
 
   | Service | `APP_MODE` | Cron (UTC) | Tashkent | Scope |
   | --- | --- | --- | --- | --- |
@@ -268,12 +274,22 @@ Schedule it on any host that can reach openinfo:
   only readable on day N+1, and by day N+2 it is gone. Consequences worth knowing:
 
   - Sunday every run sees Sat+Sun and gets nothing; Monday 08:00 and 13:00 see Sun+Mon and
-    likewise get nothing (Monday's own trades start publishing ~15:00). An empty fetch makes
-    `push_trade_stats` return 1, so the run exits non-zero and Railway paints the cron card
-    red — a red `collector` on a Monday morning is this, not a broken pipeline. Everything
-    else in that run (financials, facts, listings, reconcile) still collects and pushes.
+    likewise get nothing (Monday's own trades start publishing ~15:00). **That is no longer a
+    failure.** The exchange answering "nothing traded" is an empty session, not a fault: the
+    run keeps the stored session, still audits it, and exits 0. A red card now means the feed
+    did not answer at all, stopped mid-session (a truncated read is refused rather than
+    published short), or the board disagrees with the exchange.
+  - The same distinction governs the quote pass. Before the day's first execution every
+    security's page reads 0/0/0, which is what the 08:00 run meets every weekday; it takes
+    each page's settled history row instead and exits 0. Only a pass where **no page at all**
+    could be read is an error.
   - Friday's finished session is picked up by **`quotes-1300` on Saturday**. That is the only
     scheduled run that can see it, which is why quotes-1300 runs Tue–Sat rather than Mon–Fri.
+  - `quotes-1300` audits a session that is *still being traded*: the feed is summed at 13:00
+    and the pages are read minutes later, so a page ahead of the feed is the session
+    continuing, not a disagreement (on 2026-08-04 that reported 16 false mismatches, all
+    settled by 16:10). Mid-session the audit only fails a page that is BEHIND the executions;
+    once the day has turned, equality is required again and the 08:00 run enforces it.
 
   Re-running the same session is safe by design: `bulk_upsert_trade_stats` accepts
   a same-day correction (a later run sees more executions) and refuses anything

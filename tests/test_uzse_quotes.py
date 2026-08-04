@@ -99,6 +99,68 @@ class TestASessionASecuritySatOut:
         assert uq.fetch_session_quotes([("UZ7012480008", "STK")], pace=0) == []
 
 
+class TestASecurityThatHasGoneQuiet:
+    """UTGA last traded on 29.07 and the exchange has carried 116 000 forward ever
+    since. Reading only the securities that traded left its board row — and eight
+    others — showing an em-dash where uzse.uz publishes a price, because the page's
+    *current* session is empty for a quiet security every day.
+
+    The page answers anyway: its header dates the last trade, and its daily history
+    prints that session's close, change, quantity and turnover. Captured verbatim on
+    2026-08-04.
+    """
+
+    @pytest.fixture()
+    def utga(self) -> dict:
+        return uq.parse_quote(_page("utga_quiet"), isin="UZ7043380003")
+
+    def test_the_current_session_is_empty(self, utga) -> None:
+        assert utga["traded"] is False
+        assert utga["trade_date"] is None
+        # ...but the exchange still states when it last traded, and at what.
+        assert utga["last_trade_date"] == "20260729"
+        assert utga["last_price"] == pytest.approx(116000.0)
+
+    def test_the_history_carries_the_close_forward_on_zero_volume(self, utga) -> None:
+        carried = {h["date"]: h for h in utga["history"]}
+        assert carried["20260803"]["quantity"] == 0
+        assert carried["20260803"]["close"] == pytest.approx(116000.0)
+        assert carried["20260729"]["quantity"] == pytest.approx(3.0)
+        assert carried["20260729"]["turnover"] == pytest.approx(348000.0)
+
+    def test_the_settled_row_is_the_session_it_last_traded_in(self, utga) -> None:
+        settled = uq.settled_quote(utga)
+
+        assert settled["trade_date"] == "20260729"
+        assert settled["traded"] is True
+        assert settled["close_price"] == pytest.approx(116000.0)
+        assert settled["quantity"] == pytest.approx(3.0)
+        assert settled["turnover"] == pytest.approx(348000.0)
+        assert settled["change_percent"] == pytest.approx(0.0)
+        # A finished session publishes no OHLC; saying nothing keeps whatever the
+        # run that watched it live already stored (see bulk_upsert_quotes).
+        assert (settled["open_price"], settled["high_price"], settled["low_price"]) == (None,) * 3
+
+    def test_the_collector_takes_it_when_asked_to_settle(self, monkeypatch, utga) -> None:
+        monkeypatch.setattr(uq, "fetch_quote",
+                            lambda isin, market="STK", session=None: dict(utga))
+        monkeypatch.setattr(uq, "fetch_issue_detail",
+                            lambda isin, session=None: None)
+        outcome: dict[str, int] = {}
+        quotes = uq.fetch_session_quotes([("UZ7043380003", "STK")], pace=0,
+                                         settle=True, outcome=outcome)
+
+        assert [q["trade_date"] for q in quotes] == ["20260729"]
+        assert outcome == {"targets": 1, "unreadable": 0, "idle": 0,
+                           "settled": 1, "quoted": 1}
+
+    def test_a_security_that_never_traded_still_yields_nothing(self) -> None:
+        """MXUS has no last-trade date at all — every history row is carried
+        forward at 500 on zero volume. There is no session to publish."""
+        assert uq.settled_quote(uq.parse_quote(_page("mxus_untraded"),
+                                               isin="UZ7012480008")) is None
+
+
 class TestTheParserRefusesWhatItCannotRead:
     def test_a_page_for_another_security_is_not_ours(self) -> None:
         """uzse.uz answers an unknown ISIN with its default security, not a 404."""

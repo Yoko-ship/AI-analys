@@ -1094,8 +1094,15 @@ async def api_market_audit() -> dict[str, Any]:
         logger.exception("market audit failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    from datetime import datetime, timedelta, timezone
+
     board = list(shares.get("stocks") or []) + list(bonds.get("stocks") or [])
-    return _json_safe(audit_session(stats, quotes, board, denylist=BOARD_DENYLIST))
+    # Which session is still being traded, in the exchange's own time — a run at
+    # 13:00 audits a day that is still adding executions, and the two sides are
+    # read minutes apart (see market_audit.audit_session).
+    today = datetime.now(timezone(timedelta(hours=5))).strftime("%Y%m%d")
+    return _json_safe(audit_session(stats, quotes, board,
+                                    denylist=BOARD_DENYLIST, today=today))
 
 
 @app.get("/api/market/trades")

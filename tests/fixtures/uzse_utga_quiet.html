@@ -1,0 +1,2498 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  <title>Республиканская фондовая биржа «Тошкент»</title>
+
+  <!-- %= render 'application/favicon' % -->
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico" />
+  <link href='https://fonts.googleapis.com/css?family=Noto+Sans:400,400italic,700,700italic' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="/assets/application.css" media="all" data-turbolinks-track="reload" />
+  <meta name="csrf-param" content="authenticity_token" />
+<meta name="csrf-token" content="OFGNVoXefzwbWsoS36zsy07m3wFe_Dikg7CKuha0Al_qdQv_E_aPNmS4kIAHbxwdZG5bxNYpSdqYL4k3jUlS5Q" />
+  <!-- Google Tag Manager -->
+  <script>(function(w, d, s, l, i) {
+    w[l] = w[l] || [];
+    w[l].push({
+      'gtm.start':
+        new Date().getTime(), event: 'gtm.js',
+    });
+    var f = d.getElementsByTagName(s)[0],
+      j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : '';
+    j.async = true;
+    j.src =
+      'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+    f.parentNode.insertBefore(j, f);
+  })(window, document, 'script', 'dataLayer', 'GTM-P7WMNN45');</script>
+  <!-- End Google Tag Manager -->
+  
+
+</head>
+
+<body class="">
+
+<div style="height: 101px;"></div>
+<div class="main-mobile-top-nav visible-xs">
+  <ul class="mobile-language-nav clearfix">
+    <!--    <li class="">
+    </li>
+    <li class="">
+    </li>
+    <li class="">
+    </li>-->
+    <li class="">
+      <a href="/isu_infos/STK?locale=uz">UZ</a>
+    </li>
+    <li class="active">
+      <a href="/isu_infos/STK?locale=ru">RU</a>
+    </li>
+    <li class="">
+      <a href="/isu_infos/STK?locale=en">EN</a>
+    </li>
+    <li>
+      <a href="/issuers">Эмитент</a>
+    </li>
+    <li>
+      <a href="https://fondbozori.uz">Перейти к торговле</a>
+    </li>
+  </ul>
+</div>
+
+<nav id="language-navbar" class="navbar navbar-default hidden-xs" style="position: fixed; top: 0; z-index: 9999999; width: 100%;">
+  <div class="container">
+    <div class="row">
+      <div class="collapse navbar-collapse main-top-nav hidden-xs">
+        <ul class="nav navbar-nav">
+          <li>
+            <a id="microphone-btn" href="#">
+              <i class="fa fa-microphone" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li class="">
+            <a id="graysacle-btn" href="#">
+              <i class="fa fa-low-vision" aria-hidden="true"></i>
+            </a>
+          </li>
+
+
+          <li class="">
+            <a href="/isu_infos/STK?locale=uz">UZ</a>
+          </li>
+          <li class="active">
+            <a href="/isu_infos/STK?locale=ru">RU</a>
+          </li>
+          <li class="">
+            <a href="/isu_infos/STK?locale=en">EN</a>
+          </li>
+            <li>
+              <a href="/issuers">Эмитент</a>
+            </li>
+          <li>
+            <a href="https://fondbozori.uz">Перейти к торговле</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<nav id="main-navbar" class="navbar navbar-default" style="position: fixed; top: 28px; z-index: 9999999; width: 100%;">
+  <div class="container">
+    <div class="row">
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target=".main-top-nav" aria-expanded="false">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+      </div>
+
+      <div class="collapse navbar-collapse main-top-nav">
+        <ul class="nav navbar-nav">
+          <!-- HOME -->
+          <li>
+            <a href="https://uzse.uz/" title="Home">
+              <img alt="UZSE" style="height: 48px; width: auto;" src="/assets/Logo.svg" />
+            </a>
+          </li>
+
+          <!-- Nav : Exchange -->
+          <li class="">
+            <a href="#" data-toggle="dropdown">
+              Главное
+            </a>
+            <ul class="dropdown-menu">
+              <li><a href="/abouts/sitemap/">Карта сайта</a></li>
+<!--              <li>
+                <a tabindex="-2" href="#" data-toggle="dropdown"></a>
+                <ul class="dropdown-menu">
+                  <li></li>
+                  <li></li>
+                  <li></li>
+                  <li></li>
+                  <li role="separator" class="divider"></li>
+                  <li></li>
+                </ul>
+              </li>-->
+              <li>
+                <a href="/legislations">Нормативная база</a>
+              </li>
+              <li><a href="/exchange/structure/">Структура торговой системы</a></li>
+              <li><a href="/ipos/">График публичного предложения (IPO/SPO/PO)</a></li>
+              <li class="dropdown-submenu">
+                <a tabindex="-1" href="#" data-toggle="dropdown">Тарифы</a>
+                <ul class="dropdown-menu">
+                  <li><a href="/exchange/rates">Тарифы</a></li>
+                  <li><a href="/exchange/archival_rates">Архив тарифов</a></li>
+                </ul>
+              </li>
+              <li><a href="/exchange/schedule/">График торгов</a></li>
+              <li><a href="/exchange/deadline/">Порядок исполнения заявок</a></li>
+              <li class="dropdown-submenu">
+                <a tabindex="-3" href="#" data-toggle="dropdown">Информация о Членах биржи</a>
+                <ul class="dropdown-menu">
+                  <li><a href="/exchange/members/">Члены биржи (Брокеры)</a></li>
+                  <li><a href="https://uzse.uz/boards/4106">Топ 10 брокерских контор</a></li>
+                  <li><a href="/common_purses/">Гарантийный фонд</a></li>
+                  <li><a href="https://broker.uzse.uz/login" target="_blank">Модуль подписания сделок</a></li>
+                  <li>
+                    <a href="/system/uploads/Web_BK_Trader_06112023.rar" target="_blank">Скачать программу для брокеров</a>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+
+          <!-- Nav : Listing -->
+          <li class="">
+            <a href="#" data-toggle="dropdown">
+              Листинг
+            </a>
+            <ul class="dropdown-menu">
+              <li><a href="/abouts/listing_info">Информация о Листинге</a></li>
+              <li>
+                <a href="/legislations/457">Положение о биржевом котировальном листе РФБ Тошкент</a>
+              </li>
+<!--              <li class="dropdown-submenu">
+                <a tabindex="-3" href="#" data-toggle="dropdown"></a>
+                <ul class="dropdown-menu">
+                  <li><a href="/legislations/421"></a></li>
+                  <li><a href="/legislations/422"></a></li>
+                </ul>
+              </li>-->
+              <li>
+                <a href="/legislations/458">Порядок Регистрации размещения и обращения биржевых облигаций</a>
+              </li>
+              <li class="dropdown-submenu">
+                <a tabindex="-3" href="#" data-toggle="dropdown">Компании включенные в биржевой котировальный лист</a>
+                <ul class="dropdown-menu">
+                  <li><a href="/isu_infos/">Ценные бумаги включенные в биржевой котировальный лист</a></li>
+                  <li><a href="/abouts/bonds/">Облигации доступные на торгах фондовой биржи</a></li>
+                </ul>
+              </li>
+              <li><a href="/reports/material_facts3/">Раскрытие информации листинговыми компаниями</a></li>
+              <li><a href="/abouts/bally_rates/">Рейтинг эмитентов</a></li>
+              <li>
+                <a href="https://uzse.uz/executions/top10_listing">Рейтинг листинговых компаний (Топ-10)</a>
+              </li>
+              <li><a href="/dividends?locale=ru">Дивиденды, выплаченные эмитентами</a></li>
+            </ul>
+          </li>
+
+          <!-- Nav : Interactive Service -->
+          <li class="">
+            <a href="#" data-toggle="dropdown">
+              Интерактивный сервис
+            </a>
+            <ul class="dropdown-menu">
+              <li>
+                <a href="/interactive_services/stockholder_disclosure/">Раскрытие информации акционерами</a>
+              </li>
+              <li><a href="/abouts/hot_line/">Горячая линия</a></li>
+              <li><a href="/abouts/hot_line2/">Горячая линия для связи с акционерами и с иностранными инвесторами</a></li>
+              <li>
+                <a href="https://forum.uzse.uz/index.php?topic=2.0" target="_blank">Форум для обсуждения изменений в правилах и положениях</a>
+              </li>
+              <li>
+                <a href="https://rseacademy.wixsite.com/rse-academy" target="_blank">Биржевая академия</a>
+              </li>
+              <li><a href="/qnas/">Часто задаваемые вопросы</a></li>
+            </ul>
+          </li>
+
+          <!-- Nav : for_nego_board -->
+          <li class="">
+            <a href="#" data-toggle="dropdown">
+              СППЗ Nego
+            </a>
+            <ul class="dropdown-menu">
+              <li>
+                <a href="/nego">Информация о СППЗ Nego</a>
+              </li>
+              <!--              <li>
+                <a href="https://nego.uzse.uz/media/files/pravila_nego.pdf/" target="_blank"></a>
+              </li>-->
+              <li>
+                <a href="/legislations/455" target="_blank">
+                  Правила площадки
+                </a>
+              </li>
+              <li><a href="https://nego.uzse.uz/" target="_blank">Специальная платформа приема заявок по большим пакетам акций (СППЗ Nego)</a></li>
+            </ul>
+          </li>
+
+          <!-- Nav : Market Data -->
+          <li class="active">
+            <a href="#" data-toggle="dropdown">
+              Данные по рынку
+            </a>
+            <ul class="dropdown-menu">
+              <li><a href="/price_indices/">Индекс</a></li>
+              <li><a href="/isu_infos/STK/">Данные о курсе акции</a></li>
+              <li><a href="/isu_infos/BND/">Данные о курсе облигации</a></li>
+              <li><a href="/abouts/msq/">Котировальная цена акций</a></li>
+              <li><a href="/asking_prices/">Список заявок (ЕПТК)</a></li>
+              <li><a href="/trade_results/">Итоги торгов</a></li>
+              <li class="dropdown-submenu">
+                <a tabindex="-3" href="#" data-toggle="dropdown">Аналитика и статистика</a>
+                <ul class="dropdown-menu">
+                  <li><a href="/analytics/">Аналитика</a></li>
+                  <li><a href="/abouts/itogitorg/">Торговая статистика</a></li>
+                  <li><a href="/boards/results/list/">Инфографика по итогам торгов</a></li>
+                </ul>
+              </li>
+              <li class="dropdown-submenu">
+                <a tabindex="-3" href="#" data-toggle="dropdown">Данные по ВТП</a>
+                <ul class="dropdown-menu">
+                  <li><a href="/otcmarkets/isu_elsis/">Список ценных бумаг (ВТП)</a></li>
+                  <li><a href="/otcmarkets/offers/">Список заявок (ВТП)</a></li>
+                  <li><a href="/otcmarkets/trade_results/">Список сделок (ВТП)</a></li>
+<!--                  <li><a href="/abouts/vnel_rules"></a></li>-->
+                </ul>
+              </li>
+            </ul>
+          </li>
+
+          <!-- Nav : Press Center -->
+<!--          <li class="">-->
+<!--            <a href="#" data-toggle="dropdown">-->
+<!--            </a>-->
+<!--            <ul class="dropdown-menu">-->
+<!--              <li class="dropdown-submenu">-->
+<!--                <a tabindex="-3" href="/boards/news/list/" data-toggle="dropdown"></a>-->
+<!--                <ul class="dropdown-menu">-->
+<!--                  <li><a href="/boards/publications/list/"></a></li>-->
+<!--                  <li><a href="/photos/"></a></li>-->
+<!--                </ul>-->
+<!--              </li>-->
+<!--              <li><a href="/boards/notice/list/"></a></li>-->
+<!--              <li><a href="/boards/public_opinion/list/"></a></li>-->
+<!--              <li><a href="/videos/"></a></li>-->
+<!--            </ul>-->
+<!--          </li>-->
+          <!-- Nav : Press Center -->
+          <li class="">
+            <a href="#" data-toggle="dropdown">
+              Пресс-центр
+            </a>
+            <ul class="dropdown-menu">
+              <li><a href="/boards/news/list/">Новости</a></li>
+              <li><a href="/boards/notice/list/">Объявления</a></li>
+              <li><a href="/boards/publications/list/">Публикации</a></li>
+              <li><a href="/analytics/">Пресс-релизы</a></li>
+              <li><a href="/videos/">Медиацентр</a></li>
+              <li><a href="/boards/public_opinion/list/">СМИ о бирже</a></li>
+            </ul>
+          </li>
+          <!--          About UZSE -->
+          <!--          <li class="">-->
+          <!--            <a href="#" data-toggle="dropdown">-->
+          <!--            </a>-->
+          <!--            <ul class="dropdown-menu">-->
+          <!--              <li><a href="/abouts/"></a></li>-->
+          <!--              <li><a href="/abouts/organization/"></a></li>-->
+          <!--              <li><a href="/abouts/management/"></a></li>-->
+          <!--              <li><a href="/abouts/prospectuses_of_securities/"></a></li>-->
+          <!--              <li><a href="/abouts/commissions/"></a></li>-->
+          <!--              <li><a href="/abouts/exchange_trades/"></a></li>-->
+          <!--              <li><a href="/recruits/"></a></li>-->
+          <!--              <li><a href="/abouts/locations/"></a></li>-->
+
+
+          <!-- ===== ДИНАМИЧЕСКОЕ МЕНБ О НАС ИЗ АДМИНКИ ===== -->
+          <li class="">
+            <a href="#" data-toggle="dropdown">
+              О нас
+            </a>
+            <ul class="dropdown-menu">
+                <li class="">
+                  <a href="/aboutuses/general-information">О бирже</a>
+                    <ul class="dropdown-menu" style="margin-left: 100%; margin-top: -35px; min-width: 200px;">
+                        <li class="">
+                          <a href="/aboutuses/about-general">Общая информация</a>
+                        </li>
+                        <li class="">
+                          <a href="/aboutuses/history">История</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="">
+                  <a href="/aboutuses/organizational-structure">Организационная структура</a>
+                </li>
+                <li class="">
+                  <a href="/aboutuses/management">Правление</a>
+                </li>
+                <li class="">
+                  <a href="/aboutuses/units">Структурные подразделения</a>
+                </li>
+                <li class="">
+                  <a href="/aboutuses/commissions">Члены биржевой комиссии</a>
+                </li>
+                <li class="">
+                  <a href="/aboutuses/strategy">Стратегия развития</a>
+                </li>
+                <li class="">
+                  <a href="/aboutuses/combating-corruption">Противодействие коррупции и антимонопольное регулирование</a>
+                </li>
+                <li class="">
+                  <a href="/aboutuses/contacts">Контакты</a>
+                </li>
+            </ul>
+          </li>
+
+
+          <!-- ===== НОВЫЙ ПУНКТ – КОРПОРАТИВНОЕ УПРАВЛЕНИЕ ===== -->
+          <li class="">
+            <a href="#" data-toggle="dropdown">
+              Корпоративное управление
+            </a>
+            <ul class="dropdown-menu">
+              <!-- Раскрытие информации -->
+              <li class="dropdown-submenu">
+                <a tabindex="-1" href="#" data-toggle="dropdown">Раскрытие информации</a>
+                <ul class="dropdown-menu">
+                  <li><a href="/corporate/documents/affiliated_persons">Перечень аффилированных лиц</a></li>
+                  <li><a href="/corporate/documents/essential_facts">Существенные факты</a></li>
+                  <li><a href="/corporate/documents/business_plan">Бизнес план</a></li>
+                  <li><a href="/corporate/documents/business_plan_execution">Исполнение бизнес плана</a></li>
+                  <li><a href="/corporate/documents/performance_indicators">Показатели эффективности</a></li>
+                  <li><a href="/corporate/documents/development_strategy">Стратегия развития</a></li>
+                  <li><a href="/corporate/documents/competitions">Конкурсы (тендеры)</a></li>
+                  <li><a href="/corporate/documents/dividends">Дивиденды</a></li>
+                </ul>
+              </li>
+              <!-- Финансовая отчетность -->
+              <li class="dropdown-submenu">
+                <a tabindex="-1" href="#" data-toggle="dropdown">Финансовая отчетность</a>
+                <ul class="dropdown-menu">
+                  <li><a href="/corporate/documents/annual_quarterly">Годовые и квартальные отчеты</a></li>
+                  <li><a href="/corporate/documents/ifrs">Отчетность по МСФО</a></li>
+                  <li><a href="/corporate/documents/procurement">Сведение о закупках</a></li>
+                  <li><a href="/corporate/documents/external_audit">Результаты внешнего аудита</a></li>
+                </ul>
+              </li>
+              <!-- Органы управления и контроля -->
+              <li class="dropdown-submenu">
+                <a tabindex="-1" href="#" data-toggle="dropdown">Органы управления и контроля</a>
+                <ul class="dropdown-menu">
+                  <li><a href="/corporate/documents/supervisory_board">Наблюдательный совет</a></li>
+                  <li><a href="/corporate/documents/executive_body">Исполнительный орган</a></li>
+                  <li><a href="/corporate/documents/internal_audit">Служба внутреннего аудита</a></li>
+                </ul>
+              </li>
+              <!-- Документы -->
+              <li class="dropdown-submenu">
+                <a tabindex="-1" href="#" data-toggle="dropdown">Документы</a>
+                <ul class="dropdown-menu">
+                  <li><a href="/corporate/documents/internal">Внутренние документы</a></li>
+                  <li><a href="/corporate/documents/charter">Устав общества</a></li>
+                  <li><a href="/corporate/documents/securities_issue">Выпуск ценных бумаг</a></li>
+                  <li><a href="/corporate/documents/regulatory">Нормативные документы</a></li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+          <!-- ===== КОНЕЦ НОВОГО ПУНКТА ===== -->
+
+          <style type="text/css">
+              li .search-icon {
+                  fill: black;
+              }
+
+              li:hover .search-icon {
+                  fill: #165aaa;
+              }
+          </style>
+          <li>
+            <a href="/abouts/searchuzse/" style="display: flex; justify-content: center; align-items: center; gap: 4px;">
+              <svg width="16" height="16" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path class="search-icon" d="M15.625 17.5H14.6375L14.2875 17.1625C15.5548 15.6925 16.2514 13.8159 16.25 11.875C16.25 10.268 15.7735 8.69714 14.8807 7.361C13.9879 6.02485 12.719 4.98344 11.2343 4.36848C9.74966 3.75352 8.11599 3.59262 6.53989 3.90612C4.9638 4.21963 3.51606 4.99346 2.37976 6.12976C1.24346 7.26606 0.469628 8.7138 0.156123 10.2899C-0.157382 11.866 0.00352044 13.4997 0.618482 14.9843C1.23344 16.469 2.27485 17.7379 3.611 18.6307C4.94714 19.5235 6.51803 20 8.125 20C10.1375 20 11.9875 19.2625 13.4125 18.0375L13.75 18.3875V19.375L20 25.6125L21.8625 23.75L15.625 17.5ZM8.125 17.5C5.0125 17.5 2.5 14.9875 2.5 11.875C2.5 8.7625 5.0125 6.25 8.125 6.25C11.2375 6.25 13.75 8.7625 13.75 11.875C13.75 14.9875 11.2375 17.5 8.125 17.5Z" fill="black" />
+              </svg>
+              Поиск
+            </a>
+          </li>
+        </ul>
+        <div style="height: 79px; display: flex; justify-content: flex-end; align-items: center;">
+          <a href="https://milliy.nbu.uz/suppliers/11/" class="btn btn-sm btn-primary pull-right" role="button" target="_blank">Пополнить брокерский счет</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+  <div id="breadcrumb-nav">
+    <div class="container">
+        <div class="breadcrumb-area">
+    <ol class="breadcrumb-list">
+      <li>
+        <a href="/isu_infos">
+          Данные по рынку
+        </a>
+      </li>
+      <li class="active">
+        <a href="#">
+            Данные о курсе акции
+        </a>
+      </li>
+    </ol>
+  </div>
+
+    </div>
+  </div>
+
+
+
+
+
+  <div id="main-top-ticker">
+    <div id="ticker-container" class="container" style="overflow:hidden; position:relative; padding:0;">
+      <div id="ticker-items" class="row" style="display:flex; flex-wrap:nowrap; width:max-content; padding:0; margin:0; transition: none;">
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7011340005" style="color:#0d5381; text-decoration:none;">
+                  HMKB (&lt;Hamkorbank&gt; ATB)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      73.31
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      91.67
+                      <span class="price-up" style="font-weight:bold;">
+                        (
+                          ▲
+                        5.67
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7021720006" style="color:#0d5381; text-decoration:none;">
+                  UZMK (&lt;O&#39;zmetkombinat&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      5,900
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      5,970
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        128.99
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ702172K016" style="color:#0d5381; text-decoration:none;">
+                  UZMKP (&lt;O&#39;zmetkombinat&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      3,780
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      3,734
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        13.99
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7025770007" style="color:#0d5381; text-decoration:none;">
+                  KVTS (&lt;Kvarts&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      2,496
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      2,485
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        2.0
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7029000005" style="color:#0d5381; text-decoration:none;">
+                  QZSM (&lt;Qizilqumsement&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      1,233
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      1,196
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        4.0
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7037560008" style="color:#0d5381; text-decoration:none;">
+                  SQBN (&lt;O&#39;zsanoatqurilishbank&gt; ATB)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      32.7
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      33.9
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        1.1
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ703756K015" style="color:#0d5381; text-decoration:none;">
+                  SQBNP (&lt;O&#39;zsanoatqurilishbank&gt; ATB)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      86.5
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      85.98
+                      <span class="price-up" style="font-weight:bold;">
+                        (
+                          ▲
+                        1.96
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7043200003" style="color:#0d5381; text-decoration:none;">
+                  URTS (&lt;O&#39;zRTXB&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      8,350
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      8,450
+                      <span class="price-up" style="font-weight:bold;">
+                        (
+                          ▲
+                        50.0
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7054570005" style="color:#0d5381; text-decoration:none;">
+                  IPTB (&lt;Ipoteka-bank&gt; ATIB)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      3.01
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      2.75
+                      <span class="price-up" style="font-weight:bold;">
+                        (
+                          ▲
+                        0.15
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+        <!-- Дублируем элементы для бесконечности -->
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7011340005" style="color:#0d5381; text-decoration:none;">
+                  HMKB (&lt;Hamkorbank&gt; ATB)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      73.31
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      91.67
+                      <span class="price-up" style="font-weight:bold;">
+                        (
+                          ▲
+                        5.67
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7021720006" style="color:#0d5381; text-decoration:none;">
+                  UZMK (&lt;O&#39;zmetkombinat&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      5,900
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      5,970
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        128.99
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ702172K016" style="color:#0d5381; text-decoration:none;">
+                  UZMKP (&lt;O&#39;zmetkombinat&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      3,780
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      3,734
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        13.99
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7025770007" style="color:#0d5381; text-decoration:none;">
+                  KVTS (&lt;Kvarts&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      2,496
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      2,485
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        2.0
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7029000005" style="color:#0d5381; text-decoration:none;">
+                  QZSM (&lt;Qizilqumsement&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      1,233
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      1,196
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        4.0
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7037560008" style="color:#0d5381; text-decoration:none;">
+                  SQBN (&lt;O&#39;zsanoatqurilishbank&gt; ATB)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      32.7
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      33.9
+                      <span class="price-down" style="font-weight:bold;">
+                        (
+                          ▼
+                        1.1
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ703756K015" style="color:#0d5381; text-decoration:none;">
+                  SQBNP (&lt;O&#39;zsanoatqurilishbank&gt; ATB)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      86.5
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      85.98
+                      <span class="price-up" style="font-weight:bold;">
+                        (
+                          ▲
+                        1.96
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7043200003" style="color:#0d5381; text-decoration:none;">
+                  URTS (&lt;O&#39;zRTXB&gt; AJ)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      8,350
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      8,450
+                      <span class="price-up" style="font-weight:bold;">
+                        (
+                          ▲
+                        50.0
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="col-xs-4 col-md-3 col-lg-3" style="flex:0 0 auto; width:auto; padding:0;">
+            <div class="main-ticker-item" style="padding:10px 20px; border-right:1px solid #d0d8e0; background:#fff; min-width:200px; box-sizing:border-box;">
+              <div class="title" style="font-weight:600; font-size:14px; color:#0d5381;">
+                <a href="/isu_infos/STK?isu_cd=UZ7054570005" style="color:#0d5381; text-decoration:none;">
+                  IPTB (&lt;Ipoteka-bank&gt; ATIB)
+                </a>
+              </div>
+                <div class="price-wrapper" style="font-size:12px; line-height:1.6;">
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена закрытия : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      3.01
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="price-label" style="font-size:11px; color:#637e98;">Цена последний сделки : </span>
+                    <span class="price-value" style="font-weight:bold;">
+                      2.75
+                      <span class="price-up" style="font-weight:bold;">
+                        (
+                          ▲
+                        0.15
+                        )
+                      </span>
+                    </span>
+                  </div>
+                  <div class="price">
+                    <span class="datetime-label" style="font-size:11px; color:#637e98;">Дата последней сделки : </span>
+                    <span class="datetime-value" style="font-weight:bold;">
+                        04.08.2026
+                    </span>
+                  </div>
+                </div>
+            </div>
+          </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+<div class="container">
+  <div class="row">
+    <div class="col-xs-12">
+      <h3 class="second-title">
+          Данные о курсе акции
+      </h3>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-xs-12 text-right">
+      <form id="search-form" action="/isu_infos/STK"
+            class="form-inline has-margin-bottom">
+        <div class="form-group">
+          <label for="isu-cd" class="hidden">Код ЦБ</label>
+          <input type="text" class="form-control typeahead" id="isu-cd"
+                 name="isu_cd"
+                 placeholder="Поиск по имени эмитента"
+                 value=""
+                 autocomplete="off">
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <i class="fa fa-search"></i> Поиск
+        </button>
+      </form>
+        <form id="download-xlsx-form" action="/isu_infos/UZ7043380003/conclusions.xlsx"
+              class="form-inline hidden-xs pull-right"
+              style="display: none;">
+          <input id="begin" name="begin" type="hidden" />
+          <input id="end" name="end" type="hidden" />
+        </form>
+    </div>
+  </div>
+
+  
+
+<div class="row">
+  <div class="col-xs-12 col-md-6">
+    <table class="table table-bordered conclusion-table">
+      <thead>
+        <tr>
+          <td class="header" colspan="3" width="50%">
+            <div>			  
+              <h4>  
+                  <a href="/isu_infos/UZ7043380003/detail">
+                    UZ7043380003<br>
+					UTGA
+                  </a>
+              </h4>              
+              <h4>
+                &lt;O&#39;ztransgaz&gt; aksiyadorlik jamiyati 
+              </h4>	
+			<div class="conclusion-time">
+				<!-- < % if !@isu_info.executions.first.get_date.nil %>
+			  
+					(< %= l @isu_info.executions.first.get_date.to_date %>)
+				
+				< % end %>  -->
+            </div>
+            </div>
+			
+			<div>
+			<h4>
+			<br></br>
+					Номинал (UZS) 
+			</h4>		
+			</div>			
+			<div class="text-right">
+			<h2>
+			1,000		
+			</h2>						
+			</div>
+			
+			
+		<!--	<h4> -->
+    <!--            Цена последней сделки  -->
+     <!--       </h4> -->
+     <!--       <div class="text-right"> -->
+			
+        <!--      <span class="trd-price "> -->
+				<!-- < % if (@isu_info.uplmtprc != nil && @isu_info.uplmtprc < 999999998) || ( @isu_info.executions.first!= nil && (DateTime.now -  @isu_info.executions.first.get_date.to_date).to_int <3) % >         
+                  <!--  < %= number_with_delimiter rm_zeros(@last_conclusion.trd_prc) if !@last_conclusion.nil? % >-- >
+					< %= number_with_delimiter rm_zeros(@isu_info.exec.trade_price) if !@isu_info.exec.nil? % >					
+				< % else % >
+					< %= t "comp_info.ref_price_no" % > 
+				< % end % >
+				-->
+		<!--		 -->
+		<!--			Отсутствует  -->
+		<!--		 -->
+				
+        <!--      </span> -->
+         <!--   </div> -->
+			<div>	
+				<h4>
+					Цена на дату последней сделки (UZS) 
+				</h4>
+			</div>
+			<div class="text-left">
+					29.07.2026 
+			</div>
+			<div class="text-right">
+				<span class="trd-price ">
+					<!-- < %= number_with_delimiter rm_zeros(@last_conclusion.trd_prc) if !@last_conclusion.nil? % > -->
+					
+						116,000 						
+				</span>	
+			</div>
+          </td>
+        </tr>
+	</thead>
+</table>
+  	
+    <table class="table centered-table table-bordered">
+      <thead>
+        <tr>
+          <th class="text-center">
+            Изменение
+          </th>
+          <th class="text-center">
+            Кол-во ЦБ
+          </th>
+          <th class="text-center">
+            Объём торгов
+          </th>
+        </tr>
+        <tr>
+          <td class="text-center">
+            <span class="">
+              0
+            </span>
+          </td>
+          
+          <td class="text-center">
+            0
+          </td>
+          <td class="text-center">
+            0
+          </td>
+        </tr>
+      </thead>
+    </table>
+
+
+    <div class="table-responsive has-margin-bottom">
+      <table class="table centered-table table-bordered">
+        <thead>
+          <tr>
+            <th>Стартовая цена</th>
+            <th>Максимальная цена</th>
+            <th>Минимальная цена</th>
+            <th>Стоимость выпуска(UZS) UZ7043380003</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              0
+            </td>
+            <td>
+              0
+            </td>
+            <td>
+              0
+            </td>
+            <td>
+				<!--< %= number_with_delimiter rm_zeros(@last_conclusion.capital) if !@last_conclusion.nil? % >-->
+		    <!--< %= number_with_delimiter rm_zeros(@last_conclusion.trd_prc*@last_conclusion.list_shrs) if !@last_conclusion.nil? %> -->			
+			
+
+              622,631,949,000
+		   
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+<!--  <div class="col-xs-12 col-md-6"> -->
+  <div class="col-xs-12  col-md-6 has-margin-bottom has-scroll-y">
+    <h4 class="page-title">
+      Итоги торгов за день
+    </h4>
+    <table class="table centered-table table-bordered">
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Цена</th>
+          <th>Изменение</th>
+          <th>Кол-во ЦБ</th>
+          <th>
+              Объём торгов (UZS)
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+
+  <div class="row">
+    <div class="col-sm-12">
+      <h3 class="second-title">
+        История сделок
+      </h3>
+    </div>
+    <div class="col-sm-12 text-right">
+        <form id="search-form" action="/isu_infos/STK"
+              class="form-inline has-margin-bottom">
+          <input type="hidden" name="isu_cd" value="UZ7043380003"/>
+          <div class="form-group">
+            <label for="begin-date"></label>
+            <input id="begin-date" type="text"
+                   class="datepicker form-control"
+                   name="begin_date" placeholder="Begin Date"
+                   value="06.07.2026"
+                   style="width: 120px;">
+          </div>
+          <div class="form-group">
+            <label for="end-date"></label>
+            <input id="end-date" type="text"
+                   class="datepicker form-control"
+                   name="end_date" placeholder="End Date"
+                   value="05.08.2026"
+                   style="width: 120px;">
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="fa fa-search"></i> Поиск
+          </button>
+          <button type="button" class="btn btn-success download-xlsx-btn hidden-xs">
+            <i class="fa fa-file-excel-o"></i> Скачать
+          </button>
+        </form>
+    </div>
+  </div>
+
+    <div class="row">
+    <div class="col-xs-12  col-md-6 has-margin-bottom">
+      <div>
+        <div id="container" style="height: 375px; width: 100%;"
+        class=""></div>
+      </div>
+      <div>
+        <a href="/isu_info_splits/STK?isu_cd=UZ7043380003">Посмотреть сплиты</a>
+      </div>
+    </div>
+
+    <div class="col-xs-12  col-md-6 has-margin-bottom has-scroll-y">
+      <h4 class="page-title">
+        Итоги торгов
+      </h4>
+      <table class="table centered-table table-bordered">
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Цена закрытия</th>
+            <th>Изменение</th>
+            <th>Кол-во ЦБ</th>
+            <th>
+                Объём торгов (UZS)
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+            <tr>
+              <td>
+                03.08.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                31.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                30.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                29.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                3
+              </td>
+              <td>
+                348,000
+              </td>
+            </tr>
+            <tr>
+              <td>
+                28.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                27.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                24.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                23.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                22.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                1
+              </td>
+              <td>
+                116,000
+              </td>
+            </tr>
+            <tr>
+              <td>
+                21.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                20.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                17.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                16.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                15.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                14.07.2026
+              </td>
+              <td>
+                116,000
+              </td>
+
+
+              <td class="price-down">
+                  &#9660;
+                29,000
+              </td>
+              <td>
+                1
+              </td>
+              <td>
+                116,000
+              </td>
+            </tr>
+            <tr>
+              <td>
+                13.07.2026
+              </td>
+              <td>
+                145,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                10.07.2026
+              </td>
+              <td>
+                145,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                09.07.2026
+              </td>
+              <td>
+                145,000
+              </td>
+
+
+              <td class="price-down">
+                  &#9660;
+                30,000
+              </td>
+              <td>
+                2
+              </td>
+              <td>
+                285,000
+              </td>
+            </tr>
+            <tr>
+              <td>
+                08.07.2026
+              </td>
+              <td>
+                175,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                07.07.2026
+              </td>
+              <td>
+                175,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+            <tr>
+              <td>
+                06.07.2026
+              </td>
+              <td>
+                175,000
+              </td>
+
+
+              <td class="">
+                0
+              </td>
+              <td>
+                0
+              </td>
+              <td>
+                0
+              </td>
+            </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+
+</div>
+
+
+
+<div id="footer">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-6">
+        <h1 class="footer-title">
+          АО Республиканская Фондовая Биржа «Тошкент»
+        </h1>
+
+        <div class="footer-content">
+          <p>
+            При использовании материалов опубликованных на данном сайте, ссылка на www.uzse.uz обязательна.
+            <br>
+          </p>
+        </div>
+        <div class="container row" style="display: flex; justify-content: flex-start; align-items: center; gap: 5px;">
+          <i class="fa fa-pencil-square-o"></i>
+          <a href="/feedback/new" style="color: #fff;">Обратная связь</a>
+        </div>
+        <!--				<div class="container row" style="display: flex; justify-content: flex-start; align-items: center; gap: 5px; margin-top: 6px;">-->
+        <!--					<i class="fa fa-check-square-o"></i>-->
+        <!--					<a href="/abouts/questionnaire/" style="color: #fff;"></a>-->
+        <!--				</div>-->
+        <br>
+        <br>
+        <div class="footer-content">
+          <!-- START WWW.UZ TOP-RATING -->
+          <SCRIPT language="javascript" type="text/javascript">
+            <!--
+            top_js = '1.0';
+            top_r = 'id=2912&r=' + escape(document.referrer) + '&pg=' + escape(window.location.href);
+            document.cookie = 'smart_top=1; path=/';
+            top_r += '&c=' + (document.cookie ? 'Y' : 'N');
+            //-->
+          </SCRIPT>
+          <SCRIPT language="javascript1.1" type="text/javascript">
+            <!--
+            top_js = '1.1';
+            top_r += '&j=' + (navigator.javaEnabled() ? 'Y' : 'N');
+            //-->
+          </SCRIPT>
+          <SCRIPT language="javascript1.2" type="text/javascript">
+            <!--
+            top_js = '1.2';
+            top_r += '&wh=' + screen.width + 'x' + screen.height + '&px=' +
+              (((navigator.appName.substring(0, 3) == 'Mic')) ? screen.colorDepth : screen.pixelDepth);
+            //-->
+          </SCRIPT>
+          <SCRIPT language="javascript1.3" type="text/javascript">
+            <!--
+            top_js = '1.3';
+            //-->
+          </SCRIPT>
+          <SCRIPT language="JavaScript" type="text/javascript">
+            <!--
+            top_rat = '&col=2D71B1&t=ffffff&p=DD7900';
+            top_r += '&js=' + top_js + '';
+            document.write('<a href="http://www.uz/ru/res/visitor/index?id=2912" target=_top><img src="https://cnt0.www.uz/counter/collect?' + top_r + top_rat + '" width=88 height=31 border=0 alt="Топ рейтинг www.uz"></a>');//-->
+          </SCRIPT>
+          <NOSCRIPT>
+            <A href="http://www.uz/ru/res/visitor/index?id=2912" target=_top><IMG height=31 src="https://cnt0.www.uz/counter/collect?id=2912&pg=http%3A//uzinfocom.uz&&col=0063AF&amp;t=ffffff&amp;p=DD7900" width=88 border=0 alt="Топ рейтинг www.uz"></A>
+          </NOSCRIPT>
+          <!-- FINISH WWW.UZ TOP-RATING -->
+        </div>
+
+      </div>
+
+      <div class="col-lg-3">
+        <h1 class="footer-title">
+          <p>
+            Наши контакты
+          </p>
+        </h1>
+
+        <ul class="footer-list">
+          <!--<li>
+            <i class="fa fa-phone"></i>
+            +998 71 267-18-23
+          </li>
+          <li>
+            <i class="fa fa-phone"></i>
+            +998 71 267-18-21
+          </li>
+          <li>
+            <i class="fa fa-phone"></i>
+            +998 71 267-18-71
+          </li> -->
+          <li><i class="fa fa-phone"></i>
+            +998 555 100 300 (внт:200)
+          </li>
+          <li>
+            <i class="fa fa-phone"></i>
+            +998 555 009 995
+          </li>
+          <li>
+            <i class="fa fa-envelope"></i>
+            <a href="mailto:info@uzse.uz">info@uzse.uz</a>
+          </li>
+          <li>
+            <i class="fa fa-address-card"></i>
+            100170, Узбекистан, г. Ташкент, проспект Мустакиллик, 107
+          </li>
+          <li>
+            <i class="fa fa-map-marker"></i>
+            <a href="https://www.uzse.uz/abouts/locations">Месторасположение</a>
+          </li>
+          <li>
+            <i class="fa fa-clock-o"></i>
+            Понедельник-Пятница, 9:00-18:00
+          </li>
+        </ul>
+      </div>
+      <div class="col-lg-3">
+        <h1 class="footer-title">
+          <p>
+            Мы в социальных сетях
+          </p>
+        </h1>
+
+        <ul class="footer-list">
+          <li>
+            <i class="fa fa-facebook-square fa-lg"></i>
+            <a href="https://www.facebook.com/uzseofficial/" target="_blank">
+              Facebook
+            </a>
+          </li>
+          <li>
+            <i class="fa fa-telegram fa-lg"></i>
+            <a href="https://t.me/uzseofficial" target="_blank">
+              Telegram
+            </a>
+          </li>
+          <li>
+            <i class="fa fa-twitter fa-lg"></i>
+            <a href="https://twitter.com/OfficialUzse" target="_blank">
+              Twitter
+            </a>
+          </li>
+          <li>
+            <i class="fa fa-linkedin fa-lg"></i>
+            <a href="https://www.linkedin.com/company/uzse/" target="_blank">
+              Linkedin
+            </a>
+          </li>
+          <li>
+            <i class="fa fa-instagram fa-lg"></i>
+            <a href="https://www.instagram.com/uzse_official" target="_blank">
+              Instagram
+            </a>
+          </li>
+          <li>
+            <i class="fa fa-telegram fa-lg"></i><a href="https://t.me/rfb_toshkent_bot" target="_blank">Telegram-бот</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="footer-bottom">
+  <div class="container">
+    Copyright &copy; UZSE 2007-2026
+  </div>
+</div>	
+	
+
+
+<script src="/assets/application.js" data-turbolinks-track="true"></script>
+<script type="text/javascript">
+  $(function(){
+    var date = new Date();
+    var calendarLocale = "ru";
+    
+    if (calendarLocale != "en") {
+      calendarLocale = "ru";
+    }
+
+    var dateFormat = "DD.MM.YYYY";
+    
+    $('.datepicker').datepicker({
+      autoclose: true,
+      language: calendarLocale,
+      endDate :  date
+    }).on("hide", function(e){
+      if($(this).attr("id") == "begin-date") {
+        $("#end-date").focus();
+      }
+    });
+
+    $(document).on("click", ".history-search-btn", function(e){
+      var beginDate = $("#begin-date").val();
+      var endDate = $("#end-date").val();
+
+      var mBeginDate = moment(beginDate, dateFormat);
+      var mEndDate = moment(endDate, dateFormat);
+
+      var diff = mEndDate.diff(mBeginDate, 'days');
+      if (diff > 30) {
+        alert("Date difference cannot exceed 30 days");
+      } else {
+        $("#conclusion-search-form")[0].submit();
+      }
+    });
+  });
+</script>
+  <script type="text/javascript">
+    $(function(){
+    var data = [];
+      data.push([
+        moment("20260706", "YYYYMMDD")._d.valueOf(),
+        175000.0,
+        175000.0,
+        175000.0,
+        175000.0,
+        0
+        ]);
+      data.push([
+        moment("20260707", "YYYYMMDD")._d.valueOf(),
+        175000.0,
+        175000.0,
+        175000.0,
+        175000.0,
+        0
+        ]);
+      data.push([
+        moment("20260708", "YYYYMMDD")._d.valueOf(),
+        175000.0,
+        175000.0,
+        175000.0,
+        175000.0,
+        0
+        ]);
+      data.push([
+        moment("20260709", "YYYYMMDD")._d.valueOf(),
+        140000.0,
+        145000.0,
+        140000.0,
+        145000.0,
+        2
+        ]);
+      data.push([
+        moment("20260710", "YYYYMMDD")._d.valueOf(),
+        145000.0,
+        145000.0,
+        145000.0,
+        145000.0,
+        0
+        ]);
+      data.push([
+        moment("20260713", "YYYYMMDD")._d.valueOf(),
+        145000.0,
+        145000.0,
+        145000.0,
+        145000.0,
+        0
+        ]);
+      data.push([
+        moment("20260714", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        1
+        ]);
+      data.push([
+        moment("20260715", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260716", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260717", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260720", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260721", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260722", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        1
+        ]);
+      data.push([
+        moment("20260723", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260724", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260727", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260728", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260729", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        3
+        ]);
+      data.push([
+        moment("20260730", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260731", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+      data.push([
+        moment("20260803", "YYYYMMDD")._d.valueOf(),
+        116000.0,
+        116000.0,
+        116000.0,
+        116000.0,
+        0
+        ]);
+
+    // split the data set into ohlc and volume
+    var ohlc = [];
+    var volume = [];
+    var dataLength = data.length;
+    // set the allowed units for data grouping
+    var groupingUnits = [
+          [
+            'week',                         // unit name
+            [1]                             // allowed multiples
+          ], 
+          [
+            'month',
+            [1, 2, 3, 4, 6]
+            ]
+        ];
+    var i = 0;
+        
+    for (i; i < dataLength; i += 1) {
+      ohlc.push([
+        data[i][0], // the date
+        data[i][1], // open
+        data[i][2], // high
+        data[i][3], // low
+        data[i][4] // close
+      ]);
+
+      volume.push([
+        data[i][0], // the date
+        data[i][5] // the volume
+      ]);
+    }
+
+    // create the chart
+    var chart = $('#container').highcharts('StockChart', {
+      rangeSelector: {
+        selected: 1,
+        inputEnabled: false,
+        buttonTheme: {
+          visibility: 'hidden'
+        },
+        labelStyle: {
+          visibility: 'hidden'
+        }
+      },
+      exporting: {
+        buttons: {
+          contextButton: {
+            enabled: false
+          }
+        }
+      },
+      title: {
+        text: "UZ7043380003" +' [' + "UTGA" + ']'
+      },
+      xAxis: {
+        minTickInterval: 24 * 3600 * 1000
+      },
+      yAxis: [{
+        labels: {
+          align: 'right',
+          x: -3
+        },
+        title: {
+          text: null
+        },
+        height: '60%',
+        lineWidth: 2
+      }, {
+        labels: {
+          align: 'right',
+          x: -3
+        },
+        title: {
+          text: null
+        },
+        top: '65%',
+        height: '35%',
+        offset: 0,
+        lineWidth: 2
+      }],
+      plotOptions: {
+        candlestick: {
+          color: 'red',
+          upColor: 'green'
+        }
+      },
+      series: [{
+        type: 'candlestick',
+        name: "UTGA",
+        data: ohlc,
+        dataGrouping: {
+          units: groupingUnits
+        }
+      }, {
+        type: 'column',
+        name: 'Volume',
+        data: volume,
+        yAxis: 1,
+        dataGrouping: {
+          units: groupingUnits
+        }
+      }]
+    });
+  });
+  </script>
+  <script type="text/javascript">
+    $(function(){
+      $('.datepicker').datepicker({
+        autoclose: true,
+        language: "ru"
+      });
+
+      // ---- Функция для подсчёта дней между датами (dd.mm.yyyy) ----
+      function daysBetweenDates(dateStr1, dateStr2) {
+        var parts1 = dateStr1.split('.');
+        var parts2 = dateStr2.split('.');
+        var d1 = new Date(parts1[2], parts1[1]-1, parts1[0]);
+        var d2 = new Date(parts2[2], parts2[1]-1, parts2[0]);
+        var diff = Math.abs(d2 - d1);
+        return Math.ceil(diff / (1000 * 60 * 60 * 24));
+      }
+
+      // ---- НОВЫЙ обработчик кнопки скачивания ----
+      $(".download-xlsx-btn").click(function(e){
+        var $btn = $(this);
+
+        // Защита от повторных кликов
+        if ($btn.prop('disabled')) return false;
+
+        var beginDate = $('#begin-date').val();
+        var endDate = $('#end-date').val();
+
+        // Предупреждение при большом периоде (> 3 лет = 1095 дней)
+        if (daysBetweenDates(beginDate, endDate) > 1095) {
+          if (!confirm('Вы выбрали большой период (более 3 лет). Генерация может занять некоторое время. Продолжить?')) {
+            return false;
+          }
+        }
+
+        // Блокируем кнопку и показываем спиннер
+        $btn.prop('disabled', true)
+          .html('<i class="fa fa-spinner fa-spin"></i> Генерация...');
+
+        // Заполняем скрытые поля формы
+        $('#begin').val(beginDate);
+        $('#end').val(endDate);
+
+        // Формируем URL для скачивания
+        var currentAction = $("#download-xlsx-form").attr('action');
+        var url = new URL(currentAction, window.location.origin);
+        var newAction = url.pathname + '?begin_date=' + encodeURIComponent(beginDate) + '&end_date=' + encodeURIComponent(endDate);
+        $("#download-xlsx-form").attr('action', newAction).submit();
+
+        // Аварийное восстановление кнопки через 30 секунд
+        setTimeout(function(){
+          $btn.prop('disabled', false)
+            .html('<i class="fa fa-file-excel-o"></i> Скачать');
+        }, 30000);
+      });
+
+      // ---- Typeahead (без изменений) ----
+      $.getJSON("/isu_infos/names", {mkt_id: "STK"}, function(data){
+        $('.typeahead').typeahead({
+          source: data,
+          items: 'all',
+          minLength: 2,
+          displayText: function (item) {
+            return item[0] + " / " + item[1] + " / " + item[2];
+          },
+          afterSelect: function (item) {
+            $(".typeahead").val(item[0])
+          }
+        });
+      });
+    });
+  </script>
+  <script type="text/javascript">
+    (function() {
+      var container = document.getElementById('ticker-container');
+      var items = document.getElementById('ticker-items');
+      if (!container || !items) return;
+
+      var pos = 0;
+      var speed = 0.8; // пикселей за кадр
+      var animationId = null;
+      var itemWidth = 0;
+      var containerWidth = 0;
+
+      function updateWidths() {
+        // Принудительно задаём стили для корректного измерения
+        items.style.display = 'flex';
+        items.style.flexWrap = 'nowrap';
+        items.style.width = 'max-content';
+        items.style.padding = '0';
+        items.style.margin = '0';
+
+        itemWidth = items.scrollWidth;
+        containerWidth = container.offsetWidth;
+        if (itemWidth <= containerWidth) {
+          if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+          }
+          items.style.transform = 'translateX(0)';
+          return false;
+        }
+        return true;
+      }
+
+      function animate() {
+        if (!animationId) return;
+        pos -= speed;
+        if (Math.abs(pos) >= itemWidth / 2) {
+          pos = 0;
+        }
+        items.style.transform = 'translateX(' + pos + 'px)';
+        animationId = requestAnimationFrame(animate);
+      }
+
+      function startAnimation() {
+        if (animationId) {
+          cancelAnimationFrame(animationId);
+          animationId = null;
+        }
+        if (updateWidths()) {
+          pos = 0;
+          animationId = requestAnimationFrame(animate);
+        }
+      }
+
+      // Запускаем после загрузки DOM
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startAnimation);
+      } else {
+        startAnimation();
+      }
+
+      // Перезапускаем при изменении размера окна
+      var resizeTimeout;
+      window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+          startAnimation();
+        }, 300);
+      });
+
+      // Перезапускаем после полной загрузки
+      window.addEventListener('load', function() {
+        setTimeout(startAnimation, 500);
+      });
+    })();
+  </script>
+
+
+
+<script type="text/javascript">
+  var isMicMode = false;
+  var currentLocale = "ru";
+  var voiceLang = currentLocale == 'en' ? 'en-US' : 'ru-RU';
+
+  $('#graysacle-btn').click(function(e) {
+    e.preventDefault();
+
+    if ($('body').hasClass('grayscale')) {
+      $(this).parent('li').removeClass('active');
+      $('body').removeClass('grayscale');
+    } else {
+      $(this).parent('li').addClass('active');
+      $('body').addClass('grayscale');
+    }
+
+    var $target = $(this);
+    $.getJSON('/grayscale', function(data) {
+      $target.blur();
+    });
+  });
+
+  $('#microphone-btn').click(function(e) {
+    e.preventDefault();
+
+    isMicMode = !isMicMode;
+    if (isMicMode) {
+      $(this).parent('li').addClass('active');
+      $('html,body').css('cursor', 'pointer');
+    } else {
+      $(this).parent('li').removeClass('active');
+      $(this).blur();
+      $('html,body').css('cursor', 'auto');
+    }
+  });
+
+  $(document).hover(function() {
+    $(this).toggleClass('result_hover');
+  });
+
+  $(document).click(function(event) {
+    // event.target is the clicked object
+    if (isMicMode && event.target.id != 'microphone-btn') {
+      event.preventDefault();
+
+      var text = '';
+      var utterance;
+
+      if ($(event.target).is('img')) {
+        text = $(event.target).attr('alt');
+        utterance = new SpeechSynthesisUtterance(text);
+      } else {
+        text = $(event.target).text();
+        utterance = new SpeechSynthesisUtterance(text);
+      }
+      utterance.lang = voiceLang;
+      window.speechSynthesis.speak(utterance);
+    }
+  });
+
+
+  $(function() {
+    $('[data-toggle="tooltip"]').tooltip();
+  });
+</script>
+<script>
+  $('.dropdown-submenu > a').on('click', function(e) {
+    if ($(window).width() > 768) {
+      e.preventDefault();
+      window.location.href = $(this).attr('href');
+    }
+  });
+</script>
+</body>
+</html>
+
+

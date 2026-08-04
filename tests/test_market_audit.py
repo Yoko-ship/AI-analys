@@ -138,3 +138,41 @@ class TestWhatItMustNotReport:
                                 [_row(last_trade_date=stored)])
 
         assert verdict["ok"] is True
+
+
+class TestASessionStillBeingTraded:
+    """The 13:00 run reads the feed, then the pages, while the day goes on.
+
+    On 2026-08-04 it summed 68 securities' executions and then read pages that
+    had kept trading — 16 "disagreements" that were all settled by 16:10 and
+    reported nothing but the six minutes between the two reads. A page ahead of
+    the feed is the session continuing; a page BEHIND it is still wrong.
+    """
+
+    def test_a_page_ahead_of_the_feed_is_the_session_continuing(self) -> None:
+        verdict = audit_session({"UZ7042540003": _stat(4_096_850.0, 79)},
+                                {"UZ7042540003": _quote(4_403_867.0, 86)},
+                                [_row()], today=DAY)
+
+        assert verdict["ok"] is True
+        assert verdict["session_open"] is True
+        assert verdict["still_trading"] == ["UQEQ"]
+
+    def test_a_page_behind_the_feed_is_wrong_even_mid_session(self) -> None:
+        """More executions than the exchange itself reports cannot be explained."""
+        verdict = audit_session({"UZ7042540003": _stat(4_403_867.0, 86)},
+                                {"UZ7042540003": _quote(4_096_850.0, 79)},
+                                [_row()], today=DAY)
+
+        assert _failed(verdict) == ["turnover_agrees_with_the_executions",
+                                    "quantity_agrees_with_the_executions"]
+
+    def test_a_closed_session_still_has_to_agree_exactly(self) -> None:
+        """Once the day has turned both sides are final — the 08:00 run's check."""
+        verdict = audit_session({"UZ7042540003": _stat(4_096_850.0, 79)},
+                                {"UZ7042540003": _quote(4_403_867.0, 86)},
+                                [_row()], today="20260801")
+
+        assert verdict["session_open"] is False
+        assert _failed(verdict) == ["turnover_agrees_with_the_executions",
+                                    "quantity_agrees_with_the_executions"]
