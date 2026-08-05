@@ -47,6 +47,16 @@ class TestSetContents:
         for ordinary in ("SQBN", "KPBA", "IPKY", "IPTB", "TRSB", "HMKB", "MCBA", "UZMK"):
             assert ordinary not in DELISTED_TICKERS
 
+    def test_uzal2_goes_but_o_zagrolizing_stays(self) -> None:
+        """The one dead line that reached the board as a share, not a bond.
+
+        UZ6011507AA9 is a bond ISIN quoted at 101.5% of a 1 000 000 par, last
+        traded 30.05.2023; filed as equity it was valued share-style and became a
+        50.75 bn block on the heat map. Both live O'zagrolizing lines stay.
+        """
+        assert is_delisted("UZAL2")
+        assert not is_delisted("UZAL") and not is_delisted("UZALP")
+
     def test_is_delisted_normalises(self) -> None:
         assert is_delisted("sqb2") and is_delisted("  SQB2 ")
         assert not is_delisted(None) and not is_delisted("")
@@ -113,6 +123,20 @@ class TestPurge:
     def test_is_idempotent(self, catalog_db) -> None:
         assert rc.purge_delisted()
         assert rc.purge_delisted() == {}
+
+    def test_the_table_list_does_not_come_from_sqlites_own_catalog(self) -> None:
+        """The purge runs on PostgreSQL too, where `sqlite_master` does not exist.
+
+        It is the one writer that has to enumerate tables, and asking SQLite for
+        that list raised on Postgres before a single row was deleted. Nothing
+        surfaced: the startup handler logs and moves on, and every read path
+        filters DELISTED_TICKERS anyway — so the rows stayed in the database while
+        the site behaved exactly as if they were gone. `dbx.tables()` knows both
+        backends; this module must not ask either of them directly.
+        """
+        import inspect
+
+        assert "sqlite_master" not in inspect.getsource(rc)
 
     def test_ingest_cannot_resurrect_a_deleted_row(self, catalog_db) -> None:
         """An older collector build still pushes these; the upsert must refuse."""
