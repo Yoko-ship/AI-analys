@@ -1,18 +1,19 @@
 /**
- * AdminPanel.jsx — the administrative panel («Neutral», направление A).
+ * AdminPanel.jsx — the administrative page.
  *
- * Renders full-screen as a sibling of the site shell: the panel has its own
- * sidebar and header, so wrapping it in the product's topbar would give the
- * operator two navigations for one screen.
+ * A page of the site, not an application beside it. The topbar, brand, language
+ * and theme controls stay where they always are; this renders inside the same
+ * content column as Рынок or Новости, with the sections as tabs. Everything is
+ * painted with the site's tokens, so it follows both themes without owning them.
  *
  * Authentication is the signed-in admin's own Bearer token — the machine
- * X-Admin-Secret never reaches the browser. The server side of that is
- * `_admin_gate` in api.py, which accepts either credential.
+ * X-Admin-Secret never reaches the browser. The server side is `_admin_gate`
+ * in api.py, which accepts either credential.
  *
  * Nothing here invents a number. Where the backend cannot measure something the
- * cell renders «—», and the freshness section says «последняя запись» rather
- * than «прогон», because from this process a collector that died and a collector
- * that had nothing to write look identical.
+ * cell renders «—», and the collectors section says «последняя запись» rather
+ * than «прогон», because from this process a collector that died and one that
+ * had nothing to write look identical.
  */
 import React from "react";
 import { Icon, IconSprite } from "./icons.jsx";
@@ -57,58 +58,47 @@ function fmtAge(hours, t) {
 const SEVERITY_TONE = { blocking: "err", warning: "warn", info: "ok" };
 
 /* ── sections ─────────────────────────────────────────────────────────────── */
-/** `ready: false` renders the item disabled — an honest "not built yet" beats a
+/** `ready: false` renders the tab disabled — an honest "not built yet" beats a
  *  screen that looks finished and answers nothing. */
 const SECTIONS = [
-  { key: "overview", icon: "dashboard", group: "platform", ready: true,
-    title: ["Обзор", "Umumiy ko'rinish", "Overview"] },
-  { key: "streams", icon: "refresh", group: "platform", ready: true,
+  { key: "overview", icon: "dashboard", ready: true,
+    title: ["Обзор", "Umumiy", "Overview"] },
+  { key: "streams", icon: "refresh", ready: true,
     title: ["Сборщики", "Yig'uvchilar", "Collectors"] },
-  { key: "findings", icon: "alert", group: "platform", ready: true,
+  { key: "findings", icon: "alert", ready: true,
     title: ["Аудит", "Audit", "Audit"] },
-  { key: "catalog", icon: "list", group: "data", ready: false,
-    title: ["Каталог бумаг", "Qimmatli qog'ozlar", "Securities"] },
-  { key: "financials", icon: "file", group: "data", ready: false,
+  { key: "catalog", icon: "list", ready: false,
+    title: ["Каталог", "Katalog", "Securities"] },
+  { key: "financials", icon: "file", ready: false,
     title: ["Отчётность", "Hisobot", "Statements"] },
-  { key: "quotes", icon: "chart", group: "data", ready: false,
+  { key: "quotes", icon: "chart", ready: false,
     title: ["Котировки", "Kotirovkalar", "Quotes"] },
-  { key: "dividends", icon: "percent", group: "data", ready: false,
+  { key: "dividends", icon: "percent", ready: false,
     title: ["Дивиденды", "Dividendlar", "Dividends"] },
-  { key: "news", icon: "news", group: "content", ready: false,
+  { key: "news", icon: "news", ready: false,
     title: ["Новости", "Yangiliklar", "News"] },
-  { key: "logos", icon: "image", group: "content", ready: false,
-    title: ["Логотипы", "Logotiplar", "Logos"] },
-  { key: "users", icon: "users", group: "access", ready: false,
+  { key: "users", icon: "users", ready: false,
     title: ["Пользователи", "Foydalanuvchilar", "Users"] },
 ];
-
-const GROUP_TITLES = {
-  platform: ["Платформа", "Platforma", "Platform"],
-  data: ["Данные", "Ma'lumotlar", "Data"],
-  content: ["Контент", "Kontent", "Content"],
-  access: ["Доступ", "Kirish", "Access"],
-};
 
 export const ADMIN_SECTION_KEYS = SECTIONS.map((s) => s.key);
 
 /* ── small pieces ─────────────────────────────────────────────────────────── */
 
-function Stat({ label, value, badge, badgeIcon, line1, line1Icon, line2 }) {
+function Stat({ label, value, warn, badge, badgeIcon, line1, line2 }) {
   return (
-    <div className="adm-card adm-stat">
-      <div className="top">
-        <span className="lab">{label}</span>
+    <div className="panel admin-stat">
+      <div className="admin-stat-top">
+        <span className="admin-stat-label">{label}</span>
         {badge ? (
-          <span className="adm-badge">
+          <span className="admin-stat-badge">
             {badgeIcon ? <Icon name={badgeIcon} /> : null}{badge}
           </span>
         ) : null}
       </div>
-      <div className="v">{value}</div>
-      {line1 ? (
-        <div className="l1">{line1}{line1Icon ? <Icon name={line1Icon} /> : null}</div>
-      ) : null}
-      {line2 ? <div className="l2">{line2}</div> : null}
+      <div className={`admin-stat-value${warn ? " warn" : ""}`}>{value}</div>
+      {line1 ? <div className="admin-stat-l1">{line1}</div> : null}
+      {line2 ? <div className="admin-stat-l2">{line2}</div> : null}
     </div>
   );
 }
@@ -120,8 +110,8 @@ function Severity({ value, t }) {
       ? t("Предупреждение", "Ogohlantirish", "Warning")
       : t("Информация", "Ma'lumot", "Info");
   return (
-    <span className="adm-pill">
-      <span className={`adm-dot ${SEVERITY_TONE[value] || ""}`} />{label}
+    <span className="admin-pill">
+      <span className={`admin-dot ${SEVERITY_TONE[value] || ""}`} />{label}
     </span>
   );
 }
@@ -131,12 +121,12 @@ function Severity({ value, t }) {
 function RunHistory({ runs, t }) {
   const peak = Math.max(1, ...runs.map((r) => Number(r.blocking) || 0));
   return (
-    <div className="adm-bars">
+    <div className="admin-bars">
       {runs.map((run, index) => {
         const value = Number(run.blocking) || 0;
         const last = index === runs.length - 1;
         const label = fmtStamp(run.finished_at || run.started_at, { withTime: false }).slice(0, 5);
-        const cls = ["b", last ? "now" : "", run.status === "failed" ? "failed" : ""]
+        const cls = ["bar", last ? "now" : "", run.status === "failed" ? "failed" : ""]
           .filter(Boolean).join(" ");
         return (
           <div
@@ -155,9 +145,9 @@ function RunHistory({ runs, t }) {
 
 function Skeleton({ rows = 3 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="adm-skel" style={{ height: i === 0 ? 86 : 54 }} />
+        <div key={i} className="admin-skel" style={{ height: i === 0 ? 96 : 58 }} />
       ))}
     </div>
   );
@@ -173,7 +163,7 @@ function FindingsTable({ items, rules, t, selected, onToggle, onAccept, busy }) 
 
   if (!items.length) {
     return (
-      <div className="adm-empty">
+      <div className="admin-empty">
         <b>{t("Ничего не ждёт решения", "Hech narsa kutmayapti", "Nothing is waiting")}</b>
         {t("Все открытые находки разобраны.", "Barcha topilmalar ko'rib chiqilgan.",
            "Every open finding has been dealt with.")}
@@ -182,17 +172,17 @@ function FindingsTable({ items, rules, t, selected, onToggle, onAccept, busy }) 
   }
 
   return (
-    <div className="adm-wide">
+    <div className="admin-scroll">
       <table>
         <thead>
           <tr>
-            <th style={{ width: 40 }} />
+            <th style={{ width: 42 }} />
             <th>{t("Правило", "Qoida", "Rule")}</th>
-            <th style={{ width: 142 }}>{t("Уровень", "Daraja", "Severity")}</th>
+            <th style={{ width: 156 }}>{t("Уровень", "Daraja", "Severity")}</th>
             <th style={{ width: 96 }}>{t("Бумага", "Qog'oz", "Security")}</th>
-            <th style={{ width: 110 }}>{t("Держится", "Ushlanib turibdi", "Seen")}</th>
+            <th style={{ width: 116 }}>{t("Держится", "Ushlanib turibdi", "Seen")}</th>
             <th className="r" style={{ width: 118 }}>{t("Открыта", "Ochilgan", "Opened")}</th>
-            <th style={{ width: 44 }} />
+            <th style={{ width: 46 }} />
           </tr>
         </thead>
         <tbody>
@@ -203,7 +193,7 @@ function FindingsTable({ items, rules, t, selected, onToggle, onAccept, busy }) 
                 <td>
                   <button
                     type="button"
-                    className="adm-chk"
+                    className="admin-check"
                     role="checkbox"
                     aria-checked={checked}
                     aria-label={t("Выбрать находку", "Topilmani tanlash", "Select finding")}
@@ -211,21 +201,21 @@ function FindingsTable({ items, rules, t, selected, onToggle, onAccept, busy }) 
                   />
                 </td>
                 <td>
-                  <div className="rule"><code>{item.rule_code}</code>{ruleTitle(item.rule_code)}</div>
-                  {item.message ? <div className="dim">{item.message}</div> : null}
+                  <div className="admin-rule"><code>{item.rule_code}</code>{ruleTitle(item.rule_code)}</div>
+                  {item.message ? <div className="admin-sub">{item.message}</div> : null}
                 </td>
                 <td><Severity value={item.severity} t={t} /></td>
-                <td className="who">{item.ticker || DASH}</td>
-                <td className="who">
+                <td className="admin-num">{item.ticker || DASH}</td>
+                <td className="admin-num">
                   {item.seen_count
                     ? t(`${item.seen_count} прогон(ов)`, `${item.seen_count} marta`, `${item.seen_count} runs`)
                     : DASH}
                 </td>
-                <td className="r who">{fmtStamp(item.first_seen, { withTime: false })}</td>
+                <td className="r admin-num">{fmtStamp(item.first_seen, { withTime: false })}</td>
                 <td>
                   <button
                     type="button"
-                    className="adm-more"
+                    className="admin-row-act"
                     title={t("Принять как известное", "Ma'lum deb qabul qilish", "Accept as known")}
                     disabled={busy}
                     onClick={() => onAccept([item.id])}
@@ -242,14 +232,12 @@ function FindingsTable({ items, rules, t, selected, onToggle, onAccept, busy }) 
   );
 }
 
-/* ── panel ────────────────────────────────────────────────────────────────── */
+/* ── page ─────────────────────────────────────────────────────────────────── */
 
 export default function AdminPanel({
-  apiFetch, user, language = "ru", theme = "dark", onToggleTheme, onExit,
-  section = "overview", onSectionChange,
+  apiFetch, language = "ru", section = "overview", onSectionChange,
 }) {
   const t = useT(language);
-  const [navOpen, setNavOpen] = useState(false);
   const [overview, setOverview] = useState(null);
   const [rules, setRules] = useState([]);
   const [error, setError] = useState("");
@@ -288,7 +276,7 @@ export default function AdminPanel({
     if (alive.current) setFindings(data.items || []);
   }, [filters, readJson]);
 
-  // The rule book is public and cacheable; a failure there must not blank the screen.
+  // The rule book is public and cacheable; a failure there must not blank the page.
   useEffect(() => {
     fetch("/api/audit/rules")
       .then((r) => r.json())
@@ -352,11 +340,6 @@ export default function AdminPanel({
     return next;
   });
 
-  const goto = (key) => {
-    setNavOpen(false);
-    if (onSectionChange) onSectionChange(key);
-  };
-
   const audit = overview && overview.audit;
   const catalog = overview && overview.catalog;
   const news = overview && overview.news;
@@ -370,41 +353,45 @@ export default function AdminPanel({
     () => streams.filter((s) => s.state === "stale").length, [streams]);
 
   const current = SECTIONS.find((s) => s.key === section) || SECTIONS[0];
-  const sectionTitle = current.title[lang3(language)];
+
+  const SECTION_LEDE = {
+    overview: t(
+      "Состояние данных на сегодня: что собрано, что требует решения и сколько это стоит.",
+      "Bugungi ma'lumot holati.",
+      "Today's state of the data: what was collected, what needs a decision, what it costs."),
+    streams: t(
+      "Показана последняя запись в таблице, которую пишет служба, а не её код возврата: сборщики работают отдельными сервисами и в этот процесс не отчитываются.",
+      "Xizmat yozadigan jadvaldagi oxirgi yozuv ko'rsatilgan.",
+      "The last write in the table each service fills, not its exit code: the collectors run as separate services and do not report here."),
+    findings: t(
+      "Аудитор пересчитывает те же величины независимым путём и сравнивает их с опубликованным. Блокирующая находка снимает число с публикации.",
+      "Auditor qiymatlarni mustaqil qayta hisoblab, e'lon qilingani bilan solishtiradi.",
+      "The auditor recomputes the same quantities by an independent route and compares them with what was published."),
+  };
 
   /* ── section bodies ─────────────────────────────────────────────────────── */
 
   const overviewBody = (
-    <>
-      <div className="adm-h1row">
-        <h1 className="adm-h1">{t("Обзор", "Umumiy ko'rinish", "Overview")}</h1>
-        <p>
-          {latest && latest.finished_at
-            ? t(`Последний прогон аудита — ${fmtStamp(latest.finished_at)}`,
-                `Oxirgi audit — ${fmtStamp(latest.finished_at)}`,
-                `Last audit run — ${fmtStamp(latest.finished_at)}`)
-            : t("Аудит ещё не прогонялся", "Audit hali ishga tushirilmagan", "The auditor has not run yet")}
-        </p>
-      </div>
-
-      <div className="adm-stats">
+    <div className="admin-section">
+      <div className="admin-stats">
         <Stat
           label={t("Бумаг в каталоге", "Kataloqdagi qog'ozlar", "Securities")}
           value={fmtInt(catalog && catalog.securities)}
-          line2={catalog
-            ? t(`${fmtInt(catalog.stocks)} акций и ${fmtInt(catalog.bonds)} облигаций`,
-                `${fmtInt(catalog.stocks)} aksiya, ${fmtInt(catalog.bonds)} obligatsiya`,
-                `${fmtInt(catalog.stocks)} shares and ${fmtInt(catalog.bonds)} bonds`)
-            : null}
           line1={catalog && catalog.preferred
             ? t(`${fmtInt(catalog.preferred)} привилегированных`,
                 `${fmtInt(catalog.preferred)} imtiyozli`,
                 `${fmtInt(catalog.preferred)} preferred`)
             : null}
+          line2={catalog
+            ? t(`${fmtInt(catalog.stocks)} акций и ${fmtInt(catalog.bonds)} облигаций`,
+                `${fmtInt(catalog.stocks)} aksiya, ${fmtInt(catalog.bonds)} obligatsiya`,
+                `${fmtInt(catalog.stocks)} shares and ${fmtInt(catalog.bonds)} bonds`)
+            : null}
         />
         <Stat
           label={t("Блокирующих находок", "Bloklovchi topilmalar", "Blocking findings")}
           value={fmtInt(openCounts.blocking)}
+          warn={Boolean(openCounts.blocking)}
           line1={t(`Предупреждений — ${fmtInt(openCounts.warning)}`,
                    `Ogohlantirish — ${fmtInt(openCounts.warning)}`,
                    `Warnings — ${fmtInt(openCounts.warning)}`)}
@@ -440,8 +427,8 @@ export default function AdminPanel({
         />
       </div>
 
-      <div className="adm-card">
-        <div className="adm-chhead">
+      <div className="panel">
+        <div className="admin-chart-head">
           <div>
             <h2>{t("Блокирующие находки по прогонам", "Prognozlar bo'yicha bloklovchi topilmalar",
                    "Blocking findings by run")}</h2>
@@ -450,10 +437,10 @@ export default function AdminPanel({
           </div>
         </div>
         {history.length ? <RunHistory runs={history} t={t} /> : (
-          <div className="adm-empty">{t("Прогонов пока нет", "Hali prognoz yo'q", "No runs yet")}</div>
+          <div className="admin-empty">{t("Прогонов пока нет", "Hali prognoz yo'q", "No runs yet")}</div>
         )}
         {latest ? (
-          <div className="adm-chfoot">
+          <div className="admin-chart-foot">
             <div><span>{t("Правил в прогоне", "Qoidalar", "Rules run")}</span> <b>{fmtInt(latest.rules_run)}</b></div>
             <div><span>{t("Инструментов", "Vositalar", "Instruments")}</span> <b>{fmtInt(latest.instruments)}</b></div>
             <div><span>{t("Длительность", "Davomiylik", "Duration")}</span> <b>{fmtInt(latest.duration_ms)} мс</b></div>
@@ -462,16 +449,17 @@ export default function AdminPanel({
         ) : null}
       </div>
 
-      <div className="adm-card">
-        <div className="adm-tbar">
-          <div className="adm-tabs">
+      <div className="panel">
+        <div className="admin-panel-bar">
+          <div className="admin-seg">
             <button type="button" aria-selected="true">
               {t("Требует решения", "Qaror kerak", "Needs a decision")}
-              <span className="c">{queue.length}</span>
+              <span className="n">{queue.length}</span>
             </button>
           </div>
-          <span className="sp" />
-          <button type="button" className="adm-btn sm" onClick={() => goto("findings")}>
+          <span className="admin-sp" />
+          <button type="button" className="admin-btn sm"
+                  onClick={() => onSectionChange && onSectionChange("findings")}>
             {t("Все находки", "Barcha topilmalar", "All findings")}
           </button>
         </div>
@@ -480,76 +468,62 @@ export default function AdminPanel({
           onToggle={toggleSelected} onAccept={acceptFindings} busy={busy}
         />
       </div>
-    </>
+    </div>
   );
 
   const streamsBody = (
-    <>
-      <div className="adm-h1row">
-        <h1 className="adm-h1">{t("Сборщики", "Yig'uvchilar", "Collectors")}</h1>
-        <p>
-          {t("Показана последняя запись в таблице, которую пишет служба, а не её код возврата: сборщики работают отдельными сервисами и в этот процесс не отчитываются.",
-             "Xizmat yozadigan jadvaldagi oxirgi yozuv ko'rsatilgan.",
-             "This is the last write in the table each service fills, not its exit code: the collectors run as separate services and do not report here.")}
-        </p>
-      </div>
-      <div className="adm-card adm-wide">
-        <table>
-          <thead>
-            <tr>
-              <th>{t("Поток", "Oqim", "Stream")}</th>
-              <th style={{ width: 190 }}>{t("Служба", "Xizmat", "Service")}</th>
-              <th style={{ width: 180 }}>{t("Расписание", "Jadval", "Schedule")}</th>
-              <th style={{ width: 120 }}>{t("Состояние", "Holat", "State")}</th>
-              <th className="r" style={{ width: 100 }}>{t("Строк", "Qatorlar", "Rows")}</th>
-              <th className="r" style={{ width: 190 }}>{t("Последняя запись", "Oxirgi yozuv", "Last write")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {streams.map((stream) => (
-              <tr key={stream.key}>
-                <td>
-                  <div className="rule">{stream.title}</div>
-                  <div className="dim"><code>{stream.table}</code></div>
-                </td>
-                <td className="who">{stream.service}</td>
-                <td className="who">{stream.schedule}</td>
-                <td>
-                  <span className="adm-pill">
-                    <span className={`adm-dot ${stream.state === "fresh" ? "ok" : stream.state === "stale" ? "warn" : ""}`} />
-                    {stream.state === "fresh"
-                      ? t("Свежий", "Yangi", "Fresh")
-                      : stream.state === "stale"
-                        ? t("Устарел", "Eskirgan", "Stale")
-                        : t("Нет записей", "Yozuv yo'q", "Never written")}
-                  </span>
-                </td>
-                <td className="r who">{fmtInt(stream.rows)}</td>
-                <td className="r who">
-                  {fmtStamp(stream.last_write)}
-                  <div className="dim">{fmtAge(stream.age_hours, t)}</div>
-                </td>
+    <div className="admin-section">
+      <div className="panel">
+        <div className="admin-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("Поток", "Oqim", "Stream")}</th>
+                <th style={{ width: 190 }}>{t("Служба", "Xizmat", "Service")}</th>
+                <th style={{ width: 176 }}>{t("Расписание", "Jadval", "Schedule")}</th>
+                <th style={{ width: 140 }}>{t("Состояние", "Holat", "State")}</th>
+                <th className="r" style={{ width: 96 }}>{t("Строк", "Qatorlar", "Rows")}</th>
+                <th className="r" style={{ width: 190 }}>{t("Последняя запись", "Oxirgi yozuv", "Last write")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {streams.map((stream) => (
+                <tr key={stream.key}>
+                  <td>
+                    <div className="admin-rule">{stream.title}</div>
+                    <div className="admin-sub"><code>{stream.table}</code></div>
+                  </td>
+                  <td className="admin-num">{stream.service}</td>
+                  <td className="admin-num">{stream.schedule}</td>
+                  <td>
+                    <span className="admin-pill">
+                      <span className={`admin-dot ${stream.state === "fresh" ? "ok" : stream.state === "stale" ? "warn" : ""}`} />
+                      {stream.state === "fresh"
+                        ? t("Свежий", "Yangi", "Fresh")
+                        : stream.state === "stale"
+                          ? t("Устарел", "Eskirgan", "Stale")
+                          : t("Нет записей", "Yozuv yo'q", "Never written")}
+                    </span>
+                  </td>
+                  <td className="r admin-num">{fmtInt(stream.rows)}</td>
+                  <td className="r admin-num">
+                    {fmtStamp(stream.last_write)}
+                    <div className="admin-sub">{fmtAge(stream.age_hours, t)}</div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </>
+    </div>
   );
 
   const findingsBody = (
-    <>
-      <div className="adm-h1row">
-        <h1 className="adm-h1">{t("Аудит данных", "Ma'lumot auditi", "Data audit")}</h1>
-        <p>
-          {t("Аудитор пересчитывает те же величины независимым путём и сравнивает их с опубликованным. Блокирующая находка снимает число с публикации.",
-             "Auditor qiymatlarni mustaqil qayta hisoblab, e'lon qilingani bilan solishtiradi.",
-             "The auditor recomputes the same quantities by an independent route and compares them with what was published.")}
-        </p>
-      </div>
-      <div className="adm-card">
-        <div className="adm-tbar">
-          <div className="adm-tabs">
+    <div className="admin-section">
+      <div className="panel">
+        <div className="admin-panel-bar">
+          <div className="admin-seg">
             {["blocking", "warning", "info"].map((severity) => (
               <button
                 key={severity}
@@ -562,15 +536,14 @@ export default function AdminPanel({
                   : severity === "warning"
                     ? t("Предупреждения", "Ogohlantirish", "Warnings")
                     : t("Информация", "Ma'lumot", "Info")}
-                <span className="c">{fmtInt(openCounts[severity])}</span>
+                <span className="n">{fmtInt(openCounts[severity])}</span>
               </button>
             ))}
           </div>
-          <span className="sp" />
+          <span className="admin-sp" />
           <button
             type="button"
-            className="adm-btn sm"
-            aria-pressed={filters.status === ""}
+            className="admin-btn sm"
             onClick={() => setFilters((f) => ({ ...f, status: f.status ? "" : "new" }))}
           >
             {filters.status
@@ -578,13 +551,13 @@ export default function AdminPanel({
               : t("Только открытые", "Faqat ochiq", "Open only")}
           </button>
         </div>
-        {loading ? <div style={{ padding: 16 }}><Skeleton rows={4} /></div> : (
+        {loading ? <Skeleton rows={4} /> : (
           <>
             <FindingsTable
               items={findings} rules={rules} t={t} selected={selected}
               onToggle={toggleSelected} onAccept={acceptFindings} busy={busy}
             />
-            <div className="adm-tfoot">
+            <div className="admin-table-foot">
               <span>
                 {t(`Показано ${findings.length}`, `${findings.length} ta ko'rsatildi`,
                    `Showing ${findings.length}`)}
@@ -593,10 +566,10 @@ export default function AdminPanel({
                       ` · ${selected.size} selected`)
                   : ""}
               </span>
-              <span className="sp" />
+              <span className="admin-sp" />
               <button
                 type="button"
-                className="adm-btn sm"
+                className="admin-btn sm"
                 disabled={!selected.size || busy}
                 onClick={() => acceptFindings([...selected])}
               >
@@ -607,16 +580,16 @@ export default function AdminPanel({
           </>
         )}
       </div>
-    </>
+    </div>
   );
 
   const notBuiltBody = (
-    <div className="adm-card">
-      <div className="adm-empty">
+    <div className="panel">
+      <div className="admin-empty">
         <b>{t("Этот раздел ещё не построен", "Bu bo'lim hali qurilmagan", "This section is not built yet")}</b>
-        {t("Каркас панели готов, раздел добавится следующим шагом. Данные для него уже есть в API — не хватает только экрана.",
-           "Panel tayyor, bo'lim keyingi bosqichda qo'shiladi.",
-           "The shell is ready; this section lands next. The API already carries its data — only the screen is missing.")}
+        {t("Данные для него уже есть в API — не хватает только экрана.",
+           "API'da ma'lumot bor, faqat ekran yetishmaydi.",
+           "The API already carries its data — only the screen is missing.")}
       </div>
     </div>
   );
@@ -627,113 +600,60 @@ export default function AdminPanel({
     findings: findingsBody,
   };
 
-  const initials = ((user && (user.full_name || user.email)) || "?")
-    .trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-
   return (
-    <div className={`adm${navOpen ? " is-open" : ""}`}>
+    <div className="admin-view">
       <IconSprite />
 
-      <button
-        type="button"
-        className="adm-scrim"
-        aria-label={t("Закрыть меню", "Menyuni yopish", "Close menu")}
-        onClick={() => setNavOpen(false)}
-      />
-
-      <aside className="adm-side">
-        <button type="button" className="adm-ws" onClick={onExit}>
-          <span className="sq">AI</span>
-          <span className="t">
-            <b>AI-analys</b>
-            <span>{t("Администрирование", "Administratsiya", "Administration")}</span>
-          </span>
-          <Icon name="updown" />
-        </button>
-
-        {["platform", "data", "content", "access"].map((group) => (
-          <React.Fragment key={group}>
-            <div className="adm-grp">{GROUP_TITLES[group][lang3(language)]}</div>
-            {SECTIONS.filter((s) => s.group === group).map((item) => {
-              const badge = item.key === "findings" ? openCounts.blocking
-                : item.key === "catalog" ? (catalog && catalog.securities)
-                  : item.key === "streams" ? streams.length : null;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  className="adm-nav"
-                  disabled={!item.ready}
-                  aria-current={section === item.key ? "page" : undefined}
-                  onClick={() => item.ready && goto(item.key)}
-                >
-                  <Icon name={item.icon} />
-                  {item.title[lang3(language)]}
-                  {!item.ready ? (
-                    <span className="b soon">{t("скоро", "tez orada", "soon")}</span>
-                  ) : badge !== null && badge !== undefined ? (
-                    <span className={`b${item.key === "findings" && badge ? " hi" : ""}`}>{fmtInt(badge)}</span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </React.Fragment>
-        ))}
-
-        <div className="foot">
-          <button type="button" className="adm-nav" onClick={onExit}>
-            <Icon name="arrowLeft" />
-            {t("Вернуться на сайт", "Saytga qaytish", "Back to the site")}
-          </button>
-          <button type="button" className="adm-user">
-            {user && user.avatar_data_url
-              ? <img className="av" src={user.avatar_data_url} alt="" />
-              : <span className="av">{initials}</span>}
-            <span className="t">
-              <b>{(user && user.full_name) || t("Администратор", "Administrator", "Administrator")}</b>
-              <span>{user && user.email}</span>
-            </span>
-            <Icon name="updown" />
-          </button>
+      <div className="admin-head">
+        <div className="admin-head-copy">
+          <div className="panel-label">{t("Служебное", "Xizmat", "Internal")}</div>
+          <h1>{t("Администрирование", "Administratsiya", "Administration")}</h1>
+          <p>{SECTION_LEDE[section] || SECTION_LEDE.overview}</p>
         </div>
-      </aside>
-
-      <main className="adm-main">
-        <header className="adm-head">
-          <button
-            type="button"
-            className="adm-btn icon adm-burger"
-            aria-label={t("Меню", "Menyu", "Menu")}
-            onClick={() => setNavOpen((v) => !v)}
-          >
-            <Icon name="panel" />
-          </button>
-          <div className="adm-crumbs">
-            {t("Админка", "Admin", "Admin")} <span className="sep">/</span> <b>{sectionTitle}</b>
-          </div>
-          <span className="sp" />
-          <button
-            type="button"
-            className="adm-btn icon"
-            onClick={onToggleTheme}
-            aria-label={t("Сменить тему", "Mavzuni almashtirish", "Switch theme")}
-          >
-            <Icon name={theme === "dark" ? "sun" : "moon"} />
-          </button>
-          <button type="button" className="adm-btn pri" disabled={busy} onClick={runAudit}>
+        <div className="admin-head-actions">
+          {latest && latest.finished_at ? (
+            <span className="admin-btn" style={{ pointerEvents: "none" }}>
+              <Icon name="clock" />
+              {fmtStamp(latest.finished_at)}
+            </span>
+          ) : null}
+          <button type="button" className="admin-btn accent" disabled={busy} onClick={runAudit}>
             <Icon name={busy ? "clock" : "play"} />
             {busy
               ? t("Идёт прогон…", "Ishlamoqda…", "Running…")
               : t("Прогнать аудит", "Auditni ishga tushirish", "Run the audit")}
           </button>
-        </header>
-
-        <div className="adm-body">
-          {error ? <div className="adm-err">{error}</div> : null}
-          {loading && !overview ? <Skeleton rows={4} />
-            : bodyBySection[section] || notBuiltBody}
         </div>
-      </main>
+      </div>
+
+      <nav className="admin-tabs">
+        {SECTIONS.map((item) => {
+          const badge = item.key === "findings" ? openCounts.blocking
+            : item.key === "catalog" ? (catalog && catalog.securities)
+              : item.key === "streams" ? (streams.length || null) : null;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              className={`admin-tab${section === item.key ? " active" : ""}`}
+              disabled={!item.ready}
+              aria-current={section === item.key ? "page" : undefined}
+              onClick={() => item.ready && onSectionChange && onSectionChange(item.key)}
+            >
+              <Icon name={item.icon} />
+              {item.title[lang3(language)]}
+              {!item.ready ? (
+                <span className="n soon">{t("скоро", "tez orada", "soon")}</span>
+              ) : badge !== null && badge !== undefined ? (
+                <span className={`n${item.key === "findings" && badge ? " hot" : ""}`}>{fmtInt(badge)}</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </nav>
+
+      {error ? <div className="admin-error" style={{ marginBottom: 16 }}>{error}</div> : null}
+      {loading && !overview ? <Skeleton rows={4} /> : (bodyBySection[section] || notBuiltBody)}
     </div>
   );
 }

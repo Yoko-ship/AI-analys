@@ -10230,42 +10230,6 @@ function App() {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   };
 
-  // The admin panel owns the whole viewport: it carries its own sidebar and
-  // header, so rendering it inside the product shell would stack two
-  // navigations on one screen. A non-admin who guesses the URL is sent home
-  // rather than shown a locked door — the panel is not advertised.
-  if (activeView === "admin") {
-    if (!user || !user.is_admin) {
-      return (
-        <div className="app-shell-wrap">
-          <div className="app-shell" style={{ padding: 48, textAlign: "center" }}>
-            <h2>{t(language, "brand")}</h2>
-            <p className="muted">
-              {language === "en" ? "This page requires an administrator account."
-                : language === "uz" ? "Bu sahifa administrator hisobini talab qiladi."
-                  : "Эта страница доступна только администратору."}
-            </p>
-            <button type="button" className="chart-opt-btn" onClick={() => setActiveView("main")}>
-              {language === "en" ? "Back to the site" : language === "uz" ? "Saytga qaytish" : "Вернуться на сайт"}
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <AdminPanel
-        apiFetch={apiFetch}
-        user={user}
-        language={language}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        section={adminSection}
-        onSectionChange={setAdminSection}
-        onExit={() => setActiveView("main")}
-      />
-    );
-  }
-
   return (
     <div className="app-shell-wrap">
       <div className="bg-glow bg-glow-a" />
@@ -10487,6 +10451,41 @@ function App() {
 
           {/* Reached by direct link only — it is deliberately absent from
               navItems, because it is a tool for whoever maintains the data. */}
+          {/* The panel is a page of the site, so it renders in the same content
+              column as every other view. A non-admin who guesses the URL is told
+              plainly rather than redirected: silently bouncing a signed-in user
+              reads as a bug, and the page is not secret — its data is guarded on
+              the server, where guarding belongs. */}
+          {activeView === "admin" && (
+            user?.is_admin ? (
+              <AdminPanel
+                apiFetch={apiFetch}
+                language={language}
+                section={adminSection}
+                onSectionChange={setAdminSection}
+              />
+            ) : (
+              <div className="panel" style={{ textAlign: "center", padding: 48 }}>
+                <div className="panel-label">
+                  {language === "en" ? "Internal" : language === "uz" ? "Xizmat" : "Служебное"}
+                </div>
+                <h2 style={{ margin: "0 0 8px" }}>
+                  {language === "en" ? "Administrators only"
+                    : language === "uz" ? "Faqat administratorlar uchun"
+                      : "Только для администраторов"}
+                </h2>
+                <p className="muted" style={{ margin: "0 auto 18px", maxWidth: "48ch" }}>
+                  {language === "en" ? "This page maintains the data behind the site. Your account does not have access to it."
+                    : language === "uz" ? "Bu sahifa sayt ma'lumotlarini boshqaradi. Hisobingizda unga kirish huquqi yo'q."
+                      : "Эта страница обслуживает данные сайта. У вашей учётной записи нет к ней доступа."}
+                </p>
+                <button type="button" className="primary-btn" onClick={() => setActiveView("main")}>
+                  {language === "en" ? "Back to the site" : language === "uz" ? "Saytga qaytish" : "Вернуться на сайт"}
+                </button>
+              </div>
+            )
+          )}
+
           {activeView === "news" && <NewsView language={language} onOpenCompany={openCompanyPage} onOpenNews={openNewsArticle} user={user} apiFetch={apiFetch} />}
 
           {activeView === "newsArticle" && newsId && (
@@ -11419,7 +11418,10 @@ function App() {
       </div>
 
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} language={language} />
-      <SponsorOverlay language={language} />
+      {/* No advertising on the maintenance page: it is staff-facing, it covers
+          the bottom-right of the findings table, and there is nobody there to
+          sell to. */}
+      {activeView !== "admin" && <SponsorOverlay language={language} />}
     </div>
   );
 }
