@@ -141,15 +141,167 @@ class TestProfitAndLossSign:
 
 
 # --------------------------------------------------------------------------- #
+# which balance-sheet line each figure comes from
+# --------------------------------------------------------------------------- #
+def _bal(tnum: str, title: str, end: str, begin: str = "0.00") -> dict:
+    return {"tnum": tnum, "title": title, "value1": begin, "value2": end}
+
+
+def _jsc_balance(rows: list[dict]) -> dict:
+    return {"org_type": "jsc", "reporting_year": "2026-06-30",
+            "financial_results_report": [], "balance_sheet_report": rows}
+
+
+class TestWhichLineTheBoardServes:
+    """«Наличность в кассе» is стр.5100 and «Общие обязательства» the published
+    subtotal — the two lines the issuer's own xlsx prints under those headings."""
+
+    def test_cash_is_the_settlement_account_not_the_roll_up(self) -> None:
+        # O'zMK 2026 Q2: 1 181 472 863 in cash altogether, of which 48 214 510
+        # actually sits on the settlement account — the rest is FX and equivalents.
+        m = orc.extract_metrics(_jsc_balance([
+            _bal("320", "Денежные средства, всего (стр.330+340+350+360), в том числе:",
+                 "1181472863.00"),
+            _bal("330", "Денежные средства в кассе (5000)", "2210190.00"),
+            _bal("340", "Денежные средства на расчетном счете (5100)", "48214510.00"),
+            _bal("350", "Денежные средства в иностранной валюте (5200)", "608537783.00"),
+        ]))
+        assert m["cash"] == 48_214_510.0
+
+    def test_an_emptied_settlement_account_stays_zero(self) -> None:
+        # Uzum Sarmoya 2026 Q2. The trap: стр.340 ends the period at nought and
+        # carries its opening balance beside it, so "first non-zero" would serve
+        # a sum the issuer had in January as the money it holds today.
+        m = orc.extract_metrics(_jsc_balance([
+            _bal("320", "Денежные средства, всего (стр.330+340+350+360)",
+                 "39087745.19", "27377071.98"),
+            _bal("330", "Денежные средства в кассе (5000)", "0.00"),
+            _bal("340", "Денежные средства на расчетном счете (5100)", "0.00", "27377071.98"),
+            _bal("360", "Денежные средства и эквиваленты (5500, 5800, 5700)",
+                 "39087745.19", "27377071.98"),
+        ]))
+        assert m["cash"] == 0.0
+
+    def test_a_roll_up_with_no_breakdown_at_all_stands_in(self) -> None:
+        # AGMK 2026 Q2: 688 238 787 in cash and not one of the accounts under it
+        # filled in — the filing states no settlement-account figure to serve, so
+        # a 0 there would be ours, not the issuer's.
+        m = orc.extract_metrics(_jsc_balance([
+            _bal("320", "Денежные средства, всего (стр.330+340+350+360), в том числе:",
+                 "688238787.00"),
+            _bal("330", "Денежные средства в кассе (5000)", "0.00"),
+            _bal("340", "Денежные средства на расчетном счете (5100)", "0.00"),
+            _bal("350", "Денежные средства в иностранной валюте (5200)", "0.00"),
+            _bal("360", "Денежные средства и эквиваленты (5500, 5800, 5700)", "0.00"),
+        ]))
+        assert m["cash"] == 688_238_787.0
+
+    def test_a_zero_account_beside_a_filled_breakdown_stays_zero(self) -> None:
+        # SANE 2026 Q2: the operating account is empty and the money sits in
+        # equivalents. The breakdown IS published, so the zero is the position.
+        m = orc.extract_metrics(_jsc_balance([
+            _bal("320", "Денежные средства, всего (стр.330+340+350+360)", "490000.00"),
+            _bal("330", "Денежные средства в кассе (5000)", "0.00"),
+            _bal("340", "Денежные средства на расчетном счете (5100)", "0.00", "103006.00"),
+            _bal("360", "Денежные средства и эквиваленты (5500, 5800, 5700)", "490000.00"),
+        ]))
+        assert m["cash"] == 0.0
+
+    def test_a_form_without_a_5100_line_keeps_the_roll_up(self) -> None:
+        m = orc.extract_metrics(_jsc_balance([
+            _bal("320", "Денежные средства, всего (стр.330+340+350+360)", "144768.24"),
+        ]))
+        assert m["cash"] == 144_768.24
+
+    def test_liabilities_come_from_the_published_subtotal(self) -> None:
+        # BIOK 2026 Q2: стр.490 ends at 0 after a 9 000 000 repayment, so re-adding
+        # the parts (with the opening balance standing in for the zero) put 42%
+        # more debt on the board than the issuer's own subtotal states. Assets
+        # 147 193 844 − equity 125 869 282 = 21 324 562 confirms the subtotal.
+        m = orc.extract_metrics(_jsc_balance([
+            _bal("490", "Долгосрочные обязательства, всего (стр.500+520)", "0.00", "9000000.00"),
+            _bal("600", "Текущие обязательства, всего (стр.610+630)", "21324562.00"),
+            _bal("770", "ИТОГО ПО II РАЗДЕЛУ (стр. 490+600)", "21324562.00"),
+        ]))
+        assert m["total_liabilities"] == 21_324_562.0
+
+    def test_the_insurance_subtotal_is_found_through_its_spacing(self) -> None:
+        # Alskom: «Итого по разделу III (стр. 730 + 930)» — same line, spaced out,
+        # and numbered differently from the jsc form.
+        detail = _jsc_balance([
+            _bal("730", "Долгосрочные обязательства, всего (стр. 740 + 750)", "588919.95"),
+            _bal("930", "Текущие обязательства, всего (стр. 940+950)", "55560337.20"),
+            _bal("1190", "Итого по разделу III (стр. 730 + 930)", "56149257.14"),
+        ])
+        detail["org_type"] = "insurance"
+        assert orc.extract_metrics(detail)["total_liabilities"] == 56_149_257.14
+
+    def test_the_asset_side_subtotal_is_never_mistaken_for_it(self) -> None:
+        # Both forms print «ИТОГО ПО РАЗДЕЛУ II» on the asset side too, which is
+        # why the subtotal is matched on the line numbers it sums, not its wording.
+        m = orc.extract_metrics(_jsc_balance([
+            _bal("390", "ИТОГО ПО РАЗДЕЛУ II (стр. 140+190+200+210+320+370+380)", "4570266623.00"),
+            _bal("490", "Долгосрочные обязательства, всего (стр.500+520)", "5468406669.00"),
+            _bal("600", "Текущие обязательства, всего (стр.610+630)", "2896064498.00"),
+            _bal("770", "ИТОГО ПО II РАЗДЕЛУ (стр. 490+600)", "8364471166.00"),
+        ]))
+        assert m["total_liabilities"] == 8_364_471_166.0
+
+    def test_without_a_subtotal_the_parts_are_added_up(self) -> None:
+        m = orc.extract_metrics(_jsc_balance([
+            _bal("490", "Долгосрочные обязательства, всего (стр.500+520)", "1000.00"),
+            _bal("600", "Текущие обязательства, всего (стр.610+630)", "250.00"),
+        ]))
+        assert m["total_liabilities"] == 1250.0
+
+    def test_a_bank_keeps_its_own_two_lines(self) -> None:
+        # The bank form has no settlement-account line and no «разделы» at all.
+        detail = {"org_type": "bank", "reporting_year": "2026-06-30",
+                  "financial_results_report": [],
+                  "balance_sheet_report": [
+                      {"title": "Кассовая наличность и другие платежные документы",
+                       "value1": "2611622842.00", "value2": "2455155322.00"},
+                      {"title": "Итого обязательств",
+                       "value1": "97442300703.00", "value2": "104560786862.00"},
+                  ]}
+        m = orc.extract_metrics(detail)
+        assert m["cash"] == 2_455_155_322.0
+        assert m["total_liabilities"] == 104_560_786_862.0
+
+    def test_a_filing_that_only_filled_the_opening_column_still_reads(self) -> None:
+        # Some quarter forms leave the whole value2 column at zero and carry the
+        # period end in value1. The column is chosen once for the statement, so
+        # this still reads — what it must not do is choose per row.
+        m = orc.extract_metrics(_jsc_balance([
+            _bal("340", "Денежные средства на расчетном счете (5100)", "0.00", "123.00"),
+            _bal("490", "Долгосрочные обязательства, всего (стр.500)", "0.00", "400.00"),
+            _bal("600", "Текущие обязательства, всего (стр.610)", "0.00", "600.00"),
+            _bal("770", "ИТОГО ПО II РАЗДЕЛУ (стр. 490+600)", "0.00", "1000.00"),
+        ]))
+        assert (m["cash"], m["total_liabilities"]) == (123.0, 1000.0)
+
+
+# --------------------------------------------------------------------------- #
 # report selection
 # --------------------------------------------------------------------------- #
 def _jsc_detail(reporting_year: str, revenue: float, net: float,
                 liabilities: float = 1000.0, cash: float = 50.0, ticker: str = "AAA") -> dict:
-    """A jsc quarter/annual detail carrying one revenue and one net-profit line."""
+    """A jsc quarter/annual detail carrying one revenue and one net-profit line.
+
+    The balance sheet keeps the shape the form actually has: cash split into the
+    roll-up (стр.320) and the settlement account under it (стр.340), obligations
+    split into the two parts and the subtotal that sums them (стр.770). `cash` is
+    the settlement account and `liabilities` the subtotal — the two figures the
+    board serves.
+    """
     def pair(value: float) -> dict:
         # value3/value4 is the reporting period; value1/value2 the comparative.
         return ({"value3": f"{value:.2f}", "value4": "0.00"} if value >= 0
                 else {"value3": "0.00", "value4": f"{-value:.2f}"})
+
+    def bal(tnum: str, title: str, end: float, begin: float = 0.0) -> dict:
+        return {"tnum": tnum, "title": title,
+                "value1": f"{begin:.2f}", "value2": f"{end:.2f}"}
 
     return {
         "org_type": "jsc",
@@ -160,8 +312,15 @@ def _jsc_detail(reporting_year: str, revenue: float, net: float,
             {"tnum": "270", "title": "Чистая прибыль (убыток) отчетного периода", **pair(net)},
         ],
         "balance_sheet_report": [
-            {"title": "Текущие обязательства, всего", "value1": "0.00", "value2": f"{liabilities:.2f}"},
-            {"title": "Денежные средства, всего", "value1": "0.00", "value2": f"{cash:.2f}"},
+            bal("320", "Денежные средства, всего (стр.330+340+350+360), в том числе:",
+                cash + (7.0 if cash else 0.0)),
+            bal("330", "Денежные средства в кассе (5000)", 0.0),
+            bal("340", "Денежные средства на расчетном счете (5100)", cash),
+            bal("350", "Денежные средства а иностранной валюте (5200)",
+                7.0 if cash else 0.0),
+            bal("490", "Долгосрочные обязательства, всего (стр.500+520+530)", 0.0),
+            bal("600", "Текущие обязательства, всего (стр.610+630+640)", liabilities),
+            bal("770", "ИТОГО ПО II РАЗДЕЛУ (стр. 490+600)", liabilities),
         ],
     }
 

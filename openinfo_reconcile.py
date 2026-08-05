@@ -39,8 +39,11 @@ Row map:
   jsc       revenue = tnum 010; net = "Чистая прибыль…отчетного периода" (tnum 270);
             gross = "Валовая прибыль" (030); operating = "…от основной деятельности".
   insurance revenue = tnum 010 ("Доходы от оказания страховых услуг"); net = tnum 320.
-  jsc+ins   liabilities = "Долгосрочные обязательства, всего" + "Текущие
-            обязательства, всего" (value2); cash = "Денежные средства, всего".
+  jsc+ins   liabilities = the published obligations subtotal — "ИТОГО ПО II
+            РАЗДЕЛУ (стр. 490+600)" on the jsc form, "Итого по разделу III
+            (стр. 730+930)" on the insurance one — re-adding the two parts only
+            when a filing omits it; cash = "Денежные средства на расчетном счете
+            (5100)", not the "Денежные средства, всего" roll-up.
   microfin  same shape as bank (single-column P&L) except cash, which the
             microfinance form calls "Денежные средства в кассе…".
 
@@ -263,6 +266,10 @@ def bal_value(row):
     value2 is normally the period-end column, but some quarter forms leave value2
     at 0 and carry the end figure in value1 (e.g. several banks' Q2 balance), so a
     zero value2 must fall back rather than being taken literally.
+
+    Safe for a TOTAL, which is never legitimately zero. For a single account line
+    it is not: see :func:`end_key` / :func:`end_value`, which decide the period-end
+    column once for the whole statement so that a real zero stays a zero.
     """
     if row is None:
         return None
@@ -277,6 +284,37 @@ def bal_value(row):
     return None
 
 
+def end_key(bal):
+    """Which column carries the period end for THIS balance sheet.
+
+    Normally value2 ("на конец отчетного периода"); a few filings leave the whole
+    value2 column at zero and carry the period end in value1 instead, and the bank
+    form publishes a single ``value``. Decided ONCE per statement, from whether the
+    column has any data at all anywhere in it — never per row.
+
+    Per row it cannot be decided, and deciding it per row is a live bug source: an
+    account that legitimately went to zero (a long-term loan repaid, an emptied
+    settlement account) looks exactly like an unfilled cell, and falling back to
+    value1 there serves the OPENING balance as the closing one. BIOK's Q2 2026
+    filing is the proof — стр.490 ends the period at 0 after repaying 9 000 000
+    thousand, and reading the opening figure put a debt on the board the issuer no
+    longer owes, 42% above its own published total.
+    """
+    for k in ("value2", "value1", "value"):
+        if any(_num(r.get(k)) for r in bal):
+            return k
+    return "value2"
+
+
+def end_value(row, key):
+    """One balance cell from the statement's period-end column, zeros included."""
+    if row is None:
+        return None
+    if key in row:
+        return _num(row.get(key))
+    return bal_value(row)
+
+
 def _rows(detail, *keys):
     for k in keys:
         r = detail.get(k)
@@ -289,6 +327,55 @@ def _by_tnum(rows, tnum):
     for r in rows:
         if str(r.get("tnum")) == tnum:
             return r
+    return None
+
+
+_FORMULA_RE = re.compile(r"стр\.?\s*([\d\s+]+)")
+
+
+def _formula_tnums(title):
+    """The line numbers a form's «(стр.330+340+350+360)» formula names."""
+    m = _FORMULA_RE.search(_norm(title))
+    return re.findall(r"\d+", m.group(1)) if m else []
+
+
+def _breakdown_is_blank(rows, total_row, key):
+    """True when a roll-up carries a figure but every line it sums reads nought.
+
+    Then the issuer filed the total and skipped the breakdown, so there is no
+    per-account figure in the filing to serve — as opposed to an account that
+    really is empty, which shows up as a zero beside non-zero siblings. AGMK's
+    2026 Q2 balance is the case that needs telling apart: «Денежные средства,
+    всего» 688 238 787 with 5000, 5100, 5200 and 5500 all at nought.
+    """
+    if total_row is None:
+        return False
+    if not end_value(total_row, key):
+        return False
+    parts = _formula_tnums(total_row.get("title"))
+    if not parts:
+        return False
+    return not any(end_value(_by_tnum(rows, t), key) for t in parts)
+
+
+def _section_total(rows, part_rows, key):
+    """The published «Итого по разделу …» line that sums exactly ``part_rows``.
+
+    Found by its own printed formula rather than by its wording, because the two
+    NSBU balance forms word it differently and neither wording is unique on the
+    page: the jsc form prints «ИТОГО ПО II РАЗДЕЛУ (стр. 490+600)» while the
+    insurance form prints «Итого по разделу III (стр. 730 + 930)», and the asset
+    side of both prints «ИТОГО ПО РАЗДЕЛУ II (стр. 140+…)». The line numbers of
+    the parts identify their total exactly, whatever the form calls it.
+    """
+    nums = [str(r.get("tnum") or "").strip() for r in part_rows if r is not None]
+    if len(nums) != len(part_rows) or not all(nums):
+        return None
+    formula = "+".join(nums)
+    for r in rows:
+        squashed = re.sub(r"\s+", "", _norm(r.get("title")))
+        if "итого" in squashed and formula in squashed:
+            return end_value(r, key)
     return None
 
 
@@ -346,10 +433,35 @@ def extract_metrics(detail):
                  "net_income": prior_value(net_row),
                  "operating_income": prior_value(oper_row)}
         out["prior"] = prior if any(v is not None for v in prior.values()) else None
-        lt = bal_value(_by_title(bal, ["долгосрочные обязательства", "всего"]))
-        cur = bal_value(_by_title(bal, ["текущие обязательства", "всего"]))
-        out["total_liabilities"] = None if lt is None and cur is None else (lt or 0.0) + (cur or 0.0)
-        out["cash"] = bal_value(_by_title(bal, ["денежные средства", "всего"]))
+        key = end_key(bal)
+        # Obligations: the total the issuer itself published — «Итого по разделу
+        # III (стр.730+930)» on the insurance form, «ИТОГО ПО II РАЗДЕЛУ
+        # (стр.490+600)» on the jsc one. Re-adding the two parts is only the
+        # fallback for a filing that omits the total: the parts are what carry an
+        # unfilled or mis-keyed cell, and where the two disagree the published
+        # total is the figure that satisfies the balance identity (BIOK 2026Q2:
+        # parts 30 324 562, published 21 324 562, assets − equity = 21 324 562).
+        lt_row = _by_title(bal, ["долгосрочные обязательства", "всего"])
+        cur_row = _by_title(bal, ["текущие обязательства", "всего"])
+        total = _section_total(bal, [lt_row, cur_row], key)
+        if total is None:
+            lt, cur = end_value(lt_row, key), end_value(cur_row, key)
+            total = None if lt is None and cur is None else (lt or 0.0) + (cur or 0.0)
+        out["total_liabilities"] = total
+        # Cash: the settlement account, «Денежные средства на расчетном счете
+        # (5100)» — the operating balance, not the «Денежные средства, всего»
+        # roll-up that also carries the till (5000), the FX accounts (5200) and
+        # the equivalents (5500/5600/5700). A settlement account that ends the
+        # period empty reads 0: that is the issuer's own figure, not a gap. The
+        # roll-up serves only where the filing has no such line, or none of the
+        # accounts under it was filled in at all.
+        cash_row = (_by_title(bal, ["денежные средства", "расчетном счете"])
+                    or _by_title(bal, ["денежные средства", "(5100)"]))
+        cash_total_row = _by_title(bal, ["денежные средства", "всего"])
+        if cash_row is not None and not _breakdown_is_blank(bal, cash_total_row, key):
+            out["cash"] = end_value(cash_row, key)
+        else:
+            out["cash"] = bal_value(cash_total_row)
     return out
 
 

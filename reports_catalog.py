@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
-from delisted import DELISTED_TICKERS
+from delisted import DELISTED_ISINS, DELISTED_TICKERS
 from entity_resolver import ORG_OVERRIDES, UNRELIABLE_FINANCIALS
 import dbx
 from db import APP_DATA_DIR, sqlite_connect
@@ -1935,6 +1935,22 @@ def purge_delisted(tickers: set[str] | frozenset[str] | None = None) -> dict[str
                     f"DELETE FROM {table} WHERE UPPER({column}) IN ({placeholders})", params)
                 if cur.rowcount > 0:
                     deleted[table] = cur.rowcount
+            # What a purge by ticker cannot reach. Both these tables are keyed by
+            # ISIN, and the row holding both keys — the registry line — is the one
+            # just deleted, so a quote for a security the mirror never named has
+            # nothing left to resolve through. Left behind it survives every boot
+            # and walks back onto the board without a ticker. Only for the standard
+            # whole-set purge: a caller naming its own tickers gets exactly those.
+            if tickers is None and DELISTED_ISINS:
+                isins = sorted(DELISTED_ISINS)
+                marks = ",".join("?" * len(isins))
+                for table in ("catalog_quotes", "catalog_trade_stats"):
+                    if table not in existing:
+                        continue
+                    cur = conn.execute(
+                        f"DELETE FROM {table} WHERE UPPER(isin) IN ({marks})", isins)
+                    if cur.rowcount > 0:
+                        deleted[table] = deleted.get(table, 0) + cur.rowcount
     finally:
         conn.close()
     if deleted:
@@ -3476,6 +3492,41 @@ def _extract_liabilities_total(rows: list[dict]) -> float | None:
     return None
 
 
+# The accounts «Денежные средства, всего» sums: the till, the settlement account,
+# the FX accounts and the equivalents. Used to tell an account that really is
+# empty from a filing that never broke the roll-up down.
+_CASH_ACCOUNT_CODES = ("(5000)", "(5100)", "(5200)", "(5500")
+
+
+def _extract_cash(rows: list[dict]) -> float | None:
+    """«Наличность в кассе» — the settlement account (5100), where it is filled in.
+
+    A zero on стр.5100 beside a non-zero sibling account is a real balance: the
+    company ended the period with its operating account empty and its money in
+    foreign currency or in equivalents. A zero beside siblings that are ALL zero,
+    under a non-zero roll-up, is an issuer who filed only the total (AGMK 2026 Q2:
+    «Денежные средства, всего» 688 238 787, every account under it at nought) —
+    there is no 5100 figure in that filing, so the roll-up stands in. The bank
+    form, which has no settlement-account line at all, always takes that path.
+    """
+    account = _extract_metric(rows, "cash_account", strict_period=True)
+    if account:
+        return account
+    patterns = _LABEL_PATTERNS["cash_account"]
+    others = [r for r in rows
+              if not any(p in str(r.get("label") or "").lower() for p in patterns)]
+    if account is not None:
+        siblings = [_row_value(r.get("numeric_values") or [], strict_period=True)
+                    for r in others
+                    if any(c in str(r.get("label") or "") for c in _CASH_ACCOUNT_CODES)]
+        if any(siblings):
+            return account  # the breakdown is filled in; the account is simply empty
+    # The roll-up (or, on the bank form, its own cash line) — never the settlement
+    # account's own opening balance, which is why it is looked up without that row.
+    roll_up = _extract_metric(others, "cash")
+    return roll_up if roll_up is not None else account
+
+
 def _gather_rows(excel_data: dict | None) -> list[dict]:
     if not excel_data:
         return []
@@ -3510,13 +3561,7 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     # take equity as the difference instead.
     if equity is None and total_assets is not None and total_liabilities is not None:
         equity = total_assets - total_liabilities
-    # Settlement account (5100) first; the «Денежные средства, всего» roll-up only
-    # for the bank form, which has no such line. `strict_period` keeps an account
-    # emptied by the reporting date at zero instead of re-serving its opening
-    # balance — a total can fall back, a single account cannot.
-    cash = _extract_metric(balance_rows or all_rows, "cash_account", strict_period=True)
-    if cash is None:
-        cash = _extract_metric(balance_rows or all_rows, "cash")
+    cash = _extract_cash(balance_rows or all_rows)
 
     def _safe_ratio(num: float | None, den: float | None) -> float | None:
         if num is None or den is None or den == 0:
