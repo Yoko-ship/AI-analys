@@ -38,6 +38,9 @@ import { pickLeadIndex } from "./lib/newsfeed.js";
 // marker in the interface read the same entries, so a term cannot be explained
 // two different ways depending on where the reader met it.
 import { termFor } from "./lib/glossary.js";
+// The admin panel is a screen of its own, with its own token layer — see
+// admin/admin.css for why it deliberately does not inherit the site's theme.
+import AdminPanel from "./admin/AdminPanel.jsx";
 
 // --- Client-side routing: each view maps to a real URL path ------------------
 const VIEW_PATHS = {
@@ -50,13 +53,18 @@ const VIEW_PATHS = {
   compare: "/compare",
   profile: "/profile",
   auth: "/login",
-  // ТЗ v1.3 §12.6 — internal, reached by direct link, not from the nav.
-  auditAdmin: "/admin/audit",
+  // Internal, reached by direct link, not from the nav: the admin panel lives at
+  // /admin/{section}. The old secret-in-a-field audit screen used to own
+  // /admin/audit, so that path is kept and now opens the panel's Аудит section.
+  admin: "/admin",
 };
 
-function viewToPath(view, ticker, newsId) {
+function viewToPath(view, ticker, newsId, adminSection) {
   if (view === "company" && ticker) return `/company/${encodeURIComponent(ticker)}`;
   if (view === "newsArticle" && newsId) return `/news/${encodeURIComponent(newsId)}`;
+  if (view === "admin") {
+    return adminSection && adminSection !== "overview" ? `/admin/${adminSection}` : "/admin";
+  }
   return VIEW_PATHS[view] || "/";
 }
 
@@ -70,6 +78,12 @@ function pathToView(pathname) {
     const id = decodeURIComponent(clean.slice("/news/".length)).split("/")[0];
     return id ? { view: "newsArticle", ticker: null, newsId: id }
               : { view: "news", ticker: null, newsId: null };
+  }
+  if (clean === "/admin" || clean.startsWith("/admin/")) {
+    const raw = clean.slice("/admin".length).replace(/^\//, "");
+    // /admin/audit is the old audit screen's URL; it opens the findings section.
+    const section = raw === "audit" ? "findings" : (raw || "overview");
+    return { view: "admin", ticker: null, newsId: null, adminSection: section };
   }
   const found = Object.entries(VIEW_PATHS).find(([, p]) => p === clean);
   return { view: found ? found[0] : "main", ticker: null, newsId: null };
@@ -5451,215 +5465,14 @@ function BondsTable({ language, onOpen }) {
     </div>
   );
 }
+// ---------------------------------------------------------------------------
+// The auditor's own screen used to live here as AuditAdminPage, authenticated by
+// typing the machine X-Admin-Secret into a field. It is superseded by the admin
+// panel (admin/AdminPanel.jsx, section «Аудит»), which authenticates as the
+// signed-in administrator instead, so the shared secret no longer reaches the
+// browser at all. /admin/audit still resolves; it now opens that section.
+// ---------------------------------------------------------------------------
 
-
-function AuditAdminPage({ language }) {
-  const lang = normalizeLanguage(language);
-  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
-  const [secret, setSecret] = React.useState("");
-  const [run, setRun] = React.useState(null);
-  const [findings, setFindings] = React.useState([]);
-  const [rules, setRules] = React.useState([]);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState(null);
-  const [filters, setFilters] = React.useState({ severity: "", group: "", ticker: "" });
-  const [expanded, setExpanded] = React.useState(null);
-
-  const headers = React.useCallback(() => ({ "X-Admin-Secret": secret }), [secret]);
-
-  React.useEffect(() => {
-    fetch("/api/audit/rules").then((r) => r.json())
-      .then((d) => { if (d && d.ok) setRules(d.items || []); })
-      .catch(() => {});
-  }, []);
-
-  const loadFindings = React.useCallback(async () => {
-    const params = new URLSearchParams();
-    if (filters.severity) params.set("severity", filters.severity);
-    if (filters.group) params.set("group", filters.group);
-    if (filters.ticker) params.set("ticker", filters.ticker.toUpperCase());
-    params.set("limit", "500");
-    const res = await fetch(`/api/audit/findings?${params}`, { headers: headers() });
-    if (!res.ok) throw new Error(res.status === 401
-      ? t("неверный секрет", "noto'g'ri maxfiy kalit", "invalid secret")
-      : `HTTP ${res.status}`);
-    const data = await res.json();
-    setFindings(data.items || []);
-  }, [filters, headers, t]);
-
-  const refresh = async () => {
-    setBusy(true); setError(null);
-    try {
-      const res = await fetch("/api/audit/runs?limit=1", { headers: headers() });
-      if (res.ok) {
-        const data = await res.json();
-        setRun((data.items || [])[0] || null);
-      }
-      await loadFindings();
-    } catch (e) { setError(String(e.message || e)); }
-    finally { setBusy(false); }
-  };
-
-  const runAudit = async () => {
-    setBusy(true); setError(null);
-    try {
-      const res = await fetch("/api/audit/run", {
-        method: "POST", headers: { ...headers(), "Content-Type": "application/json" },
-        body: JSON.stringify({ trigger: "manual", with_history: 8 }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const report = await res.json();
-      setRun({ id: report.run_id, status: report.status, rules_run: report.rules_run,
-               blocking: report.summary.blocking, warnings: report.summary.warnings,
-               infos: report.summary.infos, duration_ms: report.duration_ms,
-               instruments: report.instruments, finished_at: new Date().toISOString() });
-      await loadFindings();
-    } catch (e) { setError(String(e.message || e)); }
-    finally { setBusy(false); }
-  };
-
-  const setStatus = async (id, status) => {
-    try {
-      await fetch(`/api/audit/findings/${id}`, {
-        method: "PATCH", headers: { ...headers(), "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      await loadFindings();
-    } catch { /* the list simply does not change */ }
-  };
-
-  const groups = [...new Set(rules.map((r) => r.group))];
-  const num = (v) => fmtNumber(v, lang, 4);
-
-  return (
-    <div className="page-wrap audit-page">
-      <div className="panel" style={{ padding: 24 }}>
-        <div className="panel-label">{t("Служебное", "Xizmat", "Internal")}</div>
-        <h2>{t("Аудитор данных и расчётов", "Ma'lumot auditori", "Data & calculation auditor")}</h2>
-        <p className="muted" style={{ maxWidth: 720, lineHeight: 1.6 }}>
-          {t("Аудитор пересчитывает те же величины независимым путём и сравнивает с опубликованным. Blocking-находка снимает число с публикации.",
-             "Auditor bir xil qiymatlarni mustaqil yo'l bilan qayta hisoblaydi va e'lon qilingani bilan solishtiradi.",
-             "The auditor recomputes the same quantities by an independent route and compares them with what was published. A blocking finding removes the number from publication.")}
-        </p>
-
-        <div className="audit-controls">
-          <input type="password" className="audit-secret" value={secret} autoComplete="off"
-            placeholder={t("Админ-секрет", "Admin maxfiy kaliti", "Admin secret")}
-            onChange={(e) => setSecret(e.target.value)} />
-          <button type="button" className="chart-opt-btn" disabled={!secret || busy}
-            onClick={refresh}>{t("Обновить", "Yangilash", "Refresh")}</button>
-          <button type="button" className="chart-opt-btn active" disabled={!secret || busy}
-            onClick={runAudit}>{busy ? t("Идёт прогон…", "Ishlamoqda…", "Running…")
-              : t("Прогнать аудит", "Auditni ishga tushirish", "Run audit")}</button>
-        </div>
-        {error && <p className="audit-error">{error}</p>}
-
-        {run && (
-          <div className="audit-run">
-            <span className={`audit-chip is-${run.status}`}>{run.status}</span>
-            <span>{t("правил", "qoidalar", "rules")}: <b>{run.rules_run}</b></span>
-            <span>{t("инструментов", "vositalar", "instruments")}: <b>{run.instruments}</b></span>
-            <span className="tone-neg">blocking: <b>{run.blocking}</b></span>
-            <span>warning: <b>{run.warnings}</b></span>
-            <span>info: <b>{run.infos}</b></span>
-            <span>{run.duration_ms} ms</span>
-            <span className="muted">{run.finished_at}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="panel" style={{ padding: 24, marginTop: 16 }}>
-        <div className="audit-filters">
-          <select value={filters.severity}
-            onChange={(e) => setFilters((f) => ({ ...f, severity: e.target.value }))}>
-            <option value="">{t("любой уровень", "har qanday daraja", "any severity")}</option>
-            <option value="blocking">blocking</option>
-            <option value="warning">warning</option>
-            <option value="info">info</option>
-          </select>
-          <select value={filters.group}
-            onChange={(e) => setFilters((f) => ({ ...f, group: e.target.value }))}>
-            <option value="">{t("все группы", "barcha guruhlar", "all groups")}</option>
-            {groups.map((g) => <option key={g} value={g}>{g}</option>)}
-          </select>
-          <input value={filters.ticker} placeholder={t("тикер", "ticker", "ticker")}
-            onChange={(e) => setFilters((f) => ({ ...f, ticker: e.target.value }))} />
-          <button type="button" className="chart-opt-btn" disabled={!secret}
-            onClick={() => loadFindings().catch((e) => setError(String(e.message || e)))}>
-            {t("Применить", "Qo'llash", "Apply")}
-          </button>
-          <a className="chart-opt-btn" href="/api/audit/export" target="_blank" rel="noreferrer">
-            CSV
-          </a>
-        </div>
-
-        {findings.length === 0 ? (
-          <p className="muted" style={{ padding: "24px 0" }}>
-            {t("Находок нет. Пустой отчёт — единственное нормальное состояние.",
-               "Topilma yo'q. Bo'sh hisobot — yagona normal holat.",
-               "No findings. An empty report is the only normal outcome.")}
-          </p>
-        ) : (
-          <table className="audit-table">
-            <thead>
-              <tr>
-                <th>{t("Правило", "Qoida", "Rule")}</th>
-                <th>{t("Бумага", "Qog'oz", "Security")}</th>
-                <th>{t("Метрика", "Metrika", "Metric")}</th>
-                <th className="num">{t("Ожидалось", "Kutilgan", "Expected")}</th>
-                <th className="num">{t("Фактически", "Haqiqiy", "Actual")}</th>
-                <th>{t("Сообщение", "Xabar", "Message")}</th>
-                <th>{t("Статус", "Holat", "Status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {findings.map((f) => (
-                <React.Fragment key={f.id}>
-                  <tr className={`audit-row is-${f.severity}`}
-                    onClick={() => setExpanded(expanded === f.id ? null : f.id)}>
-                    <td><code>{f.rule_code}</code></td>
-                    <td>{f.ticker || "—"}</td>
-                    <td>{f.metric || "—"}</td>
-                    <td className="num">{num(f.expected)}</td>
-                    <td className="num">{num(f.actual)}</td>
-                    <td>{f.message}</td>
-                    <td>
-                      <span className="audit-chip">{f.status}</span>
-                      {f.seen_count > 1 && <span className="muted"> ×{f.seen_count}</span>}
-                    </td>
-                  </tr>
-                  {expanded === f.id && (
-                    <tr className="audit-detail">
-                      <td colSpan={7}>
-                        {/* The input is what turns a finding into a test in five
-                            minutes rather than a day of argument. */}
-                        <pre>{JSON.stringify(f.input || {}, null, 2)}</pre>
-                        <div className="audit-actions">
-                          <button type="button" className="chart-opt-btn"
-                            onClick={() => setStatus(f.id, "confirmed")}>
-                            {t("Подтвердить", "Tasdiqlash", "Confirm")}
-                          </button>
-                          <button type="button" className="chart-opt-btn"
-                            onClick={() => setStatus(f.id, "accepted")}>
-                            {t("Принять как исключение", "Istisno sifatida qabul qilish",
-                               "Accept as exception")}
-                          </button>
-                          <span className="muted">
-                            {t("впервые", "birinchi marta", "first seen")}: {f.first_seen}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
 
 
 function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustments, lang, quality, metricsWindows }) {
@@ -9508,6 +9321,8 @@ function App() {
   const [analysisCompany, setAnalysisCompany] = useState("");
   const [companyTicker, setCompanyTicker] = useState(() => pathToView(window.location.pathname).ticker);
   const [newsId, setNewsId] = useState(() => pathToView(window.location.pathname).newsId);
+  const [adminSection, setAdminSection] = useState(
+    () => pathToView(window.location.pathname).adminSection || "overview");
   const [prevView, setPrevView] = useState("market");
   const [selectedSector, setSelectedSector] = useState(null);
   const [includeAllExcelReports, setIncludeAllExcelReports] = useState(false);
@@ -9683,18 +9498,19 @@ function App() {
 
   // Keep the browser URL in sync with the active view (push a history entry).
   useEffect(() => {
-    const target = viewToPath(activeView, companyTicker, newsId);
+    const target = viewToPath(activeView, companyTicker, newsId, adminSection);
     if (window.location.pathname !== target) {
       window.history.pushState({ view: activeView }, "", target);
     }
-  }, [activeView, companyTicker, newsId]);
+  }, [activeView, companyTicker, newsId, adminSection]);
 
   // React to browser back/forward by restoring the view from the URL.
   useEffect(() => {
     const onPop = () => {
-      const { view, ticker, newsId: popNewsId } = pathToView(window.location.pathname);
+      const { view, ticker, newsId: popNewsId, adminSection: popSection } = pathToView(window.location.pathname);
       if (ticker) setCompanyTicker(ticker);
       if (popNewsId) setNewsId(popNewsId);
+      if (popSection) setAdminSection(popSection);
       setActiveView(view);
     };
     window.addEventListener("popstate", onPop);
@@ -10414,6 +10230,42 @@ function App() {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   };
 
+  // The admin panel owns the whole viewport: it carries its own sidebar and
+  // header, so rendering it inside the product shell would stack two
+  // navigations on one screen. A non-admin who guesses the URL is sent home
+  // rather than shown a locked door — the panel is not advertised.
+  if (activeView === "admin") {
+    if (!user || !user.is_admin) {
+      return (
+        <div className="app-shell-wrap">
+          <div className="app-shell" style={{ padding: 48, textAlign: "center" }}>
+            <h2>{t(language, "brand")}</h2>
+            <p className="muted">
+              {language === "en" ? "This page requires an administrator account."
+                : language === "uz" ? "Bu sahifa administrator hisobini talab qiladi."
+                  : "Эта страница доступна только администратору."}
+            </p>
+            <button type="button" className="chart-opt-btn" onClick={() => setActiveView("main")}>
+              {language === "en" ? "Back to the site" : language === "uz" ? "Saytga qaytish" : "Вернуться на сайт"}
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <AdminPanel
+        apiFetch={apiFetch}
+        user={user}
+        language={language}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        section={adminSection}
+        onSectionChange={setAdminSection}
+        onExit={() => setActiveView("main")}
+      />
+    );
+  }
+
   return (
     <div className="app-shell-wrap">
       <div className="bg-glow bg-glow-a" />
@@ -10613,8 +10465,6 @@ function App() {
 
           {/* Reached by direct link only — it is deliberately absent from
               navItems, because it is a tool for whoever maintains the data. */}
-          {activeView === "auditAdmin" && <AuditAdminPage language={language} />}
-
           {activeView === "news" && <NewsView language={language} onOpenCompany={openCompanyPage} onOpenNews={openNewsArticle} user={user} apiFetch={apiFetch} />}
 
           {activeView === "newsArticle" && newsId && (
