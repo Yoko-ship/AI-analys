@@ -17,7 +17,7 @@ import sqlite3
 import pytest
 
 import reports_catalog as rc
-from delisted import DELISTED_TICKERS, is_delisted
+from delisted import DELISTED_TICKERS, is_delisted, is_delisted_isin
 
 # Lines that are demonstrably alive: they printed a trade the same week the
 # reference tab listed them as delisting candidates. See module docstring.
@@ -60,6 +60,17 @@ class TestSetContents:
     def test_is_delisted_normalises(self) -> None:
         assert is_delisted("sqb2") and is_delisted("  SQB2 ")
         assert not is_delisted(None) and not is_delisted("")
+
+    def test_every_deleted_isin_names_a_deleted_ticker(self) -> None:
+        """The two sets describe the same securities, so they cannot drift apart."""
+        from delisted import _DELISTED_ISINS
+
+        assert set(_DELISTED_ISINS.values()) <= DELISTED_TICKERS
+
+    def test_is_delisted_isin_normalises(self) -> None:
+        assert is_delisted_isin("uz6011507aa9") and is_delisted_isin(" UZ6011507AA9 ")
+        assert not is_delisted_isin(None) and not is_delisted_isin("")
+        assert not is_delisted_isin("UZ7011500004"), "UZAL's own ISIN must survive"
 
 
 class TestCatalogRemoval:

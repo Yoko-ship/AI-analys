@@ -217,6 +217,20 @@ class TestTheBoardIsCompleted:
         row = next(r for r in body["stocks"] if r["ticker"] == "KFSKP")
         assert (row["last_price"] - row["close_price"]) / row["close_price"] * 100 == pytest.approx(17.27, abs=0.005)
 
+    def test_a_deleted_security_cannot_return_through_the_quote_cache(self, monkeypatch) -> None:
+        """UZAL2 came back as a nameless tile the moment its ticker was purged.
+
+        The quote cache is keyed by ISIN, and this row carries no ticker at all —
+        the mirror never named the security — so the ticker denylist had nothing
+        to match on. Deleting the registry line is what exposed it: while that
+        line existed it shared the ISIN and deduped the quote away.
+        """
+        body = self._board(monkeypatch, {"UZ6011507AA9": _quote(
+            isin="UZ6011507AA9", ticker=None, name=None,
+            close_price=1015000.0, prev_close=1000000.0, shares_outstanding=None)})
+
+        assert body["stocks"] == []
+
     def test_a_bond_quote_stays_out_of_the_share_view(self, monkeypatch) -> None:
         bond = _quote(isin="UZ6058967AB7", ticker="UZUMN2B2", market="BND")
 
