@@ -11560,6 +11560,11 @@ function App() {
 // always arrives, on a visible countdown; once dismissed or finished it stays
 // gone for the rest of the session; and a reader who asked the OS for reduced
 // motion gets the poster with a play button instead of a moving picture.
+//
+// What the countdown promises is the first SPONSOR_CLOSE_AFTER seconds of the
+// clip, not fifteen seconds of a frozen first frame — so while it runs the unit
+// cannot be stopped. A click may still START it, and the sound toggle stays
+// live; only the pause is withheld, and only until the × arrives.
 const SPONSOR_SEEN_KEY = "uz_sponsor_seen";
 const SPONSOR_DELAY_MS = 2500;   // let the page settle before anything moves
 const SPONSOR_CLOSE_AFTER = 15;  // seconds before the × replaces the countdown
@@ -11570,9 +11575,15 @@ function SponsorOverlay({ language }) {
   const [playing, setPlaying] = useState(false);
   const [left, setLeft] = useState(SPONSOR_CLOSE_AFTER);
   const [progress, setProgress] = useState(0);
+  // Bumped by a click the countdown refused: it replays the pill's pulse, so a
+  // click that does nothing still points at the reason it did nothing.
+  const [nudge, setNudge] = useState(0);
   const videoRef = useRef(null);
   const reduced = typeof window !== "undefined"
     && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The mandatory window. Reduced motion is exempt: that reader was never given
+  // a playing clip to stop, only the poster and a play button.
+  const locked = open && !reduced && left > 0;
 
   useEffect(() => {
     try { if (sessionStorage.getItem(SPONSOR_SEEN_KEY)) return undefined; } catch (e) { /* ignore */ }
@@ -11605,6 +11616,33 @@ function SponsorOverlay({ language }) {
     return () => clearInterval(id);
   }, [open]);
 
+  // Our own click handler is not the only way to stop a video: OS media keys,
+  // the picture-in-picture window and a phone's app switcher all pause it. While
+  // the countdown runs the unit puts itself back — the guard lives on the `pause`
+  // event, so it holds whatever route the pause arrived by.
+  useEffect(() => {
+    if (!locked) return undefined;
+    const v = videoRef.current;
+    if (!v) return undefined;
+    const resume = () => {
+      // The pause that closes a clip is it finishing, not a viewer stopping it.
+      if (v.ended || (v.duration && v.currentTime >= v.duration - 0.25)) return;
+      // If the browser refuses (a data-saver mode, a backgrounded tab), show the
+      // ▶ again rather than leaving a still frame nobody can restart.
+      v.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    };
+    // Coming back to a backgrounded tab: the browser paused it there and does not
+    // resume on its own, which would otherwise hand back a way to sit out the
+    // window with the clip stopped.
+    const onVisible = () => { if (!document.hidden && v.paused) resume(); };
+    v.addEventListener("pause", resume);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      v.removeEventListener("pause", resume);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [locked]);
+
   if (!open) return null;
 
   const label = language === "en" ? "Advertisement" : language === "uz" ? "Reklama" : "Реклама";
@@ -11624,8 +11662,12 @@ function SponsorOverlay({ language }) {
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) v.play().then(() => setPlaying(true)).catch(() => {});
-    else { v.pause(); setPlaying(false); }
+    // Starting it is always allowed — it is the stopping that the countdown
+    // withholds, and a clip whose autoplay was refused still needs a way in.
+    if (v.paused) { v.play().then(() => setPlaying(true)).catch(() => {}); return; }
+    if (locked) { setNudge((n) => n + 1); return; }
+    v.pause();
+    setPlaying(false);
   };
 
   return createPortal(
@@ -11638,6 +11680,7 @@ function SponsorOverlay({ language }) {
           muted={muted}
           playsInline
           preload="auto"
+          className={locked && playing ? "is-locked" : undefined}
           onClick={togglePlay}
           onTimeUpdate={(e) => {
             const v = e.currentTarget;
@@ -11651,7 +11694,10 @@ function SponsorOverlay({ language }) {
         </button>
 
         {left > 0 ? (
-          <span className="sponsor-overlay-count" aria-hidden="true">{left}</span>
+          /* Keyed on the nudge counter so a refused click remounts the pill and
+             replays its pulse — a CSS animation does not restart on a class that
+             is already there. */
+          <span key={nudge} className={`sponsor-overlay-count${nudge ? " is-nudged" : ""}`} aria-hidden="true">{left}</span>
         ) : (
           <button type="button" className="sponsor-overlay-close" onClick={dismiss} title={closeLabel} aria-label={closeLabel}>×</button>
         )}
