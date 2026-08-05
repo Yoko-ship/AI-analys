@@ -437,6 +437,29 @@ def _require_admin(x_admin_secret: str | None = Header(default=None)) -> None:
         raise HTTPException(status_code=401, detail="Invalid admin secret")
 
 
+def _admin_gate(x_admin_secret: str | None = Header(default=None),
+                authorization: str | None = Header(default=None)) -> None:
+    """Either credential opens the door: the machine secret, or a logged-in admin.
+
+    The collectors present ``X-Admin-Secret`` and must keep working untouched.
+    The admin panel runs in a browser, where that secret has no business being —
+    it authenticates as the person who is signed in, and ``ADMIN_EMAILS`` decides
+    whether that person is an administrator. Neither path weakens the other:
+    a wrong secret is still rejected, and a signed-in non-admin still gets 403.
+    """
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if x_admin_secret is not None:
+        if not secret:
+            raise HTTPException(status_code=503, detail="Admin API is not configured")
+        if not hmac.compare_digest(x_admin_secret.strip(), secret):
+            raise HTTPException(status_code=401, detail="Invalid admin secret")
+        return
+
+    user = _require_user(authorization)          # raises 401 when not signed in
+    if not is_admin_email(user.email):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
 # ---------------------------------------------------------------------------
 # Abuse limits (in-memory; prod runs a single uvicorn worker).
 # ---------------------------------------------------------------------------
@@ -1842,7 +1865,7 @@ def _schedule_audit(trigger: str) -> bool:
 
 @app.post("/api/audit/run")
 async def api_audit_run(payload: dict[str, Any] | None = None,
-                        _: None = Depends(_require_admin)) -> dict[str, Any]:
+                        _: None = Depends(_admin_gate)) -> dict[str, Any]:
     """Run the auditor (ТЗ §12.5). Scope: all, one group, one rule, one ticker."""
     from audit import run_audit
 
@@ -1863,13 +1886,13 @@ async def api_audit_run(payload: dict[str, Any] | None = None,
 
 
 @app.get("/api/audit/runs")
-async def api_audit_runs(limit: int = 20, _: None = Depends(_require_admin)) -> dict[str, Any]:
+async def api_audit_runs(limit: int = 20, _: None = Depends(_admin_gate)) -> dict[str, Any]:
     from audit import list_runs
     return _json_safe({"ok": True, "items": list_runs(max(1, min(limit, 200)))})
 
 
 @app.get("/api/audit/runs/{run_id}")
-async def api_audit_run_detail(run_id: str, _: None = Depends(_require_admin)) -> dict[str, Any]:
+async def api_audit_run_detail(run_id: str, _: None = Depends(_admin_gate)) -> dict[str, Any]:
     from audit import find_findings, get_run
 
     run = get_run(run_id)
@@ -1882,7 +1905,7 @@ async def api_audit_run_detail(run_id: str, _: None = Depends(_require_admin)) -
 async def api_audit_findings(severity: str | None = None, group: str | None = None,
                              status: str | None = None, ticker: str | None = None,
                              limit: int = 200,
-                             _: None = Depends(_require_admin)) -> dict[str, Any]:
+                             _: None = Depends(_admin_gate)) -> dict[str, Any]:
     from audit import find_findings
     return _json_safe({"ok": True, "items": find_findings(
         severity=severity, group=group, status=status, ticker=ticker,
@@ -1891,7 +1914,7 @@ async def api_audit_findings(severity: str | None = None, group: str | None = No
 
 @app.patch("/api/audit/findings/{finding_id}")
 async def api_audit_update_finding(finding_id: int, payload: dict[str, Any],
-                                   _: None = Depends(_require_admin)) -> dict[str, Any]:
+                                   _: None = Depends(_admin_gate)) -> dict[str, Any]:
     """Move a finding to `accepted` (a known exception) or `confirmed`/`fixed`.
 
     §12.2: no finding disappears silently — a decision about one is recorded on
@@ -1925,7 +1948,7 @@ async def api_audit_rules(request: Request) -> Response:
 
 @app.get("/api/audit/diff")
 async def api_audit_diff(from_run: str | None = None, to_run: str | None = None,
-                         _: None = Depends(_require_admin)) -> dict[str, Any]:
+                         _: None = Depends(_admin_gate)) -> dict[str, Any]:
     """What changed between two runs (ТЗ v1.3 §12.5).
 
     Without this a regression reads as one more line in a list nobody finishes.
@@ -1963,7 +1986,7 @@ async def api_audit_diff(from_run: str | None = None, to_run: str | None = None,
 
 @app.get("/api/audit/export")
 async def api_audit_export(run_id: str | None = None,
-                           _: None = Depends(_require_admin)) -> Response:
+                           _: None = Depends(_admin_gate)) -> Response:
     """The full report as CSV (ТЗ v1.3 §12.5)."""
     import csv
     import io
@@ -2021,8 +2044,27 @@ async def _run_invariants() -> dict[str, Any]:
     ])
 
 
+@app.get("/api/admin/overview")
+async def api_admin_overview(history: int = 14, decide: int = 8,
+                             _: None = Depends(_admin_gate)) -> dict[str, Any]:
+    """One read for the admin panel's «Обзор» screen.
+
+    Deliberately one endpoint rather than six: the screen is a single answer to
+    a single question, and six round trips would let it render four true blocks
+    beside two that are still loading — which reads as an outage that is not
+    happening. See ``admin_overview`` for what each block is measured from, and
+    in particular why the freshness block reports a last write and not a run.
+    """
+    import admin_overview
+
+    loop = asyncio.get_running_loop()
+    return _json_safe(await loop.run_in_executor(
+        None, partial(admin_overview.build_overview,
+                      history=max(1, min(history, 60)), decide=max(1, min(decide, 50)))))
+
+
 @app.get("/api/admin/invariants")
-async def api_admin_invariants(_: None = Depends(_require_admin)) -> dict[str, Any]:
+async def api_admin_invariants(_: None = Depends(_admin_gate)) -> dict[str, Any]:
     """The same check the scheduler runs, on demand. Empty is the good outcome."""
     return _json_safe(await _run_invariants())
 

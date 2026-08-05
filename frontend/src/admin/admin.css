@@ -1,0 +1,304 @@
+/* ============================================================================
+   admin.css — the admin panel's own skin («Neutral», направление A).
+   ----------------------------------------------------------------------------
+   Every rule is scoped under `.adm`. The panel deliberately does NOT inherit the
+   site's tokens: the public product is a blue-accented fintech surface, and the
+   panel is a neutral working tool where colour is reserved for status. Two token
+   sets that never touch each other are cheaper to reason about than one set
+   bent to serve both.
+
+   Theme follows the site: index.html stamps data-theme on <html>, and the dark
+   block below is keyed off it, so the panel flips with the rest of the app.
+
+   Trap worth remembering: the site's `.app-shell` caps stacking at z-index 1, so
+   anything portalled to <body> paints over the drawer. The panel avoids portals
+   entirely and renders as a sibling of the shell, full-screen.
+   ========================================================================== */
+
+.adm {
+  --bg: #ffffff;
+  --fg: #09090b;
+  --card: #ffffff;
+  --sub: #f4f4f5;          /* muted surface */
+  --sub-fg: #71717a;       /* muted text   */
+  --bd: #e4e4e7;
+  --bd-2: #d4d4d8;
+  --pri: #18181b;
+  --pri-fg: #fafafa;
+  --bar: #d4d4d8;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --err: #dc2626;
+  --err-fg: #ffffff;
+  --r: 10px;
+  --adm-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+              "Helvetica Neue", Arial, sans-serif;
+
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--adm-font);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+html[data-theme="dark"] .adm,
+body[data-theme="dark"] .adm {
+  --bg: #09090b;
+  --fg: #fafafa;
+  --card: #09090b;
+  --sub: #27272a;
+  --sub-fg: #a1a1aa;
+  --bd: #27272a;
+  --bd-2: #3f3f46;
+  --pri: #fafafa;
+  --pri-fg: #18181b;
+  --bar: #52525b;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --err: #f87171;
+  --err-fg: #180a0a;
+}
+
+.adm *, .adm *::before, .adm *::after { box-sizing: border-box; }
+.adm button { font: inherit; color: inherit; cursor: pointer; }
+.adm button:disabled { cursor: default; opacity: .5; }
+.adm .adm-i {
+  width: 16px; height: 16px; flex: none;
+  stroke: currentColor; fill: none; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.adm .num { font-variant-numeric: tabular-nums; }
+.adm .sp { flex: 1; }
+
+/* ── sidebar ─────────────────────────────────────────────────────────────── */
+.adm-side {
+  width: 256px; flex: none;
+  border-right: 1px solid var(--bd);
+  display: flex; flex-direction: column;
+  padding: 8px; gap: 2px; overflow-y: auto;
+}
+.adm-ws {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px; border-radius: var(--r); border: 0; background: none; text-align: left;
+}
+.adm-ws:hover { background: var(--sub); }
+.adm-ws .sq {
+  width: 32px; height: 32px; border-radius: 8px; flex: none;
+  background: var(--pri); color: var(--pri-fg);
+  display: grid; place-items: center; font-weight: 600; font-size: 13px;
+}
+.adm-ws .t { min-width: 0; flex: 1; }
+.adm-ws .t b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.2; }
+.adm-ws .t span { display: block; font-size: 12px; color: var(--sub-fg); line-height: 1.2; }
+.adm-ws .adm-i { color: var(--sub-fg); }
+
+.adm-grp { padding: 14px 8px 4px; font-size: 12px; color: var(--sub-fg); }
+.adm-nav {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  border: 0; background: none; padding: 7px 8px; border-radius: 8px;
+  font-size: 13.5px; color: var(--fg);
+}
+.adm-nav:hover:not(:disabled) { background: var(--sub); }
+.adm-nav[aria-current] { background: var(--sub); font-weight: 500; }
+.adm-nav .adm-i { color: var(--sub-fg); }
+.adm-nav[aria-current] .adm-i { color: var(--fg); }
+.adm-nav .b {
+  margin-left: auto; font-size: 11.5px; color: var(--sub-fg);
+  font-variant-numeric: tabular-nums;
+}
+.adm-nav .b.hi {
+  background: var(--err); color: var(--err-fg); font-weight: 500;
+  border-radius: 999px; padding: 1px 6px; font-size: 11px;
+}
+.adm-nav .b.soon { font-size: 11px; }
+.adm-side .foot { margin-top: auto; }
+.adm-user {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 8px; border-radius: var(--r); border: 0; background: none;
+}
+.adm-user:hover { background: var(--sub); }
+.adm-user .av {
+  width: 32px; height: 32px; border-radius: 999px; flex: none;
+  background: var(--sub); color: var(--sub-fg);
+  display: grid; place-items: center; font-size: 11.5px; font-weight: 600;
+  object-fit: cover;
+}
+.adm-user .t { min-width: 0; flex: 1; }
+.adm-user .t b { display: block; font-size: 13px; font-weight: 500; line-height: 1.25; }
+.adm-user .t span {
+  display: block; font-size: 12px; color: var(--sub-fg); line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── main column ─────────────────────────────────────────────────────────── */
+.adm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.adm-head {
+  display: flex; align-items: center; gap: 8px; height: 56px; flex: none;
+  padding: 0 20px; border-bottom: 1px solid var(--bd); background: var(--bg);
+}
+.adm-crumbs { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--sub-fg); }
+.adm-crumbs b { color: var(--fg); font-weight: 500; }
+.adm-crumbs .sep { color: var(--bd-2); }
+
+.adm-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px;
+  border-radius: 8px; border: 1px solid var(--bd); background: var(--bg);
+  font-size: 13.5px; font-weight: 500; white-space: nowrap;
+}
+.adm-btn:hover:not(:disabled) { background: var(--sub); }
+.adm-btn.pri { background: var(--pri); color: var(--pri-fg); border-color: var(--pri); }
+.adm-btn.pri:hover:not(:disabled) { opacity: .88; background: var(--pri); }
+.adm-btn.icon { width: 32px; padding: 0; justify-content: center; }
+.adm-btn.sm { height: 28px; padding: 0 10px; font-size: 12.5px; }
+
+.adm-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.adm-h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.adm-h1row p { margin: 0; color: var(--sub-fg); font-size: 13.5px; }
+
+/* ── cards ───────────────────────────────────────────────────────────────── */
+.adm-card { border: 1px solid var(--bd); border-radius: var(--r); background: var(--card); }
+.adm-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 1200px) { .adm-stats { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 700px)  { .adm-stats { grid-template-columns: 1fr; } }
+.adm-stat { padding: 16px 18px; }
+.adm-stat .top { display: flex; align-items: flex-start; gap: 10px; }
+.adm-stat .lab { font-size: 13.5px; color: var(--sub-fg); flex: 1; }
+.adm-badge {
+  display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+  border: 1px solid var(--bd); border-radius: 999px; padding: 2px 8px;
+  font-size: 11.5px; font-weight: 500; font-variant-numeric: tabular-nums;
+}
+.adm-badge .adm-i { width: 12px; height: 12px; }
+.adm-stat .v {
+  font-size: 30px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1;
+  margin: 6px 0 10px; font-variant-numeric: tabular-nums;
+}
+.adm-stat .l1 { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.adm-stat .l2 { font-size: 13px; color: var(--sub-fg); margin-top: 2px; }
+
+/* ── chart ───────────────────────────────────────────────────────────────── */
+.adm-chhead { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px 0; }
+.adm-chhead h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.adm-chhead p { margin: 2px 0 0; font-size: 13px; color: var(--sub-fg); }
+.adm-bars { display: flex; align-items: flex-end; gap: 6px; height: 128px; padding: 18px 18px 30px; }
+.adm-bars .b {
+  flex: 1; min-width: 0; background: var(--bar); border-radius: 3px;
+  position: relative; align-self: flex-end;
+}
+.adm-bars .b.now { background: var(--fg); }
+.adm-bars .b.failed { background: var(--err); }
+.adm-bars .b span {
+  position: absolute; left: -12px; right: -12px; bottom: -19px; text-align: center;
+  font-size: 10.5px; color: var(--sub-fg); font-variant-numeric: tabular-nums;
+}
+.adm-chfoot {
+  display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 14px 18px;
+  border-top: 1px solid var(--bd); font-size: 13px;
+}
+.adm-chfoot span { color: var(--sub-fg); }
+.adm-chfoot b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ── tables ──────────────────────────────────────────────────────────────── */
+.adm-tbar { display: flex; align-items: center; gap: 8px; padding: 12px; flex-wrap: wrap; }
+.adm-tabs { display: flex; gap: 2px; background: var(--sub); padding: 3px; border-radius: 8px; }
+.adm-tabs button {
+  border: 0; background: none; padding: 4px 11px; border-radius: 6px;
+  font-size: 13px; color: var(--sub-fg); display: inline-flex; align-items: center; gap: 6px;
+}
+.adm-tabs button[aria-selected="true"] {
+  background: var(--bg); color: var(--fg); font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+}
+.adm-tabs .c {
+  background: var(--bd); border-radius: 999px; padding: 0 6px;
+  font-size: 11px; font-variant-numeric: tabular-nums;
+}
+
+/* colour is declared, not inherited: Chrome leaves a table subtree stale when a
+   custom property flips and the value only arrives through inheritance. */
+.adm table { width: 100%; border-collapse: collapse; color: var(--fg); }
+.adm thead th {
+  text-align: left; font-size: 13px; font-weight: 500; color: var(--sub-fg);
+  padding: 0 12px; height: 40px; white-space: nowrap;
+  border-top: 1px solid var(--bd); border-bottom: 1px solid var(--bd);
+}
+.adm thead th.r, .adm tbody td.r { text-align: right; }
+.adm tbody td { padding: 11px 12px; border-bottom: 1px solid var(--bd); vertical-align: middle; }
+.adm tbody tr:last-child td { border-bottom: 0; }
+.adm tbody tr:hover { background: var(--sub); }
+.adm .rule { display: flex; align-items: baseline; gap: 8px; font-weight: 500; }
+.adm .rule code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px;
+  white-space: nowrap; flex: none;   /* a rule code must never break across lines */
+}
+.adm .dim { color: var(--sub-fg); font-size: 13px; margin-top: 2px; }
+.adm .who { font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.adm-pill {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  border: 1px solid var(--bd); border-radius: 6px; padding: 2px 8px;
+  font-size: 12px; font-weight: 500; color: var(--sub-fg);
+}
+.adm-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; background: var(--sub-fg); }
+.adm-dot.err { background: var(--err); }
+.adm-dot.warn { background: var(--warn); }
+.adm-dot.ok { background: var(--ok); }
+
+.adm-chk {
+  width: 16px; height: 16px; border: 1px solid var(--bd-2); border-radius: 4px;
+  display: block; background: none; padding: 0; position: relative;
+}
+.adm-chk[aria-checked="true"] { background: var(--pri); border-color: var(--pri); }
+.adm-chk[aria-checked="true"]::after {
+  content: ""; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px;
+  border: solid var(--pri-fg); border-width: 0 1.6px 1.6px 0; transform: rotate(45deg);
+}
+.adm-more {
+  border: 0; background: none; padding: 4px; border-radius: 6px;
+  color: var(--sub-fg); opacity: 0;
+}
+.adm tbody tr:hover .adm-more, .adm-more:focus-visible { opacity: 1; }
+.adm-more:hover { background: var(--sub); color: var(--fg); }
+/* A findings row is wide by nature (rule, severity, security, counters, date).
+   The table scrolls inside its own card rather than pushing the page sideways. */
+.adm-wide { overflow-x: auto; }
+.adm-wide table { min-width: 780px; }
+
+.adm-tfoot {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 12px; border-top: 1px solid var(--bd); font-size: 13px; color: var(--sub-fg);
+}
+
+/* ── states ──────────────────────────────────────────────────────────────── */
+.adm-empty { padding: 44px 20px; text-align: center; color: var(--sub-fg); font-size: 13.5px; }
+.adm-empty b { display: block; color: var(--fg); font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.adm-err {
+  border: 1px solid var(--err); border-radius: var(--r); padding: 12px 14px;
+  color: var(--err); font-size: 13.5px; background: var(--card);
+}
+.adm-skel {
+  background: linear-gradient(90deg, var(--sub) 25%, var(--bd) 37%, var(--sub) 63%);
+  background-size: 400% 100%; animation: admShimmer 1.4s ease infinite; border-radius: 6px;
+}
+@keyframes admShimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .adm-skel { animation: none; } }
+
+/* ── phone ───────────────────────────────────────────────────────────────── */
+.adm-scrim { display: none; }
+@media (max-width: 900px) {
+  .adm-side {
+    position: absolute; inset: 0 auto 0 0; z-index: 3; background: var(--bg);
+    transform: translateX(-100%); transition: transform .2s cubic-bezier(.2,.7,.3,1);
+  }
+  .adm.is-open .adm-side { transform: translateX(0); box-shadow: 0 0 40px rgba(0,0,0,.25); }
+  .adm.is-open .adm-scrim { display: block; position: absolute; inset: 0; z-index: 2; background: rgba(0,0,0,.4); border: 0; }
+  .adm-body { padding: 14px; }
+  .adm-head { padding: 0 12px; }
+}
+@media (min-width: 901px) { .adm-burger { display: none; } }
