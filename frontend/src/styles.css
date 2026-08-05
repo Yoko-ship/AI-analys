@@ -3387,6 +3387,39 @@ body[data-theme="dark"] .activity-footer > div:hover {
   }
 }
 
+/* Administrative entry point. Deliberately quiet: it sits with the controls and
+   not in the nav, because the panel is a tool for whoever maintains the data and
+   not a section of the product. The text collapses below 1360px — the inline nav
+   already fights for that space and the icon carries the meaning. */
+.topbar-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.topbar-admin:hover,
+.topbar-admin.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+
+@media (max-width: 1360px) {
+  .topbar-admin { width: 36px; padding: 0; justify-content: center; }
+  .topbar-admin span { display: none; }
+}
+
 .theme-toggle {
   display: flex;
   align-items: center;

@@ -10342,6 +10342,28 @@ function App() {
 
           <div className="topbar-meta">
             <div className="topbar-controls">
+              {/* The panel is not a product section, so it stays out of the main
+                  nav — but an administrator should not have to type the URL. The
+                  label collapses to the icon on narrow widths, where the topbar
+                  has no room to spare (see mobile.css §2). */}
+              {user?.is_admin && (
+                <button
+                  className={`topbar-admin${activeView === "admin" ? " active" : ""}`}
+                  type="button"
+                  onClick={() => { setActiveView("admin"); setMobileNavOpen(false); }}
+                  title={language === "en" ? "Admin panel" : language === "uz" ? "Admin paneli" : "Админ-панель"}
+                  aria-label={language === "en" ? "Admin panel" : language === "uz" ? "Admin paneli" : "Админ-панель"}
+                >
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="7" height="9" x="3" y="3" rx="1" />
+                    <rect width="7" height="5" x="14" y="3" rx="1" />
+                    <rect width="7" height="9" x="14" y="12" rx="1" />
+                    <rect width="7" height="5" x="3" y="16" rx="1" />
+                  </svg>
+                  <span>{language === "en" ? "Admin" : language === "uz" ? "Admin" : "Админка"}</span>
+                </button>
+              )}
+
               <label className="topbar-language">
                 <select
                   id="languageSelect"
