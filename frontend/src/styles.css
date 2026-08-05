@@ -7091,6 +7091,15 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   background: rgba(148, 163, 184, 0.2);
 }
 .market-table th.market-th-sortable .term-info-btn { text-transform: none; letter-spacing: 0; }
+/* In the column picker the marker sits at the row's right edge rather than beside
+   the label: the ⓘ line up into one scannable column instead of a ragged one, and
+   the tap target stays clear of the label text, which toggles the column. */
+.market-cols-row .term-info-btn { margin-left: auto; flex-shrink: 0; }
+/* The locked rows are dimmed as a whole, and a subdued marker inside a dimmed row
+   fades to nothing — so it is carried back up to the row's own weight. */
+.market-cols-row-locked .term-info-btn:not(:hover):not(.open) { opacity: 0.85; }
+/* On the phone sheet the rows are 42px and the pointer is a thumb. */
+.market-cols-sheet .market-cols-row .term-info-btn { width: 24px; height: 24px; font-size: 13px; }
 
 /* Portaled to <body>: inside the board's horizontal scrollport it would be
    clipped, and z-index inside .app-shell cannot climb over the nav drawer. */
