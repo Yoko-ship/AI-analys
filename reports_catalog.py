@@ -1909,8 +1909,11 @@ def purge_delisted(tickers: set[str] | frozenset[str] | None = None) -> dict[str
     deleted: dict[str, int] = {}
     conn = get_catalog_conn()
     try:
-        existing = {r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'")}
+        # Through dbx, not by reading SQLite's own catalog table: that table does
+        # not exist on Postgres, so since the cutover this raised before deleting
+        # anything and the purge only ever *looked* done — the read filters were
+        # hiding the very rows it had failed to remove.
+        existing = set(dbx.tables(conn))
         with conn:
             # Trade stats are keyed by ISIN, so resolve them through the registry
             # rows before those rows are deleted and the link is lost.
@@ -3328,7 +3331,15 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
     # Валовая прибыль (форма №2): "Валовая прибыль (убыток) от реализации ..."
     "gross_profit": ["валовая прибыл", "валовой доход", "валовая выручка",
                      "gross profit", "yalpi foyda"],
-    # Наличность в кассе / денежные средства (форма №1, баланс)
+    # Наличность в кассе (форма №1, баланс) = «Денежные средства на расчетном
+    # счете (5100)», стр. 340 в форме АО / 430 в страховой форме — операционный
+    # остаток на банковском счете, а НЕ свод «Денежные средства, всего», куда
+    # входят касса (5000), валютные счета (5200) и эквиваленты (5500/5600/5700).
+    "cash_account": ["расчетном счете", "расчётном счёте", "расчетном счёте",
+                     "расчетный счет", "расчётный счёт", "(5100)",
+                     "hisob-kitob schyot", "settlement account"],
+    # Свод — запасной вариант для форм без строки 5100 (банковская форма её не
+    # публикует: там «Кассовая наличность и другие платежные документы»).
     "cash": ["денежные средства", "денежных средств", "наличность", "касса",
              "cash and cash", "cash equivalent", "pul mablag", "kassa"],
     # Операционный доход = прибыль (убыток) от основной деятельности (форма №2,
@@ -3342,7 +3353,7 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
 }
 
 
-def _row_value(nums: list) -> float | None:
+def _row_value(nums: list, strict_period: bool = False) -> float | None:
     """Pick the reporting-period amount from a parsed row's numeric cells.
 
     Several NSBU Excel layouts occur in the wild, but they all lay their period
@@ -3415,15 +3426,50 @@ def _row_value(nums: list) -> float | None:
         reporting = _half_value(rest[len(rest) // 2:])
         if reporting is not None:
             return reporting
+        # A single balance ACCOUNT can legitimately end the period at zero — a
+        # settlement account emptied, a loan repaid — and there the fallback would
+        # publish the OPENING balance as the closing one. Only a total is safe to
+        # fall back on, so the caller says which it is asking for.
+        if strict_period:
+            return 0.0
         return _half_value(rest[:len(rest) // 2])
     return _first_nonzero(rest)
 
 
-def _extract_metric(rows: list[dict], key: str) -> float | None:
+def _extract_metric(rows: list[dict], key: str, strict_period: bool = False) -> float | None:
     patterns = _LABEL_PATTERNS.get(key, [])
     for row in rows:
         label = str(row.get("label") or "").lower()
         if any(p in label for p in patterns):
+            v = _row_value(row.get("numeric_values") or [], strict_period=strict_period)
+            if v is not None:
+                return v
+    return None
+
+
+def _squash(label: Any) -> str:
+    return re.sub(r"\s+", "", str(label or "").lower().replace("ё", "е"))
+
+
+# The obligations subtotal of the NSBU balance, by the line numbers it sums —
+# «ИТОГО ПО II РАЗДЕЛУ (стр. 490+600)» on the jsc form, «Итого по разделу III
+# (стр. 730 + 930)» on the insurance one. Matched on the formula and not on the
+# wording because the asset side of both forms prints «ИТОГО ПО РАЗДЕЛУ II» too.
+_LIABILITIES_SECTION_FORMULAS = ("490+600", "730+930")
+
+
+def _extract_liabilities_total(rows: list[dict]) -> float | None:
+    """The obligations total the issuer itself published, if the form prints one.
+
+    Preferred over re-adding «Долгосрочные обязательства, всего» and «Текущие
+    обязательства, всего»: where the two disagree it is the published total that
+    satisfies assets = equity + liabilities, because an unfilled or stale part
+    cell is what the parts carry (KVTS 2026Q2, MIQE 2026Q2, Uzum Sarmoya 2026Q2 —
+    the last of which had NO obligations at all on the board).
+    """
+    for row in rows:
+        squashed = _squash(row.get("label"))
+        if "итого" in squashed and any(f in squashed for f in _LIABILITIES_SECTION_FORMULAS):
             v = _row_value(row.get("numeric_values") or [])
             if v is not None:
                 return v
@@ -3452,6 +3498,8 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     equity = _extract_metric(balance_rows or all_rows, "equity")
     total_liabilities = _extract_metric(balance_rows or all_rows, "total_liabilities")
     if total_liabilities is None:
+        total_liabilities = _extract_liabilities_total(balance_rows or all_rows)
+    if total_liabilities is None:
         lt = _extract_metric(balance_rows or all_rows, "lt_liabilities")
         cur = _extract_metric(balance_rows or all_rows, "cur_liabilities")
         if lt is not None or cur is not None:
@@ -3462,7 +3510,13 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     # take equity as the difference instead.
     if equity is None and total_assets is not None and total_liabilities is not None:
         equity = total_assets - total_liabilities
-    cash = _extract_metric(balance_rows or all_rows, "cash")
+    # Settlement account (5100) first; the «Денежные средства, всего» roll-up only
+    # for the bank form, which has no such line. `strict_period` keeps an account
+    # emptied by the reporting date at zero instead of re-serving its opening
+    # balance — a total can fall back, a single account cannot.
+    cash = _extract_metric(balance_rows or all_rows, "cash_account", strict_period=True)
+    if cash is None:
+        cash = _extract_metric(balance_rows or all_rows, "cash")
 
     def _safe_ratio(num: float | None, den: float | None) -> float | None:
         if num is None or den is None or den == 0:

@@ -44,6 +44,16 @@ _DEAD_ISSUER_PAPER = {
     "TNB101",                                                  # Turonbank
     "MCB2",                                                    # Mikrokreditbank
     "UZMB2",                                                   # O'zbekiston metallurgiya kombinati
+    # O'zagrolizing (UZAL and UZALP stay). This one reached the board through the
+    # registry merge, which routes by the securities catalog's `type` — and the
+    # catalog had it as a share. It is not: ISIN UZ6011507AA9 is in the bond
+    # namespace (all 15 bonds on the board are UZ6*, all 95 shares UZ7*), uzse
+    # serves an instrument card for it only under /isu_infos/BND, and that card
+    # gives par 1 000 000 with the last trade on 30.05.2023 at 1 015 000 —
+    # 101.5% of par, a bond quote. Filed as equity it was valued at 50 000 shares
+    # × 1 015 000, so a series that has not traded in three years sat in Прочее
+    # on the heat map as a 50.75 bn block, larger than most of the real market.
+    "UZAL2",
 }
 
 # Issuers with no tradable security and no price on any source we read.
