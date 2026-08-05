@@ -78,6 +78,14 @@ _DEFAULT_THRESHOLDS: dict[str, dict[str, Any]] = {
         "net_income_vs_revenue_max": 1.5,
         "liabilities_vs_assets_max": 1.5,
         "half_year_vs_annual_max": 5,
+        # Only against the year that just ended: an interim measured against a
+        # six-year-old annual (KSCM's newest is 2020) compares two different
+        # companies. 1 = the prior year, 0 = the same year's own annual.
+        "period_vs_annual_max_year_gap": 1,
+        # ...and only when both sides are a material share of revenue. The rule
+        # hunts a units error; off a near-breakeven base any real recovery
+        # multiplies past 5x while the numbers are perfectly correct.
+        "period_vs_annual_min_margin": 0.05,
         "roe_implied_vs_published_max": 8,
     },
     # ТЗ §8 — outside these a multiple is a data error, not a valuation.
