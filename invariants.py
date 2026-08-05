@@ -136,13 +136,25 @@ def check_multiples_in_range(rows: Iterable[dict[str, Any]]) -> list[dict[str, A
 
 def check_invalid_statements_are_suppressed(rows: Iterable[dict[str, Any]]
                                             ) -> list[dict[str, Any]]:
-    """A statement that failed validation must not have produced a multiple."""
+    """A statement line that failed validation must not have produced a multiple.
+
+    Line by line, not row by row: a balance-sheet failure leaves P/E standing,
+    and holding the whole row hostage to it took thirteen sound numbers off the
+    board. What may never happen is a multiple built FROM the broken line.
+    """
     out: list[dict[str, Any]] = []
     for row in rows:
         validation = row.get("validation") or {}
         if validation.get("valid", True):
             continue
+        # A statement with no per-line detail (an older payload) is still judged
+        # whole — the previous rule, kept for anything that predates `findings`.
+        findings = validation.get("findings")
+        broken = ({f.get("field") for f in findings} if findings
+                  else set().union(*fundamentals.MULTIPLE_INPUTS.values()))
         for field in ("pe", "pb"):
+            if not broken & set(fundamentals.MULTIPLE_INPUTS[field]):
+                continue
             if (row.get(field) or {}).get("value") is not None:
                 out.append(_finding("FIN-01", SEVERITY_BLOCKING,
                                     "мультипликатор посчитан по непроверенной отчётности",

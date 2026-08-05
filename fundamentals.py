@@ -13,8 +13,11 @@ capitalisation stay class-specific; P/E, P/B, ROE, ROA, margin and D/E do not.
 **A number that cannot be true is not displayed as a number.** Statements are
 checked for internal consistency before anything divides by them: 7 of 89 cached
 rows fail (TGPG reports gross profit −1.5 bn on revenue 615 mn and a net loss of
-3.25 bn; KSCM and UZNGP report gross 30 and net 270 on revenue 10). Those rows
-are marked and shown as «данные проверяются», never as a figure.
+3.25 bn; KSCM and UZNGP report gross 30 and net 270 on revenue 10). Those figures
+are shown as «данные проверяются», never as a number — but line by line, not row
+by row: the failure withholds the multiples built FROM the broken line and leaves
+the rest standing, because a liability that contradicts assets says nothing about
+P/E and blanking the row for it published thirteen empty cells that had answers.
 
 Everything is a pure function of its arguments — no database, no HTTP — so the
 market screen, the company card and the export share one implementation.
@@ -121,15 +124,24 @@ def validate_statement(fin: dict[str, Any] | None,
                        ratio: dict[str, Any] | None = None) -> dict[str, Any]:
     """Is this statement internally consistent enough to publish?
 
-    Returns ``{"valid": bool, "status": str, "reasons": [...], "fields": {...}}``
-    where ``fields`` names the individual lines that failed, so the table can
-    suppress one cell rather than the whole row where that is enough.
+    Returns ``{"valid": bool, "status": str, "reasons": [...], "fields": {...},
+    "findings": [...]}`` where ``fields`` names the individual lines that failed
+    and ``findings`` pairs each line with the sentence explaining it, so the
+    table can suppress one cell rather than the whole row where that is enough.
     """
     cfg = thresholds()["financials"]
     reasons: list[str] = []
     fields: dict[str, list[str]] = {}
+    findings: list[dict[str, str]] = []
+
+    def fail(field: str, code: str, reason: str) -> None:
+        reasons.append(reason)
+        fields.setdefault(field, []).append(code)
+        findings.append({"field": field, "code": code, "reason": reason})
+
     if not fin:
-        return {"valid": False, "status": STATUS_NO_FINANCIALS, "reasons": [], "fields": {}}
+        return {"valid": False, "status": STATUS_NO_FINANCIALS, "reasons": [],
+                "fields": {}, "findings": []}
 
     revenue = _num(fin.get("revenue"))
     gross = _num(fin.get("gross_profit"))
@@ -140,18 +152,15 @@ def validate_statement(fin: dict[str, Any] | None,
     months = period_months(fin)
 
     if revenue is not None and revenue < 0:
-        reasons.append("выручка отрицательна")
-        fields.setdefault("revenue", []).append("negative_revenue")
+        fail("revenue", "negative_revenue", "выручка отрицательна")
 
     if revenue is not None and gross is not None and revenue > 0:
         if abs(gross) > abs(revenue) * float(cfg["gross_profit_vs_revenue_max"]):
-            reasons.append("валовая прибыль больше выручки")
-            fields.setdefault("gross_profit", []).append("gross_gt_revenue")
+            fail("gross_profit", "gross_gt_revenue", "валовая прибыль больше выручки")
 
     if revenue is not None and net is not None and revenue > 0:
         if abs(net) > abs(revenue) * float(cfg["net_income_vs_revenue_max"]):
-            reasons.append("чистая прибыль больше выручки в 1,5 раза")
-            fields.setdefault("net_income", []).append("net_gt_revenue")
+            fail("net_income", "net_gt_revenue", "чистая прибыль больше выручки в 1,5 раза")
 
     # Liabilities and assets come from two different filings — the NSBU statement
     # and openinfo's financial_indicators — and the second is often a different
@@ -162,12 +171,10 @@ def validate_statement(fin: dict[str, Any] | None,
     same_period = bool(ratio_period and fin.get("year") and ratio_period[0] == int(fin["year"]))
     if same_period and assets is not None and liabilities is not None and assets > 0:
         if liabilities > assets * float(cfg["liabilities_vs_assets_max"]):
-            reasons.append("обязательства превышают активы")
-            fields.setdefault("total_liabilities", []).append("liab_gt_assets")
+            fail("total_liabilities", "liab_gt_assets", "обязательства превышают активы")
 
     if equity is not None and equity <= 0:
-        reasons.append("собственный капитал не положителен")
-        fields.setdefault("total_equity", []).append("equity_not_positive")
+        fail("total_equity", "equity_not_positive", "собственный капитал не положителен")
 
     # The strongest available cross-check on units: the profit in the statement,
     # divided by the published equity, must land near the published ROE. ALKB's
@@ -188,20 +195,38 @@ def validate_statement(fin: dict[str, Any] | None,
         scale = float(cfg["roe_implied_vs_published_max"])
         if implied != 0 and (abs(implied / published_roe) > scale
                              or abs(published_roe / implied) > scale):
-            reasons.append("прибыль не согласуется с капиталом и опубликованной ROE")
-            fields.setdefault("net_income", []).append("net_vs_equity_roe")
+            fail("net_income", "net_vs_equity_roe",
+                 "прибыль не согласуется с капиталом и опубликованной ROE")
 
-    # A cumulative period scaled to a year must land near the issuer's own annual.
+    # A cumulative period scaled to a year must land near the issuer's own annual
+    # — but only where that comparison means anything. This rule hunts a units
+    # error, and two gates keep it from calling ordinary business a defect:
+    #
+    #   * the annual must be the year that just ended. KSCM's newest annual is
+    #     2020; measuring its 2026 half-year against it compares two different
+    #     companies and fired on six issuers whose numbers were never in doubt.
+    #   * both sides must earn a material share of revenue. Off a near-breakeven
+    #     base the run-rate multiple explodes on arithmetic alone — GRBK made
+    #     0.7 kopeks of profit per soum of 2025 revenue, so its recovery reads as
+    #     11x with every figure correct. Where the profit IS material the rule
+    #     still bites: UQEQ's half-year revenue is 400x its annual (3613x on
+    #     profit), and that is the parsing error the rule exists to catch.
+    #
+    # A units error inside a hairline margin therefore passes here; it is left to
+    # the net-income-vs-revenue and ROE cross-checks above, which do not depend
+    # on a second filing to notice it.
     annual = fin.get("annual")
     if annual and months and months < 12:
         annual_net = _num(annual.get("net_income"))
         scaled = annualise(net, months)
-        if annual_net and scaled and annual_net != 0:
+        if annual_net and scaled and annual_net != 0 \
+                and _periods_are_adjacent(fin, annual, cfg) \
+                and _both_margins_material(fin, annual, cfg):
             ratio_ = abs(scaled / annual_net)
             limit = float(cfg["half_year_vs_annual_max"])
             if ratio_ > limit or ratio_ < 1.0 / limit:
-                reasons.append("период не согласуется с годовым отчётом")
-                fields.setdefault("net_income", []).append("period_vs_annual")
+                fail("net_income", "period_vs_annual",
+                     "период не согласуется с годовым отчётом")
 
     valid = not reasons
     return {
@@ -209,9 +234,34 @@ def validate_statement(fin: dict[str, Any] | None,
         "status": STATUS_OK if valid else STATUS_UNVERIFIED,
         "reasons": reasons,
         "fields": fields,
+        "findings": findings,
         "period": period_label(fin),
         "months": months,
     }
+
+
+def _periods_are_adjacent(fin: dict[str, Any], annual: dict[str, Any],
+                          cfg: dict[str, Any]) -> bool:
+    """Is the annual recent enough to be this interim's benchmark?"""
+    year, annual_year = _num(fin.get("year")), _num(annual.get("year"))
+    if year is None or annual_year is None:
+        return False
+    return abs(int(year) - int(annual_year)) <= int(cfg["period_vs_annual_max_year_gap"])
+
+
+def _both_margins_material(fin: dict[str, Any], annual: dict[str, Any],
+                           cfg: dict[str, Any]) -> bool:
+    """Do both filings earn enough per soum of revenue for their ratio to mean
+    anything? Unknown margins count as material: where we cannot measure
+    thinness we keep the guard rather than drop it."""
+    floor = float(cfg["period_vs_annual_min_margin"])
+    for source in (fin, annual):
+        revenue, net = _num(source.get("revenue")), _num(source.get("net_income"))
+        if not revenue or net is None:
+            continue
+        if abs(net) / abs(revenue) < floor:
+            return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -368,23 +418,12 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     bvps = bvps_issuer(classes, equity)
     shares_check = share_count_consistency(classes)
 
-    # A statement that failed validation may not feed a multiple at all: the
-    # multiple would inherit the impossible figure without inheriting the doubt.
-    if fin is not None and not validation["valid"]:
-        blocked = _metric(None, STATUS_UNVERIFIED, reasons=validation["reasons"])
-        return {
-            "market_cap_issuer": cap, "base_period": base_period, "base_months": base_months,
-            "pe": dict(blocked), "pb": dict(blocked), "roe": dict(blocked),
-            "roa": dict(blocked), "net_margin": dict(blocked), "debt_to_equity": dict(blocked),
-            "bvps": bvps, "shares_check": shares_check, "validation": validation,
-        }
-
     if not shares_check["consistent"]:
         worst = max(shares_check["findings"], key=lambda f: abs(math.log10(f["ratio"])))
         note = (f"капитализация {worst['ticker']} расходится с ценой на акцию "
                 f"в {worst['ratio']:.0f} раз")
         blocked = _metric(None, STATUS_INCONSISTENT, note=note)
-        return {
+        return _suppress_unverified({
             "market_cap_issuer": cap, "base_period": base_period, "base_months": base_months,
             "pe": dict(blocked), "pb": dict(blocked),
             "roe": _ranged(_num(ratio.get("roe")), -float(cfg["roe_abs_max"]), float(cfg["roe_abs_max"])),
@@ -394,7 +433,7 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
             "debt_to_equity": _metric(_num(ratio.get("debt_to_equity")), STATUS_OK)
             if ratio.get("debt_to_equity") is not None else _metric(None, STATUS_NO_FINANCIALS),
             "bvps": bvps, "shares_check": shares_check, "validation": validation,
-        }
+        }, validation)
 
     cap_value = cap["value"]
     pe_range = cfg["pe_range"]
@@ -419,7 +458,7 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
                      float(pb_range[0]), float(pb_range[1]), base_period=base_period)
 
     roe_max = float(cfg["roe_abs_max"])
-    return {
+    return _suppress_unverified({
         "market_cap_issuer": cap,
         "base_period": base_period,
         "base_months": base_months,
@@ -436,7 +475,40 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
         "bvps": bvps,
         "shares_check": shares_check,
         "validation": validation,
-    }
+    }, validation)
+
+
+# Which statement lines each multiple is actually built from. A failure withholds
+# the multiples that read the broken line and no others: obligations that exceed
+# assets say nothing about P/E, and before this one bad line took the whole row
+# dark. Revenue and gross profit count as inputs to every profit-based multiple —
+# when the top of the P&L cannot be true, the net income read out of the same
+# column is not evidence either.
+MULTIPLE_INPUTS: dict[str, tuple[str, ...]] = {
+    "pe": ("revenue", "gross_profit", "net_income"),
+    "pb": ("total_equity",),
+    "roe": ("revenue", "gross_profit", "net_income", "total_equity"),
+    "roa": ("revenue", "gross_profit", "net_income", "total_assets"),
+    "net_margin": ("revenue", "gross_profit", "net_income"),
+    "debt_to_equity": ("total_liabilities", "total_equity"),
+}
+
+
+def _suppress_unverified(result: dict[str, Any],
+                         validation: dict[str, Any]) -> dict[str, Any]:
+    """Withhold the multiples a failed statement line feeds, carrying that line's
+    own reason — the cell says «проверяется» about the number it describes."""
+    findings = validation.get("findings") or []
+    if validation.get("valid", True) or not findings:
+        return result
+    for metric, inputs in MULTIPLE_INPUTS.items():
+        reasons = list(dict.fromkeys(f["reason"] for f in findings if f["field"] in inputs))
+        if not reasons:
+            continue
+        current = result.get(metric) or {}
+        result[metric] = _metric(None, STATUS_UNVERIFIED, reasons=reasons,
+                                 base_period=current.get("base_period"))
+    return result
 
 
 # ---------------------------------------------------------------------------

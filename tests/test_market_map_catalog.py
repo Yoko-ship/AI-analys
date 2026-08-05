@@ -205,6 +205,19 @@ class TestInvariants:
         ])
         assert [f["code"] for f in found] == ["FIN-01", "FIN-01"]
 
+    def test_it_is_the_broken_line_that_withholds_a_multiple_not_the_row(self):
+        """A P&L that cannot be true withholds P/E; P/B is built from equity and
+        goes on being published, so only the first is a finding."""
+        found = invariants.check_invalid_statements_are_suppressed([
+            {"ticker": "TGPG",
+             "validation": {"valid": False, "reasons": ["валовая прибыль больше выручки"],
+                            "findings": [{"field": "gross_profit",
+                                          "code": "gross_gt_revenue",
+                                          "reason": "валовая прибыль больше выручки"}]},
+             "pe": {"value": 8.0}, "pb": {"value": 1.0}},
+        ])
+        assert [(f["code"], f["field"]) for f in found] == [("FIN-01", "pe")]
+
     def test_map_findings(self):
         payload = heatmap.build_heatmap([
             row("UTYK", last=None, close=5000.0, trades=8, turnover=34_050_000.0),

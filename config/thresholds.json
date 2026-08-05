@@ -31,6 +31,8 @@
     "net_income_vs_revenue_max": 1.5,
     "liabilities_vs_assets_max": 1.5,
     "half_year_vs_annual_max": 5,
+    "period_vs_annual_max_year_gap": 1,
+    "period_vs_annual_min_margin": 0.05,
     "roe_implied_vs_published_max": 8
   },
 

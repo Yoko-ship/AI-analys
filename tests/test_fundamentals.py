@@ -130,6 +130,62 @@ class TestValidation:
         got = fundamentals.validate_statement(None, ratio())
         assert got["status"] == fundamentals.STATUS_NO_FINANCIALS
 
+    def test_every_reason_names_the_line_it_came_from(self):
+        got = fundamentals.validate_statement(stmt(gross_profit=-1500.0), ratio())
+        assert got["findings"] == [{"field": "gross_profit", "code": "gross_gt_revenue",
+                                    "reason": "валовая прибыль больше выручки"}]
+
+
+class TestPeriodAgainstAnnual:
+    """The rule that took thirteen of eighty-six rows off the board.
+
+    An interim scaled to twelve months must land near the issuer's own annual —
+    it is how a units error in one filing is caught. But the comparison only
+    means something between two adjacent years of a business earning a material
+    margin, and without those gates it was flagging ordinary recoveries.
+    """
+
+    def _interim(self, annual_year=2025, annual_net=1000.0, annual_revenue=1000.0,
+                 net_income=50.0, revenue=500.0):
+        return fundamentals.validate_statement(
+            stmt(year=2026, quarter=2, period_months=6,
+                 revenue=revenue, net_income=net_income, gross_profit=None,
+                 annual={"year": annual_year, "quarter": 0, "period_months": 12,
+                         "revenue": annual_revenue, "net_income": annual_net}),
+            ratio(period="2021", roe=None))
+
+    def test_a_tenfold_gap_against_last_year_is_rejected(self):
+        got = self._interim()
+        assert "period_vs_annual" in got["fields"]["net_income"]
+
+    def test_a_stale_annual_is_not_a_benchmark(self):
+        """KSCM's newest annual is 2020; its 2026 half-year is another company."""
+        got = self._interim(annual_year=2020)
+        assert got["valid"] is True
+
+    def test_a_hairline_base_margin_is_not_a_units_error(self):
+        """GRBK earned 0.7 kopeks per soum of 2025 revenue: a real recovery off
+        that base multiplies past the limit with every figure correct."""
+        got = self._interim(annual_net=2.0)
+        assert got["valid"] is True
+
+    def test_a_hairline_current_margin_is_not_one_either(self):
+        """UZAS the other way round: this year's profit collapsed to nothing."""
+        got = self._interim(net_income=0.5)
+        assert got["valid"] is True
+
+    def test_the_parse_error_it_exists_for_still_fails(self):
+        """UQEQ: a half-year revenue 400x the annual, profit 3 613x — both sides
+        material, the years adjacent, and the numbers impossible."""
+        got = self._interim(annual_net=21.6, annual_revenue=249.6,
+                            net_income=39_015.0, revenue=98_015.0)
+        assert "period_vs_annual" in got["fields"]["net_income"]
+
+    def test_an_unmeasurable_margin_keeps_the_guard(self):
+        """No revenue line to judge thinness by: the check is not dropped."""
+        got = self._interim(revenue=None, annual_revenue=None)
+        assert "period_vs_annual" in got["fields"]["net_income"]
+
 
 # ---------------------------------------------------------------------------
 # Issuers
@@ -221,11 +277,33 @@ class TestMultiples:
         assert got["roe"]["value"] is None
         assert got["roe"]["status"] == fundamentals.STATUS_UNVERIFIED
 
-    def test_an_unverified_statement_produces_no_multiple_at_all(self):
+    def test_a_broken_income_statement_withholds_the_multiples_it_feeds(self):
         got = self._issuer(fin={"gross_profit": -5000.0})
-        for field in ("pe", "pb", "roe", "roa"):
+        for field in ("pe", "roe", "roa", "net_margin"):
             assert got[field]["value"] is None
             assert got[field]["status"] == fundamentals.STATUS_UNVERIFIED
+            assert got[field]["reasons"] == ["валовая прибыль больше выручки"]
+
+    def test_and_leaves_alone_the_ones_it_does_not(self):
+        """Book value is built from equity. A P&L that cannot be true says
+        nothing about it, and blanking it too was thirteen rows of silence."""
+        got = self._issuer(fin={"gross_profit": -5000.0})
+        assert got["pb"]["status"] == fundamentals.STATUS_OK
+        assert got["pb"]["value"] == pytest.approx(1.0)
+        assert got["debt_to_equity"]["status"] == fundamentals.STATUS_OK
+
+    def test_a_balance_line_failure_leaves_the_earnings_multiples_standing(self):
+        got = self._issuer(fin={"total_liabilities": 9000.0}, rat={"roe": 20.0})
+        assert got["debt_to_equity"]["status"] == fundamentals.STATUS_UNVERIFIED
+        assert got["debt_to_equity"]["reasons"] == ["обязательства превышают активы"]
+        assert got["pe"]["value"] == pytest.approx(5.0)
+        assert got["roe"]["status"] == fundamentals.STATUS_OK
+
+    def test_negative_equity_withholds_book_value_and_leverage_only(self):
+        got = self._issuer(rat={"total_equity": -5.0})
+        for field in ("pb", "roe", "debt_to_equity"):
+            assert got[field]["status"] == fundamentals.STATUS_UNVERIFIED
+        assert got["pe"]["value"] == pytest.approx(5.0)
 
     def test_a_capitalisation_that_contradicts_the_price_suppresses_multiples(self):
         """The units error ТЗ §8 saw: a cap a thousand times price x shares."""
