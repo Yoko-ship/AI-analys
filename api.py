@@ -30,7 +30,7 @@ load_dotenv()
 
 from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_comparison_excel, build_comparison_pdf, build_summary, report_disclaimer, run_company_analysis  # noqa: E402
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
-from delisted import DELISTED_TICKERS
+from delisted import DELISTED_ISINS, DELISTED_TICKERS, is_delisted_isin
 from openinfo_collector import collect_company_data, get_company_periods
 import news_store  # noqa: E402 — §3.11 editorial-news store
 from reports_catalog import (
@@ -1068,11 +1068,15 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
             loop.run_in_executor(None, partial(sync_securities, quoted_rows, _load_logos()))
 
     # Drop board-suppressed tickers (dormant registry lines) from the view. Applied
-    # to the fully merged list so it holds regardless of source (live feed or the
-    # inactive registry merge above); data itself is left untouched.
-    if BOARD_DENYLIST:
+    # to the fully merged list so it holds regardless of source (live feed, the
+    # inactive registry merge or the quote cache above); data itself is left
+    # untouched. The ISIN is tested as well as the ticker because a quote-cache row
+    # may have no ticker to test — that is how UZAL2 returned as a nameless tile
+    # once its registry line was purged.
+    if BOARD_DENYLIST or DELISTED_ISINS:
         merged = [r for r in merged
-                  if str(r.get("ticker") or "").upper() not in BOARD_DENYLIST]
+                  if str(r.get("ticker") or "").upper() not in BOARD_DENYLIST
+                  and not is_delisted_isin(r.get("isin"))]
         added_inactive = sum(1 for r in merged if r.get("inactive"))
 
     return _json_safe({

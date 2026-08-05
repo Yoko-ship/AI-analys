@@ -69,7 +69,31 @@ DELISTED_TICKERS = frozenset(
     | {t.strip().upper() for t in os.getenv("DELISTED_TICKERS_EXTRA", "").split(",") if t.strip()}
 )
 
+# The ticker is not the only key a board row arrives with. The quote cache is
+# keyed by ISIN and its rows carry whatever the exchange page named them — for a
+# security the /stocks mirror never listed, that is nothing at all. Such a row
+# used to be deduped away by the registry line that shared its ISIN, so deleting
+# the registry line is what exposed it: UZAL2 came back as a nameless tile the
+# moment its ticker was purged. Anything deleted by ticker is deleted by ISIN too.
+_DELISTED_ISINS = {
+    "UZ6011507AA9": "UZAL2",  # O'zagrolizing bond series, last traded 30.05.2023
+}
+
+DELISTED_ISINS = frozenset(
+    set(_DELISTED_ISINS)
+    | {i.strip().upper() for i in os.getenv("DELISTED_ISINS_EXTRA", "").split(",") if i.strip()}
+)
+
 
 def is_delisted(ticker: Any) -> bool:
     """True if ``ticker`` (any case, may be None) has been deleted from the site."""
     return str(ticker or "").strip().upper() in DELISTED_TICKERS
+
+
+def is_delisted_isin(isin: Any) -> bool:
+    """True if ``isin`` names a security deleted from the site.
+
+    Kept separate from ``is_delisted`` because it answers for rows that have no
+    ticker to test — the only thing they carry is the ISIN.
+    """
+    return str(isin or "").strip().upper() in DELISTED_ISINS
