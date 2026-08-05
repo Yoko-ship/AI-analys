@@ -923,13 +923,29 @@ def parse_nsbu_pdf_financials(session: requests.Session, pdf_url: str) -> dict[s
                 hit = r["value"]
         return hit
 
+    def by_formula(*formulas: str) -> float | None:
+        """A subtotal identified by the line numbers it sums, spacing ignored."""
+        for r in rows:
+            if r["value"] is None:
+                continue
+            squashed = re.sub(r"\s+", "", r["label"])
+            if "итого" in squashed and any(f in squashed for f in formulas):
+                return r["value"]
+        return None
+
     return {
         "net_income": by_code("1200") or by_label(("чистая прибыль (убыток)", "чистая прибыль(убыток)"))
         or by_label(("чистая прибыль", "чистый убыток"), exclude=("до ", "процент", "операц")),
-        "total_liabilities": by_code("280") or by_label(("итого обязательства",), exclude=("капитал",)),
+        # Обязательства: сначала свод, который эмитент напечатал сам — «ИТОГО ПО II
+        # РАЗДЕЛУ (стр. 490+600)» в форме АО, «Итого по разделу III (стр. 730+930)»
+        # в страховой; см. reports_catalog._extract_liabilities_total.
+        "total_liabilities": by_code("280") or by_formula("490+600", "730+930")
+        or by_label(("итого обязательства",), exclude=("капитал",)),
         "revenue": by_code("180") or by_label(("всего процентных доходов",))
         or by_label(("чистая выручка", "выручка от реализац")),
-        "cash": by_code("010") or by_label(("денежные средства",)),
+        # Наличность = расчетный счет (5100), не свод «Денежные средства, всего».
+        "cash": by_label(("расчетном счете", "расчетном счёте", "(5100)"))
+        or by_code("010") or by_label(("денежные средства",)),
     }
 
 
