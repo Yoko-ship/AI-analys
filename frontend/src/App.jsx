@@ -8466,6 +8466,11 @@ function MarketView({
                                   <label key={k} className="market-cols-row market-cols-row-locked">
                                     <input type="checkbox" checked disabled readOnly />
                                     <span>{label}</span>
+                                    {/* Same ⓘ as the column header: this panel is where a
+                                        reader decides whether a column is worth its width,
+                                        which is exactly when they need to know what it
+                                        means — before it is on screen to be hovered. */}
+                                    <TermInfo termId={k} lang={lang} label={label} />
                                   </label>
                                 ))}
                               </div>
@@ -8518,6 +8523,14 @@ function MarketView({
                                           onChange={() => toggleCol(k)}
                                         />
                                         <span>{label}</span>
+                                        {/* The picker's column key IS the glossary id, so the
+                                            row asks for its own definition. A column that is
+                                            not an economic term (Источник) renders no marker.
+                                            The ⓘ is a <button>: per the HTML spec a label does
+                                            not activate for events aimed at interactive
+                                            descendants, so asking what P/E means does not
+                                            toggle the P/E column. */}
+                                        <TermInfo termId={k} lang={lang} label={label} />
                                       </label>
                                     ))}
                                   </div>
