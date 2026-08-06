@@ -1608,9 +1608,11 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     # 3) store locally (dedup memory) + push to prod.
     stored = news_store.upsert_news(records)
     pushed = 0
+    push_failed = False
     if push and records:
         code = push_news(records)
         pushed = len(records) if code == 0 else 0
+        push_failed = code != 0
 
     # 4) another attempt at the images that missed. kun.uz answers 200 with a page whose
     # <head> carries no og:image at all — a shell, the same byte count for any article —
@@ -1630,6 +1632,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         "classify_failed": failed, "with_image": sum(1 for r in relevant if r.get("image_url")),
         "backfilled_images": filled,
         "relevant": len(relevant), "stored": stored, "pushed": pushed,
+        "push_failed": push_failed,
         "tokens": usage.total_tokens, "cached_input_pct": round(usage.cache_hit_rate * 100, 1),
         "est_cost_usd": round(usage.est_cost_usd(), 4),
     }
@@ -1677,6 +1680,13 @@ def main() -> None:
     else:
         result = run(only=args.source, limit=args.limit, push=not args.no_push, dry_run=args.dry_run)
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    # A run that classified everything correctly and could not hand it to prod has
+    # produced nothing a reader will ever see. Exiting 0 made that invisible: the
+    # feed stood still from 2026-08-01 to 08-06 behind six green cron cards, because
+    # the only symptom was one ERROR line in a log nobody reads on a green run.
+    if result.get("push_failed"):
+        logger.error("run exiting non-zero: the collection was fine, the push to prod was not")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
