@@ -90,3 +90,81 @@ class TestChecksum:
 
     def test_null_is_distinct_from_empty_string(self):
         assert pg_migrate.checksum([(None,)]) == pg_migrate.checksum([("",)])
+
+
+class _FakeCursor:
+    """Records what was executed and answers the two queries sync_identity asks."""
+
+    def __init__(self, log: list[str], identities: list[tuple[str, str]]):
+        self._log = log
+        self._identities = identities
+        self._rows: list[tuple] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def execute(self, sql: str, params=None):
+        self._log.append(" ".join(sql.split()))
+        if "attidentity" in sql:
+            self._rows = list(self._identities)
+        elif "setval" in sql:
+            self._rows = [(630,)]
+        else:
+            self._rows = []
+        return self
+
+    def fetchall(self):
+        return self._rows
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+
+class _FakePg:
+    def __init__(self, identities=(("news", "id"),)):
+        self.log: list[str] = []
+        self.commits = 0
+        self._identities = list(identities)
+
+    def cursor(self):
+        return _FakeCursor(self.log, self._identities)
+
+    def commit(self):
+        self.commits += 1
+
+
+class TestIdentitySync:
+    """The bug that stopped the news feed for five days (2026-08-01 → 08-06).
+
+    Rows copied in with their own ids leave the identity sequence at 1, so the
+    first row the application inserts collides with id 1 and every insert after
+    it fails — while every read keeps working, which is why nobody saw it.
+    """
+
+    def test_the_sequence_is_moved_past_the_copied_rows(self):
+        pg = _FakePg()
+        synced = pg_migrate.sync_identity(pg, "news")
+        assert synced == [{"table": "news", "column": "id", "next_id": 631}]
+        setval = next(s for s in pg.log if "setval" in s)
+        assert "MAX(\"id\")" in setval and 'FROM "news"' in setval
+
+    def test_an_empty_table_still_starts_at_one(self):
+        """is_called=false, or the first row of a fresh table would be id 2."""
+        pg = _FakePg()
+        pg_migrate.sync_identity(pg, "news")
+        setval = next(s for s in pg.log if "setval" in s)
+        assert 'MAX("id") IS NOT NULL' in setval
+
+    def test_a_table_without_a_generated_key_is_left_alone(self):
+        pg = _FakePg(identities=[("news", "id")])
+        assert pg_migrate.sync_identity(pg, "catalog_securities") == []
+        assert not any("setval" in s for s in pg.log)
+
+    def test_the_copier_syncs_what_it_filled(self):
+        """Not a separate chore to remember — part of the copy itself."""
+        import inspect
+        source = inspect.getsource(pg_migrate.copy_table)
+        assert "sync_identity" in source
