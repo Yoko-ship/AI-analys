@@ -19,6 +19,7 @@ CLI:
     python news_collector.py --source cbu    # one source only
     python news_collector.py --backfill-images  # images for stored items (no LLM calls)
     python news_collector.py --backfill-translations  # EN/UZ summaries for older rows
+    python news_collector.py --backfill-details  # story-page long read (1 call/item)
     python news_collector.py --backfill-facts   # figures for stored filings (no LLM calls)
     python news_collector.py --purge-failed   # drop failed classifications so they retry
     python news_collector.py --rejudge thediplomat  # re-judge one source's rejected items
@@ -58,6 +59,7 @@ from news_classifier import (  # noqa: E402  (after load_dotenv)
     prefilter_reject,
     screen_items,
     translate_summaries,
+    write_detail,
 )
 from runtime_preflight import NEWS_REQUIREMENTS, preflight  # noqa: E402  (after load_dotenv)
 
@@ -358,6 +360,119 @@ def enrich_images(items: list[dict[str, Any]], sources: dict[str, dict[str, Any]
     logger.info("page-image pass: %d of %d fetched item(s) got an image",
                 filled, min(len(todo), max_fetch))
     return filled
+
+
+# --------------------------------------------------------------------------- #
+# the long read (story page body)
+# --------------------------------------------------------------------------- #
+# How many article pages one run may open for the detail pass. Each one costs a page fetch
+# and a model call, and the pass runs daily, so an item that misses today is picked up
+# tomorrow rather than the backlog being hammered at once — the same reasoning as the image
+# retry cap above.
+_DETAIL_CAP = int(os.getenv("NEWS_DETAIL_CAP", "12"))
+_ARTICLE_MAX_BYTES = 900_000
+# Markup that is never article prose. Dropped before the paragraphs are collected, or a
+# cookie banner and a "read also" rail end up in the text handed to the model.
+_ARTICLE_STRIP = ("script", "style", "noscript", "nav", "header", "footer", "aside", "form",
+                  "figure", "figcaption", "iframe", "button", "svg")
+# Where the body usually is, best guess first. Falls back to the whole document, which is why
+# the paragraph filter below has to stand on its own.
+_ARTICLE_ROOTS = ("article", "main", "[itemprop='articleBody']", ".article-content",
+                  ".article__content", ".entry-content", ".post-content", ".news-content",
+                  ".content__text", "#content")
+
+
+def _article_text(session: requests.Session, page_url: str, timeout: int = 20) -> str:
+    """The readable prose of one article page — held in memory, never stored.
+
+    This is the one place the collector reads a source's body text, and what it is read FOR
+    is a model call that writes our own account of it (``news_classifier.write_detail``). The
+    text itself does not enter the database, is not pushed, and is not returned to any
+    reader; that is what keeps the legal invariant (headline + our own summary + link) intact
+    while still giving the story page more than a one-sentence teaser.
+
+    Deliberately dumb extraction: take the paragraphs of the likeliest container and drop the
+    short ones. A wrong guess yields navigation noise, which ``write_detail`` is instructed to
+    answer with empty strings rather than an invented article.
+    """
+    try:
+        from bs4 import BeautifulSoup  # lazy: only this pass needs it
+    except ImportError:
+        logger.error("beautifulsoup4 is not installed — run: pip install beautifulsoup4")
+        return ""
+    try:
+        resp = session.get(page_url, timeout=timeout)
+        if resp.status_code != 200:
+            return ""
+        raw = resp.content[:_ARTICLE_MAX_BYTES]
+    except requests.RequestException as exc:
+        logger.debug("article fetch failed for %s: %s", page_url, exc)
+        return ""
+    soup = BeautifulSoup(raw.decode(resp.encoding or "utf-8", "replace"), "html.parser")
+    for tag in soup(list(_ARTICLE_STRIP)):
+        tag.decompose()
+    root = None
+    for selector in _ARTICLE_ROOTS:
+        root = soup.select_one(selector)
+        if root is not None:
+            break
+    paragraphs = [_clean_text(p.get_text(" ", strip=True))
+                  for p in (root or soup).find_all("p")]
+    # 80 chars keeps datelines, share prompts, photo credits and menu items out while
+    # keeping every real paragraph: the shortest genuine one measured across our sources
+    # (uza.uz, trend.az, kursiv, spot) was 118.
+    body = [p for p in paragraphs if len(p) >= 80]
+    return "\n\n".join(body)
+
+
+def enrich_details(items: list[dict[str, Any]], sources: dict[str, dict[str, Any]],
+                   *, max_fetch: int | None = None,
+                   usage: Any = None) -> dict[str, dict[str, str]]:
+    """``{url: {"ru":…,"en":…,"uz":…}}`` — our own long read for items that can have one.
+
+    Only for sources that actually publish an article page: ``content: "none"`` means the
+    source ships nothing but a headline (the rating agencies, whose pages are SPA shells
+    behind a registration wall), and an openinfo filing has no page of its own at all — the
+    portal 404s every per-fact URL, and those items already carry the filing's own figures.
+    """
+    if max_fetch is None:
+        max_fetch = _DETAIL_CAP
+    todo = []
+    for it in items:
+        src = sources.get(it.get("source_id")) or {}
+        if (not it.get("url") or src.get("content") == "none"
+                or src.get("type") == "openinfo" or src.get("article_body") is False):
+            continue
+        todo.append(it)
+    if not todo or max_fetch <= 0:
+        return {}
+    if len(todo) > max_fetch:
+        logger.info("detail pass: %d candidate(s); reading %d this run (NEWS_DETAIL_CAP), "
+                    "the rest on the next one", len(todo), max_fetch)
+    session = requests.Session()
+    last_hit: dict[str, float] = {}
+    out: dict[str, dict[str, str]] = {}
+    empty = 0
+    for it in todo[:max_fetch]:
+        src = sources.get(it.get("source_id")) or {}
+        session.headers.update(_source_headers(src))
+        host = urlparse(it["url"]).netloc
+        if host in last_hit:
+            wait = float(src.get("crawl_delay_s", 2) or 0) - (time.monotonic() - last_hit[host])
+            if wait > 0:
+                time.sleep(min(wait, 30))
+        last_hit[host] = time.monotonic()
+        text = _article_text(session, it["url"])
+        detail = write_detail(it, text, usage=usage) if text else {"ru": ""}
+        if detail.get("ru"):
+            out[it["url"]] = detail
+        else:
+            empty += 1
+    session.close()
+    logger.info("detail pass: %d of %d article(s) produced a long read%s",
+                len(out), min(len(todo), max_fetch),
+                f" ({empty} had no readable body)" if empty else "")
+    return out
 
 
 def _is_recent(published_at: Any, max_age_days: int) -> bool:
@@ -1442,6 +1557,99 @@ def backfill_translations(*, limit: int = 60, days: int = 90, push: bool = True,
     }
 
 
+def push_details(details: dict[str, dict[str, str]]) -> int:
+    """Push detail-only updates (url → {ru, en, uz}) and return the rows prod changed.
+
+    Its own endpoint rather than /api/admin/news, for the same reason as the images and the
+    translations: a full upsert from these partial records would rewrite the classification.
+    """
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if not secret:
+        logger.error("ADMIN_API_SECRET is not set — cannot push details")
+        return 0
+    try:
+        resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/details",
+                             json={"details": details},
+                             headers={"X-Admin-Secret": secret}, timeout=180)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        logger.error("push /api/admin/news/details failed: %s", exc)
+        return 0
+    return int((resp.json() or {}).get("updated") or 0)
+
+
+def _prod_items_without_detail(days: int) -> list[dict[str, Any]]:
+    """Long-read candidates read from prod's feed — the cards a reader can actually open."""
+    try:
+        resp = requests.get(f"{DEFAULT_PUSH_URL}/api/news/feed",
+                            params={"limit": 200, "days": days}, timeout=60)
+        resp.raise_for_status()
+        items = (resp.json() or {}).get("items") or []
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("could not read the prod feed for detail candidates: %s", exc)
+        return []
+    # The feed reports whether an item HAS a long read, not its text — three languages of
+    # prose over 200 items would be a megabyte of response for a list that shows none of it.
+    return [{"url": it.get("url"), "title": it.get("title"), "source": it.get("source"),
+             "source_id": it.get("source_id")}
+            for it in items if it.get("url") and not it.get("has_detail")]
+
+
+def backfill_details(*, limit: int | None = None, days: int = 30, push: bool = True,
+                     dry_run: bool = False, usage: Any = None) -> dict[str, Any]:
+    """Write the story-page long read for feed items that have none yet.
+
+    The pass that makes an opened story worth opening: a feed teaser is one sentence, the
+    article behind it is five paragraphs, and until now the reader got the sentence. For each
+    candidate it opens the source's article page once, hands the prose to the model, and
+    stores OUR OWN 3-5 paragraph account of it in all three UI languages — the article text
+    itself is never written anywhere (see ``_article_text``).
+
+    Ordered by the prod feed first, so the day's cap is spent on cards that are actually on
+    the page. Only empty columns are filled, so a re-run after a failed push costs nothing.
+    """
+    limit = _DETAIL_CAP if limit is None else limit
+    remote = _prod_items_without_detail(days) if push else []
+    candidates: dict[str, dict[str, Any]] = {it["url"]: it for it in remote if it.get("url")}
+    registry = _source_registry()
+    local_only = 0
+    for r in news_store.rows_without_detail(limit=max(limit * 2, 20), days=days):
+        if r["url"] not in candidates:
+            candidates[r["url"]] = r
+            local_only += 1
+    items = list(candidates.values())[:max(1, limit)]
+    logger.info("detail backfill: %d from the prod feed + %d local-only, %d to read",
+                len(remote), local_only, len(items))
+    if not items:
+        return {"candidates": 0, "written": 0, "updated_local": 0, "updated_prod": 0}
+
+    from llm_client import LLMError, Usage
+
+    own_usage = usage is None
+    usage = Usage() if own_usage else usage
+    try:
+        details = enrich_details(items, registry, max_fetch=limit, usage=usage)
+    except LLMError as exc:
+        # No key configured — the same shape as the translation backfill: say why, store
+        # nothing, and let a re-run once the key is set cost nothing.
+        logger.error("detail backfill: %s", exc)
+        return {"candidates": len(items), "written": 0,
+                "updated_local": 0, "updated_prod": 0, "error": str(exc)}
+    if own_usage:
+        logger.info("detail backfill: %d long read(s) written (%d tokens, ~$%.4f)",
+                    len(details), usage.total_tokens, usage.est_cost_usd())
+    if dry_run:
+        for url, langs in list(details.items())[:3]:
+            logger.info("  %s\n    ru: %s…", url, langs["ru"][:200])
+        return {"candidates": len(items), "written": len(details),
+                "updated_local": 0, "updated_prod": 0, "dry_run": True}
+    return {
+        "candidates": len(items), "written": len(details),
+        "updated_local": news_store.set_details(details),
+        "updated_prod": push_details(details) if (push and details) else 0,
+    }
+
+
 def backfill_facts(*, limit: int = 60, push: bool = True, dry_run: bool = False) -> dict[str, Any]:
     """Re-read the openinfo filings we already store and replace their bare snippets.
 
@@ -1741,11 +1949,23 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
             filled = backfill_images(limit=_BACKFILL_IMAGE_CAP, days=30, push=True).get("found", 0)
         except Exception:  # noqa: BLE001 — a picture is never worth failing the run for
             logger.exception("image backfill pass failed")
+
+    # 5) the long read. Runs after the push, over what the FEED holds rather than over this
+    # run's records: a story that missed its article page yesterday (or was collected before
+    # this pass existed) is a better use of the day's cap than nothing, and the cap is what
+    # keeps this from becoming a crawl. Failure here leaves the old summary-only page.
+    detailed = 0
+    if push:
+        try:
+            detailed = backfill_details(limit=_DETAIL_CAP, days=30, push=True,
+                                        usage=usage).get("written", 0)
+        except Exception:  # noqa: BLE001 — the story page still works without it
+            logger.exception("detail pass failed")
     return {
         "fetched": len(raw), "new": len(fresh), "prefiltered": len(fresh) - len(kept),
         "classified": len(records), "triaged_out": triaged_out,
         "classify_failed": failed, "with_image": sum(1 for r in relevant if r.get("image_url")),
-        "backfilled_images": filled,
+        "backfilled_images": filled, "detailed": detailed,
         "relevant": len(relevant), "stored": stored, "pushed": pushed,
         "push_failed": push_failed,
         "tokens": usage.total_tokens, "cached_input_pct": round(usage.cache_hit_rate * 100, 1),
@@ -1767,6 +1987,9 @@ def main() -> None:
     ap.add_argument("--backfill-translations", action="store_true",
                     help="give rows stored before the English/Uzbek summary columns existed "
                          "their translations (one small LLM call per 10 items)")
+    ap.add_argument("--backfill-details", action="store_true",
+                    help="write the story-page long read for feed items without one "
+                         "(one page fetch + one LLM call per item, capped by --limit)")
     ap.add_argument("--purge-failed", action="store_true",
                     help="delete items whose classification failed so the next run retries them")
     ap.add_argument("--rejudge", metavar="SOURCE_ID",
@@ -1791,6 +2014,9 @@ def main() -> None:
         result = purge_failed(push=not args.no_push)
     elif args.backfill_images:
         result = backfill_images(limit=args.limit, push=not args.no_push)
+    elif args.backfill_details:
+        result = backfill_details(limit=args.limit, push=not args.no_push,
+                                  dry_run=args.dry_run)
     elif args.backfill_translations:
         result = backfill_translations(limit=max(args.limit, 60), push=not args.no_push,
                                        dry_run=args.dry_run)

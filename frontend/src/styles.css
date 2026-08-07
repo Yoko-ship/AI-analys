@@ -10441,6 +10441,14 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .led-art-lead { font-family: var(--led-serif); font-size: clamp(17px, 1.5vw, 19.5px); line-height: 1.65;
   color: var(--text); margin: 22px 0 0; max-width: 66ch; }
 
+/* The long read: our own account of the source's article, in paragraphs. Reads as the body
+   of the page, so it is set in the serif the lead uses, one step down — the lead stays the
+   opening sentence, not a heading competing with it. 66ch is the same measure. */
+.led .led-art-body { margin: 18px 0 0; max-width: 66ch; }
+.led .led-art-body p { font-family: var(--led-serif); font-size: clamp(15.5px, 1.3vw, 17px);
+  line-height: 1.75; color: var(--text); margin: 0 0 14px; }
+.led .led-art-body p:last-child { margin-bottom: 0; }
+
 .led .led-art-quote { margin: 24px 0 0; padding-left: 18px; border-left: 3px solid var(--accent); }
 .led .led-art-quote .led-panel-h { margin-bottom: 8px; }
 .led .led-art-quote p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--muted); max-width: 62ch; }

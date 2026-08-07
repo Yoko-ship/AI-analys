@@ -388,6 +388,15 @@ class AdminNewsTranslationsRequest(BaseModel):
     translations: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
+class AdminNewsDetailsRequest(BaseModel):
+    """url → {"ru": ..., "en": ..., "uz": ...} — the story page's long read.
+
+    Our own multi-paragraph account of what the source published, written by the collector's
+    detail pass from the article page. Never the source's own text.
+    """
+    details: dict[str, dict[str, str]] = Field(default_factory=dict)
+
+
 class AdminNewsKnownRequest(BaseModel):
     """Candidate URLs a collector is about to classify, for a dedup check against prod."""
     urls: list[str] = Field(default_factory=list, max_length=5000)
@@ -2630,6 +2639,34 @@ async def api_admin_news_translations(
         n = await loop.run_in_executor(None, partial(news_store.set_translations, translations))
     except Exception as exc:
         logger.exception("admin news translation update failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "updated": n}
+
+
+@app.post("/api/admin/news/details")
+async def api_admin_news_details(
+    payload: AdminNewsDetailsRequest,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Fill the story page's long read on already-stored news rows (§3.11).
+
+    A feed teaser is one sentence; the article behind it is several paragraphs, and a reader
+    who opened the story used to get the sentence. The collector's detail pass reads the
+    source's article page once and writes OUR OWN 3-5 paragraph account of it in all three UI
+    languages — the source's text is never stored, which is what keeps the legal invariant.
+
+    Its own route rather than /api/admin/news for the same reason as the image, snippet and
+    translation routes: a full upsert from a partial record would rewrite the classification.
+    Only empty columns are filled, so this can never overwrite a better text.
+    """
+    details = payload.details or {}
+    if len(details) > 500:
+        raise HTTPException(status_code=422, detail="too many details (max 500 per call)")
+    loop = asyncio.get_running_loop()
+    try:
+        n = await loop.run_in_executor(None, partial(news_store.set_details, details))
+    except Exception as exc:
+        logger.exception("admin news detail update failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True, "updated": n}
 
