@@ -20,6 +20,7 @@ import {
   finRowPeriod,
   marketRowDay,
   normalizeMarketDay,
+  previousClose,
   tradeStatsApply,
   valuationEquity,
   valuationRatios,
@@ -308,5 +309,73 @@ describe("finEarnings", () => {
     const f = { year: 2026, quarter: 1, net_income: 100, annual: { year: 2025, quarter: 0 } };
     assert.equal(finEarnings(f).netIncome, 100);
     assert.equal(finEarnings(f).period, "2026 Q1");
+  });
+});
+
+describe("previousClose", () => {
+  // 07.08.2026: UQEQ traded a single share at 37 200 — its 06.08 close exactly,
+  // a flat 0 %, which is what the exchange's own daily bulletin published. The
+  // board led its top-gainers panel with +20 %. The quote pass had last run
+  // before 06.08's trade, so the row still paired 06.08's close (37 200) with
+  // 05.08's previous close (31 000), and the day's price was struck against the
+  // older of the two. One session's move became two, under one session's date.
+  const uqeq = {
+    lastPrice: 37200, lastTradeDate: "2026-08-06",
+    closePrice: 31000, closeDate: "2026-08-05",
+  };
+
+  it("measures against the newest close before the session, not the oldest", () => {
+    const prev = previousClose(uqeq, "20260807");
+    assert.equal(prev.price, 37200);
+    assert.equal(prev.date, "2026-08-06");
+    // The move the exchange published, not the one the stale pair implied.
+    assert.equal(((37200 - prev.price) / prev.price) * 100, 0);
+  });
+
+  it("takes the row's own previous close when both describe one session", () => {
+    // The quote layer is current: last trade and close belong to consecutive
+    // sessions and `closePrice` IS the previous close. Nothing to decide.
+    const fresh = {
+      lastPrice: 12197, lastTradeDate: "2026-08-07",
+      closePrice: 10199.99, closeDate: "2026-08-06",
+    };
+    assert.deepEqual(previousClose(fresh, "20260807"), { price: 10199.99, date: "2026-08-06" });
+  });
+
+  it("refuses a close dated on or after the session itself", () => {
+    // A close from the session is not a previous close; a move struck from one
+    // is invented. The caller renders an em-dash instead.
+    assert.equal(previousClose({ closePrice: 500, closeDate: "2026-08-07" }, "20260807"), null);
+    assert.equal(previousClose({ lastPrice: 500, lastTradeDate: "2026-08-08" }, "20260807"), null);
+  });
+
+  it("falls back to an UNDATED close rather than refuse", () => {
+    // The feed leaves the date empty for securities that did trade; those rows
+    // were readable before this rule and must stay readable.
+    assert.deepEqual(previousClose({ closePrice: 900 }, "20260807"), { price: 900, date: null });
+  });
+
+  it("ignores a close that carries no usable price", () => {
+    assert.equal(previousClose({ lastPrice: 0, lastTradeDate: "2026-08-06",
+                                 closePrice: null, closeDate: "2026-08-05" }, "20260807"), null);
+    // A zero or negative close would divide the change into nonsense.
+    assert.deepEqual(previousClose({ lastPrice: 0, lastTradeDate: "2026-08-06",
+                                     closePrice: 31000, closeDate: "2026-08-05" }, "20260807"),
+                     { price: 31000, date: "2026-08-05" });
+  });
+
+  it("compares by day, not by leading digits", () => {
+    // The same month-boundary trap normalizeMarketDay exists for: a raw compare
+    // reads "31.01.2026" as newer than 05.02.2026.
+    const spanning = {
+      lastPrice: 200, lastTradeDate: "05.02.2026",
+      closePrice: 100, closeDate: "31.01.2026",
+    };
+    assert.equal(previousClose(spanning, "20260206").price, 200);
+  });
+
+  it("survives a row with no closes at all", () => {
+    assert.equal(previousClose({}, "20260807"), null);
+    assert.equal(previousClose(undefined, "20260807"), null);
   });
 });
