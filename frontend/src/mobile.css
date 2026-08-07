@@ -946,15 +946,66 @@ iframe {
     font-size: 11px;
   }
 
-  /* The top movers are worth reading — after the board, not in front of it.
-     `.market-layout` is a grid, so one `order` moves the block without touching
-     the markup or any other breakpoint. */
+  /* The top movers stay where the markup puts them — above the board — because
+     that is where the eye looks first and what the page is asked about. They
+     were moved below it only for the height they cost (two full-width panels,
+     ~500px on a 360px screen); the fix is to make them cheap instead of late.
+     styles.css collapses the pair to one column under 720px; a phone restores
+     the two, at half width, so both lists read side by side for ~215–230px
+     total (measured 320–430px), not the ~500 two stacked panels cost. */
   .market-top-movers {
-    order: 3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .market-movers-col {
-    padding: 12px 14px;
+    padding: 10px 10px 8px;
+  }
+
+  .market-movers-head {
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .market-movers-head h3 {
+    font-size: 0.8rem;
+    letter-spacing: -0.01em;
+  }
+
+  .market-movers-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  /* A half-width column carries logo + ticker + signed percent on ONE line at
+     360px with ~20px to spare. Rows keep 34px of height: dense enough that five
+     of them fit under the fold, tall enough to hit with a thumb. */
+  .market-movers-item {
+    gap: 6px;
+    padding: 9px 4px;
+  }
+
+  .market-movers-tk {
+    gap: 6px;
+  }
+
+  .market-movers-tk .chip-logo,
+  .market-movers-tk .chip-logo-fallback {
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+  }
+
+  .market-movers-name,
+  .market-movers-chg {
+    font-size: 0.8rem;
+  }
+
+  /* The percentage must never be the thing that ellipsises — it is the number
+     the list is sorted by. The ticker gives way first (it never has to: see the
+     380px tail, where the logo goes instead). */
+  .market-movers-chg {
+    flex: none;
   }
 
   /* Section 1 gives every `.panel` 16px of side padding. The board is a table
@@ -1016,6 +1067,24 @@ iframe {
     display: inline-flex;
     align-items: center;
     min-height: 30px;
+  }
+}
+
+/* A movers column is ~142px wide at 320px, and "ALKBP  +29,41%" already asks
+   for 98 of them. The logo is the one part of the row that carries no reading:
+   the ticker names the issuer and the percent is why the row is in the list. */
+@media (max-width: 380px) {
+  .market-movers-tk .chip-logo,
+  .market-movers-tk .chip-logo-fallback {
+    display: none;
+  }
+
+  .market-movers-col {
+    padding: 10px 8px 8px;
+  }
+
+  .market-movers-item {
+    padding: 9px 3px;
   }
 }
 
