@@ -978,8 +978,9 @@ iframe {
   }
 
   /* A half-width column carries logo + ticker + signed percent on ONE line at
-     360px with ~20px to spare. Rows keep 34px of height: dense enough that five
-     of them fit under the fold, tall enough to hit with a thumb. */
+     360px with ~20px to spare. Rows measure 33–36px: dense enough that five of
+     them fit under the fold, and at the 34px floor §11 holds every other board
+     control to — tall enough to hit with a thumb. */
   .market-movers-item {
     gap: 6px;
     padding: 9px 4px;
