@@ -504,6 +504,26 @@ prod-feed order first, only items with no long read yet. The feed itself carries
 `has_detail` **flag**, not the text — three languages of prose over 200 items would be a
 megabyte the list never renders.
 
+### The picture in the feed is a thumbnail (2026-08-08)
+
+Reported as a blurry photo on a story page; it was **320×213 stretched across a ~950px
+column** — the derivative uza.uz puts in its RSS. The full-size file is the same URL with
+`_small` → `_normal` (1024×682). spot.uz is the same shape: `_b` is 680×453, `_l` is 1200×800,
+`.webp` included. Measured over every image in the live feed, both rewrites hold; the other
+sources were already fine (kursiv 1200×630, timesca 1024×682, uzdaily up to 1280×853) and
+The Diplomat's equivalent rewrite **404s**, so it has none.
+
+The rule is `image_upgrade: {from, to}` per source, applied at collection time
+(`upgrade_images`) and retroactively by `--upgrade-images` (99 of 282 stored rows on the first
+sweep). It is never trusted: the candidate must answer **200 with an `image/*` content-type**
+before it replaces anything, and the rules are written so they cannot fire twice — a re-run is
+a no-op. `set_image_urls(..., replace=True)` (and `{"replace": true}` on the images endpoint)
+is the only path that overwrites an image already on a row; the ordinary backfill still cannot.
+
+And the page stops magnifying: an image whose `naturalWidth` is under 760 gets
+`.led-art-figure.is-small` and is shown at its own scale. Some sources simply have no larger
+file, and 320px across 950 reads as broken whatever the URL says.
+
 ## Legal invariant
 
 We store **headline + our own `summary_ru` + link + metadata only — never the
