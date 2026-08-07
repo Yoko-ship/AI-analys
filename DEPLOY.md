@@ -239,9 +239,27 @@ Schedule it on any host that can reach openinfo:
   | --- | --- | --- | --- | --- |
   | `collector` | `collector` | `0 3 * * 1-5` | 08:00 Mon–Fri | full pipeline |
   | `quotes-1300` | `quotes` | `0 8 * * 2-6` | 13:00 Tue–Sat | quotes/turnover, mid-session |
-  | `quotes-1610` | `quotes` | `10 11 * * 1-6` | 16:10 Mon–Sat | quotes/turnover, after the close |
+  | `quotes-1610` | `quotes` | `10 11 * * 1-6` | 16:10 Mon–Sat | quotes/turnover, trading over but **not yet published** |
+  | `quotes-2130` | `quotes` | `30 16 * * 1-6` | 21:30 Mon–Sat | quotes/turnover, the session as the exchange finally published it |
   | `reports-watch` | `reports-watch` | `0 4-18 * * 1-6` | hourly 09:00–23:00 Mon–Sat | issuers that filed since the last sweep |
   | `news-collector` | `news-collector` | `10 11 * * *` | 16:10 daily | §3.11 news feed (see NEWS_MODULE.md) |
+
+  **16:10 is not "after the close" in any useful sense, and this table said it was for
+  two weeks.** Trading ends around 16:00 — but uzse.uz publishes the executions hours
+  later, and until it does, neither the trade feed nor the `isu_infos` page knows the
+  day's closing price. Measured on 2026-08-07 from the feed's own two timestamps
+  (`me_processing_time`, when the trade matched; `created_at`, when the record
+  appeared): 9 000 executions matched between 10:25 and **16:02**, and the same
+  records were published between 15:20 and **20:57** — 1 839 of them in one batch at
+  20:1x. O'zbektelekom's closing print (UZTL, 12 000, trade #1259) matched at 16:02:00
+  and reached the feed at 20:57:16, a lag of 4h55m. At 17:25, when the 16:10 run had
+  finished reading pages, uzse still quoted UZTL at 10 800,77 (+8%) — the exchange's
+  own daily bulletin closed it at 12 000, **+20%, the day's top gainer**. Four of the
+  bulletin's twenty movers were missing from the board and one (TNBNP) had the wrong
+  sign. `quotes-2130` exists to read the published session; every run before it is
+  reading an unfinished one, which is fine as long as nobody mistakes it for the close.
+  The lag varies (20:57 on Fri 07.08, at least 19:19 on Thu 06.08), so 21:30 carries
+  deliberate margin.
 
   `news-collector` shares 16:10 with `quotes-1610` deliberately: after the close the site
   refreshes prices and the feed at the same moment, so a reader is not comparing a fresh
@@ -292,8 +310,9 @@ Schedule it on any host that can reach openinfo:
     READ — a page that answered "no session" answered. Worst case a step spends ten minutes
     waiting; the tightest gap in the schedule is 08:00 to 13:00, and Railway skips a run
     whose predecessor is still going, so the bound matters.
-  - Friday's finished session is picked up by **`quotes-1300` on Saturday**. That is the only
-    scheduled run that can see it, which is why quotes-1300 runs Tue–Sat rather than Mon–Fri.
+  - Friday's finished session is picked up by **`quotes-2130` on Friday evening**, and
+    again by `quotes-1300` on Saturday. Until 2026-08-07 the Saturday run was the only one
+    that could see it at all, which is why quotes-1300 runs Tue–Sat rather than Mon–Fri.
   - `quotes-1300` audits a session that is *still being traded*: the feed is summed at 13:00
     and the pages are read minutes later, so a page ahead of the feed is the session
     continuing, not a disagreement (on 2026-08-04 that reported 16 false mismatches, all
