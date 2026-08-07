@@ -303,6 +303,74 @@ def set_translations(translations: dict[str, dict[str, str]]) -> int:
     return changed
 
 
+def rows_without_detail(*, limit: int = 20, days: int = 30,
+                        source_ids: list[str] | None = None) -> list[dict[str, Any]]:
+    """Feed-visible items with no long read yet — the detail pass's work list.
+
+    Relevant rows only, newest first: this is the one pass that opens the source's article
+    page and spends a model call on it, so it is spent on cards a reader can actually reach.
+    ``source_ids`` narrows it to the sources that HAVE an article page (the caller reads that
+    from the registry — the rating agencies serve a shell and openinfo has no page at all).
+    """
+    conn = rc.get_catalog_conn()
+    q = ["SELECT n.url, n.title, n.source_id, n.snippet, n.summary_ru",
+         "FROM news n JOIN news_nlp p ON p.news_id = n.id",
+         "WHERE p.relevant = 1 AND COALESCE(n.detail_ru, '') = ''",
+         "AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))"]
+    params: list[Any] = [f"-{int(days)} days"]
+    if source_ids:
+        q.append(f"AND n.source_id IN ({','.join('?' * len(source_ids))})")
+        params.extend(source_ids)
+    q.append("ORDER BY COALESCE(n.published_at, n.collected_at) DESC LIMIT ?")
+    params.append(max(1, min(limit, 200)))
+    rows = conn.execute(" ".join(q), params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def set_details(details: dict[str, dict[str, str]]) -> int:
+    """Write the long read on stored rows; return rows changed.
+
+    Partial, like :func:`set_translations` and for the same reason: ``upsert_news`` rewrites
+    ``news_nlp`` too, so a detail-only record would reset the classification and drop the item
+    out of the feed. Only fills an empty column, so a re-run is free and cannot overwrite a
+    better text with a worse one.
+    """
+    if not details:
+        return 0
+    conn = rc.get_catalog_conn()
+    changed = 0
+    with conn:
+        for url, langs in details.items():
+            if not url or not isinstance(langs, dict):
+                continue
+            for code in SUMMARY_LANGS:
+                text = (langs.get(code) or "").strip()
+                if not text:
+                    continue
+                cur = conn.execute(
+                    f"UPDATE news SET detail_{code} = ? "
+                    f"WHERE url = ? AND COALESCE(detail_{code}, '') = ''",
+                    (text, url),
+                )
+                changed += cur.rowcount
+    conn.close()
+    return changed
+
+
+def detail_for(item: dict[str, Any], lang: str) -> str:
+    """The stored long read in ``lang``, falling back to Russian, then to "".
+
+    Same pivot rule as :func:`summary_for`: Russian is what always exists, so a reader in
+    another language gets the wrong language rather than an empty page.
+    """
+    if lang in SUMMARY_LANGS:
+        text = (item.get(f"detail_{lang}") or "").strip()
+        if text:
+            return text
+    return (item.get("detail_ru") or "").strip()
+
+
 def set_snippets(snippets: dict[str, str]) -> int:
     """Replace ``news.snippet`` on already-stored rows; return rows changed.
 
@@ -458,6 +526,10 @@ def _row_to_item(r: Any) -> dict[str, Any]:
         # before the columns existed — both mean "no translation", not an error.
         "summary_en": r["summary_en"] if "summary_en" in keys else None,
         "summary_uz": r["summary_uz"] if "summary_uz" in keys else None,
+        # Whether this item HAS a long read, not the text of it: three languages of
+        # multi-paragraph prose is ~5KB per item, and the feed returns up to 200. The text
+        # itself is added by get_news_item, which serves exactly one story.
+        "has_detail": bool("detail_ru" in keys and (r["detail_ru"] or "").strip()),
         "image_url": r["image_url"], "published_at": r["published_at"],
         "type": r["type"], "tone": r["tone"], "tone_score": r["tone_score"],
         "impact": r["impact"], "direction": r["direction"],
@@ -763,11 +835,16 @@ def get_news_item(news_id: int) -> dict[str, Any] | None:
     if row is None:
         return None
     item = _row_to_item(row)
+    keys = row.keys()
     item.update({
         "relevant": bool(row["relevant"]),
         "model": row["model"],
         "classified_at": row["classified_at"],
         "collected_at": row["collected_at"],
+        # The long read, only on the page that shows it (see _row_to_item).
+        "detail_ru": row["detail_ru"] if "detail_ru" in keys else None,
+        "detail_en": row["detail_en"] if "detail_en" in keys else None,
+        "detail_uz": row["detail_uz"] if "detail_uz" in keys else None,
     })
     item["rank"] = rank_score(item)
     return item

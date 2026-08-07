@@ -446,6 +446,18 @@ function edSummary(item, language) {
     || (item.lang === language ? (item.snippet || "").trim() : "");
 }
 
+// The story page's long read: our own account of the source's article, written by the
+// collector's detail pass in all three UI languages, as paragraphs separated by blank lines.
+// Russian is the pivot, exactly as for the summary — a reader gets the wrong language before
+// they get an empty page. Absent on items whose source publishes no article page to read
+// (the rating agencies ship a headline; an openinfo filing has no page at all).
+function edDetail(item, language) {
+  if (!item) return [];
+  const text = ((item[`detail_${language}`] || "").trim()
+    || (item.detail_ru || "").trim());
+  return text ? text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean) : [];
+}
+
 // Ask the browser to put a foreign headline into the reader's language with its own
 // on-device translator.
 // Strictly an enhancement: `item.translatable` is the server's verdict (false for Moody's and
@@ -704,6 +716,7 @@ const NEWS_ARTICLE_TX = {
     back: "Все новости", loading: "Загружаем новость…",
     notFound: "Новость не найдена или уже недоступна.", error: "Не удалось загрузить новость.",
     summaryNote: "Краткое изложение подготовлено платформой на основе публикации источника. Полный текст — на сайте источника.",
+    detailNote: "Изложение подготовлено платформой своими словами по публикации источника: это не текст источника. Оригинал и фотографии — на сайте источника.",
     noSummary: "Краткого изложения нет — откройте публикацию у источника.",
     readSource: "Читать в источнике", signal: "Оценка влияния", tone: "Тональность",
     impact: "Возможное влияние", direction: "Направление", relevance: "Релевантность рынку",
@@ -735,6 +748,7 @@ const NEWS_ARTICLE_TX = {
     back: "All news", loading: "Loading the story…",
     notFound: "This story was not found, or is no longer available.", error: "Could not load the story.",
     summaryNote: "This summary was prepared by the platform from the source's publication. The full text is on the source's site.",
+    detailNote: "This account was written by the platform in its own words from the source's publication — it is not the source's text. The original and its photographs are on the source's site.",
     noSummary: "No summary available — open the publication at the source.",
     readSource: "Read at the source", signal: "Impact assessment", tone: "Tone",
     impact: "Possible impact", direction: "Direction", relevance: "Market relevance",
@@ -766,6 +780,7 @@ const NEWS_ARTICLE_TX = {
     back: "Barcha yangiliklar", loading: "Yangilik yuklanmoqda…",
     notFound: "Yangilik topilmadi yoki endi mavjud emas.", error: "Yangilikni yuklab bo'lmadi.",
     summaryNote: "Qisqacha bayon platforma tomonidan manba nashri asosida tayyorlangan. To'liq matn manba saytida.",
+    detailNote: "Bayon platforma tomonidan manba nashri asosida o'z so'zlari bilan yozilgan — bu manbaning matni emas. Asl nashr va suratlar manba saytida.",
     noSummary: "Qisqacha bayon yo'q — nashrni manbada oching.",
     readSource: "Manbada o'qish", signal: "Ta'sir bahosi", tone: "Ohang",
     impact: "Mumkin bo'lgan ta'sir", direction: "Yo'nalish", relevance: "Bozorga aloqadorlik",
@@ -1084,8 +1099,12 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
   // figures (dividend per share, percent actually paid, the payment window), which the summary
   // only paraphrases. Those numbers are the whole point, so they are shown unconditionally
   // rather than being suppressed as a near-duplicate.
+  // Our own retelling of the source's article, in paragraphs. When it exists it IS the body
+  // of the page, and the source's one-sentence teaser below would only repeat its opening.
+  const detail = edDetail(item, language);
   const sourceLead = summary && item.snippet
-    && (isDisclosure || newsAddsDetail(item.snippet, summary)) ? item.snippet : "";
+    && (isDisclosure || (!detail.length && newsAddsDetail(item.snippet, summary)))
+    ? item.snippet : "";
   const toneCls = _TONE_CLS[item.tone] || "neu";
   const host = newsHost(item.url);
   const tickers = Array.isArray(item.tickers) ? item.tickers : [];
@@ -1121,6 +1140,12 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
 
             {lead && <p className="led-art-lead">{lead}</p>}
 
+            {detail.length > 0 && (
+              <div className="led-art-body">
+                {detail.map((para, i) => <p key={i}>{para}</p>)}
+              </div>
+            )}
+
             {head.original && (
               <section className="led-art-quote">
                 <h3 className="led-panel-h">{head.machine ? tx.machineTitle : tx.origTitle}</h3>
@@ -1147,7 +1172,10 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
             )}
 
             <div className="led-art-source">
-              <p className="led-art-note">{isDisclosure ? tx.disclosureNote : tx.summaryNote}</p>
+              <p className="led-art-note">
+                {isDisclosure ? tx.disclosureNote
+                  : (detail.length > 0 ? tx.detailNote : tx.summaryNote)}
+              </p>
               {item.url && (
                 <a className="led-art-cta" href={item.url} target="_blank" rel="noopener noreferrer nofollow">
                   {isDisclosure ? tx.openDisclosure : tx.readSource}

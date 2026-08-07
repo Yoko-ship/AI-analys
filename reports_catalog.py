@@ -317,6 +317,16 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     for col in ("summary_en", "summary_uz"):
         if col not in have_news:
             conn.execute(f"ALTER TABLE news ADD COLUMN {col} TEXT")
+    # The story page's long read: OUR OWN multi-paragraph account of what the source
+    # published, in the three UI languages. It exists because a feed teaser is one sentence
+    # while the article behind it is five paragraphs, and a reader who opened the story got
+    # the sentence. This is still not the source's text — the article is read once, in
+    # memory, to write our own summary, and is never stored (see NEWS_MODULE.md's legal
+    # invariant). Nullable: rows collected before it exist, and sources with no article page
+    # (the rating agencies, openinfo filings) never get one.
+    for col in ("detail_ru", "detail_en", "detail_uz"):
+        if col not in have_news:
+            conn.execute(f"ALTER TABLE news ADD COLUMN {col} TEXT")
     # Per-field period provenance (JSON {field: period}). A financials row is
     # labelled with ONE period, but a few fields can only be sourced from a
     # different one (bank revenue exists in openinfo's indicators and nowhere in

@@ -559,6 +559,68 @@ def translate_summaries(items: list[dict[str, Any]], *, client: LLMClient | None
     return out
 
 
+# The long read on the story page. Two hard rules, and the second is the whole design: the
+# article text this call is given is read ONCE, in memory, and is never stored anywhere — what
+# comes back is our own account of it, which is the only thing that reaches the database (see
+# the legal invariant in NEWS_MODULE.md). A translation of the source's paragraphs would be
+# the source's paragraphs.
+_DETAIL_SYSTEM = """You write the body text of a story page for a Uzbekistan stock-market
+platform. You are given a news article that a source published, and you retell it IN YOUR OWN
+WORDS for a reader who will not open the source.
+
+Write 3-5 short paragraphs, separated by a blank line. Cover what happened, who is involved,
+the concrete figures, dates and institutions named, and — if the article says so — what
+follows next. Facts only: never add, infer or estimate anything the article does not state,
+never add market commentary or advice, never mention listed companies the article does not
+mention.
+
+Do NOT translate the article and do NOT copy its sentences. Rewrite. If a phrase must be
+quoted because it is an official formulation, keep it under ten words.
+
+Write the SAME text in three languages: Russian, English, and Uzbek in Latin script (never
+Cyrillic). Same facts, same figures, same length in each.
+
+If the text you are given is not an article — a paywall notice, a cookie banner, a navigation
+menu, an error page, or fewer than three sentences of substance — return empty strings rather
+than inventing an article.
+
+Reply with ONLY a JSON object: {"detail_ru": "...", "detail_en": "...", "detail_uz": "..."}"""
+
+# Paragraph breaks are the point of this field, so the model's "\n\n" must survive; a JSON
+# string carries them literally.
+_DETAIL_MAX_CHARS = int(os.getenv("NEWS_DETAIL_MAX_CHARS", "9000"))
+
+
+def write_detail(item: dict[str, Any], article_text: str, *,
+                 client: LLMClient | None = None,
+                 usage: Usage | None = None) -> dict[str, str]:
+    """``{"ru":…, "en":…, "uz":…}`` — our own long read of one article, or empty strings.
+
+    One call per item rather than a batch: an article is 1-3k tokens on its own, so batching
+    would blow past a sane max_tokens and one bad extraction would poison its neighbours.
+    Volume is low by construction — the caller only asks for feed-visible items that have no
+    long read yet, under a per-run cap.
+    """
+    text = (article_text or "").strip()
+    if len(text) < 200:
+        return {"ru": "", "en": "", "uz": ""}
+    client = client or get_classifier_client()
+    user = (f"HEADLINE: {(item.get('title') or '').strip()}\n"
+            f"SOURCE: {(item.get('source') or item.get('source_id') or '').strip()}\n\n"
+            f"ARTICLE:\n{text[:_DETAIL_MAX_CHARS]}")
+    try:
+        raw = client.complete_json(_DETAIL_SYSTEM, user, usage=usage, max_tokens=1600)
+    except Exception as exc:  # noqa: BLE001 — a story page without a long read is the old page
+        logger.warning("detail write failed for %s: %s", item.get("url"), exc)
+        return {"ru": "", "en": "", "uz": ""}
+    out = {code: str(raw.get(f"detail_{code}") or "").strip() for code in ("ru", "en", "uz")}
+    # All three or none: a page that shows Russian paragraphs to an English reader because the
+    # other two came back empty is worse than the summary-only page it replaces.
+    if not out["ru"]:
+        return {"ru": "", "en": "", "uz": ""}
+    return out
+
+
 def _format_universe(universe: dict[str, str] | None, limit: int = 120) -> str:
     if not universe:
         return "(no issuer universe provided — infer sectors only, leave tickers empty)"
