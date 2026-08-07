@@ -1072,9 +1072,14 @@ iframe {
 }
 
 /* A movers column is ~142px wide at 320px, and "ALKBP  +29,41%" already asks
-   for 98 of them. The logo is the one part of the row that carries no reading:
-   the ticker names the issuer and the percent is why the row is in the list. */
-@media (max-width: 380px) {
+   for 98 of them — the monogram tile and its gap want 24 more than the column
+   has to give. The logo is the one part of the row that carries no reading:
+   the ticker names the issuer and the percent is why the row is in the list.
+   The cut is at 340px, not the file's usual 380: a 360px phone (the Galaxy A
+   width, the commonest screen on this market) measures 32px of slack WITH the
+   logo — 24px at 344, the narrowest screen above the cut — and the mark is the
+   row's only colour that is not a sign. */
+@media (max-width: 340px) {
   .market-movers-tk .chip-logo,
   .market-movers-tk .chip-logo-fallback {
     display: none;
