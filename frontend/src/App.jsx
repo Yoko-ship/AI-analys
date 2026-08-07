@@ -1037,6 +1037,11 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const [state, setState] = React.useState({ loading: true, error: "", data: null });
   const [imgOk, setImgOk] = React.useState(true);
+  // A picture narrower than the column it sits in is served at its own size instead of being
+  // blown up to fit. The collector now swaps a feed's thumbnail for the full-size original
+  // where the CMS keeps one (uza.uz shipped 320px), but some sources simply have no larger
+  // file, and a stretched 320px photo is the first thing a reader notices.
+  const [imgSmall, setImgSmall] = React.useState(false);
   // Above the loading/error returns below, because hooks cannot sit behind one. The hook
   // handles a null item by doing nothing, which is what the loading state needs anyway.
   const browser = useBrowserHeadline(state.data ? state.data.item : null, language);
@@ -1045,6 +1050,7 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
     let alive = true;
     setState({ loading: true, error: "", data: null });
     setImgOk(true);
+    setImgSmall(false);
     window.scrollTo({ top: 0, behavior: "auto" });
     fetch(`/api/news/item/${encodeURIComponent(newsId)}`)
       .then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }))
@@ -1133,8 +1139,14 @@ function NewsArticleView({ newsId, language, securitiesMap, onOpenCompany, onOpe
             </div>
 
             {item.image_url && imgOk && (
-              <div className="led-figure led-art-figure">
-                <img src={item.image_url} alt="" loading="lazy" onError={() => setImgOk(false)} />
+              <div className={`led-figure led-art-figure${imgSmall ? " is-small" : ""}`}>
+                <img
+                  src={item.image_url}
+                  alt=""
+                  loading="lazy"
+                  onError={() => setImgOk(false)}
+                  onLoad={(e) => setImgSmall((e.target.naturalWidth || 0) < 760)}
+                />
               </div>
             )}
 

@@ -9,6 +9,7 @@
     "max_items": "per-source cap on items fetched per run, tighter than the CLI --limit (which still applies as the ceiling). Use it on whole-site feeds whose extra volume is mostly non-market news.",
     "page_image": "true = feed ships no image, so read the article page's own og:image preview tag (head only, image URL only). Omit/false when the feed already carries media:*/enclosure images, or when the page's og:image is one site-wide share card that would repeat down the feed.",
     "feed_image": "false = do NOT use even the image the feed ships (source ToS bars reuse of its media). Defaults to true.",
+    "image_upgrade": "{from, to} regex rewrite from the small derivative a feed ships to the full-size original the CMS keeps one filename away. The candidate is verified (HEAD, must be 200 and an image/*) before it replaces anything, so a renamed derivative degrades to the thumbnail.",
     "url_filter": "regex over the URL, applied at fetch time — ahead of the prefilter, the triage gate and any model call. Required on a sitemap source, whose stream is global.",
     "title_filter": "the same gate applied to the publisher's own <news:title> instead of the URL, for a news sitemap whose <loc> is a numeric id with no slug in it (S&P Global). A sitemap source must declare url_filter or title_filter.",
     "headers": "extra request headers for this source, merged over the User-Agent. For an edge that answers 403 to anything not shaped like a browser navigation (S&P Global rejects a bare UA — ours and a Chrome string alike — while its robots.txt advertises the very sitemap we read).",
@@ -114,7 +115,11 @@
       "attribution": "Spot.uz",
       "enabled": true,
       "crawl_delay_s": 10,
-      "notes": "OOO Afisha Media, registered e-media #1207 (2019). Business focus. Feed ships its own images as rel=enclosure links (verified 2026-07-25: 10/10 items), so no page fetch is needed."
+      "image_upgrade": {
+        "from": "_b(\\.[a-z]{3,4})$",
+        "to": "_l\\1"
+      },
+      "notes": "OOO Afisha Media, registered e-media #1207 (2019). Business focus. Feed ships its own images as rel=enclosure links (verified 2026-07-25: 10/10 items), so no page fetch is needed — but the enclosure is the '_b' derivative at 680x453, and the same file named '_l' is 1200x800. Measured 2026-08-08 over every spot image in the live feed: 6 of 6 upgraded, .jpg and .webp alike."
     },
     {
       "id": "kun",
@@ -201,7 +206,11 @@
       "enabled": true,
       "crawl_delay_s": 10,
       "max_items": 12,
-      "notes": "State news agency — authoritative for decrees. Enabled 2026-08-07 on the ENGLISH edition, as part of raising the international half of the feed: /en/rss serves 20 dated entries over ~30h, 16 of them Uzbekistan, each with its own image, and robots.txt is 22 bytes with no rule in it. Counted as `international` because it is the English-language wire, not because the newsroom is foreign — the balance the feed serves is a LANGUAGE balance. Its output is protocol-heavy (presidential meetings, delegations), so it is capped at 12 per run and deliberately faces the full relevance gate: the classifier is told that diplomacy carrying no economic decision is not market news."
+      "image_upgrade": {
+        "from": "_small(\\.[a-z]{3,4})$",
+        "to": "_normal\\1"
+      },
+      "notes": "Its RSS ships the 320px '_small' derivative — the picture a reader reported as blurry, stretched across a 950px article column. The same file named '_normal' is 1024px: measured 2026-08-08, 3 of 3 upgraded (320x213 to 1024x682, 320x229 to 1024x733, 320x200 to 1024x640). State news agency — authoritative for decrees. Enabled 2026-08-07 on the ENGLISH edition, as part of raising the international half of the feed: /en/rss serves 20 dated entries over ~30h, 16 of them Uzbekistan, each with its own image, and robots.txt is 22 bytes with no rule in it. Counted as `international` because it is the English-language wire, not because the newsroom is foreign — the balance the feed serves is a LANGUAGE balance. Its output is protocol-heavy (presidential meetings, delegations), so it is capped at 12 per run and deliberately faces the full relevance gate: the classifier is told that diplomacy carrying no economic decision is not market news."
     },
     {
       "id": "trend",
