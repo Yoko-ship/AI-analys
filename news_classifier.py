@@ -399,8 +399,16 @@ and state issuers heading for IPO.
 For each news item decide, as a STATISTICAL/ANALYTICAL SIGNAL (never a diagnosis,
 never a claim of manipulation or "attack"):
 
-1. relevant — could this move a listed price or the market? News with no plausible
-   link to a listed issuer, a sector, monetary policy, FX, or the exchange is NOT relevant.
+1. relevant — could this move a listed price or the market? A NAMED listed issuer is NOT
+   required. The board's issuers are whoever operates in these sectors, so a state programme,
+   law, tariff, licence or large investment that touches one of them is relevant on its own:
+   banking and insurance, energy and power generation, oil/gas/chemicals, mining and metals,
+   cement and construction, telecom, transport corridors, agriculture — as are monetary
+   policy, FX and the sum, taxes, and the exchange itself. A nuclear power programme, a
+   mining tax regime, a new rail corridor, crypto-asset or stablecoin rules and a foreign
+   credit line to a state bank all qualify even when no issuer is named in the text.
+   NOT relevant: sport, culture, celebrities, weather, crime, accidents, health scares,
+   human-interest writing, and protocol diplomacy carrying no economic decision.
 2. type — exactly one of:
    - "financial_report"  : earnings, filings, financial results, dividends declared/paid
    - "corporate_event"   : share issuance, M&A/stakes, listings, management/ownership changes, IPO/SPO

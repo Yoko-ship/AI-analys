@@ -414,6 +414,9 @@ runs is lost for good. Measured 2026-07-25:
 | spglobal | 218 global → **filtered** | ~1–2 days | ~1 Uzbek hit/1–2 weeks | all that match |
 | napp | 12 (listing) | ~13 days | ~0.5/day | all |
 | thediplomat | 96 (Central Asia) | ~96 days | ~1/day | all (cap 15) |
+| trend | 25 (Central Asia) | ~10.5h | ~27 Uzbek/day | ~25 of 27 (cap 25) |
+| timesca | 10 (Uzbekistan) | ~50h | ~5/day | all (cap 10) |
+| uza | 20 (English) | ~30h | ~16/day | ~12 (cap 12) |
 | openinfo | paged | months | ~7/day (ours) | all |
 
 Once daily costs the two highest-volume general feeds: Kun.uz truncates at 15 items covering
@@ -423,6 +426,44 @@ is not possible — those feeds simply end. Kun is also the lowest-relevance sou
 `30 2,10,18 * * *` (every 8h) recover that coverage for roughly $1–2/month more. Layer B is separate: Grok's native search is billed per search call
 ($5/1k) and the Tavily backend is capped at `NEWS_AGENT_MAX_ITERS` tool calls with each
 query logged.
+
+## The English half of the feed (2026-08-07)
+
+The customer asked for roughly **half the page to be English-language / international news**,
+and the measurement that prompted it was blunt: of 200 cards live that day, **4** came from an
+international source. Two separate causes, both addressed.
+
+**There was almost no English supply.** The rating agencies publish a handful of Uzbek items a
+*month* between them. So three English sources with real daily volume were added, each probed
+first (feed shape, dates, images, robots.txt):
+
+| id | feed | Uzbek volume | why this feed |
+|---|---|---|---|
+| `trend` | `en.trend.az/feeds/casia.rss` | **12 of 25 entries in 10.5h** | the Central Asia feed, not the agency-wide one; company results, MoUs, trade and investment. Ships **no description at all**, so the classifier judges the headline — as it already does for the agencies. `feed_image: false`: an agency's photos are its product. |
+| `timesca` | `timesca.com/category/news/uzbekistan/feed/` | ~5/day | a dedicated **Uzbekistan category** feed; the site-wide one is regional and would spend gates on Kyrgyz elections. Ships `content:encoded` — we store the teaser only. |
+| `uza` | `uza.uz/en/rss` | ~16/day | the state agency's **English** edition (the registry entry used to point at `/ru/rss` and was disabled). Protocol-heavy, so capped at 12 and left facing the full relevance gate. |
+
+`intellinews` was the obvious fourth and is **refused, not deferred**: it answers 200, and its
+`robots.txt` disallows `/feed`. It is in the registry disabled with that evidence.
+
+**And the ranking was giving the page away.** `rank_score` rewards naming a ticker, which an
+international story rarely does, so even with supply the local firehose would bury it. The feed
+read now ranks the two streams separately and interleaves them
+(`_balance_origins`, `NEWS_INTERNATIONAL_SHARE`, default `0.5`; `0` restores the plain order).
+Membership comes from `origin: "international"` in the registry, so it is a one-word edit per
+source, not a hard-coded list. What the balance never does: reorder within a side, hold a slot
+open, or shorten the page — a quiet week for the agencies just means the local side fills it.
+
+**The relevance rule had to say what it always meant.** The Diplomat's Uzbekistan items were
+reaching the full classifier after `skip_triage_filter` and *still* dying: «Uzbekistan's Nuclear
+Power Plant Project Advances» → "No link to listed issuers or sectors", the tax-free crypto
+zone → "No link to listed issuers", the China–Kyrgyzstan–Uzbekistan railway → "No direct impact
+on listed tickers". The prompt already allowed a *sector* link; the model was reading it as
+requiring a named issuer. Rule 1 now says so explicitly — a state programme, law, tariff,
+licence or large investment touching a sector on the board is relevant **without** a named
+issuer, and names the sectors — while listing what stays out: sport, culture, crime, weather,
+human interest, and protocol diplomacy carrying no economic decision (which is what keeps UzA's
+handshake wire off the page).
 
 ## Legal invariant
 
@@ -436,7 +477,7 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 
 ## MVP scope & what's pending
 
-Enabled now: `openinfo_facts`, `cbu`, `napp`, `moodys`, `fitch`, `spglobal`, `thediplomat`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
+Enabled now: `openinfo_facts`, `cbu`, `napp`, `moodys`, `fitch`, `spglobal`, `thediplomat`, `trend`, `timesca`, `uza`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
 taxonomy categories 1–9). Working today: RSS / html_list / sitemap / openinfo fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.

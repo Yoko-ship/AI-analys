@@ -13,6 +13,7 @@
     "title_filter": "the same gate applied to the publisher's own <news:title> instead of the URL, for a news sitemap whose <loc> is a numeric id with no slug in it (S&P Global). A sitemap source must declare url_filter or title_filter.",
     "headers": "extra request headers for this source, merged over the User-Agent. For an edge that answers 403 to anything not shaped like a browser navigation (S&P Global rejects a bare UA — ours and a Chrome string alike — while its robots.txt advertises the very sitemap we read).",
     "skip_triage_filter": "the per-item form of skip_triage: a regex over title+snippet+url, for a source whose stream is mostly other countries' news but whose matching items must not be judged by the cheap gate.",
+    "origin": "'international' = an English-language wire or a foreign desk; anything else (the default) is a local outlet. The feed read balances the two so the local firehose, which outpublishes them ten to one, cannot bury them — see NEWS_INTERNATIONAL_SHARE in news_store.py.",
     "title_case": "'title' = the publisher lower-cases its slugs, so re-case the headline read out of the URL. Omit for slugs that carry their own capitals (Moody's).",
     "skip_triage": "true = the item's relevance was established before any model saw it (a url_filter match on one of our issuers), so send it straight to the full classification. Triage rejections are stored permanently, so a wrong one is not retried."
   },
@@ -185,21 +186,59 @@
     },
     {
       "id": "uza",
-      "name": "UzA — National News Agency",
+      "name": "UzA — National News Agency (English)",
       "type": "rss",
-      "url": "https://uza.uz/ru/rss",
+      "url": "https://uza.uz/en/rss",
       "lang": [
-        "ru",
-        "uz",
         "en"
       ],
+      "origin": "international",
       "content": "snippet",
       "coverage_weight": 0.7,
       "legal": "safe",
       "attribution": "UzA (uza.uz)",
-      "enabled": false,
+      "enabled": true,
       "crawl_delay_s": 10,
-      "notes": "State news agency — authoritative for decrees. Deferred."
+      "max_items": 12,
+      "notes": "State news agency — authoritative for decrees. Enabled 2026-08-07 on the ENGLISH edition, as part of raising the international half of the feed: /en/rss serves 20 dated entries over ~30h, 16 of them Uzbekistan, each with its own image, and robots.txt is 22 bytes with no rule in it. Counted as `international` because it is the English-language wire, not because the newsroom is foreign — the balance the feed serves is a LANGUAGE balance. Its output is protocol-heavy (presidential meetings, delegations), so it is capped at 12 per run and deliberately faces the full relevance gate: the classifier is told that diplomacy carrying no economic decision is not market news."
+    },
+    {
+      "id": "trend",
+      "name": "Trend News Agency — Central Asia (English)",
+      "type": "rss",
+      "url": "https://en.trend.az/feeds/casia.rss",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "snippet",
+      "coverage_weight": 0.65,
+      "legal": "caution",
+      "attribution": "Trend News Agency (en.trend.az)",
+      "enabled": true,
+      "crawl_delay_s": 15,
+      "max_items": 25,
+      "feed_image": false,
+      "notes": "The densest English-language business wire on this market: verified 2026-08-07, the CENTRAL ASIA feed (/feeds/casia.rss, not /feeds/index.rss which is the whole agency) carried 25 entries over 10.5h with 12 of them Uzbekistan — company results, MoUs, trade and investment (Biznes Finans profit, TMK green-hydrogen MoU, Samara region ties). Every entry dated. Two things to know: the feed ships NO description at all (0-char summaries), so the classifier judges the headline alone, exactly as it does for the rating agencies; and although every entry carries a media image, feed_image is false — this is a news agency whose photos are its product, and we do not need them. robots.txt bans AI-labelled crawlers BY NAME (ClaudeBot, GPTBot, anthropic-ai, CCBot, Google-Extended, Perplexity, Applebot-Extended, Amazonbot, Bytespider) and disallows /index.php, /registration.php and *Desktop/ — none of which is the feed. Same stance as thediplomat: our DEFAULT_UA is neutral and must stay that way, we never train on it, and we store headline + link + our own summary only."
+    },
+    {
+      "id": "timesca",
+      "name": "The Times of Central Asia — Uzbekistan",
+      "type": "rss",
+      "url": "https://timesca.com/category/news/uzbekistan/feed/",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "full",
+      "coverage_weight": 0.6,
+      "legal": "caution",
+      "attribution": "The Times of Central Asia (timesca.com)",
+      "enabled": true,
+      "crawl_delay_s": 15,
+      "max_items": 10,
+      "page_image": true,
+      "notes": "English-language regional daily with a dedicated UZBEKISTAN category feed — verified 2026-08-07: /category/news/uzbekistan/feed/ returns 10 dated entries over ~50h (the site-wide /feed/ is Central Asia at large and would spend gates on Kyrgyz elections). ~5 items/day. It ships content:encoded, i.e. the whole article — we keep the legal invariant and store the teaser only. No image in the feed, so the article page's own og:image is read (page_image). robots.txt is 120 bytes: Crawl-delay 5, one Disallow for a WordPress import directory, and no AI-bot rule at all. General-interest mix (chess olympiad and football alongside the AI economy and power demand), so it faces the full relevance gate like any outlet."
     },
     {
       "id": "gazeta",
@@ -260,6 +299,7 @@
       "lang": [
         "en"
       ],
+      "origin": "international",
       "content": "none",
       "coverage_weight": 0.95,
       "legal": "caution",
@@ -281,6 +321,7 @@
       "lang": [
         "en"
       ],
+      "origin": "international",
       "content": "none",
       "coverage_weight": 0.95,
       "legal": "caution",
@@ -329,6 +370,7 @@
       "lang": [
         "en"
       ],
+      "origin": "international",
       "content": "snippet",
       "coverage_weight": 0.5,
       "legal": "caution",
@@ -347,6 +389,7 @@
       "lang": [
         "en"
       ],
+      "origin": "international",
       "content": "snippet",
       "coverage_weight": 0.9,
       "legal": "caution",
@@ -356,6 +399,23 @@
       "notes": "Article IV consultations, mission statements and WEO updates on Uzbekistan - a handful a year, but authoritative for the macro class. NOT deferred, blocked, and 2026-08-07 established WHY, which closes the question the earlier note left open. It is not our IP and not our headers: every /en/ path answers 403 to python-requests with a bare UA and with the full Chrome header set alike, while REAL Chrome on the very same machine and network fetches https://www.imf.org/en/News/RSS?language=eng at 200 with 56KB, cookies omitted. The discriminator is therefore the TLS/HTTP2 client fingerprint (Akamai bot management), which no header can change and which a Railway egress would not change either - re-running the probe from a datacenter IP would only make it worse. The legacy /external/ tree is not an escape hatch: /external/rss/feeds.aspx returns 200 with an F5 JavaScript challenge page ('Please enable JavaScript... Your support ID is'), not a feed. And even past the wall there is no feed to read: /en/News/RSS?language=eng is an HTML shell titled 'RSS' with zero <item> elements, and the Uzbekistan country page (/en/Countries/UZB, 405KB) loads its document list from a client-side search call, not from __NEXT_DATA__. So enabling this needs a real browser engine on the collector (Chromium via Playwright) or a fingerprint-impersonating HTTP client, for about six Uzbekistan items a year. Deliberately not built. IMF news about Uzbekistan reaches the feed second-hand through uzdaily and kursiv, which we already read, and the Layer-B search agent can be pointed at it on demand."
     },
     {
+      "id": "intellinews",
+      "name": "bne IntelliNews",
+      "type": "rss",
+      "url": "https://www.intellinews.com/feed/",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "snippet",
+      "coverage_weight": 0.7,
+      "legal": "caution",
+      "attribution": "bne IntelliNews (intellinews.com)",
+      "enabled": false,
+      "crawl_delay_s": 15,
+      "notes": "Emerging-markets business wire, and the obvious fourth English source. NOT deferred, NOT unreachable — refused by robots.txt: checked 2026-08-07, https://www.intellinews.com/feed/ returns 22 dated entries at HTTP 200, and the site's robots.txt disallows `/feed` outright (alongside /search, /podcasts, /user/ and binary types). It answers us; we are asked not to read it, so we do not. Its Uzbekistan rate was 1 of 22 entries in a 10-hour window anyway. Do not enable without a licence or an explicitly permitted path."
+    },
+    {
       "id": "spglobal",
       "name": "S&P Global Ratings",
       "type": "sitemap",
@@ -363,6 +423,7 @@
       "lang": [
         "en"
       ],
+      "origin": "international",
       "content": "none",
       "coverage_weight": 0.95,
       "legal": "caution",
