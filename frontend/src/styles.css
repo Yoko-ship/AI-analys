@@ -10438,6 +10438,9 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .led-art-byline b { color: var(--text); font-weight: 600; }
 .led .led-art-rel { color: var(--muted-light); }
 .led .led-art-figure { margin: 22px 0 0; height: clamp(200px, 38vw, 380px); }
+/* A picture with no full-size original behind it is shown at its own scale rather than blown
+   up to the column width — a 320px photo across 950px is soft enough to read as broken. */
+.led .led-art-figure.is-small { max-width: 560px; height: clamp(180px, 28vw, 300px); }
 .led .led-art-lead { font-family: var(--led-serif); font-size: clamp(17px, 1.5vw, 19.5px); line-height: 1.65;
   color: var(--text); margin: 22px 0 0; max-width: 66ch; }
 

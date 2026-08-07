@@ -224,29 +224,57 @@ def image_urls_for(urls: list[str]) -> dict[str, str]:
     return found
 
 
-def set_image_urls(images: dict[str, str]) -> int:
+def set_image_urls(images: dict[str, str], *, replace: bool = False) -> int:
     """Fill in ``image_url`` for stored rows that have none; return rows changed.
 
     Image-only updates come through here, never ``upsert_news``: that path also writes
     ``news_nlp``, so an image-only record would reset the item's classification (and
-    with ``relevant`` gone, drop it out of the feed). Never overwrites an existing image.
+    with ``relevant`` gone, drop it out of the feed).
+
+    ``replace=True`` is the one case where an existing image is overwritten: the collector's
+    upgrade pass, which swaps a feed's thumbnail for the full-size original behind it (uza.uz
+    ships 320px in RSS and keeps 1024px one filename away). The caller has already verified
+    the replacement exists and is an image, and the update is still a no-op when the row
+    already holds it.
     """
     if not images:
         return 0
     conn = rc.get_catalog_conn()
     changed = 0
+    where = "" if replace else " AND (image_url IS NULL OR image_url = '')"
     with conn:
         for url, img in images.items():
             if not url or not img:
                 continue
             cur = conn.execute(
-                "UPDATE news SET image_url = ? "
-                "WHERE url = ? AND (image_url IS NULL OR image_url = '')",
-                (img, url),
+                f"UPDATE news SET image_url = ? WHERE url = ?{where} "
+                "AND COALESCE(image_url, '') <> ?",
+                (img, url, img),
             )
             changed += cur.rowcount
     conn.close()
     return changed
+
+
+def rows_with_upgradable_image(*, days: int = 90, limit: int = 500) -> list[dict[str, Any]]:
+    """Stored rows that have an image — candidates for the thumbnail-to-original swap.
+
+    Which of them can actually be upgraded is the collector's business (the rules live in the
+    source registry); this only supplies the rows and their current image.
+    """
+    conn = rc.get_catalog_conn()
+    rows = conn.execute(
+        """
+        SELECT n.url, n.source_id, n.image_url FROM news n
+        WHERE COALESCE(n.image_url, '') <> ''
+          AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))
+        ORDER BY COALESCE(n.published_at, n.collected_at) DESC
+        LIMIT ?
+        """,
+        (f"-{int(days)} days", max(1, min(limit, 2000))),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def rows_missing_translations(*, limit: int = 60, days: int = 90) -> list[dict[str, Any]]:

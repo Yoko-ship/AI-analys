@@ -322,6 +322,61 @@ def _og_image(session: requests.Session, page_url: str, timeout: int = 15) -> st
     return None
 
 
+def _upgrade_image(session: requests.Session, url: str, source: dict[str, Any]) -> str:
+    """The full-size original behind a feed's thumbnail, or ``url`` unchanged.
+
+    Several CMSs put a small derivative in the RSS and keep the real photograph one name
+    away: uza.uz ships ``…_small.jpg`` at 320px while ``…_normal.jpg`` is 1024px, spot.uz
+    ships ``…_b.jpg`` at 680px against ``…_l.jpg`` at 1200px. A 320px picture stretched across
+    a 950px article column is visibly soft, which is what a reader sees and reports.
+
+    The rewrite is a per-source rule in the registry (``image_upgrade``), and it is never
+    trusted: the candidate is verified to exist and to be an image before it replaces
+    anything, so a CMS that renames its derivatives degrades to the thumbnail we had.
+    """
+    rule = source.get("image_upgrade") or {}
+    pattern, repl = rule.get("from"), rule.get("to")
+    if not url or not pattern or not repl:
+        return url
+    candidate = re.sub(pattern, repl, url)
+    if candidate == url:
+        return url
+    try:
+        resp = session.head(candidate, timeout=15, allow_redirects=True)
+        if resp.status_code in (403, 405, 501):  # HEAD not served — ask for one byte instead
+            resp = session.get(candidate, timeout=15, headers={"Range": "bytes=0-1023"},
+                               stream=True)
+            resp.close()
+        ok = (resp.status_code in (200, 206)
+              and (resp.headers.get("content-type") or "").lower().startswith("image/"))
+    except requests.RequestException as exc:
+        logger.debug("image upgrade check failed for %s: %s", candidate, exc)
+        return url
+    return candidate if ok else url
+
+
+def upgrade_images(items: list[dict[str, Any]], sources: dict[str, dict[str, Any]]) -> int:
+    """Swap every thumbnail we can for its full-size original, in place. Returns the count."""
+    todo = [it for it in items
+            if it.get("image_url") and (sources.get(it.get("source_id")) or {}).get("image_upgrade")]
+    if not todo:
+        return 0
+    session = requests.Session()
+    upgraded = 0
+    for it in todo:
+        src = sources.get(it.get("source_id")) or {}
+        session.headers.update(_source_headers(src))
+        better = _upgrade_image(session, it["image_url"], src)
+        if better != it["image_url"]:
+            it["image_url"] = better
+            upgraded += 1
+    session.close()
+    if upgraded:
+        logger.info("image upgrade: %d of %d thumbnail(s) replaced with the full-size original",
+                    upgraded, len(todo))
+    return upgraded
+
+
 def enrich_images(items: list[dict[str, Any]], sources: dict[str, dict[str, Any]],
                   *, max_fetch: int | None = None) -> int:
     """Fill ``image_url`` from the article page for items whose feed shipped none.
@@ -1299,7 +1354,7 @@ def known_urls_in_prod(urls: list[str]) -> set[str]:
     return found
 
 
-def push_images(images: dict[str, str]) -> int:
+def push_images(images: dict[str, str], *, replace: bool = False) -> int:
     """Push image-only updates (url → image_url) and return the rows prod changed.
 
     Deliberately NOT /api/admin/news: a full upsert there would rewrite the stored
@@ -1311,7 +1366,7 @@ def push_images(images: dict[str, str]) -> int:
         return 0
     try:
         resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/images",
-                             json={"images": images},
+                             json={"images": images, "replace": replace},
                              headers={"X-Admin-Secret": secret}, timeout=120)
     except requests.RequestException as exc:
         logger.error("push /api/admin/news/images failed: %s", exc)
@@ -1442,6 +1497,46 @@ def backfill_images(*, limit: int = 40, days: int = 90, push: bool = True) -> di
         "candidates": len(items), "found": found,
         "updated_local": news_store.set_image_urls(images),
         "updated_prod": push_images(images) if (push and images) else 0,
+    }
+
+
+def _prod_items_with_image(days: int) -> list[dict[str, Any]]:
+    """Feed rows that HAVE an image — the upgrade pass's work list."""
+    try:
+        resp = requests.get(f"{DEFAULT_PUSH_URL}/api/news/feed",
+                            params={"limit": 200, "days": days}, timeout=60)
+        resp.raise_for_status()
+        items = (resp.json() or {}).get("items") or []
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("could not read the prod feed for image-upgrade candidates: %s", exc)
+        return []
+    return [{"url": it.get("url"), "source_id": it.get("source_id"),
+             "image_url": it.get("image_url")}
+            for it in items if it.get("url") and it.get("image_url")]
+
+
+def upgrade_stored_images(*, days: int = 90, push: bool = True) -> dict[str, Any]:
+    """Replace already-stored thumbnails with the full-size originals behind them.
+
+    For the rows collected before the upgrade rules existed. Only sources that declare
+    ``image_upgrade`` are touched, every replacement is verified to exist first, and a row
+    whose image is already the upgraded one is left alone — so a re-run is free.
+    """
+    remote = _prod_items_with_image(days) if push else []
+    candidates: dict[str, dict[str, Any]] = {it["url"]: it for it in remote}
+    for r in news_store.rows_with_upgradable_image(days=days):
+        candidates.setdefault(r["url"], r)
+    items = list(candidates.values())
+    upgraded = upgrade_images(items, _source_registry())
+    if not upgraded:
+        logger.info("image upgrade: nothing to replace across %d row(s)", len(items))
+        return {"candidates": len(items), "upgraded": 0,
+                "updated_local": 0, "updated_prod": 0}
+    images = {it["url"]: it["image_url"] for it in items if it.get("image_url")}
+    return {
+        "candidates": len(items), "upgraded": upgraded,
+        "updated_local": news_store.set_image_urls(images, replace=True),
+        "updated_prod": push_images(images, replace=True) if push else 0,
     }
 
 
@@ -1913,7 +2008,11 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     # 2b) preview images, for the RELEVANT items only: those are the cards the feed
     # renders, and a whole-site feed like kursiv's is ~85% off-topic — fetching pages
     # for items about to be filtered out would be almost all of the requests.
-    enrich_images(relevant, {s["id"]: s for s in sources})
+    by_id = {s["id"]: s for s in sources}
+    enrich_images(relevant, by_id)
+    # And where the feed handed us a thumbnail, take the full-size original instead: a
+    # 320px picture stretched across an article column is what a reader notices first.
+    upgrade_images(relevant, by_id)
 
     if dry_run:
         for r in records:
@@ -1990,6 +2089,9 @@ def main() -> None:
     ap.add_argument("--backfill-details", action="store_true",
                     help="write the story-page long read for feed items without one "
                          "(one page fetch + one LLM call per item, capped by --limit)")
+    ap.add_argument("--upgrade-images", action="store_true",
+                    help="replace stored feed thumbnails with the full-size originals "
+                         "behind them (no LLM calls)")
     ap.add_argument("--purge-failed", action="store_true",
                     help="delete items whose classification failed so the next run retries them")
     ap.add_argument("--rejudge", metavar="SOURCE_ID",
@@ -2014,6 +2116,8 @@ def main() -> None:
         result = purge_failed(push=not args.no_push)
     elif args.backfill_images:
         result = backfill_images(limit=args.limit, push=not args.no_push)
+    elif args.upgrade_images:
+        result = upgrade_stored_images(push=not args.no_push)
     elif args.backfill_details:
         result = backfill_details(limit=args.limit, push=not args.no_push,
                                   dry_run=args.dry_run)
