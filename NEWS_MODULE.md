@@ -465,6 +465,45 @@ issuer, and names the sectors — while listing what stays out: sport, culture, 
 human interest, and protocol diplomacy carrying no economic decision (which is what keeps UzA's
 handshake wire off the page).
 
+## The story page's long read (2026-08-07)
+
+Opening a story used to give the reader the one sentence the card already showed. The
+customer made the point with a UzA item: the page behind it carries the ministry, the
+ambassador, the fertiliser exports and the seed-production projects — five paragraphs we had
+nowhere.
+
+So the collector now runs a **detail pass** (`enrich_details` → `backfill_details`, and
+`--backfill-details` by hand). For each candidate it opens the source's article page **once**,
+extracts the prose, and asks the model to retell it: `news_classifier.write_detail` writes
+3-5 paragraphs in **all three UI languages**, stored as `news.detail_ru / detail_en /
+detail_uz` and served only by `GET /api/news/item/{id}`.
+
+**The article text is never stored.** It exists for the duration of one call; what reaches the
+database is our own account of it. That is the same invariant the module has always run on,
+and the page now says so under the text (`detailNote`, in place of the old
+"краткое изложение" line) rather than implying the paragraphs are the source's.
+
+**The extraction is deliberately dumb and allowed to fail.** It takes the paragraphs of the
+likeliest container (`article`, `main`, `.entry-content`, …) and drops everything under 80
+characters — measured: the shortest genuine paragraph across our sources is 118, while
+datelines, photo credits, "read also" rails and newsletter pitches all fall below. When the
+guess is wrong the result is navigation noise, and the prompt's instruction for "this is not
+an article" is empty strings, never an invented one. Verified live across every enabled
+source: uzdaily 11 paragraphs, spot 11, timesca 11, thediplomat 17, kursiv 8, kun 4, uza 3.
+
+**Who is skipped, and why:**
+- `content: "none"` — the rating agencies ship a headline; their pages are SPA shells.
+- `type: "openinfo"` — a filing has no page of its own (every per-fact URL 404s), and those
+  items already carry the disclosure's own figures.
+- `article_body: false` — **trend.az**, whose page is 165 KB of shell around «Get access to all
+  paid news on Trend — just $1». Without the flag it would spend the daily cap forever on
+  pages that can never yield a body.
+
+**Cost is bounded like the image retry:** `NEWS_DETAIL_CAP` (default 12) articles per run,
+prod-feed order first, only items with no long read yet. The feed itself carries a
+`has_detail` **flag**, not the text — three languages of prose over 200 items would be a
+megabyte the list never renders.
+
 ## Legal invariant
 
 We store **headline + our own `summary_ru` + link + metadata only — never the
