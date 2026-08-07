@@ -24,6 +24,7 @@ import {
   finRowPeriod,
   marketRowDay,
   normalizeMarketDay,
+  previousClose,
   tradeStatsApply,
   valuationRatios,
 } from "./lib/valuation.js";
@@ -7499,11 +7500,38 @@ function MarketView({
           const d = String(t.trade_date);
           out.last_trade_date = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
         }
-        if (Number.isFinite(r.closePrice) && r.closePrice > 0) {
-          out.changeValue = px - r.closePrice;
-          out.changePercent = ((px - r.closePrice) / Math.abs(r.closePrice)) * 100;
-          out.tone = marketTone(out.changePercent);
+        // Against the newest close the exchange published BEFORE this session —
+        // not against whatever `close_price` the row is carrying. Once the quote
+        // pass falls two sessions behind, that field is the PREVIOUS session's
+        // previous close, and the difference is two days' move wearing one day's
+        // date: UQEQ's single unchanged 37 200 trade led the top-gainers panel at
+        // +20 % because it was struck against 05.08's 31 000. See previousClose.
+        const prev = previousClose({
+          lastPrice: r.lastPrice, lastTradeDate: r.last_trade_date,
+          closePrice: r.closePrice, closeDate: r.close_date,
+        }, t.trade_date);
+        if (prev) {
+          // The row now states this session, so it must state this session's
+          // previous close too — the "закр." line under the trade date reads it.
+          out.closePrice = prev.price;
+          out.close_price = prev.price;
+          out.close_date = prev.date ?? null;
+          out.changeValue = px - prev.price;
+          out.changePercent = ((px - prev.price) / Math.abs(prev.price)) * 100;
+        } else {
+          // Nothing datable to measure from. An em-dash is the honest cell.
+          out.changeValue = null;
+          out.changePercent = null;
         }
+        out.tone = marketTone(out.changePercent);
+      } else if (rowDay && rowDay < tsDay) {
+        // The stats put this row in a session the quote layer has not reached,
+        // and carry no price to restate it with. Whatever change the quote holds
+        // belongs to the older session — leaving it in place is how a stale move
+        // gets published under today's date, which is the whole defect above.
+        out.changeValue = null;
+        out.changePercent = null;
+        out.tone = marketTone(null);
       }
     }
     return out;

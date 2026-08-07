@@ -179,3 +179,47 @@ export function tradeStatsApply(lastTradeDate, statsTradeDate) {
   if (!rowDay || !tsDay) return true;
   return tsDay >= rowDay;
 }
+
+/**
+ * The close that `sessionDay`'s move is measured against.
+ *
+ * A row carries TWO dated closes: the close of the last session it traded in
+ * (`lastPrice` @ `lastTradeDate`) and that session's own previous close
+ * (`closePrice` @ `closeDate`). While both describe the same session as the day
+ * stats, `closePrice` is the previous close and there is nothing to decide. It
+ * is when the quote layer falls behind the execution feed that the two split —
+ * and then reaching for `closePrice` reaches one session too far back.
+ *
+ * UQEQ found this. It traded a single share at 37 200 on 07.08, unchanged from
+ * its 06.08 close of 37 200 — a flat 0 %, which is what the exchange published.
+ * The board led its top-gainers panel with **+20 %**, because the quote pass had
+ * last run before 06.08's trade and the row still paired 06.08's close with
+ * 05.08's 31 000. Struck against that, one day's move became two.
+ *
+ * So: the newest close dated strictly BEFORE the session. The exchange carries a
+ * close forward through sessions with no trades, so the last session a security
+ * traded in is the one the exchange itself measures from, whatever sat between.
+ *
+ * Returns `{ price, date }` — the date comes back because a row that restates
+ * its previous close must restate the day that close belongs to; the "закр."
+ * line under the trade date prints it, and a price from one session over
+ * another session's date is the same class of error this function exists to fix.
+ *
+ * Returns null when every close it can date falls on or after the session — a
+ * close from the session itself is not a previous close, and a move invented
+ * from one is worse than the em-dash the caller renders instead. An UNDATED
+ * close is the last resort rather than a refusal: the feed leaves the field
+ * empty for securities that did trade, and those rows were readable before.
+ */
+export function previousClose({ lastPrice, lastTradeDate, closePrice, closeDate } = {}, sessionDay) {
+  const session = normalizeMarketDay(sessionDay);
+  const priced = (px) => Number.isFinite(px) && px > 0;
+  const dated = [{ date: lastTradeDate, price: lastPrice },
+                 { date: closeDate, price: closePrice }]
+    .map((c) => ({ ...c, day: normalizeMarketDay(c.date) }))
+    .filter((c) => c.day && priced(c.price) && (!session || c.day < session))
+    .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
+  if (dated.length) return { price: dated[0].price, date: dated[0].date };
+  if (!normalizeMarketDay(closeDate) && priced(closePrice)) return { price: closePrice, date: null };
+  return null;
+}
