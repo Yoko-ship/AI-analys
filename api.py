@@ -2705,6 +2705,32 @@ async def api_admin_news_purge_failed(
     return {"ok": True, **result}
 
 
+@app.post("/api/admin/news/rejudge")
+async def api_admin_news_rejudge(
+    payload: dict[str, Any],
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Delete one source's rejected rows so the collector classifies them again.
+
+    A stored verdict is what stops us paying twice for the same item; it also means a gate
+    that judged wrong keeps that judgement for the life of the row. When the gate changes,
+    this is how the items it buried get a second reading. Only ``relevant = 0`` rows go —
+    a card already on the feed is never withdrawn by this call.
+    """
+    source_id = str(payload.get("source_id") or "").strip()
+    if not source_id:
+        raise HTTPException(status_code=400, detail="source_id is required")
+    days = int(payload.get("days") or 60)
+    loop = asyncio.get_running_loop()
+    try:
+        result = await loop.run_in_executor(
+            None, partial(news_store.delete_rejected_from_source, source_id, days=days))
+    except Exception as exc:
+        logger.exception("admin news rejudge failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, **result}
+
+
 def _issuer_universe() -> dict[str, str]:
     """ticker → name, to constrain the classifier's ticker tags (mirrors the collector)."""
     import reports_catalog as rc

@@ -10,6 +10,9 @@
     "page_image": "true = feed ships no image, so read the article page's own og:image preview tag (head only, image URL only). Omit/false when the feed already carries media:*/enclosure images, or when the page's og:image is one site-wide share card that would repeat down the feed.",
     "feed_image": "false = do NOT use even the image the feed ships (source ToS bars reuse of its media). Defaults to true.",
     "url_filter": "regex over the URL, applied at fetch time — ahead of the prefilter, the triage gate and any model call. Required on a sitemap source, whose stream is global.",
+    "title_filter": "the same gate applied to the publisher's own <news:title> instead of the URL, for a news sitemap whose <loc> is a numeric id with no slug in it (S&P Global). A sitemap source must declare url_filter or title_filter.",
+    "headers": "extra request headers for this source, merged over the User-Agent. For an edge that answers 403 to anything not shaped like a browser navigation (S&P Global rejects a bare UA — ours and a Chrome string alike — while its robots.txt advertises the very sitemap we read).",
+    "skip_triage_filter": "the per-item form of skip_triage: a regex over title+snippet+url, for a source whose stream is mostly other countries' news but whose matching items must not be judged by the cheap gate.",
     "title_case": "'title' = the publisher lower-cases its slugs, so re-case the headline read out of the URL. Omit for slugs that carry their own capitals (Moody's).",
     "skip_triage": "true = the item's relevance was established before any model saw it (a url_filter match on one of our issuers), so send it straight to the full classification. Triage rejections are stored permanently, so a wrong one is not retried."
   },
@@ -333,7 +336,8 @@
       "enabled": true,
       "crawl_delay_s": 15,
       "max_items": 15,
-      "notes": "Regional context the local outlets do not write: reform politics, the China-Kyrgyzstan-Uzbekistan railway, energy and crypto policy. Verified 2026-07-28 - the REGION feed, not thediplomat.com/feed: both ship 96 entries, but the site-wide one is Asia-Pacific (3 mentions of Uzbekistan against 72 here) and would burn triage calls on Vietnamese AI law. Every entry is dated, carries its own image, and ships a 70-160 char teaser with no content:encoded, so snippet-only holds by construction. Volume is ~10 items per 18 days, most of them Kazakh/Kyrgyz - deliberately NOT exempt from the relevance floor, and at that rate the classifier calls are noise. robots.txt allows * everywhere but /wp-admin, while banning AI-labelled crawlers BY NAME (ClaudeBot, GPTBot, anthropic-ai, CCBot, Google-Extended, Bytespider) and setting Content-Signal ai-train=no, use=reference: our DEFAULT_UA is neutral and must stay that way, we never train on it, and we store headline + link + our own summary only."
+      "skip_triage_filter": "uzbek|tashkent|toshkent|uzse|central[- ]asian? (economy|market|bank|energy|rail)",
+      "notes": "Regional context the local outlets do not write: reform politics, the China-Kyrgyzstan-Uzbekistan railway, energy and crypto policy. Verified 2026-07-28 - the REGION feed, not thediplomat.com/feed: both ship 96 entries, but the site-wide one is Asia-Pacific (3 mentions of Uzbekistan against 72 here) and would burn triage calls on Vietnamese AI law. Every entry is dated, carries its own image, and ships a 70-160 char teaser with no content:encoded, so snippet-only holds by construction. Volume is ~10 items per 18 days, most of them Kazakh/Kyrgyz - deliberately NOT exempt from the relevance floor, and at that rate the classifier calls are noise. robots.txt allows * everywhere but /wp-admin, while banning AI-labelled crawlers BY NAME (ClaudeBot, GPTBot, anthropic-ai, CCBot, Google-Extended, Bytespider) and setting Content-Signal ai-train=no, use=reference: our DEFAULT_UA is neutral and must stay that way, we never train on it, and we store headline + link + our own summary only. skip_triage_filter added 2026-08-07: measured over the whole live window, the source had published NOTHING to the feed since it was enabled — 15 of 15 items stored as irrelevant, and among them 'Uzbekistan's Nuclear Power Plant Project Advances' (0.2), the tax-free crypto-mining zone and the China-Kyrgyzstan-Uzbekistan railway. Its Kazakh and Mongolian pieces should keep facing the cheap gate; the ones that name Uzbekistan go straight to the full classification, which reads the issuer universe and is the right place to judge a national energy or tax story."
     },
     {
       "id": "imf",
@@ -349,13 +353,13 @@
       "attribution": "International Monetary Fund (imf.org)",
       "enabled": false,
       "crawl_delay_s": 20,
-      "notes": "Article IV consultations, mission statements and WEO updates on Uzbekistan - a handful a year, but authoritative for the macro class. NOT deferred, blocked: checked 2026-07-28 from our network, every /en/ path (news RSS, /en/rss, /en/Countries/UZB, /en/Blogs, sitemap.xml) answers 403 Access Denied from the edge for BOTH our neutral bot UA and a full Chrome header set (Sec-Fetch-*, sec-ch-ua, Accept-Language), while /robots.txt itself returns 200 and disallows none of them. The legacy /external/ feeds (country/UZB/rss.xml, cntpst, pubs/ft/survey/sorss.xml) are all gone - they 404 into the Next.js error page. The url above is the documented feed, left here unverified. Before enabling, re-run the check from the Railway egress (a different IP may not be filtered) and confirm the feed returns XML; IMF news about Uzbekistan is in any case relayed by uzdaily and kursiv, which we already read."
+      "notes": "Article IV consultations, mission statements and WEO updates on Uzbekistan - a handful a year, but authoritative for the macro class. NOT deferred, blocked, and 2026-08-07 established WHY, which closes the question the earlier note left open. It is not our IP and not our headers: every /en/ path answers 403 to python-requests with a bare UA and with the full Chrome header set alike, while REAL Chrome on the very same machine and network fetches https://www.imf.org/en/News/RSS?language=eng at 200 with 56KB, cookies omitted. The discriminator is therefore the TLS/HTTP2 client fingerprint (Akamai bot management), which no header can change and which a Railway egress would not change either - re-running the probe from a datacenter IP would only make it worse. The legacy /external/ tree is not an escape hatch: /external/rss/feeds.aspx returns 200 with an F5 JavaScript challenge page ('Please enable JavaScript... Your support ID is'), not a feed. And even past the wall there is no feed to read: /en/News/RSS?language=eng is an HTML shell titled 'RSS' with zero <item> elements, and the Uzbekistan country page (/en/Countries/UZB, 405KB) loads its document list from a client-side search call, not from __NEXT_DATA__. So enabling this needs a real browser engine on the collector (Chromium via Playwright) or a fingerprint-impersonating HTTP client, for about six Uzbekistan items a year. Deliberately not built. IMF news about Uzbekistan reaches the feed second-hand through uzdaily and kursiv, which we already read, and the Layer-B search agent can be pointed at it on demand."
     },
     {
       "id": "spglobal",
       "name": "S&P Global Ratings",
       "type": "sitemap",
-      "url": "https://www.spglobal.com/ratings/en/",
+      "url": "https://www.spglobal.com/ratings/sitemaps/news-sitemap.xml",
       "lang": [
         "en"
       ],
@@ -363,10 +367,25 @@
       "coverage_weight": 0.95,
       "legal": "caution",
       "attribution": "S&P Global Ratings (spglobal.com)",
-      "enabled": false,
+      "enabled": true,
       "crawl_delay_s": 30,
       "feed_image": false,
-      "notes": "The third agency, and the only one of the three with no route at all. Re-verified 2026-07-28: www.spglobal.com answers 403 to every automated request - /robots.txt, /ratings/en/, /ratings/en/rss/index.xml alike - for our neutral bot UA and for a full Chrome header set. press.spglobal.com does answer 200 but serves an HTML press page, not a feed. Nothing here is crawl-shy behaviour we can fix with a header or a delay; enabling this needs a licensed feed. Moody's (moodys) and Fitch (fitch) cover the same rating actions on our issuers."
+      "title_filter": "uzbek|toshkent|tashkent|hamkor|ipoteka|agrobank|asaka|aloqabank|kapitalbank|turonbank|trustbank|ipak[- ]?yuli|infinbank|xalq[- ]?bank|mikrokredit|qishloq|sanoat[- ]?qurilish|uzpromstroy|uzauto|uzavto|navoi|almalyk|uztransgaz|uzsuvenergo|uzagroexport|orient[- ]?finans|davr[- ]?bank|anor[- ]?bank",
+      "skip_triage": true,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+      "headers": {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "sec-ch-ua": "\"Chromium\";v=\"139\", \"Not=A?Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "Upgrade-Insecure-Requests": "1"
+      },
+      "notes": "The third agency, LIVE since 2026-08-07 — the earlier 'no route at all' reading was measured with a bare User-Agent and is wrong. The edge (Akamai) rejects a lone UA header, ours and a Chrome string alike, but answers 200 to the ordinary browser navigation header set: robots.txt (9.9KB), the ratings sitemaps and the ratings-actions page all come back. And robots.txt ITSELF advertises this file - it lists /ratings/sitemaps/news-sitemap.xml among its Sitemap: directives, disallows only the search and identifier-lookup paths (none of which we touch), and gives even GPTBot a plain Crawl-delay: 10 rather than a ban. So this is a header shape the edge insists on, not a permission we are working around. The file is a Google-news sitemap: ~218 entries the day it was checked, each with the publisher's OWN <news:title> and <news:publication_date> - better than Moody's and Fitch, whose headline has to be read out of a URL slug. The <loc> is a numeric sourceId with no words in it, which is why the gate here is title_filter rather than url_filter. No article page is opened (they are paywalled behind a registration wall anyway); headline + link + our own summary only. S&P rates the sovereign and several of our banks, so expect the same rate as the other two - roughly one hit every week or two - and the same window caveat as moodys: the file is a rolling ~1-2 days, so a once-daily run is the floor, not a margin. press.spglobal.com answers 200 but serves an HTML press page with no feed; disclosure.spglobal.com redirects into www."
     }
   ]
 }

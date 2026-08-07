@@ -48,7 +48,7 @@ _TYPE_WEIGHT = {"financial_report": 1.0, "corporate_event": 1.0, "regulatory": 0
 # or the sovereign. Rating actions are rare and market-moving — losing one to a 0.29 score would
 # hurt far more than admitting the occasional dull affirmation. Sources read whole (napp,
 # thediplomat) are NOT here: nothing has vouched for their items before the model reads them.
-_AUTHORITATIVE_SOURCES = {"openinfo_facts", "moodys", "fitch"}
+_AUTHORITATIVE_SOURCES = {"openinfo_facts", "moodys", "fitch", "spglobal"}
 # Sources whose headline is not the publisher's sentence but a URL slug we un-hyphenated
 # (``title_from: "slug"`` in the registry, because these publishers ship no readable feed).
 # A slug has lost the case, the punctuation and — critically — the rating notch, since '+'
@@ -364,6 +364,42 @@ def delete_failed_classifications(*, limit: int = 1000) -> dict[str, Any]:
             conn.execute(f"DELETE FROM news WHERE id IN ({placeholders})", chunk)
     conn.close()
     return {"deleted": len(ids), "by_source": by_source}
+
+
+def delete_rejected_from_source(source_id: str, *, days: int = 60,
+                                limit: int = 1000) -> dict[str, Any]:
+    """Drop one source's REJECTED rows so the next run fetches and judges them again.
+
+    A verdict is stored so we never pay to classify the same item twice, which also means a
+    gate that was wrong stays wrong for as long as the row lives. When the gate itself
+    changes — a source gains ``skip_triage_filter``, an authoritative source stops being
+    overridable by the model — the items it already buried are exactly the ones the change
+    was for, and nothing re-reads them on its own.
+
+    Only ``relevant = 0`` rows are touched: a published card is never withdrawn by this, and
+    an item that stays uninteresting simply gets the same verdict again next run (one
+    classification, once). Bounded by ``days`` so it cannot walk the whole archive.
+    """
+    conn = rc.get_catalog_conn()
+    rows = conn.execute(
+        """
+        SELECT n.id FROM news n JOIN news_nlp p ON p.news_id = n.id
+        WHERE n.source_id = ? AND COALESCE(p.relevant, 0) = 0
+          AND COALESCE(n.published_at, n.collected_at) >= datetime('now', ?)
+        LIMIT ?
+        """,
+        (source_id, f"-{int(days)} days", max(1, min(limit, 5000))),
+    ).fetchall()
+    ids = [r["id"] for r in rows]
+    with conn:
+        for i in range(0, len(ids), 400):
+            chunk = ids[i:i + 400]
+            placeholders = ",".join("?" * len(chunk))
+            conn.execute(f"DELETE FROM news_entities WHERE news_id IN ({placeholders})", chunk)
+            conn.execute(f"DELETE FROM news_nlp WHERE news_id IN ({placeholders})", chunk)
+            conn.execute(f"DELETE FROM news WHERE id IN ({placeholders})", chunk)
+    conn.close()
+    return {"source_id": source_id, "deleted": len(ids)}
 
 
 def summary_for(item: dict[str, Any], lang: str) -> str:

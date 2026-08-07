@@ -411,6 +411,7 @@ runs is lost for good. Measured 2026-07-25:
 | cbu | **10** (listing) | months | ~2–5/month | all |
 | moodys | 183 global → **filtered** | ~1 day | ~1 Uzbek hit/1–2 weeks | all that match |
 | fitch | 502 global → **filtered** | ~5 business days | ~1 Uzbek hit/1–2 weeks | all that match |
+| spglobal | 218 global → **filtered** | ~1–2 days | ~1 Uzbek hit/1–2 weeks | all that match |
 | napp | 12 (listing) | ~13 days | ~0.5/day | all |
 | thediplomat | 96 (Central Asia) | ~96 days | ~1/day | all (cap 15) |
 | openinfo | paged | months | ~7/day (ours) | all |
@@ -435,7 +436,7 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 
 ## MVP scope & what's pending
 
-Enabled now: `openinfo_facts`, `cbu`, `napp`, `moodys`, `fitch`, `thediplomat`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
+Enabled now: `openinfo_facts`, `cbu`, `napp`, `moodys`, `fitch`, `spglobal`, `thediplomat`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
 taxonomy categories 1–9). Working today: RSS / html_list / sitemap / openinfo fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
@@ -486,16 +487,40 @@ CCBot, Google-Extended, Bytespider) and setting `Content-Signal: ai-train=no, us
 our `DEFAULT_UA` is neutral and must stay that way, we never train on it, and we keep the
 headline + link + our own summary only.
 
-**`imf`** and **`spglobal`** are in the registry `enabled: false` with their evidence, so the
-next person does not re-run the same probes. Every `imf.org/en/` path answers **403** from the
-edge — news RSS, `/en/rss`, `/en/Countries/UZB`, `sitemap.xml` — for our neutral bot UA *and*
-for a full Chrome header set, while `/robots.txt` itself returns 200 and forbids none of them;
-the legacy `/external/` feeds are gone (404 into the SPA error page). IMF news about Uzbekistan
-reaches us second-hand through `uzdaily` and `kursiv` anyway. `spglobal.com` is the same wall
-and has been since the first check: 403 to everything including `/robots.txt`;
-`press.spglobal.com` answers but serves HTML, not a feed. Neither is a crawl-politeness problem
-a header or a delay can fix — enabling them needs a licensed feed, or (for IMF) a re-check from
-the Railway egress, whose IP may not be filtered.
+**`spglobal` is live since 2026-08-07, and the earlier "no route at all" reading was wrong.**
+It was measured with a lone `User-Agent` header. The edge (Akamai) rejects that — ours *and* a
+Chrome UA string — but answers **200** to the ordinary browser navigation header set
+(`Accept`, `Accept-Language`, `Sec-Fetch-*`, `sec-ch-ua*`, `Upgrade-Insecure-Requests`):
+`robots.txt` (9.9 KB), the ratings sitemaps and the ratings-actions page all come back. And
+that `robots.txt` **advertises the file we read** — `/ratings/sitemaps/news-sitemap.xml` is one
+of its own `Sitemap:` directives, its 118 `Disallow:` rules cover search and identifier-lookup
+paths we never touch, and even GPTBot gets a plain `Crawl-delay: 10` rather than a ban. So the
+header set is a shape the edge insists on, not a permission being worked around; it lives in
+the registry as `headers`, per source, next to that evidence.
+
+What comes back is better than the other two agencies ship: a **Google-news sitemap** (~218
+entries the day it was checked) where every entry carries the publisher's own `<news:title>`
+and `<news:publication_date>`. No slug to parse and no build-time `lastmod` to overrule. The
+`<loc>` is `…/article/-/view/sourceId/101700054` — a number with no words in it — so the gate
+here is **`title_filter`**, the same pre-model filter as `url_filter` applied to the only field
+that names anybody. A sitemap source must declare one or the other; with neither, `fetch_sitemap`
+refuses to fetch rather than send a publisher's global output to the classifier.
+
+**`imf` stays off, and 2026-08-07 established why** — which closes the question the old note
+left open ("re-check from the Railway egress, whose IP may not be filtered"). It is not our IP
+and not our headers: every `/en/` path answers 403 to `requests` with a bare UA *and* with the
+full Chrome header set, while **real Chrome on the same machine and network fetches
+`/en/News/RSS?language=eng` at 200 with 56 KB, cookies omitted**. The discriminator is the
+TLS/HTTP2 client fingerprint (Akamai bot management), which no header changes and which a
+datacenter egress would only make worse. The legacy `/external/` tree is not a way in either:
+`/external/rss/feeds.aspx` returns 200 with an **F5 JavaScript challenge** page, not a feed.
+And past the wall there is nothing to read anyway — `/en/News/RSS?language=eng` is an HTML
+shell titled "RSS" with zero `<item>` elements, and the Uzbekistan country page (405 KB) loads
+its document list from a client-side search call, not from `__NEXT_DATA__`. Enabling IMF
+therefore needs a browser engine on the collector (Chromium via Playwright) or a
+fingerprint-impersonating HTTP client, for about **six Uzbekistan items a year** — deliberately
+not built. IMF news about Uzbekistan reaches us second-hand through `uzdaily` and `kursiv`, and
+the Layer-B search agent can be pointed at it on demand.
 
 CBU items are **title-only by the publisher**: the listing renders an empty `news__text` and
 the article pages carry no `og:description`. That is CBU, not a gap in the adapter — do not
@@ -524,6 +549,19 @@ the rest were politics and society. The two arguable misses — a tax-free crypt
 the China–Kyrgyzstan–Uzbekistan railway — are policy stories with no issuer in them. This
 source is regional *context*, worth roughly one market-relevant Uzbek item a week; it is not a
 news feed for the board and it was never exempted from the floor.
+
+**Re-measured 2026-08-07: that reading was too generous to the gate.** Ten days on, the source
+had still put **nothing** on the feed — 15 of 15 items in the live window stored as irrelevant,
+and among the rejections `Uzbekistan's Nuclear Power Plant Project Advances` (score 0.2, "no
+direct link to listed issuers"), the tax-free crypto-mining zone, and the
+China–Kyrgyzstan–Uzbekistan railway. A national power-plant programme is not a story the
+energy issuers on this board are unaffected by; the gate is reading a 130-character teaser and
+answering a question about listed issuers that a teaser cannot answer. Hence
+**`skip_triage_filter`**, the per-item form of `skip_triage`: a regex over title + snippet + url,
+so the items naming Uzbekistan go straight to the full classification while the Kazakh, Kyrgyz
+and Mongolian ones keep facing the cheap gate exactly as before. 5 of 20 items in the live
+window match. This is deliberately *not* a floor exemption — The Diplomat is still judged, just
+not by the cheapest reader we have.
 
 Two knobs were added off the back of that run, both for the agencies only:
 
@@ -562,12 +600,31 @@ action that day), 0 classified. The filter was checked against real Moody's Uzbe
 Alokabank, Agrobank and the sovereign banking outlook all match, Zeda and Botswana Development
 Corporation do not.
 
-**Of the sister agencies, one is reachable and one is not.** `fitchratings.com` **is** —
-`sitemap-research.xml` carries the rating actions, the `/page-data/` its `robots.txt` disallows
-is only needed to open an article page and we open none (see the 2026-07-28 entry above; the
-earlier "not reachable" reading here was wrong and has been corrected). `spglobal.com` answers
-**403 to every automated request, including `/robots.txt`** — a WAF refusing non-browser
-clients — so S&P's rating news still has to come from the press feeds or a Layer-B search.
+**All three agencies are now read.** `fitchratings.com` — `sitemap-research.xml` carries the
+rating actions, and the `/page-data/` its `robots.txt` disallows is only needed to open an
+article page, which we never do. `spglobal.com` — 403 to a lone `User-Agent`, 200 to the
+browser navigation header set, reading the news sitemap its own `robots.txt` advertises (see
+the 2026-08-07 entry above; both earlier "not reachable" readings on this page were measured
+with one header and have been corrected).
+
+**A rating action is never dropped on the model's word.** Two of the four Uzbek items Fitch has
+published to date are bare entity names — `JSC Uzbek Metallurgical Plant`, `JSC Navoi Mining
+Metallurgical Company` — and the full classifier passed the first and rejected the second
+("No listed issuer or direct market link"), on strings that differ only in which issuer they
+name. `skip_triage` had already removed the cheap gate from this path; the deeper problem is
+that `get_news_feed` serves `relevant = 1` and *any* verdict of 0 is stored for good. So for a
+source whose `url_filter`/`title_filter` has already matched one of our issuers, a
+`relevant = false` verdict is now **overruled at collection time** (`filtered_to_our_market` in
+`news_collector.run`, logged per run): the filter is the stronger evidence, a dull affirmation
+on the feed costs a reader one scroll, and a lost downgrade costs more. The relevance *score*
+survives for ranking.
+
+**When a gate changes, the items it buried need a second reading.** A stored verdict is what
+stops us paying twice for the same item, and it is also why a gate that judged wrong keeps that
+judgement for the life of the row. `python news_collector.py --rejudge <source_id>` (and
+`POST /api/admin/news/rejudge`) deletes that source's `relevant = 0` rows, locally and in prod,
+so the next ordinary run fetches and classifies them once more. Rows on the feed are never
+touched, so nothing published can disappear this way.
 
 ## openinfo material facts (the issuer channel)
 

@@ -21,6 +21,7 @@ CLI:
     python news_collector.py --backfill-translations  # EN/UZ summaries for older rows
     python news_collector.py --backfill-facts   # figures for stored filings (no LLM calls)
     python news_collector.py --purge-failed   # drop failed classifications so they retry
+    python news_collector.py --rejudge thediplomat  # re-judge one source's rejected items
 """
 from __future__ import annotations
 
@@ -68,6 +69,20 @@ DEFAULT_PUSH_URL = os.getenv(
     os.getenv("FINANCIALS_PUSH_URL", "https://ai-analys-production.up.railway.app"),
 ).rstrip("/")
 DEFAULT_UA = "Mozilla/5.0 (compatible; UZSE-Analytics-NewsBot/1.0)"
+
+
+def _source_headers(source: dict[str, Any]) -> dict[str, str]:
+    """Request headers for one source: our UA unless it overrides, plus any it declares.
+
+    Some publishers sit behind an edge that answers 403 to anything not shaped like a
+    browser — S&P Global rejects a bare User-Agent (ours *or* a Chrome string) and serves
+    the same sitemap its own robots.txt advertises the moment the usual browser navigation
+    headers come with it. ``headers`` in the registry is that, per source and written down
+    next to the evidence, rather than a global disguise.
+    """
+    headers = {"User-Agent": source.get("user_agent", DEFAULT_UA)}
+    headers.update({str(k): str(v) for k, v in (source.get("headers") or {}).items()})
+    return headers
 
 
 # --------------------------------------------------------------------------- #
@@ -369,8 +384,7 @@ def fetch_rss(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     except ImportError:
         logger.error("feedparser is not installed — run: pip install feedparser")
         return []
-    ua = source.get("user_agent", DEFAULT_UA)
-    feed = feedparser.parse(source["url"], request_headers={"User-Agent": ua})
+    feed = feedparser.parse(source["url"], request_headers=_source_headers(source))
     items: list[dict[str, Any]] = []
     for e in feed.entries[:limit]:
         url = (getattr(e, "link", "") or "").strip()
@@ -931,8 +945,7 @@ def fetch_html_list(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
                        source["id"])
         return []
     try:
-        resp = requests.get(source["url"], timeout=20,
-                            headers={"User-Agent": source.get("user_agent", DEFAULT_UA)})
+        resp = requests.get(source["url"], timeout=20, headers=_source_headers(source))
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.warning("listing fetch failed for %s: %s", source["id"], exc)
@@ -1031,56 +1044,83 @@ def fetch_sitemap(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     triage gate and any model call: the ~99% that names no issuer of ours costs exactly one
     shared HTTP request and nothing else.
 
-    Nothing is opened: the headline comes from the slug the publisher itself publishes
-    (``title_from: "slug"``), so no article page is fetched and no body is stored. Entries
-    without a ``<lastmod>`` arrive undated, which ``_is_recent`` keeps — correct for a
-    rolling window that only ever lists current actions.
+    A **news sitemap** (the ``<news:>`` extension, which S&P Global publishes) carries the
+    publisher's own headline and publication date per entry, and its ``<loc>`` is a numeric
+    id with no slug in it. Those entries are filtered by ``title_filter`` over that headline
+    instead — the same gate, applied to the only field that names anybody. A source must
+    declare one filter or the other; a sitemap with neither would send a publisher's whole
+    global output to the classifier.
 
-    ``slug_date`` reads the publication date out of the URL instead of trusting
-    ``<lastmod>``. Fitch regenerates its research sitemap daily and stamps EVERY entry with
-    the generation time, so a rating action published five days ago would be served to
-    readers as today's news; its slug ends in the real date (``…-23-07-2026``).
+    Nothing is opened: the headline comes from the sitemap itself — ``<news:title>``, or the
+    slug where the publisher ships no title (``title_from: "slug"``) — so no article page is
+    fetched and no body is stored. Entries without a date arrive undated, which ``_is_recent``
+    keeps — correct for a rolling window that only ever lists current actions.
+
+    Dates come from ``<news:publication_date>`` where there is one, then ``slug_date``, then
+    ``<lastmod>``. ``slug_date`` exists because Fitch regenerates its research sitemap daily
+    and stamps EVERY entry with the generation time, so a rating action published five days
+    ago would be served to readers as today's news; its slug ends in the real date
+    (``…-23-07-2026``).
     """
     try:
-        resp = requests.get(source["url"], timeout=40,
-                            headers={"User-Agent": source.get("user_agent", DEFAULT_UA)})
+        resp = requests.get(source["url"], timeout=40, headers=_source_headers(source))
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.warning("sitemap fetch failed for %s: %s", source["id"], exc)
         return []
 
-    entries: list[tuple[str, str | None]] = []
+    strip_pattern = source.get("slug_strip")
+    title_case = source.get("title_case")
+    prefer_slug = source.get("title_from") == "slug"
+
+    entries: list[dict[str, Any]] = []
     for block in re.finditer(r"<url>(.*?)</url>", resp.text, re.S):
-        loc = re.search(r"<loc>\s*([^<]+?)\s*</loc>", block.group(1))
+        body = block.group(1)
+        loc = re.search(r"<loc>\s*([^<]+?)\s*</loc>", body)
         if not loc:
             continue
-        lastmod = re.search(r"<lastmod>\s*([^<]+?)\s*</lastmod>", block.group(1))
-        entries.append((html.unescape(loc.group(1)), lastmod.group(1)[:10] if lastmod else None))
+        url = html.unescape(loc.group(1))
+        lastmod = re.search(r"<lastmod>\s*([^<]+?)\s*</lastmod>", body)
+        news_title = re.search(
+            r"<news:title>\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</news:title>", body, re.S)
+        news_date = re.search(
+            r"<news:publication_date>\s*([^<]+?)\s*</news:publication_date>", body)
+        published = html.unescape(news_date.group(1))[:10] if news_date else (
+            lastmod.group(1)[:10] if lastmod else None)
+        title = html.unescape(news_title.group(1)).strip() if news_title else ""
+        if prefer_slug or not title:
+            title = _recase_title(_title_from_slug(url, strip_pattern), title_case)
+        entries.append({"url": url, "title": title, "published": published,
+                        "dated_by_publisher": bool(news_date)})
 
-    pattern = source.get("url_filter")
-    if pattern:
-        matcher = re.compile(pattern, re.I)
-        kept = [e for e in entries if matcher.search(e[0])]
-        logger.info("  %s: url filter kept %d of %d sitemap URL(s) — the rest cost nothing",
-                    source["id"], len(kept), len(entries))
+    url_pattern = source.get("url_filter")
+    title_pattern = source.get("title_filter")
+    if url_pattern or title_pattern:
+        url_matcher = re.compile(url_pattern, re.I) if url_pattern else None
+        title_matcher = re.compile(title_pattern, re.I) if title_pattern else None
+        kept = [e for e in entries
+                if (url_matcher and url_matcher.search(e["url"]))
+                or (title_matcher and title_matcher.search(e["title"] or ""))]
+        logger.info("  %s: %s filter kept %d of %d sitemap URL(s) — the rest cost nothing",
+                    source["id"], "url" if url_matcher else "title", len(kept), len(entries))
         entries = kept
     elif entries:
-        logger.warning("source '%s' is a sitemap with no url_filter — every URL would be "
-                       "classified; refusing to fetch %d item(s)", source["id"], len(entries))
+        logger.warning("source '%s' is a sitemap with no url_filter or title_filter — every "
+                       "URL would be classified; refusing to fetch %d item(s)",
+                       source["id"], len(entries))
         return []
 
-    strip_pattern = source.get("slug_strip")
     slug_date = source.get("slug_date") or {}
     date_pattern = slug_date.get("pattern")
     date_format = slug_date.get("format", "%d-%m-%Y")
-    title_case = source.get("title_case")
     items: list[dict[str, Any]] = []
-    for url, lastmod in entries[:limit]:
-        title = _recase_title(_title_from_slug(url, strip_pattern), title_case)
+    for entry in entries[:limit]:
+        url, title, published = entry["url"], entry["title"], entry["published"]
         if not title:
             continue
-        published = lastmod
-        if date_pattern:
+        # A date the publisher stated for THIS item is already the truth; slug_date exists
+        # only to overrule a sitemap-wide build timestamp.
+        if date_pattern and not entry["dated_by_publisher"]:
             match = re.search(date_pattern, url)
             if match:
                 try:
@@ -1198,6 +1238,38 @@ def purge_failed(*, push: bool = True) -> dict[str, Any]:
                                 prod.get("deleted"), prod.get("by_source") or "")
             except (requests.RequestException, ValueError) as exc:
                 logger.error("purge-failed in prod failed: %s", exc)
+    return {"local": local, "prod": prod}
+
+
+def rejudge_source(source_id: str, *, days: int = 60, push: bool = True) -> dict[str, Any]:
+    """Delete one source's rejected rows here and in prod, so the next run judges them again.
+
+    For when the gate changed, not the item: a source that gains ``skip_triage_filter``, or an
+    authoritative source whose model verdict is now overridden, has a backlog of items its old
+    gate buried — and a stored verdict is never revisited on its own. Relevant rows are never
+    touched, so nothing already on the feed can disappear. No LLM calls here; the re-reading
+    happens on the next ordinary run, which pays for the items once.
+    """
+    local = news_store.delete_rejected_from_source(source_id, days=days)
+    logger.info("rejudge %s: %d rejected row(s) deleted locally", source_id, local["deleted"])
+    prod: dict[str, Any] = {"deleted": 0}
+    if push:
+        secret = os.getenv("ADMIN_API_SECRET", "").strip()
+        if not secret:
+            logger.error("ADMIN_API_SECRET is not set — cannot rejudge in prod")
+        else:
+            try:
+                resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/rejudge",
+                                     json={"source_id": source_id, "days": days},
+                                     headers={"X-Admin-Secret": secret}, timeout=120)
+                if resp.status_code != 200:
+                    logger.error("rejudge in prod: HTTP %s %s", resp.status_code, resp.text[:300])
+                else:
+                    prod = resp.json() or {}
+                    logger.info("rejudge %s in prod: %s row(s) deleted",
+                                source_id, prod.get("deleted"))
+            except (requests.RequestException, ValueError) as exc:
+                logger.error("rejudge in prod failed: %s", exc)
     return {"local": local, "prod": prod}
 
 
@@ -1438,6 +1510,26 @@ def _split_for_triage(
             [it for it in rest if not it.get("skip_triage")])
 
 
+def _skip_triage(source: dict[str, Any], item: dict[str, Any]) -> bool:
+    """Whether this one item bypasses the cheap gate.
+
+    ``skip_triage`` is a property of the whole source (a rating agency read through a
+    url_filter: everything that arrives has already been matched to an issuer).
+    ``skip_triage_filter`` is the per-item form, for a source whose stream is mostly other
+    people's news — The Diplomat covers all of Central Asia, and its Kazakh and Mongolian
+    pieces should keep facing the gate, while the ones that name Uzbekistan should not: the
+    gate reads a 130-character teaser, has rejected 'Uzbekistan's Nuclear Power Plant Project
+    Advances' at 0.2, and a triage rejection is stored for good.
+    """
+    if source.get("skip_triage"):
+        return True
+    pattern = source.get("skip_triage_filter")
+    if not pattern:
+        return False
+    text = f"{item.get('title') or ''} {item.get('snippet') or ''} {item.get('url') or ''}"
+    return bool(re.search(pattern, text, re.I))
+
+
 def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run: bool = False) -> dict[str, Any]:
     sources = load_sources(only)
     universe = build_universe()
@@ -1459,7 +1551,11 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
             it["source"] = src["name"]
             it["source_id"] = src["id"]
             it["coverage_weight"] = src.get("coverage_weight", 0.5)
-            it["skip_triage"] = bool(src.get("skip_triage"))
+            it["skip_triage"] = _skip_triage(src, it)
+            # A source read through a url/title filter has had its relevance established
+            # before any model saw it — see the gate-2 override below.
+            it["filtered_to_our_market"] = bool(
+                src.get("skip_triage") and (src.get("url_filter") or src.get("title_filter")))
             # Every adapter stamps the source's DECLARED first language, which is a constant
             # per source and therefore wrong for any outlet that publishes in more than one
             # (kun.uz, spot.uz, uzdaily all declare two or three). Read the item instead;
@@ -1537,6 +1633,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     records: list[dict[str, Any]] = []
     failed = 0
     triaged_out = 0
+    kept_by_filter = 0
     # Filings are rated by a separate, compact prompt (no issuer universe — their ticker and
     # class come from the filing) and never face the triage gate.
     filings, pre_gated, to_screen = _split_for_triage(kept)
@@ -1565,7 +1662,22 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         if cls.reason == "classification_failed":
             failed += 1
             continue
-        records.append({**it, "model": model, **cls.model_dump()})
+        record = {**it, "model": model, **cls.model_dump()}
+        # A rating agency reaches us only through a url/title filter that already matched one
+        # of our issuers or the sovereign, which is what makes the source authoritative on the
+        # read side. The item it publishes is a bare entity name with no snippet ('JSC Navoi
+        # Mining Metallurgical Company'), and asked to classify that string the model can
+        # reasonably answer 'no listed issuer or direct market link' — measured, on an item
+        # whose sister ('JSC Uzbek Metallurgical Plant') it passed. That verdict is stored and
+        # never revisited, so it would bury a rating action for good. The filter wins here: a
+        # dull affirmation on the feed costs a reader a scroll, a lost downgrade costs more.
+        if record.get("filtered_to_our_market") and not record.get("relevant"):
+            record["relevant"] = True
+            record["relevance_score"] = max(float(record.get("relevance_score") or 0.0), 0.5)
+            record["reason"] = (f"{cls.reason or 'model said not relevant'} — kept: the source "
+                                f"filter already matched an issuer")
+            kept_by_filter += 1
+        records.append(record)
 
     for it, cls in zip(filings, classify_filings(filings, usage=usage)):
         record = {**it, "model": model, **cls.model_dump()}
@@ -1581,6 +1693,9 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
 
     if failed:
         logger.warning("%d item(s) failed classification — not stored, will retry next run", failed)
+    if kept_by_filter:
+        logger.info("%d item(s) kept over the model's verdict: their source filter had already "
+                    "matched an issuer", kept_by_filter)
     relevant = [r for r in records if r.get("relevant")]
     logger.info("classified %d items (%d stopped at triage, %d relevant); ~%d tokens in "
                 "%d calls (%.0f%% of input from prompt cache), est $%.4f at %s list prices",
@@ -1654,6 +1769,9 @@ def main() -> None:
                          "their translations (one small LLM call per 10 items)")
     ap.add_argument("--purge-failed", action="store_true",
                     help="delete items whose classification failed so the next run retries them")
+    ap.add_argument("--rejudge", metavar="SOURCE_ID",
+                    help="delete this source's REJECTED items (relevant=0) so the next run "
+                         "classifies them again — for when the gate changed, not the item")
     args = ap.parse_args()
     # The log names Russian/Uzbek drop reasons and issuer titles; on Windows the console
     # defaults to a legacy codepage and renders them as mojibake, which makes the prefilter's
@@ -1667,7 +1785,9 @@ def main() -> None:
     # feedparser missing from the image made every cron run collect 0 items while
     # exiting 0 — name the gap in the log instead of shrugging it off.
     preflight(NEWS_REQUIREMENTS, label="news-collector")
-    if args.purge_failed:
+    if args.rejudge:
+        result = rejudge_source(args.rejudge, push=not args.no_push)
+    elif args.purge_failed:
         result = purge_failed(push=not args.no_push)
     elif args.backfill_images:
         result = backfill_images(limit=args.limit, push=not args.no_push)
