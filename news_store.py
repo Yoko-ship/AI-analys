@@ -582,6 +582,67 @@ def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[
     return [it for _w, _t, it in kept]
 
 
+# --------------------------------------------------------------------------- #
+# international / local balance
+# --------------------------------------------------------------------------- #
+# The English-language wires (the rating agencies, The Diplomat, Trend, TCA, UzA English)
+# publish a handful of market items a day between them; the local outlets publish forty.
+# Rank alone therefore hands the whole page to the local side — and worse for exactly the
+# items this exists for, since an international story rarely names a ticker and the score
+# rewards that. So the two streams are ranked separately and interleaved to a target share.
+# 0 turns the balance off entirely and restores the plain ranked order.
+_INTERNATIONAL_SHARE = max(0.0, min(float(os.getenv("NEWS_INTERNATIONAL_SHARE", "0.5")), 1.0))
+_ORIGINS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news_sources.json")
+_international_ids: set[str] | None = None
+
+
+def international_source_ids() -> set[str]:
+    """Source ids the registry marks ``origin: "international"`` (cached, fail-soft)."""
+    global _international_ids
+    if _international_ids is None:
+        try:
+            with open(_ORIGINS_FILE, encoding="utf-8") as fh:
+                data = json.load(fh)
+            _international_ids = {s["id"] for s in data.get("sources", [])
+                                  if s.get("id") and s.get("origin") == "international"}
+        except (OSError, ValueError, KeyError):
+            logger.warning("could not read source origins from %s — feed balance is off",
+                           _ORIGINS_FILE)
+            _international_ids = set()
+    return _international_ids
+
+
+def _balance_origins(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """Interleave the international and local streams to ``_INTERNATIONAL_SHARE``.
+
+    Each side keeps its own ranking, so this decides *how many* of each get shown, never
+    which ones. Whichever side runs out is filled from the other — a quiet week for the
+    agencies must not shorten the page, and it must not hold a slot open with a stale card.
+    """
+    if _INTERNATIONAL_SHARE <= 0 or not items:
+        return items[:limit]
+    intl_ids = international_source_ids()
+    if not intl_ids:
+        return items[:limit]
+    intl = [it for it in items if it.get("source_id") in intl_ids]
+    local = [it for it in items if it.get("source_id") not in intl_ids]
+    if not intl or not local:
+        return items[:limit]
+
+    out: list[dict[str, Any]] = []
+    i = j = 0
+    while len(out) < limit and (i < len(intl) or j < len(local)):
+        # Take from the side that would still be under its share after this slot is filled.
+        want_intl = i < _INTERNATIONAL_SHARE * (i + j + 1)
+        if want_intl and i < len(intl):
+            out.append(intl[i]); i += 1
+        elif j < len(local):
+            out.append(local[j]); j += 1
+        elif i < len(intl):
+            out.append(intl[i]); i += 1
+    return out
+
+
 # The two reading modes the news section offers, over the four classes the
 # classifier already assigns (news_classifier.NewsType). Between them they cover
 # all four, so no item is reachable from neither tab:
@@ -668,7 +729,7 @@ def get_news_feed(
         it["rank"] = rank_score(it, now)
     items.sort(key=lambda it: (-it["rank"], str(it.get("published_at") or "")))
     items = _dedupe_stories(items, _DEDUP_SIMILARITY)
-    return items[:max(1, min(limit, 200))]
+    return _balance_origins(items, max(1, min(limit, 200)))
 
 
 def get_news_item(news_id: int) -> dict[str, Any] | None:
