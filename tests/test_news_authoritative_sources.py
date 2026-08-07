@@ -105,14 +105,45 @@ class TestWhoSkipsTheTriageGate:
             [{"id": 1, "always_relevant": True, "skip_triage": True}])
         assert pre_gated == [] and to_screen == []
 
-    @pytest.mark.parametrize("source_id", ["fitch", "moodys"])
+    @pytest.mark.parametrize("source_id", ["fitch", "moodys", "spglobal"])
     def test_the_agencies_declare_it_in_the_registry(self, source_id) -> None:
         assert _source(source_id).get("skip_triage") is True
 
-    def test_only_a_url_filtered_source_may_declare_it(self) -> None:
-        """The gate is skipped because the URL already named one of our issuers. A source
-        without that filter has had nothing established, so skipping triage there would
-        send a whole general-news feed to the full classifier at full price."""
+    def test_only_a_filtered_source_may_declare_it(self) -> None:
+        """The gate is skipped because a filter already named one of our issuers — over the
+        URL for the two agencies with slugs, over the headline for S&P, whose <loc> is a bare
+        numeric id. A source with neither filter has had nothing established, so skipping
+        triage there would send a whole general-news feed to the full classifier at full
+        price."""
         offenders = [s["id"] for s in REGISTRY
-                     if s.get("skip_triage") and not s.get("url_filter")]
+                     if s.get("skip_triage")
+                     and not (s.get("url_filter") or s.get("title_filter"))]
         assert offenders == []
+
+
+class TestWhenTheGateIsPerItem:
+    """``skip_triage_filter`` — a source whose stream is mostly other countries' news."""
+
+    def _diplomat(self, title, snippet="") -> bool:
+        return nc._skip_triage(_source("thediplomat"),
+                               {"title": title, "snippet": snippet, "url": ""})
+
+    def test_the_uzbekistan_items_bypass_the_cheap_gate(self) -> None:
+        # All three were fetched, judged by triage, and stored as irrelevant — measured on
+        # the live window, 2026-08-07.
+        assert self._diplomat("Uzbekistan's Nuclear Power Plant Project Advances")
+        assert self._diplomat("Uzbekistan Launches Its First Tax-Free Crypto Mining Zone")
+        assert self._diplomat("Progress on the China-Kyrgyzstan-Uzbekistan Railway, "
+                              "Some Challenges Remain")
+
+    def test_the_rest_of_central_asia_still_faces_it(self) -> None:
+        assert not self._diplomat("Kazakh President Tokayev's 'Humble' Query for Peace")
+        assert not self._diplomat("Mongolia's Fuel Crisis Is a Demand Problem")
+        assert not self._diplomat("Far More Than Ruins: Life in Engilcheck, Kyrgyzstan")
+
+    def test_a_source_level_flag_still_covers_every_item(self) -> None:
+        assert nc._skip_triage(_source("fitch"), {"title": "jsc uzbek metallurgical plant"})
+        assert nc._skip_triage({"skip_triage": True}, {"title": "anything at all"})
+
+    def test_a_source_with_neither_knob_gates_everything(self) -> None:
+        assert not nc._skip_triage(_source("spot"), {"title": "Uzbekistan launches something"})
