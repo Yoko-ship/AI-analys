@@ -5628,6 +5628,45 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   const [chartType, setChartType] = React.useState("candle"); // candle | line — candles are the default when OHLC is available
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
 
+  // The chart's height used to be a side effect of its width: the SVG carried a
+  // fixed 820x360 viewBox at `width: 100%; height: auto`, so it was 488px tall
+  // in a 1112px column and 246px in a 560px one — tall where there was room to
+  // spare and short where there was none, with 664px of empty page underneath it
+  // at 1900px. Measure the box instead and solve the viewBox height for the
+  // height we actually want, which keeps the 1:1 aspect mapping (no distorted
+  // strokes or stretched axis labels, which is what preserveAspectRatio="none"
+  // would have cost) while letting the drawing fill its space.
+  // A CALLBACK ref, not useRef + useLayoutEffect([]): this component returns
+  // early while the history is still loading, so on the first render there is no
+  // <svg> to measure — and an effect with an empty dependency list never runs
+  // again once the chart appears. It measured 0 forever and the chart stayed at
+  // its old fixed height.
+  const [boxW, setBoxW] = React.useState(0);
+  const [viewH, setViewH] = React.useState(0);
+  const chartNode = React.useRef(null);
+  const roRef = React.useRef(null);
+  const measure = React.useCallback(() => {
+    const n = chartNode.current;
+    if (!n || typeof window === "undefined") return;
+    setBoxW(n.getBoundingClientRect().width);
+    setViewH(window.innerHeight);
+  }, []);
+  const attachChart = React.useCallback((node) => {
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+    chartNode.current = node;
+    if (!node) return;
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      roRef.current = new ResizeObserver(measure);
+      roRef.current.observe(node);
+    }
+  }, [measure]);
+  React.useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure]);
+
   const rangeBar = (
     <div className="company-chart-ranges">
       {RANGES.map((r) => (
@@ -5675,7 +5714,16 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   const abbrev = (v) => v == null ? "—" : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : `${Math.round(v)}`;
   const fmtFull = (v) => v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 });
 
-  const W = 820, H = 360;
+  const W = 820;
+  // How tall the drawing should actually be on screen, before it is expressed in
+  // viewBox units. Bounded at both ends: a chart shorter than 340px cannot show
+  // a candle body, and one taller than 660px pushes «О компании» off the fold on
+  // a laptop. 58 % of the window is the band between those on the screens this
+  // is used on; the fallback runs one frame, before the box has been measured.
+  // Left unrounded on purpose: these are SVG user units, not a published figure,
+  // and the repo's round-on-output rule is about the latter.
+  const targetPx = Math.max(340, Math.min(660, (viewH || 900) * 0.58));
+  const H = boxW > 0 ? (targetPx * W) / boxW : 360;
   const PAD = { top: 14, right: 14, bottom: 40, left: 64 };
   const VOL_H = 46;
   const priceTop = PAD.top;
@@ -5937,7 +5985,13 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
         </p>
       )}
 
-      <svg viewBox={`0 0 ${W} ${H}`} className="company-price-chart-svg" style={{ width: "100%", height: "auto" }}
+      {/* `height: auto` still derives the height from the viewBox — but the
+          viewBox height is now solved from the measured width, so the result is
+          `targetPx` at any column width. Everything expressed in viewBox units
+          (axis gutter, volume strip, type) renders at a size set by the WIDTH
+          and is unchanged by this; the whole of the extra height goes to the
+          price plot, which is the part worth more room. */}
+      <svg ref={attachChart} viewBox={`0 0 ${W} ${H}`} className="company-price-chart-svg" style={{ width: "100%", height: "auto" }}
         onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
         <defs>
           <linearGradient id="cpcgrad" x1="0" y1="0" x2="0" y2="1">
