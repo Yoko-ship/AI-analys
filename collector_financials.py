@@ -262,6 +262,46 @@ def push_trade_stats() -> int:
 SKIP_QUOTES = False
 
 
+def _history_universe() -> set[str]:
+    """Every ISIN the DEPLOYMENT's board carries, plus the local catalog's.
+
+    The board is the universe the interface quotes, and it is not this machine's
+    catalog: production carried 95 securities where the local one held 78, so a
+    backfill sourced from here alone left 29 board rows with no series and no way
+    to know it — the same shape as the quote-universe fix that sat inert for
+    three days because its backfill read the collector's own scratch DB.
+
+    The local catalog is unioned in rather than replaced: it holds codes that
+    have stopped trading and dropped off the live feed, and their past is still
+    their past.
+    """
+    codes: set[str] = set()
+    try:
+        from securities_catalog import get_securities_map
+
+        for meta in (get_securities_map() or {}).values():
+            isin = str((meta or {}).get("isin") or "").strip().upper()
+            if isin:
+                codes.add(isin)
+    except Exception:  # noqa: BLE001
+        log.exception("history backfill: local catalog unreadable")
+    local = len(codes)
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+    for kind in ("stock", "bond"):
+        try:
+            resp = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60)
+            resp.raise_for_status()
+            for row in (resp.json().get("stocks") or []):
+                isin = str(row.get("isin") or "").strip().upper()
+                if isin:
+                    codes.add(isin)
+        except Exception:  # noqa: BLE001 — the local catalog still gives us a run
+            log.exception("history backfill: could not read the deployment's %s board", kind)
+    log.info("history backfill universe: %d codes (%d local, %d added from the board)",
+             len(codes), local, len(codes) - local)
+    return codes
+
+
 def backfill_quote_history(months: int = 12) -> int:
     """Seed `catalog_quote_history` from openinfo's conclusions archive.
 
@@ -274,13 +314,9 @@ def backfill_quote_history(months: int = 12) -> int:
     exists to remove.
     """
     from openinfo_collector import _make_session, fetch_price_history
-    from securities_catalog import get_securities_map
 
     session = _make_session()
-    securities = get_securities_map() or {}
-    codes = sorted({str((meta or {}).get("isin") or "").upper()
-                    for meta in securities.values()
-                    if str((meta or {}).get("isin") or "").strip()})
+    codes = sorted(_history_universe())
     log.info("history backfill: %d securities, %d months each", len(codes), months)
     rows: list[dict] = []
     failed = 0
