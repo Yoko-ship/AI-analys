@@ -10269,9 +10269,12 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
    mobile.css — the narrow end of the three-column layout leaves the chart about
    560px, which is not quite a row. */
 .company-chart-ranges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
-.range-btn { padding: 3px 11px; border-radius: 6px; border: 1px solid var(--border); background: none; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
+/* Pills, as in the reference: fully rounded, outlined when idle, filled with the
+   accent and WHITE text when active. The old chips were 6px-radius with black
+   text on the accent, which read as a different control language. */
+.range-btn { padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border); background: none; font-size: 13px; line-height: 1.2; cursor: pointer; color: var(--text-secondary, var(--text-muted)); transition: all 0.12s; }
 .range-btn:hover { border-color: var(--accent); color: var(--text-primary); }
-.range-btn.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
+.range-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .company-price-chart-svg { display: block; color: var(--text-primary); cursor: crosshair; }
 .chart-loading { padding: 48px 0; text-align: center; }
 

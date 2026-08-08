@@ -5669,7 +5669,6 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const months = chartRangeSpan(range);
   const [hover, setHover] = React.useState(null);
-  const [chartType, setChartType] = React.useState("candle"); // candle | line — candles are the default when OHLC is available
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
 
   // The chart's height used to be a side effect of its width: the SVG carried a
@@ -5789,93 +5788,29 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const targetPx = Math.max(340, Math.min(660, (viewH || 900) * 0.58));
   const H = boxW > 0 ? (targetPx * W) / boxW : 360;
   const PAD = { top: 14, right: 14, bottom: 40, left: 64 };
-  const VOL_H = 46;
+  // No volume strip: the reference design has none, and the session's turnover,
+  // share count and trade count are stated in the «Торги» block beside the
+  // chart — so the information is on the page, not in a 1px histogram that a
+  // daily line at «Макс» turns into a smear.
   const priceTop = PAD.top;
-  const priceBot = H - PAD.bottom - VOL_H - 10;
-  const volTop = H - PAD.bottom - VOL_H;
-  const volBot = H - PAD.bottom;
+  const priceBot = H - PAD.bottom;
   const innerW = W - PAD.left - PAD.right;
 
-  // Candles are the primary view. The UZSE feed is daily-only (no intraday
-  // ticks), so bars can only be rolled *up*: the interval follows the selected
-  // range — daily for short spans, then calendar week / month / quarter — so
-  // bars stay wide and readable instead of hundreds of daily slivers.
+  // ONE view: a line. The customer asked for the reference page's chart and only
+  // that, so the candle mode, its interval roll-up (day/week/month/quarter) and
+  // the Линия/Свечи switch are gone. A line needs no bar width, which is what
+  // the roll-up existed to protect, so every session the range loaded is drawn.
   //
-  // ТЗ §6: OHLC correctness is a property of a POINT, not of the series. This
-  // used to be `daily.every(...)`, so one malformed record from the source
-  // switched candles off for the whole instrument.
+  // ТЗ §6: OHLC correctness is a property of a POINT, not of the series — kept
+  // because the tooltip still states open/high/low for the days that have them.
   const ohlcOk = (p) => p.open > 0 && p.high > 0 && p.low > 0 && p.close > 0
     && p.low <= Math.min(p.open, p.close) && Math.max(p.open, p.close) <= p.high;
-  const ohlcCount = windowed.reduce((n, p) => n + (ohlcOk(p) ? 1 : 0), 0);
-  const hasOHLC = ohlcCount > 0;
-  // ТЗ §6: candles are switched off BY THE SYSTEM at tier sparse/illiquid, not
-  // by hand. 15 of 77 securities break the thresholds — CTFB3 is 87 % flat
-  // candles on 32 % calendar coverage — and were drawn like a daily trader.
-  const tier = quality?.data_tier || null;
-  const tierBlocksCandles = quality ? quality.candles_enabled === false : false;
-  const canCandle = hasOHLC && !tierBlocksCandles;
-  const showCandles = chartType === "candle" && canCandle;
-
-  // A CANDLE needs width; a LINE does not. The reference page plots every daily
-  // close at every range and only thins its axis labels — a polyline can do
-  // exactly that, and the roll-up only ever existed to stop candle BODIES
-  // becoming slivers. So it now applies to candles and to nothing else, and a
-  // line no longer loses a month of detail to a rule written for bars.
-  //
-  // For candles the interval follows the width a body actually gets, measured,
-  // rather than a guess from the span: 210 sessions fit as daily candles in a
-  // 1112px chart at ~4.5px each and do not in a 560px one. The old thresholds
-  // (>6 months → weekly, >36 → monthly) could not know which they were in.
-  const MIN_CANDLE_PX = 4;
-  const plotPx = innerW * (boxW > 0 ? boxW / W : 1);
-  const fits = (n) => n > 0 && plotPx / n >= MIN_CANDLE_PX;
-  const bucketKind = !showCandles ? "day"
-    : fits(windowed.length) ? "day"
-    : fits(windowed.length / 5) ? "week"
-    : fits(windowed.length / 21) ? "month"
-    : "quarter";
-  const intervalLabel = {
-    day: t("дневные", "kunlik", "daily"),
-    week: t("недельные", "haftalik", "weekly"),
-    month: t("месячные", "oylik", "monthly"),
-    quarter: t("квартальные", "choraklik", "quarterly"),
-  }[bucketKind];
-  // Bucket key for a date under the chosen interval. daily points arrive sorted
-  // ascending, so a Map keyed this way yields buckets in chronological order.
-  const periodKey = (d) => {
-    const dt = new Date(d);
-    const y = dt.getFullYear();
-    if (bucketKind === "month") return `${y}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
-    if (bucketKind === "quarter") return `${y}-Q${Math.floor(dt.getMonth() / 3)}`;
-    // ISO week: Thursday-of-week decides the owning year/week number.
-    const thu = new Date(Date.UTC(y, dt.getMonth(), dt.getDate()));
-    thu.setUTCDate(thu.getUTCDate() - ((thu.getUTCDay() + 6) % 7) + 3);
-    const firstThu = new Date(Date.UTC(thu.getUTCFullYear(), 0, 4));
-    const week = 1 + Math.round(((thu - firstThu) / 864e5 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
-    return `${thu.getUTCFullYear()}-W${week}`;
-  };
-  const aggregate = (arr) => {
-    if (bucketKind === "day") return arr;
-    const groups = new Map();
-    for (const p of arr) {
-      const k = periodKey(p.date);
-      (groups.get(k) || groups.set(k, []).get(k)).push(p);
-    }
-    return Array.from(groups.values()).map((b) => ({
-      date: b[b.length - 1].date,
-      open: b[0].open,
-      high: Math.max(...b.map((p) => p.high)),
-      low: Math.min(...b.map((p) => p.low)),
-      close: b[b.length - 1].close,
-      volume: b.reduce((s, p) => s + (p.volume || 0), 0),
-      change: null,
-    }));
-  };
-  const candles = hasOHLC ? aggregate(windowed) : windowed;
-  const points = showCandles ? candles : windowed;
-  // Without candles the series is a step, not a slope: a line between two
-  // trades three weeks apart draws prices that never existed.
-  const stepLine = tierBlocksCandles;
+  const points = windowed;
+  // ТЗ §6 still applies to the SHAPE of the line. On a security that trades on a
+  // minority of days a straight segment between two trades three weeks apart
+  // draws prices that never existed, so the series becomes a step. The server
+  // decides which securities those are (data_tier sparse/illiquid), not a hand.
+  const stepLine = quality ? quality.candles_enabled === false : false;
 
   // Per point, again: a single record without a low must not drag the whole
   // price scale to NaN.
@@ -5884,11 +5819,15 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const minP = Math.min(...lows), maxP = Math.max(...highs);
   const rangeP = maxP - minP || 1;
   const maxVol = Math.max(...points.map((p) => p.volume), 1);
+  // Per-point markers only where a marker can be READ. On a step series every
+  // point is a trade and worth showing, but KSCM at «Макс» has 1033 of them:
+  // they stop being marks and become a smear over the line. Same measured-width
+  // reasoning the candle interval used before it was removed.
+  const gapPx = (innerW * (boxW > 0 ? boxW / W : 1)) / Math.max(1, points.length - 1);
+  const showPointMarks = stepLine && gapPx >= 8;
 
   const xs = (i) => PAD.left + (i / (points.length - 1)) * innerW;
   const ys = (p) => priceTop + (1 - (p - minP) / rangeP) * (priceBot - priceTop);
-  const vy = (v) => volBot - (v / maxVol) * (volBot - volTop);
-  const candleW = Math.max(2, Math.min(15, (innerW / points.length) * 0.62));
 
   const lineD = points.map((p, i) => {
     const x = xs(i).toFixed(1), y = ys(p.close).toFixed(1);
@@ -5970,7 +5909,9 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const yLabels = [];
   if (yStep > 0) {
     const first = Math.ceil(minP / yStep) * yStep;
-    for (let v = first; v <= maxP + yStep * 1e-9; v += yStep) yLabels.push({ y: ys(v), label: abbrev(v) });
+    // Full numbers, not 10.0K: this is a price scale and the reference states it
+    // as one. `abbrev` stays for the tooltip's volume, where a K/M really helps.
+    for (let v = first; v <= maxP + yStep * 1e-9; v += yStep) yLabels.push({ y: ys(v), label: fmtFull(v) });
   }
   // A flat or near-flat series can leave one round number in range (or none) —
   // then an even split of the range is the only honest axis left.
@@ -5981,7 +5922,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       const v = minP + (i / yTicks) * rangeP;
       // A price that never moved would otherwise stack the same number five
       // times down the panel and call it a scale.
-      const label = abbrev(v);
+      const label = fmtFull(v);
       if (seen.has(label)) continue;
       seen.add(label);
       yLabels.push({ y: ys(v), label });
@@ -6037,12 +5978,6 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       <div className="company-chart-toolbar">
         {rangeBar}
         <div className="company-chart-opts">
-          <button type="button" className={`chart-opt-btn ${!showCandles ? "active" : ""}`} onClick={() => setChartType("line")}>{t("Линия", "Chiziq", "Line")}</button>
-          {canCandle && (
-            <button type="button" className={`chart-opt-btn ${showCandles ? "active" : ""}`} onClick={() => setChartType("candle")}>{t("Свечи", "Shamlar", "Candles")}</button>
-          )}
-          {showCandles && <span className="chart-interval-tag" title={t("Интервал одной свечи", "Bitta shamning oralig'i", "Interval per candle")}>{intervalLabel}</span>}
-          <span className="chart-opt-sep" />
           <button type="button" className={`chart-opt-btn chart-ma-ma20 ${maOn.ma20 ? "active" : ""}`}
             disabled={!ma20Available}
             title={`${MA_DAYS.ma20} ${t("календарных дней", "kalendar kun", "calendar days")}`}
@@ -6054,16 +5989,13 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         </div>
       </div>
 
-      {tierBlocksCandles && (
+      {stepLine && (
         <p className="cpc-tier-note muted">
-          {t("Свечи отключены: сделок слишком мало, чтобы дневной диапазон что-то значил",
-             "Shamlar o'chirilgan: kunlik diapazon uchun bitimlar juda kam",
-             "Candles are off: too few trades for a daily range to mean anything")}
+          {t("Цена показана ступенями — между сделками она не менялась",
+             "Narx pog'onalar bilan ko'rsatilgan — bitimlar orasida u o'zgarmagan",
+             "The price is drawn as steps — between trades it did not move")}
           {quality?.reason ? ` — ${quality.reason}` : ""}
-          {". "}
-          {t("Цена показана ступенями — между сделками она не менялась.",
-             "Narx pog'onalar bilan ko'rsatilgan — bitimlar orasida u o'zgarmagan.",
-             "The price is drawn as steps — between trades it did not move.")}
+          {"."}
         </p>
       )}
 
@@ -6082,51 +6014,16 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           </linearGradient>
         </defs>
 
+        {/* Dashed horizontal grid, as in the reference. Full plot width, under
+            everything the reader is meant to look at. */}
         {yLabels.map((tick, i) => (
-          <line key={i} x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y} stroke="currentColor" strokeOpacity="0.08" />
+          <line key={i} x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y}
+            stroke="currentColor" strokeOpacity="0.16" strokeDasharray="4 6" strokeWidth="0.8" />
         ))}
 
-        {/* Volume bars. A bucket with no trades gets no bar: the 0.5px floor
-            below is there so a small volume stays visible, and applying it to
-            zero painted a red/green dashed line across the whole baseline that
-            looked like an axis and meant "no trades". The baseline is drawn
-            once, in the colour of the grid. */}
-        <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot} stroke="currentColor" strokeOpacity="0.08" />
-        {points.map((p, i) => {
-          if (!(p.volume > 0)) return null;
-          const up = ohlcOk(p) ? p.close >= p.open : (i > 0 ? p.close >= points[i - 1].close : true);
-          const vh = Math.max(0.5, volBot - vy(p.volume));
-          return <rect key={`v${i}`} x={xs(i) - candleW / 2} y={vy(p.volume)} width={candleW} height={vh}
-            fill={up ? "#22c55e" : "#ef4444"} opacity={hover === i ? 0.9 : 0.32} />;
-        })}
-
-        {/* Price series */}
-        {showCandles ? (
-          points.map((p, i) => {
-            const x = xs(i);
-            // A point whose OHLC does not hold gets a close tick, not an
-            // invented body — and the rest of the series still draws.
-            if (!ohlcOk(p)) {
-              return <line key={`c${i}`} x1={x - candleW / 2} y1={ys(p.close)} x2={x + candleW / 2} y2={ys(p.close)}
-                stroke="currentColor" strokeOpacity="0.45" strokeWidth="1.5" />;
-            }
-            const up = p.close >= p.open;
-            const c = up ? "#22c55e" : "#ef4444";
-            const yO = ys(p.open), yC = ys(p.close);
-            const bodyTop = Math.min(yO, yC), bodyH = Math.max(1, Math.abs(yC - yO));
-            return (
-              <g key={`c${i}`}>
-                <line x1={x} y1={ys(p.high)} x2={x} y2={ys(p.low)} stroke={c} strokeWidth="1" />
-                <rect x={x - candleW / 2} y={bodyTop} width={candleW} height={bodyH} fill={c} />
-              </g>
-            );
-          })
-        ) : (
-          <>
-            <path d={areaD} fill="url(#cpcgrad)" />
-            <path d={lineD} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
-          </>
-        )}
+        <path d={areaD} fill="url(#cpcgrad)" />
+        <path d={lineD} fill="none" stroke={color} strokeWidth="2"
+          strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
 
         {ma20 && <path d={maPath(ma20)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeOpacity="0.9" />}
         {ma50 && <path d={maPath(ma50)} fill="none" stroke="#a855f7" strokeWidth="1.5" strokeOpacity="0.9" />}
@@ -6146,7 +6043,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
             size, so a run of identical prices does not read as steady trading;
             and a move that stopped exactly at the ±20 % daily limit is marked,
             because it is a rule of the exchange, not a decision of the market. */}
-        {!showCandles && stepLine && points.map((p, i) => {
+        {showPointMarks && points.map((p, i) => {
           const share = maxVol > 0 ? (p.volume || 0) / maxVol : 0;
           const r = 1.6 + Math.sqrt(Math.max(share, 0)) * 3.4;
           const prev = i > 0 ? points[i - 1].close : null;
@@ -6167,17 +6064,17 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           );
         })}
 
-        {!showCandles && <circle cx={xs(points.length - 1)} cy={ys(points[points.length - 1].close)} r="4" fill={color} />}
+        {<circle cx={xs(points.length - 1)} cy={ys(points[points.length - 1].close)} r="4" fill={color} />}
 
         {eventMarks.map((m) => (
-          <line key={`ev${m.ex_date}`} x1={xs(m.i)} y1={priceTop} x2={xs(m.i)} y2={volBot}
+          <line key={`ev${m.ex_date}`} x1={xs(m.i)} y1={priceTop} x2={xs(m.i)} y2={priceBot}
             stroke="currentColor" strokeOpacity="0.3" strokeDasharray="2 4" />
         ))}
 
         {/* Crosshair */}
         {hover != null && (
           <>
-            <line x1={hx} y1={priceTop} x2={hx} y2={volBot} stroke="currentColor" strokeOpacity="0.38" strokeDasharray="3 3" />
+            <line x1={hx} y1={priceTop} x2={hx} y2={priceBot} stroke="currentColor" strokeOpacity="0.38" strokeDasharray="3 3" />
             <circle cx={hx} cy={ys(points[hover].close)} r="3.6" fill={color} stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
           </>
         )}
