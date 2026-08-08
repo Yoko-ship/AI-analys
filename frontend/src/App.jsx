@@ -5675,8 +5675,19 @@ function chartRangeCutoff(key) {
  * would flatten one of them onto the frame and compare nothing. Percent is also
  * what «сравнить» means here: which of the two moved more.
  */
-const QC_COLORS = ["#f472b6", "#22d3ee", "#94a3b8"];
-const QC_MAX = 3;
+// How many peers can be on the chart at once — a palette limit, not a data one.
+// The request carries any number of tickers and the store answers for all of
+// them; what runs out is COLOUR. The chart already spends green and red on this
+// security's own direction, amber on MA20 and violet on MA50, so a peer colour
+// has to be told apart from four things before it is told apart from the other
+// peers. Five hues survive that on both themes; a sixth would either repeat a
+// hue or sit next to one, and two lines the reader cannot separate are worse
+// than one line they cannot add.
+// Gold, not #facc15: the brighter yellow reads on the dark theme and nearly
+// vanishes on the light one, and a line only one of two readers can follow is
+// not a fifth colour.
+const QC_COLORS = ["#f472b6", "#22d3ee", "#3b82f6", "#94a3b8", "#eab308"];
+const QC_MAX = QC_COLORS.length;
 
 // Which securities the strip offers. Pure and module-level for the same reason
 // watchRailLists is: the page fetches a stored series for exactly these
@@ -5853,9 +5864,9 @@ function QuickCompareStrip({ peers, securitiesMap, selected, colors, onToggle, l
                 disabled={!on && full}
                 aria-pressed={on}
                 title={!on && full
-                  ? t(`Одновременно можно сравнивать ${QC_MAX} бумаги`,
-                      `Bir vaqtda ${QC_MAX} ta qog'oz`,
-                      `Up to ${QC_MAX} securities at a time`)
+                  ? t(`Не больше ${QC_MAX} — уберите одну бумагу, чтобы добавить другую`,
+                      `${QC_MAX} tadan ko'p emas — bittasini olib tashlang`,
+                      `Up to ${QC_MAX} — remove one to add another`)
                   : `${r.name || tk} — ${on ? t("убрать с графика", "grafikdan olib tashlash", "remove from the chart")
                                              : t("добавить на график", "grafikka qo'shish", "add to the chart")}`}
                 onClick={() => onToggle(tk)}>
@@ -7481,7 +7492,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   // the chart trim to the range on screen.
   const compareKey = [...compareTickers].sort().join(",");
   React.useEffect(() => {
-    if (!compareKey) return undefined;
+    // Cleared while a request was in flight: the flag has to fall with the
+    // selection, or the strip keeps saying «загрузка…» over an empty chart.
+    if (!compareKey) { setCompareLoading(false); return undefined; }
     let alive = true;
     setCompareLoading(true);
     fetch(`/api/quotes/series?tickers=${encodeURIComponent(compareKey)}&days=3650`)
