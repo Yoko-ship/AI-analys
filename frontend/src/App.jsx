@@ -6649,37 +6649,251 @@ function CompanyReportsTab({ reports, lang }) {
   );
 }
 
-function CompanyFinancialsTab({ ratios, lang }) {
-  const metrics = ratios?.metrics || {};
-  const rows = [
-    { key: "ROA", label: "ROA", group: lang === "ru" ? "Рентабельность" : "Profitability" },
-    { key: "ROE", label: "ROE", group: lang === "ru" ? "Рентабельность" : "Profitability" },
-    { key: "net_margin", label: lang === "ru" ? "Чистая маржа" : "Net Margin", group: lang === "ru" ? "Рентабельность" : "Profitability" },
-    { key: "debt_ratio", label: lang === "ru" ? "Долговая нагрузка" : "Debt Ratio", group: lang === "ru" ? "Долговая нагрузка" : "Leverage" },
-    { key: "debt_to_equity", label: lang === "ru" ? "Долг/Капитал" : "D/E Ratio", group: lang === "ru" ? "Долговая нагрузка" : "Leverage" },
-  ].filter((r) => metrics[r.key] != null);
-  const groups = [...new Set(rows.map((r) => r.group))];
-  if (rows.length === 0) return (
-    <div className="panel" style={{ padding: 32, textAlign: "center" }}>
-      <p className="muted">{lang === "ru" ? "Финансовые показатели не кешированы. Запустите анализ в разделе Каталог." : "No cached financials. Run ratio analysis in Catalog to populate."}</p>
+// The Финансы tab, on the reference page's shape: sub-tabs across the statement,
+// a multi-series chart of the section's headline lines, then a table with one
+// column per YEAR and a growth row under each absolute figure.
+//
+// The series comes from /api/company/{t}/financials — the fact store, which has
+// held nine to eleven annual periods per issuer all along and was serving
+// nobody. This tab used to show ONE period's five ratios out of the reports
+// cache, and «не кешированы» for every issuer whose cache was cold.
+//
+// No Cash Flow sub-tab: NSBU form 4 is not parsed, so there is no cash-flow
+// series to put behind it. An empty fourth tab would look like a loading bug.
+const FIN_SECTIONS = [
+  {
+    key: "income",
+    label: ["Прибыли и убытки", "Foyda va zarar", "Income Statement"],
+    rows: ["net_revenue", "net_profit"],
+    // Percentages get their own block, as on the reference: mixing a margin
+    // into a column of sums invites reading 5.62 as five sums.
+    margins: ["gross_profit_margin", "ebit_margin", "net_profit_margin"],
+    chart: ["net_revenue", "net_profit"],
+  },
+  {
+    key: "balance",
+    label: ["Баланс", "Balans", "Balance Sheet"],
+    rows: ["total_assets", "total_liabilities", "total_equity"],
+    chart: ["total_assets", "total_liabilities", "total_equity"],
+  },
+  {
+    key: "ratios",
+    label: ["Коэффициенты", "Koeffitsiyentlar", "Key Ratios"],
+    margins: ["roe", "roa", "current_ratio", "quick_ratio", "debt_ratio",
+              "debt_to_equity", "total_asset_turnover", "return_to_capital_employed"],
+    chart: ["roe", "roa"],
+  },
+];
+
+const FIN_FIELD_LABELS = {
+  net_revenue: ["Выручка", "Tushum", "Revenue"],
+  net_profit: ["Чистая прибыль", "Sof foyda", "Net Profit"],
+  total_assets: ["Активы", "Aktivlar", "Total Assets"],
+  total_liabilities: ["Обязательства", "Majburiyatlar", "Total Liabilities"],
+  total_equity: ["Капитал", "Kapital", "Total Equity"],
+  gross_profit_margin: ["Валовая маржа", "Yalpi marja", "Gross Margin"],
+  ebit_margin: ["EBIT-маржа", "EBIT marja", "EBIT Margin"],
+  net_profit_margin: ["Чистая маржа", "Sof marja", "Net Margin"],
+  roe: ["ROE", "ROE", "ROE"],
+  roa: ["ROA", "ROA", "ROA"],
+  current_ratio: ["Текущая ликвидность", "Joriy likvidlik", "Current Ratio"],
+  quick_ratio: ["Быстрая ликвидность", "Tez likvidlik", "Quick Ratio"],
+  debt_ratio: ["Долг/Активы", "Qarz/Aktivlar", "Debt Ratio"],
+  debt_to_equity: ["Долг/Капитал", "Qarz/Kapital", "Debt/Equity"],
+  total_asset_turnover: ["Оборачиваемость активов", "Aktivlar aylanmasi", "Asset Turnover"],
+  return_to_capital_employed: ["ROCE", "ROCE", "ROCE"],
+};
+
+const finLabel = (field, lang) =>
+  (FIN_FIELD_LABELS[field] || [field, field, field])[lang === "uz" ? 1 : lang === "en" ? 2 : 0];
+
+// The section's headline lines over time. Deliberately not the price chart: no
+// range buttons, no hover — this is a shape, and the table underneath is the data.
+function FinancialsChart({ fields, series, periods, lang }) {
+  const cols = [...periods].reverse();               // oldest → newest, left → right
+  const COLORS = ["#38bdf8", "#f59e0b", "#a855f7"];
+  const drawn = fields
+    .map((f, i) => ({ f, color: COLORS[i % COLORS.length], s: series[f] }))
+    .filter((d) => d.s && cols.some((c) => Number.isFinite(d.s.values[c])));
+  if (drawn.length === 0 || cols.length < 2) return null;
+
+  const all = drawn.flatMap((d) => cols.map((c) => d.s.values[c]).filter(Number.isFinite));
+  // Zero-based, as on the reference: an axis that starts at its own minimum
+  // turns a three-percent move into a cliff.
+  const max = Math.max(...all, 0), min = Math.min(...all, 0);
+  const span = max - min || 1;
+  const W = 820, H = 210, PAD = { t: 12, r: 14, b: 26, l: 70 };
+  const x = (i) => PAD.l + (i / Math.max(1, cols.length - 1)) * (W - PAD.l - PAD.r);
+  const y = (v) => PAD.t + (1 - (v - min) / span) * (H - PAD.t - PAD.b);
+  const money = drawn[0].s.money;
+  const pct = drawn[0].s.unit === "%";
+  const axis = (v) => (money ? formatCompactVolume(v, lang)
+    : `${formatRatio(v, 1, lang)}${pct ? "%" : ""}`);
+  return (
+    <div className="fin-chart">
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+        {[0, 0.5, 1].map((f, i) => (
+          <line key={i} x1={PAD.l} y1={y(min + f * span)} x2={W - PAD.r} y2={y(min + f * span)}
+            stroke="currentColor" strokeOpacity="0.16" strokeDasharray="4 6" strokeWidth="0.8" />
+        ))}
+        {[0, 0.5, 1].map((f, i) => (
+          <text key={`l${i}`} x={PAD.l - 8} y={y(min + f * span) + 3.5} textAnchor="end"
+            fontSize="10" fill="currentColor" opacity="0.5">{axis(min + f * span)}</text>
+        ))}
+        {drawn.map((d) => {
+          const pts = cols.map((c, i) => ({ i, v: d.s.values[c] })).filter((pt) => Number.isFinite(pt.v));
+          if (pts.length < 2) return null;
+          const path = pts.map((pt, k) => `${k ? "L" : "M"}${x(pt.i).toFixed(1)},${y(pt.v).toFixed(1)}`).join(" ");
+          return <path key={d.f} d={path} fill="none" stroke={d.color} strokeWidth="2"
+            strokeLinejoin="round" vectorEffect="non-scaling-stroke" />;
+        })}
+        {cols.map((c, i) => (
+          <text key={c} x={x(i)} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5"
+            textAnchor={i === 0 ? "start" : i === cols.length - 1 ? "end" : "middle"}>{c}</text>
+        ))}
+      </svg>
+      <div className="fin-legend">
+        {drawn.map((d) => (
+          <span key={d.f} className="fin-legend-item">
+            <i style={{ background: d.color }} />{finLabel(d.f, lang)}
+          </span>
+        ))}
+      </div>
     </div>
   );
-  return (
-    <div>
-      {ratios.year && <div className="muted" style={{ marginBottom: 16, fontSize: 13 }}>{lang === "ru" ? `Последние данные: ${ratios.year} г.${ratios.quarter ? ` Q${ratios.quarter}` : ""}` : `Latest: ${ratios.year}${ratios.quarter ? ` Q${ratios.quarter}` : ""}`}</div>}
-      {groups.map((g) => (
-        <div key={g} className="panel" style={{ marginBottom: 12, padding: "16px 20px" }}>
-          <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600 }}>{g}</h4>
-          <div className="company-metrics-list">
-            {rows.filter((r) => r.group === g).map((r) => (
-              <div key={r.key} className="company-metric-row">
-                <span className="panel-label">{r.label}</span>
-                <span className="company-metric-val">{typeof metrics[r.key] === "number" ? metrics[r.key].toFixed(3) : metrics[r.key]}</span>
-              </div>
-            ))}
+}
+
+function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [section, setSection] = React.useState("income");
+
+  if (loading) return <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>;
+
+  const cols = periods || [];
+  const has = (f) => series?.[f] && cols.some((p) => Number.isFinite(series[f].values[p]));
+  const available = FIN_SECTIONS
+    .map((sec) => ({ ...sec, rows: (sec.rows || []).filter(has), margins: (sec.margins || []).filter(has) }))
+    .filter((sec) => sec.rows.length + sec.margins.length > 0);
+
+  // Nothing in the fact store. Fall back to the single period the reports cache
+  // holds rather than showing an empty tab — it is less, but it is what we have.
+  if (available.length === 0) {
+    const m = ratios?.metrics || {};
+    const legacy = [["ROA", "ROA"], ["ROE", "ROE"],
+                    ["net_margin", finLabel("net_profit_margin", lang)],
+                    ["debt_ratio", finLabel("debt_ratio", lang)],
+                    ["debt_to_equity", finLabel("debt_to_equity", lang)]]
+      .filter(([k]) => m[k] != null);
+    if (legacy.length === 0) return (
+      <div className="panel" style={{ padding: 32, textAlign: "center" }}>
+        <p className="muted">{t("Финансовые показатели не опубликованы",
+                                "Moliyaviy korsatkichlar elon qilinmagan",
+                                "No financial indicators published")}</p>
+      </div>
+    );
+    return (
+      <div className="panel" style={{ padding: "16px 20px" }}>
+        {ratios?.year && (
+          <div className="muted" style={{ marginBottom: 12, fontSize: 13 }}>
+            {t("Последние данные", "Songgi malumotlar", "Latest")}: {ratios.year}
+            {ratios.quarter ? ` Q${ratios.quarter}` : ""}
           </div>
+        )}
+        <div className="company-metrics-list">
+          {legacy.map(([k, l]) => (
+            <div key={k} className="company-metric-row">
+              <span className="panel-label">{l}</span>
+              <span className="company-metric-val">{formatRatio(m[k], 2, lang)}</span>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+    );
+  }
+
+  const active = available.find((sec) => sec.key === section) || available[0];
+
+  const growth = (f, i) => {
+    const v = series[f].values[cols[i]], prev = series[f].values[cols[i + 1]];
+    if (!Number.isFinite(v) || !Number.isFinite(prev) || prev === 0) return null;
+    return ((v - prev) / Math.abs(prev)) * 100;
+  };
+  // The unit comes from the server, which owns the scale contract: money in
+  // full UZS, every margin already converted to percent, plain coefficients
+  // left alone. Nothing here decides what a number means.
+  const cell = (f, p) => {
+    const v = series[f].values[p];
+    if (!Number.isFinite(v)) return "—";
+    if (series[f].money) return formatCompactVolume(v, lang);
+    const suffix = series[f].unit === "%" ? "%" : "";
+    return `${formatRatio(v, 2, lang)}${suffix}`;
+  };
+
+  const rowsBlock = (fields, withGrowth) => fields.map((f) => (
+    <React.Fragment key={f}>
+      <tr>
+        <th scope="row">{finLabel(f, lang)}</th>
+        {cols.map((p) => <td key={p} className="num">{cell(f, p)}</td>)}
+      </tr>
+      {withGrowth && (
+        <tr className="fin-growth">
+          <th scope="row">{t("Рост г/г", "Osish y/y", "Growth YoY")}</th>
+          {cols.map((p, i) => {
+            const g = growth(f, i);
+            return (
+              <td key={p} className={`num ${g == null ? "" : g >= 0 ? "pos" : "neg"}`}>
+                {g == null ? "—" : `${g > 0 ? "+" : ""}${g.toFixed(2)}%`}
+              </td>
+            );
+          })}
+        </tr>
+      )}
+    </React.Fragment>
+  ));
+
+  return (
+    <div className="company-financials">
+      <div className="fin-subtabs">
+        {available.map((sec) => (
+          <button key={sec.key} type="button"
+            className={`fin-subtab ${active.key === sec.key ? "active" : ""}`}
+            onClick={() => setSection(sec.key)}>
+            {sec.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
+          </button>
+        ))}
+      </div>
+
+      <div className="panel fin-panel">
+        <FinancialsChart fields={(active.chart || []).filter(has)} series={series} periods={cols} lang={lang} />
+
+        <div className="fin-table-wrap">
+          <table className="fin-table">
+            <thead>
+              <tr>
+                <th scope="col">{t("Годовые данные", "Yillik malumotlar", "Fiscal year")}</th>
+                {cols.map((p) => <th key={p} scope="col" className="num">{p}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rowsBlock(active.rows || [], true)}
+              {(active.margins || []).length > 0 && (active.rows || []).length > 0 && (
+                <tr className="fin-section-row">
+                  <th scope="row" colSpan={cols.length + 1}>
+                    {t("Маржинальность", "Marjinallik", "Margin Analysis")}
+                  </th>
+                </tr>
+              )}
+              {rowsBlock(active.margins || [], false)}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="fin-note muted">
+          {t("Суммы в сумах, по годовым отчётам эмитента. Коэффициенты — в тех единицах, в которых они опубликованы.",
+             "Summalar somda, emitentning yillik hisobotlari boyicha.",
+             "Sums in UZS, from the issuer's annual filings. Ratios in the units they were published in.")}
+        </p>
+      </div>
     </div>
   );
 }
@@ -6817,6 +7031,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   const [infoLoading, setInfoLoading] = React.useState(false);
   const [companyData, setCompanyData] = React.useState(null);
   const [dividends, setDividends] = React.useState(null);
+  // The issuer's annual series (fact store). Lazy: only the Финансы tab
+  // reads it, and most visits never open that tab.
+  const [finSeries, setFinSeries] = React.useState(null);
+  const [finLoading, setFinLoading] = React.useState(false);
   const [divLoading, setDivLoading] = React.useState(false);
 
   // Failed requests must be visible and retryable: every fetch below reports
@@ -6895,6 +7113,19 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
       .finally(() => { if (alive) setDivLoading(false); });
     return () => { alive = false; };
   }, [ticker]);
+
+  React.useEffect(() => { setFinSeries(null); }, [ticker]);
+  React.useEffect(() => {
+    if (!ticker || tab !== "financials" || finSeries !== null) return undefined;
+    let alive = true;
+    setFinLoading(true);
+    fetch(`/api/company/${encodeURIComponent(ticker)}/financials`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setFinSeries(d.ok ? d : { periods: [], series: {} }); })
+      .catch(() => { if (alive) setFinSeries({ periods: [], series: {} }); })
+      .finally(() => { if (alive) setFinLoading(false); });
+    return () => { alive = false; };
+  }, [ticker, tab, finSeries]);
 
   // ТЗ §8: the server owns this arithmetic, per ISSUER, with the auditor's
   // blocking findings already applied. A failure leaves `mult` null and the rail
@@ -7115,7 +7346,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
           <CompanyReportsTab reports={companyData?.reports || []} lang={lang} />
         )}
         {tab === "financials" && (
-          <CompanyFinancialsTab ratios={companyData?.ratios || {}} lang={lang} />
+          <CompanyFinancialsTab ratios={companyData?.ratios || {}} lang={lang}
+            series={finSeries?.series || {}} periods={finSeries?.periods || []}
+            loading={finLoading && finSeries === null} />
         )}
       </div>
     </div>

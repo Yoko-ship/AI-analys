@@ -10265,6 +10265,36 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .section-heading { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
 
 /* Price chart */
+/* ── Финансы tab ─────────────────────────────────────────────────────────── */
+/* Statement sub-tabs: an underline row, deliberately NOT the pill language the
+   range buttons use — these switch a document, the pills switch a span. */
+.fin-subtabs { display: flex; gap: 22px; border-bottom: 1px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
+.fin-subtab { background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 0; font-size: 14px; cursor: pointer; color: var(--text-muted); transition: color .12s, border-color .12s; }
+.fin-subtab:hover { color: var(--text-primary); }
+.fin-subtab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.fin-panel { padding: 18px 20px; }
+.fin-chart { margin-bottom: 18px; }
+.fin-legend { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; margin-top: 6px; }
+.fin-legend-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-secondary, var(--text-muted)); }
+.fin-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+/* The year columns can outrun a phone; the table scrolls inside its own box so
+   the PAGE never gains a horizontal scrollbar. */
+.fin-table-wrap { overflow-x: auto; }
+.fin-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.fin-table th, .fin-table td { padding: 9px 12px; text-align: left; white-space: nowrap; }
+.fin-table td.num, .fin-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.fin-table thead th { font-size: 12px; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface-1); }
+.fin-table tbody th[scope="row"] { font-weight: 600; color: var(--text-primary); }
+.fin-table tbody tr { border-bottom: 1px solid var(--border); }
+/* The growth line belongs to the row above it, so it carries no border of its
+   own and sits in the muted register. */
+.fin-table tr.fin-growth { border-bottom: none; }
+.fin-table tr.fin-growth th, .fin-table tr.fin-growth td { padding-top: 0; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.fin-table tr.fin-growth td.pos { color: #6ef0c1; }
+.fin-table tr.fin-growth td.neg { color: #f87171; }
+.fin-table tr.fin-section-row th { padding-top: 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700; }
+.fin-note { font-size: 12px; margin: 14px 0 0; line-height: 1.55; }
+
 /* Nine chips now (1Н…Макс), so it wraps on the desktop rule too and not only in
    mobile.css — the narrow end of the three-column layout leaves the chart about
    560px, which is not quite a row. */

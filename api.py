@@ -37,6 +37,9 @@ from reports_catalog import (
     _TICKER_TO_NAME,
     FIN_MONEY_FIELDS,
     NSBU_THOUSANDS_UZS,
+    FACT_MONEY_FIELDS,
+    FACT_PERCENT_FIELDS,
+    FACT_SHARE_FIELDS,
     RATIO_MONEY_FIELDS,
     build_dynamics_data,
     compute_financial_ratios,
@@ -3165,6 +3168,91 @@ async def api_securities() -> dict[str, Any]:
         return {"ok": True, "count": len(smap), "securities": smap}
     except Exception as exc:
         logger.exception("securities map failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/company/{ticker}/financials")
+async def api_company_financials(request: Request, ticker: str) -> Response:
+    """The issuer's annual series — one row per indicator, one column per year.
+
+    Reads the `financial_indicators` fact store, which is where openinfo's
+    published indicators and the NSBU-derived ones both land, and which already
+    holds nine to eleven years for most issuers. It was serving nobody: the
+    Финансы tab showed a single period's ratios out of the reports cache.
+
+    **Absolute sums are scaled here, coefficients are not.** The store keeps
+    money in thousands of UZS (see NSBU_THOUSANDS_UZS); a raw read would print a
+    10.5-trillion revenue as ten billion, beside a market cap in full UZS on the
+    same page. That is the ~1000x class of defect this contract exists to stop,
+    so the field list is pinned by a test.
+
+    A period can carry the same field twice — openinfo publishes an indicator
+    and the NSBU pass derives it. The newest write wins, which is the derived
+    one when it exists: it is computed from the filing this platform parsed.
+    """
+    ticker = ticker.strip().upper()
+    loop = asyncio.get_running_loop()
+    try:
+        index = await loop.run_in_executor(None, partial(get_company_index, ticker))
+        org_id = (index or {}).get("org_id")
+        if not org_id:
+            return _etag_json(request, {"ok": True, "ticker": ticker, "org_id": None,
+                                        "currency": "UZS", "periods": [], "series": {}},
+                              max_age=300)
+        facts = await loop.run_in_executor(
+            None, partial(get_facts, org_id, "financial_indicators"))
+        series: dict[str, dict[str, Any]] = {}
+        periods: set[str] = set()
+        for f in facts:
+            value = f.get("value_num")
+            period = str(f.get("period") or "").strip()
+            # Annual columns only: a "2025Q1" among "2025" would sort in as a
+            # year and put three months beside twelve in the growth row.
+            if value is None or len(period) != 4 or not period.isdigit():
+                continue
+            field = f["field"]
+            money = field in FACT_MONEY_FIELDS
+            share = field in FACT_SHARE_FIELDS
+            # One unit per field, decided here rather than by the caller: the
+            # store's own `unit` column is unreliable (net_profit_margin is
+            # labelled "x" and carries a percent; gross_profit_margin is
+            # labelled nothing and carries a share).
+            unit = ("UZS" if money
+                    else "%" if (share or field in FACT_PERCENT_FIELDS)
+                    else None)
+            entry = series.setdefault(field, {"unit": unit, "money": money, "values": {}})
+            # 0.14 * 100 is 14.000000000000002 in binary floating point, and
+            # this payload has a history of carrying such artefacts into a
+            # database. Six decimals is far beyond any published precision.
+            scaled = (value * NSBU_THOUSANDS_UZS if money
+                      else round(value * 100.0, 6) if share
+                      else value)
+            entry["values"][period] = scaled
+            periods.add(period)
+        # A period whose ENTIRE money side is zero is an empty filing, not a
+        # year of no activity: openinfo publishes KSCM 2021 as revenue 0, profit
+        # 0 AND total assets 0, with no margins at all. A balance sheet cannot
+        # total zero — an issuer with no assets does not exist — so the column
+        # is dropped rather than published as a business that collapsed and a
+        # -100 % growth row under it.
+        #
+        # A zero in ONE field is kept: UZNF is a fund that genuinely earns no
+        # revenue while holding assets, and that zero is a fact about it.
+        for period in list(periods):
+            money = [e["values"][period] for f, e in series.items()
+                     if e["money"] and period in e["values"]]
+            if money and not any(money):
+                periods.discard(period)
+                for entry in series.values():
+                    entry["values"].pop(period, None)
+        series = {f: e for f, e in series.items() if e["values"]}
+        return _etag_json(request, {
+            "ok": True, "ticker": ticker, "org_id": org_id, "currency": "UZS",
+            "periods": sorted(periods, reverse=True),
+            "series": series,
+        }, max_age=300)
+    except Exception as exc:
+        logger.exception("company financials failed for %s", ticker)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
