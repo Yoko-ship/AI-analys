@@ -6683,7 +6683,9 @@ const FIN_SECTIONS = [
     rows: ["net_revenue", "net_profit"],
     // Percentages get their own block, as on the reference: mixing a margin
     // into a column of sums invites reading 5.62 as five sums.
-    margins: ["gross_profit_margin", "ebit_margin", "net_profit_margin"],
+    // Only the margin this platform computes itself — see the note on
+    // FACT_PERCENT_FIELDS for the ones the feed publishes and we do not trust.
+    margins: ["net_margin"],
     chart: ["net_revenue", "net_profit"],
   },
   {
@@ -6709,7 +6711,7 @@ const FIN_FIELD_LABELS = {
   total_equity: ["Капитал", "Kapital", "Total Equity"],
   gross_profit_margin: ["Валовая маржа", "Yalpi marja", "Gross Margin"],
   ebit_margin: ["EBIT-маржа", "EBIT marja", "EBIT Margin"],
-  net_profit_margin: ["Чистая маржа", "Sof marja", "Net Margin"],
+  net_margin: ["Чистая маржа", "Sof marja", "Net Margin"],
   roe: ["ROE", "ROE", "ROE"],
   roa: ["ROA", "ROA", "ROA"],
   current_ratio: ["Текущая ликвидность", "Joriy likvidlik", "Current Ratio"],
@@ -6726,6 +6728,10 @@ const finLabel = (field, lang) =>
 // The section's headline lines over time. Deliberately not the price chart: no
 // range buttons, no hover — this is a shape, and the table underneath is the data.
 function FinancialsChart({ fields, series, periods, lang }) {
+  // A chart nobody can interrogate is a picture. This one had no hover at all:
+  // pointing at a year gave nothing, which is what «no info» meant.
+  const [hover, setHover] = React.useState(null);
+  const [hoverY, setHoverY] = React.useState(0);
   const cols = [...periods].reverse();               // oldest → newest, left → right
   const COLORS = ["#38bdf8", "#f59e0b", "#a855f7"];
   const drawn = fields
@@ -6745,9 +6751,21 @@ function FinancialsChart({ fields, series, periods, lang }) {
   const pct = drawn[0].s.unit === "%";
   const axis = (v) => (money ? formatCompactVolume(v, lang)
     : `${formatRatio(v, 1, lang)}${pct ? "%" : ""}`);
+  const onMove = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (!r.width) return;
+    const relX = ((e.clientX - r.left) / r.width) * W;
+    const i = Math.max(0, Math.min(cols.length - 1,
+      Math.round(((relX - PAD.l) / (W - PAD.l - PAD.r)) * (cols.length - 1))));
+    setHover(i);
+    const wrap = e.currentTarget.parentElement;
+    setHoverY(e.clientY - (wrap ? wrap.getBoundingClientRect().top : r.top));
+  };
+
   return (
     <div className="fin-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}
+        onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
         {[0, 0.5, 1].map((f, i) => (
           <line key={i} x1={PAD.l} y1={y(min + f * span)} x2={W - PAD.r} y2={y(min + f * span)}
             stroke="currentColor" strokeOpacity="0.16" strokeDasharray="4 6" strokeWidth="0.8" />
@@ -6767,7 +6785,39 @@ function FinancialsChart({ fields, series, periods, lang }) {
           <text key={c} x={x(i)} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5"
             textAnchor={i === 0 ? "start" : i === cols.length - 1 ? "end" : "middle"}>{c}</text>
         ))}
+        {hover != null && (
+          <>
+            <line x1={x(hover)} y1={PAD.t} x2={x(hover)} y2={H - PAD.b}
+              stroke="currentColor" strokeOpacity="0.38" strokeDasharray="3 3" />
+            {drawn.map((d) => (Number.isFinite(d.s.values[cols[hover]]) ? (
+              <circle key={d.f} cx={x(hover)} cy={y(d.s.values[cols[hover]])} r="3.6"
+                fill={d.color} stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
+            ) : null))}
+          </>
+        )}
       </svg>
+      {hover != null && (
+        <div className={`cpc-tooltip ${x(hover) > W * 0.62 ? "" : ""}`}
+          style={{
+            top: `${Math.max(6, hoverY - 40)}px`,
+            ...(x(hover) > W * 0.62
+              ? { right: `calc(${((W - x(hover)) / W) * 100}% + 12px)` }
+              : { left: `calc(${(x(hover) / W) * 100}% + 12px)` }),
+          }}>
+          <div className="cpc-tt-date">{cols[hover]}</div>
+          {drawn.map((d) => {
+            const v = d.s.values[cols[hover]];
+            return (
+              <div className="cpc-tt-row" key={d.f}>
+                <span><i className="fin-tt-dot" style={{ background: d.color }} />{finLabel(d.f, lang)}</span>
+                <b>{!Number.isFinite(v) ? "—"
+                  : d.s.money ? formatCompactVolume(v, lang)
+                  : `${formatRatio(v, 2, lang)}${d.s.unit === "%" ? "%" : ""}`}</b>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div className="fin-legend">
         {drawn.map((d) => (
           <span key={d.f} className="fin-legend-item">

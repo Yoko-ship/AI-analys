@@ -2334,26 +2334,32 @@ RATIO_MONEY_FIELDS = ("total_equity", "total_assets")
 # it would sit next to a full-UZS market cap in the same rail.
 FACT_MONEY_FIELDS = ("net_revenue", "net_profit", "total_assets", "total_liabilities",
                      "total_equity")
-# The indicator feed does NOT publish margins on one scale, and nothing in the
-# payload says which is which — `gross_profit_margin` arrives as a share (0.36)
-# while `net_profit_margin` arrives as a percent (5.62) for the same issuer and
-# year. Measured against the sums we already hold, on UZTL / TGPG / KVTS / KSCM,
-# every year matching to two decimals:
-#     gross_profit/revenue      0.3599  0.5229  0.2493  0.4700  → published 0.36 0.52 0.25 0.47
-#     operating_income/revenue  0.1362  0.0440  0.0601  0.2612  → published 0.14 0.04 0.06 0.26
-#     net_income/revenue        0.0562  0.0431  0.0023  0.2086  → published 5.62 4.31 0.23 20.86
-# So shares are converted here, once, and every margin leaves this endpoint in
-# percent. Printing them raw put 0.36 beside 5.62 under one «Маржинальность»
-# heading — 36 % and 5.6 %, and no way for a reader to tell.
-#     total_liabilities/total_assets   0.6074 0.3602 0.0999 0.2264 → published
-#         60.74 36.02 9.99 22.64, so debt_ratio is a percent as well (12 of 12
-#         issuer-years checked). total_asset_turnover, by the same arithmetic,
-#         IS revenue/assets and stays a bare coefficient — 0.78, not 78 %.
-#     debt_to_equity and return_to_capital_employed match NEITHER scale against
-#         the sums we hold, so they are published as-is with no unit, which is
-#         also how the market board shows them. Do not guess a unit for them.
-FACT_PERCENT_FIELDS = ("net_profit_margin", "roe", "roa", "debt_ratio")
-FACT_SHARE_FIELDS = ("gross_profit_margin", "ebit_margin")
+# WHICH RATIOS THIS PLATFORM WILL STAND BEHIND.
+#
+# The indicator feed publishes ratios without saying what they are computed on,
+# and it is not one basis. Measured against the sums we already hold, over every
+# issuer-year the store has:
+#
+#   roe   = net_profit / total_equity      x100   225 of 225   exact
+#   roa   = net_profit / total_assets      x100   674 of 674   exact
+#   debt_ratio = liabilities / assets      x100   401 of 401   exact
+#   total_asset_turnover = revenue/assets  x1     401 of 401   exact (a coefficient)
+#   debt_to_equity                                0 of 225     NOT that identity
+#   net_profit_margin = profit / revenue   x100   396 of 655   only 60 %
+#
+# So the first four carry a unit; debt_to_equity does not, and is published bare
+# exactly as the market board shows it. `net_profit_margin` is not published at
+# all — for AGBA it reads 0.05 where profit/revenue is 24.08 %, and a margin
+# whose base we cannot name has no business sitting next to the sums it is
+# supposedly derived from. It is DERIVED here instead, from net_profit and
+# net_revenue in this same payload, and labelled as ours.
+#
+# gross_profit_margin and ebit_margin are dropped for the same reason and one
+# more: the store rounds them to a two-decimal SHARE (0.30) and writes 0 for a
+# negative margin, so UZINP's -4.77 % EBIT arrives as 0.00. We do not hold the
+# numerators per year to recompute them, so they are not shown.
+FACT_PERCENT_FIELDS = ("roe", "roa", "debt_ratio")
+FACT_SHARE_FIELDS = ()
 
 
 def _ticker_org_map(conn: sqlite3.Connection) -> dict[str, str]:

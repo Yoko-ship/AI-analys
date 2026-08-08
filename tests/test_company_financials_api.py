@@ -67,45 +67,61 @@ def test_coefficients_are_left_alone(client):
     assert s["current_ratio"]["values"]["2025"] == 0.65
 
 
-def test_every_margin_leaves_in_percent(monkeypatch):
-    """The feed does not publish margins on one scale and says nothing about it:
-    gross_profit_margin arrives as a SHARE (0.36) and net_profit_margin as a
-    PERCENT (5.62) for the same issuer and year. Measured against the sums —
-    gross_profit/revenue was 0.3599 where the feed published 0.36, and
-    net_income/revenue 0.0562 where it published 5.62 — so shares are converted
-    once, here, and 0.36 never prints beside 5.62 under one heading again.
-
-    monkeypatch, not a bare assignment: patching `api.get_facts` for the rest of
-    the session made test_bonds_provenance fail forty files later.
-    """
-    facts = [_fact("gross_profit_margin", "2025", 0.36, unit=None),
-             _fact("ebit_margin", "2025", 0.14, unit=None),
-             _fact("net_profit_margin", "2025", 5.62, unit="x"),
-             _fact("roe", "2025", 19.5, unit="%"),
-             _fact("current_ratio", "2025", 0.65, unit=None)]
+def test_only_the_verified_identities_carry_a_unit(monkeypatch):
+    """The feed publishes ratios without saying what they are computed on, and it
+    is not one basis. Measured over every issuer-year the store holds:
+    roe = profit/equity (225 of 225), roa = profit/assets (674 of 674),
+    debt_ratio = liabilities/assets (401 of 401) — those get a %.
+    debt_to_equity matched that identity 0 times of 225, and
+    total_asset_turnover IS revenue/assets, a coefficient — both stay bare."""
     monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: facts)
+    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+        _fact("roe", "2025", 19.5, unit="%"),
+        _fact("roa", "2025", 4.37, unit="%"),
+        _fact("debt_ratio", "2025", 77.6, unit=None),
+        _fact("debt_to_equity", "2025", 249.63, unit="x"),
+        _fact("total_asset_turnover", "2025", 0.78, unit=None),
+        _fact("current_ratio", "2025", 0.65, unit=None),
+    ])
     s = TestClient(api.app).get("/api/company/X/financials").json()["series"]
-    assert s["gross_profit_margin"]["values"]["2025"] == 36.0
-    assert s["ebit_margin"]["values"]["2025"] == 14.0
-    assert s["net_profit_margin"]["values"]["2025"] == 5.62
-    assert all(s[f]["unit"] == "%" for f in
-               ("gross_profit_margin", "ebit_margin", "net_profit_margin", "roe"))
-    # A plain coefficient is not a percentage and must not grow a % sign.
-    assert s["current_ratio"]["unit"] is None
-    assert s["current_ratio"]["values"]["2025"] == 0.65
+    assert all(s[f]["unit"] == "%" for f in ("roe", "roa", "debt_ratio"))
+    assert all(s[f]["unit"] is None for f in
+               ("debt_to_equity", "total_asset_turnover", "current_ratio"))
+    # and none of them is rescaled
+    assert s["debt_ratio"]["values"]["2025"] == 77.6
+    assert s["total_asset_turnover"]["values"]["2025"] == 0.78
 
 
-def test_the_scale_lists_are_the_contract():
-    assert set(rc.FACT_SHARE_FIELDS) == {"gross_profit_margin", "ebit_margin"}
-    assert set(rc.FACT_PERCENT_FIELDS) == {"net_profit_margin", "roe", "roa", "debt_ratio"}
-    # Verified as a bare coefficient, not a percentage: revenue/assets was
-    # 0.5895 where the feed published 0.59.
-    assert "total_asset_turnover" not in rc.FACT_PERCENT_FIELDS
-    assert "total_asset_turnover" not in rc.FACT_SHARE_FIELDS
-    # A field cannot be both, and money is never a percentage.
-    assert not set(rc.FACT_SHARE_FIELDS) & set(rc.FACT_PERCENT_FIELDS)
-    assert not set(rc.FACT_MONEY_FIELDS) & (set(rc.FACT_SHARE_FIELDS) | set(rc.FACT_PERCENT_FIELDS))
+def test_net_margin_is_derived_not_republished(monkeypatch):
+    """The fed net_profit_margin matched profit/revenue in only 396 of 655
+    issuer-years — AGBA reads 0.05 where the sums give 24.08 %. So it is not
+    published; the margin is computed from the two sums in this same payload."""
+    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
+    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+        _fact("net_revenue", "2025", 4_265_600_000.0),
+        _fact("net_profit", "2025", 1_880_100_000.0),
+        _fact("net_profit_margin", "2025", 0.11, unit="x"),
+        _fact("total_assets", "2025", 9_000_000.0),
+    ])
+    s = TestClient(api.app).get("/api/company/X/financials").json()["series"]
+    assert s["net_margin"]["unit"] == "%"
+    assert s["net_margin"]["derived"] is True
+    assert abs(s["net_margin"]["values"]["2025"] - 44.0729) < 0.01
+    # the untrusted one carries no unit, so nothing can print it as a percentage
+    assert s["net_profit_margin"]["unit"] is None
+
+
+def test_no_margin_on_a_zero_revenue_base(monkeypatch):
+    """BRBN files no revenue line. A margin on a zero base is a division, not a
+    fact about the issuer."""
+    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
+    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+        _fact("net_revenue", "2024", 0.0),
+        _fact("net_profit", "2024", -2_231_102_237.0),
+        _fact("total_assets", "2024", 32_133_397_827.0),
+    ])
+    s = TestClient(api.app).get("/api/company/X/financials").json()["series"]
+    assert "net_margin" not in s
 
 
 def test_the_money_field_list_is_the_contract():
@@ -114,7 +130,7 @@ def test_the_money_field_list_is_the_contract():
     assert set(rc.FACT_MONEY_FIELDS) == {
         "net_revenue", "net_profit", "total_assets", "total_liabilities", "total_equity",
     }
-    for coefficient in ("roe", "roa", "net_profit_margin", "current_ratio", "debt_to_equity"):
+    for coefficient in ("roe", "roa", "net_margin", "current_ratio", "debt_to_equity"):
         assert coefficient not in rc.FACT_MONEY_FIELDS
 
 
@@ -152,6 +168,39 @@ def test_a_year_filed_entirely_as_zero_is_not_a_column(monkeypatch):
     body = TestClient(api.app).get("/api/company/KSCM/financials").json()
     assert body["periods"] == ["2020"]
     assert "2021" not in body["series"]["net_revenue"]["values"]
+
+
+def test_a_zero_balance_sheet_is_dropped_even_with_a_stray_figure(monkeypatch):
+    """SQBN 2024 defeated the first rule. openinfo files it with assets, equity,
+    liabilities and revenue all zero — and a net profit of 13 000 sums, which
+    was enough to keep the column and draw a bank collapsing to nothing and back.
+    A going concern cannot have no balance sheet, so zero total assets is the
+    test, not "every money field is zero"."""
+    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
+    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+        _fact("total_assets", "2024", 0.0), _fact("total_equity", "2024", 0.0),
+        _fact("total_liabilities", "2024", 0.0), _fact("net_revenue", "2024", 0.0),
+        _fact("net_profit", "2024", 13.0),
+        _fact("total_assets", "2023", 74_630_000_000.0),
+        _fact("net_revenue", "2023", 2_698_000_000.0),
+    ])
+    body = TestClient(api.app).get("/api/company/SQBN/financials").json()
+    assert body["periods"] == ["2023"]
+
+
+def test_a_zero_income_line_on_a_real_balance_sheet_is_kept(monkeypatch):
+    """BRBN and UZNGP file on forms with no revenue line, and UZNF is a fund
+    that genuinely earns nothing while holding 30 T of assets. Those zeros are
+    what the source says — only a missing STATEMENT is dropped."""
+    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
+    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+        _fact("net_revenue", "2024", 0.0),
+        _fact("net_profit", "2024", -2_231_102_237.0),
+        _fact("total_assets", "2024", 32_133_397_827.0),
+    ])
+    body = TestClient(api.app).get("/api/company/BRBN/financials").json()
+    assert body["periods"] == ["2024"]
+    assert body["series"]["net_revenue"]["values"]["2024"] == 0.0
 
 
 def test_a_single_zero_is_kept(monkeypatch):
