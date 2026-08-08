@@ -375,16 +375,23 @@ def _pct_change(last: float, base: float) -> float | None:
 
 
 def returns(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    """YTD / YOY / QOQ over the FULL history (ТЗ §5).
+    """M1 / YTD / YOY / QOQ over the FULL history (ТЗ §5).
 
     Computed from every point we hold, never from the loaded slice, so the
     period button cannot move them.
+
+    ``m1`` is the one-month horizon the key-stats rail shows next to QoQ (which
+    IS the three-month figure — 90 days — so there is no separate ``m3``). On a
+    market where a security can go a month without an execution it fails often,
+    and failing loudly with ``base_too_stale`` is the point: a 30-day return
+    measured against a quote from 70 days ago is not a 30-day return.
     """
     cfg = thresholds()["returns"]
     max_stale = int(cfg["base_staleness_max_days"])
     if len(points) < 2:
         empty = _metric(None, "no_data")
-        return {"ytd": empty, "yoy": dict(empty), "qoq": dict(empty)}
+        return {"ytd": empty, "yoy": dict(empty), "qoq": dict(empty),
+                "m1": dict(empty)}
     last = points[-1]
 
     # YTD — the previous year's closing price. ТЗ §5: when the instrument has
@@ -411,7 +418,8 @@ def returns(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
                            note=f"нет сделок около {target.isoformat()}")
         return _metric(_pct_change(last["close"], b["close"]), "ok", base_date=b["date"])
 
-    return {"ytd": ytd, "yoy": horizon(365, "yoy"), "qoq": horizon(90, "qoq")}
+    return {"ytd": ytd, "yoy": horizon(365, "yoy"), "qoq": horizon(90, "qoq"),
+            "m1": horizon(30, "m1")}
 
 
 def volatility(points: Sequence[dict[str, Any]]) -> dict[str, Any]:

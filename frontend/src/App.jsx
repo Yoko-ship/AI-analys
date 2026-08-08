@@ -2933,6 +2933,104 @@ function enrichMarketStock(stock) {
   };
 }
 
+// The newest session any stored day-statistic describes.
+function latestTradeStatsDay(tmap) {
+  return Object.values(tmap || {}).reduce((m, t) => {
+    const d = String(t?.trade_date || "");
+    return /^\d{8}$/.test(d) && (!m || d > m) ? d : m;
+  }, null);
+}
+
+// Reconcile ONE enriched board row against the stored per-trade day statistics.
+//
+// Per-trade stats (UZSE) are the complete, correct daily totals — the plain
+// /stocks snapshot can be stale. When present, override turnover/qty/trades with
+// them and expose the average trade price. The change stays close-to-close (the
+// exchange's official convention — UZSE's daily bulletin computes O'zgarish from
+// the closing price, not the day's average; and a backfilled older day's average
+// vs the current close would fabricate a bogus "today's move" for an untraded
+// security).
+//
+// Module-level because the market board and the company page's key-stats rail
+// must describe the SAME session for the same security. The company header used
+// to derive its move as a bare `last_price - close_price`, which is the exact
+// two-days-in-one-day defect `previousClose` exists to prevent — so a security
+// the board showed flat could lead the company page at +20 %.
+function applyTradeStats(r, tmap, latestTsDay) {
+  const t = (tmap || {})[r.isin] || (tmap || {})[(r.isin || "").toUpperCase()];
+  if (!t) return r;
+  const rowDay = normalizeMarketDay(r.last_trade_date);
+  const tsDay = normalizeMarketDay(t.trade_date);
+  // The day stats and the feed row must describe the SAME session — a stored
+  // day older than the row's own last trade is a snapshot the nightly push
+  // never refreshed, and its turnover belongs to no quote on the page. Fall
+  // back to the feed's own figures for the row's day; an em-dash where the
+  // feed has none is honest, a number from another week is not.
+  if (!tradeStatsApply(r.last_trade_date, t.trade_date)) return r;
+  const out = { ...r, ts: t };
+  if (Number.isFinite(t.total_value)) out.stockVolume = t.total_value;
+  if (Number.isFinite(t.total_qty)) out.stockQuantity = t.total_qty;
+  if (Number.isFinite(t.trade_count)) out.stockTradeCount = t.trade_count;
+  if (Number.isFinite(t.avg_price)) out.avgPrice = t.avg_price;
+  if (Number.isFinite(t.vwap)) out.vwap = t.vwap;
+  // The feed lags for thin names — SANE still carried its 13.07 trade
+  // while today's executions existed (and sometimes last_price is null
+  // outright) — so the official move vanished from the board. When the
+  // day stats are the latest session AND newer than the feed row, the
+  // session's own OHLC is authoritative: price/date/OHLC come from it and
+  // the change is close-to-close (session close vs the feed's stale
+  // close, which IS the previous close — matching the daily bulletin).
+  const tsIsNewer = tsDay && tsDay === latestTsDay &&
+    (r.lastPrice === null || !rowDay || rowDay < tsDay);
+  if (tsIsNewer) {
+    const px = Number.isFinite(t.close_price) ? t.close_price
+      : Number.isFinite(t.vwap) ? t.vwap : t.avg_price;
+    if (Number.isFinite(px)) {
+      out.lastPrice = px;
+      if (Number.isFinite(t.open_price)) out.openPrice = t.open_price;
+      if (Number.isFinite(t.high_price)) out.highPrice = t.high_price;
+      if (Number.isFinite(t.low_price)) out.lowPrice = t.low_price;
+      if (/^\d{8}$/.test(String(t.trade_date))) {
+        const d = String(t.trade_date);
+        out.last_trade_date = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
+      }
+      // Against the newest close the exchange published BEFORE this session —
+      // not against whatever `close_price` the row is carrying. Once the quote
+      // pass falls two sessions behind, that field is the PREVIOUS session's
+      // previous close, and the difference is two days' move wearing one day's
+      // date: UQEQ's single unchanged 37 200 trade led the top-gainers panel at
+      // +20 % because it was struck against 05.08's 31 000. See previousClose.
+      const prev = previousClose({
+        lastPrice: r.lastPrice, lastTradeDate: r.last_trade_date,
+        closePrice: r.closePrice, closeDate: r.close_date,
+      }, t.trade_date);
+      if (prev) {
+        // The row now states this session, so it must state this session's
+        // previous close too — the "закр." line under the trade date reads it.
+        out.closePrice = prev.price;
+        out.close_price = prev.price;
+        out.close_date = prev.date ?? null;
+        out.changeValue = px - prev.price;
+        out.changePercent = ((px - prev.price) / Math.abs(prev.price)) * 100;
+      } else {
+        // Nothing datable to measure from. An em-dash is the honest cell.
+        out.changeValue = null;
+        out.changePercent = null;
+      }
+      out.tone = marketTone(out.changePercent);
+    } else if (rowDay && rowDay < tsDay) {
+      // The stats put this row in a session the quote layer has not reached,
+      // and carry no price to restate it with. Whatever change the quote holds
+      // belongs to the older session — leaving it in place is how a stale move
+      // gets published under today's date, which is the whole defect above.
+      out.changeValue = null;
+      out.changePercent = null;
+      out.tone = marketTone(null);
+    }
+  }
+  return out;
+}
+
 // Average execution price per share = turnover (sums) / shares traded.
 function avgSharePrice(row) {
   const vol = row?.stockVolume, qty = row?.stockQuantity;
@@ -6013,6 +6111,33 @@ const METRIC_REASONS = {
   no_base: ["нет базы для сравнения", "taqqoslash bazasi yo'q", "no comparison base"],
 };
 
+// ТЗ §8: a multiple the server withheld says WHY. «убыток» is a fact about the
+// issuer, not missing data; «проверяется» means the statement behind it failed
+// validation; a range status means the figure exists and is not believable.
+// ТЗ v1.3 §12.6: the auditor is visible without its rule codes — a withheld
+// metric is a dash whose tooltip says why; the reader does not need to know
+// which rule fired, only which numbers they can trust.
+//
+// Module-level because the market board and the company page's key-stats rail
+// now read the SAME /api/market/multiples envelope. While this vocabulary lived
+// inside MarketView the company page had no way to say «снято аудитом», so it
+// recomputed P/E and P/B itself and published figures the board withheld.
+const MULTIPLE_STATUS_TEXT = {
+  audit_blocked: ["снято аудитом", "audit olib tashladi", "withheld by audit"],
+  loss_making: ["убыток", "zarar", "loss"],
+  unverified: ["проверяется", "tekshirilmoqda", "under review"],
+  out_of_range: ["вне диапазона", "diapazondan tashqari", "out of range"],
+  shares_inconsistent: ["сверка акций", "aksiyalar sverkasi", "share count"],
+  incomplete: ["нет всех классов", "barcha sinflar yo'q", "classes missing"],
+  no_market_cap: ["нет капитализации", "kapitalizatsiya yo'q", "no market cap"],
+  no_share_count: ["нет числа акций", "aksiyalar soni yo'q", "no share count"],
+};
+
+function multipleStatusText(status, lang) {
+  const words = MULTIPLE_STATUS_TEXT[status];
+  return words ? words[lang === "uz" ? 1 : lang === "en" ? 2 : 0] : null;
+}
+
 function metricReason(metric, lang) {
   if (!metric || metric.value != null) return null;
   const idx = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
@@ -6055,6 +6180,10 @@ function PriceStatsStrip({ metrics, loading, lang }) {
 
   const volWindow = abs?.volatility?.window_days;
   const absoluteItems = [
+    // The one-month horizon. QoQ below IS the three-month figure (90 days), so
+    // there is no separate 3M tile — two labels for one number would be worse
+    // than the gap.
+    { key: "m1", label: t("1 мес.", "1 oy", "1M"), metric: abs.m1, format: fmtPct, tone: true },
     { key: "ytd", label: "YTD", metric: abs.ytd, format: fmtPct, tone: true },
     { key: "yoy", label: "YoY", metric: abs.yoy, format: fmtPct, tone: true },
     { key: "qoq", label: "QoQ", metric: abs.qoq, format: fmtPct, tone: true },
@@ -6122,104 +6251,275 @@ function PriceStatsStrip({ metrics, loading, lang }) {
   );
 }
 
-function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, priceMetricsLoading }) {
-  const marketCapVal = safeNumber(marketRow?.market_cap ?? marketRow?.marketCap) || null;
+// The key-stats rail — what the session did, what the issuer is worth, and on
+// what basis. It sits beside the chart instead of below it because the numbers
+// a reader opens a company page for were previously two screens down, behind a
+// chart that filled the first one.
+//
+// Every valuation figure here comes from /api/market/multiples — the same
+// issuer-level envelope the market board reads, audit suppression included. The
+// page used to recompute P/E and P/B on the client at CLASS level, which is the
+// wrong denominator for a two-class issuer and, worse, bypassed the auditor: a
+// figure the board withheld as «снято аудитом» still printed here.
+function CompanyKeyStats({ row, sec, metrics12, mult, dividends, lastPrice, securityType, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const num = (v) => (Number.isFinite(v) ? formatMarketNumber(v, lang) : null);
+  const compact = (v) => (Number.isFinite(v) ? formatCompactVolume(v, lang) : null);
+  const count = (v) => (Number.isFinite(v) ? formatRatio(v, 0, lang) : null);
+
+  // A plain row: rendered only when there is something to put in it. An empty
+  // label with a dash tells the reader nothing they did not already know.
+  const rows = [];
+  const put = (label, value, hint) => {
+    if (value == null || value === "") return;
+    rows.push(
+      <div className="company-metric-row" key={label}>
+        <span className="panel-label">{label}</span>
+        <span className="company-metric-val" title={hint || undefined}>{value}</span>
+      </div>,
+    );
+  };
+
+  // A multiple keeps the server's verdict: a value, or the reason it is absent.
+  const putMultiple = (label, metric, digits = 2, suffix = "×", caption) => {
+    if (!metric) return;
+    let node;
+    if (metric.value != null) {
+      node = <>{formatRatio(metric.value, digits, lang)}{suffix}</>;
+    } else {
+      const words = multipleStatusText(metric.status, lang);
+      if (!words) return;
+      const why = (metric.reasons || []).join("; ") || metric.note || "";
+      node = <span className="cell-status" title={why || undefined}>{words}</span>;
+    }
+    rows.push(
+      <div className="company-metric-row" key={label}>
+        <span className="panel-label">
+          {label}{caption ? <span className="co-metric-period"> · {caption}</span> : null}
+        </span>
+        <span className="company-metric-val">{node}</span>
+      </div>,
+    );
+  };
+
+  const low = row?.lowPrice, high = row?.highPrice;
+  const win = metrics12?.window;
+  const yearLow = win?.min_close?.value, yearHigh = win?.max_close?.value;
+
+  // A range reads faster as a picture than as two numbers, and the marker is
+  // the only thing on this page that says where today sits inside the year.
+  const rangeBar = (lo, hi, at) => {
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) return null;
+    const pos = Number.isFinite(at) ? Math.min(100, Math.max(0, ((at - lo) / (hi - lo)) * 100)) : null;
+    return (
+      <div className="keystat-range">
+        <div className="keystat-range-track">
+          {pos != null && <span className="keystat-range-dot" style={{ left: `${pos}%` }} />}
+        </div>
+        <div className="keystat-range-ends">
+          <span>{num(lo)}</span><span>{num(hi)}</span>
+        </div>
+      </div>
+    );
+  };
+
+  const blocks = [];
+  const pushBlock = (title, body, note) => {
+    if (!body || (Array.isArray(body) && body.length === 0)) return;
+    blocks.push(
+      <div className="co-sidebar-block" key={title}>
+        <h3 className="co-heading">{title}</h3>
+        <div className="company-metrics-list">{body}</div>
+        {note && <div className="keystat-note muted">{note}</div>}
+      </div>,
+    );
+  };
+
+  // --- Session -------------------------------------------------------------
+  put(t("Пред. закрытие", "Oldingi yopilish", "Previous close"), num(row?.closePrice));
+  put(t("Открытие", "Ochilish", "Open"), num(row?.openPrice));
+  if (Number.isFinite(low) && Number.isFinite(high) && high > low) {
+    put(t("Диапазон дня", "Kunlik diapazon", "Day range"), `${num(low)} – ${num(high)}`);
+  }
+  put(t("Оборот", "Aylanma", "Turnover"), compact(row?.stockVolume) ? `${compact(row.stockVolume)} UZS` : null);
+  put(t("Бумаг", "Qog'ozlar", "Shares traded"), count(row?.stockQuantity));
+  put(t("Сделок", "Bitimlar", "Trades"), count(row?.stockTradeCount));
+  put(t("Средняя цена", "O'rtacha narx", "Average price"),
+      num(Number.isFinite(row?.avgPrice) ? row.avgPrice : avgSharePrice(row)));
+  const sessionRows = rows.splice(0, rows.length);
+  // The date is not decoration: the board carries a close forward through
+  // sessions with no executions, so a rail with no date invites reading an old
+  // session as today's.
+  const sessionDate = row?.last_trade_date || row?.close_date || sec?.last_trade_date || null;
+  pushBlock(t("Торги", "Savdolar", "Session"), sessionRows,
+    sessionDate ? `${t("сессия", "sessiya", "session")} ${sessionDate}` : null);
+
+  // --- The year ------------------------------------------------------------
+  const yearBar = rangeBar(yearLow, yearHigh, lastPrice);
+  if (yearBar) {
+    blocks.push(
+      <div className="co-sidebar-block" key="52w">
+        <h3 className="co-heading">{t("Диапазон 52 недели", "52 hafta diapazoni", "52-week range")}</h3>
+        {yearBar}
+        <div className="keystat-note muted">
+          {t("по ценам закрытия", "yopilish narxlari bo'yicha", "on closing prices")}
+          {win?.points ? ` · ${win.points} ${t("точек", "nuqta", "points")}` : ""}
+        </div>
+      </div>,
+    );
+  }
+
+  // --- Valuation -----------------------------------------------------------
+  // Капитализация is THIS class — the same figure the market board's column
+  // shows, and the only one that divides by the share count on the next line.
+  // The issuer total is a different quantity and gets its own row when the
+  // issuer has more than one class; printing the issuer figure above a class
+  // share count invites a division that means nothing (UZTLP: 9 945,8B over
+  // 29,6M shares).
+  const capClass = safeNumber(row?.marketCap);
+  const capIssuer = mult?.market_cap_issuer?.value;
+  put(t("Капитализация", "Kapitalizatsiya", "Market cap"),
+      compact(capClass) ? `${compact(capClass)} UZS` : null);
+  put(t("Акций в обращении", "Muomaladagi aksiyalar", "Shares outstanding"), count(row?.sharesOutstanding));
+  if ((mult?.issuer_classes?.length || 0) > 1 && Number.isFinite(capIssuer)
+      && (!Number.isFinite(capClass) || Math.abs(capIssuer - capClass) > 1)) {
+    put(t("Капитализация эмитента", "Emitent kapitalizatsiyasi", "Issuer market cap"),
+        `${compact(capIssuer)} UZS`,
+        `${t("все классы", "barcha sinflar", "all classes")}: ${mult.issuer_classes.join(", ")}`);
+  }
+  const valuationRows = rows.splice(0, rows.length);
+  putMultiple("P/E", mult?.pe, 2, "×", mult?.base_period || undefined);
+  putMultiple("P/B", mult?.pb, 2, "×");
+  putMultiple("BVPS", mult?.bvps, 2, "");
+  pushBlock(t("Оценка", "Baholash", "Valuation"), [...valuationRows, ...rows.splice(0, rows.length)]);
+
+  // --- Profitability -------------------------------------------------------
+  putMultiple("ROE", mult?.roe, 2, "");
+  putMultiple("ROA", mult?.roa, 2, "");
+  putMultiple(t("Чистая маржа", "Sof marja", "Net margin"), mult?.net_margin, 2, "");
+  putMultiple(t("Долг/Капитал", "Qarz/Kapital", "Debt/Equity"), mult?.debt_to_equity, 2, "");
+  pushBlock(t("Рентабельность", "Rentabellik", "Profitability"), rows.splice(0, rows.length));
+
+  // --- Dividends -----------------------------------------------------------
+  // Bonds pay coupons, not dividends; the tab is hidden for them and so is this.
+  if (securityType !== "bond" && Array.isArray(dividends) && dividends.length) {
+    const d = dividendSummary(dividends, { isPreferred: isPreferredRow(sec), lastPrice });
+    put(t("Последний дивиденд", "Oxirgi dividend", "Last dividend"),
+        d.latestAmt != null ? `${num(safeNumber(d.latestAmt))} ${t("сум/акц.", "so'm/aksiya", "UZS/share")}` : null);
+    if (d.yieldPct != null) {
+      put(t("Дивидендная доходность", "Dividend daromadliligi", "Dividend yield"),
+          `${formatRatio(d.yieldPct, 2, lang)}%`,
+          d.latestYear && !d.latestIsRecent
+            ? t(`по выплате ${d.latestYear} г. к текущей цене`,
+                `${d.latestYear}-yil to'lovi bo'yicha`,
+                `on the ${d.latestYear} payout, at the current price`)
+            : t("к текущей цене", "joriy narxga", "to current price"));
+    }
+    put(t("Выплат в истории", "Tarixdagi to'lovlar", "Payouts on record"), count(d.payouts));
+    // A yield built on an old payout has to say so ON the block, not only in a
+    // tooltip: KSCM's last declaration was 2020 and against today's price it
+    // reads 64 %, which nobody would take as historical unless told.
+    const divNote = d.latestYear && !d.latestIsRecent
+      ? t(`доходность по выплате ${d.latestYear} г. к текущей цене`,
+          `daromadlilik ${d.latestYear}-yil to'lovi bo'yicha`,
+          `yield on the ${d.latestYear} payout, at the current price`)
+      : d.latest?.decision_date ? `${t("решение", "qaror", "declared")} ${d.latest.decision_date}` : null;
+    pushBlock(t("Дивиденды", "Dividendlar", "Dividends"), rows.splice(0, rows.length), divNote);
+  }
+
+  if (!blocks.length) return null;
+  return <div className="company-keystats">{blocks}</div>;
+}
+
+// Preferred detection, matching the shapes the securities map and the board use.
+function isPreferredRow(sec) {
+  return sec?.stock_type === "preferred" || sec?.share_type === "preferred" || sec?.is_preferred === true;
+}
+
+/**
+ * The dividend headline: latest declared payout, its yield, and how many are on
+ * record. ONE rule, because the tab and the key-stats rail both state it and a
+ * page that answers "последний дивиденд" twice with two numbers is worse than a
+ * page that does not answer it at all.
+ *
+ * `latest` is the newest filing that declared something for THIS share class —
+ * openinfo's calendar also carries decisions that declared nothing (Aloqabank
+ * files four dated 11.06.2013 alone), and those are not the latest dividend.
+ * `payouts` counts filings that declared for EITHER class, which is what the
+ * issuer's payout history means.
+ */
+function dividendSummary(items, { isPreferred, lastPrice } = {}) {
+  const rows = Array.isArray(items) ? items : [];
+  const amtKey = isPreferred ? "preferred_amount" : "ordinary_amount";
+  const latest = rows.find((r) => (r[amtKey] || 0) > 0) || rows[0] || null;
+  const latestAmt = latest ? latest[amtKey] : null;
+  const yieldPct = (latestAmt && lastPrice) ? (latestAmt / lastPrice) * 100 : null;
+  const declared = rows.filter((r) => (r.ordinary_amount || 0) > 0 || (r.preferred_amount || 0) > 0);
+  const latestYear = latestAmt && latest?.decision_date ? String(latest.decision_date).slice(0, 4) : null;
+  return {
+    rows, latest, latestAmt, yieldPct, declared,
+    payouts: declared.length,
+    latestYear,
+    // The last payout is not always a recent one: SQBN's ordinary line was last
+    // paid in 2019 while its preferred line still pays every year, so a bare
+    // "к текущей цене" would read as this year's yield.
+    latestIsRecent: !!latestYear && (new Date().getFullYear() - Number(latestYear)) <= 1,
+  };
+}
+
+function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, priceMetricsLoading, metrics12, mult, dividends, lastPrice }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
-  const metrics = companyData?.ratios?.metrics || {};
-  const KEY_METRICS = [
-    { key: "ROA", label: "ROA" },
-    { key: "ROE", label: "ROE" },
-    { key: "net_margin", label: lang === "ru" ? "Чистая маржа" : "Net Margin" },
-    { key: "debt_ratio", label: lang === "ru" ? "Долг/Активы" : "Debt Ratio" },
-    { key: "debt_to_equity", label: lang === "ru" ? "Долг/Капитал" : "D/E" },
-  ];
-  const hasMetrics = KEY_METRICS.some((m) => metrics[m.key] != null);
-  // Multipliers (ТЗ §3.2/§3.4), computed by the SAME shared helper as the market
-  // table — see valuationRatios(). This page used to derive P/B as P/E × ROE,
-  // which is undefined for a loss-maker, so the same issuer showed a P/B on the
-  // market board and a blank here. ТЗ permits raw current multipliers in the
-  // public contour ("P/E сейчас = 8x") with no interpretation label; no
-  // «недооценена/переоценена» here. Global disclaimer applies.
-  // Same 12-month earnings basis as the market board — the shared helper picks
-  // the last complete fiscal year when the latest filing is a cumulative quarter,
-  // so this page and the board cannot disagree about what P/E divides by.
-  const earnings = finEarnings(financials);
-  const { pe: peVal, pb: pbVal } = valuationRatios({
-    marketCap: marketCapVal,
-    netIncome: safeNumber(earnings.netIncome),
-    equity: safeNumber(companyData?.ratios?.total_equity),
-    roePercent: safeNumber(metrics.ROE),
-  });
-  const hasValuation = peVal != null || pbVal != null;
 
   return (
     <div className="company-overview-layout">
-      {/* Full-width price chart */}
-      <div className="company-chart-panel panel">
-        <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} adjustments={priceAdjustments} lang={lang}
-          quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows} />
-        <PriceStatsStrip metrics={priceMetrics} loading={priceMetricsLoading} lang={lang} />
-      </div>
-
-      {/* Below chart: description + sidebar */}
-      <div className="company-overview-grid">
-        <div className="company-overview-main">
-          <h3 className="co-heading">{lang === "ru" ? "О компании" : lang === "uz" ? "Kompaniya haqida" : "About the company"}</h3>
-          {sec.company_description ? (
-            <>
-              <p className="company-description-text">{sec.company_description}</p>
-              {sec.source_url && (
-                <a href={sec.source_url} target="_blank" rel="noreferrer" className="wiki-link">
-                  {sec.info_source === "wikipedia"
-                    ? (lang === "ru" ? "Читать на Википедии →" : lang === "uz" ? "Vikipediyada o'qish →" : "Read on Wikipedia →")
-                    : (lang === "ru" ? "Официальный сайт →" : lang === "uz" ? "Rasmiy sayt →" : "Official website →")}
-                </a>
-              )}
-            </>
-          ) : infoLoading ? (
-            <div className="company-desc-skeleton" aria-hidden="true">
-              <span /><span /><span /><span style={{ width: "62%" }} />
-            </div>
-          ) : (
-            <p className="muted" style={{ fontSize: 14 }}>{lang === "ru" ? "Информация о компании недоступна." : lang === "uz" ? "Kompaniya haqida ma'lumot mavjud emas." : "Company information is currently unavailable."}</p>
-          )}
+      {/* The chart shares the first screen with the numbers instead of owning
+          it. Valuation, profitability and the session live in the rail — all of
+          it from /api/market/multiples and the board row, so nothing here is
+          recomputed and nothing can disagree with the market table. */}
+      <div className="company-hero-grid">
+        <div className="company-hero-main">
+          <div className="company-chart-panel panel">
+            <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} adjustments={priceAdjustments} lang={lang}
+              quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows} />
+            <PriceStatsStrip metrics={priceMetrics} loading={priceMetricsLoading} lang={lang} />
+          </div>
+          <div className="company-overview-main">
+            <h3 className="co-heading">{lang === "ru" ? "О компании" : lang === "uz" ? "Kompaniya haqida" : "About the company"}</h3>
+            {sec.company_description ? (
+              <>
+                <p className="company-description-text">{sec.company_description}</p>
+                {sec.source_url && (
+                  <a href={sec.source_url} target="_blank" rel="noreferrer" className="wiki-link">
+                    {sec.info_source === "wikipedia"
+                      ? (lang === "ru" ? "Читать на Википедии →" : lang === "uz" ? "Vikipediyada o'qish →" : "Read on Wikipedia →")
+                      : (lang === "ru" ? "Официальный сайт →" : lang === "uz" ? "Rasmiy sayt →" : "Official website →")}
+                  </a>
+                )}
+              </>
+            ) : infoLoading ? (
+              <div className="company-desc-skeleton" aria-hidden="true">
+                <span /><span /><span /><span style={{ width: "62%" }} />
+              </div>
+            ) : (
+              <p className="muted" style={{ fontSize: 14 }}>{lang === "ru" ? "Информация о компании недоступна." : lang === "uz" ? "Kompaniya haqida ma'lumot mavjud emas." : "Company information is currently unavailable."}</p>
+            )}
+          </div>
         </div>
 
+        {/* One rail, running the height of the page — the chart no longer owns
+            the first screen and «О компании» no longer has to sit under a
+            column-height of dead space. */}
         <div className="company-overview-sidebar">
-          {(hasMetrics || hasValuation) && (
-            <div className="co-sidebar-block">
-              <h3 className="co-heading">{lang === "ru" ? "Ключевые показатели" : "Key Metrics"}</h3>
-              <div className="company-metrics-list">
-                {KEY_METRICS.filter((m) => metrics[m.key] != null).map((m) => (
-                  <div key={m.key} className="company-metric-row">
-                    <span className="panel-label">{m.label}</span>
-                    <span className="company-metric-val">{typeof metrics[m.key] === "number" ? metrics[m.key].toFixed(2) : metrics[m.key]}</span>
-                  </div>
-                ))}
-                {peVal != null && (
-                  <div className="company-metric-row">
-                    <span className="panel-label">
-                      P/E{earnings.period ? <span className="co-metric-period"> · {earnings.period}</span> : null}
-                    </span>
-                    <span className="company-metric-val">{peVal.toFixed(2)}×</span>
-                  </div>
-                )}
-                {pbVal != null && (
-                  <div className="company-metric-row"><span className="panel-label">P/B</span><span className="company-metric-val">{pbVal.toFixed(2)}×</span></div>
-                )}
-                {companyData?.ratios?.year && (
-                  <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-                    {lang === "ru" ? `За ${companyData.ratios.year} г.` : `${companyData.ratios.year}`}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
+            dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang} />
+          {/* Identity only. Capitalisation, the multiples and the profitability
+              ratios moved into the key-stats rail beside the chart, where they
+              are read off the server's issuer-level envelope rather than
+              recomputed here at class level. */}
           <div className="co-sidebar-block">
             <h3 className="co-heading">{lang === "ru" ? "Детали" : "Details"}</h3>
             <div className="company-metrics-list">
               {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span className="isin-mono">{sec.isin}</span></div>}
-              {marketCapVal && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Капитализация" : lang === "uz" ? "Kapitalizatsiya" : "Market cap"}</span><span>{formatCompactVolume(marketCapVal, lang)} UZS</span></div>}
               {nominalVal && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Номинал" : lang === "uz" ? "Nominal" : "Nominal"}</span><span>{formatMarketNumber(nominalVal, lang)} UZS</span></div>}
               {industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : lang === "uz" ? "Soha" : "Sector"}</span><span>{sectorLabel(lang, industry)}</span></div>}
               {securityType && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип" : lang === "uz" ? "Turi" : "Type"}</span><span>{securityType === "bond" ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond") : (lang === "ru" ? "Акция" : lang === "uz" ? "Aksiya" : "Stock")}</span></div>}
@@ -6339,19 +6639,14 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
     </div>
   );
 
-  const amtKey = isPreferred ? "preferred_amount" : "ordinary_amount";
-  const latest = rows.find((r) => (r[amtKey] || 0) > 0) || rows[0];
-  const latestAmt = latest ? latest[amtKey] : null;
-  const yieldPct = (latestAmt && lastPrice) ? (latestAmt / lastPrice) * 100 : null;
-  const declared = rows.filter((r) => (r.ordinary_amount || 0) > 0 || (r.preferred_amount || 0) > 0);
-  const payouts = declared.length;
+  // Same rule as the key-stats rail — see dividendSummary().
+  const { latest, latestAmt, yieldPct, declared, payouts, latestYear, latestIsRecent } =
+    dividendSummary(rows, { isPreferred, lastPrice });
   // O'zsanoatqurilishbank files 92 calendar entries and declared a payout in 9 of
   // them. When an issuer declared nothing at all there is nothing to fold away —
   // the silent filings ARE the record, so they stay on screen.
   const silent = payouts === 0 ? 0 : rows.length - payouts;
   const visible = (showSilent || payouts === 0) ? rows : declared;
-  const latestYear = latestAmt && latest?.decision_date ? String(latest.decision_date).slice(0, 4) : null;
-  const latestIsRecent = latestYear && (new Date().getFullYear() - Number(latestYear)) <= 1;
 
   return (
     <div className="company-dividends">
@@ -6433,9 +6728,15 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
   );
 }
 
-function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marketRows, financials }) {
+function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marketRows, financials, tradeStats }) {
   const lang = normalizeLanguage(language);
   const [tab, setTab] = React.useState("overview");
+  // Issuer-level multiples, straight from the endpoint the market board reads.
+  const [mult, setMult] = React.useState(null);
+  // A SECOND metrics call, pinned to twelve months. The main one follows the
+  // period button by design (ТЗ §5), so reading the 52-week range off it would
+  // relabel a one-month high as a yearly one the moment somebody pressed «1М».
+  const [metrics12, setMetrics12] = React.useState(null);
   const [priceHistory, setPriceHistory] = React.useState(null);
   // Non-empty only for a series that spans a split or a bonus issue — the chart has to
   // say the older prices were restated, or they read as wrong against uzse.uz.
@@ -6494,11 +6795,14 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
     return () => { alive = false; };
   }, [ticker, priceMonths, priceRetry]);
 
-  // Reset dividends when the ticker changes; fetched lazily on first tab open.
-  React.useEffect(() => { setDividends(null); }, [ticker]);
+  // Dividends are no longer lazy: the key-stats rail states the last payout and
+  // its yield on the Обзор tab, so waiting for the Дивиденды tab to be opened
+  // would leave the rail permanently short of the one figure an equity holder
+  // opens the page for.
   React.useEffect(() => {
-    if (!ticker || tab !== "dividends" || dividends !== null) return undefined;
+    if (!ticker) return undefined;
     let alive = true;
+    setDividends(null);
     setDivLoading(true);
     fetch(`/api/dividends/${encodeURIComponent(ticker)}`)
       .then((r) => r.json())
@@ -6506,7 +6810,33 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
       .catch(() => { if (alive) setDividends([]); })
       .finally(() => { if (alive) setDivLoading(false); });
     return () => { alive = false; };
-  }, [ticker, tab, dividends]);
+  }, [ticker]);
+
+  // ТЗ §8: the server owns this arithmetic, per ISSUER, with the auditor's
+  // blocking findings already applied. A failure leaves `mult` null and the rail
+  // simply omits the valuation rows — it never falls back to computing them.
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/market/multiples")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !d || !d.ok) return;
+        const up = String(ticker || "").toUpperCase();
+        setMult((d.items || []).find((it) => String(it.ticker || "").toUpperCase() === up) || null);
+      })
+      .catch(() => { if (alive) setMult(null); });
+    return () => { alive = false; };
+  }, [ticker]);
+
+  React.useEffect(() => {
+    if (!ticker) return undefined;
+    let alive = true;
+    fetch(`/api/company/${encodeURIComponent(ticker)}/metrics?months=12`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setMetrics12(d.ok ? d : null); })
+      .catch(() => { if (alive) setMetrics12(null); });
+    return () => { alive = false; };
+  }, [ticker, priceRetry]);
 
   React.useEffect(() => {
     if (!ticker) return undefined;
@@ -6548,17 +6878,29 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
 
   if (!ticker) return null;
   const sec = secInfo || (securitiesMap || {})[ticker] || {};
-  const marketRow = (marketRows || []).find((r) => (r.ticker || "").toUpperCase() === ticker.toUpperCase());
+  // The board's own row, reconciled against the stored day statistics exactly as
+  // the market table does it. The header used to derive its move as a bare
+  // `last_price - close_price`, which is the two-sessions-in-one-day defect
+  // previousClose() exists to prevent — see applyTradeStats.
+  const rawRow = (marketRows || []).find((r) => (r.ticker || "").toUpperCase() === ticker.toUpperCase());
+  const marketRow = rawRow
+    ? applyTradeStats(enrichMarketStock(rawRow), tradeStats || {}, latestTradeStatsDay(tradeStats || {}))
+    : null;
   // Company-level financials for P/E and P/B; mirror the preferred-sibling fallback (TKDM <-> TKDMP).
   const companyFin = (() => {
     const f = financials || {};
     const up = ticker.toUpperCase();
     return f[up] || f[up.endsWith("P") ? up.slice(0, -1) : `${up}P`] || null;
   })();
-  const lastPrice = marketRow?.last_price ?? marketRow?.lastPrice ?? sec.last_price ?? null;
-  const closePrice = marketRow?.close_price ?? marketRow?.closePrice ?? sec.close_price ?? null;
-  const priceChange = (lastPrice != null && closePrice != null && closePrice !== 0)
-    ? { value: lastPrice - closePrice, pct: ((lastPrice - closePrice) / Math.abs(closePrice)) * 100 }
+  const lastPrice = marketRow?.lastPrice ?? marketRow?.last_price ?? sec.last_price ?? null;
+  // The move the reconciled row settled on. Only when there is no board row at
+  // all does the header fall back to differencing the securities-map closes —
+  // and then it has no session to check them against, so it says nothing rather
+  // than publishing a difference between two undated prices.
+  const priceChange = marketRow
+    ? (Number.isFinite(marketRow.changeValue) && Number.isFinite(marketRow.changePercent)
+        ? { value: marketRow.changeValue, pct: marketRow.changePercent }
+        : null)
     : null;
   // The securities map uses `type`/`share_type`/`is_preferred`/`sector`; some
   // callers pass `security_type`/`stock_type`/`industry`. Accept both shapes.
@@ -6655,7 +6997,8 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, marke
             priceMonths={priceMonths} onMonthsChange={setPriceMonths}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
             marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading}
-            priceMetrics={metrics} priceMetricsLoading={metricsLoading} />
+            priceMetrics={metrics} priceMetricsLoading={metricsLoading}
+            metrics12={metrics12} mult={mult} dividends={dividends} lastPrice={lastPrice} />
         )}
         {tab === "chart" && (
           <div className="panel" style={{ padding: 24 }}>
@@ -7451,91 +7794,10 @@ function MarketView({
     return fmap[t] || fmap[t.endsWith("P") ? t.slice(0, -1) : `${t}P`] || null;
   };
   const tmap = tradeStats || {};
-  // Per-trade stats (UZSE) are the complete, correct daily totals — the plain
-  // /stocks snapshot can be stale. When present, override turnover/qty/trades
-  // with them and expose the average trade price. The change column stays
-  // close-to-close (the exchange's official convention — UZSE's daily
-  // bulletin computes O'zgarish from the closing price, not the day's
-  // average; and a backfilled older day's average vs the current close would
-  // fabricate a bogus "today's move" for an untraded security).
-  const latestTsDay = Object.values(tmap).reduce((m, t) => {
-    const d = String(t?.trade_date || "");
-    return /^\d{8}$/.test(d) && (!m || d > m) ? d : m;
-  }, null);
-  const preparedAll = (Array.isArray(rows) ? rows : []).map(enrichMarketStock).map((r) => {
-    const t = tmap[r.isin] || tmap[(r.isin || "").toUpperCase()];
-    if (!t) return r;
-    const rowDay = normalizeMarketDay(r.last_trade_date);
-    const tsDay = normalizeMarketDay(t.trade_date);
-    // The day stats and the feed row must describe the SAME session — a stored
-    // day older than the row's own last trade is a snapshot the nightly push
-    // never refreshed, and its turnover belongs to no quote on the page. Fall
-    // back to the feed's own figures for the row's day; an em-dash where the
-    // feed has none is honest, a number from another week is not.
-    if (!tradeStatsApply(r.last_trade_date, t.trade_date)) return r;
-    const out = { ...r, ts: t };
-    if (Number.isFinite(t.total_value)) out.stockVolume = t.total_value;
-    if (Number.isFinite(t.total_qty)) out.stockQuantity = t.total_qty;
-    if (Number.isFinite(t.trade_count)) out.stockTradeCount = t.trade_count;
-    if (Number.isFinite(t.avg_price)) out.avgPrice = t.avg_price;
-    if (Number.isFinite(t.vwap)) out.vwap = t.vwap;
-    // The feed lags for thin names — SANE still carried its 13.07 trade
-    // while today's executions existed (and sometimes last_price is null
-    // outright) — so the official move vanished from the board. When the
-    // day stats are the latest session AND newer than the feed row, the
-    // session's own OHLC is authoritative: price/date/OHLC come from it and
-    // the change is close-to-close (session close vs the feed's stale
-    // close, which IS the previous close — matching the daily bulletin).
-    const tsIsNewer = tsDay && tsDay === latestTsDay &&
-      (r.lastPrice === null || !rowDay || rowDay < tsDay);
-    if (tsIsNewer) {
-      const px = Number.isFinite(t.close_price) ? t.close_price
-        : Number.isFinite(t.vwap) ? t.vwap : t.avg_price;
-      if (Number.isFinite(px)) {
-        out.lastPrice = px;
-        if (Number.isFinite(t.open_price)) out.openPrice = t.open_price;
-        if (Number.isFinite(t.high_price)) out.highPrice = t.high_price;
-        if (Number.isFinite(t.low_price)) out.lowPrice = t.low_price;
-        if (/^\d{8}$/.test(String(t.trade_date))) {
-          const d = String(t.trade_date);
-          out.last_trade_date = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
-        }
-        // Against the newest close the exchange published BEFORE this session —
-        // not against whatever `close_price` the row is carrying. Once the quote
-        // pass falls two sessions behind, that field is the PREVIOUS session's
-        // previous close, and the difference is two days' move wearing one day's
-        // date: UQEQ's single unchanged 37 200 trade led the top-gainers panel at
-        // +20 % because it was struck against 05.08's 31 000. See previousClose.
-        const prev = previousClose({
-          lastPrice: r.lastPrice, lastTradeDate: r.last_trade_date,
-          closePrice: r.closePrice, closeDate: r.close_date,
-        }, t.trade_date);
-        if (prev) {
-          // The row now states this session, so it must state this session's
-          // previous close too — the "закр." line under the trade date reads it.
-          out.closePrice = prev.price;
-          out.close_price = prev.price;
-          out.close_date = prev.date ?? null;
-          out.changeValue = px - prev.price;
-          out.changePercent = ((px - prev.price) / Math.abs(prev.price)) * 100;
-        } else {
-          // Nothing datable to measure from. An em-dash is the honest cell.
-          out.changeValue = null;
-          out.changePercent = null;
-        }
-        out.tone = marketTone(out.changePercent);
-      } else if (rowDay && rowDay < tsDay) {
-        // The stats put this row in a session the quote layer has not reached,
-        // and carry no price to restate it with. Whatever change the quote holds
-        // belongs to the older session — leaving it in place is how a stale move
-        // gets published under today's date, which is the whole defect above.
-        out.changeValue = null;
-        out.changePercent = null;
-        out.tone = marketTone(null);
-      }
-    }
-    return out;
-  });
+  const latestTsDay = latestTradeStatsDay(tmap);
+  const preparedAll = (Array.isArray(rows) ? rows : [])
+    .map(enrichMarketStock)
+    .map((r) => applyTradeStats(r, tmap, latestTsDay));
   // "preferred" is a client-side subset of stocks (the feed was fetched as
   // type=stock); narrow to preferred shares so the table, sectors and heatmap
   // all reflect the filter.
@@ -7612,23 +7874,7 @@ function MarketView({
   // ТЗ §8: a multiple the server withheld says WHY. «убыток» is a fact about the
   // issuer, not missing data; «проверяется» means the statement behind it failed
   // validation; a range status means the figure exists and is not believable.
-  const MULTIPLE_STATUS_TEXT = {
-    // ТЗ v1.3 §12.6: on the market tab the auditor is visible without its rule
-    // codes. A withheld metric is a dash whose tooltip says why; the reader does
-    // not need to know which rule fired, only which numbers they can trust.
-    audit_blocked: ["снято аудитом", "audit olib tashladi", "withheld by audit"],
-    loss_making: ["убыток", "zarar", "loss"],
-    unverified: ["проверяется", "tekshirilmoqda", "under review"],
-    out_of_range: ["вне диапазона", "diapazondan tashqari", "out of range"],
-    shares_inconsistent: ["сверка акций", "aksiyalar sverkasi", "share count"],
-    incomplete: ["нет всех классов", "barcha sinflar yo'q", "classes missing"],
-    no_market_cap: ["нет капитализации", "kapitalizatsiya yo'q", "no market cap"],
-    no_share_count: ["нет числа акций", "aksiyalar soni yo'q", "no share count"],
-  };
-  const statusText = (status) => {
-    const words = MULTIPLE_STATUS_TEXT[status];
-    return words ? words[lang === "uz" ? 1 : lang === "en" ? 2 : 0] : null;
-  };
+  const statusText = (status) => multipleStatusText(status, lang);
   const multipleCell = (row, metric, digits, suffix = "×") => {
     if (metric?.value != null) {
       return <td className="num">{formatRatio(metric.value, digits, lang)}{suffix}</td>;
@@ -9612,8 +9858,12 @@ function App() {
     return () => clearInterval(id);
   }, [token]);
 
+  // The company page reads the board too — price, previous close, the day's
+  // OHLC, turnover, capitalisation and share count all come from it. Opening
+  // /company/UZTL directly used to skip this load entirely, so the header had no
+  // quote and the Детали box silently dropped its capitalisation row.
   useEffect(() => {
-    if (activeView !== "market" && activeView !== "heatmap") return;
+    if (activeView !== "market" && activeView !== "heatmap" && activeView !== "company") return;
     loadMarketStocks().catch((error) => {
       addToast(error.message, "error");
     });
@@ -10583,6 +10833,7 @@ function App() {
               language={language}
               marketRows={marketRows}
               financials={marketFinancials}
+              tradeStats={marketTradeStats}
               onBack={() => setActiveView(prevView || "market")}
               onAnalyze={(t) => { setAnalysisCompany(t); setActiveView("analysis"); }}
             />
