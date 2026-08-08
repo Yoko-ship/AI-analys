@@ -3388,6 +3388,44 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
         _FIN_LOCK.release()
 
 
+def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str, Any]]:
+    """Every ANNUAL period this platform has parsed for one issuer, by year.
+
+    Straight from the filings — catalog_financials for the sums and
+    catalog_ratios for the ratios computed off the same two statements. This is
+    the authority: the openinfo indicator feed it replaces had UZTL's 2023 and
+    2024 revenue transposed and 2021 missing, while the filings agree with it
+    everywhere it is right.
+
+    Sums stay in the stored unit (thousands); the caller scales them, exactly as
+    every other endpoint that serves absolute figures does.
+    """
+    t = str(ticker or "").strip().upper()
+    if not t:
+        return {}
+    conn = get_catalog_conn()
+    try:
+        fin = conn.execute(
+            f"SELECT year, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
+            "WHERE ticker=? AND form=? AND quarter=0 ORDER BY year",
+            (t, form)).fetchall()
+        rat = conn.execute(
+            "SELECT year, roa, roe, debt_ratio, debt_to_equity FROM catalog_ratios "
+            "WHERE ticker=? AND form=? AND quarter=0 ORDER BY year",
+            (t, form)).fetchall()
+    finally:
+        conn.close()
+    out: dict[str, dict[str, Any]] = {}
+    for row in fin:
+        out.setdefault(str(row["year"]), {}).update(
+            {k: row[k] for k in _FIN_FIELDS if row[k] is not None})
+    for row in rat:
+        out.setdefault(str(row["year"]), {}).update(
+            {k: row[k] for k in ("roa", "roe", "debt_ratio", "debt_to_equity")
+             if row[k] is not None})
+    return out
+
+
 def get_sector_averages(sector_tickers: list[str], form: str, year: int) -> dict[str, Any]:
     if not sector_tickers:
         return {}

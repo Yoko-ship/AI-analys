@@ -262,6 +262,95 @@ def push_trade_stats() -> int:
 SKIP_QUOTES = False
 
 
+def backfill_financials(min_year: int = 2015) -> int:
+    """Parse every issuer's historical ANNUAL filing into the financials cache.
+
+    The pipeline only ever parsed the LATEST annual report per ticker — 94 rows
+    across 68 issuers — because that is all the market board needs. So the
+    company page had no multi-year income statement to draw, and the fact store
+    it fell back to carries no gross profit or operating income at all: only
+    margins, and those on a basis we could not verify.
+
+    The filings are the authority and they parse cleanly at any age. UZTL's
+    2022, 2023, 2024 and 2025 annuals all yield revenue, gross profit, operating
+    income and net profit, and they agree with the fact store exactly where the
+    store is right (2025, 2022, 2020) — which is how the store was caught with
+    UZTL's 2023 and 2024 revenue TRANSPOSED and 2021 missing entirely.
+
+    One parse fills both caches: the six sums into catalog_financials and the
+    ratios computed from the same two statements into catalog_ratios, so every
+    year on the page comes from one filing rather than from two sources that
+    disagree.
+    """
+    from securities_catalog import get_securities_map
+
+    tickers = sorted({str(t).upper() for t in (get_securities_map() or {})})
+    log.info("financials backfill: %d tickers, annual reports from %d", len(tickers), min_year)
+    rows: list[dict] = []
+    ratio_rows: list[dict] = []
+    ratios_written = 0
+    scanned = failed = 0
+    for index, ticker in enumerate(tickers, 1):
+        try:
+            reports = rc.get_company_reports(ticker) or []
+        except Exception:
+            log.exception("financials backfill: cannot list reports for %s", ticker)
+            failed += 1
+            continue
+        years = sorted({int(r["year"]) for r in reports
+                        if r.get("report_form") == "NSBU" and not r.get("quarter")
+                        and str(r.get("year") or "").isdigit() and int(r["year"]) >= min_year},
+                       reverse=True)
+        for year in years:
+            scanned += 1
+            try:
+                data = rc.fetch_report_excel_data(ticker, "NSBU", year, 0)
+                if not data.get("ok"):
+                    continue
+                ratios = rc.compute_financial_ratios(data.get("income"), data.get("balance")) or {}
+                vals = ratios.get("source_values") or {}
+                if not any(vals.get(k) is not None for k in rc.FIN_MONEY_FIELDS):
+                    continue
+                rows.append({"ticker": ticker, "year": year, "quarter": 0,
+                             **{k: vals.get(k) for k in rc.FIN_MONEY_FIELDS}})
+                # ТЗ Дополнение 1 §Б.2: the filing this parse consumed is
+                # registered and the figures recorded against it, exactly as the
+                # latest-annual pass does. Writing the rows WITHOUT this left
+                # 450 figures in the cache with no source — the provenance
+                # backfill then linked them to reports it had never parsed, and
+                # test_the_backfill_links_figures_cached_before_provenance_existed
+                # caught it.
+                report_id = rc._register_parse(ticker, "NSBU", year, 0, data, vals)
+                # The collector's own cache mirrors what it pushes, so a later
+                # run reads the same history the deployment is serving.
+                rc.upsert_financials_cache(ticker, "NSBU", year, 0, vals, report_id)
+                metrics = ratios.get("metrics") or {}
+                if any(v is not None for v in metrics.values()):
+                    rc.upsert_ratio_cache(ticker, "NSBU", year, 0, metrics)
+                    ratio_rows.append({"ticker": ticker, "year": year, "quarter": 0, **metrics})
+                    ratios_written += 1
+            except Exception:
+                log.exception("financials backfill: %s %s failed", ticker, year)
+                failed += 1
+            time.sleep(0.2)
+        if index % 10 == 0:
+            log.info("financials backfill: %d/%d tickers, %d periods parsed",
+                     index, len(tickers), len(rows))
+    log.info("financials backfill: %d periods from %d reports (%d failures), %d ratio rows",
+             len(rows), scanned, failed, ratios_written)
+    if not rows:
+        return 1
+    status = 0
+    # upsert, never replace: the newest period the board reads must survive a
+    # backfill that is only adding history behind it.
+    for start in range(0, len(rows), 500):
+        status = _post("/api/admin/financials",
+                       {"form": "NSBU", "mode": "upsert",
+                        "rows": rows[start:start + 500],
+                        "ratios": ratio_rows[start:start + 500]}) or status
+    return status
+
+
 def _history_universe() -> set[str]:
     """Every ISIN the DEPLOYMENT's board carries, plus the local catalog's.
 
@@ -822,6 +911,9 @@ def main() -> int:
     ap.add_argument("--backfill-history", type=int, nargs="?", const=12, default=None,
                     metavar="MONTHS",
                     help="one-off: seed the daily-close store from openinfo (default 12 months)")
+    ap.add_argument("--backfill-financials", type=int, nargs="?", const=2015, default=None,
+                    metavar="FROM_YEAR",
+                    help="one-off: parse every historical annual filing into the financials cache")
     args = ap.parse_args()
 
     global SKIP_QUOTES
@@ -831,6 +923,13 @@ def main() -> int:
     # the per-issuer `except Exception` guards below would otherwise turn a
     # missing dependency into a run that "succeeds" having collected nothing.
     preflight(COLLECTOR_REQUIREMENTS, label="collector")
+
+    if args.backfill_financials is not None:
+        try:
+            return backfill_financials(args.backfill_financials)
+        except Exception:
+            log.exception("financials backfill failed")
+            return 1
 
     if args.backfill_history is not None:
         try:
