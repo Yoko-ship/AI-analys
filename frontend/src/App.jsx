@@ -9,6 +9,19 @@ import { loadConfig, threshold as cfgThreshold } from "./lib/flags.js";
 // (see frontend/src/lib/sectors.js and tests/sectors.test.js) — they used to read
 // two different maps and file the same ticker under two different sectors.
 import { SECTOR_ORDER, orderSectors, sectorOf } from "./lib/sectors.js";
+// Indicator maths for the advanced chart. Pure, and calendar-windowed rather
+// than bar-counted — see the header of the module for why that is not a detail
+// on a market where most securities trade on a minority of days.
+import {
+  alignToDates as indAlign,
+  bollinger as indBollinger,
+  calendarSeries as indCalendar,
+  ema as indEma,
+  macd as indMacd,
+  rsi as indRsi,
+  sma as indSma,
+  stochastic as indStochastic,
+} from "./lib/indicators.js";
 import heroImage from "./assets/hero-image.png";
 import promoVideo from "./assets/promo.mp4";
 import promoPoster from "./assets/promo-poster.jpg";
@@ -62,6 +75,9 @@ const VIEW_PATHS = {
 
 function viewToPath(view, ticker, newsId, adminSection) {
   if (view === "company" && ticker) return `/company/${encodeURIComponent(ticker)}`;
+  // The advanced chart is a page, not a tab: it has its own toolbar state and
+  // that state lives in the query string, so the view has to be linkable.
+  if (view === "chart" && ticker) return `/chart/${encodeURIComponent(ticker)}`;
   if (view === "newsArticle" && newsId) return `/news/${encodeURIComponent(newsId)}`;
   if (view === "admin") {
     return adminSection && adminSection !== "overview" ? `/admin/${adminSection}` : "/admin";
@@ -73,6 +89,9 @@ function pathToView(pathname) {
   const clean = (pathname || "/").replace(/\/+$/, "") || "/";
   if (clean.startsWith("/company/")) {
     return { view: "company", ticker: decodeURIComponent(clean.slice("/company/".length)), newsId: null };
+  }
+  if (clean.startsWith("/chart/")) {
+    return { view: "chart", ticker: decodeURIComponent(clean.slice("/chart/".length)), newsId: null };
   }
   // /news is the feed; /news/{id} is one story on its own page.
   if (clean.startsWith("/news/")) {
@@ -5896,7 +5915,7 @@ function QuickCompareStrip({ peers, securitiesMap, selected, colors, onToggle, l
 }
 
 function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments, lang, quality, metricsWindows,
-                             ticker, compare, compareLoading }) {
+                             ticker, compare, compareLoading, onExpand }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const months = chartRangeSpan(range);
   const [hover, setHover] = React.useState(null);
@@ -6258,6 +6277,19 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
             disabled={!ma50Available}
             title={`${MA_DAYS.ma50} ${t("календарных дней", "kalendar kun", "calendar days")}`}
             onClick={() => setMaOn((s) => ({ ...s, ma50: !s.ma50 }))}>MA50</button>
+          {/* Everything this chart deliberately does not carry — candles,
+              indicators, fundamentals, a custom period — is one click away
+              instead of being crammed in beside «О компании». */}
+          {onExpand && (
+            <button type="button" className="chart-expand-btn" onClick={onExpand}
+              title={t("Развернуть в расширенный график", "Kengaytirilgan grafikka", "Expand to the advanced chart")}
+              aria-label={t("Развернуть в расширенный график", "Kengaytirilgan grafikka", "Expand to the advanced chart")}>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -6860,7 +6892,7 @@ function dividendSummary(items, { isPreferred, lastPrice } = {}) {
   };
 }
 
-function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, priceRange, onRangeChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare }) {
+function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, priceRange, onRangeChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
 
   return (
@@ -6879,7 +6911,8 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
                 only its numbers stopped being printed. */}
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={onRangeChange} adjustments={priceAdjustments} lang={lang}
               quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows}
-              ticker={ticker} compare={compare?.series} compareLoading={compare?.loading} />
+              ticker={ticker} compare={compare?.series} compareLoading={compare?.loading}
+              onExpand={onExpandChart} />
             {/* Inside the chart panel, as on the reference page: the strip is a
                 control for the chart above it, not a section of its own. */}
             {compare && (
@@ -7412,7 +7445,7 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
   );
 }
 
-function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpenCompany, marketRows, financials, tradeStats, favoriteTickers, onToggleFavorite, signedIn }) {
+function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpenCompany, onOpenChart, marketRows, financials, tradeStats, favoriteTickers, onToggleFavorite, signedIn }) {
   const lang = normalizeLanguage(language);
   const [tab, setTab] = React.useState("overview");
   // Issuer-level multiples, straight from the endpoint the market board reads.
@@ -7775,6 +7808,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
               peers: comparePeers, securitiesMap, selected: compareTickers,
               onToggle: toggleCompare, series: compareLines, loading: compareLoading,
             }}
+            onExpandChart={onOpenChart
+              ? () => onOpenChart(ticker, { range: priceRange, type: "line", compare: compareTickers,
+                                            indicators: [], fin: [], from: "", to: "" })
+              : null}
             priceRange={priceRange} onRangeChange={setPriceRange}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
             marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading}
@@ -7791,7 +7828,11 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
             <h3 className="section-heading" style={{ marginBottom: 16 }}>{lang === "ru" ? `История цен — ${ticker}` : `Price History — ${ticker}`}</h3>
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={setPriceRange} lang={lang}
               quality={metrics?.quality} metricsWindows={metrics?.ma_windows}
-              ticker={ticker} compare={compareLines} compareLoading={compareLoading} />
+              ticker={ticker} compare={compareLines} compareLoading={compareLoading}
+              onExpand={onOpenChart
+                ? () => onOpenChart(ticker, { range: priceRange, type: "line", compare: compareTickers,
+                                              indicators: [], fin: [], from: "", to: "" })
+                : null} />
             <QuickCompareStrip peers={comparePeers} securitiesMap={securitiesMap}
               selected={compareTickers} colors={QC_COLORS} onToggle={toggleCompare}
               lang={lang} loading={compareLoading} />
@@ -7811,6 +7852,1108 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
       </div>
     </div>
   );
+}
+
+/* ── Расширенный график ─────────────────────────────────────────────────────
+ * The reference page's «Expand to advanced chart», on our data: a page of its
+ * own at /chart/{TICKER} carrying the whole toolbox — periods and a custom
+ * range, four chart types, indicators, fundamentals as their own panes, the
+ * peer comparison, a volume strip and a crosshair that reads every series at
+ * once.
+ *
+ * Three things the reference has that our data cannot honestly carry, and are
+ * therefore absent rather than faked:
+ *   • 1D and 5D. The exchange publishes a SESSION, not a tape we keep — the
+ *     smallest true unit here is one close. An intraday button would draw a
+ *     day out of a single point.
+ *   • Delayed live prices. Ours is the settled record; the header says so.
+ *   • Analyst/estimate overlays. Nobody publishes them for this market.
+ * ------------------------------------------------------------------------ */
+
+const AC_TYPES = [
+  { key: "line", label: ["Линия", "Chiziq", "Line"] },
+  { key: "candle", label: ["Свечи", "Shamlar", "Candles"] },
+  { key: "area", label: ["Область", "Maydon", "Area"] },
+  { key: "baseline", label: ["От базы", "Bazadan", "Baseline"] },
+];
+
+// Windows are CALENDAR DAYS, never bars — see lib/indicators.js for why that
+// is a correctness matter here and not a preference. The labels say «дн.» so
+// the screen states the same window the calculation used.
+const AC_INDICATORS = [
+  { key: "sma50", pane: "price", n: 50, color: "#3b82f6", label: ["SMA 50 дн.", "SMA 50 kun", "SMA 50d"] },
+  { key: "sma200", pane: "price", n: 200, color: "#8b5cf6", label: ["SMA 200 дн.", "SMA 200 kun", "SMA 200d"] },
+  { key: "ema50", pane: "price", n: 50, color: "#f59e0b", label: ["EMA 50 дн.", "EMA 50 kun", "EMA 50d"] },
+  { key: "ema200", pane: "price", n: 200, color: "#ec4899", label: ["EMA 200 дн.", "EMA 200 kun", "EMA 200d"] },
+  { key: "bb", pane: "price", n: 20, color: "#14b8a6", label: ["Полосы Боллинджера 20 дн.", "Bollinger 20 kun", "Bollinger Bands 20d"] },
+  { key: "rsi", pane: "sub", n: 14, color: "#22d3ee", label: ["RSI 14 дн.", "RSI 14 kun", "RSI 14d"] },
+  { key: "macd", pane: "sub", color: "#f472b6", label: ["MACD 12/26/9", "MACD 12/26/9", "MACD 12/26/9"] },
+  { key: "stoch", pane: "sub", n: 14, color: "#a3e635", label: ["Стохастик 14/3", "Stoxastik 14/3", "Stochastic 14/3"] },
+];
+
+// The fundamentals the fact store actually holds, in statement order. The
+// reference offers twenty-five lines because it buys an estimates feed; these
+// twenty are the ones /api/company/{t}/financials can answer from filings.
+const AC_FIN_FIELDS = [
+  "net_revenue", "gross_profit", "operating_expenses", "operating_income", "net_profit",
+  "total_assets", "total_liabilities", "total_equity", "cash",
+  "roe", "roa", "return_to_capital_employed",
+  "net_margin", "gross_profit_margin", "ebit_margin",
+  "current_ratio", "quick_ratio", "debt_ratio", "debt_to_equity", "total_asset_turnover",
+];
+const AC_FIN_MAX = 2;
+const AC_FIN_COLORS = ["#38bdf8", "#fb923c"];
+
+/** A percentage-style fundamental is drawn and labelled as one. */
+const acFinIsRate = (field) => /(_margin|^roe$|^roa$|_ratio$|return_to_capital|_turnover$)/.test(field);
+
+/**
+ * An annual figure placed on a daily axis.
+ *
+ * The value of period Y is attached to 31 December Y and carried forward from
+ * there — never backwards over the year it describes. A reader looking at
+ * March 2025 must not see the 2025 result: it did not exist yet, and drawing
+ * it there is the one mistake that turns a fundamentals overlay into
+ * hindsight dressed as information.
+ */
+function acFinancialAtDates(values, dates) {
+  const years = Object.keys(values || {})
+    .filter((y) => Number.isFinite(Number(values[y])))
+    .sort();
+  if (!years.length) return dates.map(() => null);
+  let j = 0, held = null;
+  return dates.map((d) => {
+    const iso = String(d);
+    while (j < years.length && `${years[j]}-12-31` <= iso) { held = Number(values[years[j]]); j += 1; }
+    return held;
+  });
+}
+
+/** The rail beside the advanced chart: search, favourites, peers. */
+function AdvancedChartRail({ rows, securitiesMap, ticker, favorites, onToggleFavorite,
+                             onOpen, lang, signedIn }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [q, setQ] = React.useState("");
+  const up = String(ticker || "").toUpperCase();
+  const favSet = favorites || new Set();
+  const priced = (rows || []).filter((r) => Number.isFinite(r.lastPrice) && r.lastPrice > 0);
+  const needle = q.trim().toUpperCase();
+
+  const list = needle
+    ? priced.filter((r) => String(r.ticker || "").toUpperCase().includes(needle)
+        || String(r.name || "").toUpperCase().includes(needle)).slice(0, 40)
+    : null;
+
+  const row = (r) => {
+    const tk = String(r.ticker || "").toUpperCase();
+    const isFav = favSet.has(tk);
+    const tone = r.changePercent > 0 ? "pos" : r.changePercent < 0 ? "neg" : "";
+    return (
+      <div className={`ac-rail-row ${tk === up ? "is-current" : ""}`} key={tk}>
+        <button type="button" className="ac-rail-name" onClick={() => onOpen && onOpen(tk)}>
+          <span className="ac-rail-tk">{tk}</span>
+          <span className="ac-rail-sub">{r.name || sectorLabel(lang, sectorOf(tk, securitiesMap, null))}</span>
+        </button>
+        <span className="ac-rail-figures">
+          <span className="ac-rail-price">{formatMarketNumber(r.lastPrice, lang)}</span>
+          <span className={`ac-rail-chg ${tone}`}>
+            {Number.isFinite(r.changePercent)
+              ? `${r.changePercent > 0 ? "+" : ""}${r.changePercent.toFixed(2)}%` : "—"}
+          </span>
+        </span>
+        <button type="button" className={`rail-fav ${isFav ? "on" : ""}`}
+          onClick={() => onToggleFavorite && onToggleFavorite(tk, r.name)}>{isFav ? "★" : "☆"}</button>
+      </div>
+    );
+  };
+
+  const favRows = priced.filter((r) => favSet.has(String(r.ticker || "").toUpperCase()));
+  const mine = sectorOf(up, securitiesMap, null);
+  const sector = (!mine || mine === "other") ? [] : priced
+    .filter((r) => String(r.ticker || "").toUpperCase() !== up
+      && sectorOf(r.ticker, securitiesMap, null) === mine)
+    .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)).slice(0, 12);
+
+  return (
+    <div className="ac-rail">
+      <input className="ac-rail-search" type="search" value={q} onChange={(e) => setQ(e.target.value)}
+        placeholder={t("Поиск бумаги", "Qog'oz qidirish", "Search securities")} />
+      {list ? (
+        <div className="ac-rail-block">
+          <h4 className="ac-rail-head">{t("Найдено", "Topildi", "Found")}</h4>
+          {list.length ? <div>{list.map(row)}</div>
+            : <p className="muted ac-rail-empty">{t("Ничего не найдено", "Hech narsa topilmadi", "Nothing found")}</p>}
+        </div>
+      ) : (
+        <>
+          <div className="ac-rail-block">
+            <h4 className="ac-rail-head">{t("Избранное", "Tanlanganlar", "Watchlist")}</h4>
+            {favRows.length ? <div>{favRows.map(row)}</div>
+              : <p className="muted ac-rail-empty">
+                  {signedIn ? t("Пока пусто", "Hozircha bo'sh", "Empty")
+                            : t("Войдите, чтобы вести список", "Ro'yxat uchun kiring", "Sign in to keep a list")}
+                </p>}
+          </div>
+          {sector.length > 0 && (
+            <div className="ac-rail-block">
+              <h4 className="ac-rail-head">{t("Тот же сектор", "Xuddi shu soha", "Same sector")}</h4>
+              <div>{sector.map(row)}</div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, favorites,
+                         onToggleFavorite, signedIn, onBack, onOpenCompany, onOpenChart, initial }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const up = String(ticker || "").toUpperCase();
+
+  // ── State the URL carries, so an advanced chart can be linked to ──────────
+  const [range, setRange] = React.useState(initial?.range || "1y");
+  const [span, setSpan] = React.useState({ from: initial?.from || "", to: initial?.to || "" });
+  const [type, setType] = React.useState(initial?.type || "line");
+  const [indicators, setIndicators] = React.useState(() => new Set(initial?.indicators || []));
+  const [finFields, setFinFields] = React.useState(initial?.fin || []);
+  const [compareTickers, setCompareTickers] = React.useState(initial?.compare || []);
+  const [menu, setMenu] = React.useState(null);            // "ind" | "fin" | "cmp" | null
+  const [railOpen, setRailOpen] = React.useState(true);
+
+  const [history, setHistory] = React.useState(null);
+  const [adjustments, setAdjustments] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [failed, setFailed] = React.useState(false);
+  const [retry, setRetry] = React.useState(0);
+  const [quality, setQuality] = React.useState(null);
+  const [sec, setSec] = React.useState((securitiesMap || {})[up] || {});
+  const [fin, setFin] = React.useState(null);
+  const [cmpSeries, setCmpSeries] = React.useState({});
+  const [cmpLoading, setCmpLoading] = React.useState(false);
+
+  const custom = Boolean(span.from && span.to);
+  // How much history to ask for. A custom span asks back to its own start; the
+  // buttons ask for what they show. Either way the fetch is a MONTH count,
+  // which is the only unit /api/price-history understands.
+  const months = React.useMemo(() => {
+    if (!custom) return chartRangeMonths(range);
+    const d = new Date(span.from);
+    const now = new Date();
+    if (Number.isNaN(d.getTime())) return chartRangeMonths(range);
+    return Math.max(1, Math.min(360,
+      (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth()) + 2));
+  }, [custom, span.from, range]);
+
+  React.useEffect(() => {
+    if (!up) return undefined;
+    let alive = true;
+    setLoading(true);
+    setFailed(false);
+    fetch(`/api/price-history/${encodeURIComponent(up)}?months=${months}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return;
+        if (d.ok) { setHistory(d.points || []); setAdjustments(d.adjustments || []); }
+        else setFailed(true);
+      })
+      .catch(() => { if (alive) setFailed(true); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [up, months, retry]);
+
+  // Only `quality` is read here: whether this security trades often enough for
+  // a candle to describe a day rather than invent one (ТЗ §6). The rest of the
+  // metrics envelope belongs to the company page.
+  React.useEffect(() => {
+    if (!up) return undefined;
+    let alive = true;
+    fetch(`/api/company/${encodeURIComponent(up)}/metrics?months=${months}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setQuality(d.ok ? d.quality : null); })
+      .catch(() => { if (alive) setQuality(null); });
+    return () => { alive = false; };
+  }, [up, months]);
+
+  React.useEffect(() => {
+    if (!up) return undefined;
+    let alive = true;
+    fetch(`/api/securities/${encodeURIComponent(up)}/info?language=${lang}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive && d.ok) setSec({ ...(d.security || {}) }); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [up, lang]);
+
+  // The fact store, fetched once a fundamental is actually asked for — most
+  // visits never open that menu.
+  React.useEffect(() => {
+    if (!up || !finFields.length || fin !== null) return undefined;
+    let alive = true;
+    fetch(`/api/company/${encodeURIComponent(up)}/financials`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setFin(d.ok ? d : { periods: [], series: {} }); })
+      .catch(() => { if (alive) setFin({ periods: [], series: {} }); });
+    return () => { alive = false; };
+  }, [up, finFields.length, fin]);
+  React.useEffect(() => { setFin(null); }, [up]);
+
+  const cmpKey = [...compareTickers].sort().join(",");
+  React.useEffect(() => {
+    if (!cmpKey) { setCmpLoading(false); return undefined; }
+    let alive = true;
+    setCmpLoading(true);
+    fetch(`/api/quotes/series?tickers=${encodeURIComponent(cmpKey)}&days=3650`)
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setCmpSeries((s) => ({ ...s, ...(d.series || {}) })); })
+      .catch(() => {})
+      .finally(() => { if (alive) setCmpLoading(false); });
+    return () => { alive = false; };
+  }, [cmpKey]);
+
+  // ── The URL mirrors the toolbar, so this view can be sent to somebody ─────
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams();
+    if (custom) { p.set("from", span.from); p.set("to", span.to); } else if (range !== "1y") p.set("range", range);
+    if (type !== "line") p.set("type", type);
+    if (indicators.size) p.set("ind", [...indicators].join(","));
+    if (finFields.length) p.set("fin", finFields.join(","));
+    if (compareTickers.length) p.set("cmp", compareTickers.join(","));
+    const q = p.toString();
+    window.history.replaceState(null, "", `/chart/${encodeURIComponent(up)}${q ? `?${q}` : ""}`);
+  }, [up, range, span, type, indicators, finFields, compareTickers, custom]);
+
+  // ── Data preparation ─────────────────────────────────────────────────────
+  const daily = React.useMemo(() => (history || []).map((h) => (Array.isArray(h)
+    ? { date: h[0], close: Number(h[1]) || 0, volume: 0 }
+    : {
+        date: h.date || h.trade_date,
+        open: h.open != null ? Number(h.open) : null,
+        high: h.high != null ? Number(h.high) : null,
+        low: h.low != null ? Number(h.low) : null,
+        close: Number(h.close ?? h.price ?? h.close_price ?? 0),
+        volume: Number(h.volume ?? h.trading_volume ?? 0) || 0,
+        change: h.change != null ? Number(h.change) : null,
+      }))
+    .filter((p) => p.close > 0 && p.date)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date))), [history]);
+
+  const windowed = React.useMemo(() => {
+    if (custom) return daily.filter((p) => String(p.date) >= span.from && String(p.date) <= span.to);
+    const cutoff = chartRangeCutoff(range);
+    return cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
+  }, [daily, custom, span.from, span.to, range]);
+
+  // Indicators run on the WHOLE fetched series, not on the visible window: a
+  // 200-day average at the left edge of a one-month view is a real average of
+  // the two hundred days before it, not a truncated one.
+  const cal = React.useMemo(() => indCalendar(daily), [daily]);
+
+  const cmpLines = React.useMemo(() => compareTickers.map((tk, i) => ({
+    ticker: tk,
+    color: QC_COLORS[i % QC_COLORS.length],
+    points: cmpSeries[tk] || null,
+  })), [compareTickers, cmpSeries]);
+  const cmp = React.useMemo(() => buildCompareSeries(windowed, cmpLines), [windowed, cmpLines]);
+  const cmpOn = Boolean(cmp && cmp.series.length);
+
+  const points = cmpOn ? cmp.points : windowed;
+  const dates = React.useMemo(() => points.map((p) => String(p.date)), [points]);
+
+  // A comparison is a percent question, so the price pane answers in percent —
+  // and a candle has no meaning on a rebased axis. The type control says so
+  // rather than silently drawing something else.
+  const effType = cmpOn ? (type === "candle" ? "line" : type) : type;
+  // ТЗ §6: candles are only drawn where a day HAS a body worth drawing.
+  const candlesAllowed = quality ? quality.candles_enabled !== false : true;
+  const stepLine = quality ? quality.candles_enabled === false : false;
+  const drawType = (effType === "candle" && !candlesAllowed) ? "line" : effType;
+
+  const ind = React.useMemo(() => {
+    if (!cal.days.length) return {};
+    const out = {};
+    const put = (key, daily2) => { out[key] = indAlign(daily2, cal.indexByDate, dates); };
+    if (indicators.has("sma50")) put("sma50", indSma(cal.close, 50));
+    if (indicators.has("sma200")) put("sma200", indSma(cal.close, 200));
+    if (indicators.has("ema50")) put("ema50", indEma(cal.close, 50));
+    if (indicators.has("ema200")) put("ema200", indEma(cal.close, 200));
+    if (indicators.has("bb")) {
+      const b = indBollinger(cal.close, 20, 2);
+      out.bb = {
+        mid: indAlign(b.mid, cal.indexByDate, dates),
+        upper: indAlign(b.upper, cal.indexByDate, dates),
+        lower: indAlign(b.lower, cal.indexByDate, dates),
+      };
+    }
+    if (indicators.has("rsi")) put("rsi", indRsi(cal.close, 14));
+    if (indicators.has("macd")) {
+      const m = indMacd(cal.close, 12, 26, 9);
+      out.macd = {
+        line: indAlign(m.line, cal.indexByDate, dates),
+        signal: indAlign(m.signal, cal.indexByDate, dates),
+        hist: indAlign(m.hist, cal.indexByDate, dates),
+      };
+    }
+    if (indicators.has("stoch")) {
+      const s = indStochastic(cal.high, cal.low, cal.close, 14, 3);
+      out.stoch = {
+        k: indAlign(s.k, cal.indexByDate, dates),
+        d: indAlign(s.d, cal.indexByDate, dates),
+      };
+    }
+    return out;
+  }, [cal, indicators, dates]);
+
+  const finPanes = React.useMemo(() => finFields.map((field, i) => {
+    const series = fin?.series?.[field];
+    return {
+      field,
+      color: AC_FIN_COLORS[i % AC_FIN_COLORS.length],
+      unit: series?.unit || (acFinIsRate(field) ? "%" : null),
+      values: series ? acFinancialAtDates(series.values || {}, dates) : dates.map(() => null),
+      empty: !series,
+    };
+  }), [finFields, fin, dates]);
+
+  // ── Geometry ─────────────────────────────────────────────────────────────
+  const [box, setBox] = React.useState({ w: 0, h: 0, view: 0 });
+  const boxNode = React.useRef(null);
+  const roRef = React.useRef(null);
+  const measure = React.useCallback(() => {
+    const n = boxNode.current;
+    if (!n || typeof window === "undefined") return;
+    const r = n.getBoundingClientRect();
+    setBox({ w: Math.round(r.width), h: Math.round(r.height), view: window.innerHeight });
+  }, []);
+  const attach = React.useCallback((node) => {
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+    boxNode.current = node;
+    if (!node) return;
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      roRef.current = new ResizeObserver(measure);
+      roRef.current.observe(node);
+    }
+  }, [measure]);
+
+  const [hover, setHover] = React.useState(null);
+  const [pointer, setPointer] = React.useState({ x: 0, y: 0 });
+
+  const toggleIndicator = (key) => setIndicators((cur) => {
+    const next = new Set(cur);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+  const toggleFin = (field) => setFinFields((cur) => (cur.includes(field)
+    ? cur.filter((f) => f !== field)
+    : cur.length >= AC_FIN_MAX ? cur : [...cur, field]));
+  const toggleCompare = (tk) => {
+    const k = String(tk || "").toUpperCase();
+    setCompareTickers((cur) => (cur.includes(k) ? cur.filter((x) => x !== k)
+      : cur.length >= QC_MAX ? cur : [...cur, k]));
+  };
+
+  const preparedRows = React.useMemo(() => {
+    const day = latestTradeStatsDay(tradeStats || {});
+    return (marketRows || []).map(enrichMarketStock).map((r) => applyTradeStats(r, tradeStats || {}, day));
+  }, [marketRows, tradeStats]);
+  const marketRow = preparedRows.find((r) => String(r.ticker || "").toUpperCase() === up) || null;
+  const peers = React.useMemo(
+    () => quickComparePeers({ ticker: up, rows: preparedRows, securitiesMap, limit: 24 }),
+    [up, preparedRows, securitiesMap],
+  );
+
+  const dateLocale = lang === "en" ? "en-US" : "ru-RU";
+  const fmtDate = (d, withYear) => (d
+    ? new Date(d).toLocaleDateString(dateLocale, withYear
+        ? { year: "2-digit", month: "short", day: "numeric" }
+        : { month: "short", day: "numeric" })
+    : "");
+  const fmtFull = (v) => (v == null || !Number.isFinite(v) ? "—"
+    : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 }));
+  const fmtPctVal = (v) => (v == null || !Number.isFinite(v) ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`);
+  const abbrev = (v) => (v == null ? "—" : Math.abs(v) >= 1e9 ? `${(v / 1e9).toFixed(2)}B`
+    : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M`
+    : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : `${v.toFixed(0)}`);
+
+  const lastPrice = marketRow?.lastPrice ?? sec.last_price ?? (points.length ? points[points.length - 1].close : null);
+  const dayChange = marketRow && Number.isFinite(marketRow.changePercent)
+    ? { v: marketRow.changeValue, p: marketRow.changePercent } : null;
+  // What the VIEW did, which is not what the day did — the reference states
+  // both, and on a range button they are different questions.
+  const windowChange = points.length >= 2 && points[0].close > 0
+    ? ((points[points.length - 1].close / points[0].close) - 1) * 100 : null;
+
+  const rangeBar = (
+    <div className="ac-ranges">
+      {CHART_RANGES.map((r) => (
+        <button key={r.key} type="button"
+          className={`ac-range-btn ${!custom && range === r.key ? "active" : ""}`}
+          onClick={() => { setSpan({ from: "", to: "" }); setRange(r.key); }}>
+          {r.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
+        </button>
+      ))}
+      <button type="button" className={`ac-range-btn ac-range-custom ${custom ? "active" : ""}`}
+        onClick={() => setMenu(menu === "span" ? null : "span")}
+        title={t("Свой период", "O'z davri", "Custom range")}>
+        {custom ? `${fmtDate(span.from, true)} — ${fmtDate(span.to, true)}` : t("Период…", "Davr…", "Range…")}
+      </button>
+    </div>
+  );
+
+  const menuPanel = (key, children) => (menu === key
+    ? <div className="ac-menu" onMouseLeave={() => setMenu(null)}>{children}</div> : null);
+
+  // ── Drawing ──────────────────────────────────────────────────────────────
+  const GAP = 12;
+  const VOL_H = 52;
+  const SUB_H = 92;
+  const subPanes = [
+    ...(indicators.has("rsi") ? [{ key: "rsi" }] : []),
+    ...(indicators.has("macd") ? [{ key: "macd" }] : []),
+    ...(indicators.has("stoch") ? [{ key: "stoch" }] : []),
+    ...finPanes.map((f) => ({ key: `fin:${f.field}`, fin: f })),
+  ];
+  // The panel GROWS with what is on it. A fixed height would take an
+  // oscillator's ninety pixels out of the price pane, which is the one pane
+  // that was the reason to open this page.
+  const plotH = Math.max(420, Math.round((box.view || 900) * 0.62))
+    + subPanes.length * (SUB_H + GAP);
+  const W = Math.max(320, box.w || 900);
+  const H = Math.max(320, box.h || plotH);
+  // The legend floats over the top-left of the price pane; without the extra
+  // gutter the first candles are drawn underneath it.
+  const legendCount = compareTickers.length + indicators.size + finFields.length;
+  const PAD = { top: legendCount ? 34 : 10, right: 66, bottom: 26, left: 10 };
+  const innerW = W - PAD.left - PAD.right;
+  const stackH = VOL_H + subPanes.length * (SUB_H + GAP);
+  const priceTop = PAD.top;
+  const priceBot = Math.max(priceTop + 80, H - PAD.bottom - stackH - GAP);
+  const volTop = priceBot + GAP;
+  const volBot = volTop + VOL_H;
+  const subTop = (i) => volBot + GAP + i * (SUB_H + GAP);
+
+  const n = points.length;
+  const xs = (i) => PAD.left + (n > 1 ? (i / (n - 1)) * innerW : innerW / 2);
+  const gapPx = n > 1 ? innerW / (n - 1) : innerW;
+
+  const ohlcOk = (p) => p.open > 0 && p.high > 0 && p.low > 0 && p.close > 0
+    && p.low <= Math.min(p.open, p.close) && Math.max(p.open, p.close) <= p.high;
+
+  // What the price pane measures: сумы, or percent from the shared start when
+  // a peer is on the chart.
+  const baseVals = cmpOn ? cmp.basePct : points.map((p) => p.close);
+  const toScale = (price) => (cmpOn ? (price / cmp.base0 - 1) * 100 : price);
+  const drawCandles = drawType === "candle" && !cmpOn;
+
+  const priceExtent = () => {
+    const vals = [];
+    points.forEach((p, i) => {
+      if (drawCandles && ohlcOk(p)) { vals.push(toScale(p.high)); vals.push(toScale(p.low)); }
+      else vals.push(baseVals[i]);
+    });
+    if (cmpOn) cmp.series.forEach((s) => s.pct.forEach((v) => { if (v != null) vals.push(v); }));
+    ["sma50", "sma200", "ema50", "ema200"].forEach((k) => {
+      (ind[k] || []).forEach((v) => { if (v != null) vals.push(toScale(v)); });
+    });
+    if (ind.bb) {
+      ind.bb.upper.forEach((v) => { if (v != null) vals.push(toScale(v)); });
+      ind.bb.lower.forEach((v) => { if (v != null) vals.push(toScale(v)); });
+    }
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    return Number.isFinite(lo) && Number.isFinite(hi) ? [lo, hi] : [0, 1];
+  };
+  const [minP, maxP] = n ? priceExtent() : [0, 1];
+  const rangeP = maxP - minP || Math.abs(maxP) || 1;
+  const ys = (v) => priceTop + (1 - (v - minP) / rangeP) * (priceBot - priceTop);
+
+  const niceStep = (spanV, count) => {
+    const raw = spanV / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+    const norm = (raw || 1) / mag;
+    return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+  };
+  const yLabels = [];
+  {
+    const step = niceStep(rangeP, 5);
+    const fmtAxisVal = cmpOn ? fmtPctVal : fmtFull;
+    for (let v = Math.ceil(minP / step) * step; v <= maxP + step * 1e-9; v += step) {
+      yLabels.push({ y: ys(v), label: fmtAxisVal(v) });
+    }
+  }
+
+  const xLabels = [];
+  {
+    const step = Math.max(1, Math.floor(n / Math.max(2, Math.floor(innerW / 110))));
+    const withYear = (chartRangeSpan(range) || 12) >= 12 || custom;
+    for (let i = 0; i < n; i += step) {
+      xLabels.push({ x: xs(i), label: withYear ? fmtDate(points[i].date, true) : fmtDate(points[i].date) });
+    }
+  }
+
+  const linePath = (vals, toY) => {
+    let d = "", started = false;
+    vals.forEach((v, i) => {
+      if (v == null || !Number.isFinite(v)) { started = false; return; }
+      d += `${started ? "L" : "M"}${xs(i).toFixed(1)},${toY(v).toFixed(1)}`;
+      started = true;
+    });
+    return d;
+  };
+  const stepPath = (vals, toY) => {
+    let d = "", prev = null;
+    vals.forEach((v, i) => {
+      if (v == null || !Number.isFinite(v)) return;
+      const x = xs(i).toFixed(1);
+      if (prev == null) { d += `M${x},${toY(v).toFixed(1)}`; } else {
+        d += ` L${x},${toY(prev).toFixed(1)} L${x},${toY(v).toFixed(1)}`;
+      }
+      prev = v;
+    });
+    return d;
+  };
+
+  const baseD = stepLine && !drawCandles ? stepPath(baseVals, ys) : linePath(baseVals, ys);
+  const isUp = n >= 2 && baseVals[n - 1] >= baseVals[0];
+  const priceColor = cmpOn ? "#22c55e" : isUp ? "#22c55e" : "#ef4444";
+  const baseLevel = n ? baseVals[0] : 0;
+
+  const maxVol = Math.max(1, ...points.map((p) => p.volume || 0));
+
+  const onMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width || n < 1) return;
+    const x = ((e.clientX - rect.left) / rect.width) * W;
+    let i = Math.round(((x - PAD.left) / innerW) * (n - 1));
+    i = Math.max(0, Math.min(n - 1, i));
+    setHover(i);
+    setPointer({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  const hp = hover != null && points[hover] ? points[hover] : null;
+
+  const legendChips = [
+    ...(cmpOn ? cmp.series.map((s) => ({ key: `c:${s.ticker}`, color: s.color, text: s.ticker, off: () => toggleCompare(s.ticker) })) : []),
+    ...AC_INDICATORS.filter((d) => indicators.has(d.key)).map((d) => ({
+      key: `i:${d.key}`, color: d.color, off: () => toggleIndicator(d.key),
+      text: d.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0],
+    })),
+    ...finPanes.map((f) => ({
+      key: `f:${f.field}`, color: f.color, off: () => toggleFin(f.field),
+      text: finLabel(f.field, lang),
+    })),
+  ];
+
+  const emptyState = !loading && n < 2;
+
+  return (
+    <div className={`advanced-chart ${railOpen ? "rail-open" : ""}`}>
+      <div className="ac-head">
+        <button className="ac-back" type="button" onClick={onBack}>
+          ← {t("Назад", "Orqaga", "Back")}
+        </button>
+        <CompanyLogo logo={sec.company_logo_url || sec.logo_url || (securitiesMap || {})[up]?.logo_url}
+          name={sec.company_name || sec.name || up} ticker={up} />
+        <div className="ac-title">
+          <h1>{sec.company_name || sec.name || up}</h1>
+          <div className="ac-meta">
+            <span className="ac-tk">{up}</span>
+            {sec.isin && <span className="muted">{sec.isin}</span>}
+            <span className="muted">{t("Расчётные цены закрытия · UZSE", "Hisob-kitob yopilish narxlari · UZSE", "Settled closing prices · UZSE")}</span>
+          </div>
+        </div>
+        <div className="ac-quote">
+          <span className="ac-price">{lastPrice != null ? formatMarketNumber(lastPrice, lang) : "—"}</span>
+          {dayChange && (
+            <span className={`ac-change ${dayChange.p >= 0 ? "pos" : "neg"}`}>
+              {dayChange.v >= 0 ? "+" : ""}{fmtFull(dayChange.v)} ({dayChange.p >= 0 ? "+" : ""}{dayChange.p.toFixed(2)}%)
+            </span>
+          )}
+          {windowChange != null && (
+            <span className={`ac-window-change ${windowChange >= 0 ? "pos" : "neg"}`}>
+              {t("за период", "davr uchun", "over the period")} {fmtPctVal(windowChange)}
+            </span>
+          )}
+        </div>
+        <button className="ac-open-company" type="button" onClick={() => onOpenCompany && onOpenCompany(up)}>
+          {t("Страница компании →", "Kompaniya sahifasi →", "Company page →")}
+        </button>
+      </div>
+
+      <div className="ac-toolbar">
+        {rangeBar}
+        <div className="ac-toolbar-group">
+          {AC_TYPES.map((tp) => (
+            <button key={tp.key} type="button"
+              className={`ac-type-btn ${effType === tp.key ? "active" : ""}`}
+              disabled={(tp.key === "candle") && (cmpOn || !candlesAllowed)}
+              title={tp.key === "candle" && !candlesAllowed
+                ? t("Слишком мало сделок — день не имеет тела",
+                    "Bitimlar juda kam — kunning tanasi yo'q",
+                    "Too few trades — the day has no body")
+                : tp.key === "candle" && cmpOn
+                  ? t("В сравнении шкала процентная", "Taqqoslashda shkala foizli", "The scale is percent while comparing")
+                  : ""}
+              onClick={() => setType(tp.key)}>
+              {tp.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
+            </button>
+          ))}
+        </div>
+        <div className="ac-toolbar-group ac-menus">
+          <div className="ac-menu-wrap">
+            <button type="button" className={`ac-menu-btn ${indicators.size ? "on" : ""}`}
+              onClick={() => setMenu(menu === "ind" ? null : "ind")}>
+              {t("Индикаторы", "Indikatorlar", "Indicators")}{indicators.size ? ` · ${indicators.size}` : ""}
+            </button>
+            {menuPanel("ind", AC_INDICATORS.map((d) => (
+              <button key={d.key} type="button"
+                className={`ac-menu-item ${indicators.has(d.key) ? "on" : ""}`}
+                onClick={() => toggleIndicator(d.key)}>
+                <span className="ac-menu-dot" style={{ background: d.color }} />
+                {d.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
+              </button>
+            )))}
+          </div>
+          <div className="ac-menu-wrap">
+            <button type="button" className={`ac-menu-btn ${finFields.length ? "on" : ""}`}
+              onClick={() => setMenu(menu === "fin" ? null : "fin")}>
+              {t("Финансы", "Moliya", "Financials")}{finFields.length ? ` · ${finFields.length}` : ""}
+            </button>
+            {menuPanel("fin", (
+              <div className="ac-menu-scroll">
+                {AC_FIN_FIELDS.map((f) => (
+                  <button key={f} type="button"
+                    className={`ac-menu-item ${finFields.includes(f) ? "on" : ""}`}
+                    disabled={!finFields.includes(f) && finFields.length >= AC_FIN_MAX}
+                    onClick={() => toggleFin(f)}>
+                    {finLabel(f, lang)}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="ac-menu-wrap">
+            <button type="button" className={`ac-menu-btn ${compareTickers.length ? "on" : ""}`}
+              onClick={() => setMenu(menu === "cmp" ? null : "cmp")}>
+              {t("Сравнить", "Taqqoslash", "Compare")}{compareTickers.length ? ` · ${compareTickers.length}` : ""}
+            </button>
+            {menuPanel("cmp", (
+              <div className="ac-menu-scroll">
+                {peers.map((r) => {
+                  const tk = String(r.ticker || "").toUpperCase();
+                  const on = compareTickers.includes(tk);
+                  return (
+                    <button key={tk} type="button" className={`ac-menu-item ${on ? "on" : ""}`}
+                      disabled={!on && compareTickers.length >= QC_MAX}
+                      onClick={() => toggleCompare(tk)}>
+                      {on && <span className="ac-menu-dot"
+                        style={{ background: QC_COLORS[compareTickers.indexOf(tk) % QC_COLORS.length] }} />}
+                      <span className="ac-menu-tk">{tk}</span>
+                      <span className="ac-menu-name">{r.name || ""}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+        {menu === "span" && (
+          <div className="ac-menu ac-span-menu">
+            <label>{t("С", "Dan", "From")}
+              <input type="date" value={span.from}
+                onChange={(e) => setSpan((s) => ({ ...s, from: e.target.value }))} />
+            </label>
+            <label>{t("По", "Gacha", "To")}
+              <input type="date" value={span.to}
+                onChange={(e) => setSpan((s) => ({ ...s, to: e.target.value }))} />
+            </label>
+            <button type="button" className="ac-menu-clear"
+              onClick={() => { setSpan({ from: "", to: "" }); setMenu(null); }}>
+              {t("Сбросить", "Tozalash", "Clear")}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="ac-body">
+        <div className="ac-rail-wrap">
+          <AdvancedChartRail rows={preparedRows} securitiesMap={securitiesMap} ticker={up}
+            favorites={favorites} onToggleFavorite={onToggleFavorite} lang={lang} signedIn={signedIn}
+            onOpen={(tk) => onOpenChart && onOpenChart(tk)} />
+        </div>
+        <button type="button" className="ac-rail-toggle" onClick={() => setRailOpen((v) => !v)}
+          aria-label={railOpen ? t("Скрыть список", "Ro'yxatni yashirish", "Hide the list")
+                               : t("Показать список", "Ro'yxatni ko'rsatish", "Show the list")}>
+          {railOpen ? "‹" : "›"}
+        </button>
+
+        <div className="ac-plot" ref={attach} style={{ height: plotH }}>
+          {loading && <div className="ac-state muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>}
+          {failed && (
+            <div className="ac-state">
+              <p>{t("Не удалось загрузить историю цен.", "Narxlar tarixini yuklab bo'lmadi.", "Failed to load the price history.")}</p>
+              <button className="primary-btn" type="button" onClick={() => setRetry((v) => v + 1)}>
+                {t("Повторить", "Qayta urinish", "Retry")}
+              </button>
+            </div>
+          )}
+          {emptyState && !failed && (
+            <div className="ac-state muted">
+              {custom
+                ? t("За выбранный период сделок не было", "Tanlangan davrda bitim bo'lmagan", "No trades in the selected period")
+                : t("История цен недоступна", "Narxlar tarixi mavjud emas", "Price history unavailable")}
+            </div>
+          )}
+
+          {!loading && !failed && n >= 2 && (
+            <>
+              {legendChips.length > 0 && (
+                <div className="ac-legend">
+                  {legendChips.map((c) => (
+                    <button key={c.key} type="button" className="ac-legend-chip"
+                      style={{ "--ac-color": c.color }} onClick={c.off}>
+                      <span className="ac-legend-dot" />{c.text}<span className="ac-legend-x">✕</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <svg className="ac-svg" viewBox={`0 0 ${W} ${H}`} width="100%" height={H}
+                onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+                <defs>
+                  <linearGradient id="acArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={priceColor} stopOpacity="0.26" />
+                    <stop offset="100%" stopColor={priceColor} stopOpacity="0.02" />
+                  </linearGradient>
+                  <linearGradient id="acBase" x1="0" y1={priceTop} x2="0" y2={priceBot}
+                    gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stopColor="#22c55e" stopOpacity="0.34" />
+                    <stop offset={Math.max(0, Math.min(1, (ys(baseLevel) - priceTop) / (priceBot - priceTop)))}
+                      stopColor="#22c55e" stopOpacity="0.04" />
+                    <stop offset={Math.max(0, Math.min(1, (ys(baseLevel) - priceTop) / (priceBot - priceTop)))}
+                      stopColor="#ef4444" stopOpacity="0.04" />
+                    <stop offset="1" stopColor="#ef4444" stopOpacity="0.34" />
+                  </linearGradient>
+                </defs>
+
+                {yLabels.map((tick, i) => (
+                  <g key={`y${i}`}>
+                    <line x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y}
+                      stroke="currentColor" strokeOpacity="0.14" strokeDasharray="4 6" strokeWidth="0.8" />
+                    <text x={W - PAD.right + 8} y={tick.y + 4} fontSize="11" fill="currentColor" opacity="0.55">
+                      {tick.label}
+                    </text>
+                  </g>
+                ))}
+                {cmpOn && minP <= 0 && maxP >= 0 && (
+                  <line x1={PAD.left} y1={ys(0)} x2={W - PAD.right} y2={ys(0)}
+                    stroke="currentColor" strokeOpacity="0.4" strokeWidth="0.9" />
+                )}
+
+                {ind.bb && (
+                  <>
+                    <path d={`${linePath(ind.bb.upper.map(toScaleOrNull(toScale)), ys)}`} fill="none"
+                      stroke="#14b8a6" strokeWidth="1" strokeOpacity="0.7" />
+                    <path d={`${linePath(ind.bb.lower.map(toScaleOrNull(toScale)), ys)}`} fill="none"
+                      stroke="#14b8a6" strokeWidth="1" strokeOpacity="0.7" />
+                    <path d={`${linePath(ind.bb.mid.map(toScaleOrNull(toScale)), ys)}`} fill="none"
+                      stroke="#14b8a6" strokeWidth="1" strokeOpacity="0.45" strokeDasharray="4 4" />
+                  </>
+                )}
+
+                {drawType === "area" && !drawCandles && (
+                  <path d={`${baseD} L${xs(n - 1).toFixed(1)},${priceBot} L${xs(0).toFixed(1)},${priceBot} Z`}
+                    fill="url(#acArea)" />
+                )}
+                {drawType === "baseline" && !drawCandles && (
+                  <path d={`${baseD} L${xs(n - 1).toFixed(1)},${ys(baseLevel).toFixed(1)} L${xs(0).toFixed(1)},${ys(baseLevel).toFixed(1)} Z`}
+                    fill="url(#acBase)" />
+                )}
+                {drawType === "baseline" && (
+                  <line x1={PAD.left} y1={ys(baseLevel)} x2={W - PAD.right} y2={ys(baseLevel)}
+                    stroke="currentColor" strokeOpacity="0.35" strokeDasharray="3 4" />
+                )}
+
+                {drawCandles ? points.map((p, i) => {
+                  const okp = ohlcOk(p);
+                  const upDay = okp ? p.close >= p.open : (i > 0 ? p.close >= points[i - 1].close : true);
+                  const c = upDay ? "#22c55e" : "#ef4444";
+                  const w = Math.max(1, Math.min(9, gapPx * 0.68));
+                  const x = xs(i);
+                  if (!okp) {
+                    return <line key={`k${i}`} x1={x} y1={ys(p.close)} x2={x} y2={ys(p.close) + 1}
+                      stroke={c} strokeWidth={Math.max(1, w)} />;
+                  }
+                  const yo = ys(p.open), yc = ys(p.close);
+                  return (
+                    <g key={`k${i}`}>
+                      <line x1={x} y1={ys(p.high)} x2={x} y2={ys(p.low)} stroke={c} strokeWidth="1" />
+                      <rect x={x - w / 2} y={Math.min(yo, yc)} width={w}
+                        height={Math.max(1, Math.abs(yc - yo))} fill={c} />
+                    </g>
+                  );
+                }) : (
+                  <path d={baseD} fill="none" stroke={drawType === "baseline" ? "url(#acBase)" : priceColor}
+                    strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+                )}
+
+                {["sma50", "sma200", "ema50", "ema200"].map((k) => (ind[k] ? (
+                  <path key={k} d={linePath(ind[k].map(toScaleOrNull(toScale)), ys)} fill="none"
+                    stroke={AC_INDICATORS.find((d) => d.key === k).color} strokeWidth="1.4" strokeOpacity="0.95" />
+                ) : null))}
+
+                {cmpOn && cmp.series.map((s) => (
+                  <path key={`cs${s.ticker}`} d={linePath(s.pct, ys)} fill="none" stroke={s.color}
+                    strokeWidth="1.5" strokeOpacity="0.95" strokeLinejoin="round" />
+                ))}
+
+                {/* Volume. Not decoration: on this market a move on 40 shares
+                    and a move on 40 000 are different events, and the price
+                    line cannot tell them apart. */}
+                {points.map((p, i) => {
+                  const v = p.volume || 0;
+                  if (!v) return null;
+                  const h = (v / maxVol) * (volBot - volTop);
+                  const upDay = i > 0 ? p.close >= points[i - 1].close : true;
+                  const w = Math.max(1, Math.min(9, gapPx * 0.68));
+                  return <rect key={`v${i}`} x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
+                    fill={upDay ? "#22c55e" : "#ef4444"} fillOpacity="0.45" />;
+                })}
+                <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot}
+                  stroke="currentColor" strokeOpacity="0.18" />
+                <text x={PAD.left + 2} y={volTop + 11} fontSize="10" fill="currentColor" opacity="0.5">
+                  {t("Объём", "Hajm", "Volume")} · {abbrev(maxVol)}
+                </text>
+
+                {subPanes.map((pane, pi) => {
+                  const top = subTop(pi), bot = top + SUB_H;
+                  const frame = (
+                    <>
+                      <line x1={PAD.left} y1={bot} x2={W - PAD.right} y2={bot}
+                        stroke="currentColor" strokeOpacity="0.18" />
+                    </>
+                  );
+                  if (pane.key === "rsi" || pane.key === "stoch") {
+                    const lo = 0, hi = 100;
+                    const yv = (v) => top + (1 - (v - lo) / (hi - lo)) * SUB_H;
+                    const guides = pane.key === "rsi" ? [30, 70] : [20, 80];
+                    return (
+                      <g key={pane.key}>
+                        {frame}
+                        {guides.map((g) => (
+                          <line key={g} x1={PAD.left} y1={yv(g)} x2={W - PAD.right} y2={yv(g)}
+                            stroke="currentColor" strokeOpacity="0.18" strokeDasharray="3 5" />
+                        ))}
+                        {pane.key === "rsi" && (
+                          <path d={linePath(ind.rsi || [], yv)} fill="none" stroke="#22d3ee" strokeWidth="1.4" />
+                        )}
+                        {pane.key === "stoch" && (
+                          <>
+                            <path d={linePath(ind.stoch?.k || [], yv)} fill="none" stroke="#a3e635" strokeWidth="1.4" />
+                            <path d={linePath(ind.stoch?.d || [], yv)} fill="none" stroke="#fb923c" strokeWidth="1.2" strokeDasharray="4 3" />
+                          </>
+                        )}
+                        <text x={PAD.left + 2} y={top + 11} fontSize="10" fill="currentColor" opacity="0.6">
+                          {pane.key === "rsi" ? "RSI 14" : "Stoch 14/3"}
+                        </text>
+                        {[guides[0], guides[1]].map((g) => (
+                          <text key={`gl${g}`} x={W - PAD.right + 8} y={yv(g) + 4} fontSize="10"
+                            fill="currentColor" opacity="0.5">{g}</text>
+                        ))}
+                      </g>
+                    );
+                  }
+                  if (pane.key === "macd") {
+                    const vals = [...(ind.macd?.line || []), ...(ind.macd?.signal || []), ...(ind.macd?.hist || [])]
+                      .filter((v) => v != null);
+                    const m = Math.max(1e-9, ...vals.map(Math.abs));
+                    const yv = (v) => top + SUB_H / 2 - (v / m) * (SUB_H / 2 - 4);
+                    return (
+                      <g key={pane.key}>
+                        {frame}
+                        <line x1={PAD.left} y1={yv(0)} x2={W - PAD.right} y2={yv(0)}
+                          stroke="currentColor" strokeOpacity="0.22" />
+                        {(ind.macd?.hist || []).map((v, i) => (v == null ? null : (
+                          <rect key={`mh${i}`} x={xs(i) - Math.max(0.6, gapPx * 0.3)} y={Math.min(yv(0), yv(v))}
+                            width={Math.max(1.2, gapPx * 0.6)} height={Math.max(0.6, Math.abs(yv(v) - yv(0)))}
+                            fill={v >= 0 ? "#22c55e" : "#ef4444"} fillOpacity="0.45" />
+                        )))}
+                        <path d={linePath(ind.macd?.line || [], yv)} fill="none" stroke="#f472b6" strokeWidth="1.4" />
+                        <path d={linePath(ind.macd?.signal || [], yv)} fill="none" stroke="#facc15" strokeWidth="1.2" />
+                        <text x={PAD.left + 2} y={top + 11} fontSize="10" fill="currentColor" opacity="0.6">MACD 12/26/9</text>
+                      </g>
+                    );
+                  }
+                  const f = pane.fin;
+                  const fv = f.values.filter((v) => v != null);
+                  if (!fv.length) {
+                    return (
+                      <g key={pane.key}>
+                        {frame}
+                        <text x={PAD.left + 2} y={top + 11} fontSize="10" fill="currentColor" opacity="0.6">
+                          {finLabel(f.field, lang)}
+                        </text>
+                        <text x={PAD.left + 2} y={top + SUB_H / 2} fontSize="11" fill="currentColor" opacity="0.45">
+                          {t("Нет отчётности за этот период", "Bu davr uchun hisobot yo'q", "No filing covers this period")}
+                        </text>
+                      </g>
+                    );
+                  }
+                  const lo = Math.min(...fv), hi = Math.max(...fv);
+                  const sp = hi - lo || Math.abs(hi) || 1;
+                  const yv = (v) => top + SUB_H - 8 - ((v - lo) / sp) * (SUB_H - 18);
+                  return (
+                    <g key={pane.key}>
+                      {frame}
+                      {/* A step, because an annual figure does not drift through
+                          its year — it lands when the filing does. */}
+                      <path d={stepPath(f.values, yv)} fill="none" stroke={f.color} strokeWidth="1.5" />
+                      <text x={PAD.left + 2} y={top + 11} fontSize="10" fill={f.color} opacity="0.9">
+                        {finLabel(f.field, lang)}{f.unit ? `, ${f.unit}` : ""}
+                      </text>
+                      <text x={W - PAD.right + 8} y={top + 12} fontSize="10" fill="currentColor" opacity="0.5">{abbrev(hi)}</text>
+                      <text x={W - PAD.right + 8} y={top + SUB_H - 2} fontSize="10" fill="currentColor" opacity="0.5">{abbrev(lo)}</text>
+                    </g>
+                  );
+                })}
+
+                {xLabels.map((tick, i) => (
+                  <text key={`x${i}`} x={tick.x} y={H - 8} fontSize="11" fill="currentColor" opacity="0.55"
+                    textAnchor={tick.x < PAD.left + 30 ? "start" : tick.x > W - PAD.right - 30 ? "end" : "middle"}>
+                    {tick.label}
+                  </text>
+                ))}
+
+                {adjustments.map((a) => {
+                  const i = points.findIndex((p) => String(p.date) >= String(a.ex_date));
+                  return i > 0 ? (
+                    <line key={`adj${a.ex_date}`} x1={xs(i)} y1={priceTop} x2={xs(i)} y2={priceBot}
+                      stroke="currentColor" strokeOpacity="0.3" strokeDasharray="2 4" />
+                  ) : null;
+                })}
+
+                {hover != null && (
+                  <g>
+                    <line x1={xs(hover)} y1={priceTop} x2={xs(hover)}
+                      y2={subPanes.length ? subTop(subPanes.length - 1) + SUB_H : volBot}
+                      stroke="currentColor" strokeOpacity="0.4" strokeDasharray="3 3" />
+                    <circle cx={xs(hover)} cy={ys(baseVals[hover])} r="3.6" fill={priceColor}
+                      stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
+                    {cmpOn && cmp.series.map((s) => (s.pct[hover] == null ? null : (
+                      <circle key={`ch${s.ticker}`} cx={xs(hover)} cy={ys(s.pct[hover])} r="3.2"
+                        fill={s.color} stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
+                    )))}
+                    <rect x={W - PAD.right + 2} y={ys(baseVals[hover]) - 9} width={PAD.right - 6} height="18"
+                      rx="3" fill={priceColor} />
+                    <text x={W - PAD.right + 6} y={ys(baseVals[hover]) + 4} fontSize="10.5" fill="#04140a">
+                      {cmpOn ? fmtPctVal(baseVals[hover]) : fmtFull(points[hover].close)}
+                    </text>
+                  </g>
+                )}
+              </svg>
+
+              {hp && (
+                <div className="ac-tooltip" style={{
+                  left: Math.min(Math.max(12, pointer.x + 16), Math.max(12, (box.w || W) - 210)),
+                  top: Math.min(Math.max(8, pointer.y - 30), Math.max(8, (box.h || H) - 200)),
+                }}>
+                  <div className="ac-tt-date">{fmtDate(hp.date, true)}</div>
+                  {ohlcOk(hp) && (
+                    <>
+                      <div className="ac-tt-row"><span>{t("Откр.", "Ochil.", "Open")}</span><b>{fmtFull(hp.open)}</b></div>
+                      <div className="ac-tt-row"><span>{t("Макс.", "Maks.", "High")}</span><b>{fmtFull(hp.high)}</b></div>
+                      <div className="ac-tt-row"><span>{t("Мин.", "Min.", "Low")}</span><b>{fmtFull(hp.low)}</b></div>
+                    </>
+                  )}
+                  <div className="ac-tt-row"><span>{t("Закрытие", "Yopilish", "Close")}</span><b>{fmtFull(hp.close)}</b></div>
+                  <div className="ac-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span><b>{abbrev(hp.volume)}</b></div>
+                  {cmpOn && (
+                    <div className="ac-tt-block">
+                      <div className="ac-tt-row"><span style={{ color: priceColor }}>{up}</span>
+                        <b style={{ color: priceColor }}>{fmtPctVal(baseVals[hover])}</b></div>
+                      {cmp.series.map((s) => (
+                        <div className="ac-tt-row" key={`tt${s.ticker}`}>
+                          <span style={{ color: s.color }}>{s.ticker}</span>
+                          <b style={{ color: s.color }}>{fmtPctVal(s.pct[hover])}</b>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(indicators.size > 0 || finPanes.length > 0) && (
+                    <div className="ac-tt-block">
+                      {AC_INDICATORS.filter((d) => indicators.has(d.key)).map((d) => {
+                        const v = d.key === "bb" ? ind.bb?.mid?.[hover]
+                          : d.key === "macd" ? ind.macd?.line?.[hover]
+                          : d.key === "stoch" ? ind.stoch?.k?.[hover]
+                          : ind[d.key]?.[hover];
+                        return (
+                          <div className="ac-tt-row" key={`tti${d.key}`}>
+                            <span style={{ color: d.color }}>{d.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}</span>
+                            <b>{fmtFull(v)}</b>
+                          </div>
+                        );
+                      })}
+                      {finPanes.map((f) => (
+                        <div className="ac-tt-row" key={`ttf${f.field}`}>
+                          <span style={{ color: f.color }}>{finLabel(f.field, lang)}</span>
+                          <b>{f.values[hover] == null ? "—"
+                            : `${abbrev(f.values[hover])}${f.unit ? ` ${f.unit}` : ""}`}</b>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="ac-notes">
+        {stepLine && (
+          <p className="muted">
+            {t("Цена показана ступенями — между сделками она не менялась.",
+               "Narx pog'onalar bilan — bitimlar orasida u o'zgarmagan.",
+               "The price is drawn as steps — between trades it did not move.")}
+            {quality?.reason ? ` ${quality.reason}` : ""}
+          </p>
+        )}
+        {cmpOn && cmp.start && (
+          <p className="muted">
+            {t(`Сравнение считается с ${fmtDate(cmp.start, true)} — раньше сохранённых котировок нет.`,
+               `Taqqoslash ${fmtDate(cmp.start, true)} dan — undan oldingi kotirovkalar yo'q.`,
+               `The comparison starts on ${fmtDate(cmp.start, true)} — there are no stored quotes before it.`)}
+          </p>
+        )}
+        {cmp && cmp.dropped.length > 0 && !cmpLoading && (
+          <p className="muted">
+            {t("Нет сохранённых котировок за этот период: ", "Bu davr uchun kotirovkalar yo'q: ", "No stored quotes for this period: ")}
+            {cmp.dropped.map((c) => c.ticker).join(", ")}
+          </p>
+        )}
+        {adjustments.length > 0 && (
+          <p className="muted">
+            {t("Пунктиром отмечены дробления и бонусные эмиссии; цены до них пересчитаны на текущую акцию.",
+               "Punktir bilan maydalash va bonus emissiyalar belgilangan; ulardan oldingi narxlar qayta hisoblangan.",
+               "The dashed lines mark splits and bonus issues; prices before them are restated onto the current share.")}
+          </p>
+        )}
+        {finFields.length > 0 && (
+          <p className="muted">
+            {t("Годовой показатель нанесён на 31 декабря своего периода и держится до следующего отчёта — раньше его не существовало.",
+               "Yillik ko'rsatkich o'z davrining 31 dekabriga qo'yilgan va keyingi hisobotgacha saqlanadi.",
+               "An annual figure is placed on 31 December of its period and held until the next filing — before that it did not exist.")}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Scale a price-unit indicator onto whatever the price pane is measuring. */
+function toScaleOrNull(toScale) {
+  return (v) => (v == null || !Number.isFinite(v) ? null : toScale(v));
 }
 
 function CompanyInfoPanel({ ticker, secInfo, wikiInfo, language, onClose, loading }) {
@@ -10434,6 +11577,21 @@ function App() {
   const [analysisCompany, setAnalysisCompany] = useState("");
   const [companyTicker, setCompanyTicker] = useState(() => pathToView(window.location.pathname).ticker);
   const [newsId, setNewsId] = useState(() => pathToView(window.location.pathname).newsId);
+  // The advanced chart's toolbar, read off the query string on a cold load so
+  // that a link to /chart/UZTL?range=3y&ind=sma50&cmp=UZTLP opens THAT chart.
+  const [chartState, setChartState] = useState(() => {
+    const q = new URLSearchParams(window.location.search);
+    const list = (k) => (q.get(k) || "").split(",").map((s) => s.trim()).filter(Boolean);
+    return {
+      range: q.get("range") || "1y",
+      from: q.get("from") || "",
+      to: q.get("to") || "",
+      type: q.get("type") || "line",
+      indicators: list("ind"),
+      fin: list("fin"),
+      compare: list("cmp").map((s) => s.toUpperCase()),
+    };
+  });
   const [adminSection, setAdminSection] = useState(
     () => pathToView(window.location.pathname).adminSection || "overview");
   const [prevView, setPrevView] = useState("market");
@@ -10769,6 +11927,17 @@ function App() {
     setPrevView(activeView);
     setCompanyTicker(ticker);
     setActiveView("company");
+  };
+
+  // The advanced chart. `state` carries the small chart's period, type and
+  // comparisons across, so «развернуть» opens the view the reader was already
+  // looking at rather than a default one.
+  const openChartPage = (ticker, state) => {
+    if (!ticker) return;
+    setPrevView(activeView);
+    setCompanyTicker(ticker);
+    setChartState(state || null);
+    setActiveView("chart");
   };
 
   // A story opens on our own /news/{id} page instead of jumping to the outlet.
@@ -11630,8 +12799,27 @@ function App() {
               onToggleFavorite={handleToggleFavorite}
               signedIn={Boolean(token)}
               onOpenCompany={openCompanyPage}
+              onOpenChart={openChartPage}
               onBack={() => setActiveView(prevView || "market")}
               onAnalyze={(t) => { setAnalysisCompany(t); setActiveView("analysis"); }}
+            />
+          )}
+
+          {activeView === "chart" && companyTicker && (
+            <AdvancedChart
+              key={companyTicker}
+              ticker={companyTicker}
+              securitiesMap={securitiesMap}
+              marketRows={marketRows}
+              tradeStats={marketTradeStats}
+              lang={normalizeLanguage(language)}
+              favorites={favoriteTickers}
+              onToggleFavorite={handleToggleFavorite}
+              signedIn={Boolean(token)}
+              initial={chartState}
+              onBack={() => setActiveView(prevView === "chart" ? "company" : (prevView || "company"))}
+              onOpenCompany={openCompanyPage}
+              onOpenChart={(tk) => openChartPage(tk, chartState)}
             />
           )}
 
