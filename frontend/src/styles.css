@@ -10338,32 +10338,10 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .heatmap-tt-note { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
 .heatmap-tt-note.is-warn { color: #fbbf24; }
 
-/* Price statistics (ТЗ v1.2 §5/§6). Two blocks, visually separated, because
-   they answer different questions: one follows the period button, the other
-   must not. A reader who cannot see the split reads a 12-month YTD as a
-   one-month one. */
-.price-stats-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-.price-stat { display: flex; flex-direction: column; gap: 4px; }
-.price-stat-label { font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--muted); }
-.price-stat-value { font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
-.price-stat-value.pos { color: #34d399; }
-.price-stat-value.neg { color: #f87171; }
-/* A dash that carries a reason in its tooltip — not a blank, not a zero. */
-.price-stat-value.is-empty { color: var(--muted); cursor: help; border-bottom: 1px dotted currentColor; align-self: flex-start; }
-
-.price-stats-blocks { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border, rgba(255,255,255,0.08)); }
-.price-stats-group-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-.price-stats-group-title { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text); opacity: 0.75; }
-.price-stats-group-note { font-size: 11px; }
-.price-stats-tier { font-size: 12px; margin: 0; }
-.price-stats-strip.is-loading { display: block; font-size: 13px; }
-
 /* Why the candles are gone. A chart that silently changes shape is worse than
    one that explains itself. */
 .cpc-tier-note { font-size: 12px; margin: 6px 0 0; line-height: 1.5; }
 
-@media (max-width: 760px) { .price-stats-strip { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 420px) { .price-stats-strip { grid-template-columns: repeat(2, 1fr); } }
 
 /* ============================================================================
    Editorial news feed — "Ledger" direction (§3.11). Serif headlines, a lead-

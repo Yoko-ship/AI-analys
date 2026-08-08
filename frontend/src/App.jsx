@@ -6090,26 +6090,19 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   );
 }
 
-// Price statistics come from the server (ТЗ v1.2 §3/§5). This file used to
-// recompute them from whatever slice the chart had loaded, which is where
-// every defect in §2.1 came from: VWAP as sum(close*volume)/volume (+33 % on
-// UZHM), volatility over the last 21 points whatever calendar they covered,
-// and YTD/YOY/QOQ measured inside the loaded window — so the period button
-// moved YTD on 76 of 77 securities and flipped its sign on 44.
+// The price-statistics strip that used to sit under the chart — VWAP, макс/мин,
+// среднее закрытий, 1М/YTD/YoY/QoQ, волатильность and макс. дневной диапазон —
+// was REMOVED from the company page by the customer on 2026-08-08. It is not on
+// the quote page this layout follows, and on a page a shareholder reads it was
+// six figures nothing on screen explained: two different averages of the same
+// window, six percent apart, next to a historical peak from June 2024 that never
+// changes.
 //
-// The contract has two blocks and the split is the point:
-//   window    may change with the period button
-//   absolute  may NOT — it is computed on the full history, server-side
-// Nothing here does arithmetic on prices; it formats what the server decided.
-
-const METRIC_REASONS = {
-  no_data: ["нет истории", "tarix yo'q", "no history"],
-  no_volume: ["за период не было сделок", "davrda bitim bo'lmagan", "no trades in the period"],
-  turnover_missing: ["оборот известен не по всем точкам", "aylanma barcha nuqtalar uchun ma'lum emas", "turnover missing on some points"],
-  insufficient_data: ["слишком мало наблюдений", "kuzatuvlar juda kam", "too few observations"],
-  base_too_stale: ["нет сделок рядом с базой сравнения", "taqqoslash bazasi yaqinida bitim yo'q", "no trade near the comparison base"],
-  no_base: ["нет базы для сравнения", "taqqoslash bazasi yo'q", "no comparison base"],
-};
+// Nothing was deleted below the screen. /api/company/{t}/metrics and formulas.py
+// are untouched — the auditor, the exports and the paid analysis all read them,
+// and this page still reads `quality` and `ma_windows` off the same response to
+// decide whether candles are meaningful. The figures are unpublished here, not
+// gone; re-rendering them is a component away.
 
 // ТЗ §8: a multiple the server withheld says WHY. «убыток» is a fact about the
 // issuer, not missing data; «проверяется» means the statement behind it failed
@@ -6136,119 +6129,6 @@ const MULTIPLE_STATUS_TEXT = {
 function multipleStatusText(status, lang) {
   const words = MULTIPLE_STATUS_TEXT[status];
   return words ? words[lang === "uz" ? 1 : lang === "en" ? 2 : 0] : null;
-}
-
-function metricReason(metric, lang) {
-  if (!metric || metric.value != null) return null;
-  const idx = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
-  const words = METRIC_REASONS[metric.status];
-  const base = words ? words[idx] : metric.status;
-  return metric.note ? `${base} (${metric.note})` : base;
-}
-
-// A number never reaches the screen without its status: either the value, or a
-// dash that can say why. ТЗ §3: "Прочерк с причиной честнее неверного числа."
-function MetricValue({ metric, format, tone, lang }) {
-  if (!metric || metric.value == null) {
-    const reason = metricReason(metric, lang);
-    return <span className="price-stat-value is-empty" title={reason || undefined}>—</span>;
-  }
-  const cls = tone ? (metric.value > 0 ? "pos" : metric.value < 0 ? "neg" : "") : "";
-  return <span className={`price-stat-value ${cls}`}>{format(metric.value)}</span>;
-}
-
-function PriceStatsStrip({ metrics, loading, lang }) {
-  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
-  if (loading) return <div className="price-stats-strip is-loading muted">{t("Считаем…", "Hisoblanmoqda…", "Computing…")}</div>;
-  if (!metrics || !metrics.window) return null;
-
-  const { window: win, absolute: abs, quality } = metrics;
-  const numLocale = lang === "en" ? "en-US" : "ru-RU";
-  const fmtNum = (v) => Number(v).toLocaleString(numLocale, { maximumFractionDigits: 2 });
-  const fmtPct = (v) => `${v > 0 ? "+" : ""}${Number(v).toFixed(2)}%`;
-
-  // Window block — allowed to move with the period button, and labelled with
-  // the period so nobody has to guess which span it describes.
-  const windowItems = [
-    { key: "vwap", label: "VWAP", metric: win.vwap, format: fmtNum },
-    { key: "max", label: t("Максимум", "Maksimum", "High"), metric: win.max_close, format: fmtNum },
-    { key: "min", label: t("Минимум", "Minimum", "Low"), metric: win.min_close, format: fmtNum },
-    // ТЗ §6: this is a mean of closing prices, not a volume-weighted average.
-    // Calling it "средняя за период" invited exactly that misreading.
-    { key: "mean", label: t("Среднее закрытий", "Yopilishlar o'rtachasi", "Mean close"), metric: win.mean_close, format: fmtNum },
-  ];
-
-  const volWindow = abs?.volatility?.window_days;
-  const absoluteItems = [
-    // The one-month horizon. QoQ below IS the three-month figure (90 days), so
-    // there is no separate 3M tile — two labels for one number would be worse
-    // than the gap.
-    { key: "m1", label: t("1 мес.", "1 oy", "1M"), metric: abs.m1, format: fmtPct, tone: true },
-    { key: "ytd", label: "YTD", metric: abs.ytd, format: fmtPct, tone: true },
-    { key: "yoy", label: "YoY", metric: abs.yoy, format: fmtPct, tone: true },
-    { key: "qoq", label: "QoQ", metric: abs.qoq, format: fmtPct, tone: true },
-    {
-      key: "vol",
-      label: t(`Волатильность (${volWindow || 30}д, годовая)`,
-               `Volatillik (${volWindow || 30}k, yillik)`,
-               `Volatility (${volWindow || 30}d, ann.)`),
-      metric: abs.volatility,
-      format: (v) => `${Number(v).toFixed(2)}%`,
-    },
-    {
-      key: "range",
-      label: t("Макс. дневной диапазон", "Maks. kunlik diapazon", "Max daily range"),
-      metric: abs.max_day_range,
-      format: (v) => `${Number(v).toFixed(2)}%`,
-    },
-  ];
-
-  const TIER_LABEL = {
-    full: [null, null, null],
-    sparse: ["редкие сделки", "kam bitimlar", "sparse trading"],
-    illiquid: ["неликвидная бумага", "likvid bo'lmagan qog'oz", "illiquid security"],
-    no_data: ["нет данных", "ma'lumot yo'q", "no data"],
-  };
-  const tierIdx = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
-  const tierText = quality ? (TIER_LABEL[quality.data_tier] || [])[tierIdx] : null;
-
-  const renderGroup = (title, note, items) => (
-    <div className="price-stats-group">
-      <div className="price-stats-group-head">
-        <span className="price-stats-group-title">{title}</span>
-        {note && <span className="price-stats-group-note muted">{note}</span>}
-      </div>
-      <div className="price-stats-strip">
-        {items.map((it) => (
-          <div className="price-stat" key={it.key}>
-            <span className="price-stat-label">{it.label}</span>
-            <MetricValue metric={it.metric} format={it.format} tone={it.tone} lang={lang} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="price-stats-blocks">
-      {renderGroup(
-        t("За период", "Davr uchun", "Selected period"),
-        `${win.label || ""}${win.points ? ` · ${win.points} ${t("точек", "nuqta", "points")}` : ""}`,
-        windowItems,
-      )}
-      {renderGroup(
-        t("Не зависит от периода", "Davrga bog'liq emas", "Independent of the period"),
-        t("считается по всей истории", "butun tarix bo'yicha hisoblanadi", "computed on the full history"),
-        absoluteItems,
-      )}
-      {tierText && (
-        <p className="price-stats-tier muted">
-          {t("Качество данных", "Ma'lumot sifati", "Data quality")}: {tierText}
-          {quality?.reason ? ` — ${quality.reason}` : ""}
-        </p>
-      )}
-    </div>
-  );
 }
 
 // A row's price line, drawn from stored settled closes (/api/quotes/series).
@@ -6596,7 +6476,7 @@ function dividendSummary(items, { isPreferred, lastPrice } = {}) {
   };
 }
 
-function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, priceMetricsLoading, metrics12, mult, dividends, lastPrice, watchRail }) {
+function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
 
   return (
@@ -6610,9 +6490,11 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments,
         <div className="company-hero-watch">{watchRail}</div>
         <div className="company-hero-main">
           <div className="company-chart-panel panel">
+            {/* The metrics response still decides whether candles mean anything
+                here (`quality`) and how long a moving average is (`ma_windows`);
+                only its numbers stopped being printed. */}
             <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} adjustments={priceAdjustments} lang={lang}
               quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows} />
-            <PriceStatsStrip metrics={priceMetrics} loading={priceMetricsLoading} lang={lang} />
           </div>
           <div className="company-overview-main">
             <h3 className="co-heading">{lang === "ru" ? "О компании" : lang === "uz" ? "Kompaniya haqida" : "About the company"}</h3>
@@ -6876,7 +6758,6 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   const [priceLoading, setPriceLoading] = React.useState(false);
   // Window + absolute price metrics from /api/company/{ticker}/metrics.
   const [metrics, setMetrics] = React.useState(null);
-  const [metricsLoading, setMetricsLoading] = React.useState(false);
   const [secInfo, setSecInfo] = React.useState((securitiesMap || {})[ticker] || null);
   const [infoLoading, setInfoLoading] = React.useState(false);
   const [companyData, setCompanyData] = React.useState(null);
@@ -6928,18 +6809,18 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   }, [ticker, priceMonths, priceRetry]);
 
   // Metrics are the server's job (ТЗ §3, second principle: one calc layer, and
-  // the screen is not one of its implementations). The absolute block in the
-  // response is identical whatever `priceMonths` is — that is the invariant
-  // this endpoint exists to hold, and it is asserted in tests/test_formulas.py.
+  // the screen is not one of its implementations). Since the statistics strip
+  // was removed this page reads only `quality` — whether the security trades
+  // often enough for a daily range to mean anything — and `ma_windows`. The
+  // response still carries the full window/absolute contract for the auditor,
+  // the exports and the paid analysis.
   React.useEffect(() => {
     if (!ticker) return undefined;
     let alive = true;
-    setMetricsLoading(true);
     fetch(`/api/company/${encodeURIComponent(ticker)}/metrics?months=${priceMonths}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setMetrics(d.ok ? d : null); })
-      .catch(() => { if (alive) setMetrics(null); })
-      .finally(() => { if (alive) setMetricsLoading(false); });
+      .catch(() => { if (alive) setMetrics(null); });
     return () => { alive = false; };
   }, [ticker, priceMonths, priceRetry]);
 
@@ -7157,7 +7038,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
             priceMonths={priceMonths} onMonthsChange={setPriceMonths}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
             marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading}
-            priceMetrics={metrics} priceMetricsLoading={metricsLoading}
+            priceMetrics={metrics}
             metrics12={metrics12} mult={mult} dividends={dividends} lastPrice={lastPrice}
             watchRail={
               <CompanyWatchRail ticker={ticker} rows={preparedRows} securitiesMap={securitiesMap}
