@@ -5808,7 +5808,32 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     && p.low <= Math.min(p.open, p.close) && Math.max(p.open, p.close) <= p.high;
   const ohlcCount = windowed.reduce((n, p) => n + (ohlcOk(p) ? 1 : 0), 0);
   const hasOHLC = ohlcCount > 0;
-  const bucketKind = months <= 6 ? "day" : months <= 36 ? "week" : "month";
+  // ТЗ §6: candles are switched off BY THE SYSTEM at tier sparse/illiquid, not
+  // by hand. 15 of 77 securities break the thresholds — CTFB3 is 87 % flat
+  // candles on 32 % calendar coverage — and were drawn like a daily trader.
+  const tier = quality?.data_tier || null;
+  const tierBlocksCandles = quality ? quality.candles_enabled === false : false;
+  const canCandle = hasOHLC && !tierBlocksCandles;
+  const showCandles = chartType === "candle" && canCandle;
+
+  // A CANDLE needs width; a LINE does not. The reference page plots every daily
+  // close at every range and only thins its axis labels — a polyline can do
+  // exactly that, and the roll-up only ever existed to stop candle BODIES
+  // becoming slivers. So it now applies to candles and to nothing else, and a
+  // line no longer loses a month of detail to a rule written for bars.
+  //
+  // For candles the interval follows the width a body actually gets, measured,
+  // rather than a guess from the span: 210 sessions fit as daily candles in a
+  // 1112px chart at ~4.5px each and do not in a 560px one. The old thresholds
+  // (>6 months → weekly, >36 → monthly) could not know which they were in.
+  const MIN_CANDLE_PX = 4;
+  const plotPx = innerW * (boxW > 0 ? boxW / W : 1);
+  const fits = (n) => n > 0 && plotPx / n >= MIN_CANDLE_PX;
+  const bucketKind = !showCandles ? "day"
+    : fits(windowed.length) ? "day"
+    : fits(windowed.length / 5) ? "week"
+    : fits(windowed.length / 21) ? "month"
+    : "quarter";
   const intervalLabel = {
     day: t("дневные", "kunlik", "daily"),
     week: t("недельные", "haftalik", "weekly"),
@@ -5847,13 +5872,6 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     }));
   };
   const candles = hasOHLC ? aggregate(windowed) : windowed;
-  // ТЗ §6: candles are switched off BY THE SYSTEM at tier sparse/illiquid, not
-  // by hand. 15 of 77 securities break the thresholds — CTFB3 is 87 % flat
-  // candles on 32 % calendar coverage — and were drawn like a daily trader.
-  const tier = quality?.data_tier || null;
-  const tierBlocksCandles = quality ? quality.candles_enabled === false : false;
-  const canCandle = hasOHLC && !tierBlocksCandles;
-  const showCandles = chartType === "candle" && canCandle;
   const points = showCandles ? candles : windowed;
   // Without candles the series is a step, not a slope: a line between two
   // trades three weeks apart draws prices that never existed.
