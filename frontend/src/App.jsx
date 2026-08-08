@@ -6866,7 +6866,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   // Metrics are the server's job (ТЗ §3, second principle: one calc layer, and
   // the screen is not one of its implementations). Since the statistics strip
   // was removed this page reads only `quality` — whether the security trades
-  // often enough for a daily range to mean anything — and `ma_windows`. The
+  // often enough to be drawn as a slope rather than a step — and `ma_windows`. The
   // response still carries the full window/absolute contract for the auditor,
   // the exports and the paid analysis.
   React.useEffect(() => {
