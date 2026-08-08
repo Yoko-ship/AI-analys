@@ -6324,7 +6324,7 @@ function CompanyWatchRail({ ticker, rows, securitiesMap, series, favorites, onTo
 // page used to recompute P/E and P/B on the client at CLASS level, which is the
 // wrong denominator for a two-class issuer and, worse, bypassed the auditor: a
 // figure the board withheld as «снято аудитом» still printed here.
-function CompanyKeyStats({ row, sec, metrics12, mult, dividends, lastPrice, securityType, lang }) {
+function CompanyKeyStats({ row, sec, metrics12, mult, dividends, lastPrice, securityType, lang, placement = "rail" }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const num = (v) => (Number.isFinite(v) ? formatMarketNumber(v, lang) : null);
   const compact = (v) => (Number.isFinite(v) ? formatCompactVolume(v, lang) : null);
@@ -6387,10 +6387,10 @@ function CompanyKeyStats({ row, sec, metrics12, mult, dividends, lastPrice, secu
   };
 
   const blocks = [];
-  const pushBlock = (title, body, note) => {
+  const pushBlock = (key, title, body, note) => {
     if (!body || (Array.isArray(body) && body.length === 0)) return;
     blocks.push(
-      <div className="co-sidebar-block" key={title}>
+      <div className="co-sidebar-block" data-block={key} key={key}>
         <h3 className="co-heading">{title}</h3>
         <div className="company-metrics-list">{body}</div>
         {note && <div className="keystat-note muted">{note}</div>}
@@ -6414,14 +6414,14 @@ function CompanyKeyStats({ row, sec, metrics12, mult, dividends, lastPrice, secu
   // sessions with no executions, so a rail with no date invites reading an old
   // session as today's.
   const sessionDate = row?.last_trade_date || row?.close_date || sec?.last_trade_date || null;
-  pushBlock(t("Торги", "Savdolar", "Session"), sessionRows,
+  pushBlock("session", t("Торги", "Savdolar", "Session"), sessionRows,
     sessionDate ? `${t("сессия", "sessiya", "session")} ${sessionDate}` : null);
 
   // --- The year ------------------------------------------------------------
   const yearBar = rangeBar(yearLow, yearHigh, lastPrice);
   if (yearBar) {
     blocks.push(
-      <div className="co-sidebar-block" key="52w">
+      <div className="co-sidebar-block" data-block="range" key="range">
         <h3 className="co-heading">{t("Диапазон 52 недели", "52 hafta diapazoni", "52-week range")}</h3>
         {yearBar}
         <div className="keystat-note muted">
@@ -6454,14 +6454,14 @@ function CompanyKeyStats({ row, sec, metrics12, mult, dividends, lastPrice, secu
   putMultiple("P/E", mult?.pe, 2, "×", mult?.base_period || undefined);
   putMultiple("P/B", mult?.pb, 2, "×");
   putMultiple("BVPS", mult?.bvps, 2, "");
-  pushBlock(t("Оценка", "Baholash", "Valuation"), [...valuationRows, ...rows.splice(0, rows.length)]);
+  pushBlock("valuation", t("Оценка", "Baholash", "Valuation"), [...valuationRows, ...rows.splice(0, rows.length)]);
 
   // --- Profitability -------------------------------------------------------
   putMultiple("ROE", mult?.roe, 2, "");
   putMultiple("ROA", mult?.roa, 2, "");
   putMultiple(t("Чистая маржа", "Sof marja", "Net margin"), mult?.net_margin, 2, "");
   putMultiple(t("Долг/Капитал", "Qarz/Kapital", "Debt/Equity"), mult?.debt_to_equity, 2, "");
-  pushBlock(t("Рентабельность", "Rentabellik", "Profitability"), rows.splice(0, rows.length));
+  pushBlock("profitability", t("Рентабельность", "Rentabellik", "Profitability"), rows.splice(0, rows.length));
 
   // --- Dividends -----------------------------------------------------------
   // Bonds pay coupons, not dividends; the tab is hidden for them and so is this.
@@ -6487,11 +6487,20 @@ function CompanyKeyStats({ row, sec, metrics12, mult, dividends, lastPrice, secu
           `daromadlilik ${d.latestYear}-yil to'lovi bo'yicha`,
           `yield on the ${d.latestYear} payout, at the current price`)
       : d.latest?.decision_date ? `${t("решение", "qaror", "declared")} ${d.latest.decision_date}` : null;
-    pushBlock(t("Дивиденды", "Dividendlar", "Dividends"), rows.splice(0, rows.length), divNote);
+    pushBlock("dividends", t("Дивиденды", "Dividendlar", "Dividends"), rows.splice(0, rows.length), divNote);
   }
 
-  if (!blocks.length) return null;
-  return <div className="company-keystats">{blocks}</div>;
+  // Which of these sit beside the chart and which drop to the row underneath.
+  // The split is not cosmetic: the four that stay are what a reader checks
+  // AGAINST the chart — the session, the year's range, the multiples and the
+  // returns on capital. Дивиденды and Детали are reference, read once, and they
+  // were the 436px that made this rail 1521px tall against a 1029px column.
+  const wanted = placement === "lower"
+    ? new Set(["dividends"])
+    : new Set(["session", "range", "valuation", "profitability"]);
+  const shown = blocks.filter((b) => wanted.has(b.props["data-block"]));
+  if (!shown.length) return null;
+  return <div className="company-keystats">{shown}</div>;
 }
 
 // Preferred detection, matching the shapes the securities map and the board use.
@@ -6573,17 +6582,27 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments,
           </div>
         </div>
 
-        {/* One rail, running the height of the page — the chart no longer owns
-            the first screen and «О компании» no longer has to sit under a
-            column-height of dead space. */}
+        {/* Four blocks, sized to end level with the chart and «О компании»
+            beside them: 1058px against 1029px. It carried six and ran to
+            1521px, which is where the 492px of empty page under the main column
+            came from — the void was the rail being long, not the chart being
+            short. */}
         <div className="company-overview-sidebar">
           <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
-            dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang} />
-          {/* Identity only. Capitalisation, the multiples and the profitability
-              ratios moved into the key-stats rail beside the chart, where they
-              are read off the server's issuer-level envelope rather than
-              recomputed here at class level. */}
-          <div className="co-sidebar-block">
+            dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
+            placement="rail" />
+        </div>
+      </div>
+
+      {/* What a reader consults once rather than reads against the chart. Laid
+          out in rail-width tracks, not stretched across the page: «Детали» is a
+          four-row key/value list and at 1800px its labels and values would sit
+          at opposite ends of the screen. */}
+      <div className="company-lower-grid">
+        <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
+          dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
+          placement="lower" />
+        <div className="co-sidebar-block">
             <h3 className="co-heading">{lang === "ru" ? "Детали" : "Details"}</h3>
             <div className="company-metrics-list">
               {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span className="isin-mono">{sec.isin}</span></div>}
@@ -6596,7 +6615,6 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments,
                   <span>{isPreferred ? (lang === "ru" ? "Привилегированная" : lang === "uz" ? "Imtiyozli" : "Preferred") : (lang === "ru" ? "Обыкновенная" : lang === "uz" ? "Oddiy" : "Common")}</span>
                 </div>
               )}
-            </div>
           </div>
         </div>
       </div>
