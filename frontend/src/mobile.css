@@ -1122,3 +1122,73 @@ iframe {
     display: none;
   }
 }
+
+/* ── Расширенный график on a phone ───────────────────────────────────────────
+   The rail goes first: 232px of watchlist next to a chart leaves the chart
+   ~120px on a 360px screen, and the reader came here for the chart. It is
+   still reachable — the ‹ tab overlays it as a drawer instead of splitting the
+   row. The toolbar keeps every control; it wraps onto three lines, which is
+   cheaper than hiding a period behind a menu. */
+@media (max-width: 900px) {
+  .advanced-chart.rail-open .ac-body {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .advanced-chart.rail-open .ac-rail-wrap {
+    position: absolute;
+    z-index: 6;
+    top: 0;
+    left: 0;
+    width: min(260px, 78vw);
+    max-height: 100%;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .advanced-chart.rail-open .ac-rail-toggle {
+    left: min(260px, 78vw);
+  }
+
+  .ac-quote {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .ac-menus {
+    margin-left: 0;
+  }
+
+  .ac-menu {
+    right: auto;
+    left: 0;
+    min-width: min(280px, 86vw);
+  }
+}
+
+@media (max-width: 620px) {
+  .ac-head h1 {
+    font-size: 16px;
+  }
+
+  .ac-price {
+    font-size: 18px;
+  }
+
+  /* A 66px right gutter is a fifth of a 360px screen. The axis still needs
+     room for "12 000", so the labels shrink rather than the gutter. */
+  .ac-toolbar {
+    gap: 8px;
+    padding: 7px 8px;
+  }
+
+  .ac-range-btn,
+  .ac-type-btn,
+  .ac-menu-btn {
+    padding: 4px 8px;
+    font-size: 11.5px;
+  }
+}
