@@ -10273,7 +10273,11 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .fin-subtab:hover { color: var(--text-primary); }
 .fin-subtab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .fin-panel { padding: 18px 20px; }
-.fin-chart { margin-bottom: 18px; }
+.fin-chart { margin-bottom: 18px; position: relative; }
+/* Mirrors the price chart's readout so one hover language runs across the
+   page; the dot ties each row to its line. */
+.fin-tt-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: middle; }
+.fin-chart .cpc-tooltip { min-width: 150px; }
 .fin-legend { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; margin-top: 6px; }
 .fin-legend-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-secondary, var(--text-muted)); }
 .fin-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }

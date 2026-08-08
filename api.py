@@ -3229,23 +3229,38 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
                       else value)
             entry["values"][period] = scaled
             periods.add(period)
-        # A period whose ENTIRE money side is zero is an empty filing, not a
-        # year of no activity: openinfo publishes KSCM 2021 as revenue 0, profit
-        # 0 AND total assets 0, with no margins at all. A balance sheet cannot
-        # total zero — an issuer with no assets does not exist — so the column
-        # is dropped rather than published as a business that collapsed and a
-        # -100 % growth row under it.
+        # A year with ZERO TOTAL ASSETS is an empty filing, not a year of no
+        # activity. A going concern cannot have no balance sheet, so this is the
+        # sharp test — sharper than "every money field is zero", which SQBN 2024
+        # defeated: assets, equity, liabilities and revenue all zero but a stray
+        # net profit of 13 000 sums, enough to keep the column and draw a bank
+        # collapsing to nothing and back on the chart.
         #
-        # A zero in ONE field is kept: UZNF is a fund that genuinely earns no
-        # revenue while holding assets, and that zero is a fact about it.
+        # Zeros in the INCOME lines are kept when the balance sheet is real:
+        # UZNF is a fund that genuinely earns no revenue while holding 30 T of
+        # assets, and BRBN and UZNGP file on forms with no revenue line at all.
+        # Those zeros are what the source says; only a missing statement goes.
         for period in list(periods):
+            assets = (series.get("total_assets") or {}).get("values", {}).get(period)
             money = [e["values"][period] for f, e in series.items()
                      if e["money"] and period in e["values"]]
-            if money and not any(money):
+            empty = assets == 0 or (money and not any(money))
+            if empty:
                 periods.discard(period)
                 for entry in series.values():
                     entry["values"].pop(period, None)
         series = {f: e for f, e in series.items() if e["values"]}
+        # Net margin, computed rather than republished — see FACT_PERCENT_FIELDS
+        # for why the fed one is not trusted. Only where both sides exist and
+        # revenue is not zero: BRBN files no revenue line, and a margin on a
+        # zero base is a division, not a fact.
+        rev = (series.get("net_revenue") or {}).get("values", {})
+        prof = (series.get("net_profit") or {}).get("values", {})
+        derived = {p: round(prof[p] / rev[p] * 100.0, 4)
+                   for p in rev if rev.get(p) and p in prof}
+        if derived:
+            series["net_margin"] = {"unit": "%", "money": False, "derived": True,
+                                    "values": derived}
         return _etag_json(request, {
             "ok": True, "ticker": ticker, "org_id": org_id, "currency": "UZS",
             "periods": sorted(periods, reverse=True),
