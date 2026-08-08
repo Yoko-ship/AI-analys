@@ -10145,6 +10145,24 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 /* Overview layout */
 .company-overview-layout { display: flex; flex-direction: column; gap: 18px; }
 .company-chart-panel { padding: 16px 20px 12px; }
+/* Chart and key-stats rail share the first screen. The chart SVG scales to its
+   container (viewBox + width:100%), so narrowing the column is what shortens it
+   — there is no height to set. Below 1100px the rail drops under the chart
+   rather than squeezing both into unreadable columns. */
+.company-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .company-hero-grid { grid-template-columns: 1fr; } }
+.company-hero-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.company-keystats { display: flex; flex-direction: column; gap: 14px; }
+.company-keystats .company-metric-row { font-size: 12.5px; padding: 5px 0; gap: 10px; }
+.company-keystats .panel-label { white-space: nowrap; }
+.company-keystats .company-metric-val { text-align: right; }
+.company-keystats .cell-status { font-size: 11.5px; color: var(--text-muted); font-weight: 500; border-bottom: 1px dotted var(--border); cursor: help; }
+.keystat-note { font-size: 11px; margin-top: 8px; }
+/* 52-week range: the track is the year, the dot is today. */
+.keystat-range { display: flex; flex-direction: column; gap: 7px; }
+.keystat-range-track { position: relative; height: 4px; border-radius: 3px; background: linear-gradient(90deg, var(--border), var(--accent)); }
+.keystat-range-dot { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: var(--text-primary); border: 2px solid var(--surface-2); transform: translate(-50%, -50%); }
+.keystat-range-ends { display: flex; justify-content: space-between; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
 .company-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
 @media (max-width: 920px) { .company-overview-grid { grid-template-columns: 1fr; } }
 .company-overview-main { padding: 26px 30px; background: var(--surface-1); border-radius: 14px; border: 1px solid var(--border); }
