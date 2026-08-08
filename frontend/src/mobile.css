@@ -1100,3 +1100,25 @@ iframe {
     font-size: 0.8rem;
   }
 }
+
+/* ── Быстрое сравнение on a phone ────────────────────────────────────────────
+   The strip already scrolls sideways, which is the one layout that survives a
+   360px screen without stacking eight cards down the page. What has to give is
+   the card: 152px shows two and a sliver, and the sliver is what tells a reader
+   there is more to the right — 126px shows two and a half of the next. The
+   arrows go: a thumb swipes the strip, and a 24px circle over the first card is
+   in the way of doing so. */
+@media (max-width: 760px) {
+  .qc-card {
+    width: 126px;
+    padding: 8px 9px;
+  }
+
+  .qc-card-price {
+    font-size: 13px;
+  }
+
+  .qc-arrow {
+    display: none;
+  }
+}

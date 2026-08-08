@@ -5665,7 +5665,227 @@ function chartRangeCutoff(key) {
   return null;
 }
 
-function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments, lang, quality, metricsWindows }) {
+/* ── Быстрое сравнение ──────────────────────────────────────────────────────
+ * Peer lines on the price chart, as on the reference quote page: a strip of
+ * cards under the chart, and one click puts that security's line beside this
+ * one's.
+ *
+ * The lines are drawn as PERCENT from a shared start, never in сумы. On this
+ * market KSCM closes near 111 000 and UZTL near 12 000 — a shared price axis
+ * would flatten one of them onto the frame and compare nothing. Percent is also
+ * what «сравнить» means here: which of the two moved more.
+ */
+const QC_COLORS = ["#f472b6", "#22d3ee", "#94a3b8"];
+const QC_MAX = 3;
+
+// Which securities the strip offers. Pure and module-level for the same reason
+// watchRailLists is: the page fetches a stored series for exactly these
+// tickers, and computing the list twice would let the fetch ask for one set
+// while the strip drew another.
+function quickComparePeers({ ticker, rows, securitiesMap, limit = 8 }) {
+  const up = String(ticker || "").toUpperCase();
+  const priced = (Array.isArray(rows) ? rows : []).filter(
+    (r) => Number.isFinite(r.lastPrice) && r.lastPrice > 0
+      && String(r.ticker || "").toUpperCase() !== up,
+  );
+  const byCap = (a, b) => (b.marketCap || 0) - (a.marketCap || 0);
+  // The issuer's OTHER class first. It is the one comparison whose two lines
+  // are supposed to agree, so the days they part are worth seeing.
+  const sibling = up.endsWith("P") ? up.slice(0, -1) : `${up}P`;
+  // sectorOf answers "other" for a ticker the catalog does not classify — a
+  // bucket, not a sector. Offering its members as peers would put a fund next
+  // to a cement plant and call them comparable; the market's largest names are
+  // the honest fallback, because they are the ones a reader already knows.
+  const mine = sectorOf(up, securitiesMap, null);
+  const sameSector = (!mine || mine === "other") ? [] : priced
+    .filter((r) => sectorOf(r.ticker, securitiesMap, null) === mine).sort(byCap);
+  const ordered = [
+    ...priced.filter((r) => String(r.ticker || "").toUpperCase() === sibling),
+    ...sameSector,
+    ...[...priced].sort(byCap),
+  ];
+  const out = [];
+  for (const row of ordered) {
+    const tk = String(row.ticker || "").toUpperCase();
+    if (out.some((x) => String(x.ticker || "").toUpperCase() === tk)) continue;
+    out.push(row);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+// YYYYMMDD (the stored quote history) → YYYY-MM-DD (the price-history feed).
+// ONE rule, here, because a series half in each form orders by its leading
+// digits and draws a scrambled line — the same trap store_quote_history guards
+// on the way in.
+function compareIsoDay(v) {
+  const s = String(v || "").trim();
+  return /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : s;
+}
+
+/**
+ * Put the base window and its comparison series on ONE percent scale.
+ *
+ * The rule that matters: every line is rebased at the SAME session, and that
+ * session is the first one all of them have. Rebasing each series at its own
+ * first point would draw a peer at 0 % on a day the base already stood at
+ * +40 %, and the two curves would be answering different questions.
+ *
+ * The stored quote history begins in Aug 2025, so on «3 года» or «Макс» the
+ * shared start is later than the window — the chart says so underneath rather
+ * than quietly showing less than the range button promises.
+ *
+ * Returns null when there is nothing to compare; `dropped` carries the peers
+ * with no stored session inside the window, which is a fact about the security
+ * and has to be stated, not swallowed.
+ */
+function buildCompareSeries(windowed, compare) {
+  const wanted = Array.isArray(compare) ? compare : [];
+  if (!windowed.length || !wanted.length) return null;
+  const from = String(windowed[0].date);
+  const prepared = [];
+  const dropped = [];
+  for (const c of wanted) {
+    const pts = (Array.isArray(c.points) ? c.points : [])
+      .map((p) => (Array.isArray(p)
+        ? [compareIsoDay(p[0]), Number(p[1])]
+        : [compareIsoDay(p.date || p.trade_date), Number(p.close ?? p.close_price)]))
+      .filter(([d, v]) => d >= from && Number.isFinite(v) && v > 0)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    if (pts.length < 2) dropped.push(c);
+    else prepared.push({ ...c, pts });
+  }
+  if (!prepared.length) return { points: windowed, series: [], dropped, start: null };
+
+  const start = prepared.reduce((m, c) => (c.pts[0][0] > m ? c.pts[0][0] : m), from);
+  const points = windowed.filter((p) => String(p.date) >= start);
+  // A shared span of one session is not a comparison. Say the peers could not
+  // be drawn rather than trim the base chart to a dot.
+  if (points.length < 2) {
+    return { points: windowed, series: [], dropped: [...dropped, ...prepared], start: null };
+  }
+  const base0 = points[0].close;
+  const basePct = points.map((p) => (p.close / base0 - 1) * 100);
+
+  const series = [];
+  for (const c of prepared) {
+    // Carried forward, not interpolated: two securities here do not trade on
+    // the same days, and a peer's price on a session it sat out is the last one
+    // it printed — which is what the exchange itself carries forward.
+    let j = 0;
+    let last = null;
+    const closes = points.map((p) => {
+      const d = String(p.date);
+      while (j < c.pts.length && c.pts[j][0] <= d) { last = c.pts[j][1]; j += 1; }
+      return last;
+    });
+    const first = closes[0];
+    if (!Number.isFinite(first) || first <= 0) { dropped.push(c); continue; }
+    series.push({ ...c, closes, pct: closes.map((v) => (v == null ? null : (v / first - 1) * 100)) });
+  }
+  return { points, basePct, base0, series, dropped, start: start > from ? start : null };
+}
+
+// The strip itself: the peers on offer, and the ones already on the chart as
+// removable chips. Cards carry price and the day's move so the click is an
+// informed one — MSN's strip does the same, and it is the only place on this
+// page where another security's session is quoted next to this one's.
+function QuickCompareStrip({ peers, securitiesMap, selected, colors, onToggle, lang, loading }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const scroller = React.useRef(null);
+  const [scrollState, setScrollState] = React.useState({ left: false, right: false });
+  const syncArrows = React.useCallback(() => {
+    const n = scroller.current;
+    if (!n) return;
+    setScrollState({
+      left: n.scrollLeft > 4,
+      right: n.scrollLeft + n.clientWidth < n.scrollWidth - 4,
+    });
+  }, []);
+  React.useEffect(() => {
+    syncArrows();
+    if (typeof window === "undefined") return undefined;
+    window.addEventListener("resize", syncArrows);
+    return () => window.removeEventListener("resize", syncArrows);
+  }, [syncArrows, peers]);
+  const nudge = (dir) => {
+    const n = scroller.current;
+    if (n) n.scrollBy({ left: dir * Math.max(180, n.clientWidth * 0.8), behavior: "smooth" });
+  };
+
+  if (!peers.length) return null;
+  const chosen = new Set(selected);
+  const full = selected.length >= QC_MAX;
+
+  return (
+    <div className="quick-compare">
+      <div className="qc-head">
+        <h4 className="qc-title">{t("Быстрое сравнение", "Tez taqqoslash", "Quick compare")}</h4>
+        <div className="qc-chips">
+          {selected.map((tk, i) => (
+            <button key={tk} type="button" className="qc-chip"
+              style={{ "--qc-color": colors[i % colors.length] }}
+              title={t("Убрать с графика", "Grafikdan olib tashlash", "Remove from the chart")}
+              onClick={() => onToggle(tk)}>
+              <span className="qc-dot" aria-hidden="true" />
+              {tk}
+              <span className="qc-chip-x" aria-hidden="true">✕</span>
+            </button>
+          ))}
+          {loading && <span className="qc-loading muted">{t("загрузка…", "yuklanmoqda…", "loading…")}</span>}
+        </div>
+      </div>
+      <div className="qc-scroll">
+        {scrollState.left && (
+          <button type="button" className="qc-arrow qc-arrow-left" aria-label={t("Назад", "Orqaga", "Back")}
+            onClick={() => nudge(-1)}>‹</button>
+        )}
+        <div className="qc-cards" ref={scroller} onScroll={syncArrows}>
+          {peers.map((r) => {
+            const tk = String(r.ticker || "").toUpperCase();
+            const on = chosen.has(tk);
+            const color = on ? colors[selected.indexOf(tk) % colors.length] : null;
+            const tone = r.changePercent > 0 ? "pos" : r.changePercent < 0 ? "neg" : "";
+            return (
+              <button key={tk} type="button"
+                className={`qc-card ${on ? "on" : ""}`}
+                style={color ? { "--qc-color": color } : undefined}
+                disabled={!on && full}
+                aria-pressed={on}
+                title={!on && full
+                  ? t(`Одновременно можно сравнивать ${QC_MAX} бумаги`,
+                      `Bir vaqtda ${QC_MAX} ta qog'oz`,
+                      `Up to ${QC_MAX} securities at a time`)
+                  : `${r.name || tk} — ${on ? t("убрать с графика", "grafikdan olib tashlash", "remove from the chart")
+                                             : t("добавить на график", "grafikka qo'shish", "add to the chart")}`}
+                onClick={() => onToggle(tk)}>
+                <span className="qc-card-head">
+                  <CompanyLogo logo={(securitiesMap || {})[tk]?.logo_url} name={r.name || tk} ticker={tk} />
+                  <span className="qc-card-name">{r.name || tk}</span>
+                </span>
+                <span className="qc-card-figures">
+                  <span className="qc-card-price">{formatMarketNumber(r.lastPrice, lang)}</span>
+                  <span className={`qc-card-change ${tone}`}>
+                    {Number.isFinite(r.changePercent)
+                      ? `${r.changePercent > 0 ? "+" : ""}${r.changePercent.toFixed(2)}%`
+                      : "—"}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {scrollState.right && (
+          <button type="button" className="qc-arrow qc-arrow-right" aria-label={t("Вперёд", "Oldinga", "Forward")}
+            onClick={() => nudge(1)}>›</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments, lang, quality, metricsWindows,
+                             ticker, compare, compareLoading }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const months = chartRangeSpan(range);
   const [hover, setHover] = React.useState(null);
@@ -5811,18 +6031,35 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // because the tooltip still states open/high/low for the days that have them.
   const ohlcOk = (p) => p.open > 0 && p.high > 0 && p.low > 0 && p.close > 0
     && p.low <= Math.min(p.open, p.close) && Math.max(p.open, p.close) <= p.high;
-  const points = windowed;
   // ТЗ §6 still applies to the SHAPE of the line. On a security that trades on a
   // minority of days a straight segment between two trades three weeks apart
   // draws prices that never existed, so the series becomes a step. The server
   // decides which securities those are (data_tier sparse/illiquid), not a hand.
   const stepLine = quality ? quality.candles_enabled === false : false;
 
+  // Быстрое сравнение. With a peer on the chart the drawn window narrows to the
+  // span every line has and the axis stops being сумы — see buildCompareSeries.
+  // Nothing below this point reads `p.close` for a Y position; it reads
+  // `baseVals`, which is the close or the percent depending on the mode.
+  const cmp = buildCompareSeries(windowed, compare);
+  const cmpOn = Boolean(cmp && cmp.series.length);
+  const points = cmpOn ? cmp.points : windowed;
+  const baseVals = cmpOn ? cmp.basePct : points.map((p) => p.close);
+  // A price expressed on whatever scale the chart is currently drawing. The
+  // moving averages arrive in сумы and have to follow the axis, or MA20 would
+  // be plotted at 8 900 on a scale that runs from −12 % to +40 %.
+  const toScale = (price) => (cmpOn ? (price / cmp.base0 - 1) * 100 : price);
+  const fmtPct = (v) => `${v > 0 ? "+" : ""}${Number(v).toFixed(1)}%`;
+
   // Per point, again: a single record without a low must not drag the whole
-  // price scale to NaN.
-  const lows = points.map((p) => (ohlcOk(p) ? p.low : p.close));
-  const highs = points.map((p) => (ohlcOk(p) ? p.high : p.close));
-  const minP = Math.min(...lows), maxP = Math.max(...highs);
+  // price scale to NaN. In compare mode the scale is a percent one and there is
+  // no intraday low to honour — every line, this one and the peers, has to fit.
+  const lows = cmpOn ? baseVals : points.map((p) => (ohlcOk(p) ? p.low : p.close));
+  const highs = cmpOn ? baseVals : points.map((p) => (ohlcOk(p) ? p.high : p.close));
+  const cmpVals = cmpOn
+    ? cmp.series.flatMap((s) => s.pct.filter((v) => v != null && Number.isFinite(v)))
+    : [];
+  const minP = Math.min(...lows, ...cmpVals), maxP = Math.max(...highs, ...cmpVals);
   const rangeP = maxP - minP || 1;
   const maxVol = Math.max(...points.map((p) => p.volume), 1);
   // Per-point markers only where a marker can be READ. On a step series every
@@ -5836,14 +6073,25 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const ys = (p) => priceTop + (1 - (p - minP) / rangeP) * (priceBot - priceTop);
 
   const lineD = points.map((p, i) => {
-    const x = xs(i).toFixed(1), y = ys(p.close).toFixed(1);
+    const x = xs(i).toFixed(1), y = ys(baseVals[i]).toFixed(1);
     if (i === 0) return `M${x},${y}`;
     // A step carries the previous price forward to the day it actually changed.
-    return stepLine ? `L${x},${ys(points[i - 1].close).toFixed(1)} L${x},${y}` : `L${x},${y}`;
+    return stepLine ? `L${x},${ys(baseVals[i - 1]).toFixed(1)} L${x},${y}` : `L${x},${y}`;
   }).join(" ");
   const areaD = `${lineD} L${xs(points.length - 1).toFixed(1)},${priceBot.toFixed(1)} L${xs(0).toFixed(1)},${priceBot.toFixed(1)} Z`;
-  const isUp = points[points.length - 1].close >= points[0].close;
+  const isUp = baseVals[baseVals.length - 1] >= baseVals[0];
   const color = isUp ? "#22c55e" : "#ef4444";
+  // A peer's line, on the same percent scale, skipping the sessions before its
+  // own first stored one rather than drawing a flat lead-in that never happened.
+  const cmpPath = (pct) => {
+    let d = "", started = false;
+    pct.forEach((v, i) => {
+      if (v == null || !Number.isFinite(v)) { started = false; return; }
+      d += `${started ? "L" : "M"}${xs(i).toFixed(1)},${ys(v).toFixed(1)}`;
+      started = true;
+    });
+    return d;
+  };
 
   // ТЗ §6: moving averages are always computed on the RAW DAILY series over a
   // calendar window, whatever the display bucket is. Averaging 20 weekly
@@ -5892,7 +6140,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     let d = "", started = false;
     arr.forEach((v, i) => {
       if (v == null) return;
-      d += `${started ? "L" : "M"}${xs(i).toFixed(1)},${ys(v).toFixed(1)}`;
+      d += `${started ? "L" : "M"}${xs(i).toFixed(1)},${ys(toScale(v)).toFixed(1)}`;
       started = true;
     });
     return d;
@@ -5912,12 +6160,14 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
   };
   const yStep = rangeP > 0 ? niceStep(rangeP, yTicks) : 0;
+  // Full numbers, not 10.0K: this is a price scale and the reference states it
+  // as one. `abbrev` stays for the tooltip's volume, where a K/M really helps.
+  // In compare mode the axis measures the move, not the price, and says so.
+  const fmtAxisVal = cmpOn ? fmtPct : fmtFull;
   const yLabels = [];
   if (yStep > 0) {
     const first = Math.ceil(minP / yStep) * yStep;
-    // Full numbers, not 10.0K: this is a price scale and the reference states it
-    // as one. `abbrev` stays for the tooltip's volume, where a K/M really helps.
-    for (let v = first; v <= maxP + yStep * 1e-9; v += yStep) yLabels.push({ y: ys(v), label: fmtFull(v) });
+    for (let v = first; v <= maxP + yStep * 1e-9; v += yStep) yLabels.push({ y: ys(v), label: fmtAxisVal(v) });
   }
   // A flat or near-flat series can leave one round number in range (or none) —
   // then an even split of the range is the only honest axis left.
@@ -5928,7 +6178,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       const v = minP + (i / yTicks) * rangeP;
       // A price that never moved would otherwise stack the same number five
       // times down the panel and call it a scale.
-      const label = fmtFull(v);
+      const label = fmtAxisVal(v);
       if (seen.has(label)) continue;
       seen.add(label);
       yLabels.push({ y: ys(v), label });
@@ -6032,9 +6282,24 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
             stroke="currentColor" strokeOpacity="0.16" strokeDasharray="4 6" strokeWidth="0.8" />
         ))}
 
-        <path d={areaD} fill="url(#cpcgrad)" />
+        {/* No fill under the line while comparing: the peers cross it, and a
+            tinted band under one of several lines reads as the chart's subject
+            rather than as one series among them. */}
+        {!cmpOn && <path d={areaD} fill="url(#cpcgrad)" />}
+        {/* Where the shared start sits — the line every percentage is measured
+            from, and the only value on that axis that is not an opinion. */}
+        {cmpOn && minP <= 0 && maxP >= 0 && (
+          <line x1={PAD.left} y1={ys(0)} x2={W - PAD.right} y2={ys(0)}
+            stroke="currentColor" strokeOpacity="0.35" strokeWidth="0.9" />
+        )}
         <path d={lineD} fill="none" stroke={color} strokeWidth="2"
           strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+
+        {cmpOn && cmp.series.map((s) => (
+          <path key={`cmp${s.ticker}`} d={cmpPath(s.pct)} fill="none" stroke={s.color}
+            strokeWidth="1.6" strokeOpacity="0.95" strokeLinejoin="round" strokeLinecap="round"
+            vectorEffect="non-scaling-stroke" />
+        ))}
 
         {ma20 && <path d={maPath(ma20)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeOpacity="0.9" />}
         {ma50 && <path d={maPath(ma50)} fill="none" stroke="#a855f7" strokeWidth="1.5" strokeOpacity="0.9" />}
@@ -6062,9 +6327,9 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           const atLimit = move != null && Math.abs(Math.abs(move) - 20) < 0.5;
           return (
             <g key={`pt${i}`}>
-              <circle cx={xs(i)} cy={ys(p.close)} r={r} fill={color} fillOpacity="0.75" />
+              <circle cx={xs(i)} cy={ys(baseVals[i])} r={r} fill={color} fillOpacity="0.75" />
               {atLimit && (
-                <rect x={xs(i) - 4.5} y={ys(p.close) - 4.5} width="9" height="9"
+                <rect x={xs(i) - 4.5} y={ys(baseVals[i]) - 4.5} width="9" height="9"
                   fill="none" stroke="#fbbf24" strokeWidth="1.2">
                   <title>{t("движение упёрлось в дневной лимит ±20 %",
                             "harakat kunlik ±20 % limitga tayandi",
@@ -6075,7 +6340,12 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           );
         })}
 
-        {<circle cx={xs(points.length - 1)} cy={ys(points[points.length - 1].close)} r="4" fill={color} />}
+        {<circle cx={xs(points.length - 1)} cy={ys(baseVals[points.length - 1])} r="4" fill={color} />}
+        {cmpOn && cmp.series.map((s) => {
+          const v = s.pct[s.pct.length - 1];
+          return v == null ? null
+            : <circle key={`cmpdot${s.ticker}`} cx={xs(points.length - 1)} cy={ys(v)} r="3.2" fill={s.color} />;
+        })}
 
         {eventMarks.map((m) => (
           <line key={`ev${m.ex_date}`} x1={xs(m.i)} y1={priceTop} x2={xs(m.i)} y2={priceBot}
@@ -6086,7 +6356,11 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         {hover != null && (
           <>
             <line x1={hx} y1={priceTop} x2={hx} y2={priceBot} stroke="currentColor" strokeOpacity="0.38" strokeDasharray="3 3" />
-            <circle cx={hx} cy={ys(points[hover].close)} r="3.6" fill={color} stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
+            <circle cx={hx} cy={ys(baseVals[hover])} r="3.6" fill={color} stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
+            {cmpOn && cmp.series.map((s) => (s.pct[hover] == null ? null : (
+              <circle key={`cmphov${s.ticker}`} cx={hx} cy={ys(s.pct[hover])} r="3.2" fill={s.color}
+                stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
+            )))}
           </>
         )}
       </svg>
@@ -6115,7 +6389,48 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
               <b style={{ color: hp.change >= 0 ? "#22c55e" : "#ef4444" }}>{hp.change >= 0 ? "+" : ""}{fmtFull(hp.change)}</b>
             </div>
           )}
+          {/* While comparing, the readout states the same thing the lines do:
+              the move since the shared start, per security. The peer's close is
+              named beside it so the percentage can be checked against a price. */}
+          {cmpOn && (
+            <div className="cpc-tt-cmp">
+              <div className="cpc-tt-row">
+                <span style={{ color }}>{ticker || t("Эта бумага", "Bu qog'oz", "This security")}</span>
+                <b style={{ color }}>{fmtPct(baseVals[hover])}</b>
+              </div>
+              {cmp.series.map((s) => (
+                <div className="cpc-tt-row" key={`tt${s.ticker}`}>
+                  <span style={{ color: s.color }}>{s.ticker}</span>
+                  <b style={{ color: s.color }}>
+                    {s.pct[hover] == null ? "—" : fmtPct(s.pct[hover])}
+                    {s.closes[hover] != null && (
+                      <span className="cpc-tt-cmp-price"> · {fmtFull(s.closes[hover])}</span>
+                    )}
+                  </b>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Two facts about a comparison that the chart cannot draw. The stored
+          quote history begins in Aug 2025, so a peer on a «Макс» chart moves
+          the shared start — and a security with no stored session inside the
+          window has no line at all. Both are stated, never implied by an
+          absence. */}
+      {cmpOn && cmp.start && (
+        <p className="cpc-tier-note muted">
+          {t(`Сравнение считается с ${fmtDate(cmp.start, true)} — раньше сохранённых котировок нет; шкала показывает изменение в процентах от этого дня.`,
+             `Taqqoslash ${fmtDate(cmp.start, true)} dan hisoblanadi — undan oldingi saqlangan kotirovkalar yo'q; shkala shu kundan foizdagi o'zgarishni ko'rsatadi.`,
+             `The comparison starts on ${fmtDate(cmp.start, true)} — there are no stored quotes before it; the axis shows the percent move from that day.`)}
+        </p>
+      )}
+      {cmp && cmp.dropped.length > 0 && !compareLoading && (
+        <p className="cpc-tier-note muted">
+          {t("Нет сохранённых котировок за этот период: ", "Bu davr uchun saqlangan kotirovkalar yo'q: ", "No stored quotes for this period: ")}
+          {cmp.dropped.map((c) => c.ticker).join(", ")}
+        </p>
       )}
 
       {eventMarks.length > 0 && (
@@ -6534,7 +6849,7 @@ function dividendSummary(items, { isPreferred, lastPrice } = {}) {
   };
 }
 
-function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceRange, onRangeChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail }) {
+function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, priceRange, onRangeChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
 
   return (
@@ -6552,7 +6867,15 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments,
                 here (`quality`) and how long a moving average is (`ma_windows`);
                 only its numbers stopped being printed. */}
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={onRangeChange} adjustments={priceAdjustments} lang={lang}
-              quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows} />
+              quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows}
+              ticker={ticker} compare={compare?.series} compareLoading={compare?.loading} />
+            {/* Inside the chart panel, as on the reference page: the strip is a
+                control for the chart above it, not a section of its own. */}
+            {compare && (
+              <QuickCompareStrip peers={compare.peers} securitiesMap={compare.securitiesMap}
+                selected={compare.selected} colors={QC_COLORS} onToggle={compare.onToggle}
+                lang={lang} loading={compare.loading} />
+            )}
           </div>
           <div className="company-overview-main">
             <h3 className="co-heading">{lang === "ru" ? "О компании" : lang === "uz" ? "Kompaniya haqida" : "About the company"}</h3>
@@ -7134,6 +7457,48 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
       .map((r) => String(r.ticker || "").toUpperCase()))].sort();
   }, [ticker, preparedRows, securitiesMap, favoriteTickers]);
 
+  // Быстрое сравнение: which securities the strip offers, which of them are on
+  // the chart, and their stored closes. The selection is the reader's and is
+  // dropped when the page changes issuer — carrying UZTL's peers onto KSCM's
+  // chart would compare a set nobody chose.
+  const comparePeers = React.useMemo(
+    () => quickComparePeers({ ticker, rows: preparedRows, securitiesMap }),
+    [ticker, preparedRows, securitiesMap],
+  );
+  const [compareTickers, setCompareTickers] = React.useState([]);
+  const [compareSeries, setCompareSeries] = React.useState({});
+  const [compareLoading, setCompareLoading] = React.useState(false);
+  React.useEffect(() => { setCompareTickers([]); }, [ticker]);
+  const toggleCompare = React.useCallback((tk) => {
+    const up = String(tk || "").toUpperCase();
+    setCompareTickers((cur) => (cur.includes(up)
+      ? cur.filter((x) => x !== up)
+      : cur.length >= QC_MAX ? cur : [...cur, up]));
+  }, []);
+  // The same stored-close endpoint the watch rail's sparklines read — one
+  // request for the whole selection, not one per line. `days` is a count of
+  // SESSIONS, not calendar days, so ask for everything the store holds and let
+  // the chart trim to the range on screen.
+  const compareKey = [...compareTickers].sort().join(",");
+  React.useEffect(() => {
+    if (!compareKey) return undefined;
+    let alive = true;
+    setCompareLoading(true);
+    fetch(`/api/quotes/series?tickers=${encodeURIComponent(compareKey)}&days=3650`)
+      .then((r) => r.json())
+      // Merged, not replaced: adding a second security must not make the first
+      // one's line blink out while the request is in flight.
+      .then((d) => { if (alive && d && d.ok) setCompareSeries((s) => ({ ...s, ...(d.series || {}) })); })
+      .catch(() => {})
+      .finally(() => { if (alive) setCompareLoading(false); });
+    return () => { alive = false; };
+  }, [compareKey]);
+  const compareLines = React.useMemo(() => compareTickers.map((tk, i) => ({
+    ticker: tk,
+    color: QC_COLORS[i % QC_COLORS.length],
+    points: compareSeries[tk] || null,
+  })), [compareTickers, compareSeries]);
+
   React.useEffect(() => {
     if (!ticker) return undefined;
     let alive = true;
@@ -7391,8 +7756,12 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
           </div>
         )}
         {tab === "overview" && (
-          <CompanyOverviewTab sec={sec} priceHistory={priceHistory} priceLoading={priceLoading}
+          <CompanyOverviewTab sec={sec} ticker={ticker} priceHistory={priceHistory} priceLoading={priceLoading}
             priceAdjustments={priceAdjustments}
+            compare={{
+              peers: comparePeers, securitiesMap, selected: compareTickers,
+              onToggle: toggleCompare, series: compareLines, loading: compareLoading,
+            }}
             priceRange={priceRange} onRangeChange={setPriceRange}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
             marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading}
@@ -7408,7 +7777,11 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
           <div className="panel" style={{ padding: 24 }}>
             <h3 className="section-heading" style={{ marginBottom: 16 }}>{lang === "ru" ? `История цен — ${ticker}` : `Price History — ${ticker}`}</h3>
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={setPriceRange} lang={lang}
-              quality={metrics?.quality} metricsWindows={metrics?.ma_windows} />
+              quality={metrics?.quality} metricsWindows={metrics?.ma_windows}
+              ticker={ticker} compare={compareLines} compareLoading={compareLoading} />
+            <QuickCompareStrip peers={comparePeers} securitiesMap={securitiesMap}
+              selected={compareTickers} colors={QC_COLORS} onToggle={toggleCompare}
+              lang={lang} loading={compareLoading} />
           </div>
         )}
         {tab === "dividends" && (
