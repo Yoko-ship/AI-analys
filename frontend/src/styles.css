@@ -10265,7 +10265,10 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .section-heading { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
 
 /* Price chart */
-.company-chart-ranges { display: flex; gap: 4px; margin-bottom: 10px; }
+/* Nine chips now (1Н…Макс), so it wraps on the desktop rule too and not only in
+   mobile.css — the narrow end of the three-column layout leaves the chart about
+   560px, which is not quite a row. */
+.company-chart-ranges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .range-btn { padding: 3px 11px; border-radius: 6px; border: 1px solid var(--border); background: none; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
 .range-btn:hover { border-color: var(--accent); color: var(--text-primary); }
 .range-btn.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
