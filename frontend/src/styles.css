@@ -10330,6 +10330,48 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .cpc-tt-row span { color: var(--text-muted); }
 .cpc-tt-row b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .cpc-adjust-note { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: var(--text-muted); }
+.cpc-tt-cmp { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--border); }
+.cpc-tt-cmp-price { font-weight: 500; opacity: 0.75; }
+
+/* Быстрое сравнение — the peer strip under the chart. Cards, not rows: a card
+   holds a logo, a name, a price and a move without any of them queueing behind
+   a column width, and the strip scrolls sideways instead of growing down the
+   page, which is what keeps «О компании» on the first screen. */
+.quick-compare { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.qc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 9px; }
+.qc-title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; color: var(--text-primary); }
+.qc-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.qc-loading { font-size: 11px; }
+/* A chip is the line's own legend AND its remove button — the colour is the
+   only thing tying a chip to a curve, so it is stated twice: the dot and the
+   border. */
+.qc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--text-primary); background: none; border: 1px solid var(--qc-color, var(--border)); transition: background 0.12s; }
+.qc-chip:hover { background: color-mix(in srgb, var(--qc-color, var(--accent)) 16%, transparent); }
+.qc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--qc-color, var(--accent)); }
+.qc-chip-x { font-size: 10px; color: var(--text-muted); }
+.qc-chip:hover .qc-chip-x { color: var(--text-primary); }
+
+.qc-scroll { position: relative; }
+.qc-cards { display: flex; gap: 8px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; padding-bottom: 2px; }
+.qc-cards::-webkit-scrollbar { display: none; }
+.qc-card { flex: 0 0 auto; width: 152px; display: flex; flex-direction: column; gap: 6px; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2, rgba(127,127,127,0.06)); cursor: pointer; text-align: left; transition: border-color 0.12s, background 0.12s; }
+.qc-card:hover:not(:disabled) { border-color: var(--accent); }
+.qc-card:disabled { opacity: 0.45; cursor: not-allowed; }
+.qc-card.on { border-color: var(--qc-color); background: color-mix(in srgb, var(--qc-color) 12%, transparent); }
+.qc-card-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.qc-card-head .chip-logo, .qc-card-head .chip-logo-fallback { width: 18px; height: 18px; flex: 0 0 18px; font-size: 8px; }
+.qc-card-name { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qc-card-figures { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.qc-card-price { font-size: 14px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.qc-card-change { font-size: 12px; font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.qc-card-change.pos { color: #22c55e; }
+.qc-card-change.neg { color: #ef4444; }
+/* Only rendered while there is something to scroll to, so the arrow is never a
+   dead control sitting over the first card. */
+.qc-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--border); background: var(--panel); color: var(--text-primary); font-size: 15px; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+.qc-arrow:hover { border-color: var(--accent); }
+.qc-arrow-left { left: -6px; }
+.qc-arrow-right { right: -6px; }
 
 /* Dividend center */
 .company-dividends { display: flex; flex-direction: column; gap: 14px; }
