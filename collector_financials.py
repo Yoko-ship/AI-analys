@@ -25,6 +25,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 from typing import Any
 
 import requests
@@ -261,6 +262,57 @@ def push_trade_stats() -> int:
 SKIP_QUOTES = False
 
 
+def backfill_quote_history(months: int = 12) -> int:
+    """Seed `catalog_quote_history` from openinfo's conclusions archive.
+
+    The collector keeps this table current from the exchange page, which carries
+    about twenty-one sessions — enough for a sparkline the day after a run, and
+    it deepens by itself from there. This is the one-off that gives it a real
+    past instead of waiting a year for one, and the only place we ask openinfo
+    for a per-security series: once, paced, for every listed code — not once per
+    ticker every time somebody opens a page, which is the cost this whole table
+    exists to remove.
+    """
+    from openinfo_collector import _make_session, fetch_price_history
+    from securities_catalog import get_securities_map
+
+    session = _make_session()
+    securities = get_securities_map() or {}
+    codes = sorted({str((meta or {}).get("isin") or "").upper()
+                    for meta in securities.values()
+                    if str((meta or {}).get("isin") or "").strip()})
+    log.info("history backfill: %d securities, %d months each", len(codes), months)
+    rows: list[dict] = []
+    failed = 0
+    for index, isin in enumerate(codes, 1):
+        try:
+            data = fetch_price_history(isin, session, months)
+        except Exception:  # noqa: BLE001 — one unreadable code is not the run
+            log.exception("history backfill: %s unreadable", isin)
+            failed += 1
+            continue
+        points = data.get("points") or []
+        for p in points:
+            if p.get("date") and p.get("close") is not None:
+                rows.append({"isin": isin, "trade_date": p["date"], "close_price": p["close"],
+                             "change_value": p.get("change"),
+                             "quantity": p.get("trading_volume"),
+                             "turnover": p.get("trading_value")})
+        if index % 20 == 0:
+            log.info("history backfill: %d/%d codes, %d sessions so far", index, len(codes), len(rows))
+        time.sleep(0.25)
+    log.info("history backfill: %d sessions from %d codes (%d unreadable)",
+             len(rows), len(codes) - failed, failed)
+    if not rows:
+        return 1
+    # The admin endpoint caps a batch; the series is deep enough to exceed it.
+    status = 0
+    for start in range(0, len(rows), 20000):
+        status = _post("/api/admin/quotes",
+                       {"rows": [], "history": rows[start:start + 20000]}) or status
+    return status
+
+
 def quotes_from_archive(targets: list[tuple[str, str]]) -> list[dict]:
     """The exchange's execution record for securities its page cannot date.
 
@@ -410,9 +462,24 @@ def push_quotes(stats: dict[str, dict]) -> int:
         except Exception:  # noqa: BLE001 — a fallback must not cost us the session
             log.exception("archive quote fallback failed")
 
+    # The exchange's quote page publishes its last ~21 SETTLED sessions in a
+    # table below the current one, and every page fetched above already parsed
+    # it. It used to be dropped here, so a daily close existed nowhere and a
+    # sparkline cost one live openinfo request per ticker. It rides along on the
+    # same POST — the history is already in hand, and a second request for data
+    # we are holding would be the wasteful part.
+    history: list[dict[str, Any]] = []
     for q in quotes:
-        q.pop("history", None)
-    status = _post("/api/admin/quotes", {"rows": quotes})
+        isin = str(q.get("isin") or "").upper()
+        for h in (q.pop("history", None) or []):
+            day = str(h.get("date") or "").strip()
+            if not isin or not day:
+                continue
+            history.append({"isin": isin, "trade_date": day, "close_price": h.get("close"),
+                            "change_value": h.get("change"), "quantity": h.get("quantity"),
+                            "turnover": h.get("turnover")})
+    log.info("quotes: %d settled daily closes across %d securities", len(history), len(quotes))
+    status = _post("/api/admin/quotes", {"rows": quotes, "history": history})
     if status == 0:
         # The newest session in the batch, not whichever row happened to be first:
         # a settled row is dated the day its security last traded, which for a
@@ -716,6 +783,9 @@ def main() -> int:
                     help="reconcile only the issuers that filed recently and push (cheap, hourly)")
     ap.add_argument("--watch-hours", type=int, default=None,
                     help="how far back the filing feed is read (default REPORTS_WATCH_HOURS or 48)")
+    ap.add_argument("--backfill-history", type=int, nargs="?", const=12, default=None,
+                    metavar="MONTHS",
+                    help="one-off: seed the daily-close store from openinfo (default 12 months)")
     args = ap.parse_args()
 
     global SKIP_QUOTES
@@ -725,6 +795,13 @@ def main() -> int:
     # the per-issuer `except Exception` guards below would otherwise turn a
     # missing dependency into a run that "succeeds" having collected nothing.
     preflight(COLLECTOR_REQUIREMENTS, label="collector")
+
+    if args.backfill_history is not None:
+        try:
+            return backfill_quote_history(args.backfill_history)
+        except Exception:
+            log.exception("history backfill failed")
+            return 1
 
     if args.watch_filings:
         status = 0

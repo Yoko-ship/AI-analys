@@ -10149,9 +10149,61 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
    container (viewBox + width:100%), so narrowing the column is what shortens it
    — there is no height to set. Below 1100px the rail drops under the chart
    rather than squeezing both into unreadable columns. */
-.company-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
-@media (max-width: 1100px) { .company-hero-grid { grid-template-columns: 1fr; } }
-.company-hero-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+/* Watchlist | security | its numbers. Below 1480px there is no room for three
+   readable columns, so the watchlist drops under the chart and keeps the stats
+   rail beside it; below 1100px everything stacks and the watchlist goes last —
+   it is context, and context does not come before the thing it contextualises. */
+.company-hero-grid {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 300px;
+  grid-template-areas: "watch main stats";
+  gap: 18px; align-items: start;
+}
+@media (max-width: 1480px) {
+  .company-hero-grid {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-areas: "main stats" "watch stats";
+  }
+}
+@media (max-width: 1100px) {
+  .company-hero-grid { grid-template-columns: 1fr; grid-template-areas: "main" "stats" "watch"; }
+}
+.company-hero-watch { grid-area: watch; min-width: 0; }
+.company-hero-main { grid-area: main; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.company-overview-sidebar { grid-area: stats; }
+
+/* Watch rail */
+.company-watch-rail { display: flex; flex-direction: column; gap: 14px; }
+.rail-block { padding: 14px 14px 10px; }
+/* A column while the rail is a column; once it drops under the chart it is as
+   wide as the chart, and a single file of rows stretched across 1040px puts the
+   ticker and its price at opposite ends of the screen. Wrapping into as many
+   ~250px columns as fit keeps a row readable at every width this rail lives at. */
+/* `min(100%, …)` and not a bare 232px: inside the 260px rail the padded track is
+   narrower than the minimum, and a grid minimum wider than its container does
+   not wrap — it overflows, which put the ☆ outside the card. */
+.rail-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 232px), 1fr)); column-gap: 22px; }
+.rail-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px auto 16px; align-items: center; gap: 7px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.rail-row:last-child { border-bottom: none; }
+.rail-row.is-current { opacity: 0.55; }
+.rail-row-name { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rail-row-ticker { font-size: 12.5px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.02em; }
+.rail-row-name:hover .rail-row-ticker { color: var(--accent); }
+.rail-row-sub { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rail-row-figures { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.rail-row-price { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.rail-row-change { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+/* The same two colours the catalog sparkline and the ratio deltas already use —
+   this page should not introduce a third green. */
+.rail-row-change.pos { color: #6ef0c1; }
+.rail-row-change.neg { color: #f87171; }
+.rail-spark { width: 52px; height: 20px; }
+.rail-spark path { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.rail-spark.tone-pos path { stroke: #6ef0c1; }
+.rail-spark.tone-neg path { stroke: #f87171; }
+.rail-fav { background: none; border: 0; padding: 0; cursor: pointer; font-size: 13px; line-height: 1; color: var(--text-muted); }
+.rail-fav.on { color: #f5c451; }
+.rail-empty { font-size: 11.5px; margin: 2px 0 4px; line-height: 1.5; }
 .company-keystats { display: flex; flex-direction: column; gap: 14px; }
 .company-keystats .company-metric-row { font-size: 12.5px; padding: 5px 0; gap: 10px; }
 .company-keystats .panel-label { white-space: nowrap; }
