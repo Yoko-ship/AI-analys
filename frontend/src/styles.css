@@ -10320,7 +10320,7 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .chart-opt-btn.chart-ma-ma50.active { background: #a855f7; border-color: #a855f7; color: #fff; }
 .chart-opt-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
 .chart-interval-tag { align-self: center; font-size: 10px; font-weight: 600; color: var(--text-muted); padding: 2px 7px; border-radius: 999px; background: var(--surface-2, rgba(127,127,127,0.1)); white-space: nowrap; cursor: default; }
-.cpc-tooltip { position: absolute; top: 8px; z-index: 5; min-width: 132px; padding: 8px 10px; border-radius: 9px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 6px 22px rgba(0,0,0,0.35); font-size: 11px; pointer-events: none; backdrop-filter: blur(6px); }
+.cpc-tooltip { position: absolute; z-index: 5; min-width: 132px; padding: 8px 10px; border-radius: 9px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 6px 22px rgba(0,0,0,0.35); font-size: 11px; pointer-events: none; backdrop-filter: blur(6px); }
 .cpc-tt-date { font-weight: 700; font-size: 11px; margin-bottom: 5px; color: var(--text-primary); }
 .cpc-tt-row { display: flex; justify-content: space-between; gap: 14px; line-height: 1.55; }
 .cpc-tt-row span { color: var(--text-muted); }

@@ -5669,6 +5669,11 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const months = chartRangeSpan(range);
   const [hover, setHover] = React.useState(null);
+  // Where the pointer is INSIDE the wrapper, in px. The tooltip used to be
+  // pinned at `top: 8px`, which was near enough when the chart was 360px tall;
+  // at 660px, hovering the lower two thirds put the readout five hundred pixels
+  // away behind the range buttons, and it read as nothing happening at all.
+  const [hoverY, setHoverY] = React.useState(0);
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
 
   // The chart's height used to be a side effect of its width: the SVG carried a
@@ -5787,6 +5792,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // and the repo's round-on-output rule is about the latter.
   const targetPx = Math.max(340, Math.min(660, (viewH || 900) * 0.58));
   const H = boxW > 0 ? (targetPx * W) / boxW : 360;
+  const chartPx = boxW > 0 ? targetPx : 360;
   const PAD = { top: 14, right: 14, bottom: 40, left: 64 };
   // No volume strip: the reference design has none, and the session's turnover,
   // share count and trade count are stated in the «Торги» block beside the
@@ -5955,6 +5961,11 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     let i = Math.round(((relX - PAD.left) / innerW) * (points.length - 1));
     i = Math.max(0, Math.min(points.length - 1, i));
     setHover(i);
+    // Measured against the POSITIONED wrapper, not the svg: the tooltip is
+    // absolute inside the wrapper, and the toolbar above the svg is part of it.
+    const wrap = e.currentTarget.parentElement;
+    const wrapTop = wrap ? wrap.getBoundingClientRect().top : rect.top;
+    setHoverY(e.clientY - wrapTop);
   };
 
   const hp = hover != null ? points[hover] : null;
@@ -6081,9 +6092,14 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       </svg>
 
       {hp && (
-        <div className="cpc-tooltip" style={ttRight
-          ? { right: `calc(${((W - hx) / W) * 100}% + 12px)` }
-          : { left: `calc(${(hx / W) * 100}% + 12px)` }}>
+        <div className="cpc-tooltip" style={{
+          // Follows the pointer down the chart, then stops short of either end
+          // so the readout never hangs outside the panel that frames it.
+          top: `${Math.max(8, Math.min(hoverY - 40, chartPx - 150))}px`,
+          ...(ttRight
+            ? { right: `calc(${((W - hx) / W) * 100}% + 12px)` }
+            : { left: `calc(${(hx / W) * 100}% + 12px)` }),
+        }}>
           <div className="cpc-tt-date">{fmtDate(hp.date, true)}</div>
           <div className="cpc-tt-row"><span>{t("Закрытие", "Yopilish", "Close")}</span><b>{fmtFull(hp.close)}</b></div>
           {ohlcOk(hp) && (
