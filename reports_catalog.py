@@ -7,6 +7,7 @@ import re
 import sqlite3
 import threading
 import time
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
@@ -176,6 +177,32 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             market_cap         REAL,
             updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        -- One row per security per SESSION — the exchange's settled daily record.
+        --
+        -- catalog_quotes above keeps only the latest session, so a series existed
+        -- nowhere we could reach: drawing a sparkline meant one live request to
+        -- openinfo per ticker, which is why lists of securities had no chart on
+        -- them at all. The data was never missing, only discarded — uzse.uz's
+        -- quote page publishes its last ~21 settled sessions in a table the
+        -- collector already parses and threw away after reading one row from it.
+        --
+        -- Carried-forward sessions belong here: the exchange repeats a close at
+        -- zero quantity when nothing traded, and a flat line IS what the security
+        -- did that day. Dropping them would compress calendar time and make a
+        -- quiet month look like an active week.
+        CREATE TABLE IF NOT EXISTS catalog_quote_history (
+            isin         TEXT NOT NULL,
+            trade_date   TEXT NOT NULL,
+            close_price  REAL,
+            change_value REAL,
+            quantity     REAL,
+            turnover     REAL,
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (isin, trade_date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_quote_history_isin
+            ON catalog_quote_history (isin, trade_date);
 
         -- Exchange-listing registry for issuers that are listed on RFB Tashkent
         -- (openinfo info_rfb.isin_codes) but absent from the live uzse-stock feed
@@ -1800,6 +1827,116 @@ def bulk_upsert_quotes(rows: list[dict]) -> int:
     finally:
         conn.close()
     return n
+
+
+_QUOTE_HISTORY_COLS = ("close_price", "change_value", "quantity", "turnover")
+
+
+def bulk_upsert_quote_history(rows: list[dict]) -> int:
+    """Store settled daily closes, one statement per batch.
+
+    Row-at-a-time is what took the catalog register to a 120-second timeout on
+    Postgres (7670 statements for 7670 rows). This writes ~2300 rows — every
+    security's last ~21 sessions — on every collector run, so it batches or it
+    does not ship: one executemany, and the round trip is the cost, not the row.
+
+    The batch is deduplicated on (isin, trade_date) first. PostgreSQL refuses an
+    ON CONFLICT that would touch the same key twice in one statement, and the
+    same session legitimately arrives twice in a run — a security read once for
+    its live quote and again for a settled row lands both.
+
+    Last write wins on a repeated session, deliberately. A row read mid-session
+    is provisional and a later read of the same day is strictly more settled;
+    past sessions are immutable in the source, so for them the update is a
+    no-op writing identical values.
+    """
+    def _num(v: Any) -> float | None:
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    def _day(v: Any) -> str | None:
+        """YYYYMMDD, the form the catalog stores.
+
+        Two sources feed this table and they disagree: the exchange page's daily
+        history is already YYYYMMDD, openinfo's conclusions archive is ISO. Both
+        sort correctly on their own and neither sorts against the other, so the
+        normalisation happens here rather than at each call site — a series half
+        in one form would order by its leading digits and draw a scrambled line.
+        """
+        s = str(v or "").strip()
+        if re.fullmatch(r"\d{8}", s):
+            return s
+        m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", s)
+        if m:
+            return f"{m.group(1)}{m.group(2)}{m.group(3)}"
+        m = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{4})", s)
+        return f"{m.group(3)}{m.group(2)}{m.group(1)}" if m else None
+
+    seen: dict[tuple[str, str], list[Any]] = {}
+    for r in rows or []:
+        isin = str(r.get("isin") or "").strip().upper()
+        day = _day(r.get("trade_date") or r.get("date"))
+        if not isin or not day:
+            continue
+        seen[(isin, day)] = [isin, day, _num(r.get("close_price") if r.get("close_price") is not None
+                                            else r.get("close")),
+                             _num(r.get("change_value") if r.get("change_value") is not None
+                                  else r.get("change")),
+                             _num(r.get("quantity")), _num(r.get("turnover"))]
+    if not seen:
+        return 0
+    assignments = ", ".join(f"{c}=excluded.{c}" for c in _QUOTE_HISTORY_COLS)
+    conn = get_catalog_conn()
+    try:
+        with conn:
+            conn.executemany(
+                f"""
+                INSERT INTO catalog_quote_history
+                    (isin, trade_date, {', '.join(_QUOTE_HISTORY_COLS)}, updated_at)
+                VALUES ({','.join('?' * (len(_QUOTE_HISTORY_COLS) + 2))}, datetime('now'))
+                ON CONFLICT(isin, trade_date) DO UPDATE SET
+                    {assignments}, updated_at=datetime('now')
+                """,
+                list(seen.values()),
+            )
+    finally:
+        conn.close()
+    return len(seen)
+
+
+def get_quote_history(isins: Sequence[str], days: int = 30) -> dict[str, list[dict[str, Any]]]:
+    """Recent settled closes for several securities, oldest first, keyed by ISIN.
+
+    One query for the whole set — the point of storing this at all was to stop
+    a list of securities costing one upstream request per row.
+    """
+    codes = [str(i).strip().upper() for i in (isins or []) if str(i or "").strip()]
+    if not codes:
+        return {}
+    days = max(1, min(int(days or 30), 3650))
+    placeholders = ",".join("?" * len(codes))
+    conn = get_catalog_conn()
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT isin, trade_date, close_price, change_value, quantity, turnover
+            FROM catalog_quote_history
+            WHERE isin IN ({placeholders})
+            ORDER BY isin, trade_date
+            """,
+            codes,
+        ).fetchall()
+    finally:
+        conn.close()
+    out: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        out.setdefault(r["isin"], []).append(dict(r))
+    # The window is the last N SESSIONS the security has, not the last N calendar
+    # days: a quiet security would otherwise return an empty series and read as
+    # "no data" when what it did was not trade.
+    return {isin: series[-days:] for isin, series in out.items()}
 
 
 def get_all_quotes() -> dict[str, dict[str, Any]]:

@@ -57,6 +57,8 @@ from reports_catalog import (
     bulk_upsert_trade_stats,
     get_all_quotes,
     bulk_upsert_quotes,
+    bulk_upsert_quote_history,
+    get_quote_history,
     get_all_listings,
     bulk_upsert_listings,
     purge_delisted,
@@ -359,6 +361,9 @@ class AdminTradeStatsRequest(BaseModel):
 
 class AdminQuotesRequest(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+    # Settled daily closes riding along with the session quotes: ~21 sessions
+    # for each security the run read, so the cap is an order above `rows`.
+    history: list[dict[str, Any]] = Field(default_factory=list, max_length=40000)
 
 
 class AdminFactsRequest(BaseModel):
@@ -2945,15 +2950,28 @@ async def api_admin_quotes(
     payload: AdminQuotesRequest,
     _: None = Depends(_require_admin),
 ) -> dict[str, Any]:
-    """Store the exchange's own session quotes (close, previous close, change)."""
+    """Store the exchange's own session quotes (close, previous close, change).
+
+    `history` carries the settled daily closes the same pages published. It is
+    written after the quotes and its failure is logged, not raised: the board is
+    what this endpoint exists to keep current, and losing a day of sparkline
+    history must not cost the session its prices.
+    """
     loop = asyncio.get_running_loop()
     try:
         n = await loop.run_in_executor(None, partial(bulk_upsert_quotes, payload.rows))
     except Exception as exc:
         logger.exception("admin quotes upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    days = 0
+    if payload.history:
+        try:
+            days = await loop.run_in_executor(
+                None, partial(bulk_upsert_quote_history, payload.history))
+        except Exception:  # noqa: BLE001 — history is not worth the session
+            logger.exception("admin quote-history upsert failed")
     _schedule_audit("ingest:quotes")
-    return {"ok": True, "upserted": n}
+    return {"ok": True, "upserted": n, "history": days}
 
 
 @app.post("/api/admin/financials")
@@ -3147,6 +3165,47 @@ async def api_securities() -> dict[str, Any]:
         return {"ok": True, "count": len(smap), "securities": smap}
     except Exception as exc:
         logger.exception("securities map failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/quotes/series")
+async def api_quotes_series(request: Request, tickers: str = "", days: int = 30) -> Response:
+    """Settled daily closes for several securities in ONE request.
+
+    This exists so a LIST of securities can carry a chart. The per-ticker
+    `/api/price-history/{t}` calls openinfo live, so a ten-row watchlist cost ten
+    upstream requests every time somebody opened a page — which is why lists here
+    never had sparklines on them. Reads from `catalog_quote_history`, which the
+    collector fills from pages it was already fetching.
+
+    An unknown ticker is simply absent from `series`; asking for one is not an
+    error, and a 404 for a list would throw away the rows that did resolve. A
+    security with no stored session yet is absent for the same reason — the
+    interface renders no line rather than a flat invented one.
+    """
+    wanted = [t.strip().upper() for t in (tickers or "").split(",") if t.strip()][:200]
+    if not wanted:
+        return _etag_json(request, {"ok": True, "days": days, "count": 0, "series": {}}, max_age=300)
+    try:
+        loop = asyncio.get_running_loop()
+        smap = await loop.run_in_executor(None, get_securities_map)
+        isin_of = {t: (smap.get(t) or {}).get("isin") for t in wanted}
+        codes = [i for i in isin_of.values() if i]
+        history = await loop.run_in_executor(None, partial(get_quote_history, codes, days))
+        series = {}
+        for ticker, isin in isin_of.items():
+            rows = history.get(str(isin or "").upper()) or []
+            # [date, close] pairs, not objects: this is the one payload that
+            # scales with tickers x sessions, and the key names would be most of
+            # the bytes on the wire.
+            points = [[r["trade_date"], r["close_price"]] for r in rows
+                      if r.get("close_price") is not None]
+            if points:
+                series[ticker] = points
+        return _etag_json(request, {"ok": True, "days": days, "count": len(series),
+                                    "series": series}, max_age=300)
+    except Exception as exc:
+        logger.exception("quote series failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
