@@ -6138,7 +6138,7 @@ function RailSparkline({ points }) {
   if (!Array.isArray(points) || points.length < 2) return null;
   const closes = points.map((p) => Number(p?.[1])).filter((v) => Number.isFinite(v) && v > 0);
   if (closes.length < 2) return null;
-  const W = 52, H = 20, PAD = 2;
+  const W = 56, H = 22, PAD = 2;
   const min = Math.min(...closes), max = Math.max(...closes);
   const range = max - min || 1;
   const d = closes
