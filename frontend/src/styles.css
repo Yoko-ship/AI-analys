@@ -10117,7 +10117,14 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .ratio-sector-avg { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 
 /* ── Company detail page ─────────────────────────────────────────────────── */
-.company-page { width: 100%; max-width: 1560px; margin: 0 auto; padding: 0 0 48px; }
+/* Measured against the quote page this layout follows, both at a 1900px
+   viewport: its body text is 14px and its headline price 32px, while ours ran
+   11–12.5px with a 20px price, and our column stopped at 1560px where its left
+   rail runs to the window edge. Same screen, ~15 % smaller type and 340px of
+   unused margin — which is the whole of why this page read as the smaller one.
+   The scale below is company-page only; the market table is dense by design and
+   its 12px stays. */
+.company-page { width: 100%; max-width: 1800px; margin: 0 auto; padding: 0 0 48px; }
 .company-page-header { border-bottom: 1px solid var(--border); margin-bottom: 24px; }
 .company-page-back { font-size: 12px; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 12px 0 8px; display: block; }
 .company-page-back:hover { color: var(--text-primary); }
@@ -10127,18 +10134,18 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .company-page-hero .chip-logo--float { background: transparent; padding: 0; box-shadow: none; }
 .company-page-hero .chip-logo-fallback { font-size: 1.9rem; }
 .company-page-title { flex: 1; min-width: 180px; }
-.company-page-title h1 { margin: 0 0 6px; font-size: 26px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+.company-page-title h1 { margin: 0 0 6px; font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
 .company-page-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.company-page-ticker { font-family: monospace; font-size: 13px; font-weight: 700; color: var(--accent); }
-.company-type-badge { background: var(--surface-2); border-radius: 4px; padding: 1px 7px; font-size: 11px; color: var(--text-muted); }
+.company-page-ticker { font-family: monospace; font-size: 14px; font-weight: 700; color: var(--accent); }
+.company-type-badge { background: var(--surface-2); border-radius: 4px; padding: 2px 8px; font-size: 12px; color: var(--text-muted); }
 .company-page-price { text-align: right; }
-.company-page-price-val { font-size: 20px; font-weight: 700; line-height: 1.2; }
-.company-page-price-change { font-size: 13px; margin-top: 2px; }
+.company-page-price-val { font-size: 30px; font-weight: 700; line-height: 1.2; }
+.company-page-price-change { font-size: 15px; margin-top: 2px; }
 .company-page-price-change.pos { color: #22c55e; }
 .company-page-price-change.neg { color: #ef4444; }
 .company-page-price .primary-btn { margin-top: 8px; padding: 6px 14px; font-size: 13px; }
 .company-page-tabs { display: flex; gap: 0; margin-top: 2px; }
-.company-tab-btn { background: none; border: none; padding: 10px 18px; font-size: 14px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+.company-tab-btn { background: none; border: none; padding: 11px 18px; font-size: 15px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
 .company-tab-btn:hover { color: var(--text-primary); }
 .company-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 
@@ -10155,13 +10162,13 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
    it is context, and context does not come before the thing it contextualises. */
 .company-hero-grid {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 300px;
+  grid-template-columns: 280px minmax(0, 1fr) 330px;
   grid-template-areas: "watch main stats";
   gap: 18px; align-items: start;
 }
 @media (max-width: 1480px) {
   .company-hero-grid {
-    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 1fr) 330px;
     grid-template-areas: "main stats" "watch stats";
   }
 }
@@ -10183,44 +10190,50 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
    narrower than the minimum, and a grid minimum wider than its container does
    not wrap — it overflows, which put the ☆ outside the card. */
 .rail-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 232px), 1fr)); column-gap: 22px; }
-.rail-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px auto 16px; align-items: center; gap: 7px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.rail-row { display: grid; grid-template-columns: minmax(0, 1fr) 56px auto 18px; align-items: center; gap: 7px; padding: 7px 0; border-bottom: 1px solid var(--border); }
 .rail-row:last-child { border-bottom: none; }
 .rail-row.is-current { opacity: 0.55; }
 .rail-row-name { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.rail-row-ticker { font-size: 12.5px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.02em; }
+.rail-row-ticker { font-size: 14px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.02em; }
 .rail-row-name:hover .rail-row-ticker { color: var(--accent); }
-.rail-row-sub { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rail-row-figures { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
-.rail-row-price { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-primary); }
-.rail-row-change { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.rail-row-sub { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rail-row-figures { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; white-space: nowrap; }
+.rail-row-price { font-size: 13.5px; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.rail-row-change { font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
 /* The same two colours the catalog sparkline and the ratio deltas already use —
    this page should not introduce a third green. */
 .rail-row-change.pos { color: #6ef0c1; }
 .rail-row-change.neg { color: #f87171; }
-.rail-spark { width: 52px; height: 20px; }
+.rail-spark { width: 56px; height: 22px; }
 .rail-spark path { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .rail-spark.tone-pos path { stroke: #6ef0c1; }
 .rail-spark.tone-neg path { stroke: #f87171; }
-.rail-fav { background: none; border: 0; padding: 0; cursor: pointer; font-size: 13px; line-height: 1; color: var(--text-muted); }
+.rail-fav { background: none; border: 0; padding: 0; cursor: pointer; font-size: 15px; line-height: 1; color: var(--text-muted); }
 .rail-fav.on { color: #f5c451; }
-.rail-empty { font-size: 11.5px; margin: 2px 0 4px; line-height: 1.5; }
+.rail-empty { font-size: 12.5px; margin: 2px 0 4px; line-height: 1.5; }
 .company-keystats { display: flex; flex-direction: column; gap: 14px; }
-.company-keystats .company-metric-row { font-size: 12.5px; padding: 5px 0; gap: 10px; }
+.company-keystats .company-metric-row { font-size: 14px; padding: 7px 0; gap: 10px; }
+/* The house label is 12px mono, ALL CAPS, tracked at 0.14em. That is a lot of
+   treatment for a word like «Оборот»: the tracking widens the label until it
+   crowds the number it belongs to, and all-caps mono at 12px reads smaller than
+   the 14px sentence case the reference page uses. Scoped to this page — the
+   label is right where it came from, on dense admin panels. */
+.company-page .panel-label { font-size: 13px; letter-spacing: 0.06em; }
 .company-keystats .panel-label { white-space: nowrap; }
 .company-keystats .company-metric-val { text-align: right; }
 .company-keystats .cell-status { font-size: 11.5px; color: var(--text-muted); font-weight: 500; border-bottom: 1px dotted var(--border); cursor: help; }
-.keystat-note { font-size: 11px; margin-top: 8px; }
+.keystat-note { font-size: 12px; margin-top: 8px; }
 /* 52-week range: the track is the year, the dot is today. */
 .keystat-range { display: flex; flex-direction: column; gap: 7px; }
 .keystat-range-track { position: relative; height: 4px; border-radius: 3px; background: linear-gradient(90deg, var(--border), var(--accent)); }
 .keystat-range-dot { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: var(--text-primary); border: 2px solid var(--surface-2); transform: translate(-50%, -50%); }
-.keystat-range-ends { display: flex; justify-content: space-between; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.keystat-range-ends { display: flex; justify-content: space-between; font-size: 13.5px; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
 .company-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
 @media (max-width: 920px) { .company-overview-grid { grid-template-columns: 1fr; } }
 .company-overview-main { padding: 26px 30px; background: var(--surface-1); border-radius: 14px; border: 1px solid var(--border); }
 .company-overview-sidebar { display: flex; flex-direction: column; gap: 14px; }
 .co-sidebar-block { background: var(--surface-2); border-radius: 12px; padding: 16px 18px; border: 1px solid var(--border); }
-.co-heading { font-size: 11px; font-weight: 700; margin: 0 0 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.co-heading { font-size: 12px; font-weight: 700; margin: 0 0 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .company-overview-main .co-heading { font-size: 12px; margin-bottom: 16px; }
 .company-description-text { font-size: 15.5px; line-height: 1.85; color: var(--text-secondary); margin: 0; max-width: 78ch; }
 .wiki-link { font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; margin-top: 18px; display: inline-flex; align-items: center; gap: 4px; padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.15s; }
@@ -10230,14 +10243,14 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .company-desc-skeleton span { height: 13px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: co-shimmer 1.4s ease infinite; }
 @keyframes co-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 .company-metrics-list { display: flex; flex-direction: column; gap: 0; }
-.company-metric-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.company-metric-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .company-metric-row:last-child { border-bottom: none; }
 .company-metric-val { font-weight: 600; font-variant-numeric: tabular-nums; }
 /* The earnings period P/E divides by. It can be an earlier filing than the rest
    of the page (the last complete year, when the latest one is a part-year
    quarter), so the multiple states its own basis. */
 .co-metric-period { font-size: 10px; opacity: 0.75; letter-spacing: 0.02em; }
-.isin-mono { font-family: monospace; font-size: 11px; }
+.isin-mono { font-family: monospace; font-size: 12px; }
 .section-heading { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
 
 /* Price chart */
