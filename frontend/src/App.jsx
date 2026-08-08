@@ -6680,13 +6680,15 @@ const FIN_SECTIONS = [
   {
     key: "income",
     label: ["Прибыли и убытки", "Foyda va zarar", "Income Statement"],
-    rows: ["net_revenue", "net_profit"],
+    // The reference page's income statement, in its order: what came in, what
+    // the goods cost, what running the business cost, what was left.
+    rows: ["net_revenue", "gross_profit", "operating_expenses", "operating_income", "net_profit"],
     // Percentages get their own block, as on the reference: mixing a margin
     // into a column of sums invites reading 5.62 as five sums.
     // Only the margin this platform computes itself — see the note on
     // FACT_PERCENT_FIELDS for the ones the feed publishes and we do not trust.
     margins: ["net_margin"],
-    chart: ["net_revenue", "net_profit"],
+    chart: ["net_revenue", "operating_expenses", "operating_income"],
   },
   {
     key: "balance",
@@ -6706,6 +6708,10 @@ const FIN_SECTIONS = [
 const FIN_FIELD_LABELS = {
   net_revenue: ["Выручка", "Tushum", "Revenue"],
   net_profit: ["Чистая прибыль", "Sof foyda", "Net Profit"],
+  gross_profit: ["Валовая прибыль", "Yalpi foyda", "Gross Profit"],
+  operating_expenses: ["Операционные расходы", "Operatsion xarajatlar", "Operating Expenses"],
+  operating_income: ["Операционная прибыль", "Operatsion foyda", "Operating Income"],
+  cash: ["Денежные средства", "Pul mablaglari", "Cash"],
   total_assets: ["Активы", "Aktivlar", "Total Assets"],
   total_liabilities: ["Обязательства", "Majburiyatlar", "Total Liabilities"],
   total_equity: ["Капитал", "Kapital", "Total Equity"],

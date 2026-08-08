@@ -42,6 +42,14 @@ FACTS = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _no_filings(monkeypatch):
+    """These tests are about the INDICATOR-FEED path. The filings series is read
+    from the real catalog otherwise, and UZTL's actual 2025 leaks into every
+    fixture — see test_the_filings_win for the merge itself."""
+    monkeypatch.setattr(api, "get_financials_series", lambda t, form="NSBU": {})
+
+
 @pytest.fixture()
 def client(monkeypatch):
     monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 666} if t == "UZTL" else {})
@@ -226,3 +234,27 @@ def test_the_newest_write_wins_a_repeated_period(monkeypatch):
     ])
     s = TestClient(api.app).get("/api/company/UZTL/financials").json()["series"]
     assert s["net_profit"]["values"]["2025"] == 2000.0
+
+
+def test_the_filings_win_over_the_indicator_feed(monkeypatch):
+    """The feed had UZTL's 2023 and 2024 revenue TRANSPOSED — 7 850 against the
+    filing's 8 965 — and agreed with it on 2025, 2022 and 2020. So a year parsed
+    from the issuer's own annual report overwrites the fed one, and the feed is
+    left to cover only what the filings do not carry."""
+    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
+    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+        _fact("net_revenue", "2024", 7_849_956_534.0),     # the transposed one
+        _fact("total_assets", "2024", 10_407_235_283.0),   # only the feed has this
+    ])
+    monkeypatch.setattr(api, "get_financials_series", lambda t, form="NSBU": {
+        "2024": {"revenue": 8_964_716_518.0, "gross_profit": 2_624_566_570.0,
+                 "operating_income": 488_411_678.0, "net_income": 41_629_721.0},
+    })
+    s = TestClient(api.app).get("/api/company/UZTL/financials").json()["series"]
+    assert s["net_revenue"]["values"]["2024"] == 8_964_716_518_000.0
+    assert s["net_revenue"].get("filed") is True
+    # untouched, because no filing carries it
+    assert s["total_assets"]["values"]["2024"] == 10_407_235_283_000.0
+    # gross profit less operating income, as the reference page states it
+    assert s["operating_expenses"]["values"]["2024"] == pytest.approx(2_136_154_892_000.0)
+    assert s["operating_expenses"]["derived"] is True

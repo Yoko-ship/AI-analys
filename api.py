@@ -38,6 +38,8 @@ from reports_catalog import (
     FIN_MONEY_FIELDS,
     NSBU_THOUSANDS_UZS,
     FACT_MONEY_FIELDS,
+    FIN_MONEY_FIELDS,
+    get_financials_series,
     FACT_PERCENT_FIELDS,
     FACT_SHARE_FIELDS,
     RATIO_MONEY_FIELDS,
@@ -352,6 +354,11 @@ class CatalogAnalyzeRequest(BaseModel):
 class AdminFinancialsRequest(BaseModel):
     form: Literal["NSBU", "MSFO", "Audition"] = "NSBU"
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+    # Ratios computed from the SAME two statements as the sums beside them. They
+    # had no transport before, so a backfill could give the deployment nine years
+    # of revenue while its ROE still came from the indicator feed — on the feed's
+    # own period labels, which is exactly what was found transposed.
+    ratios: list[dict[str, Any]] = Field(default_factory=list, max_length=4000)
     # "upsert" (default) keeps other stored periods; "replace" makes each row the
     # sole/authoritative period for its ticker (used by the reconciler push).
     mode: Literal["upsert", "replace"] = "upsert"
@@ -2990,13 +2997,34 @@ async def api_admin_financials(
     """
     loop = asyncio.get_running_loop()
     writer = bulk_replace_financials if payload.mode == "replace" else bulk_upsert_financials
+
+    def _write_ratios() -> int:
+        written = 0
+        for r in payload.ratios:
+            metrics = {k: r.get(k) for k in ("ROA", "ROE", "net_margin",
+                                             "debt_ratio", "debt_to_equity")
+                       if r.get(k) is not None}
+            if not metrics or not r.get("ticker") or r.get("year") is None:
+                continue
+            upsert_ratio_cache(str(r["ticker"]).upper(), payload.form,
+                               int(r["year"]), int(r.get("quarter") or 0), metrics)
+            written += 1
+        return written
+
     try:
         n = await loop.run_in_executor(None, partial(writer, payload.rows, payload.form))
     except Exception as exc:
         logger.exception("admin financials %s failed", payload.mode)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    ratios_written = 0
+    if payload.ratios:
+        try:
+            ratios_written = await loop.run_in_executor(None, _write_ratios)
+        except Exception:  # noqa: BLE001 — the sums are what the board reads
+            logger.exception("admin financials: ratio write failed")
     _schedule_audit("ingest:financials")
-    return {"ok": True, ("replaced" if payload.mode == "replace" else "upserted"): n}
+    return {"ok": True, ("replaced" if payload.mode == "replace" else "upserted"): n,
+            "ratios": ratios_written}
 
 
 @app.post("/api/admin/facts")
@@ -3250,6 +3278,44 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
                 for entry in series.values():
                     entry["values"].pop(period, None)
         series = {f: e for f, e in series.items() if e["values"]}
+
+        # THE FILINGS WIN. Everything above came from the openinfo indicator
+        # feed, which is what we had before any historical report was parsed —
+        # and which had UZTL's 2023 and 2024 revenue transposed and 2021 missing
+        # while agreeing with the filings everywhere else. Where a year has been
+        # parsed from the issuer's own annual report, that year is overwritten;
+        # the feed is left to cover only what the filings do not carry
+        # (total_assets, total_equity, the liquidity coefficients).
+        FILED = {"revenue": "net_revenue", "net_income": "net_profit",
+                 "gross_profit": "gross_profit", "operating_income": "operating_income",
+                 "total_liabilities": "total_liabilities", "cash": "cash",
+                 "roe": "roe", "roa": "roa", "debt_ratio": "debt_ratio",
+                 "debt_to_equity": "debt_to_equity"}
+        filed = await loop.run_in_executor(None, partial(get_financials_series, ticker))
+        for period, fields in (filed or {}).items():
+            if len(period) != 4 or not period.isdigit():
+                continue
+            for src, name in FILED.items():
+                if fields.get(src) is None:
+                    continue
+                money = name in FACT_MONEY_FIELDS or src in FIN_MONEY_FIELDS
+                unit = ("UZS" if money else "%" if name in FACT_PERCENT_FIELDS else None)
+                entry = series.setdefault(name, {"unit": unit, "money": money, "values": {}})
+                entry["unit"], entry["money"] = unit, money
+                entry["values"][period] = (fields[src] * NSBU_THOUSANDS_UZS if money
+                                           else fields[src])
+                entry["filed"] = True
+                periods.add(period)
+
+        # Operating expenses are not filed as a line; they are the gap between
+        # what the goods cost and what the business cost — gross profit less
+        # operating income, which is how the reference page states it too.
+        gp = (series.get("gross_profit") or {}).get("values", {})
+        oi = (series.get("operating_income") or {}).get("values", {})
+        opex = {p: gp[p] - oi[p] for p in gp if p in oi}
+        if opex:
+            series["operating_expenses"] = {"unit": "UZS", "money": True,
+                                            "derived": True, "values": opex}
         # Net margin, computed rather than republished — see FACT_PERCENT_FIELDS
         # for why the fed one is not trusted. Only where both sides exist and
         # revenue is not zero: BRBN files no revenue line, and a margin on a
