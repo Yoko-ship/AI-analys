@@ -10175,6 +10175,17 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 @media (max-width: 1100px) {
   .company-hero-grid { grid-template-columns: 1fr; grid-template-areas: "main" "stats" "watch"; }
 }
+/* Reference blocks, below the fold-level grid. Tracks are capped near the rail
+   width rather than sharing the page equally: a four-row key/value list stretched
+   across 1800px puts its labels and values at opposite edges of the screen. */
+.company-lower-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 360px));
+  gap: 18px; align-items: start; margin-top: 18px;
+}
+/* `contents` so the blocks this component returns become grid items themselves
+   instead of one flex column occupying a single track. */
+.company-lower-grid > .company-keystats { display: contents; }
 .company-hero-watch { grid-area: watch; min-width: 0; }
 .company-hero-main { grid-area: main; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .company-overview-sidebar { grid-area: stats; }
