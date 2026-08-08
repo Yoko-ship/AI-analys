@@ -5614,16 +5614,60 @@ function BondsTable({ language, onOpen }) {
 
 
 
-function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustments, lang, quality, metricsWindows }) {
+// The spans the chart offers.
+//
+// `months` is what /api/price-history is ASKED for — its smallest unit is a
+// month — and `days`/`ytd` then narrow the loaded series on the client. Keeping
+// both in one table is what stops the buttons and the fetch drifting apart.
+//
+// There is deliberately NO 1D. UZSE publishes one row per SESSION and no
+// intraday ticks (see the candle note below: bars can only be rolled up, never
+// down), so a day view would be a single candle — a button that looks like the
+// others and answers nothing.
+const CHART_RANGES = [
+  { key: "1w", months: 1, days: 7, span: 0.25, label: ["1Н", "1H", "1W"] },
+  { key: "1m", months: 1, span: 1, label: ["1М", "1O", "1M"] },
+  { key: "3m", months: 3, span: 3, label: ["3М", "3O", "3M"] },
+  { key: "6m", months: 6, span: 6, label: ["6М", "6O", "6M"] },
+  { key: "ytd", ytd: true, label: ["YTD", "YTD", "YTD"] },
+  { key: "1y", months: 12, span: 12, label: ["1Г", "1Y", "1Y"] },
+  { key: "3y", months: 36, span: 36, label: ["3Г", "3Y", "3Y"] },
+  { key: "5y", months: 60, span: 60, label: ["5Л", "5Y", "5Y"] },
+  { key: "max", months: 240, span: 240, label: ["Макс", "Maks", "Max"] },
+];
+
+function chartRange(key) {
+  return CHART_RANGES.find((r) => r.key === key) || CHART_RANGES.find((r) => r.key === "1y");
+}
+
+/** Months to ask the API for. YTD is a moving target — in January it is weeks. */
+function chartRangeMonths(key) {
+  const r = chartRange(key);
+  if (r.ytd) return Math.min(60, new Date().getMonth() + 2);
+  return r.months;
+}
+
+/** How much calendar the view actually shows, in months — drives bucket width. */
+function chartRangeSpan(key) {
+  const r = chartRange(key);
+  return r.ytd ? new Date().getMonth() + 1 : r.span;
+}
+
+/** The first date the view keeps, or null when the whole fetch is shown. */
+function chartRangeCutoff(key) {
+  const r = chartRange(key);
+  if (r.ytd) return `${new Date().getFullYear()}-01-01`;
+  if (r.days) {
+    const d = new Date();
+    d.setDate(d.getDate() - r.days);
+    return d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments, lang, quality, metricsWindows }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
-  const RANGES = [
-    { label: t("1М", "1O", "1M"), months: 1 },   // month   → daily
-    { label: t("3М", "3O", "3M"), months: 3 },   // quarter → daily
-    { label: t("6М", "6O", "6M"), months: 6 },   // half    → daily
-    { label: t("1Г", "1Y", "1Y"), months: 12 },  // year    → weekly
-    { label: t("3Г", "3Y", "3Y"), months: 36 },  // 3 years → weekly
-    { label: t("5Л", "5Y", "5Y"), months: 60 },  // 5 years → monthly
-  ];
+  const months = chartRangeSpan(range);
   const [hover, setHover] = React.useState(null);
   const [chartType, setChartType] = React.useState("candle"); // candle | line — candles are the default when OHLC is available
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
@@ -5669,10 +5713,12 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
 
   const rangeBar = (
     <div className="company-chart-ranges">
-      {RANGES.map((r) => (
-        <button key={r.months} type="button"
-          className={`range-btn ${months === r.months ? "active" : ""}`}
-          onClick={() => onMonthsChange(r.months)}>{r.label}</button>
+      {CHART_RANGES.map((r) => (
+        <button key={r.key} type="button"
+          className={`range-btn ${range === r.key ? "active" : ""}`}
+          onClick={() => onRangeChange(r.key)}>
+          {r.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
+        </button>
       ))}
     </div>
   );
@@ -5692,6 +5738,24 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
       change: h.change != null ? Number(h.change) : null,
     };
   }).filter((p) => p.close > 0 && p.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+  // The endpoint's smallest unit is a month, so 1Н and YTD ask for the month(s)
+  // that contain them and are trimmed here. ISO dates compare as strings.
+  const cutoff = chartRangeCutoff(range);
+  const windowed = cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
+  // A week with no executions is a fact about the security, not a failure to
+  // load anything — on this market most securities trade on a minority of days,
+  // and «история недоступна» would be a lie about a page that has years of it.
+  if (cutoff && windowed.length < 2 && daily.length >= 2) return (
+    <div className="company-chart-wrap">
+      <div className="company-chart-toolbar">{rangeBar}</div>
+      <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>
+        {chartRange(range).ytd
+          ? t("С начала года сделок не было", "Yil boshidan bitim bo'lmagan", "No trades since the start of the year")
+          : t("За неделю сделок не было", "Bir haftada bitim bo'lmagan", "No trades in the past week")}
+      </div>
+    </div>
+  );
 
   if (daily.length < 2) return (
     <div>
@@ -5742,7 +5806,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   // switched candles off for the whole instrument.
   const ohlcOk = (p) => p.open > 0 && p.high > 0 && p.low > 0 && p.close > 0
     && p.low <= Math.min(p.open, p.close) && Math.max(p.open, p.close) <= p.high;
-  const ohlcCount = daily.reduce((n, p) => n + (ohlcOk(p) ? 1 : 0), 0);
+  const ohlcCount = windowed.reduce((n, p) => n + (ohlcOk(p) ? 1 : 0), 0);
   const hasOHLC = ohlcCount > 0;
   const bucketKind = months <= 6 ? "day" : months <= 36 ? "week" : "month";
   const intervalLabel = {
@@ -5782,7 +5846,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
       change: null,
     }));
   };
-  const candles = hasOHLC ? aggregate(daily) : daily;
+  const candles = hasOHLC ? aggregate(windowed) : windowed;
   // ТЗ §6: candles are switched off BY THE SYSTEM at tier sparse/illiquid, not
   // by hand. 15 of 77 securities break the thresholds — CTFB3 is 87 % flat
   // candles on 32 % calendar coverage — and were drawn like a daily trader.
@@ -5790,7 +5854,7 @@ function CompanyPriceChart({ history, loading, months, onMonthsChange, adjustmen
   const tierBlocksCandles = quality ? quality.candles_enabled === false : false;
   const canCandle = hasOHLC && !tierBlocksCandles;
   const showCandles = chartType === "candle" && canCandle;
-  const points = showCandles ? candles : daily;
+  const points = showCandles ? candles : windowed;
   // Without candles the series is a step, not a slope: a line between two
   // trades three weeks apart draws prices that never existed.
   const stepLine = tierBlocksCandles;
@@ -6539,7 +6603,7 @@ function dividendSummary(items, { isPreferred, lastPrice } = {}) {
   };
 }
 
-function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceMonths, onMonthsChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail }) {
+function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments, priceRange, onRangeChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
 
   return (
@@ -6556,7 +6620,7 @@ function CompanyOverviewTab({ sec, priceHistory, priceLoading, priceAdjustments,
             {/* The metrics response still decides whether candles mean anything
                 here (`quality`) and how long a moving average is (`ma_windows`);
                 only its numbers stopped being printed. */}
-            <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={onMonthsChange} adjustments={priceAdjustments} lang={lang}
+            <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={onRangeChange} adjustments={priceAdjustments} lang={lang}
               quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows} />
           </div>
           <div className="company-overview-main">
@@ -6826,7 +6890,11 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   // Non-empty only for a series that spans a split or a bonus issue — the chart has to
   // say the older prices were restated, or they read as wrong against uzse.uz.
   const [priceAdjustments, setPriceAdjustments] = React.useState([]);
-  const [priceMonths, setPriceMonths] = React.useState(12);
+  // The button's identity, not a month count: 1Н and 1М both fetch one month,
+  // and YTD's month count moves through the year. `chartRangeMonths` turns it
+  // into what the endpoint understands.
+  const [priceRange, setPriceRange] = React.useState("1y");
+  const priceMonths = chartRangeMonths(priceRange);
   const [priceLoading, setPriceLoading] = React.useState(false);
   // Window + absolute price metrics from /api/company/{ticker}/metrics.
   const [metrics, setMetrics] = React.useState(null);
@@ -7107,7 +7175,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
         {tab === "overview" && (
           <CompanyOverviewTab sec={sec} priceHistory={priceHistory} priceLoading={priceLoading}
             priceAdjustments={priceAdjustments}
-            priceMonths={priceMonths} onMonthsChange={setPriceMonths}
+            priceRange={priceRange} onRangeChange={setPriceRange}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
             marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading}
             priceMetrics={metrics}
@@ -7121,7 +7189,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
         {tab === "chart" && (
           <div className="panel" style={{ padding: 24 }}>
             <h3 className="section-heading" style={{ marginBottom: 16 }}>{lang === "ru" ? `История цен — ${ticker}` : `Price History — ${ticker}`}</h3>
-            <CompanyPriceChart history={priceHistory} loading={priceLoading} months={priceMonths} onMonthsChange={setPriceMonths} lang={lang}
+            <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={setPriceRange} lang={lang}
               quality={metrics?.quality} metricsWindows={metrics?.ma_windows} />
           </div>
         )}

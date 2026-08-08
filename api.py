@@ -3987,9 +3987,15 @@ async def api_company_metrics(ticker: str, months: int = 12) -> dict[str, Any]:
 
 @app.get("/api/price-history/{ticker}")
 async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
-    """Close price history for a ticker via UZSE ISIN lookup."""
+    """Close price history for a ticker via UZSE ISIN lookup.
+
+    The ceiling is 20 years, not 5: the chart's «Макс» button means the whole
+    record, and a 60-month clamp would quietly serve five years under that label
+    the moment an issuer's history grew past it. The archive answers with what
+    exists, so asking for more than a security has costs nothing.
+    """
     ticker = ticker.upper()
-    months = max(1, min(months, 60))
+    months = max(1, min(months, 240))
     loop = asyncio.get_running_loop()
     try:
         isin = await _resolve_isin(ticker)
