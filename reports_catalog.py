@@ -2327,6 +2327,33 @@ _RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_r
 NSBU_THOUSANDS_UZS = 1000.0
 FIN_MONEY_FIELDS = _FIN_FIELDS
 RATIO_MONEY_FIELDS = ("total_equity", "total_assets")
+# The same contract for the annual series behind the Финансы tab. It is read
+# from the fact store (`financial_indicators`), whose absolute sums are in
+# thousands exactly like everything else above — publishing them raw would put a
+# revenue of 10 512 797 471 on screen where the issuer earned 10.5 TRILLION, and
+# it would sit next to a full-UZS market cap in the same rail.
+FACT_MONEY_FIELDS = ("net_revenue", "net_profit", "total_assets", "total_liabilities",
+                     "total_equity")
+# The indicator feed does NOT publish margins on one scale, and nothing in the
+# payload says which is which — `gross_profit_margin` arrives as a share (0.36)
+# while `net_profit_margin` arrives as a percent (5.62) for the same issuer and
+# year. Measured against the sums we already hold, on UZTL / TGPG / KVTS / KSCM,
+# every year matching to two decimals:
+#     gross_profit/revenue      0.3599  0.5229  0.2493  0.4700  → published 0.36 0.52 0.25 0.47
+#     operating_income/revenue  0.1362  0.0440  0.0601  0.2612  → published 0.14 0.04 0.06 0.26
+#     net_income/revenue        0.0562  0.0431  0.0023  0.2086  → published 5.62 4.31 0.23 20.86
+# So shares are converted here, once, and every margin leaves this endpoint in
+# percent. Printing them raw put 0.36 beside 5.62 under one «Маржинальность»
+# heading — 36 % and 5.6 %, and no way for a reader to tell.
+#     total_liabilities/total_assets   0.6074 0.3602 0.0999 0.2264 → published
+#         60.74 36.02 9.99 22.64, so debt_ratio is a percent as well (12 of 12
+#         issuer-years checked). total_asset_turnover, by the same arithmetic,
+#         IS revenue/assets and stays a bare coefficient — 0.78, not 78 %.
+#     debt_to_equity and return_to_capital_employed match NEITHER scale against
+#         the sums we hold, so they are published as-is with no unit, which is
+#         also how the market board shows them. Do not guess a unit for them.
+FACT_PERCENT_FIELDS = ("net_profit_margin", "roe", "roa", "debt_ratio")
+FACT_SHARE_FIELDS = ("gross_profit_margin", "ebit_margin")
 
 
 def _ticker_org_map(conn: sqlite3.Connection) -> dict[str, str]:
