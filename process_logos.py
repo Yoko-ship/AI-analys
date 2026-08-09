@@ -46,7 +46,6 @@ CRISP_FLOAT = {
 # Wordmark / dark logos that need a light plate to stay legible.
 CRISP_PLATE = {
     "ALSM": "https://alskom.uz/local/templates/alskom/img/alskom_logo.svg",
-    "KPBA": "https://kapitalbank.uz/upload/media/images/Kapitalbank_new.png",
 }
 
 def fetch(url: str) -> bytes:

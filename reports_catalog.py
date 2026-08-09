@@ -2299,7 +2299,11 @@ def purge_delisted(tickers: set[str] | frozenset[str] | None = None) -> dict[str
             if tickers is None and DELISTED_ISINS:
                 isins = sorted(DELISTED_ISINS)
                 marks = ",".join("?" * len(isins))
-                for table in ("catalog_quotes", "catalog_trade_stats"):
+                # The daily-close store is keyed by ISIN alone, so it outlives the
+                # registry row too — a removed security's price series has no
+                # reader left, but keeping it would mean the site still stores the
+                # history of a company it no longer shows.
+                for table in ("catalog_quotes", "catalog_trade_stats", "catalog_quote_history"):
                     if table not in existing:
                         continue
                     cur = conn.execute(
