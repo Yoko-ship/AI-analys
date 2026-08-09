@@ -3429,6 +3429,47 @@ async def api_securities() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+def duplicate_filed_years(series: dict[str, Any], periods: Any,
+                          annual_years: set[str]) -> list[str]:
+    """Annual periods that are another year's copy — the ones to drop.
+
+    `catalog_financials` is written by upsert and pruned by nothing, so a filing
+    once catalogued under one year and later under another leaves the first
+    behind. The ghost is bit-identical to its neighbour on every filed line —
+    BECM and UZHM both show 2025 and 2024 agreeing to the sum on revenue, gross
+    profit, operating income, net profit, cash and liabilities, which is not
+    something two trading years do — and it made the page state «Рост г/г
+    0.00%» for a year that was never filed.
+
+    What separates the ghost from the real year is the report registry: one of
+    the pair has an annual filing behind it and the other does not. Measured
+    across all 100 tickers, five rows match — BECM, BECMP, METQ, UZHM and UQEQ
+    — and for UQEQ it is the NEWER year that is unsupported, which is why the
+    rule is "keep the one with the filing" and not "keep the newest".
+
+    Pairs where BOTH years have a filing are left alone: BNGPP 2022/2021 and
+    UZNGP 2023/2022/2021 are identical too, but nothing here can say which of
+    two filed years is wrong, and guessing is worse than publishing the source.
+    """
+    filed_money = [f for f, e in series.items() if e.get("filed") and e.get("money")]
+    ordered = sorted(periods, reverse=True)
+    ghosts: list[str] = []
+    for a, b in zip(ordered, ordered[1:]):
+        if a in ghosts or b in ghosts:
+            continue
+        pair = [(series[f]["values"].get(a), series[f]["values"].get(b)) for f in filed_money]
+        both = [(x, y) for x, y in pair if x is not None and y is not None]
+        # Three lines, not one: a single matching figure between two years is a
+        # coincidence that happens, and dropping a year on it would lose data.
+        if len(both) < 3 or not all(x == y for x, y in both):
+            continue
+        if a in annual_years and b not in annual_years:
+            ghosts.append(b)
+        elif b in annual_years and a not in annual_years:
+            ghosts.append(a)
+    return ghosts
+
+
 @app.get("/api/company/{ticker}/financials")
 async def api_company_financials(request: Request, ticker: str) -> Response:
     """The issuer's annual series — one row per indicator, one column per year.
@@ -3547,6 +3588,41 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
                                            else fields[src])
                 entry["filed"] = True
                 periods.add(period)
+
+        # A YEAR THAT IS ANOTHER YEAR'S COPY.
+        #
+        # `catalog_financials` is written by upsert and pruned by nothing, so a
+        # filing that was once catalogued under one year and later under another
+        # leaves the first behind. The ghost is bit-identical to its neighbour on
+        # every filed line — BECM and UZHM both show 2025 and 2024 agreeing to
+        # the sum on revenue, gross profit, operating income, net profit, cash
+        # and liabilities, which is not something two trading years do — and it
+        # made the page state «Рост г/г 0.00%» for a year that was never filed.
+        #
+        # The evidence that separates the ghost from the real year is the report
+        # registry: one of the pair has an annual filing behind it and the other
+        # does not. Measured across all 100 tickers, five rows match — BECM,
+        # BECMP, METQ, UZHM and UQEQ — and for UQEQ it is the NEWER year that is
+        # unsupported, which is why the rule is "keep the one with the filing"
+        # and not "keep the newest".
+        #
+        # Pairs where BOTH years have a filing are left alone: BNGPP 2022/2021
+        # and UZNGP 2023/2022/2021 are also identical, but nothing here can say
+        # which of two filed years is wrong, and guessing would be worse than
+        # publishing what the source holds.
+        #
+        # A read-side guard. The stale row is still in the cache; removing it
+        # belongs to a collector prune, and this keeps it off the page today.
+        annual_years = {str(r.get("year")) for r in (await loop.run_in_executor(
+            None, partial(get_company_reports, ticker)) or [])
+            if r.get("report_form") == "NSBU" and not r.get("quarter") and r.get("year")}
+        for ghost in duplicate_filed_years(series, periods, annual_years):
+            logger.info("financials %s: dropping %s — identical to its neighbour on every "
+                        "filed line and with no annual filing of its own", ticker, ghost)
+            periods.discard(ghost)
+            for entry in series.values():
+                entry["values"].pop(ghost, None)
+        series = {f: e for f, e in series.items() if e["values"]}
 
         # Operating expenses are not filed as a line; they are the gap between
         # what the goods cost and what the business cost — gross profit less
