@@ -10206,23 +10206,7 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 @media (max-width: 1100px) {
   .company-hero-grid { grid-template-columns: 1fr; grid-template-areas: "main" "stats" "watch"; }
 }
-/* Дивиденды and Детали, under the watchlist. They used to own a row below the
-   whole grid, and at 1920px that row was two thirds empty while this column had
-   551px of nothing under the rail — the blocks are rail-width, and this is the
-   rail that had the room.
-   The track rule matters because this column is not always narrow: below 1480px
-   the watch area drops under the chart and spans it, and a four-row key/value
-   list stretched across 1150px puts its labels and values at opposite edges. So
-   it wraps into rail-width tracks exactly like the rail above it does. */
-.company-watch-extra {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
-  gap: 14px; align-items: start;
-}
-/* `contents` so the blocks this component returns become grid items themselves
-   instead of one flex column occupying a single track. */
-.company-watch-extra > .company-keystats { display: contents; }
-.company-hero-watch { grid-area: watch; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.company-hero-watch { grid-area: watch; min-width: 0; }
 .company-hero-main { grid-area: main; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .company-overview-sidebar { grid-area: stats; }
 
