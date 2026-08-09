@@ -7870,6 +7870,38 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
  *   • Analyst/estimate overlays. Nobody publishes them for this market.
  * ------------------------------------------------------------------------ */
 
+/* The four chart types, as icons — the reference draws the shape each button
+ * produces rather than naming it. The name stays as the tooltip and the
+ * accessible label: an icon-only control that no screen reader can read is not
+ * a simplification, and «От базы» is not a shape anyone recognises cold.
+ *
+ * Drawn at 24×24 with currentColor so one glyph serves idle, hover, active and
+ * disabled without a second asset. */
+const AC_TYPE_ICONS = {
+  line: (
+    <path d="M3 16.5l5-5.5 3.5 3L15 8l6 6.5" />
+  ),
+  candle: (
+    <>
+      <path d="M8.5 3.5v17M16 5v14" />
+      <rect x="6" y="7.5" width="5" height="8" rx="1" />
+      <rect x="13.5" y="9" width="5" height="6.5" rx="1" />
+    </>
+  ),
+  area: (
+    <>
+      <path d="M3 19V9.5l5 4L12 6l4.5 6 4.5-3.5V19z" fill="currentColor" fillOpacity="0.22" />
+      <path d="M3 9.5l5 4L12 6l4.5 6 4.5-3.5" />
+    </>
+  ),
+  baseline: (
+    <>
+      <path d="M3 12.5h18" strokeDasharray="2.5 2.5" strokeOpacity="0.75" />
+      <path d="M3 17l4-7.5 3.5 5 4-8.5 6.5 8" />
+    </>
+  ),
+};
+
 const AC_TYPES = [
   { key: "line", label: ["Линия", "Chiziq", "Line"] },
   { key: "candle", label: ["Свечи", "Shamlar", "Candles"] },
@@ -8594,22 +8626,37 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
       <div className="ac-toolbar">
         {rangeBar}
-        <div className="ac-toolbar-group">
-          {AC_TYPES.map((tp) => (
-            <button key={tp.key} type="button"
-              className={`ac-type-btn ${effType === tp.key ? "active" : ""}`}
-              disabled={(tp.key === "candle") && (cmpOn || !candlesAllowed)}
-              title={tp.key === "candle" && !candlesAllowed
+        <div className="ac-toolbar-group ac-types" role="group"
+          aria-label={t("Вид графика", "Grafik turi", "Chart type")}>
+          {AC_TYPES.map((tp) => {
+            const name = tp.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0];
+            // A disabled button still has to say WHY, and the reason differs:
+            // one is a fact about the security, the other about the axis.
+            const why = tp.key !== "candle" ? null
+              : !candlesAllowed
                 ? t("Слишком мало сделок — день не имеет тела",
                     "Bitimlar juda kam — kunning tanasi yo'q",
                     "Too few trades — the day has no body")
-                : tp.key === "candle" && cmpOn
-                  ? t("В сравнении шкала процентная", "Taqqoslashda shkala foizli", "The scale is percent while comparing")
-                  : ""}
-              onClick={() => setType(tp.key)}>
-              {tp.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
-            </button>
-          ))}
+                : cmpOn
+                  ? t("В сравнении шкала процентная — у свечи нет тела",
+                      "Taqqoslashda shkala foizli — shamning tanasi yo'q",
+                      "The scale is percent while comparing — a candle has no body")
+                  : null;
+            return (
+              <button key={tp.key} type="button"
+                className={`ac-type-btn ${effType === tp.key ? "active" : ""}`}
+                disabled={(tp.key === "candle") && (cmpOn || !candlesAllowed)}
+                aria-pressed={effType === tp.key}
+                aria-label={name}
+                title={why ? `${name} — ${why}` : name}
+                onClick={() => setType(tp.key)}>
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+                  strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  {AC_TYPE_ICONS[tp.key]}
+                </svg>
+              </button>
+            );
+          })}
         </div>
         <div className="ac-toolbar-group ac-menus">
           <div className="ac-menu-wrap">
