@@ -9775,9 +9775,11 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
 .catalog-header-copy h1 { margin: 0 0 4px; font-size: 1.3rem; }
 .catalog-header-stats { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
+/* 280px left twelve characters for a company name once the logo and the report
+   count had taken their share; the main area had the room to give. */
 .catalog-body {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 340px 1fr;
   gap: 16px;
   min-height: 600px;
 }
@@ -9833,8 +9835,8 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
    the full logo contained reads far better than a tiny circle. */
 .catalog-company-item .chip-logo,
 .catalog-company-item .chip-logo-fallback {
-  width: 104px;
-  height: 66px;
+  width: 76px;
+  height: 50px;
   border-radius: 12px;
   flex-shrink: 0;
   box-sizing: border-box;
@@ -9850,7 +9852,7 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
 }
 
 .catalog-company-item .chip-logo-fallback {
-  font-size: 1.7rem;
+  font-size: 1.3rem;
 }
 
 /* Self-hosted transparent icon-marks float on the surface: no plate, no
@@ -9863,18 +9865,11 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
   padding: 0;
 }
 
-.catalog-company-item-head {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  gap: 8px;
-}
-
-/* The company name leads the row. Legal names run long («AGAT CREDIT»
-   Aksiyadorlik jamiyati mikromoliya tashkiloti) in a narrow sidebar, so it
-   takes up to two lines and then clips — a single ellipsised line loses the
-   part that tells two issuers apart. */
-.catalog-company-item-head strong {
+/* The company name leads the row and owns its own lines. Legal names run long
+   («AGAT CREDIT» Aksiyadorlik jamiyati mikromoliya tashkiloti), so it takes up
+   to two of them and then clips: one ellipsised line loses the part that tells
+   two issuers apart. */
+.catalog-company-title {
   font-size: 0.92rem;
   color: var(--accent);
   line-height: 1.25;
@@ -9884,9 +9879,18 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-width: 0;
+  align-self: stretch;
 }
-/* The report count is the one thing that must never be squeezed away. */
-.catalog-company-item-head em {
+.catalog-company-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+/* The count is the one thing that must never be squeezed away. */
+.catalog-company-meta em {
   font-size: 0.75rem;
   color: var(--muted);
   font-style: normal;

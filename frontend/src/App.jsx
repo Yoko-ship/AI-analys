@@ -11624,14 +11624,16 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                   <CompanyLogo logo={c.logo} name={c.company_name} ticker={c.ticker} />
                   <div className="catalog-company-item-body">
                     {/* The list is a list of companies: the name leads and the
-                        ticker annotates it, not the other way round. */}
-                    <div className="catalog-company-item-head">
-                      <strong>{c.company_name || c.ticker}</strong>
+                        ticker annotates it, not the other way round. The name
+                        gets the whole line — sharing it with the report count
+                        left room for twelve characters of a legal name. */}
+                    <strong className="catalog-company-title">{c.company_name || c.ticker}</strong>
+                    <div className="catalog-company-meta">
+                      <span className="catalog-company-ticker">
+                        {(c.tickers?.length ? c.tickers : [c.ticker]).join(" · ")}
+                      </span>
                       <em>{c.total_count || 0} {clg(lang, "reports")}</em>
                     </div>
-                    <span className="catalog-company-ticker">
-                      {(c.tickers?.length ? c.tickers : [c.ticker]).join(" · ")}
-                    </span>
                     {c.total_count > 0 && (
                       <div className="catalog-company-badges">
                         {c.nsbu_count > 0 && <span className="catalog-form-badge">{formsObj.NSBU} {c.nsbu_count}</span>}
