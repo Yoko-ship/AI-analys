@@ -10405,6 +10405,11 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .ac-range-btn:hover, .ac-type-btn:hover:not(:disabled), .ac-menu-btn:hover { color: var(--text-primary); border-color: var(--border); }
 .ac-range-btn.active, .ac-type-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .ac-type-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+/* Icon pills, as on the reference: each button draws the shape it produces.
+   The outline is always there — a bare icon on a bare toolbar reads as a
+   decoration rather than as something to press. */
+.ac-types { gap: 6px; }
+.ac-type-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 28px; padding: 0; border-color: var(--border); }
 .ac-range-custom { border-color: var(--border); }
 .ac-menu-btn.on { border-color: var(--accent); color: var(--text-primary); }
 .ac-menus { margin-left: auto; }
