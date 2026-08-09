@@ -11052,7 +11052,7 @@ function MarketView({
                       </td>
                       <td>
                         <button type="button" className="market-company-name-btn" onClick={() => onOpenCompany && onOpenCompany(row.ticker)}>
-                          {row.name || "—"}
+                          {row.name || sec.name || "—"}
                         </button>
                         <span>{row.isin || "—"}</span>
                       </td>

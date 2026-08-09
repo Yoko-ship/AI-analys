@@ -292,7 +292,10 @@ def sync_securities(stocks: list[dict], logos: dict[str, str]) -> int:
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(ticker) DO UPDATE SET
                 isin=excluded.isin,
-                name=excluded.name,
+                -- The exchange feed carries a name for only 9 of its 78 securities,
+                -- and a plain overwrite let that null erase a name we already had.
+                -- A sync never un-names a security.
+                name=COALESCE(excluded.name, securities.name),
                 type=excluded.type,
                 share_type=excluded.share_type,
                 sector=excluded.sector,
