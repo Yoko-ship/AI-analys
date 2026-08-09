@@ -6981,35 +6981,7 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
           the board row, so nothing here is recomputed and nothing can disagree
           with the market table. */}
       <div className="company-hero-grid">
-        {/* The watchlist, and under it the reference blocks. They used to sit in
-            a row of their own below the whole grid, which put them at the
-            bottom of the page with two thirds of that row empty — measured at
-            1920px: 720px of dead track beside them, and 551px of dead column
-            here, at the same time. They are rail-width blocks and this is the
-            rail that had room. */}
-        <div className="company-hero-watch">
-          {watchRail}
-          <div className="company-watch-extra">
-            <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
-              dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
-              placement="lower" />
-            <div className="co-sidebar-block">
-              <h3 className="co-heading">{lang === "ru" ? "Детали" : lang === "uz" ? "Tafsilotlar" : "Details"}</h3>
-              <div className="company-metrics-list">
-                {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span className="isin-mono">{sec.isin}</span></div>}
-                {nominalVal && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Номинал" : lang === "uz" ? "Nominal" : "Nominal"}</span><span>{formatMarketNumber(nominalVal, lang)} UZS</span></div>}
-                {industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : lang === "uz" ? "Soha" : "Sector"}</span><span>{sectorLabel(lang, industry)}</span></div>}
-                {securityType && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип" : lang === "uz" ? "Turi" : "Type"}</span><span>{securityType === "bond" ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond") : (lang === "ru" ? "Акция" : lang === "uz" ? "Aksiya" : "Stock")}</span></div>}
-                {securityType !== "bond" && (
-                  <div className="company-metric-row">
-                    <span className="panel-label">{lang === "ru" ? "Класс" : lang === "uz" ? "Sinf" : "Class"}</span>
-                    <span>{isPreferred ? (lang === "ru" ? "Привилегированная" : lang === "uz" ? "Imtiyozli" : "Preferred") : (lang === "ru" ? "Обыкновенная" : lang === "uz" ? "Oddiy" : "Common")}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <div className="company-hero-watch">{watchRail}</div>
         <div className="company-hero-main">
           <div className="company-chart-panel panel">
             {/* The metrics response still decides whether candles mean anything
@@ -7050,15 +7022,38 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
           </div>
         </div>
 
-        {/* Four blocks, sized to end level with the chart and «О компании»
-            beside them: 1058px against 1029px. It carried six and ran to
-            1521px, which is where the 492px of empty page under the main column
-            came from — the void was the rail being long, not the chart being
-            short. */}
+        {/* Everything the page states ABOUT THIS SECURITY, in one column: the
+            session, the year's range, the multiples, the returns — and under
+            them the two reference blocks. They belong here by subject. The left
+            rail is other people's securities, and an issuer's own dividend
+            history read oddly in a column of peers.
+            The 2026-08-08 note under this comment recorded the cost of a long
+            rail: six blocks ran to 1521px against a 1029px main column. It is
+            back, smaller — measured after this change at 1920px, the rail ends
+            below the main column rather than level with it. That is the trade
+            the customer chose: subject over balance. */}
         <div className="company-overview-sidebar">
           <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
             dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
             placement="rail" />
+          <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
+            dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
+            placement="lower" />
+          <div className="co-sidebar-block">
+            <h3 className="co-heading">{lang === "ru" ? "Детали" : lang === "uz" ? "Tafsilotlar" : "Details"}</h3>
+            <div className="company-metrics-list">
+              {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span className="isin-mono">{sec.isin}</span></div>}
+              {nominalVal && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Номинал" : lang === "uz" ? "Nominal" : "Nominal"}</span><span>{formatMarketNumber(nominalVal, lang)} UZS</span></div>}
+              {industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : lang === "uz" ? "Soha" : "Sector"}</span><span>{sectorLabel(lang, industry)}</span></div>}
+              {securityType && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип" : lang === "uz" ? "Turi" : "Type"}</span><span>{securityType === "bond" ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond") : (lang === "ru" ? "Акция" : lang === "uz" ? "Aksiya" : "Stock")}</span></div>}
+              {securityType !== "bond" && (
+                <div className="company-metric-row">
+                  <span className="panel-label">{lang === "ru" ? "Класс" : lang === "uz" ? "Sinf" : "Class"}</span>
+                  <span>{isPreferred ? (lang === "ru" ? "Привилегированная" : lang === "uz" ? "Imtiyozli" : "Preferred") : (lang === "ru" ? "Обыкновенная" : lang === "uz" ? "Oddiy" : "Common")}</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
