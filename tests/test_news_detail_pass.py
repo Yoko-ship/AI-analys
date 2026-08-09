@@ -201,9 +201,34 @@ class TestEveryItemCanHaveABody:
         assert out["https://timesca.com/x"]["ru"] == "p"
 
     def test_nothing_to_lay_out_stays_empty(self):
-        """A bare rating headline expands into padding; padding is worse than a summary."""
+        """A headline about nobody: no material, no issuer, nothing to state."""
         assert news_classifier.write_brief_detail({"title": "Fitch Affirms X at BB-"}) == {
             "ru": "", "en": "", "uz": ""}
+
+    def test_a_headline_that_names_our_issuers_is_still_worth_two_paragraphs(self, monkeypatch):
+        """/news/762: Fitch publishes a title and no body ANYWHERE — 1.1MB of shell that does
+        not contain even its own headline — but the item names five listed insurers. What was
+        published and whom it concerns are facts we hold; the research is not."""
+        sent = {}
+
+        class _Client:
+            def complete_json(self, system, user, **kw):
+                sent["system"], sent["user"] = system, user
+                return {"detail_ru": "p", "detail_en": "p", "detail_uz": "p"}
+
+        out = news_classifier.write_brief_detail(
+            {"title": "Uzbek Insurers Benefit From Stronger Operating Environment",
+             "summary_ru": "Fitch указывает на пользу для узбекских страховщиков.",
+             "tickers": ["ALSM", "KASU", "UZINP"]},
+            client=_Client())
+
+        assert out["ru"] == "p"
+        assert "ALSM" in sent["user"]
+
+    def test_the_prompt_forbids_summarising_research_it_was_not_given(self):
+        """The one way a headline-only page could become a lie."""
+        assert "you do not know its reasoning" in news_classifier._BRIEF_SYSTEM
+        assert "this reflects" in news_classifier._BRIEF_SYSTEM
 
     def test_the_material_is_deduplicated_before_the_model_sees_it(self):
         """snippet and summary are often the same sentence; twice is how two facts
