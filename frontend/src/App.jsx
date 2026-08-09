@@ -12027,11 +12027,6 @@ const LANDING_TX = {
     lede: "Фондовая биржа «Тошкент» — как на ладони: котировки, отчётность эмитентов и новости, влияющие на цену. Официальные данные Узбекистана, собранные в одну платформу.",
     ctaMarket: "Смотреть рынок",
     ctaCompare: "Сравнить компании",
-    factTitle: "UZSE · Тошкент",
-    factText: "Республиканская фондовая биржа «Тошкент» — основная площадка Узбекистана. Торги проходят каждый будний день; платформа фиксирует итоги каждой сессии.",
-    factSession: "Сессия", factSessionVal: "10:00 — 15:30",
-    factCurrency: "Валюта торгов", factCurrencyVal: "сум (UZS)",
-    bnSecurities: "ценных бумаг", bnIssuers: "эмитентов в каталоге", bnLangs: "языка интерфейса",
     s2Title: ["Табло", "рынка"],
     s2Sub: "Все бумаги биржи в одной таблице: цена, изменение за день и график за месяц. Сортировка по любой колонке, тепловая карта секторов и фильтры — в один клик.",
     boardTitle: "Итоги сессии",
@@ -12066,11 +12061,6 @@ const LANDING_TX = {
     lede: "«Toshkent» fond birjasi — kaftdek ko'rinadi: kotirovkalar, emitentlar hisobotlari va narxga ta'sir qiluvchi yangiliklar. O'zbekistonning rasmiy ma'lumotlari bitta platformada.",
     ctaMarket: "Bozorni ko'rish",
     ctaCompare: "Kompaniyalarni solishtirish",
-    factTitle: "UZSE · Toshkent",
-    factText: "«Toshkent» respublika fond birjasi — O'zbekistonning asosiy savdo maydonchasi. Savdolar har ish kuni o'tadi; platforma har bir sessiya yakunini qayd etadi.",
-    factSession: "Sessiya", factSessionVal: "10:00 — 15:30",
-    factCurrency: "Savdo valyutasi", factCurrencyVal: "so'm (UZS)",
-    bnSecurities: "qimmatli qog'oz", bnIssuers: "katalogdagi emitent", bnLangs: "interfeys tili",
     s2Title: ["Bozor", "taxtasi"],
     s2Sub: "Birjaning barcha qog'ozlari bitta jadvalda: narx, kunlik o'zgarish va oylik grafik. Istalgan ustun bo'yicha saralash, sektorlar xaritasi va filtrlar — bir bosishda.",
     boardTitle: "Sessiya yakunlari",
@@ -12105,11 +12095,6 @@ const LANDING_TX = {
     lede: "The Tashkent Stock Exchange at a glance: quotes, issuer financials and the news that moves prices. Uzbekistan's official data, gathered into one platform.",
     ctaMarket: "View the market",
     ctaCompare: "Compare companies",
-    factTitle: "UZSE · Tashkent",
-    factText: "The Republican Stock Exchange “Toshkent” is Uzbekistan's main trading venue. Sessions run every weekday; the platform records the outcome of each one.",
-    factSession: "Session", factSessionVal: "10:00 — 15:30",
-    factCurrency: "Trading currency", factCurrencyVal: "UZS (so'm)",
-    bnSecurities: "securities", bnIssuers: "issuers in the catalog", bnLangs: "interface languages",
     s2Title: ["The market", "board"],
     s2Sub: "Every listed security in one table: price, daily change and a one-month chart. Sort by any column, switch to the sector heatmap, filter in one click.",
     boardTitle: "Session results",
@@ -12290,28 +12275,6 @@ function LandingSky() {
   return <canvas ref={ref} className="lv-sky" aria-hidden="true" />;
 }
 
-// A stat that counts itself up once its value arrives.
-function LvCounter({ value }) {
-  const [shown, setShown] = React.useState(0);
-  React.useEffect(() => {
-    const target = Number(value) || 0;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(target);
-      return undefined;
-    }
-    let raf = 0;
-    const t0 = performance.now();
-    const step = (ts) => {
-      const k = Math.min(1, (ts - t0) / 1400);
-      setShown(Math.round(target * (1 - Math.pow(1 - k, 3))));
-      if (k < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [value]);
-  return <>{shown}</>;
-}
-
 function LandingView({ language, marketRows, tradeStats, securitiesMap, companies, onNavigate, onOpenCompany, onOpenNews }) {
   const lang = normalizeLanguage(language);
   const LT = LANDING_TX[lang] || LANDING_TX.ru;
@@ -12469,19 +12432,6 @@ function LandingView({ language, marketRows, tradeStats, securitiesMap, companie
               <button type="button" className="lv-go" onClick={() => onNavigate("market")}>{LT.ctaMarket}</button>
               <button type="button" className="lv-ghost" onClick={() => onNavigate("compare")}>{LT.ctaCompare}</button>
             </div>
-          </div>
-          <aside className="lv-fact">
-            <h3>{LT.factTitle}</h3>
-            <p>{LT.factText}</p>
-            <div className="lv-fact-row"><span>{LT.factSession}</span><b>{LT.factSessionVal}</b></div>
-            <div className="lv-fact-row"><span>{LT.factCurrency}</span><b>{LT.factCurrencyVal}</b></div>
-          </aside>
-        </div>
-        <div className="lv-base">
-          <div className="lv-bignums">
-            <div><div className="lv-bn-v"><LvCounter value={prepared.length} /></div><div className="lv-bn-k">{LT.bnSecurities}</div></div>
-            <div><div className="lv-bn-v"><LvCounter value={(companies || []).length} /></div><div className="lv-bn-k">{LT.bnIssuers}</div></div>
-            <div><div className="lv-bn-v">3</div><div className="lv-bn-k">{LT.bnLangs}</div></div>
           </div>
         </div>
         <span className="lv-cue" aria-hidden="true" />
