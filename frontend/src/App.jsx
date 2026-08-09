@@ -7470,10 +7470,16 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
   // The unit comes from the server, which owns the scale contract: money in
   // full UZS, every margin already converted to percent, plain coefficients
   // left alone. Nothing here decides what a number means.
+  //
+  // Sums print in full, not «3,1B»: the wrap scrolls sideways, so a long number
+  // cannot break the layout — a bank's trillions just make the table wider.
+  // The chart keeps compact figures: its axis has 70px, not a column.
+  const fmtFull = new Intl.NumberFormat(lang === "en" ? "en-US" : "ru-RU",
+                                        { maximumFractionDigits: 0 });
   const cell = (f, p) => {
     const v = series[f].values[p];
     if (!Number.isFinite(v)) return "—";
-    if (series[f].money) return formatCompactVolume(v, lang);
+    if (series[f].money) return fmtFull.format(v);
     const suffix = series[f].unit === "%" ? "%" : "";
     return `${formatRatio(v, 2, lang)}${suffix}`;
   };
