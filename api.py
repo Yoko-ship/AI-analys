@@ -74,6 +74,7 @@ from reports_catalog import (
     get_sector_averages,
     list_companies_with_stats,
     upsert_ratio_cache,
+    _latest_complete_fiscal_year,
     sync_company as catalog_sync_company,
     sync_all as catalog_sync_all,
 )
@@ -3537,12 +3538,20 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
             None, partial(get_facts, org_id, "financial_indicators"))
         series: dict[str, dict[str, Any]] = {}
         periods: set[str] = set()
+        # No annual for a year that has not ended: openinfo publishes a
+        # placeholder "annual" for the CURRENT year (both as an indicator set
+        # and as a mislabelled report), and rows stored before the входная
+        # проверка existed still carry it — QZSM and BIOK showed a "2026"
+        # column in August 2026 with half a year of figures presented as one.
+        last_fy = _latest_complete_fiscal_year()
         for f in facts:
             value = f.get("value_num")
             period = str(f.get("period") or "").strip()
             # Annual columns only: a "2025Q1" among "2025" would sort in as a
             # year and put three months beside twelve in the growth row.
             if value is None or len(period) != 4 or not period.isdigit():
+                continue
+            if int(period) > last_fy:
                 continue
             field = f["field"]
             money = field in FACT_MONEY_FIELDS
@@ -3599,7 +3608,7 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
                  "debt_to_equity": "debt_to_equity"}
         filed = await loop.run_in_executor(None, partial(get_financials_series, ticker))
         for period, fields in (filed or {}).items():
-            if len(period) != 4 or not period.isdigit():
+            if len(period) != 4 or not period.isdigit() or int(period) > last_fy:
                 continue
             for src, name in FILED.items():
                 if fields.get(src) is None:

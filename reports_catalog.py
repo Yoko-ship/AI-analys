@@ -3708,21 +3708,29 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
         return {}
     conn = get_catalog_conn()
     try:
+        # By the ISSUER, not the ticker: a filing lands in the cache under
+        # whichever share class it was catalogued under, and reading one class
+        # alone left UZASP, UZTLP, UZIRP and the other preferred lines with no
+        # filed years at all while their ordinary sibling showed a decade.
+        siblings = _org_siblings(conn, t) or [t]
+        placeholders = ",".join("?" * len(siblings))
         fin = conn.execute(
-            f"SELECT year, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
-            "WHERE ticker=? AND form=? AND quarter=0 ORDER BY year",
-            (t, form)).fetchall()
+            f"SELECT ticker, year, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
+            f"WHERE ticker IN ({placeholders}) AND form=? AND quarter=0 ORDER BY year",
+            (*siblings, form)).fetchall()
         rat = conn.execute(
-            "SELECT year, roa, roe, debt_ratio, debt_to_equity FROM catalog_ratios "
-            "WHERE ticker=? AND form=? AND quarter=0 ORDER BY year",
-            (t, form)).fetchall()
+            "SELECT ticker, year, roa, roe, debt_ratio, debt_to_equity FROM catalog_ratios "
+            f"WHERE ticker IN ({placeholders}) AND form=? AND quarter=0 ORDER BY year",
+            (*siblings, form)).fetchall()
     finally:
         conn.close()
     out: dict[str, dict[str, Any]] = {}
-    for row in fin:
+    # Siblings first, the requested ticker last: where both classes carry the
+    # same year (the same filing parsed twice) the requested one wins.
+    for row in sorted(fin, key=lambda r: r["ticker"] == t):
         out.setdefault(str(row["year"]), {}).update(
             {k: row[k] for k in _FIN_FIELDS if row[k] is not None})
-    for row in rat:
+    for row in sorted(rat, key=lambda r: r["ticker"] == t):
         out.setdefault(str(row["year"]), {}).update(
             {k: row[k] for k in ("roa", "roe", "debt_ratio", "debt_to_equity")
              if row[k] is not None})
@@ -3887,6 +3895,29 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
                          "убыток от основной деятельности",
                          "операционная прибыл", "операционный доход",
                          "operating income", "operating profit"],
+    # The bank form has no «выручка» line at all. Its top line, and the one the
+    # reconciler (openinfo_reconcile) already serves as bank revenue, is total
+    # interest income — «Всего процентные доходы» on the Excel form, «Итого
+    # процентных доходов» in the structured JSON. A second-tier key: consulted
+    # only when "revenue" itself finds nothing, so no commercial form can reach it.
+    "revenue_bank": ["всего процентные доходы", "всего процентных доходов",
+                     "итого процентных доходов", "итого процентные доходы"],
+}
+
+
+# Labels a key's patterns match but must NOT accept. The bank income statement
+# publishes THREE lines the net-profit patterns match, in this order:
+#   «6. ЧИСТЫЙ ДОХОД ДО ОПЕРАЦИОННЫХ РАСХОДОВ»       (an aggregate, 2.2× the bottom line)
+#   «9. ЧИСТАЯ ПРИБЫЛЬ ДО УПЛАТЫ НАЛОГОВ И ДРУГИХ ПОПРАВОК»
+#   «11. ЧИСТАЯ ПРИБЫЛЬ (УБЫТКИ)»                     (the actual result)
+# First-match took line 6, so EVERY bank showed net profit equal to the feed's
+# revenue indicator (which openinfo builds from the same line 6) on every filed
+# year — measured 2026-08-09: 12 banks, all years since 2016. The reconciler
+# already takes the LAST «чистая прибыль» row; this brings the Excel parse to
+# the same answer by refusing the intermediate lines instead of reordering.
+_LABEL_EXCLUSIONS: dict[str, list[str]] = {
+    "net_income": ["до операционных", "до уплаты", "до налогообложения",
+                   "до введения", "до оценки", "before tax", "qadar"],
 }
 
 
@@ -3975,9 +4006,12 @@ def _row_value(nums: list, strict_period: bool = False) -> float | None:
 
 def _extract_metric(rows: list[dict], key: str, strict_period: bool = False) -> float | None:
     patterns = _LABEL_PATTERNS.get(key, [])
+    excludes = _LABEL_EXCLUSIONS.get(key, ())
     for row in rows:
         label = str(row.get("label") or "").lower()
         if any(p in label for p in patterns):
+            if any(x in label for x in excludes):
+                continue
             v = _row_value(row.get("numeric_values") or [], strict_period=strict_period)
             if v is not None:
                 return v
@@ -4063,6 +4097,10 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     all_rows = income_rows + balance_rows
 
     revenue = _extract_metric(income_rows or all_rows, "revenue")
+    if revenue is None:
+        # Bank form: no «выручка» line exists — total interest income is the
+        # top line, exactly the figure the reconciler serves as bank revenue.
+        revenue = _extract_metric(income_rows or all_rows, "revenue_bank")
     net_income = _extract_metric(income_rows or all_rows, "net_income")
     gross_profit = _extract_metric(income_rows or all_rows, "gross_profit")
     operating_income = _extract_metric(income_rows or all_rows, "operating_income")
