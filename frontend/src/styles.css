@@ -9870,11 +9870,33 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
   gap: 8px;
 }
 
-.catalog-company-item-head strong { font-size: 0.92rem; color: var(--accent); }
-.catalog-company-item-head em { font-size: 0.75rem; color: var(--muted); font-style: normal; }
-.catalog-company-name {
+/* The company name leads the row. Legal names run long («AGAT CREDIT»
+   Aksiyadorlik jamiyati mikromoliya tashkiloti) in a narrow sidebar, so it
+   takes up to two lines and then clips — a single ellipsised line loses the
+   part that tells two issuers apart. */
+.catalog-company-item-head strong {
+  font-size: 0.92rem;
+  color: var(--accent);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-width: 0;
+}
+/* The report count is the one thing that must never be squeezed away. */
+.catalog-company-item-head em {
   font-size: 0.75rem;
   color: var(--muted);
+  font-style: normal;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.catalog-company-ticker {
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
   line-height: 1.3;
   align-self: stretch;
   white-space: nowrap;

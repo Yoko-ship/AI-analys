@@ -11506,7 +11506,10 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
 
   const filteredComps = catalogComps.filter((c) => {
     const q = search.toLowerCase();
-    return !q || c.ticker.toLowerCase().includes(q) || (c.company_name || "").toLowerCase().includes(q);
+    // An entry stands for every ticker of its issuer, so searching for a bond
+    // series (ACMT2B4) has to reach the company it belongs to.
+    return !q || (c.company_name || "").toLowerCase().includes(q)
+      || (c.tickers?.length ? c.tickers : [c.ticker]).some((t) => t.toLowerCase().includes(q));
   });
 
   const analysisTypesObj = (TEXTS[lang] || TEXTS.ru).catalog.analysisTypes;
@@ -11625,11 +11628,15 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                 >
                   <CompanyLogo logo={c.logo} name={c.company_name} ticker={c.ticker} />
                   <div className="catalog-company-item-body">
+                    {/* The list is a list of companies: the name leads and the
+                        ticker annotates it, not the other way round. */}
                     <div className="catalog-company-item-head">
-                      <strong>{c.ticker}</strong>
+                      <strong>{c.company_name || c.ticker}</strong>
                       <em>{c.total_count || 0} {clg(lang, "reports")}</em>
                     </div>
-                    <span className="catalog-company-name">{c.company_name}</span>
+                    <span className="catalog-company-ticker">
+                      {(c.tickers?.length ? c.tickers : [c.ticker]).join(" · ")}
+                    </span>
                     {c.total_count > 0 && (
                       <div className="catalog-company-badges">
                         {c.nsbu_count > 0 && <span className="catalog-form-badge">{formsObj.NSBU} {c.nsbu_count}</span>}
