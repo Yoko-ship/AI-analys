@@ -3583,12 +3583,14 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
         # UZNF is a fund that genuinely earns no revenue while holding 30 T of
         # assets, and BRBN and UZNGP file on forms with no revenue line at all.
         # Those zeros are what the source says; only a missing statement goes.
+        purged_empty: set[str] = set()
         for period in list(periods):
             assets = (series.get("total_assets") or {}).get("values", {}).get(period)
             money = [e["values"][period] for f, e in series.items()
                      if e["money"] and period in e["values"]]
             empty = assets == 0 or (money and not any(money))
             if empty:
+                purged_empty.add(period)
                 periods.discard(period)
                 for entry in series.values():
                     entry["values"].pop(period, None)
@@ -3621,6 +3623,19 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
                                            else fields[src])
                 entry["filed"] = True
                 periods.add(period)
+        # The empty-filing purge ran BEFORE this merge, so a year it removed
+        # comes straight back if a junk parse of the same filing sits in the
+        # cache — SQBN 2024 (the empty filing with a stray 13 000) was dropped
+        # as empty and then re-entered with revenue 1 000. The purge's evidence
+        # — the source itself published a zero balance sheet for the year —
+        # does not vanish because a parse of that same filing is cached, so a
+        # purged year stays out. A filed-only year the feed never carried was
+        # never purged and is untouched.
+        for period in purged_empty & periods:
+            periods.discard(period)
+            for entry in series.values():
+                entry["values"].pop(period, None)
+        series = {f: e for f, e in series.items() if e["values"]}
 
         # A YEAR THAT IS ANOTHER YEAR'S COPY.
         #
