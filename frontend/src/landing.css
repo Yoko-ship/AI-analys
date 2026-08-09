@@ -39,6 +39,8 @@
 
 .landing-view a { color: inherit; text-decoration: none; }
 .lv-container { max-width: 1160px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 48px); }
+/* The board section spans the whole page — the table earns its width. */
+.lv-container.lv-wide { max-width: none; }
 
 /* Появление секций по скроллу */
 .lv-reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.3, 1); }
@@ -164,10 +166,10 @@
 .lv-table tbody tr { cursor: pointer; }
 .lv-table tbody tr:hover td { background: rgba(255, 180, 94, 0.05); }
 .lv-tk { font-family: var(--lv-mono); font-weight: 700; font-size: 12.5px; }
-.lv-nm { display: block; font-size: 10.5px; color: var(--lv-ink-3); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-nm { display: block; font-size: 10.5px; color: var(--lv-ink-3); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lv-chg { font-family: var(--lv-mono); font-size: 12.5px; }
-.lv-spark-cell { width: 84px; }
-.lv-spark-cell .mini-sparkline { width: 76px; height: 24px; display: inline-block; }
+.lv-spark-cell { width: 110px; }
+.lv-spark-cell .mini-sparkline { width: 96px; height: 26px; display: inline-block; }
 .lv-board-foot {
   display: flex; gap: 24px; margin-top: 14px; padding-top: 13px;
   border-top: 1px solid var(--lv-line);
@@ -187,8 +189,12 @@
   transition: border-color 0.2s;
 }
 .lv-mover:hover { border-color: rgba(255, 180, 94, 0.45); }
-.lv-mover .lv-nm { display: inline; max-width: 130px; }
-.lv-mover .pc { margin-left: auto; font-family: var(--lv-mono); font-size: 12.5px; font-weight: 600; }
+/* min-width:0 + a block name: the full legal names the catalog carries must
+   ellipsize INSIDE the card — an inline span ignores max-width and shoved the
+   percentage out through the card's border. */
+.lv-mover-id { flex: 1; min-width: 0; }
+.lv-mover-id .lv-nm { max-width: none; }
+.lv-mover .pc { flex: none; font-family: var(--lv-mono); font-size: 12.5px; font-weight: 600; }
 
 /* ── Компания ── */
 .lv-company-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 52px; align-items: center; }
@@ -207,7 +213,7 @@
 .lv-company-card:hover { border-color: rgba(255, 180, 94, 0.4); }
 .lv-cc-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .lv-cc-top .lv-tk { font-size: 16px; }
-.lv-cc-top .lv-nm { display: inline; font-size: 12px; max-width: 240px; }
+.lv-cc-top .lv-nm { display: inline-block; vertical-align: bottom; font-size: 12px; max-width: min(300px, 45vw); }
 .lv-cc-pr { margin-left: auto; font-family: var(--lv-mono); font-size: 15px; }
 .lv-cc-pr b { font-weight: 600; font-size: 13px; }
 .lv-mchips { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
