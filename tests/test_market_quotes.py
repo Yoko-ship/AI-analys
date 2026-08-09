@@ -299,3 +299,60 @@ class TestTheBoardIsCompleted:
             isin="UZ7000000001", ticker=sorted(api.BOARD_DENYLIST)[0])})
 
         assert body["stocks"] == []
+
+
+class TestEveryRowIsNamed:
+    """The exchange mirror names 9 of its 78 securities. The other 69 read "—"
+    in the company column — every preferred share, every bond, UZTL included.
+    The name was never missing from our data, only from that one feed."""
+
+    NAMES = {"UZTL": "«O'zbektelekom» AJ", "UPOS": "«O'zbekiston pochtasi» AJ",
+             "ACMT1B2": "«AGAT CREDIT» AJ MMT"}
+
+    def test_the_issuer_catalog_names_what_the_feed_does_not(self) -> None:
+        rows = [{"ticker": "UZTL", "name": None}, {"ticker": "ACMT1B2", "name": ""}]
+
+        assert api._fill_names(rows, self.NAMES) == 2
+        assert [r["name"] for r in rows] == ["«O'zbektelekom» AJ", "«AGAT CREDIT» AJ MMT"]
+
+    def test_a_name_the_feed_does_carry_wins(self) -> None:
+        """The exchange's own name for a security is never overwritten."""
+        rows = [{"ticker": "UZTL", "name": "Uzbektelecom JSC"}]
+
+        assert api._fill_names(rows, self.NAMES) == 0
+        assert rows[0]["name"] == "Uzbektelecom JSC"
+
+    def test_a_preferred_share_borrows_its_common_siblings_name(self) -> None:
+        """UPOSP is the only board ticker no catalog names on its own. Its type
+        cell already says "привилегированные" — the issuer is the same one."""
+        rows = [{"ticker": "UPOSP", "name": None}]
+
+        assert api._fill_names(rows, self.NAMES) == 1
+        assert rows[0]["name"] == "«O'zbekiston pochtasi» AJ"
+
+    def test_an_unknown_ticker_is_left_unnamed(self) -> None:
+        """No catalog, no name — the column says "—" rather than inventing one."""
+        rows = [{"ticker": "ZZZZ", "name": None}, {"ticker": None, "name": None}]
+
+        assert api._fill_names(rows, self.NAMES) == 0
+        assert [r["name"] for r in rows] == [None, None]
+
+    def test_the_board_serves_the_name(self, monkeypatch) -> None:
+        monkeypatch.setattr(api, "_issuer_names", lambda: self.NAMES)
+        board = TestTheBoardIsCompleted()
+        body = board._board(monkeypatch, {}, mirror=[
+            {"ticker": "UZTL", "isin": "UZ7038030001", "name": None,
+             "last_price": 3000.0, "close_price": 3000.0},
+        ])
+
+        assert body["stocks"][0]["name"] == "«O'zbektelekom» AJ"
+
+    def test_a_row_that_joined_from_the_quote_cache_is_named_too(self, monkeypatch) -> None:
+        """The quote-cache rows are appended after the mirror pass, and they are
+        the ones with no name of their own at all."""
+        monkeypatch.setattr(api, "_issuer_names", lambda: self.NAMES)
+        board = TestTheBoardIsCompleted()
+        body = board._board(monkeypatch, {"UZ6058977AB6": _quote(
+            isin="UZ6058977AB6", ticker="ACMT1B2", name=None, market="BND")}, kind="bond")
+
+        assert [r["name"] for r in body["stocks"]] == ["«AGAT CREDIT» AJ MMT"]

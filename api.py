@@ -232,6 +232,7 @@ async def _populate_securities_on_startup() -> None:
             stocks = payload.get("stocks") if isinstance(payload, dict) else []
             stocks_list = stocks if isinstance(stocks, list) else []
             if stocks_list:
+                _fill_names(stocks_list, await loop.run_in_executor(None, _issuer_names))
                 count = await loop.run_in_executor(None, partial(sync_securities, stocks_list, logos))
                 await loop.run_in_executor(None, partial(record_volume, stocks_list))
                 logger.info("startup securities sync (%s): %d rows", security_type or "all", count)
@@ -881,6 +882,68 @@ def _listing_to_stock(lst: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_ISSUER_NAMES: dict[str, Any] = {"at": 0.0, "map": {}}
+_ISSUER_NAMES_TTL = 600.0
+
+
+def _issuer_names() -> dict[str, str]:
+    """ticker → issuer name, for board rows the exchange feed leaves unnamed.
+
+    The uzse mirror carries a ``name`` for only 9 of its 78 securities, so the
+    board's company column read "—" for 69 rows (every preferred share, every
+    bond, and majors like UZTL). The name is not missing from our data, only from
+    that one feed: openinfo's issuer catalog (``catalog_companies``, kept current
+    by the collector) knows it, and the static catalog covers what predates it.
+
+    Cached for ten minutes — the board is the hottest endpoint and issuer names
+    change about never.
+    """
+    now = time.monotonic()
+    if _ISSUER_NAMES["map"] and now - _ISSUER_NAMES["at"] < _ISSUER_NAMES_TTL:
+        return _ISSUER_NAMES["map"]
+    names: dict[str, str] = {t.upper(): n for n, t in COMPANY_CATALOG.items()}
+    try:
+        from reports_catalog import get_catalog_conn
+
+        conn = get_catalog_conn()
+        try:
+            for r in conn.execute(
+                    "SELECT ticker, company_name FROM catalog_companies").fetchall():
+                ticker = (r["ticker"] or "").upper().strip()
+                name = (r["company_name"] or "").strip()
+                if ticker and name:
+                    names[ticker] = name
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 — the static catalog still answers
+        logger.exception("issuer name catalog read failed")
+    _ISSUER_NAMES.update(at=now, map=names)
+    return names
+
+
+def _fill_names(rows: list[dict[str, Any]], names: dict[str, str]) -> int:
+    """Name every row the feed left unnamed, in place. Returns rows filled.
+
+    A preferred share with no entry of its own borrows its common sibling's name
+    (UPOSP → UPOS): the same issuer, and the row's own type cell already says
+    which class it is.
+    """
+    filled = 0
+    for row in rows:
+        if (row.get("name") or "").strip():
+            continue
+        ticker = str(row.get("ticker") or "").upper().strip()
+        if not ticker:
+            continue
+        name = names.get(ticker)
+        if not name and ticker.endswith("P"):
+            name = names.get(ticker[:-1])
+        if name:
+            row["name"] = name
+            filled += 1
+    return filled
+
+
 def _carries(row: dict[str, Any], close: Any) -> bool:
     """Is the row showing no price of its own but carrying exactly this close?"""
     if row.get("last_price") is not None:
@@ -1000,6 +1063,12 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     stocks = payload.get("stocks") if isinstance(payload, dict) else []
     stocks_list = stocks if isinstance(stocks, list) else []
 
+    # Name the rows the feed leaves unnamed BEFORE the catalog sync below, so the
+    # securities table (and everything reading it — company pages, search, logos)
+    # stores the name too instead of the feed's null.
+    issuer_names = await loop.run_in_executor(None, _issuer_names)
+    _fill_names(stocks_list, issuer_names)
+
     # Background sync into securities DB (fire-and-forget). Copy the list so the
     # inactive-listing merge below cannot leak synthetic rows into the executor.
     if stocks_list:
@@ -1116,6 +1185,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
         # catalogued, whether it reached the board from a feed, the registry or
         # the quote itself.
         quoted_rows = [r for r in merged if str(r.get("isin") or "").upper() in quotes]
+        _fill_names(quoted_rows, issuer_names)
         if quoted_rows:
             loop.run_in_executor(None, partial(sync_securities, quoted_rows, _load_logos()))
 
@@ -1130,6 +1200,10 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
                   if str(r.get("ticker") or "").upper() not in BOARD_DENYLIST
                   and not is_delisted_isin(r.get("isin"))]
         added_inactive = sum(1 for r in merged if r.get("inactive"))
+
+    # Registry and quote-cache rows joined the board after the first pass; name
+    # them too, so no row reaches the company column as a bare ISIN.
+    _fill_names(merged, issuer_names)
 
     return _json_safe({
         "ok": True,
