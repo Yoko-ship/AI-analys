@@ -702,6 +702,33 @@ def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[
 _INTERNATIONAL_SHARE = max(0.0, min(float(os.getenv("NEWS_INTERNATIONAL_SHARE", "0.5")), 1.0))
 _ORIGINS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news_sources.json")
 _international_ids: set[str] | None = None
+_paywalled_ids: set[str] | None = None
+
+
+def paywalled_source_ids() -> set[str]:
+    """Source ids the registry marks ``paywall: true`` (cached, fail-soft).
+
+    A source whose article page asks the reader for money gives us a headline, a sentence and
+    a link that leads to a payment demand. It can never carry a long read either — there is
+    no readable body behind it — so the card is permanently the thinnest kind we publish and
+    the one action it offers is one the reader cannot take. The customer asked for those off
+    the feed (2026-08-09, trend.az: «Get access to all paid news on Trend — just $1»).
+
+    Read time, not collection time: the rows stay, so flipping the flag back brings the
+    source's history with it instead of leaving a month-shaped hole.
+    """
+    global _paywalled_ids
+    if _paywalled_ids is None:
+        try:
+            with open(_ORIGINS_FILE, encoding="utf-8") as fh:
+                data = json.load(fh)
+            _paywalled_ids = {s["id"] for s in data.get("sources", [])
+                              if s.get("id") and s.get("paywall") is True}
+        except (OSError, ValueError, KeyError):
+            logger.warning("could not read paywalled sources from %s — nothing suppressed",
+                           _ORIGINS_FILE)
+            _paywalled_ids = set()
+    return _paywalled_ids
 
 
 def international_source_ids() -> set[str]:
@@ -718,6 +745,20 @@ def international_source_ids() -> set[str]:
                            _ORIGINS_FILE)
             _international_ids = set()
     return _international_ids
+
+
+def drop_paywalled(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Take the paywalled sources out of a list of items.
+
+    Used on the short read paths — related stories, an issuer's news, the sentiment inputs —
+    where the row count is small and a Python filter is clearer than threading positional
+    parameters through four differently-shaped queries. The feed filters in SQL instead,
+    because there a dropped row costs a slot in the rank window.
+    """
+    walled = paywalled_source_ids()
+    if not walled:
+        return items
+    return [it for it in items if str(it.get("source_id") or "") not in walled]
 
 
 def _balance_origins(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
@@ -876,6 +917,14 @@ def get_news_feed(
     if days:
         q.append("AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))")
         params.append(f"-{int(days)} days")
+    # In SQL rather than after the fetch: a paywalled source would otherwise eat rows out of
+    # the rank window and shorten the page by however many it contributed. Appended last on
+    # purpose — the clauses above own the leading positional parameters, and a test reads
+    # them by position.
+    walled = sorted(paywalled_source_ids())
+    if walled:
+        q.append(f"AND COALESCE(n.source_id, '') NOT IN ({','.join('?' * len(walled))})")
+        params.extend(walled)
     q.append("ORDER BY COALESCE(n.published_at, n.collected_at) DESC LIMIT ?")
     params.append(fetch)
     rows = conn.execute(" ".join(q), params).fetchall()
@@ -932,6 +981,10 @@ def get_news_item(news_id: int) -> dict[str, Any] | None:
     ).fetchone()
     conn.close()
     if row is None:
+        return None
+    # The story page too, not only the feed: a card taken off the list whose URL still opens
+    # is not removed, it is unlinked — and the customer's example was the story page itself.
+    if str(row["source_id"] or "") in paywalled_source_ids():
         return None
     item = _row_to_item(row)
     keys = row.keys()
@@ -1010,7 +1063,7 @@ def get_related_news(news_id: int, *, limit: int = 6, days: int = 180) -> list[d
                 break
             picked.setdefault(r["id"], _row_to_item(r))
     conn.close()
-    return list(picked.values())[:cap]
+    return drop_paywalled(list(picked.values()))[:cap]
 
 
 def get_news_for_ticker(ticker: str, *, limit: int = 30, days: int = 90) -> list[dict[str, Any]]:
@@ -1028,7 +1081,7 @@ def get_news_for_ticker(ticker: str, *, limit: int = 30, days: int = 90) -> list
         (ticker.strip().upper(), f"-{int(days)} days", max(1, min(limit, 100))),
     ).fetchall()
     conn.close()
-    return [_row_to_item(r) for r in rows]
+    return drop_paywalled([_row_to_item(r) for r in rows])
 
 
 def get_news_sentiment(ticker: str, *, days: int = 30) -> dict[str, Any]:
@@ -1039,7 +1092,7 @@ def get_news_sentiment(ticker: str, *, days: int = 30) -> dict[str, Any]:
     conn = rc.get_catalog_conn()
     rows = conn.execute(
         """
-        SELECT p.tone, p.tone_score, n.coverage_weight
+        SELECT p.tone, p.tone_score, n.coverage_weight, n.source_id
         FROM news n
         JOIN news_entities e ON e.news_id = n.id
         JOIN news_nlp p       ON p.news_id = n.id
@@ -1049,6 +1102,9 @@ def get_news_sentiment(ticker: str, *, days: int = 30) -> dict[str, Any]:
         (ticker.strip().upper(), f"-{int(days)} days"),
     ).fetchall()
     conn.close()
+    # A story we refuse to publish must not move a number we do publish.
+    walled = paywalled_source_ids()
+    rows = [r for r in rows if str(r["source_id"] or "") not in walled]
     if not rows:
         return {"ticker": ticker.upper(), "count": 0, "weighted_tone": None,
                 "positive": 0, "neutral": 0, "negative": 0}
