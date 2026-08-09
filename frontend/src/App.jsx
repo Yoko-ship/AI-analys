@@ -7292,7 +7292,7 @@ function FinancialsChart({ fields, series, periods, lang }) {
   // pointing at a year gave nothing, which is what «no info» meant.
   const [hover, setHover] = React.useState(null);
   const [hoverY, setHoverY] = React.useState(0);
-  const cols = [...periods].reverse();               // oldest → newest, left → right
+  const cols = periods;               // already oldest → newest, left → right
   const COLORS = ["#38bdf8", "#f59e0b", "#a855f7"];
   const drawn = fields
     .map((f, i) => ({ f, color: COLORS[i % COLORS.length], s: series[f] }))
@@ -7395,7 +7395,8 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
 
   if (loading) return <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>;
 
-  const cols = periods || [];
+  // The server sends newest-first; the table reads oldest → newest, left → right.
+  const cols = [...(periods || [])].reverse();
   const has = (f) => series?.[f] && cols.some((p) => Number.isFinite(series[f].values[p]));
   const available = FIN_SECTIONS
     .map((sec) => ({ ...sec, rows: (sec.rows || []).filter(has), margins: (sec.margins || []).filter(has) }))
@@ -7444,11 +7445,11 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
   const missingYears = yearNums.length > 1
     ? Array.from({ length: Math.max(...yearNums) - Math.min(...yearNums) + 1 },
                  (_, i) => Math.min(...yearNums) + i)
-        .filter((y) => !yearNums.includes(y)).reverse()
+        .filter((y) => !yearNums.includes(y))
     : [];
 
   // «Рост г/г» has to be year OVER YEAR, and on this market the column to the
-  // right is often not last year. 53 of 100 issuers have a hole in their annual
+  // left is often not last year. 53 of 100 issuers have a hole in their annual
   // series — AGBA is missing 2019, BECM is missing 2019, 2021 AND 2023 — and the
   // row happily compared 2020 with 2018 and called it a year. A two-year change
   // labelled as one is the kind of figure a reader takes to a valuation.
@@ -7458,8 +7459,8 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
   // change can see both numbers. What is gone is the wrong label.
   const yearOf = (p) => (/^\d{4}$/.test(String(p)) ? Number(p) : null);
   const growth = (f, i) => {
-    const v = series[f].values[cols[i]], prev = series[f].values[cols[i + 1]];
-    const y = yearOf(cols[i]), yPrev = yearOf(cols[i + 1]);
+    const v = series[f].values[cols[i]], prev = series[f].values[cols[i - 1]];
+    const y = yearOf(cols[i]), yPrev = yearOf(cols[i - 1]);
     if (y != null && yPrev != null && y - yPrev !== 1) {
       return { gap: true, missing: y - yPrev === 2 ? `${y - 1}` : `${yPrev + 1}–${y - 1}` };
     }
