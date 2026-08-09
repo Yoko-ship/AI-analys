@@ -2500,14 +2500,42 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
     """
     loop = asyncio.get_running_loop()
     ticker_types = None
+    notes: dict[str, Any] = {}
     if str(instrument or "").lower() in ("stock", "bond"):
-        smap = await loop.run_in_executor(None, get_securities_map)
-        ticker_types = {t: str((s or {}).get("type") or "stock").lower() for t, s in smap.items()}
+        # TWO sources, because the traded universe is not the listed one.
+        # `securities` is filled from the exchange feed, so it knows only what
+        # trades — the eleven dormant listings (AGMK, TGBK, UZNG…) are absent
+        # from it, and a filing about one of them would have fallen out of both
+        # «Акции» and «Облигации» without a word. The registry carries them, and
+        # its `share_type` is a SHARE class, so a row that has one is a share.
+        # The feed's own `type` is layered on top and wins, which is how all
+        # fifteen bonds stay bonds.
+        listings, smap = await asyncio.gather(
+            loop.run_in_executor(None, get_all_listings),
+            loop.run_in_executor(None, get_securities_map),
+        )
+        ticker_types = {}
+        for tk, row in (listings or {}).items():
+            klass = str((row or {}).get("share_type") or "").strip().lower()
+            if klass in ("ordinary", "preferred"):
+                ticker_types[str(tk).upper()] = "stock"
+            elif klass == "bond":
+                ticker_types[str(tk).upper()] = "bond"
+        for tk, s in (smap or {}).items():
+            kind = str((s or {}).get("type") or "").strip().lower()
+            if kind in ("stock", "bond"):
+                ticker_types[str(tk).upper()] = kind
     items = await loop.run_in_executor(
         None, partial(news_store.get_news_feed, limit=limit, days=days, news_type=type,
                       order="recent" if order == "recent" else "rank",
-                      instrument=instrument, ticker_types=ticker_types))
-    return _json_safe({"ok": True, "count": len(items), "items": items, "disclaimer": NEWS_DISCLAIMER})
+                      instrument=instrument, ticker_types=ticker_types, notes=notes))
+    body: dict[str, Any] = {"ok": True, "count": len(items), "items": items,
+                            "disclaimer": NEWS_DISCLAIMER}
+    # Named on the response, not swallowed: these are filings the filter could
+    # not place, and the page says so rather than letting them disappear.
+    if notes.get("untyped_tickers"):
+        body["untyped_tickers"] = notes["untyped_tickers"]
+    return _json_safe(body)
 
 
 @app.get("/api/news/item/{news_id}")
