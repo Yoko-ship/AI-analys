@@ -3453,6 +3453,17 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
     try:
         index = await loop.run_in_executor(None, partial(get_company_index, ticker))
         org_id = (index or {}).get("org_id")
+        # A statement belongs to the ISSUER, not to a share class. The catalog
+        # carries an org id for the ordinary line and often not for the
+        # preferred one, so KSCMP, IPKYP, KFSKP, UZASP and PLSTP answered "no
+        # financials published" while their ordinary sibling showed ten years of
+        # the same company. Measured 2026-08-09: five of the seven pairs on the
+        # board. The sibling is the same legal entity — this is the fallback the
+        # company page already applies to P/E, moved to where the data is read.
+        sibling = ticker[:-1] if ticker.endswith("P") else f"{ticker}P"
+        if not org_id and sibling and sibling != ticker:
+            alt = await loop.run_in_executor(None, partial(get_company_index, sibling))
+            org_id = (alt or {}).get("org_id")
         if not org_id:
             return _etag_json(request, {"ok": True, "ticker": ticker, "org_id": None,
                                         "currency": "UZS", "periods": [], "series": {}},

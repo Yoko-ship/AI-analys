@@ -2906,9 +2906,16 @@ function formatMarketNumber(value, language, digits = 2) {
 function formatCompactVolume(value, lang) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "—";
-  if (num >= 1e9) return formatRatio(num / 1e9, 1, lang) + "B";
-  if (num >= 1e6) return formatRatio(num / 1e6, 1, lang) + "M";
-  if (num >= 1e3) return formatRatio(num / 1e3, 1, lang) + "K";
+  // On MAGNITUDE, with the sign re-attached. Comparing the raw number against
+  // the thresholds meant every negative fell through to the plain branch, and a
+  // loss printed as «-215 311 494 000» in a column of «376B» — twelve digits
+  // wide, breaking the table it sat in. Turnover is never negative, which is
+  // why this survived; a loss on the income statement is ordinary.
+  const abs = Math.abs(num);
+  const sign = num < 0 ? "-" : "";
+  if (abs >= 1e9) return sign + formatRatio(abs / 1e9, 1, lang) + "B";
+  if (abs >= 1e6) return sign + formatRatio(abs / 1e6, 1, lang) + "M";
+  if (abs >= 1e3) return sign + formatRatio(abs / 1e3, 1, lang) + "K";
   return formatRatio(num, 0, lang);
 }
 
@@ -7401,10 +7408,32 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
 
   const active = available.find((sec) => sec.key === section) || available[0];
 
+  // Years the issuer filed nothing for, between the oldest and newest it did.
+  const yearNums = cols.map((p) => Number(p)).filter((n) => Number.isFinite(n));
+  const missingYears = yearNums.length > 1
+    ? Array.from({ length: Math.max(...yearNums) - Math.min(...yearNums) + 1 },
+                 (_, i) => Math.min(...yearNums) + i)
+        .filter((y) => !yearNums.includes(y)).reverse()
+    : [];
+
+  // «Рост г/г» has to be year OVER YEAR, and on this market the column to the
+  // right is often not last year. 53 of 100 issuers have a hole in their annual
+  // series — AGBA is missing 2019, BECM is missing 2019, 2021 AND 2023 — and the
+  // row happily compared 2020 with 2018 and called it a year. A two-year change
+  // labelled as one is the kind of figure a reader takes to a valuation.
+  //
+  // So a gap yields a dash, and the dash says which year is missing. The value
+  // is not lost: both columns are on screen, and a reader who wants the two-year
+  // change can see both numbers. What is gone is the wrong label.
+  const yearOf = (p) => (/^\d{4}$/.test(String(p)) ? Number(p) : null);
   const growth = (f, i) => {
     const v = series[f].values[cols[i]], prev = series[f].values[cols[i + 1]];
+    const y = yearOf(cols[i]), yPrev = yearOf(cols[i + 1]);
+    if (y != null && yPrev != null && y - yPrev !== 1) {
+      return { gap: true, missing: y - yPrev === 2 ? `${y - 1}` : `${yPrev + 1}–${y - 1}` };
+    }
     if (!Number.isFinite(v) || !Number.isFinite(prev) || prev === 0) return null;
-    return ((v - prev) / Math.abs(prev)) * 100;
+    return { value: ((v - prev) / Math.abs(prev)) * 100 };
   };
   // The unit comes from the server, which owns the scale contract: money in
   // full UZS, every margin already converted to percent, plain coefficients
@@ -7423,14 +7452,23 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
         <th scope="row">{finLabel(f, lang)}</th>
         {cols.map((p) => <td key={p} className="num">{cell(f, p)}</td>)}
       </tr>
-      {withGrowth && (
+      {/* Only when there is a year to compare against: on a single-period
+          issuer (ACMT1B2, UZNF and seven more) this row was a line of dashes
+          under a heading promising growth. */}
+      {withGrowth && cols.length > 1 && (
         <tr className="fin-growth">
           <th scope="row">{t("Рост г/г", "Osish y/y", "Growth YoY")}</th>
           {cols.map((p, i) => {
             const g = growth(f, i);
+            const v = g && !g.gap ? g.value : null;
             return (
-              <td key={p} className={`num ${g == null ? "" : g >= 0 ? "pos" : "neg"}`}>
-                {g == null ? "—" : `${g > 0 ? "+" : ""}${g.toFixed(2)}%`}
+              <td key={p} className={`num ${v == null ? "" : v >= 0 ? "pos" : "neg"}`}
+                title={g && g.gap
+                  ? t(`Нет отчёта за ${g.missing} — рост за год не посчитать`,
+                      `${g.missing} uchun hisobot yo'q`,
+                      `No filing for ${g.missing} — a year-on-year change cannot be formed`)
+                  : undefined}>
+                {v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`}
               </td>
             );
           })}
@@ -7480,6 +7518,14 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
           {t("Суммы в сумах, по годовым отчётам эмитента. Коэффициенты — в тех единицах, в которых они опубликованы.",
              "Summalar somda, emitentning yillik hisobotlari boyicha.",
              "Sums in UZS, from the issuer's annual filings. Ratios in the units they were published in.")}
+          {/* Said once, under the table, rather than left for the reader to
+              notice that 2019 is simply not there. Half the issuers on this
+              market have at least one such hole. */}
+          {missingYears.length > 0 && (
+            <> {t(`За ${missingYears.join(", ")} годовой отчётности нет — эти годы пропущены, и рост к ним не считается.`,
+                  `${missingYears.join(", ")} uchun yillik hisobot yo'q.`,
+                  `No annual filing for ${missingYears.join(", ")} — those years are absent, and no growth is formed against them.`)}</>
+          )}
         </p>
       </div>
     </div>
