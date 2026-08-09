@@ -12511,7 +12511,7 @@ function LandingView({ language, marketRows, tradeStats, securitiesMap, companie
 
       {/* ── 03 · Компания ── */}
       <section className="lv-sec">
-        <div className="lv-container">
+        <div className="lv-container lv-wide">
           <div className="lv-sec-head lv-reveal">
             <span className="lv-sec-num">03</span>
             <h2 className="lv-sec-title">{LT.s3Title[0]} <em>{LT.s3Title[1]}</em></h2>
@@ -12573,7 +12573,7 @@ function LandingView({ language, marketRows, tradeStats, securitiesMap, companie
       {/* ── 04 · Новости ── */}
       {news.length > 0 && (
         <section className="lv-sec">
-          <div className="lv-container">
+          <div className="lv-container lv-wide">
             <div className="lv-sec-head lv-reveal">
               <span className="lv-sec-num">04</span>
               <h2 className="lv-sec-title">{LT.s4Title[0]} <em>{LT.s4Title[1]}</em></h2>
