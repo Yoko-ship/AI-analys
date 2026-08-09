@@ -9657,7 +9657,13 @@ function MarketView({
   // ТЗ §4: dormant listings are hidden by default and reachable by a switch —
   // not dropped, because a security that stopped trading is a fact about the
   // market and hiding it permanently is how five references came to disagree.
-  const [showInactive, setShowInactive] = useState(false);
+  //
+  // The switch is a FILTER, not an "include" checkbox. It is named «Неактивные»
+  // and sits beside «Избранное», which shows favourites and only favourites —
+  // so pressing it and getting the whole board back with eleven more rows
+  // buried in it read as a broken button. Now it lands the reader on the
+  // eleven, which is the question the chip's name asks.
+  const [inactiveOnly, setInactiveOnly] = useState(false);
   useEffect(() => {
     let alive = true;
     fetch("/api/market/multiples")
@@ -9912,7 +9918,7 @@ function MarketView({
     return item ? item.is_active === false : r.inactive === true;
   };
   const dormantCount = byClass.filter(isDormant).length;
-  const prepared = showInactive ? byClass : byClass.filter((r) => !isDormant(r));
+  const prepared = byClass.filter((r) => isDormant(r) === inactiveOnly);
   const search = String(query || "").trim().toLowerCase();
 
   // Gather sectors present in current data. Same resolver as the heat map, so a
@@ -10107,7 +10113,11 @@ function MarketView({
       }
       return 0;
     });
-  const stats = buildMarketStats(prepared);
+  // The summary cards describe the MARKET, not the current filter. Fed the
+  // dormant subset they answered «сделки сегодня: 11» about eleven securities
+  // that have not traded in three months, and named a «лидер роста» at 0 %.
+  // The board is the traded set, whichever list is on screen below.
+  const stats = buildMarketStats(byClass.filter((r) => !isDormant(r)));
 
   // §3.8: export the table the user is looking at as OUR report, client-side.
   //
@@ -10146,6 +10156,10 @@ function MarketView({
         : type === "preferred" ? "preferredStocks" : type === "ordinary" ? "ordinaryStocks" : "all"),
       marketSector || "",
       favOnly ? mt(lang, "csvFav") : "",
+      // The export states its filters, and «только неактивные» changes what the
+      // whole file IS — a sheet of eleven dormant listings that looks like the
+      // board would be read as the board.
+      inactiveOnly ? (lang === "en" ? "inactive only" : lang === "uz" ? "faqat faol emas" : "только неактивные") : "",
       String(query || "").trim() ? `${mt(lang, "csvSearch")}: ${String(query).trim()}` : "",
     ].filter(Boolean).join(" · ");
     // `last_trade_date` arrives as DD.MM.YYYY from the live feed and YYYY-MM-DD from the
@@ -10462,7 +10476,12 @@ function MarketView({
       </article>
 
       <div className="market-stats-grid">
-        <MarketStatCard label={mt(lang, "instruments")} value={formatRatio(prepared.length || meta?.count || 0, 0, lang)} sub={message || mt(lang, "ready")} />
+        {/* Same reason: the count of instruments is the board's, not the
+            filter's — «Показано: N/M» above the table already states what the
+            list on screen holds. */}
+        <MarketStatCard label={mt(lang, "instruments")}
+          value={formatRatio(byClass.filter((r) => !isDormant(r)).length || meta?.count || 0, 0, lang)}
+          sub={message || mt(lang, "ready")} />
         <MarketStatCard label={mt(lang, "traded")} value={formatRatio(stats.traded, 0, lang)} sub={mt(lang, "date")} />
         <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(stats.advancers, 0, lang)} sub={formatLeader(stats.topGrowth)} tone="good" />
         <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
@@ -10620,15 +10639,20 @@ function MarketView({
             </button>
           )}
           {/* ТЗ §4: dormant listings are hidden, not dropped — the count says
-              how many, so their absence is a stated fact rather than a silence. */}
+              how many, so their absence is a stated fact rather than a silence,
+              and the chip shows exactly those rows. */}
           {dormantCount > 0 && (
             <button
               type="button"
-              className={`market-fav-filter ${showInactive ? "active" : ""}`}
-              aria-pressed={showInactive}
-              onClick={() => setShowInactive((v) => !v)}
-              title={lang === "en" ? "No trades for 90 days"
-                : lang === "uz" ? "90 kun bitimlarsiz" : "Без сделок более 90 дней"}
+              className={`market-fav-filter market-dormant-filter ${inactiveOnly ? "active" : ""}`}
+              aria-pressed={inactiveOnly}
+              onClick={() => setInactiveOnly((v) => !v)}
+              title={inactiveOnly
+                ? (lang === "en" ? "Back to the traded board"
+                   : lang === "uz" ? "Savdodagi ro'yxatga qaytish" : "Вернуться к торгуемым")
+                : (lang === "en" ? `Show the ${dormantCount} listings with no trades for 90 days`
+                   : lang === "uz" ? `90 kun bitimsiz ${dormantCount} qog'ozni ko'rsatish`
+                   : `Показать ${dormantCount} бумаг без сделок более 90 дней`)}
             >
               <span className="market-btn-label">
                 {lang === "en" ? "Inactive" : lang === "uz" ? "Faol emas" : "Неактивные"}
@@ -10887,6 +10911,21 @@ function MarketView({
           )
         ) : (
           <>
+          {/* What the reader is now looking at, and why these rows do not
+              behave like the rest of the board: the price is a close from
+              months ago carried forward, the day's change is nil because there
+              was no day, and the server leaves them out of the market's
+              capitalisation. Without this the eleven rows look like eleven
+              securities that all happened to close flat. */}
+          {inactiveOnly && (
+            <p className="market-dormant-note">
+              {lang === "en"
+                ? "Listings with no trades for over 90 days. The price is their last settled close, carried forward — there is no day's move, and the market capitalisation above leaves them out."
+                : lang === "uz"
+                  ? "90 kundan ortiq bitimsiz qog'ozlar. Narx — ularning oxirgi yopilishi, oldinga ko'chirilgan; kunlik o'zgarish yo'q va yuqoridagi kapitalizatsiya ularni hisobga olmaydi."
+                  : "Бумаги без сделок более 90 дней. Цена — их последнее закрытие, перенесённое вперёд: дневного изменения нет, и в капитализацию рынка выше они не входят."}
+            </p>
+          )}
           <div className="market-table-wrap" ref={wrapRef}>
             <table className="market-table">
               <thead>
@@ -10948,7 +10987,11 @@ function MarketView({
                     ? (lang === "en" ? "No favorites yet — tap ☆ next to a company to track it."
                        : lang === "uz" ? "Hali tanlanganlar yo'q — kuzatish uchun kompaniya yonidagi ☆ ni bosing."
                        : "Пока нет избранного — нажмите ☆ рядом с компанией, чтобы следить за ней.")
-                    : mt(lang, "empty")}</td></tr>
+                    : inactiveOnly
+                      ? (lang === "en" ? "No dormant listing matches the current filters."
+                         : lang === "uz" ? "Joriy filtrlarga mos keladigan faol bo'lmagan qog'oz yo'q."
+                         : "Под текущие фильтры не попала ни одна неактивная бумага.")
+                      : mt(lang, "empty")}</td></tr>
                 )}
               </tbody>
             </table>

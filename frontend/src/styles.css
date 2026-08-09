@@ -7549,6 +7549,15 @@ body:has(.topbar.is-nav-open) .market-float-scroll {
   box-shadow: var(--shadow-sm);
 }
 .market-fav-filter .fav-star { color: #f5b301; font-size: 1.05rem; line-height: 1; }
+/* Louder than the shared .active, on purpose: «Избранное» carries a filled
+   star that says what it is doing, and this chip has nothing but its own
+   outline — while it REPLACES the whole table with eleven dormant listings.
+   On the light theme the shared style is a white pill against white pills. */
+.market-dormant-filter.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
 
 /* Column-settings (gear) menu in the market toolbar. */
 .market-cols-wrap { position: relative; display: inline-flex; }
@@ -10372,6 +10381,9 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .qc-arrow:hover { border-color: var(--accent); }
 .qc-arrow-left { left: -6px; }
 .qc-arrow-right { right: -6px; }
+/* Sits above the table, not inside it: it describes the whole view, and a row
+   of the table would be read as a security. */
+.market-dormant-note { margin: 0 0 10px; padding: 9px 13px; border-radius: 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent); background: var(--surface-2, rgba(127,127,127,0.06)); font-size: 12.5px; line-height: 1.55; color: var(--text-secondary, var(--text-muted)); }
 .chart-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; margin-left: 6px; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--text-muted); cursor: pointer; transition: all 0.12s; }
 .chart-expand-btn:hover { border-color: var(--accent); color: var(--text-primary); }
 
