@@ -1340,6 +1340,29 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
         except Exception as exc:
             all_errors.append({"ticker": "_audition", "errors": [str(exc)]})
 
+        # NSBU pdf links can only be rebuilt for issuers whose org resolves —
+        # a ticker stuck without one keeps whatever is stored, and every link
+        # stored before the feed-id map existed points at some OTHER issuer's
+        # document (see _nsbu_export_urls). For those, no download button is
+        # better than a wrong document; the link returns when resolution does.
+        try:
+            conn = get_catalog_conn()
+            with conn:
+                cur = conn.execute(
+                    """
+                    UPDATE catalog_reports SET pdf_url = NULL
+                    WHERE report_form = 'NSBU' AND pdf_url IS NOT NULL
+                      AND ticker NOT IN (
+                          SELECT ticker FROM catalog_companies
+                          WHERE org_id IS NOT NULL AND org_id != ''
+                      )
+                    """)
+                if cur.rowcount:
+                    logger.info("cleared %d NSBU pdf links for unresolved issuers", cur.rowcount)
+            conn.close()
+        except Exception:
+            logger.exception("stale NSBU pdf-link cleanup failed")
+
         return {
             "total": total,
             "synced": synced,
