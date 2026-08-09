@@ -701,27 +701,59 @@ def _fetch_main_results(session: Any, company_name: str, org_id: Any) -> tuple[l
     return [], None
 
 
-def _nsbu_export_urls(report_id: Any, period_type: str, org_type: str | None) -> tuple[str | None, str | None]:
-    """Build (pdf_url, excel_url) for an NSBU accounting-report from its id.
+def _nsbu_export_urls(report_id: Any, period_type: str, org_type: str | None,
+                      pdf_id: Any = None) -> tuple[str | None, str | None]:
+    """Build (pdf_url, excel_url) for an NSBU accounting-report from its ids.
 
     NSBU records come from the ``/reports/accounting-report/`` endpoint, whose
-    shape carries the financial line-items but no document URLs — so
-    ``_build_report_document`` (written for the ``/reports/main/`` shape) returns
-    nothing and the download buttons never appear. openinfo serves the PDF at
-    ``/ru/reports/to_pdf<id>/`` and the Excel via the export-excel API, which also
-    needs the period type and the issuer's ``org_type`` (e.g. "bank", "jsc").
-    Without a correct org_type the Excel export returns HTTP 400, so excel_url is
-    omitted when org_type is unknown (the PDF link still works).
+    shape carries the financial line-items but no document URLs. The Excel export
+    takes this record's own id (plus the period type and the issuer's
+    ``org_type`` — without a correct org_type it returns HTTP 400, so excel_url
+    is omitted when org_type is unknown).
+
+    The PDF endpoint ``/ru/reports/to_pdf<id>/`` lives in a DIFFERENT id space:
+    it takes the unified-feed record id, not this one. Passing the accounting id
+    there serves whatever OTHER issuer's filing happens to sit at that feed id —
+    measured 2026-08-09: UZML's annual 6021 rendered a cotton gin's quarterly.
+    So the PDF link is built only from an explicitly supplied ``pdf_id`` (see
+    ``_unified_pdf_id_map``); with none, no link is better than a wrong one.
     """
     if not report_id:
         return None, None
-    pdf_url = f"{OPENINFO_WEB_BASE}/ru/reports/to_pdf{report_id}/"
+    pdf_url = f"{OPENINFO_WEB_BASE}/ru/reports/to_pdf{pdf_id}/" if pdf_id else None
     excel_url = None
     if org_type:
         excel_url = f"{OPENINFO_API_BASE}/reports/export-excel/?" + urlencode(
             {"report_type": period_type, "org_type": org_type, "report_id": report_id, "lang": "ru"}
         )
     return pdf_url, excel_url
+
+
+def _unified_pdf_id_map(session: Any, org_id: Any) -> dict[str, int]:
+    """Accounting object id → unified-feed record id, for one issuer.
+
+    The unified feed is the only place the two id spaces meet: each record
+    carries its own id (the ``to_pdf`` namespace) and a ``report_link`` whose
+    tail is the accounting-report object id the structured sync works with.
+    """
+    out: dict[str, int] = {}
+    if not org_id:
+        return out
+    for page in range(1, 6):
+        try:
+            payload = _json_get(session, "/reports/unified-financial-reports/",
+                                {"format": "json", "page": page, "page_size": 200,
+                                 "organization": org_id})
+        except Exception:
+            break
+        results = list(payload.get("results") or []) if isinstance(payload, dict) else []
+        for rec in results:
+            m = re.search(r"/reports/[a-z]+/[a-z]+/(\d+)/?$", str(rec.get("report_link") or ""))
+            if m and rec.get("id"):
+                out[m.group(1)] = rec["id"]
+        if len(results) < 200 or not (isinstance(payload, dict) and payload.get("next")):
+            break
+    return out
 
 
 _ORG_TYPE_CANDIDATES = ("jsc", "bank", "insurance", "microfinance")
@@ -885,6 +917,15 @@ def sync_company(
     if org_type is None and form2_annual:
         org_type = _probe_org_type(session, form2_annual, "annual")
 
+    # The to_pdf id space (see _nsbu_export_urls). Stored NSBU pdf links are
+    # cleared first: every one written before this map existed points at some
+    # other issuer's document, and _upsert_report COALESCEs a NULL pdf_url with
+    # the stored one — the wrong links would survive every re-sync otherwise.
+    pdf_ids = _unified_pdf_id_map(session, org_id)
+    with conn:
+        conn.execute("UPDATE catalog_reports SET pdf_url = NULL "
+                     "WHERE ticker = ? AND report_form = 'NSBU'", (ticker,))
+
     with conn:
         for rec in form2_annual:
             yr = rec.get("reporting_year")
@@ -898,7 +939,9 @@ def sync_company(
                 continue
             doc2 = _build_report_document(rec)
             doc1 = form1_annual_by_year.get(yr)
-            pdf_url, excel_url = _nsbu_export_urls(doc2.get("id"), "annual", org_type)
+            pdf_url, excel_url = _nsbu_export_urls(
+                doc2.get("id"), "annual", org_type,
+                pdf_id=pdf_ids.get(str(doc2.get("id") or "")))
             excel_url_form1 = _nsbu_export_urls(doc1.get("id"), "annual", org_type)[1] if doc1 else None
             new = _upsert_report(
                 conn, ticker,
@@ -958,7 +1001,9 @@ def sync_company(
                 continue
             doc2 = _build_report_document(rec)
             doc1 = form1_quarter_by_yq.get((yr, q))
-            pdf_url, excel_url = _nsbu_export_urls(doc2.get("id"), "quarter", org_type)
+            pdf_url, excel_url = _nsbu_export_urls(
+                doc2.get("id"), "quarter", org_type,
+                pdf_id=pdf_ids.get(str(doc2.get("id") or "")))
             excel_url_form1 = _nsbu_export_urls(doc1.get("id"), "quarter", org_type)[1] if doc1 else None
             new = _upsert_report(
                 conn, ticker,
