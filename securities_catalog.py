@@ -244,10 +244,24 @@ BOND_ISSUER_LOGOS: dict[str, str] = {
 }
 
 
+def _preferred_flag(share_type, name) -> bool:
+    """Preferred is what the feed SAYS is preferred, never what the ticker
+    looks like. BNGP and UZINP are ordinary shares whose tickers happen to end
+    in ``P``, and the old ticker-shape guess labelled both «Привилегированная»
+    on their pages. The name suffix covers the one row the feed itself
+    mislabels: UZNGP carries ``share_type=ordinary`` under a name that says
+    «привилегированные»."""
+    return (str(share_type or "").lower() == "preferred"
+            or "привилегирован" in str(name or "").lower())
+
+
 def resolve_logo(ticker: str, logos: dict[str, str]) -> str | None:
     """Resolve a ticker's logo, sharing it across common/preferred share pairs.
 
-    Preferred shares end in ``P`` (the same heuristic used for ``is_preferred``).
+    Share pairs follow the ``P``-suffix ticker convention (``TKDM``/``TKDMP``),
+    which is safe here because a wrong guess only shares a logo between two
+    listings of the same issuer — unlike ``is_preferred``, which must come from
+    the feed's own class field (see ``_preferred_flag``).
     When a ticker has no logo of its own, borrow its sibling's: the common share
     falls back to the preferred logo (``TKDM`` -> ``TKDMP``) and vice versa, since
     both are the same issuer. This avoids blank fallbacks for one half of a pair.
@@ -281,7 +295,7 @@ def sync_securities(stocks: list[dict], logos: dict[str, str]) -> int:
         if not ticker or ticker in DELISTED_TICKERS:
             continue
         sector = _TICKER_SECTORS.get(ticker, "other")
-        is_preferred = 1 if s.get("share_type") == "preferred" or ticker.endswith("P") else 0
+        is_preferred = 1 if _preferred_flag(s.get("share_type"), s.get("name") or s.get("company_name")) else 0
         conn.execute(
             """
             INSERT INTO securities
@@ -342,7 +356,9 @@ def get_securities_map() -> dict[str, dict]:
             # Deleted from the site: skip on read as well as on write, so a row
             # written before the ticker was delisted cannot serve a company page.
             continue
-        d["is_preferred"] = bool(d.get("is_preferred"))
+        # Recomputed on read so rows written under the old ticker-shape guess
+        # (BNGP, UZINP) answer correctly without waiting for the next sync.
+        d["is_preferred"] = _preferred_flag(d.get("share_type"), d.get("name"))
         vr = records.get(d["ticker"])
         if vr:
             d["max_volume"] = vr["max_volume"]

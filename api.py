@@ -3748,6 +3748,15 @@ async def api_securities_info(ticker: str, language: str = "ru") -> dict[str, An
                     "inactive": True,
                 }
         if not sec:
+            # Catalog-only issuers (TNGB): the report catalog knows them but
+            # neither the trading feed nor the RFB registry does. A name and a
+            # sector are still better than a page headed by a bare ticker.
+            name = next((n for n, t in COMPANY_CATALOG.items() if t == ticker), None)
+            if name:
+                sec = {"ticker": ticker, "company_name": name,
+                       "sector": COMPANY_SECTORS.get(ticker, "other"),
+                       "inactive": True}
+        if not sec:
             raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found in securities")
         wiki = await loop.run_in_executor(
             None, partial(get_wiki_info, ticker, sec.get("company_name") or sec.get("security_name") or "", language)

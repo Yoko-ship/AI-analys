@@ -969,20 +969,20 @@ MANUAL_INFO: dict[str, dict[str, Any]] = {
             "«O'ztransgaz» (Узтрансгаз) — предприятие Узбекистана, отвечающее за "
             "транспортировку природного газа по магистральным газопроводам, его хранение и "
             "поставку потребителям. Компания эксплуатирует и обслуживает газотранспортную "
-            "систему страны. Привилегированные акции предприятия торгуются на Республиканской "
+            "систему страны. Акции предприятия торгуются на Республиканской "
             "фондовой бирже «Тошкент»."
         ),
         "en": (
             "O'ztransgaz (Uztransgaz) is an Uzbek enterprise responsible for transporting "
             "natural gas through trunk pipelines, storing it and delivering it to consumers, "
-            "operating and maintaining the country's gas-transport system. Its preferred shares "
+            "operating and maintaining the country's gas-transport system. Its shares "
             "trade on the Republican Stock Exchange \"Toshkent\"."
         ),
         "uz": (
             "«O'ztransgaz» — tabiiy gazni magistral gaz quvurlari orqali tashish, saqlash va "
             "iste'molchilarga yetkazib berish uchun mas'ul bo'lgan O'zbekiston korxonasi bo'lib, "
             "mamlakat gaz-transport tizimini ishlatadi va xizmat ko'rsatadi. Korxonaning "
-            "imtiyozli aksiyalari «Toshkent» Respublika fond birjasida sotiladi."
+            "aksiyalari «Toshkent» Respublika fond birjasida sotiladi."
         ),
     },
     "QATT": {

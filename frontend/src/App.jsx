@@ -6001,7 +6001,7 @@ function QuickCompareStrip({ peers, securitiesMap, selected, colors, onToggle, l
                   <span className="qc-card-price">{formatMarketNumber(r.lastPrice, lang)}</span>
                   <span className={`qc-card-change ${tone}`}>
                     {Number.isFinite(r.changePercent)
-                      ? `${r.changePercent > 0 ? "+" : ""}${r.changePercent.toFixed(2)}%`
+                      ? `${signedFixed(r.changePercent)}%`
                       : "—"}
                   </span>
                 </span>
@@ -6183,7 +6183,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // moving averages arrive in сумы and have to follow the axis, or MA20 would
   // be plotted at 8 900 on a scale that runs from −12 % to +40 %.
   const toScale = (price) => (cmpOn ? (price / cmp.base0 - 1) * 100 : price);
-  const fmtPct = (v) => `${v > 0 ? "+" : ""}${Number(v).toFixed(1)}%`;
+  const fmtPct = (v) => `${signedFixed(v, 1)}%`;
 
   // Per point, again: a single record without a low must not drag the whole
   // price scale to NaN. In compare mode the scale is a percent one and there is
@@ -6294,10 +6294,15 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
   };
   const yStep = rangeP > 0 ? niceStep(rangeP, yTicks) : 0;
+  // Enough decimals to tell neighbouring gridlines apart: a 0.005 step printed
+  // at two decimals labelled two of KASU's lines «0,02» each. Two decimals
+  // stay the floor so ordinary price axes keep their look.
+  const yDecimals = yStep > 0 ? Math.max(2, Math.min(6, Math.ceil(-Math.log10(yStep)))) : 2;
+  const fmtYPrice = (v) => (v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: yDecimals }));
   // Full numbers, not 10.0K: this is a price scale and the reference states it
   // as one. `abbrev` stays for the tooltip's volume, where a K/M really helps.
   // In compare mode the axis measures the move, not the price, and says so.
-  const fmtAxisVal = cmpOn ? fmtPct : fmtFull;
+  const fmtAxisVal = cmpOn ? fmtPct : fmtYPrice;
   const yLabels = [];
   if (yStep > 0) {
     const first = Math.ceil(minP / yStep) * yStep;
@@ -6325,17 +6330,30 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // yields — and the endpoint wins the collision.
   const X_LABEL_GAP = 64;
   const xStep = Math.max(1, Math.floor(points.length / 6));
+  // The axis grain follows the DRAWN span, not the period button. A «1Г»
+  // request over a listing that has only traded for two months otherwise
+  // stamps «июль 26 г.» under five ticks in a row (KFSK, UZASP, FRAZP).
+  const spanMs = points.length > 1
+    ? (new Date(points[points.length - 1].date) - new Date(points[0].date))
+    : 0;
+  const monthGrain = months >= 12 && spanMs > 200 * 864e5;
+  const crossesYear = points.length > 1
+    && new Date(points[0].date).getFullYear() !== new Date(points[points.length - 1].date).getFullYear();
+  const fmtTick = (d) => (monthGrain ? fmtAxis(d) : fmtDate(d, crossesYear));
   const xLabels = [];
   points.forEach((p, i) => {
     const isLast = i === points.length - 1;
     if (i % xStep !== 0 && !isLast) return;
     const x = xs(i);
+    const label = fmtTick(p.date);
     const prev = xLabels[xLabels.length - 1];
-    if (prev && x - prev.x < X_LABEL_GAP) {
+    // Yield on a position collision — or on the SAME WORDS: two ticks that both
+    // say «март 26 г.» tell the reader less than one that says it once.
+    if (prev && (x - prev.x < X_LABEL_GAP || prev.label === label)) {
       if (!isLast) return;
       xLabels.pop();
     }
-    xLabels.push({ x, label: fmtAxis(p.date) });
+    xLabels.push({ x, label });
   });
 
   const onMove = (e) => {
@@ -6733,7 +6751,7 @@ function CompanyWatchRail({ ticker, rows, securitiesMap, series, favorites, onTo
           <span className="rail-row-price">{formatMarketNumber(r.lastPrice, lang)}</span>
           <span className={`rail-row-change ${tone}`}>
             {Number.isFinite(r.changePercent)
-              ? `${r.changePercent > 0 ? "+" : ""}${r.changePercent.toFixed(2)}%`
+              ? `${signedFixed(r.changePercent)}%`
               : "—"}
           </span>
         </span>
@@ -6788,6 +6806,16 @@ function CompanyWatchRail({ ticker, rows, securitiesMap, series, favorites, onTo
  * under every period the reader picks — 21, 61 and 209 all occur on one page's
  * worth of buttons. Russian agrees on the LAST digit, except in the teens.
  */
+/**
+ * A signed change, rounded FIRST: -0.004 must print «0.00», not «-0.00».
+ * UZIR's header read «-0.41 (-0.00%)» because the sign came from the raw
+ * value while the digits came from the rounded one.
+ */
+function signedFixed(v, dp = 2) {
+  const r = Number(Number(v).toFixed(dp)) + 0; // +0 folds -0 into 0
+  return `${r > 0 ? "+" : ""}${r.toFixed(dp)}`;
+}
+
 function sessionsWord(n, lang) {
   if (lang === "en") return n === 1 ? "session" : "sessions";
   if (lang === "uz") return "sessiya";
@@ -6873,8 +6901,11 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   };
 
   // --- Session -------------------------------------------------------------
-  put(t("Пред. закрытие", "Oldingi yopilish", "Previous close"), num(row?.closePrice));
-  put(t("Открытие", "Ochilish", "Open"), num(row?.openPrice));
+  // Prices only: a 0 here is the board mirror's filler for a never-traded
+  // listing, not a close anybody paid.
+  const price = (v) => (Number.isFinite(v) && v > 0 ? num(v) : null);
+  put(t("Пред. закрытие", "Oldingi yopilish", "Previous close"), price(row?.closePrice));
+  put(t("Открытие", "Ochilish", "Open"), price(row?.openPrice));
   if (Number.isFinite(low) && Number.isFinite(high) && high > low) {
     put(t("Диапазон дня", "Kunlik diapazon", "Day range"), `${num(low)} – ${num(high)}`);
   }
@@ -6882,7 +6913,7 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   put(t("Бумаг", "Qog'ozlar", "Shares traded"), count(row?.stockQuantity));
   put(t("Сделок", "Bitimlar", "Trades"), count(row?.stockTradeCount));
   put(t("Средняя цена", "O'rtacha narx", "Average price"),
-      num(Number.isFinite(row?.avgPrice) ? row.avgPrice : avgSharePrice(row)));
+      price(Number.isFinite(row?.avgPrice) ? row.avgPrice : avgSharePrice(row)));
   const sessionRows = rows.splice(0, rows.length);
   // The date is not decoration: the board carries a close forward through
   // sessions with no executions, so a rail with no date invites reading an old
@@ -7468,7 +7499,7 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
                       `${g.missing} uchun hisobot yo'q`,
                       `No filing for ${g.missing} — a year-on-year change cannot be formed`)
                   : undefined}>
-                {v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`}
+                {v == null ? "—" : `${signedFixed(v)}%`}
               </td>
             );
           })}
@@ -7897,7 +7928,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
     const up = ticker.toUpperCase();
     return f[up] || f[up.endsWith("P") ? up.slice(0, -1) : `${up}P`] || null;
   })();
-  const lastPrice = marketRow?.lastPrice ?? marketRow?.last_price ?? sec.last_price ?? null;
+  // A zero is not a quote: the board mirror fills never-traded listings (MXUS)
+  // with literal 0s, and the header was announcing «0 сум» as if it were a price.
+  const posPrice = (v) => (Number.isFinite(v) && v > 0 ? v : null);
+  const lastPrice = posPrice(marketRow?.lastPrice) ?? posPrice(marketRow?.last_price) ?? posPrice(sec.last_price) ?? null;
   // The move the reconciled row settled on. Only when there is no board row at
   // all does the header fall back to differencing the securities-map closes —
   // and then it has no session to check them against, so it says nothing rather
@@ -7917,6 +7951,13 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
     : isPreferred
       ? (lang === "ru" ? "Прив. акция" : lang === "uz" ? "Imtiyozli" : "Preferred")
       : (lang === "ru" ? "Обыкн. акция" : lang === "uz" ? "Oddiy aksiya" : "Common Share");
+  // The feed names only some preferred listings «(привилегированные)» — KFSKP,
+  // FRAZP, IPKYP, PLSTP and UPOSP arrive without the suffix while HMKBP and
+  // IPTBP carry it. One rule for every header, not the feed's mood.
+  const baseName = sec.company_name || sec.name || ticker;
+  const displayName = isPreferred && securityType !== "bond" && !/привилегирован/i.test(baseName)
+    ? `${baseName} (привилегированные)`
+    : baseName;
   const TABS = [
     { key: "overview", label: lang === "ru" ? "Обзор" : lang === "uz" ? "Umumiy" : "Overview" },
     { key: "chart", label: lang === "ru" ? "История цен" : lang === "uz" ? "Narxlar tarixi" : "Price History" },
@@ -7931,9 +7972,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
           ← {lang === "ru" ? "Назад" : lang === "uz" ? "Orqaga" : "Back"}
         </button>
         <div className="company-page-hero">
-          <CompanyLogo logo={sec.company_logo_url || sec.logo_url} name={sec.company_name || sec.name || ticker} ticker={ticker} />
+          <CompanyLogo logo={sec.company_logo_url || sec.logo_url} name={baseName} ticker={ticker} />
           <div className="company-page-title">
-            <h1>{sec.company_name || sec.name || ticker}</h1>
+            <h1>{displayName}</h1>
             <div className="company-page-meta">
               <span className="company-page-ticker">{ticker}</span>
               {sec.isin && <span className="muted" style={{ fontSize: 12 }}>{sec.isin}</span>}
@@ -7947,7 +7988,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
                 <div className="company-page-price-val">{Number(lastPrice).toLocaleString("ru-RU")} сум</div>
                 {priceChange && (
                   <div className={`company-page-price-change ${priceChange.value >= 0 ? "pos" : "neg"}`}>
-                    {priceChange.value >= 0 ? "+" : ""}{priceChange.value.toFixed(2)} ({priceChange.pct >= 0 ? "+" : ""}{priceChange.pct.toFixed(2)}%)
+                    {signedFixed(priceChange.value)} ({signedFixed(priceChange.pct)}%)
                   </div>
                 )}
               </>
@@ -8252,7 +8293,7 @@ function AdvancedCompareBar({ peers, allRows, securitiesMap, selected, colors, o
                 <span className="ac-cmp-price">{formatMarketNumber(r.lastPrice, lang)}</span>
                 <span className={`ac-cmp-chg ${tone}`}>
                   {Number.isFinite(r.changePercent)
-                    ? `${r.changePercent > 0 ? "+" : ""}${r.changePercent.toFixed(2)}%` : "—"}
+                    ? `${signedFixed(r.changePercent)}%` : "—"}
                 </span>
               </button>
             );
@@ -8296,7 +8337,7 @@ function AdvancedChartRail({ rows, securitiesMap, ticker, favorites, onToggleFav
           <span className="ac-rail-price">{formatMarketNumber(r.lastPrice, lang)}</span>
           <span className={`ac-rail-chg ${tone}`}>
             {Number.isFinite(r.changePercent)
-              ? `${r.changePercent > 0 ? "+" : ""}${r.changePercent.toFixed(2)}%` : "—"}
+              ? `${signedFixed(r.changePercent)}%` : "—"}
           </span>
         </span>
         <button type="button" className={`rail-fav ${isFav ? "on" : ""}`}
@@ -8633,7 +8674,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     : "");
   const fmtFull = (v) => (v == null || !Number.isFinite(v) ? "—"
     : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 }));
-  const fmtPctVal = (v) => (v == null || !Number.isFinite(v) ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`);
+  const fmtPctVal = (v) => (v == null || !Number.isFinite(v) ? "—" : `${signedFixed(v, 1)}%`);
   const abbrev = (v) => (v == null ? "—" : Math.abs(v) >= 1e9 ? `${(v / 1e9).toFixed(2)}B`
     : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M`
     : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : `${v.toFixed(0)}`);
@@ -8738,7 +8779,12 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const yLabels = [];
   {
     const step = niceStep(rangeP, 5);
-    const fmtAxisVal = cmpOn ? fmtPctVal : fmtFull;
+    // Same rule as the company chart: enough decimals that neighbouring
+    // gridlines never print the same number (a 0.005 step at two decimals did).
+    const dec = Math.max(2, Math.min(6, Math.ceil(-Math.log10(step))));
+    const fmtY = (v) => (v == null || !Number.isFinite(v) ? "—"
+      : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: dec }));
+    const fmtAxisVal = cmpOn ? fmtPctVal : fmtY;
     for (let v = Math.ceil(minP / step) * step; v <= maxP + step * 1e-9; v += step) {
       yLabels.push({ y: ys(v), label: fmtAxisVal(v) });
     }
@@ -8828,7 +8874,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
           <span className="ac-price">{lastPrice != null ? formatMarketNumber(lastPrice, lang) : "—"}</span>
           {dayChange && (
             <span className={`ac-change ${dayChange.p >= 0 ? "pos" : "neg"}`}>
-              {dayChange.v >= 0 ? "+" : ""}{fmtFull(dayChange.v)} ({dayChange.p >= 0 ? "+" : ""}{dayChange.p.toFixed(2)}%)
+              {dayChange.v >= 0 ? "+" : ""}{fmtFull(dayChange.v)} ({signedFixed(dayChange.p)}%)
             </span>
           )}
           {windowChange != null && (
