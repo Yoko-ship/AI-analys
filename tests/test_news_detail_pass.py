@@ -97,10 +97,12 @@ class TestWhatIsNeverAsked:
 
         assert called == ["https://uza.uz/c"]
 
-    def test_an_unreadable_page_costs_no_model_call(self, monkeypatch):
+    def test_an_unreadable_page_is_never_sent_as_an_article(self, monkeypatch):
+        """No body means no article call — the fallback below is a different prompt."""
         monkeypatch.setattr(nc, "_article_text", lambda *a, **k: "")
         monkeypatch.setattr(nc, "write_detail",
                             lambda *a, **k: pytest.fail("model called on an empty article"))
+        monkeypatch.setattr(nc, "write_brief_detail", lambda *a, **k: {"ru": "", "en": "", "uz": ""})
 
         assert nc.enrich_details([{"url": "https://uza.uz/c", "source_id": "uza"}],
                                  {"uza": {"id": "uza"}}) == {}
@@ -163,3 +165,122 @@ class _Row(dict):
 
     def keys(self):  # noqa: D102
         return list(super().keys())
+
+
+class TestEveryItemCanHaveABody:
+    """A third of the feed had no route to a long read at all.
+
+    Measured on the live feed before this: 200 items, 18 with a body. 36 of them are openinfo
+    filings, which have no article page anywhere — the portal 404s every per-fact URL — so no
+    amount of crawling would ever have given them one. Those are written from the material we
+    already hold, which for a filing is its own figures.
+    """
+    def test_a_filing_is_written_from_its_own_figures(self, monkeypatch):
+        seen = []
+        monkeypatch.setattr(nc, "_article_text",
+                            lambda *a, **k: pytest.fail("an openinfo filing has no page"))
+        monkeypatch.setattr(nc, "write_brief_detail",
+                            lambda it, **k: seen.append(it["url"]) or {"ru": "p", "en": "p", "uz": "p"})
+        items = [{"url": "https://openinfo.uz/b?fact=1", "source_id": "openinfo_facts",
+                  "snippet": "Начислены доходы: 612,1253 сум на облигацию."}]
+
+        out = nc.enrich_details(items, {"openinfo_facts": {"type": "openinfo"}})
+
+        assert seen == ["https://openinfo.uz/b?fact=1"]
+        assert out["https://openinfo.uz/b?fact=1"]["ru"] == "p"
+
+    def test_a_page_that_would_not_read_falls_back_instead_of_giving_up(self, monkeypatch):
+        """Otherwise the item is retried every run and stays bare every run."""
+        monkeypatch.setattr(nc, "_article_text", lambda *a, **k: "")
+        monkeypatch.setattr(nc, "write_brief_detail",
+                            lambda it, **k: {"ru": "p", "en": "p", "uz": "p"})
+
+        out = nc.enrich_details([{"url": "https://timesca.com/x", "source_id": "timesca",
+                                  "summary_ru": "x" * 300}], {"timesca": {"id": "timesca"}})
+
+        assert out["https://timesca.com/x"]["ru"] == "p"
+
+    def test_nothing_to_lay_out_stays_empty(self):
+        """A bare rating headline expands into padding; padding is worse than a summary."""
+        assert news_classifier.write_brief_detail({"title": "Fitch Affirms X at BB-"}) == {
+            "ru": "", "en": "", "uz": ""}
+
+    def test_the_material_is_deduplicated_before_the_model_sees_it(self):
+        """snippet and summary are often the same sentence; twice is how two facts
+        become four paragraphs."""
+        same = "Эмитент заключил крупную сделку на 50 млрд сумов." * 4
+
+        assert news_classifier.brief_material({"summary_ru": same, "snippet": same}) == same
+
+    def test_the_brief_prompt_forbids_adding_facts(self):
+        """The whole safety of a page written without a source behind it."""
+        assert "ABSOLUTELY NO NEW FACTS" in news_classifier._BRIEF_SYSTEM
+        assert "return empty strings" in news_classifier._BRIEF_SYSTEM
+
+
+class TestTheBacklogDrains:
+    """Newest-first with a cap under the day's inflow never converges.
+
+    The pass took 12 a day while the feed took 16-36; the shortfall landed on the same items
+    every run, so three weeks of stories were unreachable — 18 long reads on the live feed and
+    every one of them from the last two days.
+    """
+    def test_the_cap_clears_a_normal_day(self):
+        assert nc._DETAIL_CAP >= 30
+
+    def test_part_of_every_run_is_reserved_for_the_oldest(self):
+        assert 0 < nc._DETAIL_TAIL_SHARE < 1
+
+    def test_the_work_list_can_be_read_from_the_old_end(self, monkeypatch):
+        seen = {}
+
+        class _Conn:
+            def execute(self, sql, params):
+                seen["sql"] = sql
+                return self
+
+            def fetchall(self):
+                return []
+
+            def close(self):
+                return None
+
+        monkeypatch.setattr(news_store.rc, "get_catalog_conn", lambda: _Conn())
+
+        news_store.rows_without_detail(oldest_first=True)
+        assert "ASC LIMIT" in seen["sql"]
+
+        news_store.rows_without_detail()
+        assert "DESC LIMIT" in seen["sql"]
+
+    def test_one_budget_covers_both_routes(self, monkeypatch):
+        """A cap of N must not mean N fetched articles PLUS N written filings."""
+        calls = {"brief": 0, "article": 0}
+        monkeypatch.setattr(nc, "_article_text", lambda *a, **k: "x" * 400)
+        monkeypatch.setattr(nc, "write_brief_detail",
+                            lambda it, **k: calls.__setitem__("brief", calls["brief"] + 1)
+                            or {"ru": "p", "en": "p", "uz": "p"})
+        monkeypatch.setattr(nc, "write_detail",
+                            lambda it, text, **k: calls.__setitem__("article", calls["article"] + 1)
+                            or {"ru": "p", "en": "p", "uz": "p"})
+        items = ([{"url": f"https://openinfo.uz/{i}", "source_id": "openinfo_facts",
+                   "snippet": "s" * 300} for i in range(10)]
+                 + [{"url": f"https://uza.uz/{i}", "source_id": "uza"} for i in range(10)])
+
+        nc.enrich_details(items, {"openinfo_facts": {"type": "openinfo"}, "uza": {"id": "uza"}},
+                          max_fetch=6)
+
+        assert calls["brief"] + calls["article"] == 6
+        assert calls["brief"] and calls["article"]      # neither route starves the other
+
+    def test_an_unused_half_is_left_to_the_other_route(self, monkeypatch):
+        calls = {"brief": 0}
+        monkeypatch.setattr(nc, "write_brief_detail",
+                            lambda it, **k: calls.__setitem__("brief", calls["brief"] + 1)
+                            or {"ru": "p", "en": "p", "uz": "p"})
+        items = [{"url": f"https://openinfo.uz/{i}", "source_id": "openinfo_facts",
+                  "snippet": "s" * 300} for i in range(10)]
+
+        nc.enrich_details(items, {"openinfo_facts": {"type": "openinfo"}}, max_fetch=6)
+
+        assert calls["brief"] == 6

@@ -591,6 +591,90 @@ Reply with ONLY a JSON object: {"detail_ru": "...", "detail_en": "...", "detail_
 _DETAIL_MAX_CHARS = int(os.getenv("NEWS_DETAIL_MAX_CHARS", "9000"))
 
 
+# The long read for an item that HAS no article page: an openinfo filing (the portal 404s
+# every per-fact URL) or a source that ships nothing but a headline. There is no source text
+# to read here, so this call is given only what we already hold — the disclosure's own
+# figures, our own summary — and its job is to lay them out, not to research the story.
+#
+# Hence "expand" and not "write": with no article behind it, the difference between a useful
+# page and a fabricated one is whether the model may add a single fact. It may not.
+_BRIEF_SYSTEM = """You write the body text of a story page for a Uzbekistan stock-market
+platform. You are given everything that is known about one item: its headline, a short
+summary, and — for a regulatory filing — the figures the filing itself states. There is no
+article to read: this is all there is.
+
+Lay that material out as 2-4 short paragraphs separated by a blank line: what was filed or
+reported, which issuer and which securities it concerns, every figure and date given, and who
+it affects. Order it so a holder of the security learns the consequence first.
+
+ABSOLUTELY NO NEW FACTS. Every number, name, date and institution in your text must appear in
+the material given. Do not infer amounts, do not estimate, do not explain what the issuer
+"probably" means, do not add market commentary, background, history or advice, and never
+mention a company the material does not mention. You are formatting known facts, not
+researching them.
+
+Repetition is better than invention: if the material supports only two short paragraphs,
+write two. If it is a bare headline with nothing behind it — fewer than two facts worth
+stating — return empty strings.
+
+Write the SAME text in three languages: Russian, English, and Uzbek in Latin script (never
+Cyrillic). Same facts, same figures, same length in each.
+
+Reply with ONLY a JSON object: {"detail_ru": "...", "detail_en": "...", "detail_uz": "..."}"""
+
+# Below this there is nothing to lay out — a headline and a half-line teaser expand into
+# padding, and padding on a story page is worse than the summary it replaced.
+_BRIEF_MIN_MATERIAL = int(os.getenv("NEWS_BRIEF_MIN_CHARS", "180"))
+
+
+def brief_material(item: dict[str, Any]) -> str:
+    """Everything known about an item that has no article page, as one block.
+
+    Deduplicated on the way in: the snippet and the summary are frequently the same sentence,
+    and handing the model the same fact twice is how a two-fact filing turns into four
+    paragraphs.
+    """
+    seen: list[str] = []
+    for field in ("summary_ru", "snippet"):
+        text = str(item.get(field) or "").strip()
+        if not text:
+            continue
+        if any(text in kept or kept in text for kept in seen):
+            continue
+        seen.append(text)
+    return "\n\n".join(seen)
+
+
+def write_brief_detail(item: dict[str, Any], *, client: LLMClient | None = None,
+                       usage: Usage | None = None) -> dict[str, str]:
+    """``{"ru":…, "en":…, "uz":…}`` from the stored material alone, or empty strings.
+
+    Used for the items :func:`write_detail` can never serve — openinfo filings and the
+    sources that publish no article page. Returns empty strings when there is too little to
+    lay out, which is the honest outcome for a bare rating headline.
+    """
+    material = brief_material(item)
+    if len(material) < _BRIEF_MIN_MATERIAL:
+        return {"ru": "", "en": "", "uz": ""}
+    client = client or get_classifier_client()
+    tickers = ", ".join(str(t) for t in (item.get("tickers") or []) if t)
+    user = (f"HEADLINE: {(item.get('title') or '').strip()}\n"
+            f"SOURCE: {(item.get('source') or item.get('source_id') or '').strip()}\n"
+            + (f"SECURITIES: {tickers}\n" if tickers else "")
+            + (f"DATE: {item.get('published_at')}\n" if item.get("published_at") else "")
+            + f"\nMATERIAL:\n{material[:_DETAIL_MAX_CHARS]}")
+    try:
+        raw = client.complete_json(_BRIEF_SYSTEM, user, usage=usage, max_tokens=1200)
+    except Exception as exc:  # noqa: BLE001 — a story page without a long read is the old page
+        logger.warning("brief detail failed for %s: %s", item.get("url"), exc)
+        return {"ru": "", "en": "", "uz": ""}
+    out = {code: str(raw.get(f"detail_{code}") or "").strip() for code in ("ru", "en", "uz")}
+    # All three or none, for the same reason as write_detail.
+    if not out["ru"]:
+        return {"ru": "", "en": "", "uz": ""}
+    return out
+
+
 def write_detail(item: dict[str, Any], article_text: str, *,
                  client: LLMClient | None = None,
                  usage: Usage | None = None) -> dict[str, str]:
