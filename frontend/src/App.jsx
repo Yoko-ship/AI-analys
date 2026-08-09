@@ -8397,6 +8397,29 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       : cur.length >= QC_MAX ? cur : [...cur, k]));
   };
 
+  /**
+   * Open another security's chart from the rail.
+   *
+   * The VIEW carries over — period, chart type, indicators, the fundamentals
+   * on show are all questions about how to look, and a reader who set them up
+   * wants to keep looking that way. The COMPARISON does not: a peer set is
+   * chosen against one security, so carrying it over compares the new security
+   * against the old one's neighbours — and opening a security that was itself
+   * on the chart would compare it with itself, a flat line at 0 %.
+   */
+  const openPeerChart = (tk) => {
+    if (!onOpenChart) return;
+    onOpenChart(tk, {
+      range,
+      from: span.from,
+      to: span.to,
+      type,
+      indicators: [...indicators],
+      fin: finFields,
+      compare: [],
+    });
+  };
+
   const preparedRows = React.useMemo(() => {
     const day = latestTradeStatsDay(tradeStats || {});
     return (marketRows || []).map(enrichMarketStock).map((r) => applyTradeStats(r, tradeStats || {}, day));
@@ -8718,7 +8741,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
         <div className="ac-rail-wrap">
           <AdvancedChartRail rows={preparedRows} securitiesMap={securitiesMap} ticker={up}
             favorites={favorites} onToggleFavorite={onToggleFavorite} lang={lang} signedIn={signedIn}
-            onOpen={(tk) => onOpenChart && onOpenChart(tk)} />
+            onOpen={openPeerChart} />
         </div>
         <button type="button" className="ac-rail-toggle" onClick={() => setRailOpen((v) => !v)}
           aria-label={railOpen ? t("Скрыть список", "Ro'yxatni yashirish", "Hide the list")
@@ -12961,7 +12984,10 @@ function App() {
               initial={chartState}
               onBack={() => setActiveView(prevView === "chart" ? "company" : (prevView || "company"))}
               onOpenCompany={openCompanyPage}
-              onOpenChart={(tk) => openChartPage(tk, chartState)}
+              // The chart hands back the toolbar it is actually showing —
+              // `chartState` here is only what the URL was parsed into on a
+              // cold load, and goes stale the moment anything is pressed.
+              onOpenChart={(tk, state) => openChartPage(tk, state || { ...chartState, compare: [] })}
             />
           )}
 
