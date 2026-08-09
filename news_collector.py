@@ -505,14 +505,20 @@ def _article_text(session: requests.Session, page_url: str, timeout: int = 20) -
 def has_article_page(item: dict[str, Any], sources: dict[str, dict[str, Any]]) -> bool:
     """Whether this item's source publishes a body we can read.
 
-    ``content: "none"`` means the source ships nothing but a headline (the rating agencies,
-    whose pages are SPA shells behind a registration wall), and an openinfo filing has no
-    page of its own at all — the portal 404s every per-fact URL.
+    ``article_body: false`` is the flag for that, and it is the ONLY flag for it. This used
+    to also treat ``content: "none"`` as "no article page", which conflates two different
+    facts: `content` describes what the LISTING or feed ships, `article_body` what stands
+    behind the link. They coincide for the rating agencies, so the conflation went unnoticed
+    — but napp.uz ships no snippet on its listing page and perfectly readable articles behind
+    it (measured 2026-08-09: 756, 1449 and 1084 characters of prose), and every one of its
+    regulatory items was being written off as bodyless because of it.
+
+    An openinfo filing is the separate case: it has no page of its own at all, the portal
+    404s every per-fact URL.
     """
     src = sources.get(item.get("source_id")) or {}
     return bool(item.get("url")) and not (
-        src.get("content") == "none" or src.get("type") == "openinfo"
-        or src.get("article_body") is False)
+        src.get("type") == "openinfo" or src.get("article_body") is False)
 
 
 def enrich_details(items: list[dict[str, Any]], sources: dict[str, dict[str, Any]],
