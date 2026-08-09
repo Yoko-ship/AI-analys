@@ -137,34 +137,72 @@ class TestOnlyWhoFiled:
         assert result["errors"][0]["ticker"] == "HMKB"
 
 
-class TestTheScheduleHasNoStateOfItsOwn:
-    def test_the_catalogs_own_timestamps_say_how_old_it_is(self, catalog) -> None:
-        assert 167 < rc.catalog_age_hours() < 169
+class TestWhoeverHasWaitedLongest:
+    """The feed only knows who FILED. An issuer that fell behind for any other
+    reason — a failed request, a sweep a redeploy cut in half — needs a second
+    way back, or it waits for the next full sweep and possibly past it."""
 
-    def test_an_empty_catalog_has_no_age(self, tmp_path, monkeypatch) -> None:
-        monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(tmp_path / "empty.db"))
-        rc.get_catalog_conn().close()
+    def test_the_stalest_issuers_are_refreshed(self, catalog, synced) -> None:
+        result = rc.sync_stale_companies(limit=2, older_than_hours=24)
 
-        assert rc.catalog_age_hours() is None
+        assert len(synced) == 2
+        assert result["synced"] == 2
 
-    def test_a_stale_catalog_gets_the_full_sweep(self, catalog, monkeypatch) -> None:
-        """Read from the data, not from a timer: a container that never stays up
-        an hour would otherwise never reach a sweep it restarts the clock on."""
+    def test_one_issuer_not_one_ticker(self, catalog, synced) -> None:
+        """Three issuers behind five tickers — HMKB/HMKBP and ACMT1B2/ACMT2B5
+        are one company each, and syncing both halves would be the same fetch."""
+        rc.sync_stale_companies(limit=10, older_than_hours=24)
+
+        assert sorted(c["ticker"] for c in synced) == ["ACMT1B2", "HMKB", "KVTS"]
+
+    def test_the_batch_is_bounded(self, catalog, synced) -> None:
+        """A pass that runs for minutes is a pass a deploy can interrupt."""
+        result = rc.sync_stale_companies(limit=1, older_than_hours=24)
+
+        assert len(synced) == 1
+        assert result["remaining"] == 2
+
+    def test_an_issuer_synced_recently_is_left_alone(self, catalog, synced) -> None:
+        rc.sync_stale_companies(limit=10, older_than_hours=24 * 30)
+
+        assert synced == []
+
+
+class TestTheSweepClockIsRecorded:
+    def test_a_catalog_that_has_never_swept_sweeps(self, catalog, monkeypatch) -> None:
         calls = []
         monkeypatch.setattr(api, "catalog_sync_all", lambda **kw: calls.append("full") or {"total": 1})
-        monkeypatch.setattr(rc, "sync_recent_filings", lambda **kw: calls.append("feed") or {})
 
         assert api._catalog_watch_once()["mode"] == "full"
         assert calls == ["full"]
 
-    def test_a_current_catalog_gets_the_cheap_pass(self, catalog, monkeypatch) -> None:
-        calls = []
-        monkeypatch.setattr(api, "catalog_sync_all", lambda **kw: calls.append("full") or {})
-        monkeypatch.setattr(rc, "sync_recent_filings", lambda **kw: calls.append("feed") or {"synced": 0})
-        monkeypatch.setattr(rc, "catalog_age_hours", lambda: 2.0)
+    def test_a_completed_sweep_is_written_down(self, catalog, monkeypatch) -> None:
+        monkeypatch.setattr(api, "catalog_sync_all", lambda **kw: {"total": 1})
+
+        api._catalog_watch_once()
+
+        assert rc.full_sweep_age_hours() < 0.1
+
+    def test_a_sweep_that_finished_is_not_repeated(self, catalog, monkeypatch) -> None:
+        monkeypatch.setattr(api, "catalog_sync_all", lambda **kw: {"total": 1})
+        monkeypatch.setattr(rc, "sync_recent_filings", lambda **kw: {"synced": 0})
+        monkeypatch.setattr(rc, "sync_stale_companies", lambda **kw: {"synced": 0})
+        api._catalog_watch_once()
 
         assert api._catalog_watch_once()["mode"] == "filings"
-        assert calls == ["feed"]
+
+    def test_an_interrupted_sweep_does_not_count_as_done(self, catalog, monkeypatch) -> None:
+        """The company timestamps say a sweep happened — some of them were just
+        stamped. Only reaching the end records it, so the issuers a redeploy cut
+        the sweep short of are picked up again rather than waiting another day."""
+        def _die(**kw):
+            raise RuntimeError("container went away")
+
+        monkeypatch.setattr(api, "catalog_sync_all", _die)
+        with pytest.raises(RuntimeError):
+            api._catalog_watch_once()
+
+        assert rc.full_sweep_age_hours() is None
 
     def test_the_window_is_wider_than_the_interval(self) -> None:
         """A missed tick — a deploy, a restart, one failed request — has to heal

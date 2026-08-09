@@ -68,6 +68,16 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             sync_error      TEXT
         );
 
+        -- What the catalog knows about itself. One row so far: when the last
+        -- FULL sweep finished. That cannot be derived from the company stamps —
+        -- the hourly pass refreshes a handful, so the newest is always minutes
+        -- old, and the oldest belongs to a ticker the sweep skips on purpose.
+        CREATE TABLE IF NOT EXISTS catalog_state (
+            key        TEXT PRIMARY KEY,
+            value      TEXT,
+            updated_at TEXT
+        );
+
         CREATE TABLE IF NOT EXISTS catalog_reports (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
             ticker              TEXT NOT NULL,
@@ -1352,27 +1362,108 @@ def sync_recent_filings(hours: int = 12, *, force: bool = False) -> dict[str, An
     return result
 
 
-def catalog_age_hours() -> float | None:
-    """How long since any company's catalog entry was last synced, in hours.
-
-    ``None`` when nothing has ever been synced. This is what decides whether the
-    full sweep is due, so the schedule survives a restart with no state of its own.
-    """
-    conn = get_catalog_conn()
-    try:
-        row = conn.execute("SELECT MAX(last_synced_at) AS ls FROM catalog_companies").fetchone()
-    finally:
-        conn.close()
-    stamp = (row["ls"] if row else None) or ""
-    if not stamp:
+def _hours_since(stamp: Any) -> float | None:
+    """Hours since an ISO timestamp, or None if there isn't one to read."""
+    text = str(stamp or "").strip()
+    if not text:
         return None
     try:
-        ts = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except (TypeError, ValueError):
         return None
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
     return (datetime.now(timezone.utc) - ts).total_seconds() / 3600.0
+
+
+def get_state(key: str) -> str | None:
+    conn = get_catalog_conn()
+    try:
+        row = conn.execute("SELECT value FROM catalog_state WHERE key = ?", (key,)).fetchone()
+    except Exception:  # noqa: BLE001 — a deployment that has not migrated yet
+        return None
+    finally:
+        conn.close()
+    return row["value"] if row else None
+
+
+def set_state(key: str, value: str) -> None:
+    conn = get_catalog_conn()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT INTO catalog_state (key, value, updated_at) "
+                "VALUES (?,?,datetime('now')) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+                "updated_at = excluded.updated_at",
+                (key, value))
+    finally:
+        conn.close()
+
+
+FULL_SWEEP_KEY = "catalog_full_sweep_at"
+
+
+def full_sweep_age_hours() -> float | None:
+    """Hours since the last COMPLETED full sweep, or None if there has been none.
+
+    Recorded rather than derived. The company timestamps cannot answer it: the
+    hourly pass refreshes a handful of issuers, so the newest stamp is always
+    minutes old, and the oldest belongs to a preferred ticker the sweep skips on
+    purpose. And a sweep that a redeploy interrupted must count as not done —
+    which is what an unwritten completion says, at no extra cost.
+    """
+    return _hours_since(get_state(FULL_SWEEP_KEY))
+
+
+def _sweep_representatives() -> list[dict[str, Any]]:
+    """One entry per issuer, under the ticker its catalog entry is listed by."""
+    conn = get_catalog_conn()
+    try:
+        rows = conn.execute(
+            "SELECT ticker, company_name, org_id, last_synced_at FROM catalog_companies").fetchall()
+    finally:
+        conn.close()
+    groups: dict[str, list[Any]] = {}
+    for r in rows:
+        groups.setdefault(str((r["org_id"] or "").strip() or r["ticker"]), []).append(r)
+    out = []
+    for members in groups.values():
+        canonical = _canonical_ticker(m["ticker"] for m in members)
+        row = next(m for m in members if m["ticker"] == canonical)
+        out.append(dict(row))
+    return out
+
+
+def sync_stale_companies(limit: int = 8, older_than_hours: float = 24.0) -> dict[str, Any]:
+    """Refresh the few issuers that have gone longest without a sync.
+
+    The safety net under the filing feed, and the reason a pass can be cut short
+    without leaving a hole: whatever a redeploy interrupted is simply the stalest
+    thing next time. Bounded on purpose — a pass that takes minutes is a pass a
+    deploy can interrupt, and the hourly cadence covers sixty-six issuers in a
+    working day either way.
+    """
+    result: dict[str, Any] = {"limit": limit, "targets": [], "synced": 0, "errors": []}
+    if limit <= 0:
+        return result
+    stale = [
+        r for r in _sweep_representatives()
+        if (_hours_since(r["last_synced_at"]) or float("inf")) >= older_than_hours
+    ]
+    stale.sort(key=lambda r: str(r["last_synced_at"] or ""))
+    for row in stale[:limit]:
+        ticker = row["ticker"]
+        result["targets"].append(ticker)
+        try:
+            sync_company(ticker, row["company_name"] or ticker,
+                         org_id=str(row["org_id"] or "") or None)
+            result["synced"] += 1
+        except Exception as exc:  # noqa: BLE001 — one issuer must not stop the rest
+            logger.exception("stale catalog sync failed for %s", ticker)
+            result["errors"].append({"ticker": ticker, "errors": [str(exc)]})
+    result["remaining"] = max(0, len(stale) - len(result["targets"]))
+    return result
 
 
 # ---------------------------------------------------------------------------

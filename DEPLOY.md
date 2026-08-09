@@ -290,17 +290,35 @@ Schedule it on any host that can reach openinfo:
   July and 5 August. None of them were on the site.
 
   So the API runs the watcher in-process (`_catalog_watch_loop`, started at boot after a
-  90 s delay, then hourly). Each pass reads the same filing feed `reports-watch` uses and
-  re-syncs only the issuers that filed — usually nobody, one openinfo request. When the
-  catalog's own newest `last_synced_at` is more than `CATALOG_FULL_SYNC_HOURS` (24) old
-  the pass runs the full sweep instead, which is what discovers issuers we have never
-  catalogued and refreshes the audit opinions (their endpoint has no per-issuer filter).
-  Reading the due-date off the data rather than a timer is deliberate: a container that
-  never stays up an hour would otherwise restart the clock forever. Knobs: `CATALOG_WATCH`
-  (`0` disables), `CATALOG_WATCH_INTERVAL_MIN` (60), `CATALOG_WATCH_WINDOW_HOURS` (12 —
-  wider than the interval so a missed tick heals), `CATALOG_FULL_SYNC_HOURS` (24). Force a
-  pass and see the outcome with `POST /api/admin/catalog-watch?hours=N` (admin secret);
+  90 s delay, then hourly). Each pass does two bounded things: it reads the same filing
+  feed `reports-watch` uses and re-syncs the issuers that filed — usually nobody, one
+  openinfo request — and then refreshes the `CATALOG_WATCH_BATCH` (8) issuers that have
+  gone longest without a sync. The second half is what makes the schedule survive being
+  interrupted: whatever a redeploy cut short is simply the stalest thing an hour later,
+  and sixty-six issuers at eight an hour is a working day.
+
+  Once a day the pass runs the FULL sweep instead — the only thing that discovers an
+  issuer we have never catalogued and refreshes the audit opinions, whose endpoint has no
+  per-issuer filter. Its completion is recorded in `catalog_state`, not inferred: the
+  company timestamps cannot answer "has a sweep finished" (the hourly pass keeps the
+  newest one minutes old, and the oldest belongs to a preferred ticker the sweep skips on
+  purpose), and a sweep a redeploy interrupted must count as not done or the issuers it
+  never reached wait another day.
+
+  Knobs: `CATALOG_WATCH` (`0` disables), `CATALOG_WATCH_INTERVAL_MIN` (60),
+  `CATALOG_WATCH_WINDOW_HOURS` (12 — wider than the interval so a missed tick heals),
+  `CATALOG_WATCH_BATCH` (8), `CATALOG_FULL_SYNC_HOURS` (24). Force a pass and see the
+  outcome with `POST /api/admin/catalog-watch?hours=N` (admin secret);
   `POST /api/admin/catalog-sync` still starts a full sweep in the background.
+
+  **Two dialect bugs were hiding under all of this, and they are the reason nothing
+  worked even when the sync was called.** `catalog_reports`' upsert asked
+  `... AND year IS ?` (SQLite's null-safe equality — a syntax error in PostgreSQL, whose
+  `IS` takes only NULL/TRUE/FALSE) and then `pdf_url = COALESCE(excluded.pdf_url, pdf_url)`
+  (a bare column PostgreSQL cannot tell from `excluded`). Both raise rather than degrade,
+  so every `sync_company` had been failing since the 2026-08-01 cutover — silently, because
+  nothing called it. If you add SQL to a sync path, `EXPLAIN` it against the real database
+  first: it plans without executing, and it is how these were found.
 
   It lives in the API and not in a cron service for a second reason: the API is the only
   service that redeploys on a push. `reports-watch` has no deployment trigger and is

@@ -257,27 +257,46 @@ CATALOG_WATCH_WINDOW_HOURS = int(os.getenv("CATALOG_WATCH_WINDOW_HOURS", "12"))
 # The feed-driven pass cannot see an issuer we have never catalogued, and the
 # audit-opinion endpoint has no per-issuer filter. The full sweep covers both.
 CATALOG_FULL_SYNC_HOURS = int(os.getenv("CATALOG_FULL_SYNC_HOURS", "24"))
+# How many of the longest-unsynced issuers each hourly pass also refreshes. Sixty-six
+# issuers at eight an hour is a working day, and a pass this size is short enough
+# that a redeploy landing on it costs almost nothing.
+CATALOG_WATCH_BATCH = int(os.getenv("CATALOG_WATCH_BATCH", "8"))
 
 
 def _catalog_watch_once() -> dict[str, Any]:
-    """One pass: the issuers that just filed, and the full sweep when it is due.
+    """One pass: whoever just filed, then whoever has waited longest.
+
+    The full sweep runs when it is due, and its completion is RECORDED — a sweep
+    a redeploy cut short does not count, or the issuers it never reached would
+    wait another day. Everything here is bounded so that being cut short costs
+    one pass, not a day.
 
     Blocking (openinfo HTTP + DB writes) — always called in an executor.
     """
-    from reports_catalog import catalog_age_hours, sync_recent_filings
+    from datetime import datetime, timezone
 
-    age = catalog_age_hours()
+    from reports_catalog import (FULL_SWEEP_KEY, full_sweep_age_hours, set_state,
+                                 sync_recent_filings, sync_stale_companies)
+
+    age = full_sweep_age_hours()
     if age is None or age >= CATALOG_FULL_SYNC_HOURS:
-        # Due by the catalog's own timestamps, so a restart cannot reset the
-        # clock and a container that never stays up an hour still gets there.
         result = catalog_sync_all()
-        logger.info("catalog watch: full sweep (age=%s h) %s", None if age is None else round(age, 1),
+        set_state(FULL_SWEEP_KEY, datetime.now(timezone.utc).isoformat())
+        logger.info("catalog watch: full sweep (last %s h ago) %s",
+                    None if age is None else round(age, 1),
                     {k: result.get(k) for k in ("total", "synced", "skipped")})
         return {"mode": "full", **result}
-    result = sync_recent_filings(hours=CATALOG_WATCH_WINDOW_HOURS)
-    if result.get("synced") or result.get("errors"):
-        logger.info("catalog watch: %s", result)
-    return {"mode": "filings", **result}
+
+    filings = sync_recent_filings(hours=CATALOG_WATCH_WINDOW_HOURS)
+    # The feed only knows who filed. An issuer that fell behind for any other
+    # reason — a failed request, a pass a deploy interrupted — is caught by
+    # taking the stalest few every hour, which converges without a cursor.
+    stale = sync_stale_companies(limit=CATALOG_WATCH_BATCH,
+                                 older_than_hours=CATALOG_FULL_SYNC_HOURS)
+    if filings.get("synced") or filings.get("errors") or stale.get("synced"):
+        logger.info("catalog watch: filed=%s stale=%s remaining=%s",
+                    filings.get("targets"), stale.get("targets"), stale.get("remaining"))
+    return {"mode": "filings", "filings": filings, "stale": stale}
 
 
 async def _catalog_watch_loop() -> None:
