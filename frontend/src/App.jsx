@@ -12303,7 +12303,7 @@ function LandingView({ language, marketRows, tradeStats, securitiesMap, companie
       && Number.isFinite(r.changePercent) && marketDisplayPrice(r) != null)
     .sort((a, b) => (b.stockVolume || 0) - (a.stockVolume || 0))
     .slice(0, 14), [prepared, stats]);
-  const boardRows = tape.slice(0, 6);
+  const boardRows = tape.slice(0, 8);
 
   const sparkKey = boardRows.map((r) => r.ticker).join(",");
   const [spark, setSpark] = React.useState({});
@@ -12449,7 +12449,7 @@ function LandingView({ language, marketRows, tradeStats, securitiesMap, companie
 
       {/* ── 02 · Табло рынка ── */}
       <section className="lv-sec">
-        <div className="lv-container">
+        <div className="lv-container lv-wide">
           <div className="lv-sec-head lv-reveal">
             <span className="lv-sec-num">02</span>
             <h2 className="lv-sec-title">{LT.s2Title[0]} <em>{LT.s2Title[1]}</em></h2>
@@ -12492,14 +12492,14 @@ function LandingView({ language, marketRows, tradeStats, securitiesMap, companie
                 <h5>{LT.railGainers}</h5>
                 {stats.topGainers.slice(0, 3).map((r) => (
                   <button type="button" className="lv-mover" key={r.ticker} onClick={() => onOpenCompany(r.ticker)}>
-                    <span><span className="lv-tk">{r.ticker}</span> <span className="lv-nm">{nameOf(r.ticker)}</span></span>
+                    <span className="lv-mover-id"><span className="lv-tk">{r.ticker}</span><span className="lv-nm">{nameOf(r.ticker)}</span></span>
                     <span className="pc lv-u">{fmtPct(r.changePercent, lang, 2)}</span>
                   </button>
                 ))}
                 <h5>{LT.railLosers}</h5>
                 {stats.topLosers.slice(0, 2).map((r) => (
                   <button type="button" className="lv-mover" key={r.ticker} onClick={() => onOpenCompany(r.ticker)}>
-                    <span><span className="lv-tk">{r.ticker}</span> <span className="lv-nm">{nameOf(r.ticker)}</span></span>
+                    <span className="lv-mover-id"><span className="lv-tk">{r.ticker}</span><span className="lv-nm">{nameOf(r.ticker)}</span></span>
                     <span className="pc lv-d">{fmtPct(r.changePercent, lang, 2)}</span>
                   </button>
                 ))}
