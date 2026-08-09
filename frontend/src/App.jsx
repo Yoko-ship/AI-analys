@@ -163,7 +163,6 @@ const NEWS_TX = {
       bond: "Купоны, выпуски и погашения — то, что касается держателя облигаций",
     },
     emptyInstrument: "За месяц таких сообщений не было.",
-    untypedNote: "Ещё есть сообщения по бумагам, тип которых каталог не знает ({tickers}) — они во «Все бумаги».",
     cat: { report: "Отчётность", listing: "Листинг", delisting: "Делистинг" },
     forms: { NAS: "НСБУ", NSBU: "НСБУ", IFRS: "МСФО", MSFO: "МСФО", Audit: "Аудит", Audition: "Аудит" },
   },
@@ -186,7 +185,6 @@ const NEWS_TX = {
       bond: "Coupons, issues and redemptions — what concerns a bondholder",
     },
     emptyInstrument: "No such filing in the past month.",
-    untypedNote: "There are also filings on securities the catalog cannot type ({tickers}) — they are under “All securities”.",
     cat: { report: "Filing", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
@@ -209,7 +207,6 @@ const NEWS_TX = {
       bond: "Kuponlar, emissiyalar va to'lovlar — obligatsiya egasi uchun",
     },
     emptyInstrument: "Bir oy ichida bunday xabar bo'lmagan.",
-    untypedNote: "Katalog turini bilmaydigan qog'ozlar bo'yicha xabarlar ham bor ({tickers}) — ular «Barcha qog'ozlar»da.",
     cat: { report: "Hisobot", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
@@ -686,15 +683,12 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
     const inst = tab === "corporate" && instrument !== "all" ? `&instrument=${instrument}` : "";
     fetch(`/api/news/feed?limit=60&days=30${group ? `&type=${group}` : ""}${inst}`)
       .then((r) => r.json())
-      .then((d) => {
-        if (alive) setState({ loading: false, error: !d || !d.ok, items: (d && d.items) || [],
-                              untyped: (d && d.untyped_tickers) || [] });
-      })
+      .then((d) => { if (alive) setState({ loading: false, error: !d || !d.ok, items: (d && d.items) || [] }); })
       .catch(() => { if (alive) setState({ loading: false, error: true, items: [] }); });
     return () => { alive = false; };
   }, [reloadKey, tab, instrument]);
 
-  const { loading, error, items, untyped } = state;
+  const { loading, error, items } = state;
   // Which story gets the masthead when the top-ranked one cannot be illustrated
   // — see lib/newsfeed.js. Nothing is dropped: the story that would have led
   // simply leads the stack instead.
@@ -746,14 +740,6 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
             </button>
           ))}
         </div>
-      )}
-      {/* Filings whose securities the catalog cannot type. They are not lost —
-          «Все бумаги» holds them — but a filter that drops something has to
-          say so, or the absence reads as "there is no such news". */}
-      {tab === "corporate" && instrument !== "all" && (untyped || []).length > 0 && (
-        <p className="news-untyped muted">
-          {(tx.untypedNote || "").replace("{tickers}", untyped.join(", "))}
-        </p>
       )}
 
       {user && user.is_admin && apiFetch && (

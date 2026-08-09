@@ -2531,8 +2531,10 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
                       instrument=instrument, ticker_types=ticker_types, notes=notes))
     body: dict[str, Any] = {"ok": True, "count": len(items), "items": items,
                             "disclaimer": NEWS_DISCLAIMER}
-    # Named on the response, not swallowed: these are filings the filter could
-    # not place, and the page says so rather than letting them disappear.
+    # Diagnostic, not rendered: the news page showed this and the customer had
+    # it removed — a reader does not care that TNGB has no catalog type. It
+    # stays on the response because it is the only place the gap is visible at
+    # all, and the items themselves are still reachable under «Все бумаги».
     if notes.get("untyped_tickers"):
         body["untyped_tickers"] = notes["untyped_tickers"]
     return _json_safe(body)
