@@ -82,23 +82,26 @@ html[data-theme="light"] body {
 html[data-theme="dark"],
 html[data-theme="dark"] body,
 body[data-theme="dark"] {
-  --bg: #0a0e16;
-  --bg-2: #0e1420;
-  --bg-glass: rgba(14, 20, 32, 0.72);
-  --surface-2: #121a27;
+  /* Graphite, not navy — the whole dark theme follows the landing's neutral
+     near-black ground (customer's pick, 2026-08-09). Surfaces and inks lose
+     the blue cast; the blue stays only where it means something: the accent. */
+  --bg: #0e0f12;
+  --bg-2: #131417;
+  --bg-glass: rgba(19, 20, 23, 0.72);
+  --surface-2: #17181c;
 
-  --panel: #141b28;
-  --panel-strong: #10161f;
-  --panel-elevated: #182131;
+  --panel: #17181d;
+  --panel-strong: #121317;
+  --panel-elevated: #1c1d23;
 
   --border: rgba(255, 255, 255, 0.09);
   --border-hover: rgba(255, 255, 255, 0.17);
   --border-focus: rgba(96, 141, 239, 0.6);
 
-  --text: #e7edf7;
-  --text-secondary: #c2cdde;
-  --muted: #94a2b8;
-  --muted-light: #647184;
+  --text: #f0f1f3;
+  --text-secondary: #c6c9cf;
+  --muted: #a2a6ae;
+  --muted-light: #6b6f78;
 
   --accent: #5b8cf0;
   --accent-hover: #7aa3f5;
