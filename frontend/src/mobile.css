@@ -1192,3 +1192,26 @@ iframe {
     font-size: 11.5px;
   }
 }
+
+/* «Сравнить с» on a phone: the label keeps its line, the cards get their own.
+   Side by side, a 178px search box and a scroller share 360px and neither is
+   usable. */
+@media (max-width: 620px) {
+  .ac-compare {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .ac-compare-input {
+    width: auto;
+    flex: 1 1 140px;
+  }
+
+  .ac-compare-scroll {
+    flex: 1 1 100%;
+  }
+
+  .ac-compare-arrow {
+    display: none;
+  }
+}
