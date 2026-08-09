@@ -233,6 +233,7 @@ async def _populate_securities_on_startup() -> None:
             stocks_list = stocks if isinstance(stocks, list) else []
             if stocks_list:
                 _fill_names(stocks_list, await loop.run_in_executor(None, _issuer_names))
+                _fill_source_urls(stocks_list)
                 count = await loop.run_in_executor(None, partial(sync_securities, stocks_list, logos))
                 await loop.run_in_executor(None, partial(record_volume, stocks_list))
                 logger.info("startup securities sync (%s): %d rows", security_type or "all", count)
@@ -1005,6 +1006,32 @@ def _apply_quote(row: dict[str, Any], quote: dict[str, Any]) -> None:
     row["inactive"] = None
 
 
+def _exchange_url(isin: Any, is_bond: bool) -> str | None:
+    """The exchange's own page for a security — the board's «источник» link.
+
+    One shape, one place: rows reached the board from three sources and only two
+    of them built this link, so the source column was empty for every row the
+    live mirror carried (it sends ``url: null``).
+    """
+    code = str(isin or "").strip().upper()
+    if not code:
+        return None
+    return f"https://uzse.uz/isu_infos/{'BND' if is_bond else 'STK'}?isu_cd={code}"
+
+
+def _fill_source_urls(rows: list[dict[str, Any]]) -> int:
+    """Give every row with an ISIN its exchange link, in place. Returns rows filled."""
+    filled = 0
+    for row in rows:
+        if str(row.get("url") or "").strip():
+            continue
+        url = _exchange_url(row.get("isin"), str(row.get("type") or "").lower() == "bond")
+        if url:
+            row["url"] = url
+            filled += 1
+    return filled
+
+
 def _quote_to_stock(quote: dict[str, Any]) -> dict[str, Any]:
     """Shape an exchange quote as a market-feed row for a security no feed carries."""
     isin = str(quote.get("isin") or "").upper()
@@ -1029,7 +1056,7 @@ def _quote_to_stock(quote: dict[str, Any]) -> dict[str, Any]:
         "security_type_text": None,
         "shares_outstanding": shares,
         "market_cap": (shares * close) if (shares and close) else quote.get("market_cap"),
-        "url": f"https://uzse.uz/isu_infos/{'BND' if is_bond else 'STK'}?isu_cd={isin}",
+        "url": _exchange_url(isin, is_bond),
     }
 
 
@@ -1068,6 +1095,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     # stores the name too instead of the feed's null.
     issuer_names = await loop.run_in_executor(None, _issuer_names)
     _fill_names(stocks_list, issuer_names)
+    _fill_source_urls(stocks_list)
 
     # Background sync into securities DB (fire-and-forget). Copy the list so the
     # inactive-listing merge below cannot leak synthetic rows into the executor.
@@ -1144,10 +1172,10 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
             if not row.get("isin"):
                 row["isin"] = sec.get("isin")
         # Registry rows carry no exchange link — build it from the ISIN so the
-        # source column links to uzse.uz like live-feed rows do.
-        if not row.get("url") and row.get("isin"):
-            kind = "BND" if is_bond else "STK"
-            row["url"] = f"https://uzse.uz/isu_infos/{kind}?isu_cd={row['isin']}"
+        # source column links to uzse.uz. (Live-feed rows get theirs below; the
+        # mirror sends url=null for all of them.)
+        if not row.get("url"):
+            row["url"] = _exchange_url(row.get("isin"), is_bond)
         merged.append(row)
         added_inactive += 1
 
@@ -1186,6 +1214,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
         # the quote itself.
         quoted_rows = [r for r in merged if str(r.get("isin") or "").upper() in quotes]
         _fill_names(quoted_rows, issuer_names)
+        _fill_source_urls(quoted_rows)
         if quoted_rows:
             loop.run_in_executor(None, partial(sync_securities, quoted_rows, _load_logos()))
 
@@ -1204,6 +1233,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     # Registry and quote-cache rows joined the board after the first pass; name
     # them too, so no row reaches the company column as a bare ISIN.
     _fill_names(merged, issuer_names)
+    _fill_source_urls(merged)
 
     return _json_safe({
         "ok": True,

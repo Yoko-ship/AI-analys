@@ -347,6 +347,35 @@ class TestEveryRowIsNamed:
 
         assert body["stocks"][0]["name"] == "«O'zbektelekom» AJ"
 
+    def test_every_row_links_to_its_page_on_the_exchange(self, monkeypatch) -> None:
+        """The mirror sends url=null for all 78 of its securities, so the source
+        column was «—» for every live row while registry rows linked fine."""
+        monkeypatch.setattr(api, "_issuer_names", lambda: self.NAMES)
+        board = TestTheBoardIsCompleted()
+        body = board._board(monkeypatch, {}, mirror=[
+            {"ticker": "UZTL", "isin": "UZ7038030001", "type": "stock", "url": None},
+            {"ticker": "ACMT1B2", "isin": "UZ6058977AB6", "type": "bond", "url": None},
+        ])
+
+        urls = {r["ticker"]: r["url"] for r in body["stocks"]}
+        assert urls["UZTL"] == "https://uzse.uz/isu_infos/STK?isu_cd=UZ7038030001"
+        assert urls["ACMT1B2"] == "https://uzse.uz/isu_infos/BND?isu_cd=UZ6058977AB6"
+
+    def test_a_link_the_feed_carries_is_kept(self, monkeypatch) -> None:
+        monkeypatch.setattr(api, "_issuer_names", lambda: self.NAMES)
+        board = TestTheBoardIsCompleted()
+        body = board._board(monkeypatch, {}, mirror=[
+            {"ticker": "UZTL", "isin": "UZ7038030001", "url": "https://uzse.uz/elsewhere"},
+        ])
+
+        assert body["stocks"][0]["url"] == "https://uzse.uz/elsewhere"
+
+    def test_a_row_with_no_isin_gets_no_link(self, monkeypatch) -> None:
+        """A registry line for an issuer with no tradable security has no page
+        on the exchange — the column says «—» rather than link to a 404."""
+        assert api._exchange_url(None, False) is None
+        assert api._exchange_url("  ", True) is None
+
     def test_a_row_that_joined_from_the_quote_cache_is_named_too(self, monkeypatch) -> None:
         """The quote-cache rows are appended after the mirror pass, and they are
         the ones with no name of their own at all."""

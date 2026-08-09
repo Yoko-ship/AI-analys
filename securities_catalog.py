@@ -304,7 +304,7 @@ def sync_securities(stocks: list[dict], logos: dict[str, str]) -> int:
                 last_price=excluded.last_price,
                 close_price=excluded.close_price,
                 last_trade_date=excluded.last_trade_date,
-                url=excluded.url,
+                url=COALESCE(excluded.url, securities.url),
                 updated_at=excluded.updated_at
             """,
             (
