@@ -11,27 +11,30 @@
    ========================================================================== */
 
 .landing-view {
-  --lv-night: #0b101d;
-  --lv-night-2: #10182a;
-  --lv-ink: #eef2f9;
-  --lv-ink-2: #a8b4c9;
-  --lv-ink-3: #67748c;
+  /* Graphite, not navy — chosen by the customer over the original night-blue:
+     a neutral near-black ground so the amber accent and the sunset carry all
+     the color on the page. */
+  --lv-night: #0e0f12;
+  --lv-night-2: #131417;
+  --lv-ink: #f0f1f3;
+  --lv-ink-2: #a9adb6;
+  --lv-ink-3: #6b6f78;
   --lv-amber: #ffb45e;
   --lv-amber-deep: #e08b2d;
-  --lv-line: rgba(238, 242, 249, 0.13);
-  --lv-glass: rgba(11, 16, 29, 0.55);
-  --lv-panel: rgba(21, 31, 54, 0.65);
+  --lv-line: rgba(240, 241, 243, 0.12);
+  --lv-glass: rgba(14, 15, 18, 0.55);
+  --lv-panel: rgba(26, 27, 32, 0.7);
   --lv-up: #4ade80;
   --lv-down: #fb7185;
-  --lv-belt-bg: rgba(16, 24, 42, 0.8);
-  --lv-row-line: rgba(238, 242, 249, 0.06);
-  --lv-rail-bg: rgba(11, 16, 29, 0.45);
-  --lv-mover-bg: rgba(21, 31, 54, 0.5);
-  --lv-step-bg: rgba(16, 24, 42, 0.6);
-  --lv-shadow: 0 34px 80px rgba(4, 7, 14, 0.55);
+  --lv-belt-bg: rgba(19, 20, 23, 0.85);
+  --lv-row-line: rgba(240, 241, 243, 0.06);
+  --lv-rail-bg: rgba(10, 11, 13, 0.45);
+  --lv-mover-bg: rgba(30, 31, 36, 0.6);
+  --lv-step-bg: rgba(22, 23, 27, 0.65);
+  --lv-shadow: 0 34px 80px rgba(0, 0, 0, 0.55);
   --lv-amber-soft: rgba(255, 180, 94, 0.45);
-  --lv-hero-shadow: 0 4px 40px rgba(11, 16, 29, 0.8);
-  --lv-hero-shadow-sm: 0 2px 20px rgba(11, 16, 29, 0.9);
+  --lv-hero-shadow: 0 4px 40px rgba(14, 15, 18, 0.8);
+  --lv-hero-shadow-sm: 0 2px 20px rgba(14, 15, 18, 0.9);
   --lv-go-bg: #ffb45e;
   --lv-go-ink: #10131c;
   --lv-bar-top: #ffb45e;
