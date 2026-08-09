@@ -3413,27 +3413,32 @@ async def api_admin_catalog_sync(
 @app.post("/api/admin/catalog-watch")
 async def api_admin_catalog_watch(
     hours: int = CATALOG_WATCH_WINDOW_HOURS,
+    stale: int = CATALOG_WATCH_BATCH,
     force: bool = False,
     _: None = Depends(_require_admin),
 ) -> dict[str, Any]:
-    """Run the filing-driven catalog pass now, and answer with what it did.
+    """Run the hourly catalog pass now, and answer with what it did.
 
-    The hourly loop does this on its own; this is how you make it happen on
-    demand and see the outcome. Deliberately the feed pass only — the full sweep
-    is minutes long and belongs behind /api/admin/catalog-sync, which returns
-    immediately and reports through the log.
+    Both halves of it: the issuers openinfo says filed in the last ``hours``,
+    and the ``stale`` issuers that have gone longest without a sync. Deliberately
+    NOT the full sweep — that one runs for minutes and belongs behind
+    /api/admin/catalog-sync, which returns immediately and reports to the log.
     """
-    from reports_catalog import sync_recent_filings
+    from reports_catalog import sync_recent_filings, sync_stale_companies
 
     hours = max(1, min(int(hours), 24 * 30))
+    stale = max(0, min(int(stale), 100))
     loop = asyncio.get_running_loop()
     try:
-        result = await loop.run_in_executor(
+        filings = await loop.run_in_executor(
             None, partial(sync_recent_filings, hours=hours, force=force))
+        stragglers = await loop.run_in_executor(
+            None, partial(sync_stale_companies, limit=stale,
+                          older_than_hours=CATALOG_FULL_SYNC_HOURS))
     except Exception as exc:
         logger.exception("admin catalog watch failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"ok": True, **_json_safe(result)}
+    return {"ok": True, "filings": _json_safe(filings), "stale": _json_safe(stragglers)}
 
 
 @app.get("/api/securities")
