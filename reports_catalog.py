@@ -3936,16 +3936,30 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
 
 
 def get_company_reports(ticker: str) -> list[dict[str, Any]]:
-    """Return all catalog reports for a ticker, newest first."""
+    """Return all catalog reports for the issuer behind a ticker, newest first.
+
+    By the issuer, not the ticker: the company page and /catalog are looking at
+    the same record, and reading it per-ticker made them disagree — 28 filings
+    on one page and 38 on the other for the same bank, because ten had been
+    synced under its preferred class.
+    """
     conn = get_catalog_conn()
-    rows = conn.execute("""
+    siblings = _org_siblings(conn, ticker) or [(ticker or "").upper()]
+    placeholders = ",".join("?" * len(siblings))
+    rows = conn.execute(f"""
         SELECT report_form, period_type, year, quarter, title, pdf_url, excel_url, excel_url_form1, synced_at
         FROM catalog_reports
-        WHERE ticker = ?
+        WHERE ticker IN ({placeholders})
         ORDER BY year DESC, quarter DESC, synced_at DESC
-    """, (ticker,)).fetchall()
+    """, siblings).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    best: dict[tuple, tuple[int, dict[str, Any]]] = {}
+    for r in rows:
+        key = _report_key(r)
+        links = sum(1 for c in ("pdf_url", "excel_url", "excel_url_form1") if r[c])
+        if key not in best or links > best[key][0]:
+            best[key] = (links, dict(r))
+    return [r for _, r in best.values()]
 
 
 def get_company_ratios_cached(ticker: str) -> dict[str, Any]:

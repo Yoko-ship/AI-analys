@@ -143,6 +143,14 @@ class TestTheIssuersWholeRecordIsReachable:
         assert rc.get_report_urls("ACMT1B2", "NSBU", 1999, 0) is None
         assert rc.get_report_urls("ZZZZ", "NSBU", 2024, 0) is None
 
+    def test_the_company_page_reads_the_same_record(self, catalog) -> None:
+        """/catalog and the company page look at one thing; per-ticker reads made
+        them disagree — 38 filings on one and 28 on the other for the same bank."""
+        page = rc.get_company_reports("HMKB")
+
+        assert len(page) == rc.get_company_index("HMKB")["report_count"] == 2
+        assert {(r["report_form"], r["year"]) for r in page} == {("NSBU", 2024), ("Audition", 2015)}
+
     def test_a_single_ticker_company_is_untouched(self, catalog) -> None:
         assert rc._org_siblings(rc.get_catalog_conn(), "KVTS") == ["KVTS"]
         assert rc.get_company_index("KVTS")["report_count"] == 1
