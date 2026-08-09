@@ -776,10 +776,41 @@ def resolve_news_types(news_type: Any) -> list[str]:
     return out
 
 
+def filter_by_instrument(items: list[dict[str, Any]], instrument: str | None,
+                         ticker_types: dict[str, str] | None) -> list[dict[str, Any]]:
+    """Keep the items that name at least one security of `instrument`'s kind.
+
+    Corporate news splits cleanly along the instrument a reader holds: a coupon
+    payment, a new tranche or a redemption concerns bondholders and nobody else,
+    while a dividend or a board change concerns shareholders. The classifier has
+    no opinion about this — both are «corporate_event» — so the split comes from
+    the securities the filing NAMES, which the catalog already types.
+    A filing that names both classes of one issuer belongs to both readers and
+    is returned to both; that is not a duplicate, it is the same fact being
+    relevant twice.
+
+    An item with no issuer at all (macro copy that slipped into the group) is
+    dropped by any instrument filter: "news about bonds" is a claim about the
+    item, and silence is not that claim.
+    """
+    kind = str(instrument or "").strip().lower()
+    if kind not in ("stock", "bond"):
+        return items
+    types = ticker_types or {}
+    out = []
+    for it in items:
+        for tk in it.get("tickers") or []:
+            if types.get(str(tk).upper()) == kind:
+                out.append(it)
+                break
+    return out
+
+
 def get_news_feed(
     *, limit: int = 60, days: int = 30, only_relevant: bool = True,
     news_type: Any = None, order: str = "rank",
     min_relevance: float | None = None,
+    instrument: str | None = None, ticker_types: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Public editorial feed: relevant, classified items, **ranked by likely impact**.
 
@@ -820,6 +851,10 @@ def get_news_feed(
     rows = conn.execute(" ".join(q), params).fetchall()
     conn.close()
     items = [_row_to_item(r) for r in rows]
+    # Before ranking, not after: the rank window exists so a strong item just
+    # outside the newest N can still surface, and filtering afterwards would
+    # spend that window on stories the reader asked not to see.
+    items = filter_by_instrument(items, instrument, ticker_types)
     if order != "rank":
         return items[:max(1, min(limit, 200))]
 

@@ -156,6 +156,13 @@ const NEWS_TX = {
       corporate: "События и отчётность конкретных эмитентов",
     },
     emptyTab: "В этом разделе пока пусто — посмотрите «Все».",
+    instruments: { all: "Все бумаги", stock: "Акции", bond: "Облигации" },
+    instrumentHint: {
+      all: "События и отчётность конкретных эмитентов",
+      stock: "Дивиденды, собрания, сделки — то, что касается акционера",
+      bond: "Купоны, выпуски и погашения — то, что касается держателя облигаций",
+    },
+    emptyInstrument: "За месяц таких сообщений не было.",
     cat: { report: "Отчётность", listing: "Листинг", delisting: "Делистинг" },
     forms: { NAS: "НСБУ", NSBU: "НСБУ", IFRS: "МСФО", MSFO: "МСФО", Audit: "Аудит", Audition: "Аудит" },
   },
@@ -171,6 +178,13 @@ const NEWS_TX = {
       corporate: "Events and reporting of individual issuers",
     },
     emptyTab: "Nothing here yet — try “All”.",
+    instruments: { all: "All securities", stock: "Shares", bond: "Bonds" },
+    instrumentHint: {
+      all: "Events and reporting of individual issuers",
+      stock: "Dividends, meetings, transactions — what concerns a shareholder",
+      bond: "Coupons, issues and redemptions — what concerns a bondholder",
+    },
+    emptyInstrument: "No such filing in the past month.",
     cat: { report: "Filing", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
@@ -186,6 +200,13 @@ const NEWS_TX = {
       corporate: "Aniq emitentlarning voqealari va hisobotlari",
     },
     emptyTab: "Bu bo'limda hozircha bo'sh — «Barchasi»ni ko'ring.",
+    instruments: { all: "Barcha qog'ozlar", stock: "Aksiyalar", bond: "Obligatsiyalar" },
+    instrumentHint: {
+      all: "Aniq emitentlarning voqealari va hisobotlari",
+      stock: "Dividendlar, yig'ilishlar, bitimlar — aksiyador uchun",
+      bond: "Kuponlar, emissiyalar va to'lovlar — obligatsiya egasi uchun",
+    },
+    emptyInstrument: "Bir oy ichida bunday xabar bo'lmagan.",
     cat: { report: "Hisobot", listing: "Listing", delisting: "Delisting" },
     forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
   },
@@ -595,6 +616,19 @@ const NEWS_TABS = [
   { key: "corporate", type: "corporate" },   // corporate_event + financial_report
 ];
 
+// Корпоративные splits again, by the instrument the filing is ABOUT. The
+// classifier cannot make this split — a coupon payment and a dividend are both
+// «corporate_event» — so the server makes it from the securities each item
+// names. Only offered on that tab: an economy item names no issuer, and a
+// bond/share filter over macro copy would empty the page.
+const NEWS_INSTRUMENTS = ["all", "stock", "bond"];
+
+function newsInstrumentFromLocation() {
+  if (typeof window === "undefined") return "all";
+  const wanted = new URLSearchParams(window.location.search).get("instrument");
+  return NEWS_INSTRUMENTS.includes(wanted) ? wanted : "all";
+}
+
 function newsTabFromLocation() {
   if (typeof window === "undefined") return "all";
   const wanted = new URLSearchParams(window.location.search).get("tab");
@@ -610,28 +644,49 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
   // Kept in the URL so a tab can be linked and survives a reload — as a query,
   // not a path, because /news/{slug} is already the article route.
   const [tab, setTab] = React.useState(newsTabFromLocation);
+  const [instrument, setInstrument] = React.useState(newsInstrumentFromLocation);
   React.useEffect(() => {
-    const onPop = () => setTab(newsTabFromLocation());
+    const onPop = () => { setTab(newsTabFromLocation()); setInstrument(newsInstrumentFromLocation()); };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  const selectTab = React.useCallback((key) => {
-    setTab(key);
+  // One writer for the query string: the tab and the instrument share it, and
+  // two callbacks each rebuilding the URL from their own state dropped the
+  // other's parameter every time either was pressed.
+  const pushQuery = React.useCallback((nextTab, nextInstrument) => {
+    const p = new URLSearchParams();
+    if (nextTab !== "all") p.set("tab", nextTab);
+    if (nextTab === "corporate" && nextInstrument !== "all") p.set("instrument", nextInstrument);
+    const q = p.toString();
     try {
-      window.history.replaceState({}, "", key === "all" ? "/news" : `/news?tab=${key}`);
+      window.history.replaceState({}, "", q ? `/news?${q}` : "/news");
     } catch { /* history is unavailable in some embedded views */ }
   }, []);
+  const selectTab = React.useCallback((key) => {
+    setTab(key);
+    // Leaving Корпоративные drops the instrument: it is a filter on issuer
+    // filings, and carrying it onto Экономика would ask macro copy which bonds
+    // it names.
+    const nextInstrument = key === "corporate" ? instrument : "all";
+    setInstrument(nextInstrument);
+    pushQuery(key, nextInstrument);
+  }, [instrument, pushQuery]);
+  const selectInstrument = React.useCallback((key) => {
+    setInstrument(key);
+    pushQuery("corporate", key);
+  }, [pushQuery]);
 
   React.useEffect(() => {
     let alive = true;
     setState({ loading: true, error: false, items: [] });
     const group = (NEWS_TABS.find((t) => t.key === tab) || {}).type;
-    fetch(`/api/news/feed?limit=60&days=30${group ? `&type=${group}` : ""}`)
+    const inst = tab === "corporate" && instrument !== "all" ? `&instrument=${instrument}` : "";
+    fetch(`/api/news/feed?limit=60&days=30${group ? `&type=${group}` : ""}${inst}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setState({ loading: false, error: !d || !d.ok, items: (d && d.items) || [] }); })
       .catch(() => { if (alive) setState({ loading: false, error: true, items: [] }); });
     return () => { alive = false; };
-  }, [reloadKey, tab]);
+  }, [reloadKey, tab, instrument]);
 
   const { loading, error, items } = state;
   // Which story gets the masthead when the top-ranked one cannot be illustrated
@@ -654,7 +709,11 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
       <header className="led-head">
         <div className="led-kicker">{tx.eyebrow}</div>
         <h1 className="led-title">{tx.title}</h1>
-        <p className="led-sub">{(tx.tabHint && tx.tabHint[tab]) || tx.subtitle}</p>
+        <p className="led-sub">
+          {(tab === "corporate" && instrument !== "all"
+            && tx.instrumentHint && tx.instrumentHint[instrument])
+            || (tx.tabHint && tx.tabHint[tab]) || tx.subtitle}
+        </p>
       </header>
 
       <nav className="news-tabs" aria-label={tx.title}>
@@ -668,6 +727,21 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
         ))}
       </nav>
 
+      {/* A second row, not three more tabs beside the first: this narrows
+          «Корпоративные», it is not a fourth peer of it. */}
+      {tab === "corporate" && (
+        <div className="news-subtabs" role="group" aria-label={(tx.tabs && tx.tabs.corporate) || "corporate"}>
+          {NEWS_INSTRUMENTS.map((key) => (
+            <button key={key} type="button"
+              className={`news-subtab ${instrument === key ? "active" : ""}`}
+              aria-pressed={instrument === key}
+              onClick={() => selectInstrument(key)}>
+              {(tx.instruments && tx.instruments[key]) || key}
+            </button>
+          ))}
+        </div>
+      )}
+
       {user && user.is_admin && apiFetch && (
         <NewsAdminPanel language={language} apiFetch={apiFetch} onStored={() => setReloadKey((k) => k + 1)} />
       )}
@@ -680,7 +754,11 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
       ) : error ? (
         <div className="led-empty">{tx.error}</div>
       ) : !items.length ? (
-        <div className="led-empty">{tab === "all" ? tx.empty : (tx.emptyTab || tx.empty)}</div>
+        <div className="led-empty">
+          {tab === "corporate" && instrument !== "all"
+            ? (tx.emptyInstrument || tx.emptyTab || tx.empty)
+            : tab === "all" ? tx.empty : (tx.emptyTab || tx.empty)}
+        </div>
       ) : (
         <div className="led-cols">
           <main className="led-main">
