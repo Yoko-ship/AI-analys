@@ -12,11 +12,22 @@ three languages of prose for 200 items.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 import news_classifier
 import news_collector as nc
 import news_store
+
+
+REGISTRY = json.loads((Path(nc.__file__).resolve().parent / "news_sources.json")
+                      .read_text(encoding="utf-8"))["sources"]
+
+
+def _source(source_id: str) -> dict:
+    return next(s for s in REGISTRY if s["id"] == source_id)
 
 
 _ARTICLE = """
@@ -85,7 +96,7 @@ class TestWhatIsNeverAsked:
         monkeypatch.setattr(nc, "_article_text",
                             lambda *a, **k: called.append(a[1]) or "")
         registry = {
-            "fitch": {"id": "fitch", "content": "none"},
+            "fitch": {"id": "fitch", "content": "none", "article_body": False},
             "openinfo_facts": {"id": "openinfo_facts", "type": "openinfo"},
             "uza": {"id": "uza", "content": "snippet"},
         }
@@ -96,6 +107,24 @@ class TestWhatIsNeverAsked:
         nc.enrich_details(items, registry)
 
         assert called == ["https://uza.uz/c"]
+
+    def test_a_listing_with_no_snippet_still_has_an_article_behind_it(self, monkeypatch):
+        """`content` describes the LISTING, `article_body` the page — conflating them wrote
+        off every napp.uz item, whose articles run to 1400 characters of prose."""
+        called = []
+        monkeypatch.setattr(nc, "_article_text", lambda *a, **k: called.append(a[1]) or "x" * 400)
+        monkeypatch.setattr(nc, "write_detail", lambda *a, **k: {"ru": "p", "en": "p", "uz": "p"})
+
+        nc.enrich_details([{"url": "https://napp.uz/ru/n/1", "source_id": "napp"}],
+                          {"napp": {"id": "napp", "content": "none"}})
+
+        assert called == ["https://napp.uz/ru/n/1"]
+
+    def test_the_agencies_say_so_explicitly_in_the_registry(self):
+        """Measured, not inferred — so the flag survives a change to `content`."""
+        for sid in ("fitch", "moodys", "spglobal"):
+            assert _source(sid).get("article_body") is False, sid
+        assert _source("napp").get("article_body") is None
 
     def test_an_unreadable_page_is_never_sent_as_an_article(self, monkeypatch):
         """No body means no article call — the fallback below is a different prompt."""
