@@ -59,6 +59,7 @@ from news_classifier import (  # noqa: E402  (after load_dotenv)
     prefilter_reject,
     screen_items,
     translate_summaries,
+    write_brief_detail,
     write_detail,
 )
 from runtime_preflight import NEWS_REQUIREMENTS, preflight  # noqa: E402  (after load_dotenv)
@@ -424,7 +425,18 @@ def enrich_images(items: list[dict[str, Any]], sources: dict[str, dict[str, Any]
 # and a model call, and the pass runs daily, so an item that misses today is picked up
 # tomorrow rather than the backlog being hammered at once — the same reasoning as the image
 # retry cap above.
-_DETAIL_CAP = int(os.getenv("NEWS_DETAIL_CAP", "12"))
+#
+# 12 was BELOW the inflow, which is a different thing from a cap: the feed takes 16-36
+# relevant items a day, so the pass could never converge, and a newest-first work list meant
+# the shortfall always landed on the same (older) items. Measured before this changed: 18 of
+# 148 eligible items had a long read and all eighteen were from the last two days. 40 clears
+# a normal day and leaves room to drain the backlog; the tail share below is what guarantees
+# the draining even when a day overruns it.
+_DETAIL_CAP = int(os.getenv("NEWS_DETAIL_CAP", "40"))
+# What fraction of a run is spent on the OLDEST items without a long read rather than the
+# newest. Without it the newest-first list is self-perpetuating — see
+# news_store.rows_without_detail.
+_DETAIL_TAIL_SHARE = float(os.getenv("NEWS_DETAIL_TAIL_SHARE", "0.35"))
 _ARTICLE_MAX_BYTES = 900_000
 # Markup that is never article prose. Dropped before the paragraphs are collected, or a
 # cookie banner and a "read also" rail end up in the text handed to the model.
@@ -480,34 +492,70 @@ def _article_text(session: requests.Session, page_url: str, timeout: int = 20) -
     return "\n\n".join(body)
 
 
+def has_article_page(item: dict[str, Any], sources: dict[str, dict[str, Any]]) -> bool:
+    """Whether this item's source publishes a body we can read.
+
+    ``content: "none"`` means the source ships nothing but a headline (the rating agencies,
+    whose pages are SPA shells behind a registration wall), and an openinfo filing has no
+    page of its own at all — the portal 404s every per-fact URL.
+    """
+    src = sources.get(item.get("source_id")) or {}
+    return bool(item.get("url")) and not (
+        src.get("content") == "none" or src.get("type") == "openinfo"
+        or src.get("article_body") is False)
+
+
 def enrich_details(items: list[dict[str, Any]], sources: dict[str, dict[str, Any]],
                    *, max_fetch: int | None = None,
                    usage: Any = None) -> dict[str, dict[str, str]]:
-    """``{url: {"ru":…,"en":…,"uz":…}}`` — our own long read for items that can have one.
+    """``{url: {"ru":…,"en":…,"uz":…}}`` — our own long read, by whichever route an item has.
 
-    Only for sources that actually publish an article page: ``content: "none"`` means the
-    source ships nothing but a headline (the rating agencies, whose pages are SPA shells
-    behind a registration wall), and an openinfo filing has no page of its own at all — the
-    portal 404s every per-fact URL, and those items already carry the filing's own figures.
+    Two routes, because "open the source's article page" only exists for some of them:
+
+    * the source publishes a body — read it once, in memory, and have the model write our
+      own account of it (:func:`news_classifier.write_detail`);
+    * it does not — an openinfo filing or a headline-only source — lay out the material we
+      already hold, the disclosure's own figures and our summary
+      (:func:`news_classifier.write_brief_detail`), which adds no fact and may return
+      nothing when there is nothing to lay out.
+
+    Before this second route, a third of the feed could never have a body at all: 36 of the
+    200 items on the live feed are openinfo filings, and a filing's figures are exactly the
+    part a holder opens the page for.
     """
     if max_fetch is None:
         max_fetch = _DETAIL_CAP
-    todo = []
+    todo, brief = [], []
     for it in items:
-        src = sources.get(it.get("source_id")) or {}
-        if (not it.get("url") or src.get("content") == "none"
-                or src.get("type") == "openinfo" or src.get("article_body") is False):
-            continue
-        todo.append(it)
-    if not todo or max_fetch <= 0:
+        (todo if has_article_page(it, sources) else brief).append(it)
+    if max_fetch <= 0 or not (todo or brief):
         return {}
+    out: dict[str, dict[str, str]] = {}
+    # ONE budget across both routes, or a cap of 40 quietly means 80 model calls on a day
+    # with filings AND articles. Half each when both have work, and whatever one route does
+    # not spend is left to the other.
+    brief = [it for it in brief if it.get("url")]        # the url is the write key
+    brief_budget = max_fetch if not todo else max(1, max_fetch // 2)
+    thin = 0
+    for it in brief[:brief_budget]:
+        detail = write_brief_detail(it, usage=usage)
+        if detail.get("ru"):
+            out[it["url"]] = detail
+        else:
+            thin += 1
+    if brief:
+        logger.info("detail pass: %d item(s) with no article page; %d laid out from stored "
+                    "material%s", len(brief), len(out),
+                    f", {thin} too thin to state anything" if thin else "")
+    max_fetch -= min(len(brief), brief_budget)
+    if not todo or max_fetch <= 0:
+        return out
     if len(todo) > max_fetch:
-        logger.info("detail pass: %d candidate(s); reading %d this run (NEWS_DETAIL_CAP), "
-                    "the rest on the next one", len(todo), max_fetch)
+        logger.info("detail pass: %d candidate(s) with an article; reading %d this run "
+                    "(NEWS_DETAIL_CAP), the rest on the next one", len(todo), max_fetch)
     session = requests.Session()
     last_hit: dict[str, float] = {}
-    out: dict[str, dict[str, str]] = {}
-    empty = 0
+    empty = wrote = fell_back = 0
     for it in todo[:max_fetch]:
         src = sources.get(it.get("source_id")) or {}
         session.headers.update(_source_headers(src))
@@ -519,14 +567,23 @@ def enrich_details(items: list[dict[str, Any]], sources: dict[str, dict[str, Any
         last_hit[host] = time.monotonic()
         text = _article_text(session, it["url"])
         detail = write_detail(it, text, usage=usage) if text else {"ru": ""}
+        # The page was there and gave us nothing readable — a paywall, an SPA shell, an
+        # extraction miss. Falling back to the stored material is what stops such an item
+        # from being retried forever and reaching the reader as a bare headline every time;
+        # it costs the same one call the retry would have cost.
+        if not detail.get("ru"):
+            detail = write_brief_detail(it, usage=usage)
+            fell_back += 1 if detail.get("ru") else 0
         if detail.get("ru"):
             out[it["url"]] = detail
+            wrote += 1
         else:
             empty += 1
     session.close()
-    logger.info("detail pass: %d of %d article(s) produced a long read%s",
-                len(out), min(len(todo), max_fetch),
-                f" ({empty} had no readable body)" if empty else "")
+    logger.info("detail pass: %d of %d article(s) produced a long read%s%s",
+                wrote, min(len(todo), max_fetch),
+                f" ({fell_back} from stored material)" if fell_back else "",
+                f", {empty} yielded nothing" if empty else "")
     return out
 
 
@@ -1685,8 +1742,13 @@ def _prod_items_without_detail(days: int) -> list[dict[str, Any]]:
         return []
     # The feed reports whether an item HAS a long read, not its text — three languages of
     # prose over 200 items would be a megabyte of response for a list that shows none of it.
+    # snippet and summary come along because an item with no article page is written from
+    # exactly those two fields (news_classifier.write_brief_detail) — without them the
+    # page-less route would have nothing to lay out on a candidate read from prod.
     return [{"url": it.get("url"), "title": it.get("title"), "source": it.get("source"),
-             "source_id": it.get("source_id")}
+             "source_id": it.get("source_id"), "snippet": it.get("snippet"),
+             "summary_ru": it.get("summary_ru"), "tickers": it.get("tickers"),
+             "published_at": it.get("published_at")}
             for it in items if it.get("url") and not it.get("has_detail")]
 
 
@@ -1701,7 +1763,10 @@ def backfill_details(*, limit: int | None = None, days: int = 30, push: bool = T
     itself is never written anywhere (see ``_article_text``).
 
     Ordered by the prod feed first, so the day's cap is spent on cards that are actually on
-    the page. Only empty columns are filled, so a re-run after a failed push costs nothing.
+    the page — but a share of every run is reserved for the OLDEST items still without one.
+    Newest-first alone never converges while the cap is under the day's inflow: the shortfall
+    lands on the same items every time and three weeks of stories stay bare. Only empty
+    columns are filled, so a re-run after a failed push costs nothing.
     """
     limit = _DETAIL_CAP if limit is None else limit
     remote = _prod_items_without_detail(days) if push else []
@@ -1712,9 +1777,17 @@ def backfill_details(*, limit: int | None = None, days: int = 30, push: bool = T
         if r["url"] not in candidates:
             candidates[r["url"]] = r
             local_only += 1
-    items = list(candidates.values())[:max(1, limit)]
-    logger.info("detail backfill: %d from the prod feed + %d local-only, %d to read",
-                len(remote), local_only, len(items))
+    # The tail slice is taken from the store rather than from the prod feed: the feed is
+    # ranked and capped at 200, so its own oldest is not the corpus's oldest.
+    tail_n = int(max(0.0, min(_DETAIL_TAIL_SHARE, 1.0)) * limit)
+    tail = [r for r in news_store.rows_without_detail(limit=max(tail_n, 1), days=days,
+                                                      oldest_first=True)][:tail_n]
+    head = [c for c in candidates.values()
+            if c["url"] not in {t["url"] for t in tail}][:max(1, limit - len(tail))]
+    items = head + tail
+    logger.info("detail backfill: %d from the prod feed + %d local-only, "
+                "%d to write (%d newest, %d from the backlog)",
+                len(remote), local_only, len(items), len(head), len(tail))
     if not items:
         return {"candidates": 0, "written": 0, "updated_local": 0, "updated_prod": 0}
 

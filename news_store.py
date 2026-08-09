@@ -332,13 +332,20 @@ def set_translations(translations: dict[str, dict[str, str]]) -> int:
 
 
 def rows_without_detail(*, limit: int = 20, days: int = 30,
-                        source_ids: list[str] | None = None) -> list[dict[str, Any]]:
+                        source_ids: list[str] | None = None,
+                        oldest_first: bool = False) -> list[dict[str, Any]]:
     """Feed-visible items with no long read yet — the detail pass's work list.
 
-    Relevant rows only, newest first: this is the one pass that opens the source's article
-    page and spends a model call on it, so it is spent on cards a reader can actually reach.
-    ``source_ids`` narrows it to the sources that HAVE an article page (the caller reads that
-    from the registry — the rating agencies serve a shell and openinfo has no page at all).
+    Relevant rows only. ``source_ids`` narrows it to the sources that HAVE an article page
+    (the caller reads that from the registry — the rating agencies serve a shell and openinfo
+    has no page at all).
+
+    ``oldest_first`` exists because newest-first ALONE starves the backlog. The pass has a
+    per-run cap; while the cap is below the day's inflow, a newest-first work list picks
+    today's items every run and yesterday's are pushed down for good. Measured on the live
+    feed: 148 items eligible for a long read, 18 written, and all eighteen from the last two
+    days — three weeks of stories that would never have been reached. The caller spends part
+    of each run from this end so the tail drains.
     """
     conn = rc.get_catalog_conn()
     q = ["SELECT n.url, n.title, n.source_id, n.snippet, n.summary_ru",
@@ -349,7 +356,8 @@ def rows_without_detail(*, limit: int = 20, days: int = 30,
     if source_ids:
         q.append(f"AND n.source_id IN ({','.join('?' * len(source_ids))})")
         params.extend(source_ids)
-    q.append("ORDER BY COALESCE(n.published_at, n.collected_at) DESC LIMIT ?")
+    q.append("ORDER BY COALESCE(n.published_at, n.collected_at) "
+             + ("ASC" if oldest_first else "DESC") + " LIMIT ?")
     params.append(max(1, min(limit, 200)))
     rows = conn.execute(" ".join(q), params).fetchall()
     conn.close()
