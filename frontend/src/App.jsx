@@ -12129,13 +12129,30 @@ const LANDING_TX = {
 // The dawn scene: sky gradient, twinkling stars, an occasional meteor, the
 // amber "market chart" horizon line (faded on the left so it never fights the
 // headline), and the city silhouette with the Tashkent TV tower.
-function LandingSky() {
+function LandingSky({ theme }) {
   const ref = React.useRef(null);
   React.useEffect(() => {
     const cv = ref.current;
     if (!cv) return undefined;
     const ctx = cv.getContext("2d");
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Two palettes, one scene: night dawn for dark theme, morning for light.
+    // Stars, window lights and meteors belong to the night only.
+    const pal = theme === "light" ? {
+      sky: [[0, "#c9ddf2"], [0.5, "#e2edf9"], [0.78, "#f4e2c4"], [0.92, "#f6c98e"], [1, "#f1b269"]],
+      glow: [[0, "rgba(255, 224, 170, 0.95)"], [0.35, "rgba(255, 190, 110, 0.45)"], [1, "rgba(255, 190, 110, 0)"]],
+      night: false,
+      line: [[0, "rgba(180, 83, 9, 0.10)"], [0.45, "rgba(180, 83, 9, 0.20)"], [0.62, "rgba(180, 83, 9, 0.55)"], [1, "rgba(180, 83, 9, 0.6)"]],
+      dot: "#b45309", dotGlow: "rgba(180, 83, 9, 0.22)",
+      city: "#2b3a55",
+    } : {
+      sky: [[0, "#0b101d"], [0.52, "#182036"], [0.78, "#4a3550"], [0.92, "#b4633f"], [1, "#e8955a"]],
+      glow: [[0, "rgba(255, 214, 140, 0.85)"], [0.35, "rgba(255, 170, 90, 0.35)"], [1, "rgba(255, 170, 90, 0)"]],
+      night: true,
+      line: [[0, "rgba(255, 180, 94, 0.08)"], [0.45, "rgba(255, 180, 94, 0.16)"], [0.62, "rgba(255, 180, 94, 0.5)"], [1, "rgba(255, 180, 94, 0.55)"]],
+      dot: "#ffb45e", dotGlow: "rgba(255, 180, 94, 0.25)",
+      city: "#070b14",
+    };
     let stars = [], meteors = [], t0 = 0, lastMeteor = 0, raf = 0, alive = true;
     const pts = [0.0, 0.30, 0.06, 0.26, 0.12, 0.34, 0.18, 0.24, 0.25, 0.30, 0.32, 0.18, 0.40, 0.26,
                  0.48, 0.14, 0.56, 0.22, 0.64, 0.10, 0.72, 0.18, 0.80, 0.06, 0.88, 0.14, 1.0, 0.02];
@@ -12154,7 +12171,7 @@ function LandingSky() {
 
     const skyline = (w, h) => {
       const base = h * 0.86;
-      ctx.fillStyle = "#070b14";
+      ctx.fillStyle = pal.city;
       ctx.beginPath();
       ctx.moveTo(0, h); ctx.lineTo(0, base);
       let x = 0, i = 0;
@@ -12168,7 +12185,7 @@ function LandingSky() {
       ctx.closePath(); ctx.fill();
 
       const tx = w * 0.72, ty = base, TH = Math.min(h * 0.42, 330);
-      ctx.fillStyle = "#070b14";
+      ctx.fillStyle = pal.city;
       ctx.beginPath();
       ctx.moveTo(tx - 26, ty); ctx.lineTo(tx - 4, ty - TH * 0.38); ctx.lineTo(tx + 4, ty - TH * 0.38); ctx.lineTo(tx + 26, ty);
       ctx.closePath(); ctx.fill();
@@ -12179,10 +12196,12 @@ function LandingSky() {
       ctx.fillStyle = "rgba(255, 120, 120, 0.9)";
       ctx.beginPath(); ctx.arc(tx, ty - TH, 2.6, 0, Math.PI * 2); ctx.fill();
 
-      ctx.fillStyle = "rgba(255, 196, 120, 0.28)";
-      for (let k = 0; k < 60; k++) {
-        const wx = ((k * 97) % w), wy = base - 8 - ((k * 53) % 58);
-        ctx.fillRect(wx, wy, 2.5, 2.5);
+      if (pal.night) {
+        ctx.fillStyle = "rgba(255, 196, 120, 0.28)";
+        for (let k = 0; k < 60; k++) {
+          const wx = ((k * 97) % w), wy = base - 8 - ((k * 53) % 58);
+          ctx.fillRect(wx, wy, 2.5, 2.5);
+        }
       }
     };
 
@@ -12193,30 +12212,24 @@ function LandingSky() {
       const t = (ts - t0) / 1000;
 
       const g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, "#0b101d");
-      g.addColorStop(0.52, "#182036");
-      g.addColorStop(0.78, "#4a3550");
-      g.addColorStop(0.92, "#b4633f");
-      g.addColorStop(1, "#e8955a");
+      pal.sky.forEach(([stop, color]) => g.addColorStop(stop, color));
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
 
       const sx = w * 0.72, sy = h * 0.84;
       const sg = ctx.createRadialGradient(sx, sy, 4, sx, sy, 180);
-      sg.addColorStop(0, "rgba(255, 214, 140, 0.85)");
-      sg.addColorStop(0.35, "rgba(255, 170, 90, 0.35)");
-      sg.addColorStop(1, "rgba(255, 170, 90, 0)");
+      pal.glow.forEach(([stop, color]) => sg.addColorStop(stop, color));
       ctx.fillStyle = sg;
       ctx.fillRect(0, 0, w, h);
 
-      for (let i = 0; i < stars.length; i++) {
+      if (pal.night) for (let i = 0; i < stars.length; i++) {
         const s = stars[i];
         const a = 0.35 + 0.35 * Math.sin(t * 0.8 + s.p);
         ctx.fillStyle = `rgba(238, 242, 249, ${reduced ? 0.45 : a.toFixed(3)})`;
         ctx.fillRect(s.x, s.y, s.r, s.r);
       }
 
-      if (!reduced && t - lastMeteor > 7 && Math.random() < 0.02) {
+      if (pal.night && !reduced && t - lastMeteor > 7 && Math.random() < 0.02) {
         lastMeteor = t;
         meteors.push({ x: Math.random() * w * 0.7 + w * 0.15, y: Math.random() * h * 0.25 + 20, vx: -3.4, vy: 1.6, life: 1 });
       }
@@ -12233,10 +12246,7 @@ function LandingSky() {
       }
 
       const lg = ctx.createLinearGradient(0, 0, w, 0);
-      lg.addColorStop(0, "rgba(255, 180, 94, 0.08)");
-      lg.addColorStop(0.45, "rgba(255, 180, 94, 0.16)");
-      lg.addColorStop(0.62, "rgba(255, 180, 94, 0.5)");
-      lg.addColorStop(1, "rgba(255, 180, 94, 0.55)");
+      pal.line.forEach(([stop, color]) => lg.addColorStop(stop, color));
       ctx.strokeStyle = lg;
       ctx.lineWidth = 2;
       ctx.lineJoin = "round";
@@ -12252,9 +12262,9 @@ function LandingSky() {
       if (reveal >= 1) {
         const lx = pts[pts.length - 2] * w, ly = h * 0.62 - pts[pts.length - 1] * h * 0.28;
         const pulse = reduced ? 4 : 4 + Math.sin(t * 2.4) * 1.4;
-        ctx.fillStyle = "rgba(255, 180, 94, 0.25)";
+        ctx.fillStyle = pal.dotGlow;
         ctx.beginPath(); ctx.arc(lx, ly, pulse * 2.4, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#ffb45e";
+        ctx.fillStyle = pal.dot;
         ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2); ctx.fill();
       }
 
@@ -12271,11 +12281,11 @@ function LandingSky() {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
     };
-  }, []);
+  }, [theme]);
   return <canvas ref={ref} className="lv-sky" aria-hidden="true" />;
 }
 
-function LandingView({ language, marketRows, tradeStats, securitiesMap, companies, onNavigate, onOpenCompany, onOpenNews }) {
+function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, companies, onNavigate, onOpenCompany, onOpenNews }) {
   const lang = normalizeLanguage(language);
   const LT = LANDING_TX[lang] || LANDING_TX.ru;
   const etx = EDNEWS_TX[lang] || EDNEWS_TX.ru;
@@ -12423,7 +12433,7 @@ function LandingView({ language, marketRows, tradeStats, securitiesMap, companie
     <div className="landing-view" ref={rootRef}>
       {/* ── Сцена ── */}
       <section className="lv-stage">
-        <LandingSky />
+        <LandingSky theme={theme} />
         <div className="lv-mid">
           <div className="lv-lede">
             <h1 className="lv-h1">{LT.h1[0]}<br />{LT.h1[1]}</h1>
@@ -13723,6 +13733,7 @@ function App() {
           {activeView === "main" && (
             <LandingView
               language={language}
+              theme={theme}
               marketRows={marketRows}
               tradeStats={marketTradeStats}
               securitiesMap={securitiesMap}
