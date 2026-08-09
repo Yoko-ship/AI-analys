@@ -593,14 +593,18 @@ def _upsert_report(
              published_at, pdf_url, excel_url, excel_url_form1,
              openinfo_report_id, object_id, synced_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+        -- Keep a link the new payload does not carry. The existing row must be
+        -- named: SQLite reads a bare column here as the stored row, PostgreSQL
+        -- cannot tell it from `excluded` and raises AmbiguousColumn — so the
+        -- unqualified form does not degrade, it stops the sync dead.
         ON CONFLICT(ticker, report_form, period_type, year, quarter) DO UPDATE SET
             title               = excluded.title,
             published_at        = excluded.published_at,
-            pdf_url             = COALESCE(excluded.pdf_url, pdf_url),
-            excel_url           = COALESCE(excluded.excel_url, excel_url),
-            excel_url_form1     = COALESCE(excluded.excel_url_form1, excel_url_form1),
-            openinfo_report_id  = COALESCE(excluded.openinfo_report_id, openinfo_report_id),
-            object_id           = COALESCE(excluded.object_id, object_id),
+            pdf_url             = COALESCE(excluded.pdf_url, catalog_reports.pdf_url),
+            excel_url           = COALESCE(excluded.excel_url, catalog_reports.excel_url),
+            excel_url_form1     = COALESCE(excluded.excel_url_form1, catalog_reports.excel_url_form1),
+            openinfo_report_id  = COALESCE(excluded.openinfo_report_id, catalog_reports.openinfo_report_id),
+            object_id           = COALESCE(excluded.object_id, catalog_reports.object_id),
             synced_at           = datetime('now')
         """,
         (
