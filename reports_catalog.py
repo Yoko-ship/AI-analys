@@ -9,7 +9,7 @@ import threading
 import time
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import urlencode
 
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
@@ -1293,6 +1293,46 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
 # Query
 # ---------------------------------------------------------------------------
 
+def _org_siblings(conn, ticker: str) -> list[str]:
+    """Every ticker the issuer behind ``ticker`` is listed under.
+
+    An issuer files on openinfo once, as an organisation — but this catalog is
+    keyed by ticker, and one issuer can hold several: a common and a preferred
+    share (HMKB/HMKBP), or one ticker per bond series (four for AGAT CREDIT).
+    The sync then scatters that single set of filings across them, so no ticker
+    holds the issuer's complete record: Hamkorbank showed 28 reports under HMKB
+    and 29 under HMKBP, only 19 of them the same. ``org_id`` is what says the
+    two are one company.
+    """
+    ticker = (ticker or "").upper().strip()
+    if not ticker:
+        return []
+    row = conn.execute(
+        "SELECT org_id FROM catalog_companies WHERE ticker = ?", (ticker,)).fetchone()
+    org = str((row["org_id"] if row else "") or "").strip()
+    if not org:
+        return [ticker]
+    rows = conn.execute(
+        "SELECT ticker FROM catalog_companies WHERE org_id = ?", (org,)).fetchall()
+    return sorted({ticker} | {str(r["ticker"]).upper() for r in rows if r["ticker"]})
+
+
+def _canonical_ticker(tickers: Iterable[str]) -> str:
+    """The one ticker an issuer's catalog entry is listed under.
+
+    A common share outranks its own preferred (HMKB over HMKBP — the P is the
+    same company's second class, not a second company); otherwise the first
+    alphabetically, which for a bond issuer is an arbitrary but stable choice.
+    """
+    group = {t for t in tickers if t}
+    return sorted(group, key=lambda t: (t.endswith("P") and t[:-1] in group, t))[0]
+
+
+def _report_key(row: Any) -> tuple:
+    """What makes two rows the same filing, whichever ticker they were synced under."""
+    return (row["report_form"], row["period_type"], row["year"], row["quarter"])
+
+
 def get_company_index(ticker: str) -> dict[str, Any]:
     conn = get_catalog_conn()
     company_row = conn.execute(
@@ -1300,16 +1340,31 @@ def get_company_index(ticker: str) -> dict[str, Any]:
         (ticker,),
     ).fetchone()
 
-    reports = conn.execute(
-        """
+    # The issuer's whole record, not the share of it that happens to be filed
+    # under this ticker.
+    siblings = _org_siblings(conn, ticker) or [ticker]
+    placeholders = ",".join("?" * len(siblings))
+    rows = conn.execute(
+        f"""
         SELECT report_form, period_type, year, quarter, pdf_url, excel_url, excel_url_form1
         FROM catalog_reports
-        WHERE ticker = ?
+        WHERE ticker IN ({placeholders})
         ORDER BY year DESC, quarter DESC
         """,
-        (ticker,),
+        siblings,
     ).fetchall()
     conn.close()
+
+    # The same filing can be stored under two of the issuer's tickers; keep the
+    # copy that carries the most download links.
+    best: dict[tuple, Any] = {}
+    for r in rows:
+        key = _report_key(r)
+        current = best.get(key)
+        links = sum(1 for c in ("pdf_url", "excel_url", "excel_url_form1") if r[c])
+        if current is None or links > current[0]:
+            best[key] = (links, r)
+    reports = [r for _, r in best.values()]
 
     availability: dict[str, dict[str, list]] = {
         "NSBU": {"annual": [], "quarter": []},
@@ -1343,6 +1398,8 @@ def get_company_index(ticker: str) -> dict[str, Any]:
         "sector": COMPANY_SECTORS.get(ticker),
         "org_id": company_row["org_id"] if company_row else None,
         "last_synced_at": company_row["last_synced_at"] if company_row else None,
+        # Every ticker of this issuer — the entry stands for all of them.
+        "tickers": siblings,
         "availability": availability,
         "years": sorted(years_seen, reverse=True),
         "report_count": len(reports),
@@ -1359,6 +1416,24 @@ def get_report_urls(ticker: str, form: str, year: int, quarter: int) -> dict[str
         """,
         (ticker, form, year, quarter),
     ).fetchone()
+    if row is None:
+        # The catalog entry stands for the whole issuer, so it offers filings
+        # that were synced under a sibling ticker. Ask them too, or every such
+        # report would 404 the moment someone clicked it.
+        siblings = [t for t in _org_siblings(conn, ticker) if t != (ticker or "").upper().strip()]
+        if siblings:
+            placeholders = ",".join("?" * len(siblings))
+            row = conn.execute(
+                f"""
+                SELECT pdf_url, excel_url, excel_url_form1, title, published_at, period_type
+                FROM catalog_reports
+                WHERE ticker IN ({placeholders})
+                  AND report_form = ? AND year = ? AND quarter = ?
+                ORDER BY (CASE WHEN excel_url IS NOT NULL AND excel_url != '' THEN 0 ELSE 1 END),
+                         (CASE WHEN pdf_url   IS NOT NULL AND pdf_url   != '' THEN 0 ELSE 1 END)
+                """,
+                [*siblings, form, year, quarter],
+            ).fetchone()
     conn.close()
     if not row:
         return None
@@ -1373,44 +1448,91 @@ def get_report_urls(ticker: str, form: str, year: int, quarter: int) -> dict[str
 
 
 def list_companies_with_stats() -> list[dict[str, Any]]:
+    """One entry per ISSUER, not per ticker.
+
+    The catalog is a list of companies and their filings, and openinfo files by
+    organisation — so a company holding several tickers belongs on it once. It
+    used to appear once per ticker, which put «AGAT CREDIT» on the page four
+    times (one per bond series), each showing a different slice of the same
+    filings: 3 reports, 0, 0, 1. The rule that hid a preferred share behind its
+    common (HMKB/HMKBP) was the same idea applied to one special case; org_id
+    covers both, and it merges the filings instead of discarding one side's.
+    """
     conn = get_catalog_conn()
-    rows = conn.execute(
+    companies = conn.execute(
+        "SELECT ticker, company_name, org_id, last_synced_at "
+        "FROM catalog_companies ORDER BY ticker").fetchall()
+    # DISTINCT over the issuer: the same filing stored under two of its tickers
+    # is one report, and summing per-ticker counts would double it.
+    filings = conn.execute(
         """
-        SELECT
-            c.ticker,
-            c.company_name,
-            c.org_id,
-            c.last_synced_at,
-            SUM(CASE WHEN r.report_form = 'NSBU'      THEN 1 ELSE 0 END) AS nsbu_count,
-            SUM(CASE WHEN r.report_form = 'MSFO'      THEN 1 ELSE 0 END) AS msfo_count,
-            SUM(CASE WHEN r.report_form = 'Audition'  THEN 1 ELSE 0 END) AS audit_count,
-            COUNT(r.id) AS total_count
+        SELECT DISTINCT
+            COALESCE(NULLIF(c.org_id, ''), c.ticker) AS grp,
+            r.report_form AS form,
+            r.period_type AS pt,
+            r.year        AS yr,
+            r.quarter     AS qr
         FROM catalog_companies c
-        LEFT JOIN catalog_reports r ON r.ticker = c.ticker
-        GROUP BY c.ticker
-        ORDER BY c.ticker
+        JOIN catalog_reports r ON r.ticker = c.ticker
         """
     ).fetchall()
     conn.close()
-    # Exclude preferred share tickers that duplicate their base ticker's data
-    base_tickers = {r["ticker"] for r in rows}
-    return [
-        dict(r) for r in rows
-        if not (r["ticker"].endswith("P") and r["ticker"][:-1] in base_tickers)
-    ]
+
+    counts: dict[str, dict[str, int]] = {}
+    for f in filings:
+        bucket = counts.setdefault(str(f["grp"]), {
+            "nsbu_count": 0, "msfo_count": 0, "audit_count": 0, "total_count": 0})
+        key = {"NSBU": "nsbu_count", "MSFO": "msfo_count", "Audition": "audit_count"}.get(f["form"])
+        if key:
+            bucket[key] += 1
+        bucket["total_count"] += 1
+
+    groups: dict[str, list[Any]] = {}
+    for row in companies:
+        groups.setdefault(str((row["org_id"] or "").strip() or row["ticker"]), []).append(row)
+
+    out: list[dict[str, Any]] = []
+    for grp, members in groups.items():
+        canonical = _canonical_ticker(r["ticker"] for r in members)
+        row = next(r for r in members if r["ticker"] == canonical)
+        synced = [r["last_synced_at"] for r in members if r["last_synced_at"]]
+        out.append({
+            "ticker": canonical,
+            "company_name": row["company_name"],
+            "org_id": row["org_id"],
+            # The issuer was last seen when any of its tickers was.
+            "last_synced_at": max(synced) if synced else None,
+            "tickers": sorted(r["ticker"] for r in members),
+            **counts.get(grp, {"nsbu_count": 0, "msfo_count": 0,
+                               "audit_count": 0, "total_count": 0}),
+        })
+    out.sort(key=lambda c: c["ticker"])
+    return out
 
 
 def get_catalog_stats() -> dict[str, Any]:
     conn = get_catalog_conn()
+    # Counted in the unit the company list is built from — the issuer and its
+    # distinct filings. Counting rows said "85 companies · 2021 reports" above a
+    # list of 73 companies whose own totals add up to fewer.
     totals = conn.execute(
         """
         SELECT
-            COUNT(DISTINCT ticker) AS companies_synced,
+            COUNT(DISTINCT grp) AS companies_synced,
             COUNT(*) AS total_reports,
-            SUM(CASE WHEN report_form = 'NSBU'     THEN 1 ELSE 0 END) AS nsbu,
-            SUM(CASE WHEN report_form = 'MSFO'     THEN 1 ELSE 0 END) AS msfo,
-            SUM(CASE WHEN report_form = 'Audition' THEN 1 ELSE 0 END) AS audit
-        FROM catalog_reports
+            SUM(CASE WHEN form = 'NSBU'     THEN 1 ELSE 0 END) AS nsbu,
+            SUM(CASE WHEN form = 'MSFO'     THEN 1 ELSE 0 END) AS msfo,
+            SUM(CASE WHEN form = 'Audition' THEN 1 ELSE 0 END) AS audit
+        FROM (
+            SELECT DISTINCT
+                COALESCE(NULLIF(c.org_id, ''), r.ticker) AS grp,
+                r.report_form AS form,
+                r.period_type AS pt,
+                r.year        AS yr,
+                r.quarter     AS qr
+            FROM catalog_reports r
+            LEFT JOIN catalog_companies c ON c.ticker = r.ticker
+        ) filings
         """
     ).fetchone()
     last_sync = conn.execute(

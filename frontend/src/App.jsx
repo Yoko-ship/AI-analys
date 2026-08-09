@@ -6981,7 +6981,35 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
           the board row, so nothing here is recomputed and nothing can disagree
           with the market table. */}
       <div className="company-hero-grid">
-        <div className="company-hero-watch">{watchRail}</div>
+        {/* The watchlist, and under it the reference blocks. They used to sit in
+            a row of their own below the whole grid, which put them at the
+            bottom of the page with two thirds of that row empty — measured at
+            1920px: 720px of dead track beside them, and 551px of dead column
+            here, at the same time. They are rail-width blocks and this is the
+            rail that had room. */}
+        <div className="company-hero-watch">
+          {watchRail}
+          <div className="company-watch-extra">
+            <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
+              dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
+              placement="lower" />
+            <div className="co-sidebar-block">
+              <h3 className="co-heading">{lang === "ru" ? "Детали" : lang === "uz" ? "Tafsilotlar" : "Details"}</h3>
+              <div className="company-metrics-list">
+                {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span className="isin-mono">{sec.isin}</span></div>}
+                {nominalVal && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Номинал" : lang === "uz" ? "Nominal" : "Nominal"}</span><span>{formatMarketNumber(nominalVal, lang)} UZS</span></div>}
+                {industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : lang === "uz" ? "Soha" : "Sector"}</span><span>{sectorLabel(lang, industry)}</span></div>}
+                {securityType && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип" : lang === "uz" ? "Turi" : "Type"}</span><span>{securityType === "bond" ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond") : (lang === "ru" ? "Акция" : lang === "uz" ? "Aksiya" : "Stock")}</span></div>}
+                {securityType !== "bond" && (
+                  <div className="company-metric-row">
+                    <span className="panel-label">{lang === "ru" ? "Класс" : lang === "uz" ? "Sinf" : "Class"}</span>
+                    <span>{isPreferred ? (lang === "ru" ? "Привилегированная" : lang === "uz" ? "Imtiyozli" : "Preferred") : (lang === "ru" ? "Обыкновенная" : lang === "uz" ? "Oddiy" : "Common")}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
         <div className="company-hero-main">
           <div className="company-chart-panel panel">
             {/* The metrics response still decides whether candles mean anything
@@ -7034,30 +7062,6 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
         </div>
       </div>
 
-      {/* What a reader consults once rather than reads against the chart. Laid
-          out in rail-width tracks, not stretched across the page: «Детали» is a
-          four-row key/value list and at 1800px its labels and values would sit
-          at opposite ends of the screen. */}
-      <div className="company-lower-grid">
-        <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
-          dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
-          placement="lower" />
-        <div className="co-sidebar-block">
-            <h3 className="co-heading">{lang === "ru" ? "Детали" : "Details"}</h3>
-            <div className="company-metrics-list">
-              {sec.isin && <div className="company-metric-row"><span className="panel-label">ISIN</span><span className="isin-mono">{sec.isin}</span></div>}
-              {nominalVal && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Номинал" : lang === "uz" ? "Nominal" : "Nominal"}</span><span>{formatMarketNumber(nominalVal, lang)} UZS</span></div>}
-              {industry && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Отрасль" : lang === "uz" ? "Soha" : "Sector"}</span><span>{sectorLabel(lang, industry)}</span></div>}
-              {securityType && <div className="company-metric-row"><span className="panel-label">{lang === "ru" ? "Тип" : lang === "uz" ? "Turi" : "Type"}</span><span>{securityType === "bond" ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond") : (lang === "ru" ? "Акция" : lang === "uz" ? "Aksiya" : "Stock")}</span></div>}
-              {securityType !== "bond" && (
-                <div className="company-metric-row">
-                  <span className="panel-label">{lang === "ru" ? "Класс" : lang === "uz" ? "Sinf" : "Class"}</span>
-                  <span>{isPreferred ? (lang === "ru" ? "Привилегированная" : lang === "uz" ? "Imtiyozli" : "Preferred") : (lang === "ru" ? "Обыкновенная" : lang === "uz" ? "Oddiy" : "Common")}</span>
-                </div>
-              )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -11653,6 +11657,11 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                 <div>
                   <h2>{index?.company_name || ticker}</h2>
                   <span className="status-badge muted">{ticker}</span>
+                  {/* One issuer, several tickers (a preferred class, or one per
+                      bond series). The entry covers all of them, so it names them. */}
+                  {(index?.tickers || []).filter((t) => t !== ticker).map((t) => (
+                    <span key={t} className="status-badge muted">{t}</span>
+                  ))}
                   {index?.sector && <span className="status-badge">{sectorLabel(lang, index.sector)}</span>}
                   {index?.last_synced_at && <span className="status-badge muted">{clg(lang, "lastSync")}: {formatMarketTimestamp(index.last_synced_at, lang)}</span>}
                 </div>
