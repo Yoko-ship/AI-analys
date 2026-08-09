@@ -162,3 +162,83 @@ class TestTheInstrumentSplit:
         ns.get_news_feed(instrument="bond", ticker_types=self.TYPES, days=0)
 
         assert [i["id"] for i in seen["ranked"]] == [2]
+
+
+class TestNothingFallsBetweenTheTwoTabs:
+    """The traded universe is not the listed one, and the split must survive it.
+
+    `securities` is filled from the exchange feed, so it knows only what trades:
+    the eleven dormant listings (AGMK, TGBK, UZNG…) are absent from it. Typing
+    the split off that map alone dropped their filings out of «Акции» AND
+    «Облигации» without a word — the exact silence ТЗ §4 exists to prevent.
+    """
+    def test_a_dormant_listing_is_still_a_share(self) -> None:
+        """UZNG has not traded in months; its filings are still shareholders'."""
+        types = {"UZNGP": "stock", "UZNG": "stock"}   # UZNG from the registry
+        items = [{"id": 1, "tickers": ["UZNG"]}]
+
+        assert [i["id"] for i in ns.filter_by_instrument(items, "stock", types)] == [1]
+
+    def test_a_ticker_the_catalog_cannot_type_is_reported_not_swallowed(self) -> None:
+        items = [{"id": 1, "tickers": ["HMKB"]}, {"id": 2, "tickers": ["TNGB"]}]
+        types = {"HMKB": "stock"}
+
+        assert ns.untyped_named_tickers(items, types) == ["TNGB"]
+
+    def test_an_item_with_no_ticker_is_not_reported_as_untyped(self) -> None:
+        """It names no instrument; that is not a gap in the catalog."""
+        assert ns.untyped_named_tickers([{"id": 1, "tickers": []}], {"HMKB": "stock"}) == []
+
+    def test_an_item_typed_as_the_other_kind_is_not_reported(self) -> None:
+        """Excluded on purpose, not for want of an answer."""
+        items = [{"id": 1, "tickers": ["BFMT2B5"]}]
+
+        assert ns.untyped_named_tickers(items, {"BFMT2B5": "bond"}) == []
+
+    def test_a_partly_typed_item_is_not_reported(self) -> None:
+        """One known ticker is enough to place the filing."""
+        items = [{"id": 1, "tickers": ["TNGB", "HMKB"]}]
+
+        assert ns.untyped_named_tickers(items, {"HMKB": "stock"}) == []
+
+    def test_the_feed_reports_what_it_could_not_place(self, monkeypatch) -> None:
+        rows = [{"id": 1, "tickers": ["HMKB"]}, {"id": 2, "tickers": ["TNGB"]}]
+
+        class _Conn:
+            def execute(self, sql, params):
+                return self
+
+            def fetchall(self):
+                return rows
+
+            def close(self):
+                return None
+
+        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(ns, "_row_to_item", lambda r: dict(r))
+        notes: dict = {}
+        got = ns.get_news_feed(instrument="stock", ticker_types={"HMKB": "stock"},
+                               notes=notes, order="recent", days=0)
+
+        assert [i["id"] for i in got] == [1]
+        assert notes["untyped_tickers"] == ["TNGB"]
+
+    def test_no_instrument_asked_for_reports_nothing(self, monkeypatch) -> None:
+        """«Все бумаги» hides nothing, so it has nothing to explain."""
+        class _Conn:
+            def execute(self, sql, params):
+                return self
+
+            def fetchall(self):
+                return [{"id": 2, "tickers": ["TNGB"]}]
+
+            def close(self):
+                return None
+
+        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(ns, "_row_to_item", lambda r: dict(r))
+        notes: dict = {}
+        got = ns.get_news_feed(ticker_types={}, notes=notes, order="recent", days=0)
+
+        assert [i["id"] for i in got] == [2]
+        assert "untyped_tickers" not in notes

@@ -776,6 +776,27 @@ def resolve_news_types(news_type: Any) -> list[str]:
     return out
 
 
+def untyped_named_tickers(items: list[dict[str, Any]],
+                          ticker_types: dict[str, str] | None) -> list[str]:
+    """Tickers an item NAMES that the catalog cannot type.
+
+    These are the only items an instrument filter loses without meaning to: an
+    item that names nothing is not about an instrument, and one typed as the
+    other kind was excluded on purpose. A ticker the catalog does not know is a
+    third case — the filter has no answer, and a filter with no answer must not
+    answer «no» in silence. Reported so the page can say where the item went.
+    """
+    types = ticker_types or {}
+    out: list[str] = []
+    for it in items:
+        named = [str(t).upper() for t in (it.get("tickers") or []) if str(t).strip()]
+        if named and not any(types.get(t) in ("stock", "bond") for t in named):
+            for t in named:
+                if t not in out:
+                    out.append(t)
+    return sorted(out)
+
+
 def filter_by_instrument(items: list[dict[str, Any]], instrument: str | None,
                          ticker_types: dict[str, str] | None) -> list[dict[str, Any]]:
     """Keep the items that name at least one security of `instrument`'s kind.
@@ -811,6 +832,7 @@ def get_news_feed(
     news_type: Any = None, order: str = "rank",
     min_relevance: float | None = None,
     instrument: str | None = None, ticker_types: dict[str, str] | None = None,
+    notes: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Public editorial feed: relevant, classified items, **ranked by likely impact**.
 
@@ -854,7 +876,13 @@ def get_news_feed(
     # Before ranking, not after: the rank window exists so a strong item just
     # outside the newest N can still surface, and filtering afterwards would
     # spend that window on stories the reader asked not to see.
-    items = filter_by_instrument(items, instrument, ticker_types)
+    if str(instrument or "").strip().lower() in ("stock", "bond"):
+        # `notes` is an out-parameter, deliberately: what the filter could not
+        # type is a property of the corpus the caller has to be able to state,
+        # and recomputing it there would mean reading the same rows twice.
+        if notes is not None:
+            notes["untyped_tickers"] = untyped_named_tickers(items, ticker_types)
+        items = filter_by_instrument(items, instrument, ticker_types)
     if order != "rank":
         return items[:max(1, min(limit, 200))]
 
