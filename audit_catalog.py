@@ -33,7 +33,6 @@ KNOWN_SECTORS: dict[str, str] = {
     "MCBA": "finance", "MCBAP": "finance",
     "UNVB": "finance",
     "BRBN": "finance", "BRNBP": "finance", "BRBNP": "finance",
-    "KPBA": "finance",
     "TNGB": "finance",
     "URTS": "finance",
     "UZINP": "finance",

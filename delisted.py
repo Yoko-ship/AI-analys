@@ -17,6 +17,10 @@ This set is the part of that list that is genuinely dead:
     price anywhere (MNGM, NGQT, OCBK) — see also the market-gaps audit, which
     confirmed there is no source for them rather than a gap to fill.
 
+One issuer is here for a different reason — Kapitalbank was removed because the
+customer asked for it, not because the data called it dead. It is kept separate
+below so nobody reads it as a data verdict and "corrects" it back.
+
 Unlike ``BOARD_DENYLIST`` (display-only suppression) these are *purged*: removed
 from the catalog DB, never re-collected, and filtered on read so a stale row cannot
 resurface. ``purge_delisted()`` in ``reports_catalog`` performs the deletion and
@@ -34,7 +38,7 @@ from typing import Any
 # ordinary ticker — the issuer stays on the site, only the dead paper goes.
 _DEAD_ISSUER_PAPER = {
     "SQB2", "SQB3", "SQB301", "SQB4", "SQB6", "SQB7", "SQB8",  # O'zsanoatqurilishbank
-    "KPB2", "KPB3", "KPB4", "KPBA1", "KPBA10",                 # Kapitalbank (KPBA ordinary stays)
+    "KPB2", "KPB3", "KPB4", "KPBA1", "KPBA10",                 # Kapitalbank (the ordinary goes too, below)
     "IPK3", "IPK4", "IPK5",                                    # Ipak Yo'li
     "IPTB2",                                                   # Ipoteka-bank
     "TRS2", "TRS201",                                          # Trastbank
@@ -63,9 +67,21 @@ _NO_SECURITY = {
     "OCBK",   # "Octobank" AJ
 }
 
+# Removed at the customer's request. Not a data verdict: KPBA is a live registry
+# line — ISIN UZ7047440001, "Kapitalbank" aksiyadorlik tijorat banki, last traded
+# 23.02.2024 at 1 030 — that reached the board through the inactive-registry
+# merge, never through the live feed (the /stocks mirror's 78-security universe
+# does not carry it). Its ISIN goes below too: purging the ticker alone is what
+# turned UZAL2 into a nameless quote-cache tile, and this security is quoted the
+# same way.
+_REMOVED_BY_REQUEST = {
+    "KPBA",   # "Kapitalbank" AJ, removed 2026-08-09
+}
+
 DELISTED_TICKERS = frozenset(
     _DEAD_ISSUER_PAPER
     | _NO_SECURITY
+    | _REMOVED_BY_REQUEST
     | {t.strip().upper() for t in os.getenv("DELISTED_TICKERS_EXTRA", "").split(",") if t.strip()}
 )
 
@@ -77,6 +93,7 @@ DELISTED_TICKERS = frozenset(
 # moment its ticker was purged. Anything deleted by ticker is deleted by ISIN too.
 _DELISTED_ISINS = {
     "UZ6011507AA9": "UZAL2",  # O'zagrolizing bond series, last traded 30.05.2023
+    "UZ7047440001": "KPBA",   # Kapitalbank ordinary, last traded 23.02.2024
 }
 
 DELISTED_ISINS = frozenset(

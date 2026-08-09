@@ -30,7 +30,7 @@ STILL_TRADING = {
 
 # Issuers large enough that deleting them would gut the board, all of which the
 # same tab flagged. They are kept deliberately.
-MAJOR_ISSUERS = {"UZNG", "AGMK", "TGBK", "KPBA", "UZGF", "UZIN", "FRAZ"}
+MAJOR_ISSUERS = {"UZNG", "AGMK", "TGBK", "UZGF", "UZIN", "FRAZ"}
 
 
 class TestSetContents:
@@ -44,8 +44,34 @@ class TestSetContents:
 
     def test_issuer_ordinary_lines_survive_their_dead_paper(self) -> None:
         """Deleting a bond series must not take the issuer's own ticker with it."""
-        for ordinary in ("SQBN", "KPBA", "IPKY", "IPTB", "TRSB", "HMKB", "MCBA", "UZMK"):
+        for ordinary in ("SQBN", "IPKY", "IPTB", "TRSB", "HMKB", "MCBA", "UZMK"):
             assert ordinary not in DELISTED_TICKERS
+
+    def test_kapitalbank_is_gone_by_ticker_and_by_isin(self) -> None:
+        """Removed at the customer's request — the whole issuer, not just its paper.
+
+        KPBA never came from the live feed: the /stocks mirror's fixed universe
+        does not carry it, so its board row arrived from the inactive-registry
+        merge or straight from the quote cache. A quote-cache row can reach the
+        board with no ticker to test — that is how UZAL2 returned as a nameless
+        tile — so the ISIN has to be deleted alongside the ticker.
+        """
+        assert is_delisted("KPBA")
+        assert is_delisted_isin("UZ7047440001")
+        # The bond series were already gone; nothing of the issuer is left.
+        for paper in ("KPB2", "KPB3", "KPB4", "KPBA1", "KPBA10"):
+            assert is_delisted(paper)
+
+    def test_kapitalbank_left_no_catalog_entry_behind(self) -> None:
+        """The name→ticker map is what a catalog rebuild would read it back from."""
+        import audit_catalog
+        import securities_catalog
+        from company_catalog import COMPANY_CATALOG
+
+        assert not [n for n in COMPANY_CATALOG if "Kapitalbank" in n]
+        assert "KPBA" not in securities_catalog._TICKER_SECTORS
+        assert "KPBA" not in securities_catalog._WIKI_TITLES
+        assert "KPBA" not in audit_catalog.KNOWN_SECTORS
 
     def test_uzal2_goes_but_o_zagrolizing_stays(self) -> None:
         """The one dead line that reached the board as a share, not a bond.
@@ -130,6 +156,23 @@ class TestPurge:
             rows = [r[0] for r in conn.execute(f"SELECT {column} FROM {table}")]
             assert rows == ["SQBN"], f"{table} still holds {rows}"
         conn.close()
+
+    def test_the_price_series_of_a_deleted_isin_goes_too(self, catalog_db) -> None:
+        """`catalog_quote_history` is keyed by ISIN, so no ticker purge reaches it."""
+        conn = rc.get_catalog_conn()
+        with conn:
+            for isin in ("UZ7047440001", "UZ7SQBN"):
+                conn.execute(
+                    "INSERT INTO catalog_quote_history (isin, trade_date, close_price) "
+                    "VALUES (?,?,?)", (isin, "2024-02-23", 5284.8))
+        conn.close()
+
+        rc.purge_delisted()
+
+        conn = sqlite3.connect(catalog_db)
+        rows = [r[0] for r in conn.execute("SELECT isin FROM catalog_quote_history")]
+        conn.close()
+        assert rows == ["UZ7SQBN"]
 
     def test_is_idempotent(self, catalog_db) -> None:
         assert rc.purge_delisted()

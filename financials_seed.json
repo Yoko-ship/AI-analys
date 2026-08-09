@@ -231,18 +231,6 @@
    "operating_income": 28995189.8
   },
   {
-   "ticker": "KPBA",
-   "form": "NSBU",
-   "year": 2025,
-   "quarter": 0,
-   "revenue": null,
-   "gross_profit": null,
-   "cash": 2410764033.0,
-   "total_liabilities": 50539709184.0,
-   "net_income": 4416278462.0,
-   "operating_income": null
-  },
-  {
    "ticker": "KSCM",
    "form": "NSBU",
    "year": 2026,

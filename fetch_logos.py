@@ -16,7 +16,7 @@ DOMAIN_OVERRIDES = {
     "AGBA": "agrobank.uz", "AGMKP": "agmk.uz", "ALKB": "aloqabank.uz",
     "ALSM": "alskom.uz", "BRBN": "brb.uz", "DORI": "doridarmon.uz",
     "GRBK": "garantbank.uz", "HMKB": "hamkorbank.uz", "IPKY": "ipakyulibank.uz",
-    "IPTB": "ipotekabank.uz", "KPBA": "kapitalbank.uz", "MCBA": "mikrokreditbank.uz",
+    "IPTB": "ipotekabank.uz", "MCBA": "mikrokreditbank.uz",
     "SQBN": "sqb.uz", "TNBN": "turonbank.uz", "TNGB": "tengebank.uz",
     "TRSB": "trustbank.uz", "UNVB": "universalbank.uz", "UZNGP": "ung.uz",
     "UZTL": "uztelecom.uz",
