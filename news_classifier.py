@@ -614,8 +614,18 @@ mention a company the material does not mention. You are formatting known facts,
 researching them.
 
 Repetition is better than invention: if the material supports only two short paragraphs,
-write two. If it is a bare headline with nothing behind it — fewer than two facts worth
-stating — return empty strings.
+write two.
+
+SOMETIMES THE MATERIAL IS ONLY A HEADLINE AND A LIST OF SECURITIES. That happens with the
+rating agencies, which publish nothing but a title. Then write TWO short paragraphs and
+nothing more: what was published, by whom and on what date, restating the headline's own
+claim and no other; and which securities on our exchange it concerns, by ticker, ending with
+the fact that the full text is on the publisher's own site. You were not given the research,
+so you do not know its reasoning, its figures, its rating, its outlook or its conclusion —
+say none of them. A sentence that begins "this reflects", "this is due to" or "analysts
+expect" is a sentence you are inventing.
+
+If there is neither material nor a security this concerns, return empty strings.
 
 Write the SAME text in three languages: Russian, English, and Uzbek in Latin script (never
 Cyrillic). Same facts, same figures, same length in each.
@@ -654,10 +664,15 @@ def write_brief_detail(item: dict[str, Any], *, client: LLMClient | None = None,
     lay out, which is the honest outcome for a bare rating headline.
     """
     material = brief_material(item)
-    if len(material) < _BRIEF_MIN_MATERIAL:
+    tickers = ", ".join(str(t) for t in (item.get("tickers") or []) if t)
+    # Thin prose is not the same as nothing to say. Fitch publishes a headline and no body
+    # anywhere — 1.1 MB of shell that does not contain even its own title — but the item
+    # still carries WHO it is about: /news/762 names five listed insurers. Two paragraphs
+    # stating what was published and which securities it concerns are facts we hold; the
+    # research behind it is not, and the prompt above is what keeps them apart.
+    if len(material) < _BRIEF_MIN_MATERIAL and not (str(item.get("title") or "").strip() and tickers):
         return {"ru": "", "en": "", "uz": ""}
     client = client or get_classifier_client()
-    tickers = ", ".join(str(t) for t in (item.get("tickers") or []) if t)
     user = (f"HEADLINE: {(item.get('title') or '').strip()}\n"
             f"SOURCE: {(item.get('source') or item.get('source_id') or '').strip()}\n"
             + (f"SECURITIES: {tickers}\n" if tickers else "")
