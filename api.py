@@ -3609,6 +3609,18 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
                  "roe": "roe", "roa": "roa", "debt_ratio": "debt_ratio",
                  "debt_to_equity": "debt_to_equity"}
         filed = await loop.run_in_executor(None, partial(get_financials_series, ticker))
+        # get_financials_series reads the whole issuer, but only when the
+        # catalog links the classes; KFSKP and KSCMP carry no org row of their
+        # own, so the P-suffix fallback that already rescued org_id above
+        # rescues the filed series the same way. The ticker's own rows win.
+        if sibling and sibling != ticker:
+            filed_sib = await loop.run_in_executor(
+                None, partial(get_financials_series, sibling))
+            filed = filed or {}
+            for period, fields in (filed_sib or {}).items():
+                merged = dict(fields)
+                merged.update(filed.get(period) or {})
+                filed[period] = merged
         for period, fields in (filed or {}).items():
             if len(period) != 4 or not period.isdigit() or int(period) > last_fy:
                 continue
