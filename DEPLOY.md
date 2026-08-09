@@ -279,6 +279,33 @@ Schedule it on any host that can reach openinfo:
   how far back the feed is read; the window only bounds the scan, never correctness.
   Run it by hand with `python reports_watch.py` to see what it would do without pushing.
 
+  **The report catalog is kept current by the API itself, not by a cron service.**
+  `catalog_reports` — what /catalog lists and what a company page's «Отчётность» tab
+  reads — lives in the API's database, and none of the collectors can write it: they
+  have no volume and no `DATABASE_URL`, they POST results over HTTP, and the catalog is
+  not among what they post. `collector` does call `rc.sync_all()`, but against its own
+  throwaway container scratch, which is why that call never showed up in production.
+  The catalog therefore only ever moved when an admin pressed «Синхронизировать всё» —
+  last pressed 2026-07-21, while fifty issuers filed their half-year report between 13
+  July and 5 August. None of them were on the site.
+
+  So the API runs the watcher in-process (`_catalog_watch_loop`, started at boot after a
+  90 s delay, then hourly). Each pass reads the same filing feed `reports-watch` uses and
+  re-syncs only the issuers that filed — usually nobody, one openinfo request. When the
+  catalog's own newest `last_synced_at` is more than `CATALOG_FULL_SYNC_HOURS` (24) old
+  the pass runs the full sweep instead, which is what discovers issuers we have never
+  catalogued and refreshes the audit opinions (their endpoint has no per-issuer filter).
+  Reading the due-date off the data rather than a timer is deliberate: a container that
+  never stays up an hour would otherwise restart the clock forever. Knobs: `CATALOG_WATCH`
+  (`0` disables), `CATALOG_WATCH_INTERVAL_MIN` (60), `CATALOG_WATCH_WINDOW_HOURS` (12 —
+  wider than the interval so a missed tick heals), `CATALOG_FULL_SYNC_HOURS` (24). Force a
+  pass and see the outcome with `POST /api/admin/catalog-watch?hours=N` (admin secret);
+  `POST /api/admin/catalog-sync` still starts a full sweep in the background.
+
+  It lives in the API and not in a cron service for a second reason: the API is the only
+  service that redeploys on a push. `reports-watch` has no deployment trigger and is
+  pinned to whatever commit was last deployed by hand.
+
   Railway's own constraints on any of these: the shortest gap between runs is **5
   minutes**, the expression is standard five-field cron (no seconds, no `@reboot`)
   evaluated in **UTC** regardless of `TZ`, start times drift by a few minutes, and — the

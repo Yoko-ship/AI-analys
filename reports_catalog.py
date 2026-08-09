@@ -1289,6 +1289,88 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
         }
 
 
+def sync_recent_filings(hours: int = 12, *, force: bool = False) -> dict[str, Any]:
+    """Re-sync only the issuers openinfo's filing feed says have just filed.
+
+    The full sweep resolves every listed security against openinfo and is minutes
+    of upstream traffic; the feed answers "who filed since when" in one request,
+    and on a quiet hour the answer is nobody. That is what makes this cheap
+    enough to run on a schedule — which is the whole point, because until it did,
+    the report catalog only ever moved when somebody pressed «Синхронизировать
+    всё». It had not been pressed since 21 July, so fifty issuers' half-year
+    reports — filed between 13 July and 5 August — were simply not on the site.
+
+    Stateless, like the filings watcher it reads from: no watermark, no cursor.
+    The window is deliberately wider than the interval it runs on, so a missed
+    tick heals itself on the next one instead of leaving a hole.
+    """
+    # Lazy: reports_watch pulls in the openinfo client stack, and this module is
+    # imported by the API on every boot.
+    from reports_watch import recent_filings
+
+    filings = recent_filings(hours=hours)
+    orgs = {str(f.get("organization")) for f in filings if f.get("organization") is not None}
+    result: dict[str, Any] = {"hours": hours, "filings": len(filings),
+                              "orgs": len(orgs), "targets": [], "synced": 0,
+                              "skipped": 0, "errors": []}
+    if not orgs:
+        return result
+
+    conn = get_catalog_conn()
+    rows = conn.execute(
+        "SELECT ticker, company_name, org_id FROM catalog_companies "
+        "WHERE org_id IS NOT NULL AND org_id <> ''").fetchall()
+    conn.close()
+    members: dict[str, list[Any]] = {}
+    for r in rows:
+        members.setdefault(str(r["org_id"]).strip(), []).append(r)
+
+    # One sync per ISSUER, under the ticker its catalog entry is listed by. An
+    # issuer we have never catalogued has no org_id to match on and is left to
+    # the full sweep, which is what discovers new issuers in the first place.
+    for org in sorted(orgs & set(members)):
+        group = members[org]
+        canonical = _canonical_ticker(r["ticker"] for r in group)
+        row = next(r for r in group if r["ticker"] == canonical)
+        result["targets"].append(canonical)
+        try:
+            outcome = sync_company(canonical, row["company_name"] or canonical,
+                                   force=force, org_id=org)
+            if outcome.get("skipped"):
+                result["skipped"] += 1
+            else:
+                result["synced"] += 1
+                if outcome.get("errors"):
+                    result["errors"].append({"ticker": canonical, "errors": outcome["errors"]})
+        except Exception as exc:  # noqa: BLE001 — one issuer must not stop the rest
+            logger.exception("filing-driven catalog sync failed for %s", canonical)
+            result["errors"].append({"ticker": canonical, "errors": [str(exc)]})
+    return result
+
+
+def catalog_age_hours() -> float | None:
+    """How long since any company's catalog entry was last synced, in hours.
+
+    ``None`` when nothing has ever been synced. This is what decides whether the
+    full sweep is due, so the schedule survives a restart with no state of its own.
+    """
+    conn = get_catalog_conn()
+    try:
+        row = conn.execute("SELECT MAX(last_synced_at) AS ls FROM catalog_companies").fetchone()
+    finally:
+        conn.close()
+    stamp = (row["ls"] if row else None) or ""
+    if not stamp:
+        return None
+    try:
+        ts = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - ts).total_seconds() / 3600.0
+
+
 # ---------------------------------------------------------------------------
 # Query
 # ---------------------------------------------------------------------------

@@ -241,6 +241,63 @@ async def _populate_securities_on_startup() -> None:
             logger.exception("startup securities sync failed for type=%s", security_type)
 
 
+# The report catalog keeps itself current. Nothing did before: `sync_all` runs in
+# the daily collector, but the collectors have no database of their own — they
+# POST results to this service over HTTP, and the catalog is not among what they
+# post. So `catalog_reports` only ever moved when an admin pressed
+# «Синхронизировать всё». It was last pressed on 2026-07-21, and fifty issuers
+# filed their half-year report after that: the site simply did not have them.
+# This runs where the database is, which is also the only place that redeploys on
+# a push (the cron services have no deployment trigger).
+CATALOG_WATCH = os.getenv("CATALOG_WATCH", "1").strip().lower() not in {"0", "false", "no"}
+CATALOG_WATCH_INTERVAL_MIN = int(os.getenv("CATALOG_WATCH_INTERVAL_MIN", "60"))
+# Wider than the interval on purpose: a missed tick (restart, deploy, a failed
+# request) heals on the next one instead of leaving a hole in the record.
+CATALOG_WATCH_WINDOW_HOURS = int(os.getenv("CATALOG_WATCH_WINDOW_HOURS", "12"))
+# The feed-driven pass cannot see an issuer we have never catalogued, and the
+# audit-opinion endpoint has no per-issuer filter. The full sweep covers both.
+CATALOG_FULL_SYNC_HOURS = int(os.getenv("CATALOG_FULL_SYNC_HOURS", "24"))
+
+
+def _catalog_watch_once() -> dict[str, Any]:
+    """One pass: the issuers that just filed, and the full sweep when it is due.
+
+    Blocking (openinfo HTTP + DB writes) — always called in an executor.
+    """
+    from reports_catalog import catalog_age_hours, sync_recent_filings
+
+    age = catalog_age_hours()
+    if age is None or age >= CATALOG_FULL_SYNC_HOURS:
+        # Due by the catalog's own timestamps, so a restart cannot reset the
+        # clock and a container that never stays up an hour still gets there.
+        result = catalog_sync_all()
+        logger.info("catalog watch: full sweep (age=%s h) %s", None if age is None else round(age, 1),
+                    {k: result.get(k) for k in ("total", "synced", "skipped")})
+        return {"mode": "full", **result}
+    result = sync_recent_filings(hours=CATALOG_WATCH_WINDOW_HOURS)
+    if result.get("synced") or result.get("errors"):
+        logger.info("catalog watch: %s", result)
+    return {"mode": "filings", **result}
+
+
+async def _catalog_watch_loop() -> None:
+    """Keep the report catalog level with openinfo, hourly, for as long as we run."""
+    loop = asyncio.get_running_loop()
+    # Let boot finish first: migrations, the delisted purge and the securities
+    # seed are all in flight, and none of them should queue behind a sync.
+    await asyncio.sleep(90)
+    while True:
+        if not _admin_catalog_sync_running.is_set():
+            _admin_catalog_sync_running.set()
+            try:
+                await loop.run_in_executor(None, _catalog_watch_once)
+            except Exception:
+                logger.exception("catalog watch pass failed")
+            finally:
+                _admin_catalog_sync_running.clear()
+        await asyncio.sleep(max(60, CATALOG_WATCH_INTERVAL_MIN * 60))
+
+
 @app.on_event("startup")
 async def _on_startup() -> None:
     # ТЗ §10.10: migrations are applied before deploy, so a process that has just
@@ -277,6 +334,8 @@ async def _on_startup() -> None:
     # Fire-and-forget: seed the catalog without blocking the server from accepting
     # requests. The Market endpoint still refreshes it on demand afterwards.
     asyncio.create_task(_populate_securities_on_startup())
+    if CATALOG_WATCH:
+        asyncio.create_task(_catalog_watch_loop())
 
 
 class AnalyzeRequest(BaseModel):
@@ -3330,6 +3389,32 @@ async def api_admin_catalog_sync(
 
     asyncio.get_running_loop().run_in_executor(None, _run)
     return {"ok": True, "started": True, "force": force}
+
+
+@app.post("/api/admin/catalog-watch")
+async def api_admin_catalog_watch(
+    hours: int = CATALOG_WATCH_WINDOW_HOURS,
+    force: bool = False,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Run the filing-driven catalog pass now, and answer with what it did.
+
+    The hourly loop does this on its own; this is how you make it happen on
+    demand and see the outcome. Deliberately the feed pass only — the full sweep
+    is minutes long and belongs behind /api/admin/catalog-sync, which returns
+    immediately and reports through the log.
+    """
+    from reports_catalog import sync_recent_filings
+
+    hours = max(1, min(int(hours), 24 * 30))
+    loop = asyncio.get_running_loop()
+    try:
+        result = await loop.run_in_executor(
+            None, partial(sync_recent_filings, hours=hours, force=force))
+    except Exception as exc:
+        logger.exception("admin catalog watch failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, **_json_safe(result)}
 
 
 @app.get("/api/securities")
