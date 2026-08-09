@@ -2479,7 +2479,7 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
 
 @app.get("/api/news/feed")
 async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None,
-                        order: str = "rank") -> dict[str, Any]:
+                        order: str = "rank", instrument: str | None = None) -> dict[str, Any]:
     """Editorial news feed (§3.11): classified, market-relevant items, ranked by impact.
 
     Distinct from /api/news (the market-events timeline). Each item carries a
@@ -2491,11 +2491,22 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
     one of the two reading groups the news section offers — ``economy`` (market +
     regulatory) and ``corporate`` (corporate_event + financial_report). The groups
     partition all four, so nothing is unreachable from both tabs.
+
+    ``instrument`` (``stock`` / ``bond``) narrows the feed to the filings that name a
+    security of that kind. The classifier files a coupon payment and a dividend under
+    the same «corporate_event», so the split cannot come from it — it comes from the
+    securities the item names, typed by the catalog here rather than guessed from the
+    shape of a ticker.
     """
     loop = asyncio.get_running_loop()
+    ticker_types = None
+    if str(instrument or "").lower() in ("stock", "bond"):
+        smap = await loop.run_in_executor(None, get_securities_map)
+        ticker_types = {t: str((s or {}).get("type") or "stock").lower() for t, s in smap.items()}
     items = await loop.run_in_executor(
         None, partial(news_store.get_news_feed, limit=limit, days=days, news_type=type,
-                      order="recent" if order == "recent" else "rank"))
+                      order="recent" if order == "recent" else "rank",
+                      instrument=instrument, ticker_types=ticker_types))
     return _json_safe({"ok": True, "count": len(items), "items": items, "disclaimer": NEWS_DISCLAIMER})
 
 

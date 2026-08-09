@@ -10612,6 +10612,17 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .news-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .led .news-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 
+/* Pills, not a second row of underlined tabs: the masthead's tabs are the
+   section, and a filter INSIDE one of them has to look subordinate to it or
+   the page reads as six equal sections. */
+.led .news-subtabs { display: flex; gap: 8px; flex-wrap: wrap; margin: -14px 0 26px; }
+.led .news-subtab { appearance: none; font: inherit; font-size: 12.5px; font-weight: 600;
+  padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: none; color: var(--muted); cursor: pointer; transition: all .12s ease; }
+.led .news-subtab:hover { color: var(--text); border-color: var(--accent); }
+.led .news-subtab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.led .news-subtab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .led .led-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 44px; align-items: start; }
 @media (max-width: 900px) { .led .led-cols { grid-template-columns: 1fr; gap: 30px; } }
 
