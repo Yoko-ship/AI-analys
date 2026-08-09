@@ -5750,6 +5750,25 @@ function chartRangeSpan(key) {
   return r.ytd ? new Date().getMonth() + 1 : r.span;
 }
 
+/**
+ * The window the METRICS call should measure, as the endpoint understands it.
+ *
+ * The fetch is in months because that is openinfo's smallest unit, but two
+ * buttons are not a whole number of months: «1Н» is seven days and YTD runs
+ * from 1 January. Asking for months on those gave the rail a month's figures
+ * under a week's label — twenty-one sessions and a range four times too wide.
+ * The server takes `days` + a window name for exactly that reason.
+ */
+function chartRangeWindowQuery(key) {
+  const r = chartRange(key);
+  if (r.ytd) {
+    const now = new Date();
+    const jan1 = new Date(now.getFullYear(), 0, 1);
+    return `&days=${Math.max(1, Math.round((now - jan1) / 86400000))}&window=ytd`;
+  }
+  return r.days ? `&days=${r.days}&window=${r.key}` : "";
+}
+
 /** The first date the view keeps, or null when the whole fetch is shown. */
 function chartRangeCutoff(key) {
   const r = chartRange(key);
@@ -6755,7 +6774,24 @@ function CompanyWatchRail({ ticker, rows, securitiesMap, series, favorites, onTo
 // page used to recompute P/E and P/B on the client at CLASS level, which is the
 // wrong denominator for a two-class issuer and, worse, bypassed the auditor: a
 // figure the board withheld as «снято аудитом» still printed here.
-function CompanyKeyStats({ row, sec, metrics12, mult, dividends, lastPrice, securityType, lang, placement = "rail" }) {
+/**
+ * «5 сессий», «61 сессия», «113 сессий».
+ *
+ * A fixed «сессий» is right for 5 and wrong for 61, and this number is printed
+ * under every period the reader picks — 21, 61 and 209 all occur on one page's
+ * worth of buttons. Russian agrees on the LAST digit, except in the teens.
+ */
+function sessionsWord(n, lang) {
+  if (lang === "en") return n === 1 ? "session" : "sessions";
+  if (lang === "uz") return "sessiya";
+  const last = n % 10, teens = n % 100;
+  if (teens >= 11 && teens <= 14) return "сессий";
+  if (last === 1) return "сессия";
+  if (last >= 2 && last <= 4) return "сессии";
+  return "сессий";
+}
+
+function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, dividends, lastPrice, securityType, lang, placement = "rail" }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const num = (v) => (Number.isFinite(v) ? formatMarketNumber(v, lang) : null);
   const compact = (v) => (Number.isFinite(v) ? formatCompactVolume(v, lang) : null);
@@ -6848,16 +6884,51 @@ function CompanyKeyStats({ row, sec, metrics12, mult, dividends, lastPrice, secu
   pushBlock("session", t("Торги", "Savdolar", "Session"), sessionRows,
     sessionDate ? `${t("сессия", "sessiya", "session")} ${sessionDate}` : null);
 
-  // --- The year ------------------------------------------------------------
-  const yearBar = rangeBar(yearLow, yearHigh, lastPrice);
-  if (yearBar) {
+  // --- The selected period ---------------------------------------------------
+  // This block follows the chart's period buttons. Press «1М» and it answers for
+  // the month: the closes it ranged over, what changed hands, the average paid.
+  // It used to be pinned to twelve months and titled «Диапазон 52 недели», which
+  // was correct but deaf — a reader looking at a week was shown the year.
+  //
+  // Every figure is the SERVER's (/api/company/{t}/metrics?months=N, ТЗ §3: one
+  // calc layer, and the screen is not one of its implementations). The client
+  // picks the window and renders what comes back; it computes nothing.
+  //
+  // ONE average, not two. The strip removed on 2026-08-08 showed VWAP and the
+  // mean of closes side by side — two different averages of the same window, six
+  // percent apart, with nothing on screen to separate them. This is the VWAP,
+  // because it is the price actually paid, and the label says how it is made.
+  const pWin = (metricsWindow || metrics12)?.window;
+  const periodBar = rangeBar(pWin?.min_close?.value, pWin?.max_close?.value, lastPrice);
+  if (periodBar) {
+    put(t("Оборот", "Aylanma", "Turnover"),
+        compact(pWin?.turnover?.value) ? `${compact(pWin.turnover.value)} UZS` : null);
+    put(t("Бумаг", "Qog'ozlar", "Shares traded"), count(pWin?.volume?.value));
+    put(t("Средняя цена", "O'rtacha narx", "Average price"), num(pWin?.vwap?.value),
+        t("оборот ÷ объём за период", "davr aylanmasi ÷ hajmi", "turnover ÷ volume over the period"));
+    const periodRows = rows.splice(0, rows.length);
+    const rangeLabel = (chartRange(range).label || [])[lang === "uz" ? 1 : lang === "en" ? 2 : 0];
+    // The 52-week band still gets said, because it is the one comparison a
+    // shorter window cannot make — but as a footnote now, not as the headline.
+    // Compared by VALUE, not by identity: the window and the twelve-month pin are
+    // two separate fetches, so at «1Г» they are different objects holding the
+    // same band, and an identity test printed the year twice.
+    const sameAsYear = pWin?.min_close?.value === yearLow && pWin?.max_close?.value === yearHigh;
+    const yearNote = Number.isFinite(yearLow) && Number.isFinite(yearHigh) && !sameAsYear
+      ? `${t("52 недели", "52 hafta", "52 weeks")}: ${num(yearLow)} – ${num(yearHigh)}` : "";
     blocks.push(
       <div className="co-sidebar-block" data-block="range" key="range">
-        <h3 className="co-heading">{t("Диапазон 52 недели", "52 hafta diapazoni", "52-week range")}</h3>
-        {yearBar}
+        <h3 className="co-heading">
+          {t("За период", "Davr uchun", "Over the period")}
+          {rangeLabel ? <span className="co-metric-period"> · {rangeLabel}</span> : null}
+        </h3>
+        {periodBar}
+        {periodRows.length > 0 && <div className="company-metrics-list">{periodRows}</div>}
         <div className="keystat-note muted">
           {t("по ценам закрытия", "yopilish narxlari bo'yicha", "on closing prices")}
-          {win?.points ? ` · ${win.points} ${t("точек", "nuqta", "points")}` : ""}
+          {pWin?.points ? ` · ${pWin.points} ${sessionsWord(pWin.points, lang)}` : ""}
+          {pWin?.first_date && pWin?.last_date ? ` · ${pWin.first_date} — ${pWin.last_date}` : ""}
+          {yearNote ? <><br />{yearNote}</> : null}
         </div>
       </div>,
     );
@@ -7034,6 +7105,7 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
             the customer chose: subject over balance. */}
         <div className="company-overview-sidebar">
           <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
+            metricsWindow={priceMetrics} range={priceRange}
             dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
             placement="rail" />
           <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
@@ -7642,20 +7714,20 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   }, [ticker, priceMonths, priceRetry]);
 
   // Metrics are the server's job (ТЗ §3, second principle: one calc layer, and
-  // the screen is not one of its implementations). Since the statistics strip
-  // was removed this page reads only `quality` — whether the security trades
-  // often enough to be drawn as a slope rather than a step — and `ma_windows`. The
-  // response still carries the full window/absolute contract for the auditor,
-  // the exports and the paid analysis.
+  // the screen is not one of its implementations). The page reads `quality`
+  // — whether the security trades often enough to be drawn as a slope rather
+  // than a step — `ma_windows`, and now the `window` block, which is what the
+  // rail's «За период» states. Keyed on the RANGE, not on the month count: 1Н
+  // and 1М both fetch one month of history but measure different windows.
   React.useEffect(() => {
     if (!ticker) return undefined;
     let alive = true;
-    fetch(`/api/company/${encodeURIComponent(ticker)}/metrics?months=${priceMonths}`)
+    fetch(`/api/company/${encodeURIComponent(ticker)}/metrics?months=${priceMonths}${chartRangeWindowQuery(priceRange)}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setMetrics(d.ok ? d : null); })
       .catch(() => { if (alive) setMetrics(null); });
     return () => { alive = false; };
-  }, [ticker, priceMonths, priceRetry]);
+  }, [ticker, priceMonths, priceRange, priceRetry]);
 
   // Dividends are no longer lazy: the key-stats rail states the last payout and
   // its yield on the Обзор tab, so waiting for the Дивиденды tab to be opened

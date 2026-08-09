@@ -269,14 +269,21 @@ def _trading_days(start: date, end: date) -> int:
 # ---------------------------------------------------------------------------
 
 def window_slice(points: Sequence[dict[str, Any]], months: int,
-                 today: date | None = None) -> list[dict[str, Any]]:
+                 today: date | None = None, days: int | None = None) -> list[dict[str, Any]]:
     """The slice the period button selects.
 
     ``months * 30`` days back from today reproduces exactly what
     ``fetch_price_history`` asks openinfo for, so the window measured here and
     the series drawn on the chart cannot describe different spans.
+
+    ``days`` overrides that for the two buttons a month cannot express: «1Н» is
+    seven days and YTD is however many have passed since 1 January. The chart
+    already trims to exactly those; without this the card answered «1Н» with a
+    month — twenty-one sessions and a range four times too wide — under a label
+    that said one week.
     """
-    start = (today or date.today()) - timedelta(days=max(1, int(months)) * 30)
+    span = int(days) if days else max(1, int(months)) * 30
+    start = (today or date.today()) - timedelta(days=max(1, span))
     return [p for p in points if p["d"] >= start]
 
 
@@ -308,11 +315,17 @@ def vwap(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
 
 
 def window_stats(points: Sequence[dict[str, Any]], months: int,
-                 today: date | None = None) -> dict[str, Any]:
-    """Everything on the card that is allowed to change with the period."""
-    window = window_slice(points, months, today)
-    code = WINDOW_CODES.get(int(months), f"{int(months)}m")
-    label = WINDOW_LABELS_RU.get(int(months), f"за {int(months)} мес.")
+                 today: date | None = None, days: int | None = None,
+                 code: str | None = None, label: str | None = None) -> dict[str, Any]:
+    """Everything on the card that is allowed to change with the period.
+
+    ``code``/``label`` are for the day-based windows, which have no month count
+    to be named after: the caller says «1w»/«ytd» and the window carries that
+    name, so a reader cannot be shown a span under the wrong heading.
+    """
+    window = window_slice(points, months, today, days=days)
+    code = code or WINDOW_CODES.get(int(months), f"{int(months)}m")
+    label = label or WINDOW_LABELS_RU.get(int(months), f"за {int(months)} мес.")
     if not window:
         return {
             "code": code, "label": label, "points": 0,
@@ -705,16 +718,18 @@ def moving_averages(points: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any
 # ---------------------------------------------------------------------------
 
 def company_metrics(raw_points: Iterable[dict[str, Any]] | None, months: int = 12,
-                    today: date | None = None) -> dict[str, Any]:
+                    today: date | None = None, days: int | None = None,
+                    code: str | None = None, label: str | None = None) -> dict[str, Any]:
     """Window block, absolute block and quality for one instrument.
 
     ``raw_points`` is the FULL history. The window block is sliced from it; the
-    absolute block never is.
+    absolute block never is. ``days``/``code``/``label`` pass a day-based window
+    through — see :func:`window_slice`.
     """
     points = normalize_points(raw_points)
     ma_cfg = thresholds()["moving_average"]
     return {
-        "window": window_stats(points, months, today),
+        "window": window_stats(points, months, today, days=days, code=code, label=label),
         "absolute": absolute_metrics(points),
         "quality": data_quality(points),
         # The chart draws the MA itself (it needs a value per plotted point),

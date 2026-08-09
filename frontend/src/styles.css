@@ -9902,7 +9902,7 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
   color: var(--muted);
   letter-spacing: 0.04em;
   line-height: 1.3;
-  align-self: stretch;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -10257,7 +10257,10 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .company-keystats .panel-label { white-space: nowrap; }
 .company-keystats .company-metric-val { text-align: right; }
 .company-keystats .cell-status { font-size: 11.5px; color: var(--text-muted); font-weight: 500; border-bottom: 1px dotted var(--border); cursor: help; }
-.keystat-note { font-size: 12px; margin-top: 8px; }
+.keystat-note { font-size: 12px; margin-top: 8px; line-height: 1.5; }
+/* The rows sit between the range bar and the note in the period block, so the
+   bar needs the gap the note already has on its other side. */
+.co-sidebar-block .keystat-range + .company-metrics-list { margin-top: 4px; }
 /* 52-week range: the track is the year, the dot is today. */
 .keystat-range { display: flex; flex-direction: column; gap: 7px; }
 .keystat-range-track { position: relative; height: 4px; border-radius: 3px; background: linear-gradient(90deg, var(--border), var(--accent)); }

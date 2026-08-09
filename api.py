@@ -4247,12 +4247,26 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
     return data
 
 
+# Names for the day-based windows. formulas.WINDOW_LABELS_RU is keyed by month
+# count and has no entry for a week or for a year-to-date span, which is exactly
+# why those two used to arrive labelled as a month.
+_WINDOW_LABELS_RU = {"1w": "за неделю", "ytd": "с начала года"}
+
+
 @app.get("/api/company/{ticker}/metrics")
-async def api_company_metrics(ticker: str, months: int = 12) -> dict[str, Any]:
+async def api_company_metrics(ticker: str, months: int = 12,
+                              days: int | None = None,
+                              window: str | None = None) -> dict[str, Any]:
     """Window and absolute price metrics for one instrument (ТЗ v1.2 §5).
 
     The two blocks are the contract: ``window`` follows the period button,
-    ``absolute`` never does. Both are computed by formulas.py from one full
+    ``absolute`` never does.
+
+    ``days`` is for the two buttons a month count cannot express — «1Н» is seven
+    days, YTD is however many have passed since 1 January — and ``window`` names
+    the result (``1w`` / ``ytd``). Without them the card answered «1Н» with a
+    month: twenty-one sessions and a range four times too wide, under a label
+    that said one week. Both are computed by formulas.py from one full
     history fetch, so the card, the market screen and the export cannot each
     arrive at a different VWAP or a different YTD.
     """
@@ -4262,9 +4276,12 @@ async def api_company_metrics(ticker: str, months: int = 12) -> dict[str, Any]:
 
     ticker = ticker.upper()
     months = max(1, min(months, 60))
+    days = max(1, min(int(days), 3650)) if days else None
+    code = str(window).strip().lower()[:12] or None if window else None
+    label = _WINDOW_LABELS_RU.get(code) if code else None
     # ТЗ §12: every number on the card can be replayed step by step under one
     # trace_id — input, decision with its reason, output.
-    trace = obs.Trace(endpoint="company/metrics", ticker=ticker, months=months)
+    trace = obs.Trace(endpoint="company/metrics", ticker=ticker, months=months, days=days)
     try:
         isin = await _resolve_isin(ticker)
         if not isin:
@@ -4275,7 +4292,8 @@ async def api_company_metrics(ticker: str, months: int = 12) -> dict[str, Any]:
         data = await _full_history(isin)
         points = data.get("points") or []
         trace.step("history_fetch", out={"points": len(points)})
-        metrics = formulas.company_metrics(points, months=months)
+        metrics = formulas.company_metrics(points, months=months, days=days,
+                                           code=code, label=label)
         window, absolute, quality = metrics["window"], metrics["absolute"], metrics["quality"]
         trace.step("window_metrics", out={"code": window["code"], "points": window["points"],
                                           "vwap": window["vwap"].get("value"),
