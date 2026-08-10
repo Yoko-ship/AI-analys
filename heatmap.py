@@ -83,6 +83,32 @@ def classify_tile(row: dict[str, Any], stats: dict[str, Any] | None = None) -> d
         else:
             status = TILE_NOT_TRADED
             reason = "нет сделок за торговый день"
+    elif not traded_today and change == 0.0:
+        # A dormant listing carries its last-known price in BOTH last_price and
+        # close_price, so day_change subtracts a price from itself and returns a
+        # perfectly ordinary 0.0 — never None. Deciding the status on `change is
+        # None` therefore skipped the two branches above entirely: measured
+        # 2026-08-10 in production, 10 of the 11 securities that had no session
+        # at all (AGMK, TGBK, UZNG, UTHK, GRBKP, QATTP, UZALP, FRAZ, UZGF, UZIN)
+        # were served as status "ok", confidence "normal" — indistinguishable
+        # from IPTB, which really did trade 114 922 367 sums that day and really
+        # did close unchanged. `counts.inactive` had been structurally 0 since
+        # the endpoint shipped, which is what a branch that cannot be reached
+        # looks like. Only MXUS escaped, and only because it has no carried
+        # price to subtract. So the question "did it trade?" is answered by the
+        # session, never by whether the arithmetic produced a number.
+        #
+        # `change == 0.0` is load-bearing, not belt-and-braces: a security whose
+        # price MOVED while the stats feed recorded nothing is a different
+        # animal — a join gap over a real move — and aggregate_sector already
+        # has a considered answer for it (the equal_no_turnover fallback). Only
+        # the zero is the artefact, so only the zero is caught here.
+        status = TILE_INACTIVE if inactive else TILE_NOT_TRADED
+        reason = "листинг неактивен" if inactive else "нет сделок за торговый день"
+        # Not a move. Nulled so no consumer can average it in as a real zero —
+        # aggregate_sector already skips non-OK tiles, and now the figure it
+        # would have skipped is gone too.
+        change = None
     else:
         status = TILE_OK
         reason = None
