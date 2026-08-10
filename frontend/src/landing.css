@@ -214,8 +214,20 @@
 .lv-tk { font-family: var(--lv-mono); font-weight: 700; font-size: 14px; }
 .lv-nm { display: block; font-size: 12px; color: var(--lv-ink-3); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lv-chg { font-family: var(--lv-mono); font-size: 14px; }
-.lv-spark-cell { width: 110px; }
-.lv-spark-cell .mini-sparkline { width: 96px; height: 26px; display: inline-block; }
+/* The 30-day line. A hairline stroke with no area fill and a small end dot —
+   at 26px tall anything heavier stops reading as a price and starts reading as
+   a drawn shape. No vector-effect here on purpose: the svg is rendered at its
+   own viewBox size, so 1.4 user units ARE 1.4 pixels. */
+.lv-spark-cell { width: 118px; }
+.lv-spark { display: inline-block; vertical-align: middle; overflow: visible; }
+.lv-spark path { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; }
+.lv-spark circle { fill: currentColor; stroke: none; }
+.lv-spark-u { color: var(--lv-up); }
+.lv-spark-d { color: var(--lv-down); }
+.lv-spark-f0 { color: var(--lv-ink-3); }
+/* A security with no stored history says so, rather than drawing a flat line
+   that would look like a price that never moved. */
+.lv-spark-none { font-family: var(--lv-mono); color: var(--lv-ink-3); }
 .lv-board-foot {
   display: flex; gap: 24px; margin-top: 14px; padding-top: 13px;
   border-top: 1px solid var(--lv-line);
