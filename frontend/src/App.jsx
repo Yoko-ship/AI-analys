@@ -12285,6 +12285,42 @@ function LandingSky({ theme }) {
   return <canvas ref={ref} className="lv-sky" aria-hidden="true" />;
 }
 
+/* The board's 30-day line. The shared <MiniSparkline> is drawn for a metric
+   card — a 220×74 viewBox with a 4px non-scaling stroke — and squeezing that
+   into a 26px table cell kept the stroke at four literal pixels over a ~19px
+   plot, which read as a fat snake rather than a price. This one is authored at
+   the size it is shown (1 user unit = 1 CSS pixel, so the hairline stays a
+   hairline) and takes its color from the landing's own up/down tokens, so the
+   line agrees with the change column beside it. */
+function LandingSpark({ values, label }) {
+  const w = 104;
+  const h = 26;
+  const pts = (Array.isArray(values) ? values : [])
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v));
+  if (pts.length < 2) return <span className="lv-spark-none">—</span>;
+
+  // Colored by the window it draws, not by the day's change: this is the
+  // 30-day column, so first-to-last is what the line is actually saying.
+  const move = pts.at(-1) - pts[0];
+  const dir = move > 0 ? "u" : move < 0 ? "d" : "f0";
+  const min = Math.min(...pts);
+  const max = Math.max(...pts);
+  const range = max - min || 1;
+  // 2px of head-room top and bottom: at stroke-width 1.4 a value sitting on the
+  // extreme would otherwise have half its stroke clipped by the viewBox.
+  const x = (i) => (i / (pts.length - 1)) * (w - 4) + 2;
+  const y = (v) => 2 + ((max - v) / range) * (h - 4);
+  const d = pts.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+
+  return (
+    <svg className={`lv-spark lv-spark-${dir}`} viewBox={`0 0 ${w} ${h}`} width={w} height={h} role="img" aria-label={label}>
+      <path d={d} />
+      <circle cx={x(pts.length - 1)} cy={y(pts.at(-1))} r="1.9" />
+    </svg>
+  );
+}
+
 function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, companies, onNavigate, onOpenCompany, onOpenNews }) {
   const lang = normalizeLanguage(language);
   const LT = LANDING_TX[lang] || LANDING_TX.ru;
@@ -12485,7 +12521,7 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
                           {fmtPct(r.changePercent, lang, 2)}
                         </td>
                         <td className="r lv-spark-cell">
-                          <MiniSparkline values={((spark[r.ticker]) || []).map((p) => p[1])} tone={r.tone} language={language} />
+                          <LandingSpark values={((spark[r.ticker]) || []).map((p) => p[1])} label={`${r.ticker} · ${LT.th30d}`} />
                         </td>
                       </tr>
                     ))}
