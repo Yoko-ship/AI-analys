@@ -64,6 +64,78 @@
       }
     },
     {
+      "id": "cbu_policy",
+      "name": "Central Bank of Uzbekistan — monetary policy",
+      "type": "html_list",
+      "url": "https://cbu.uz/ru/monetary-policy/publications/press-releases/",
+      "lang": [
+        "ru"
+      ],
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "safe",
+      "attribution": "Central Bank of Uzbekistan (cbu.uz)",
+      "enabled": true,
+      "crawl_delay_s": 5,
+      "max_items": 10,
+      "page_image": false,
+      "notes": "THE POLICY-RATE CHANNEL — the single most market-moving thing the CBU publishes, and it was NOT being read: added 2026-08-10 after measuring that the `cbu` press-centre listing carries none of it. The rate decisions live on their own page under /monetary-policy/, in DIFFERENT markup from the press centre (no a.news at all — `.item.has-date` with the headline in `.desc h3 a` and the date in a bare `.item-date` span), which is why one set of selectors could never have covered both. Verified 2026-08-10: 20 entries reaching back to Dec 2024, newest «Правление… 29 июля 2026 года приняло решение сохранить основную ставку на уровне 14% годовых» — roughly one meeting every 6-8 weeks, so most runs see nothing new and the ones that do see the decision itself. The listing ships NO image (there is no news__image node here) and no blurb, and the page's og:image is the site-wide social.jpg, so page_image stays false exactly as on `cbu`. Article pages ARE readable (3.7k chars of prose measured on the July release), so the story-page long read works — do not add article_body:false. robots.txt (checked 2026-08-10) blocks only /bitrix/, */index.php and auth/query params; no AI-bot rule, no crawl-delay.",
+      "list_selectors": {
+        "item": ".item.has-date",
+        "title": ".desc h3 a",
+        "date": ".item-date"
+      }
+    },
+    {
+      "id": "cbu_releases",
+      "name": "Central Bank of Uzbekistan — press releases",
+      "type": "html_list",
+      "url": "https://cbu.uz/ru/press_center/releases/",
+      "lang": [
+        "ru",
+        "en"
+      ],
+      "content": "full",
+      "coverage_weight": 0.85,
+      "legal": "safe",
+      "attribution": "Central Bank of Uzbekistan (cbu.uz)",
+      "enabled": true,
+      "crawl_delay_s": 5,
+      "max_items": 10,
+      "page_image": false,
+      "notes": "The press centre's OTHER listing, and the live one: added 2026-08-10 when the `cbu` source turned out to be nearly dormant — /press_center/news/ held 10 items spanning 28 Apr to 17 Jul 2026, i.e. usually nothing inside the 30-day window, while /press_center/releases/ was publishing on 4 Aug. Same «Пресс-релизы» label as the sections under /monetary-policy/ and /financial-stability/ but a different feed; all three are separate paths, so nothing double-counts. Identical a.news markup to `cbu`, and unlike it this listing DOES render per-article thumbnails on every row. Mixed register — bank supervision and payment-system decisions alongside anti-corruption monitoring and internal appointments — so it is deliberately NOT exempt from the relevance floor, like napp. Article pages are readable (1.8k chars measured), og:image is per-article here but the listing thumbnail is already the same picture, so no page fetch is needed. ONE OVERLAP, left in on purpose: the bank cross-posts each rate decision here as well as to cbu_policy, under a different id (…/releases/4256857 vs …/press-releases/4256870), so both rows are stored and both are classified — about eight extra calls a year. The reader never sees two cards: verified 2026-08-10 on the 29 July decision, the titles are character-identical, Jaccard 1.000 against a 0.62 threshold inside the 48h window, and _dedupe_stories collapses them at read time keeping whichever ranked higher. Suppressing the section instead would mean guessing which of the two paths the bank will use next time.",
+      "list_selectors": {
+        "item": "a.news",
+        "title": ".news__title",
+        "date": ".news__date span",
+        "image": ".news__image img",
+        "text": ".news__text"
+      }
+    },
+    {
+      "id": "cbu_finstab",
+      "name": "Central Bank of Uzbekistan — financial stability",
+      "type": "html_list",
+      "url": "https://cbu.uz/ru/financial-stability/press-releases/",
+      "lang": [
+        "ru"
+      ],
+      "content": "none",
+      "coverage_weight": 0.9,
+      "legal": "safe",
+      "attribution": "Central Bank of Uzbekistan (cbu.uz)",
+      "enabled": true,
+      "crawl_delay_s": 5,
+      "max_items": 10,
+      "page_image": false,
+      "notes": "Macroprudential decisions — the countercyclical capital buffer, systemic-bank designations, risk-weight changes: regulation that lands directly on the twelve listed banks. Same markup as cbu_policy (`.item.has-date`), no image, no blurb, readable article pages (1.5k chars measured). Verified 2026-08-10: 12 entries, newest 26 Dec 2025 — a few items a YEAR, so most runs fetch one page, find everything older than NEWS_MAX_AGE_DAYS and stop before any model call. That is the point: it costs one GET to not miss the buffer decision.",
+      "list_selectors": {
+        "item": ".item.has-date",
+        "title": ".desc h3 a",
+        "date": ".item-date"
+      }
+    },
+    {
       "id": "uzse",
       "name": "Republican Stock Exchange Toshkent (UZSE)",
       "type": "html",
