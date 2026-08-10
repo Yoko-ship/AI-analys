@@ -253,23 +253,25 @@ class TestMultiples:
         assert got["pe"]["value"] is None
         assert got["pe"]["status"] == fundamentals.STATUS_LOSS
 
-    def test_pe_outside_the_range_is_withheld(self):
+    def test_pe_outside_the_range_is_published_with_the_check_flag(self):
+        """V15 (ТЗ мультипликаторов): out of range the value is SHOWN, flagged
+        «проверить» — hiding it is how KFSK's real P/B 73,86 became a dash."""
         got = self._issuer(fin={"net_income": 1.0})       # P/E = 1000
-        assert got["pe"]["value"] is None
+        assert got["pe"]["value"] == pytest.approx(1000.0)
         assert got["pe"]["status"] == fundamentals.STATUS_OUT_OF_RANGE
-        assert got["pe"]["computed"] == pytest.approx(1000.0)
+        assert got["pe"]["check"] is True
 
-    def test_roe_beyond_a_hundred_percent_is_withheld(self):
+    def test_roe_beyond_a_hundred_percent_carries_the_flag(self):
         """UTGA/UTGAP published 10 715.33 % (2023); UZMT 179.26 % (2019).
 
-        No statement here, so nothing else can suppress the figure — the range
-        check alone has to catch it.
+        No statement here, so the figure comes off the indicator feed — it is
+        published with the «проверить» flag rather than silently dashed.
         """
         classes = [cls("A", cap=800.0, shares=100.0)]
         got = fundamentals.issuer_multiples(classes, None, ratio(roe=10715.33))
-        assert got["roe"]["value"] is None
+        assert got["roe"]["value"] == pytest.approx(10715.33)
         assert got["roe"]["status"] == fundamentals.STATUS_OUT_OF_RANGE
-        assert got["roe"]["computed"] == pytest.approx(10715.33)
+        assert got["roe"]["check"] is True
 
     def test_a_wildly_published_roe_also_invalidates_the_statement(self):
         """When both exist and disagree by 500x, the ROW is what is in doubt."""
@@ -290,18 +292,23 @@ class TestMultiples:
         got = self._issuer(fin={"gross_profit": -5000.0})
         assert got["pb"]["status"] == fundamentals.STATUS_OK
         assert got["pb"]["value"] == pytest.approx(1.0)
-        assert got["debt_to_equity"]["status"] == fundamentals.STATUS_OK
+        # Капитал/Активы reads only the balance — it stands too.
+        assert got["equity_assets"]["status"] == fundamentals.STATUS_OK
+        assert got["equity_assets"]["value"] == pytest.approx(50.0)
 
     def test_a_balance_line_failure_leaves_the_earnings_multiples_standing(self):
+        """Долг/Капитал is gone from the storefront (ТЗ мультипликаторов, лист
+        06); a liabilities line that cannot be true is still recorded on the
+        row's validation, but no served multiple reads it anymore."""
         got = self._issuer(fin={"total_liabilities": 9000.0}, rat={"roe": 20.0})
-        assert got["debt_to_equity"]["status"] == fundamentals.STATUS_UNVERIFIED
-        assert got["debt_to_equity"]["reasons"] == ["обязательства превышают активы"]
+        assert "liab_gt_assets" in got["validation"]["fields"]["total_liabilities"]
+        assert "debt_to_equity" not in got
         assert got["pe"]["value"] == pytest.approx(5.0)
         assert got["roe"]["status"] == fundamentals.STATUS_OK
 
     def test_negative_equity_withholds_book_value_and_leverage_only(self):
         got = self._issuer(rat={"total_equity": -5.0})
-        for field in ("pb", "roe", "debt_to_equity"):
+        for field in ("pb", "roe", "equity_assets"):
             assert got[field]["status"] == fundamentals.STATUS_UNVERIFIED
         assert got["pe"]["value"] == pytest.approx(5.0)
 
@@ -332,10 +339,109 @@ class TestMultiples:
         got = fundamentals.bvps_issuer([cls("A", cap=800.0, shares=None)], equity=1000.0)
         assert got["value"] is None and got["status"] == "no_share_count"
 
-    def test_earnings_override_carries_its_period(self):
-        got = self._issuer(earn={"net_income": 100.0, "period": "2025A", "months": 12})
-        assert got["pe"]["value"] == pytest.approx(10.0)
+    def test_the_annual_row_names_its_own_period(self):
+        got = self._issuer()
+        assert got["pe"]["value"] == pytest.approx(5.0)
         assert got["pe"]["base_period"] == "2025A"
+
+    # -- ТЗ мультипликаторов 2026-08-10 ---------------------------------------
+
+    def test_ttm_is_assembled_per_rule_v1(self):
+        """TTM = годовая величина + YTD текущего года − YTD прошлого года."""
+        got = self._issuer(fin={
+            "year": 2026, "quarter": 2, "period_months": 6,
+            "net_income": 120.0, "revenue": 600.0, "gross_profit": 250.0,
+            "prior": {"year": 2025, "quarter": 2, "period_months": 6, "is_ytd": True,
+                      "net_income": 40.0, "revenue": 300.0},
+            "annual": {"year": 2025, "quarter": 0, "period_months": 12,
+                       "net_income": 100.0, "revenue": 900.0, "gross_profit": 380.0},
+        })
+        # NI_TTM = 100 + 120 − 40 = 180 → P/E = 1000 / 180.
+        assert got["pe"]["value"] == pytest.approx(1000.0 / 180.0)
+        assert got["pe"]["base_period"] == "2025A + 6М2026"
+        assert got["pe"].get("estimate") is None
+        # P/S over the same TTM revenue: 900 + 600 − 300 = 1200.
+        assert got["ps"]["value"] == pytest.approx(1000.0 / 1200.0)
+        # Margin over ONE period: 180 / 1200 × 100 = 15 %.
+        assert got["net_margin"]["value"] == pytest.approx(15.0)
+
+    def test_a_loss_by_ttm_says_loss_even_when_the_year_was_profitable(self):
+        """The UZHM/YGSY case: a profitable FY2025 followed by a losing half."""
+        got = self._issuer(fin={
+            "year": 2026, "quarter": 2, "period_months": 6,
+            "net_income": -50.0, "revenue": 600.0,
+            "prior": {"year": 2025, "quarter": 2, "period_months": 6, "is_ytd": True,
+                      "net_income": 90.0, "revenue": 300.0},
+            "annual": {"year": 2025, "quarter": 0, "period_months": 12,
+                       "net_income": 100.0, "revenue": 900.0},
+        })
+        # NI_TTM = 100 − 50 − 90 = −40 → «убыток», not a number.
+        assert got["pe"]["value"] is None
+        assert got["pe"]["status"] == fundamentals.STATUS_LOSS
+
+    def test_without_an_annual_the_interim_is_annualised_and_marked(self):
+        got = self._issuer(fin={"year": 2026, "quarter": 2, "period_months": 6,
+                                "net_income": 100.0, "revenue": 600.0,
+                                "annual": None, "prior": None})
+        # 6 мес × 2 (лист 10) — published as an estimate, never silently.
+        assert got["pe"]["value"] == pytest.approx(1000.0 / 200.0)
+        assert got["pe"]["estimate"] is True
+
+    def test_the_filed_balance_beats_the_indicator_feed(self):
+        """P/B divides by the LAST FILED balance; ROE/ROA average the period."""
+        # Liabilities close the filed balance: 500 + 600 = 1100 (V2 holds).
+        got = self._issuer(fin={"total_liabilities": 600.0,
+                                "balance": {"equity_start": 300.0, "equity_end": 500.0,
+                                            "assets_start": 900.0, "assets_end": 1100.0}})
+        assert got["pb"]["value"] == pytest.approx(1000.0 / 500.0)
+        assert got["pb"]["balance_source"] == "filing"
+        # ROE = 200 / ((300+500)/2) × 100 = 50 %.
+        assert got["roe"]["value"] == pytest.approx(50.0)
+        assert got["roa"]["value"] == pytest.approx(200.0 / 1000.0 * 100.0)
+        assert got["equity_assets"]["value"] == pytest.approx(500.0 / 1100.0 * 100.0)
+
+    def test_a_statement_older_than_two_years_is_no_data(self):
+        """V4 — the UZMT case: a 2019 balance must not price a 2026 P/B."""
+        got = self._issuer(fin={"year": 2022, "quarter": 0})
+        for field in ("pe", "pb", "ps", "roe", "roa", "net_margin", "equity_assets"):
+            assert got[field]["value"] is None
+            assert got[field]["status"] == fundamentals.STATUS_STALE
+
+    def test_ps_is_not_a_bank_or_insurer_figure(self):
+        got = self._issuer(fin={"org_type": "insurance"})
+        assert got["ps"]["value"] is None
+        assert got["ps"]["status"] == fundamentals.STATUS_NOT_APPLICABLE
+
+    def test_a_bank_margin_divides_by_total_income(self):
+        """Лист 05: для банков знаменатель — процентные + беспроцентные доходы."""
+        got = self._issuer(fin={"org_type": "bank", "gross_profit": None,
+                                "revenue": 500.0, "noninterest_income": 300.0,
+                                "net_income": 200.0})
+        assert got["net_margin"]["value"] == pytest.approx(200.0 / 800.0 * 100.0)
+        assert got["net_margin"]["denominator"] == "total_income"
+        # ...and a bank shows no P/S at all.
+        assert got["ps"]["status"] == fundamentals.STATUS_NOT_APPLICABLE
+
+    def test_a_broken_balance_identity_withholds_the_balance_side(self):
+        """V2: капитал + обязательства = активы, допуск 0,1 %."""
+        got = self._issuer(fin={"total_liabilities": 400.0,
+                                "balance": {"equity_start": None, "equity_end": 500.0,
+                                            "assets_start": None, "assets_end": 1100.0}})
+        # 500 + 400 = 900 ≠ 1100 → the filed balance cannot be true.
+        assert got["pb"]["status"] == fundamentals.STATUS_UNVERIFIED
+        assert got["equity_assets"]["status"] == fundamentals.STATUS_UNVERIFIED
+        # The P&L side stands: P/E is untouched by a broken balance.
+        assert got["pe"]["value"] == pytest.approx(5.0)
+
+    def test_the_regression_identities_flag_but_never_hide(self):
+        got = self._issuer(fin={"total_liabilities": 1000.0,
+                                "balance": {"equity_start": 1000.0, "equity_end": 1000.0,
+                                            "assets_start": 2000.0, "assets_end": 2000.0}})
+        # pe=5, roe=20 → pe×roe/100 = 1.0 = pb; roe×ea/100 = 10 = roa.
+        checks = got["checks"]["results"]
+        assert checks["v11_pe_roe_pb"] is True
+        assert checks["v14_roe_ea_roa"] is True
+        assert got["checks"]["flags"] == []
 
 
 # ---------------------------------------------------------------------------

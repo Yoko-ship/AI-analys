@@ -323,6 +323,22 @@ def _rows(detail, *keys):
     return []
 
 
+def _balance_pair(row, key):
+    """(start, end) of one balance line.
+
+    value1 is «на начало отчетного периода» and the statement's period-end
+    column (see :func:`end_key`) is the end. When the statement's own end
+    column IS value1 — a filing that left value2 empty — the start cannot be
+    told apart from the end and is honestly unknown. ROE/ROA averaging then
+    degrades to the end value instead of averaging a number with itself.
+    """
+    if row is None:
+        return None, None
+    end = end_value(row, key)
+    start = _num(row.get("value1")) if key != "value1" else None
+    return start, end
+
+
 def _by_tnum(rows, tnum):
     for r in rows:
         if str(r.get("tnum")) == tnum:
@@ -401,7 +417,12 @@ def extract_metrics(detail):
         "tickets": detail.get("organization_ticket_name"),
         "gross_profit": None,
         "operating_income": None,
+        "noninterest_income": None,
         "prior": None,
+        # Balance block (ТЗ мультипликаторов 2026-08-10, лист 09): equity and
+        # assets straight from the filed balance sheet, start AND end of period,
+        # so P/B stops dividing by a year-old figure and ROE/ROA can average.
+        "balance": None,
     }
     if org in ("bank", "microfinance"):
         # The microfinance form is the bank form with different wording: its P&L
@@ -422,9 +443,26 @@ def extract_metrics(detail):
         out["gross_profit"] = pl_value(_by_title(pl, ["чистый доход до операционных расходов"])
                                        or _by_title(pl, ["чистые доходы до операционных расходов"]))
         out["operating_income"] = pl_value(_by_title(pl, ["чистая прибыль до уплаты налогов"]))
+        # «е. Итого беспроцентных доходов» — the second half of a bank's total
+        # income. The net-margin denominator is interest + non-interest income
+        # (ТЗ мультипликаторов, лист 05): dividing by interest income alone
+        # overstates every bank's margin, and the fact store divided by a basis
+        # nobody could reproduce.
+        out["noninterest_income"] = pl_value(_by_title(pl, ["итого беспроцентных доходов"])
+                                             or _by_title(pl, ["всего беспроцентных доходов"]))
         out["total_liabilities"] = bal_value(_by_title(bal, ["итого обязательств"], exclude=["капитал"]))
         out["cash"] = bal_value(_by_title(bal, ["кассовая наличность"])
                                 or _by_title(bal, ["денежные средства в кассе"]))
+        # «30. Итого собственного капитала» / «31. Итого обязательств и
+        # собственного капитала». The bank form has no tnum — matching is by
+        # title, as everywhere on this branch. Control: 25 + 30 = 31.
+        bkey = end_key(bal)
+        eq_start, eq_end = _balance_pair(_by_title(bal, ["итого собственного капитала"]), bkey)
+        as_start, as_end = _balance_pair(
+            _by_title(bal, ["итого обязательств", "собственного капитала"]), bkey)
+        if any(v is not None for v in (eq_start, eq_end, as_start, as_end)):
+            out["balance"] = {"equity_start": eq_start, "equity_end": eq_end,
+                              "assets_start": as_start, "assets_end": as_end}
     else:  # jsc / insurance
         rev_row = _by_tnum(pl, "010") or _by_title(pl, ["выручка"])
         net_row = _by_title(pl, ["чистая прибыль", "отчетного периода"])
@@ -472,6 +510,25 @@ def extract_metrics(detail):
             out["cash"] = end_value(cash_row, key)
         else:
             out["cash"] = bal_value(cash_total_row)
+        # Equity and assets, by the line numbers of the RIGHT form. The two
+        # forms reuse the same tnums for different things — 490 is «итого актив
+        # баланса» on the insurance form and «долгосрочные обязательства» on the
+        # jsc one — so the branch is on org_type, never on wording alone. For an
+        # insurer the ONLY valid equity line is 570: the insurance reserves live
+        # in a separate obligations section and must never enter the капитал
+        # (ALSM's P/B was 3x off exactly because they did).
+        if org == "insurance":
+            eq_row = _by_tnum(bal, "570") or _by_title(bal, ["итого собственный капитал"])
+            as_row = _by_tnum(bal, "490") or _by_title(bal, ["итого актив баланса"])
+        else:
+            eq_row = (_by_tnum(bal, "480")
+                      or _by_title(bal, ["итого", "источники собственных средств"]))
+            as_row = _by_tnum(bal, "400") or _by_title(bal, ["итого по активу баланса"])
+        eq_start, eq_end = _balance_pair(eq_row, key)
+        as_start, as_end = _balance_pair(as_row, key)
+        if any(v is not None for v in (eq_start, eq_end, as_start, as_end)):
+            out["balance"] = {"equity_start": eq_start, "equity_end": eq_end,
+                              "assets_start": as_start, "assets_end": as_end}
     return out
 
 
@@ -647,8 +704,17 @@ def select_reports(ticker, today=None, max_fetch=8):
         # An annual candidate is worth fetching while it can still improve the
         # companion, which is the weaker bar of the two (the companion never
         # outranks the latest period), so testing it alone covers both targets.
-        floor = (best_annual if annual else best) or {}
-        if _period_ceiling(c, today) <= floor.get("rank", -1):
+        # A quarterly candidate can improve both targets too: when it resolves
+        # to Q4 it is 12 cumulative months and stands in as the annual base for
+        # an issuer that files no annuals (ТЗ мультипликаторов: KSCM's newest
+        # annual is 2022 while its quarters are current) — so it is skipped only
+        # when it can improve neither.
+        if annual:
+            floor_rank = (best_annual or {}).get("rank", -1)
+        else:
+            floor_rank = min((best or {}).get("rank", -1),
+                             (best_annual or {}).get("rank", -1))
+        if _period_ceiling(c, today) <= floor_rank:
             continue  # cannot improve either target — skip without fetching
         if fetched >= max_fetch:
             break
@@ -696,7 +762,7 @@ def select_reports(ticker, today=None, max_fetch=8):
                 "quarter": quarter,
             },
         }
-        if annual and rank > (best_annual or {}).get("rank", -1):
+        if (annual or quarter == 4) and rank > (best_annual or {}).get("rank", -1):
             best_annual = chosen
         if rank > (best or {}).get("rank", -1):
             best = chosen
@@ -718,7 +784,7 @@ def select_report(ticker, today=None, max_fetch=8):
 
 
 METRIC_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
-               "net_income", "operating_income")
+               "net_income", "operating_income", "noninterest_income")
 
 NSBU_THOUSANDS = 1000.0
 
@@ -844,11 +910,17 @@ def _figures(ticker, metrics, meta):
     """One period's figures in both unit conventions, with its period label."""
     row = {"ticker": ticker, "year": meta["year"], "quarter": meta["quarter"],
            "period_months": period_months(meta["year"], meta["quarter"]),
-           "is_ytd": bool(meta["quarter"])}
+           "is_ytd": bool(meta["quarter"]),
+           "org_type": metrics.get("org_type")}
     for k in METRIC_KEYS:
         v = metrics.get(k)
         row[f"{k}_thousand"] = None if v is None else round(v, 2)
         row[f"{k}_full"] = None if v is None else round(v * NSBU_THOUSANDS, 2)
+    # The filed balance block, in openinfo thousands: equity/assets at the start
+    # and the end of THIS report's period. Rides with the row like `prior` does.
+    bal = metrics.get("balance")
+    row["balance"] = ({k: (None if v is None else round(v, 2)) for k, v in bal.items()}
+                      if bal else None)
     # The comparative the SAME filing prints for the year before — the issuer's
     # own restated figure for that period, which is what a year-on-year change
     # should be struck against. It is labelled with its own period so nothing can
@@ -897,7 +969,8 @@ def reconcile_ticker(ticker, today=None):
 
 def admin_push_row(row):
     """Shape a reconcile row for POST /api/admin/financials (stored in thousands)."""
-    out = {"ticker": row["ticker"], "year": row["year"], "quarter": row["quarter"]}
+    out = {"ticker": row["ticker"], "year": row["year"], "quarter": row["quarter"],
+           "org_type": row.get("org_type"), "balance": row.get("balance")}
     for k in METRIC_KEYS:
         out[k] = row.get(f"{k}_thousand")
     prior = row.get("prior")

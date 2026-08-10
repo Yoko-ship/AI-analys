@@ -314,9 +314,11 @@ def mul_01(ctx: AuditContext):
         if published is None:
             continue
         cap = _value(row.get("market_cap_issuer"))
-        net = ind.num((row.get("earnings") or {}).get("net_income"))
+        # The denominator the ТЗ orders: twelve months assembled by V1,
+        # re-derived by the auditor's own arithmetic from the raw row.
+        fin = ctx.financials.get(str(row.get("ticker") or "").upper()) or {}
+        net = ind.twelve_month_profit(fin)
         if net is None:
-            fin = ctx.financials.get(str(row.get("ticker") or "").upper()) or {}
             net = ind.num((fin.get("annual") or {}).get("net_income")) or ind.num(fin.get("net_income"))
         mine = ind.price_earnings(cap, net)
         gap = ind.relative_gap(mine, published)
@@ -333,9 +335,13 @@ def mul_02(ctx: AuditContext):
         published = _value(row.get("pb"))
         if published is None:
             continue
+        ticker = str(row.get("ticker") or "").upper()
         cap = _value(row.get("market_cap_issuer"))
-        equity = ind.num((ctx.ratios.get(str(row.get("ticker") or "").upper()) or {})
-                         .get("total_equity"))
+        # The filed balance is the denominator of record (ТЗ мультипликаторов,
+        # лист 03); the indicator feed answers only for rows that predate it.
+        equity = ind.statement_equity(ctx.financials.get(ticker))
+        if equity is None:
+            equity = ind.num((ctx.ratios.get(ticker) or {}).get("total_equity"))
         mine = ind.price_book(cap, equity)
         gap = ind.relative_gap(mine, published)
         if gap is not None and gap > tol:
@@ -409,6 +415,9 @@ def mul_06(ctx: AuditContext):
 
 
 def _range_rule(code: str, metric: str, threshold_key: str, label: str):
+    # V15: outside the range the value is published carrying the «проверить»
+    # status. The violation is an out-of-range value WITHOUT that status — a
+    # flagged one is the storefront doing exactly what the ТЗ orders.
     @check(code)
     def _inner(ctx: AuditContext, _m=metric, _t=threshold_key, _l=label, _c=code):
         bounds = ind.threshold(_t) or []
@@ -416,11 +425,13 @@ def _range_rule(code: str, metric: str, threshold_key: str, label: str):
             return
         low, high = float(bounds[0]), float(bounds[1])
         for row in ctx.published_multiples:
-            value = _value(row.get(_m))
-            if value is None:
+            cell = row.get(_m) or {}
+            value = _value(cell)
+            if value is None or (isinstance(cell, dict)
+                                 and cell.get("status") == "out_of_range"):
                 continue
             if not (low <= value <= high):
-                yield Finding(_c, f"{_l} опубликован вне допустимого диапазона",
+                yield Finding(_c, f"{_l} опубликован вне диапазона без пометки",
                               row.get("ticker"), _m, None, value, None,
                               {"value": value, "allowed": [low, high]})
     return _inner
@@ -434,7 +445,10 @@ _range_rule("MUL-08", "pb", "multiples.pb_range", "P/B")
 def mul_09(ctx: AuditContext):
     limit = ind.threshold("multiples.roe_abs_max", 100)
     for row in ctx.published_multiples:
-        roe = _value(row.get("roe"))
+        cell = row.get("roe") or {}
+        if isinstance(cell, dict) and cell.get("status") == "out_of_range":
+            continue  # published with the «проверить» flag — as V15 orders
+        roe = _value(cell)
         if roe is not None and abs(roe) > limit:
             yield Finding("MUL-09", "ROE опубликован за пределами разумного", row.get("ticker"),
                           "roe", limit, roe, abs(roe) - limit, {"roe": roe})
@@ -446,7 +460,13 @@ def mul_10(ctx: AuditContext):
         pe = _value(row.get("pe"))
         ticker = str(row.get("ticker") or "").upper()
         fin = ctx.financials.get(ticker) or {}
-        net = ind.num((fin.get("annual") or {}).get("net_income"))
+        # The sign that matters is the TTM sign: MCBA's FY2024 was a loss while
+        # its twelve trailing months earn +160,8 млрд — a published P/E there is
+        # correct, and flagging it against the stale annual would blank a right
+        # number (ТЗ мультипликаторов, лист 13).
+        net = ind.twelve_month_profit(fin)
+        if net is None:
+            net = ind.num((fin.get("annual") or {}).get("net_income"))
         if net is None:
             net = ind.num(fin.get("net_income"))
         if net is not None and net <= 0 and pe is not None:

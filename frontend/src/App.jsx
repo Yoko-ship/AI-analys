@@ -2592,6 +2592,10 @@ const MARKET_TEXTS = {
     grpMultiples: "Мультипликаторы",
     mktCap: "Капитализация",
     netMargin: "Чистая маржа",
+    netMarginBankNote: "для банков — от совокупного дохода",
+    equityAssets: "Капитал/Активы",
+    checkFlag: "проверить",
+    estimateFlag: "оценка",
     debtEquity: "Долг/Капитал",
     exportCsv: "Экспорт CSV",
     topGainers: "Топ роста",
@@ -2680,6 +2684,10 @@ const MARKET_TEXTS = {
     grpMultiples: "Multiples",
     mktCap: "Market cap",
     netMargin: "Net margin",
+    netMarginBankNote: "banks: over total income",
+    equityAssets: "Equity/Assets",
+    checkFlag: "check",
+    estimateFlag: "estimate",
     debtEquity: "Debt/Equity",
     exportCsv: "Export CSV",
     topGainers: "Top gainers",
@@ -2768,6 +2776,10 @@ const MARKET_TEXTS = {
     grpMultiples: "Multiplikatorlar",
     mktCap: "Kapitalizatsiya",
     netMargin: "Sof marja",
+    netMarginBankNote: "banklar uchun — jami daromaddan",
+    equityAssets: "Kapital/Aktivlar",
+    checkFlag: "tekshirish",
+    estimateFlag: "baholash",
     debtEquity: "Qarz/Kapital",
     exportCsv: "CSV eksport",
     topGainers: "Eng ko'p o'sganlar",
@@ -6671,6 +6683,12 @@ const MULTIPLE_STATUS_TEXT = {
   incomplete: ["нет всех классов", "barcha sinflar yo'q", "classes missing"],
   no_market_cap: ["нет капитализации", "kapitalizatsiya yo'q", "no market cap"],
   no_share_count: ["нет числа акций", "aksiyalar soni yo'q", "no share count"],
+  // ТЗ мультипликаторов 2026-08-10: V4 makes a two-year-old statement «нет
+  // данных», a negative capital is a fact about the issuer, and «н/п» marks a
+  // figure the issuer's reporting form does not define (P/S for a bank).
+  stale_period: ["нет свежего отчёта", "yangi hisobot yo'q", "no recent report"],
+  negative_equity: ["отрицательный капитал", "salbiy kapital", "negative equity"],
+  not_applicable: ["н/п", "t/e", "n/a"],
 };
 
 function multipleStatusText(status, lang) {
@@ -7010,15 +7028,19 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   }
   const valuationRows = rows.splice(0, rows.length);
   putMultiple("P/E", mult?.pe, 2, "×", mult?.base_period || undefined);
-  putMultiple("P/B", mult?.pb, 2, "×");
+  putMultiple("P/B", mult?.pb, 2, "×", mult?.balance_period || undefined);
+  putMultiple("P/S", mult?.ps, 2, "×", mult?.base_period || undefined);
   putMultiple("BVPS", mult?.bvps, 2, "");
   pushBlock("valuation", t("Оценка", "Baholash", "Valuation"), [...valuationRows, ...rows.splice(0, rows.length)]);
 
   // --- Profitability -------------------------------------------------------
+  // Долг/Капитал ушёл из витрины по ТЗ мультипликаторов (лист 06); его место
+  // занимает Капитал/Активы — та же информация о долговой нагрузке, но в
+  // шкале 0…100 %, где разы и проценты перепутать невозможно.
   putMultiple("ROE", mult?.roe, 2, "");
   putMultiple("ROA", mult?.roa, 2, "");
   putMultiple(t("Чистая маржа", "Sof marja", "Net margin"), mult?.net_margin, 2, "");
-  putMultiple(t("Долг/Капитал", "Qarz/Kapital", "Debt/Equity"), mult?.debt_to_equity, 2, "");
+  putMultiple(t("Капитал/Активы", "Kapital/Aktivlar", "Equity/Assets"), mult?.equity_assets, 2, "");
   pushBlock("profitability", t("Рентабельность", "Rentabellik", "Profitability"), rows.splice(0, rows.length));
 
   // --- Dividends -----------------------------------------------------------
@@ -10066,14 +10088,18 @@ function MarketView({
       ["finNet", mt(lang, "finNet")],
       ["finOperating", mt(lang, "finOperating")],
     ] },
+    // Долг/Капитал удалён по ТЗ мультипликаторов (лист 06): 47 из 99 значений
+    // не воспроизводились, единицы были смешаны. Его роль делят P/S
+    // (нефинансовый сектор) и Капитал/Активы (в первую очередь банки).
     { key: "multiples", title: mt(lang, "grpMultiples"), cols: [
       ["mktCap", mt(lang, "mktCap")],
       ["pe", "P/E"],
       ["pb", "P/B"],
+      ["ps", "P/S"],
       ["roe", "ROE"],
       ["roa", "ROA"],
       ["netMargin", mt(lang, "netMargin")],
-      ["debtEq", mt(lang, "debtEquity")],
+      ["eqAssets", mt(lang, "equityAssets")],
     ] },
   ];
   const MARKET_COLS = COL_GROUPS.flatMap((g) => g.cols);
@@ -10101,7 +10127,7 @@ function MarketView({
   // data (no market cap, P/E, ROE, or issuer financials). Hide the stock-only
   // columns on the bonds view instead of rendering misleading blank cells; stocks
   // and bonds are not comparable on the same metrics.
-  const EQUITY_ONLY_COLS = new Set(["mktCap", "pe", "pb", "roe", "roa", "netMargin", "debtEq", "finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating"]);
+  const EQUITY_ONLY_COLS = new Set(["mktCap", "pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets", "finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating"]);
 
   // Drag-to-reorder columns. Ticker + company stay pinned left (identity cells);
   // everything from "last" onward is reorderable. Order is persisted per user.
@@ -10262,7 +10288,22 @@ function MarketView({
   const statusText = (status) => multipleStatusText(status, lang);
   const multipleCell = (row, metric, digits, suffix = "×") => {
     if (metric?.value != null) {
-      return <td className="num">{formatRatio(metric.value, digits, lang)}{suffix}</td>;
+      // V15 (ТЗ мультипликаторов): out of range the number is shown WITH its
+      // flag — «проверить» — and an annualised estimate carries «оценка».
+      const flags = [];
+      if (metric.status === "out_of_range") flags.push(mt(lang, "checkFlag"));
+      if (metric.estimate) flags.push(mt(lang, "estimateFlag"));
+      const title = [
+        metric.base_period,
+        metric.note,
+        metric.allowed ? `∉ [${metric.allowed.join("; ")}]` : null,
+      ].filter(Boolean).join(" · ") || undefined;
+      return (
+        <td className="num" title={title}>
+          {formatRatio(metric.value, digits, lang)}{suffix}
+          {flags.length > 0 && <span className="fin-cell-period">{flags.join(" · ")}</span>}
+        </td>
+      );
     }
     const label = statusText(metric?.status);
     if (!label) return <td className="num">{noSecLabel(row)}</td>;
@@ -10270,7 +10311,8 @@ function MarketView({
       || (metric?.computed != null
         ? `${formatRatio(metric.computed, digits, lang)}${suffix} ∉ [${metric.allowed?.join(", ")}]`
         : metric?.note || "");
-    return <td className="num"><span className="cell-status" title={reasons || undefined}>{label}</span></td>;
+    const period = metric?.base_period ? ` · ${metric.base_period}` : "";
+    return <td className="num"><span className="cell-status" title={(reasons + period).trim() || undefined}>{label}</span></td>;
   };
   // Issuers openinfo records as having no tradable securities at all
   // (is_listing=false, empty RFB/OTC share registries — e.g. MNGM, OCBK):
@@ -10358,10 +10400,15 @@ function MarketView({
     mktCap: (r) => mktCapOf(r),
     pe: (r) => peOf(r),
     pb: (r) => pbOf(r),
-    roe: (r) => ratioOf(r.ticker)?.roe,
-    roa: (r) => ratioOf(r.ticker)?.roa,
-    netMargin: (r) => ratioOf(r.ticker)?.net_profit_margin,
-    debtEq: (r) => ratioOf(r.ticker)?.debt_to_equity,
+    // Sort on what is RENDERED — the server envelope — not on the raw
+    // indicator feed. Sorting on the feed while rendering the envelope put a
+    // withheld value's ghost in the ordering (ТЗ мультипликаторов, лист 05:
+    // «сортировка по марже выдаёт бессмысленный порядок»).
+    ps: (r) => multiplesOf(r)?.ps?.value ?? null,
+    roe: (r) => multiplesOf(r)?.roe?.value ?? ratioOf(r.ticker)?.roe,
+    roa: (r) => multiplesOf(r)?.roa?.value ?? ratioOf(r.ticker)?.roa,
+    netMargin: (r) => multiplesOf(r)?.net_margin?.value ?? ratioOf(r.ticker)?.net_profit_margin,
+    eqAssets: (r) => multiplesOf(r)?.equity_assets?.value ?? null,
     // Normalized to YYYYMMDD so the comparison is chronological. The raw field is
     // a mix of DD.MM.YYYY (live feed) and YYYY-MM-DD (listings registry), and
     // comparing those as strings ordered by the leading digits — "31.01.2026"
@@ -10484,8 +10531,10 @@ function MarketView({
       mt(lang, "finPeriod"), mt(lang, "finCoverage"),
       mt(lang, "finRevenue"), mt(lang, "finGross"), mt(lang, "finOperating"),
       mt(lang, "finNet"), mt(lang, "finCash"), mt(lang, "finLiab"),
-      mt(lang, "mktCap"), mt(lang, "pe"), mt(lang, "pb"),
-      mt(lang, "roe"), mt(lang, "roa"), `${mt(lang, "netMargin")}, %`, mt(lang, "debtEquity"),
+      mt(lang, "mktCap"), mt(lang, "pe"), mt(lang, "pb"), "P/S",
+      mt(lang, "roe"), mt(lang, "roa"),
+      `${mt(lang, "netMargin")}, % (${mt(lang, "netMarginBankNote")})`,
+      `${mt(lang, "equityAssets")}, %`,
     ];
     lines.push(header.map(cell).join(sep));
 
@@ -10515,8 +10564,11 @@ function MarketView({
         money(fin?.revenue), money(fin?.gross_profit), money(fin?.operating_income),
         money(fin?.net_income), money(fin?.cash), money(fin?.total_liabilities),
         money(mktCapOf(row)), round(peOf(row), 2), round(pbOf(row), 2),
-        round(rat.roe, 2), round(rat.roa, 2), round(rat.net_profit_margin, 2),
-        round(rat.debt_to_equity, 2),
+        round(multiplesOf(row)?.ps?.value, 2),
+        round(multiplesOf(row)?.roe?.value ?? rat.roe, 2),
+        round(multiplesOf(row)?.roa?.value ?? rat.roa, 2),
+        round(multiplesOf(row)?.net_margin?.value ?? rat.net_profit_margin, 2),
+        round(multiplesOf(row)?.equity_assets?.value, 2),
       ].map(cell).join(sep));
     }
 
@@ -10677,32 +10729,39 @@ function MarketView({
     mktCap: (row) => <td className="num">{(() => { const v = mktCapOf(row); return v == null ? noSecLabel(row) : formatRatio(v, 0, lang); })()}</td>,
     pe: (row) => {
       const m = valuationOf(row).pe;
-      if (m?.value == null) return multipleCell(row, m, 1);
+      if (m?.value == null) return multipleCell(row, m, 2);
       // Name the earnings period on the cell: this is the one multiple whose
       // denominator can come from a different filing than the row's own figures.
       const period = m.base_period || earningsOf(row).period;
       const months = m.base_months || earningsOf(row).months;
       return (
         <td className="num" title={period ? `${lang === "ru" ? "прибыль за" : lang === "uz" ? "foyda" : "earnings for"} ${period}${months ? ` · ${months} ${lang === "ru" ? "мес." : lang === "uz" ? "oy" : "months"}` : ""}` : undefined}>
-          <strong>{formatRatio(m.value, 1, lang)}×</strong>
-          {period && <span className="fin-cell-period">{period}</span>}
+          <strong>{formatRatio(m.value, 2, lang)}×</strong>
+          {(() => {
+            const sub = [period, m.status === "out_of_range" ? mt(lang, "checkFlag") : null,
+              m.estimate ? mt(lang, "estimateFlag") : null].filter(Boolean).join(" · ");
+            return sub ? <span className="fin-cell-period">{sub}</span> : null;
+          })()}
         </td>
       );
     },
     pb: (row) => multipleCell(row, valuationOf(row).pb, 2),
+    ps: (row) => multipleCell(row, multiplesOf(row)?.ps, 2),
     roe: (row) => multipleCell(row, multiplesOf(row)?.roe
-      ?? { value: ratioOf(row.ticker)?.roe, status: "ok" }, 2, ""),
+      ?? { value: ratioOf(row.ticker)?.roe, status: "ok" }, 1, "%"),
     roa: (row) => multipleCell(row, multiplesOf(row)?.roa
-      ?? { value: ratioOf(row.ticker)?.roa, status: "ok" }, 2, ""),
-    netMargin: (row) => <td className="num">{(() => {
+      ?? { value: ratioOf(row.ticker)?.roa, status: "ok" }, 1, "%"),
+    netMargin: (row) => {
+      const server = multiplesOf(row)?.net_margin;
+      if (server) return multipleCell(row, server, 1, "%");
       const v = ratioOf(row.ticker)?.net_profit_margin;
-      if (v != null) return formatRatio(v, 2, lang);
+      if (v != null) return <td className="num">{formatRatio(v, 1, lang)}%</td>;
       // Margin is undefined at zero revenue (e.g. the National Investment
       // Fund) — say so instead of showing an ambiguous dash.
-      if (finOf(row.ticker)?.revenue === 0) return lang === "ru" ? "н/п" : lang === "uz" ? "t/e" : "n/a";
-      return "—";
-    })()}</td>,
-    debtEq: (row) => <td className="num">{(() => { const v = ratioOf(row.ticker)?.debt_to_equity; return v == null ? "—" : formatRatio(v, 2, lang); })()}</td>,
+      if (finOf(row.ticker)?.revenue === 0) return <td className="num">{naLabel()}</td>;
+      return <td className="num">—</td>;
+    },
+    eqAssets: (row) => multipleCell(row, multiplesOf(row)?.equity_assets, 1, "%"),
     date: (row) => (
       <td>
         {/* The live feed reports last_trade_date=null for some securities

@@ -428,7 +428,11 @@ def collect_listing_rows() -> list[dict[str, Any]]:
 
 
 _FIN_VALUE_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
-                   "net_income", "operating_income")
+                   "net_income", "operating_income",
+                   # ТЗ мультипликаторов: the sibling inherits the whole row —
+                   # the bank's second income half, the form it was read from,
+                   # the filed balance and the comparative the TTM subtracts.
+                   "noninterest_income", "org_type", "balance", "prior")
 
 
 _ORG_TICKERS_MEMO: dict[str, set[str]] | None = None

@@ -388,6 +388,22 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     # by nothing.
     if "prior_period" not in have_fin:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN prior_period TEXT")
+    # ТЗ мультипликаторов (2026-08-10). Three additions that let the market tab
+    # compute what it used to borrow from the indicator feed:
+    #   noninterest_income — «е. Итого беспроцентных доходов» (banks): the second
+    #     half of the net-margin denominator, interest + non-interest income;
+    #   org_type — jsc/bank/insurance/microfinance, the FORM the figures were
+    #     read from. P/S is not shown for banks and insurers, margin carries the
+    #     bank footnote — the display rules need the form, not a sector guess;
+    #   balance_period — JSON {equity_start, equity_end, assets_start,
+    #     assets_end} in thousands, from the SAME filing: P/B's denominator and
+    #     the averaged base ROE/ROA divide by.
+    if "noninterest_income" not in have_fin:
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN noninterest_income REAL")
+    if "org_type" not in have_fin:
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN org_type TEXT")
+    if "balance_period" not in have_fin:
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN balance_period TEXT")
     conn.commit()
 
 
@@ -1963,12 +1979,19 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
+                         noninterest_income, org_type, balance_period,
                          field_periods, prior_period, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                         net_income=excluded.net_income, operating_income=excluded.operating_income,
+                        noninterest_income=excluded.noninterest_income,
+                        -- An upsert that says nothing about the form or the
+                        -- balance must not erase what a reconcile established.
+                        org_type=COALESCE(excluded.org_type, catalog_financials.org_type),
+                        balance_period=COALESCE(excluded.balance_period,
+                                                catalog_financials.balance_period),
                         field_periods=excluded.field_periods,
                         prior_period=excluded.prior_period,
                         updated_at=datetime('now')
@@ -1977,6 +2000,9 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
                      _num(r.get("operating_income")),
+                     _num(r.get("noninterest_income")),
+                     (str(r.get("org_type")) if r.get("org_type") else None),
+                     _encode_balance_period(r.get("balance")),
                      _encode_field_periods(r.get("field_periods")),
                      _encode_prior_period(r.get("prior"))),
                 )
@@ -2060,13 +2086,17 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
+                         noninterest_income, org_type, balance_period,
                          field_periods, prior_period, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                         net_income=excluded.net_income,
                         operating_income=excluded.operating_income,
+                        noninterest_income=excluded.noninterest_income,
+                        org_type=excluded.org_type,
+                        balance_period=excluded.balance_period,
                         field_periods=excluded.field_periods,
                         prior_period=excluded.prior_period,
                         updated_at=excluded.updated_at
@@ -2075,6 +2105,9 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
                      _num(r.get("operating_income")),
+                     _num(r.get("noninterest_income")),
+                     (str(r.get("org_type")) if r.get("org_type") else None),
+                     _encode_balance_period(r.get("balance")),
                      _encode_field_periods(r.get("field_periods")),
                      _encode_prior_period(r.get("prior"))),
                 )
@@ -2561,6 +2594,35 @@ def _encode_prior_period(value: Any) -> str | None:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
+_BALANCE_KEYS = ("equity_start", "equity_end", "assets_start", "assets_end")
+
+
+def _decode_balance_period(raw: Any) -> dict[str, Any] | None:
+    """Parse the stored filed-balance block, tolerating rows written before it."""
+    if not raw:
+        return None
+    parsed = raw if isinstance(raw, dict) else None
+    if parsed is None:
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(parsed, dict):
+        return None
+    out = {key: _financials_num(parsed.get(key)) for key in _BALANCE_KEYS}
+    return out if any(v is not None for v in out.values()) else None
+
+
+def _encode_balance_period(value: Any) -> str | None:
+    """Serialize the filed-balance block; None when it says nothing."""
+    if not isinstance(value, dict):
+        return None
+    payload = {key: _financials_num(value.get(key)) for key in _BALANCE_KEYS}
+    if all(v is None for v in payload.values()):
+        return None
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
 def _financials_enrich_enabled() -> bool:
     """Whether to apply org/fact enrichment when reading financials.
 
@@ -2614,6 +2676,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         f"""
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
                f.total_liabilities, f.net_income, f.operating_income,
+               f.noninterest_income, f.org_type, f.balance_period,
                f.field_periods, f.prior_period, f.report_id, f.updated_at
         FROM catalog_financials f
         JOIN (
@@ -2643,6 +2706,14 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "total_liabilities": r["total_liabilities"],
             "net_income": r["net_income"],
             "operating_income": r["operating_income"],
+            # Bank total income's second half; None on every other form.
+            "noninterest_income": r["noninterest_income"],
+            # The NSBU form the figures were read from (jsc/bank/insurance/
+            # microfinance) — the display rules key off the form, not a guess.
+            "org_type": r["org_type"],
+            # The filed balance for THIS period: equity/assets at start and end,
+            # the denominators P/B and averaged ROE/ROA are built from.
+            "balance": _decode_balance_period(r["balance_period"]),
             # {field: period} for any value that does NOT belong to (year, quarter)
             # — a bank's revenue is only published as an annual indicator, so the
             # cell must say which period it describes rather than borrow the row's.
@@ -2676,36 +2747,56 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
     different things. The companion is the comparable denominator: a real filed
     12-month period, not a quarter multiplied up. It is absent (None) when the row
     already IS an annual, and when no complete year has been collected.
+
+    A Q4 quarterly stands in when no annual was ever filed: NSBU quarters are
+    cumulative from 1 January, so a Q4 filing IS twelve months of activity with a
+    31 December balance (ТЗ мультипликаторов: KSCM's newest annual is 2022 while
+    its quarters are current). A real annual of the same year still outranks it —
+    the audited annual is the year's final word.
     """
     last_fy = _latest_complete_fiscal_year()
+    rank = "(f.year * 10 + CASE WHEN f.quarter = 0 THEN 5 ELSE 4 END)"
     rows = conn.execute(
-        """
-        SELECT f.ticker, f.year, f.revenue, f.gross_profit, f.cash,
-               f.total_liabilities, f.net_income, f.operating_income, f.field_periods
+        f"""
+        SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
+               f.total_liabilities, f.net_income, f.operating_income,
+               f.noninterest_income, f.org_type, f.balance_period, f.field_periods
         FROM catalog_financials f
         JOIN (
-            SELECT ticker, MAX(year) AS year
-            FROM catalog_financials
-            WHERE form = :form AND quarter = 0 AND year IS NOT NULL AND year <= :last_fy
-            GROUP BY ticker
-        ) latest ON latest.ticker = f.ticker AND latest.year = f.year
-        WHERE f.form = :form AND f.quarter = 0
+            SELECT f.ticker AS ticker, MAX{rank} AS rank
+            FROM catalog_financials f
+            WHERE f.form = :form AND f.quarter IN (0, 4)
+              AND f.year IS NOT NULL AND f.year <= :last_fy
+            GROUP BY f.ticker
+        ) latest ON latest.ticker = f.ticker AND {rank} = latest.rank
+        WHERE f.form = :form AND f.quarter IN (0, 4)
         """,
         {"form": form, "last_fy": last_fy},
     ).fetchall()
     annuals = {
         r["ticker"]: {
-            "year": r["year"], "quarter": 0, "is_ytd": False, "period_months": 12,
+            "year": r["year"], "quarter": r["quarter"],
+            "is_ytd": bool(r["quarter"]), "period_months": 12,
             "revenue": r["revenue"], "gross_profit": r["gross_profit"], "cash": r["cash"],
             "total_liabilities": r["total_liabilities"], "net_income": r["net_income"],
             "operating_income": r["operating_income"],
+            "noninterest_income": r["noninterest_income"],
+            "org_type": r["org_type"],
+            "balance": _decode_balance_period(r["balance_period"]),
             "field_periods": _decode_field_periods(r["field_periods"]),
         }
         for r in rows
     }
     for ticker, row in out.items():
         annual = annuals.get(ticker)
-        row["annual"] = None if annual is None or not row.get("quarter") else annual
+        if (annual is None or not row.get("quarter")
+                or (annual["year"] == row.get("year")
+                    and annual["quarter"] == row.get("quarter"))):
+            # No 12-month base, the row is annual itself, or the base IS the row
+            # (a Q4 latest period is already twelve cumulative months).
+            row["annual"] = None
+        else:
+            row["annual"] = annual
 
 
 # Junk-report detector: when a parse goes wrong it reads the "Код стр" column
@@ -2725,8 +2816,11 @@ _RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_r
 # factor at the response boundary so the client never mixes units — dividing a
 # full-UZS market cap by thousands-UZS earnings understated P/E and P/B ~1000×.
 NSBU_THOUSANDS_UZS = 1000.0
-FIN_MONEY_FIELDS = _FIN_FIELDS
+FIN_MONEY_FIELDS = _FIN_FIELDS + ("noninterest_income",)
 RATIO_MONEY_FIELDS = ("total_equity", "total_assets")
+# The filed-balance block travels as a nested dict; its members are the same
+# thousands-of-UZS sums and are scaled at the same response boundary.
+BALANCE_MONEY_KEYS = _BALANCE_KEYS
 # The same contract for the annual series behind the Финансы tab. It is read
 # from the fact store (`financial_indicators`), whose absolute sums are in
 # thousands exactly like everything else above — publishing them raw would put a

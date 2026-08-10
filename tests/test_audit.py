@@ -471,24 +471,27 @@ class TestBlockingSuppression:
 
         store, marker = clean_store
         run = store.start_run("pytest")
-        store.record(run, [Finding("MUL-09", "ROE вне диапазона", marker, "roe",
-                                   100.0, 10715.33)])
-        rows = [{"ticker": marker, "roe": {"value": 10715.33, "status": "ok"},
-                 "pe": {"value": 8.0, "status": "ok"}}]
+        # MUL-01 (independent P/E recompute) stays BLOCKING; MUL-09 became a
+        # WARNING under ТЗ мультипликаторов V15 — out-of-range values are now
+        # published with the «проверить» flag, so it may not blank a cell.
+        store.record(run, [Finding("MUL-01", "P/E не воспроизводится", marker, "pe",
+                                   8.0, 42.0)])
+        rows = [{"ticker": marker, "pe": {"value": 42.0, "status": "ok"},
+                 "pb": {"value": 1.5, "status": "ok"}}]
         withheld = api._apply_audit_blocks(rows)
         assert withheld == 1
-        assert rows[0]["roe"]["value"] is None
-        assert rows[0]["roe"]["status"] == "audit_blocked"
+        assert rows[0]["pe"]["value"] is None
+        assert rows[0]["pe"]["status"] == "audit_blocked"
         # Only the flagged metric is withheld; the rest of the row still serves.
-        assert rows[0]["pe"]["value"] == pytest.approx(8.0)
+        assert rows[0]["pb"]["value"] == pytest.approx(1.5)
 
     def test_the_badge_says_what_was_withheld(self, clean_store):
         store, marker = clean_store
         run = store.start_run("pytest")
-        store.record(run, [Finding("MUL-09", "ROE вне диапазона", marker, "roe")])
+        store.record(run, [Finding("MUL-01", "P/E не воспроизводится", marker, "pe")])
         badge = store.ticker_badge(marker)
         assert badge["status"] == "blocking"
-        assert badge["metrics_withheld"] == ["roe"]
+        assert badge["metrics_withheld"] == ["pe"]
         assert badge["reasons"]
 
     def test_publication_survives_an_audit_outage(self, monkeypatch):
