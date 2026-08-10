@@ -5473,7 +5473,14 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
                         onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
                       >
                         {showTicker && <span className="htt-ticker" style={{ fontSize: tickerSize }}>{row.ticker}</span>}
-                        {showPct && <span className="htt-pct" style={{ fontSize: tickerSize * 0.76 }}>{formatPct(row.changePercent)}</span>}
+                        {/* A tile with no session shows «—», not «0 %». The dormant
+                            listings carry their last-known price in both fields, so the
+                            percent is a price minus itself — see heatmap.classify_tile. */}
+                        {showPct && (
+                          <span className="htt-pct" style={{ fontSize: tickerSize * 0.76 }}>
+                            {status === "ok" ? formatPct(row.changePercent) : "—"}
+                          </span>
+                        )}
                       </button>
                     );
                   })}

@@ -54,6 +54,32 @@ class TestTiles:
         tile = heatmap.classify_tile(row("OLD", last=None, close=None, inactive=True))
         assert tile["status"] == heatmap.TILE_INACTIVE
 
+    def test_a_dormant_listing_with_a_carried_price_is_not_a_flat_session(self):
+        """AGMK et al. carry the last-known price in BOTH fields, so the change
+        arithmetic yields 0.0 rather than None — and the status used to be read
+        off `change is None`, which made ten never-traded listings «0 %» tiles
+        with normal confidence. Measured in production 2026-08-10; the
+        «Неактивные (11)» screen showed ten of its eleven that way."""
+        carried = heatmap.classify_tile(
+            row("AGMK", last=3914.0, close=3914.0, inactive=True))
+        assert carried["status"] == heatmap.TILE_INACTIVE
+        assert carried["change_pct"] is None
+        # ...while a security that really traded and really closed unchanged
+        # keeps its honest zero. IPTB did 114 922 367 sums that day.
+        traded_flat = heatmap.classify_tile(
+            row("IPTB", last=2.7, close=2.7, trades=6, qty=41_741_809.0,
+                turnover=114_922_367.43))
+        assert traded_flat["status"] == heatmap.TILE_OK
+        assert traded_flat["change_pct"] == 0.0
+
+    def test_a_move_with_no_recorded_turnover_is_still_a_move(self):
+        """The zero is the artefact; a price that MOVED on a silent stats feed is
+        a join gap, and aggregate_sector's equal-weight fallback is the answer to
+        it. Guards the narrowing of the rule above."""
+        tile = heatmap.classify_tile(row("A", last=110.0, close=100.0))
+        assert tile["status"] == heatmap.TILE_OK
+        assert tile["change_pct"] == pytest.approx(10.0)
+
     def test_a_single_trade_is_marked_low_confidence(self):
         """UQEQ led the whole screen's "top gainers" on one trade of one share."""
         tile = heatmap.classify_tile(row("UQEQ", last=30_720.0, close=25_600.0,
