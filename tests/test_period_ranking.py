@@ -250,6 +250,34 @@ class TestSeveralPeriodsPerTicker:
         rows = catalog.execute("SELECT year, quarter FROM catalog_financials WHERE ticker='AAA'").fetchall()
         assert [(r["year"], r["quarter"]) for r in rows] == [(last_fy, 0)]
 
+    def test_the_replace_keeps_the_backfilled_history_behind_it(self, catalog) -> None:
+        """The daily reconcile must not erase the historical annuals.
+
+        A replace push speaks for the latest quarter and its companion year;
+        deleting the whole ticker before the insert erased every backfilled
+        historical year each time the reconcile or the filings watch ran — the
+        multi-year income statement landed on 2026-08-08 and was gone by the
+        next morning's cron, twice, before anyone saw it happen.
+        """
+        last_fy = rc._latest_complete_fiscal_year()
+        history = [{"ticker": "AAA", "year": y, "quarter": 0, "net_income": float(y)}
+                   for y in range(last_fy - 5, last_fy + 1)]
+        rc.bulk_upsert_financials(history)
+
+        rc.bulk_replace_financials([
+            {"ticker": "AAA", "year": last_fy + 1, "quarter": 1, "net_income": 100.0},
+            {"ticker": "AAA", "year": last_fy, "quarter": 0, "net_income": 400.0},
+        ])
+
+        rows = catalog.execute(
+            "SELECT year, quarter, net_income FROM catalog_financials "
+            "WHERE ticker='AAA' ORDER BY year, quarter").fetchall()
+        got = {(r["year"], r["quarter"]): r["net_income"] for r in rows}
+        for y in range(last_fy - 5, last_fy):
+            assert got[(y, 0)] == float(y)
+        assert got[(last_fy, 0)] == 400.0
+        assert got[(last_fy + 1, 1)] == 100.0
+
     def test_an_annual_row_has_no_companion_of_its_own(self, catalog) -> None:
         last_fy = rc._latest_complete_fiscal_year()
         rc.bulk_replace_financials([{"ticker": "AAA", "year": last_fy, "quarter": 0, "net_income": 400.0}])

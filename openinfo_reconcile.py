@@ -412,6 +412,16 @@ def extract_metrics(detail):
         out["revenue"] = pl_value(_by_title(pl, ["итого процентных доходов"])
                                   or _by_title(pl, ["всего процентных доходов"]))
         out["net_income"] = pl_value(_by_title(pl, ["чистая прибыль"], last=True))
+        # The bank form files the commercial tiers under its own names: «ЧИСТЫЙ
+        # ДОХОД ДО ОПЕРАЦИОННЫХ РАСХОДОВ» is income after funding costs before
+        # running costs (the gross-profit tier), and «ЧИСТАЯ ПРИБЫЛЬ ДО УПЛАТЫ
+        # НАЛОГОВ …» is that less operating expenses and non-credit losses (the
+        # operating result). Same mapping as the Excel parse (gross_profit_bank /
+        # operating_income_bank in reports_catalog), so the reconciled latest
+        # period agrees with the backfilled history it sits on top of.
+        out["gross_profit"] = pl_value(_by_title(pl, ["чистый доход до операционных расходов"])
+                                       or _by_title(pl, ["чистые доходы до операционных расходов"]))
+        out["operating_income"] = pl_value(_by_title(pl, ["чистая прибыль до уплаты налогов"]))
         out["total_liabilities"] = bal_value(_by_title(bal, ["итого обязательств"], exclude=["капитал"]))
         out["cash"] = bal_value(_by_title(bal, ["кассовая наличность"])
                                 or _by_title(bal, ["денежные средства в кассе"]))

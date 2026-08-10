@@ -2005,6 +2005,32 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
     """
     _num = _financials_num
 
+    # A replace push speaks for a ticker's LATEST periods — the newest cumulative
+    # quarter plus its companion fiscal year — and its job is to clear a stale or
+    # spurious period that would SHADOW them (the read path serves the
+    # highest-ranked period). Deleting the whole ticker did far more than that:
+    # every backfilled historical year went with it, so the multi-year income
+    # statement landed on 2026-08-08 and was gone by the next daily reconcile,
+    # with the hourly filings watch erasing it ticker by ticker in between.
+    # Nothing ranked BELOW the push can shadow it, so only the range from the
+    # push's oldest period upward is cleared; the history behind it stands.
+    def _floor(year: int, quarter: int) -> int:
+        # Stored rows rank as in get_company_ratios_cached: an annual (quarter 0)
+        # is the year's FINAL figure, year*10+5. A pushed annual clears from the
+        # START of its year — its own stale quarters are partials it supersedes —
+        # while a pushed quarter clears only from itself upward.
+        return year * 10 + (0 if not quarter else int(quarter))
+
+    floors: dict[tuple[str, str], int] = {}
+    for r in rows or []:
+        ticker = str(r.get("ticker") or "").strip().upper()
+        period = _financials_period(r)
+        if not ticker or period is None:
+            continue
+        key = (ticker, str(r.get("form") or form))
+        rank = _floor(*period)
+        floors[key] = min(floors.get(key, rank), rank)
+
     conn = get_catalog_conn()
     n = 0
     cleared: set[tuple[str, str]] = set()
@@ -2020,7 +2046,10 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                 year, quarter = period
                 row_form = str(r.get("form") or form)
                 if (ticker, row_form) not in cleared:
-                    conn.execute("DELETE FROM catalog_financials WHERE ticker=? AND form=?", (ticker, row_form))
+                    conn.execute(
+                        "DELETE FROM catalog_financials WHERE ticker=? AND form=? "
+                        "AND (year*10 + CASE WHEN quarter=0 THEN 5 ELSE quarter END) >= ?",
+                        (ticker, row_form, floors[(ticker, row_form)]))
                     cleared.add((ticker, row_form))
                 conn.execute(
                     """
@@ -3970,6 +3999,21 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
     # only when "revenue" itself finds nothing, so no commercial form can reach it.
     "revenue_bank": ["всего процентные доходы", "всего процентных доходов",
                      "итого процентных доходов", "итого процентные доходы"],
+    # The bank income statement has no «валовая прибыль» or «прибыль от основной
+    # деятельности» either, but it files the same tiers under its own names:
+    #   «6. ЧИСТЫЙ ДОХОД ДО ОПЕРАЦИОННЫХ РАСХОДОВ»   — income after funding
+    #     costs, before running costs: the gross-profit tier;
+    #   «9. ЧИСТАЯ ПРИБЫЛЬ ДО УПЛАТЫ НАЛОГОВ …»      — line 6 less operating
+    #     expenses and non-credit losses: the operating-result tier.
+    # So the derived «операционные расходы» (gross − operating) reproduces the
+    # form's own «з. Итого операционных расходов» exactly when line 8 is nought
+    # (HMKB 2022: 1 735 075 932 − 903 084 643 = 831 991 289, the filed line 7з).
+    # Second-tier keys like revenue_bank: consulted only when the commercial
+    # patterns found nothing, so no jsc/insurance form can reach them.
+    "gross_profit_bank": ["чистый доход до операционных расходов",
+                          "чистые доходы до операционных расходов"],
+    "operating_income_bank": ["чистая прибыль до уплаты налогов",
+                              "чистая прибыль (убытки) до уплаты налогов"],
 }
 
 
@@ -4172,6 +4216,10 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     net_income = _extract_metric(income_rows or all_rows, "net_income")
     gross_profit = _extract_metric(income_rows or all_rows, "gross_profit")
     operating_income = _extract_metric(income_rows or all_rows, "operating_income")
+    if gross_profit is None:
+        gross_profit = _extract_metric(income_rows or all_rows, "gross_profit_bank")
+    if operating_income is None:
+        operating_income = _extract_metric(income_rows or all_rows, "operating_income_bank")
     total_assets = _extract_metric(balance_rows or all_rows, "total_assets")
     equity = _extract_metric(balance_rows or all_rows, "equity")
     total_liabilities = _extract_metric(balance_rows or all_rows, "total_liabilities")
