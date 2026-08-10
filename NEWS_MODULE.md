@@ -194,6 +194,9 @@ a re-run after a failed push costs nothing.
 |---|---|---|
 | `openinfo_facts` | ✅ native | filings are filed in Russian |
 | `cbu` | ✅ `/ru/press_center/news/` | occasionally posts an English release on the Russian listing — caught per item, not per source |
+| `cbu_policy` | ✅ `/ru/monetary-policy/publications/press-releases/` | rate decisions, Russian-only listing |
+| `cbu_releases` | ✅ `/ru/press_center/releases/` | same caveat as `cbu` |
+| `cbu_finstab` | ✅ `/ru/financial-stability/press-releases/` | Russian-only listing |
 | `kursiv` | ✅ Russian-only feed | |
 | `spot` | ✅ `/rss/` → `/ru/rss/` | |
 | `kun` | ✅ **fixed** `/api/rss?lang=ru` | was the only Uzbek source |
@@ -409,6 +412,9 @@ runs is lost for good. Measured 2026-07-25:
 | uzdaily | 20 | ~18h | ~27/day | ~20 of 27 |
 | **kun** | **15** | **~8h** | **~45/day** | **15 of 45** |
 | cbu | **10** (listing) | months | ~2–5/month | all |
+| cbu_policy | 10 (listing) | ~20 months | ~1 rate decision/6–8 weeks | all |
+| cbu_releases | 10 (listing) | ~3 weeks | ~2–3/week | all |
+| cbu_finstab | 10 (listing) | ~years | a few/year | all |
 | moodys | 183 global → **filtered** | ~1 day | ~1 Uzbek hit/1–2 weeks | all that match |
 | fitch | 502 global → **filtered** | ~5 business days | ~1 Uzbek hit/1–2 weeks | all that match |
 | spglobal | 218 global → **filtered** | ~1–2 days | ~1 Uzbek hit/1–2 weeks | all that match |
@@ -536,7 +542,7 @@ and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries 
 
 ## MVP scope & what's pending
 
-Enabled now: `openinfo_facts`, `cbu`, `napp`, `moodys`, `fitch`, `spglobal`, `thediplomat`, `trend`, `timesca`, `uza`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
+Enabled now: `openinfo_facts`, `cbu`, `cbu_policy`, `cbu_releases`, `cbu_finstab`, `napp`, `moodys`, `fitch`, `spglobal`, `thediplomat`, `trend`, `timesca`, `uza`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
 taxonomy categories 1–9). Working today: RSS / html_list / sitemap / openinfo fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
@@ -548,6 +554,33 @@ stub: verified 2026-07-25 that all three language variants return a **single** e
 second press release published between runs was lost for good, while the press-centre page
 lists ten. One GET per run; only link, headline, date and the article's own thumbnail are
 read — no article page is opened, so the legal invariant is untouched.
+
+**cbu.uz is FOUR listings, not one** (2026-08-10). The press-centre «Новости» page the
+original `cbu` source reads turned out to be nearly dormant — measured that day it held ten
+items spanning 28 Apr to 17 Jul 2026, so on most runs nothing of it falls inside the 30-day
+window and the central bank was effectively absent from the feed. The bank publishes to
+separate sections, and the rate decisions are not among the ones we were reading:
+
+| id | path | what it carries | markup |
+|---|---|---|---|
+| `cbu` | `/ru/press_center/news/` | general news, sparse | `a.news` |
+| `cbu_policy` | `/ru/monetary-policy/publications/press-releases/` | **the policy rate** | `.item.has-date` |
+| `cbu_releases` | `/ru/press_center/releases/` | supervision, payments, admin | `a.news` |
+| `cbu_finstab` | `/ru/financial-stability/press-releases/` | capital buffer, systemic banks | `.item.has-date` |
+
+The two `/press-releases/` sections use a **different template** from the press centre —
+no `a.news` node at all, the headline in `.desc h3 a` and the date in a bare `.item-date`
+span — which is why one selector set could never have covered both, and why the gap was
+invisible: the `cbu` source was working perfectly on a page that had stopped mattering.
+All four are one GET each, no image and no blurb on the `.item.has-date` pair, and readable
+article pages throughout (1.5k–3.7k chars measured), so the story-page long read works on
+them — none gets `article_body: false`.
+
+The rate decision cross-posts to `cbu_releases` **and** `cbu_policy` under different ids.
+Both rows are stored and classified (~8 extra calls a year); the reader sees one card,
+because the titles are character-identical and `_dedupe_stories` collapses them at read
+time (Jaccard 1.000 vs the 0.62 threshold, verified on the 29 July decision). Dropping
+either section would mean betting on which path the bank uses next.
 
 **napp.uz** — the capital-market regulator — uses the same adapter (`.info-in` cards,
 Russian titles on `/ru` even though the slugs are Uzbek, real `DD.MM.YYYY` dates, an image on
