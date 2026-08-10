@@ -101,10 +101,10 @@
 .lv-stage > :not(.lv-sky) { position: relative; }
 
 .lv-mid { flex: 1; display: flex; align-items: center; padding: 48px clamp(20px, 5vw, 64px) 56px; gap: 40px; }
-.lv-lede { max-width: 620px; }
+.lv-lede { max-width: 680px; }
 .lv-h1 {
   margin: 0;
-  font-size: clamp(38px, 5.8vw, 76px);
+  font-size: clamp(42px, 6.2vw, 84px);
   line-height: 1.05;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -116,27 +116,27 @@
 .lv-lede p {
   margin: 22px 0 0;
   max-width: 46ch;
-  font-size: 15.5px;
+  font-size: 18px;
   color: var(--lv-ink-2);
   text-shadow: var(--lv-hero-shadow-sm);
 }
 .lv-actions { display: flex; align-items: center; gap: 18px; margin-top: 34px; flex-wrap: wrap; }
 .lv-go {
   font: inherit;
-  font-size: 12.5px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700;
+  font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700;
   color: var(--lv-go-ink); background: var(--lv-go-bg);
   border: none; cursor: pointer;
-  padding: 14px 26px; border-radius: 4px;
+  padding: 15px 28px; border-radius: 4px;
   box-shadow: 0 12px 30px rgba(255, 180, 94, 0.3);
   transition: transform 0.2s;
 }
 .lv-go:hover { transform: translateY(-2px); }
 .lv-ghost {
   font: inherit;
-  font-size: 12.5px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600;
+  font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600;
   color: var(--lv-ink); background: var(--lv-glass);
   border: 1px solid var(--lv-line); cursor: pointer;
-  padding: 14px 24px; border-radius: 4px;
+  padding: 15px 26px; border-radius: 4px;
   backdrop-filter: blur(8px);
   transition: border-color 0.25s;
 }
@@ -164,7 +164,7 @@
 .lv-tape-set { display: flex; }
 .lv-titem {
   display: flex; align-items: baseline; gap: 9px; padding: 13px 24px;
-  font-family: var(--lv-mono); font-size: 13px;
+  font-family: var(--lv-mono); font-size: 14.5px;
   border-right: 1px solid var(--lv-line); white-space: nowrap;
 }
 .lv-titem .t { font-weight: 700; }
@@ -176,15 +176,15 @@
 /* ── Секции ── */
 .lv-sec { padding: 88px 0 30px; }
 .lv-sec-head { display: flex; align-items: baseline; gap: 20px; margin-bottom: 18px; }
-.lv-sec-num { font-family: var(--lv-mono); font-size: 13px; color: var(--lv-amber); letter-spacing: 0.2em; }
+.lv-sec-num { font-family: var(--lv-mono); font-size: 14.5px; color: var(--lv-amber); letter-spacing: 0.2em; }
 .lv-sec-title {
   margin: 0;
-  font-size: clamp(22px, 3vw, 36px); font-weight: 800;
+  font-size: clamp(25px, 3.4vw, 41px); font-weight: 800;
   letter-spacing: 0.08em; text-transform: uppercase; text-wrap: balance;
   color: var(--lv-ink);
 }
 .lv-sec-title em { font-style: normal; color: var(--lv-amber); }
-.lv-sec-sub { margin: 0 0 36px; max-width: 66ch; font-size: 14.5px; color: var(--lv-ink-2); }
+.lv-sec-sub { margin: 0 0 36px; max-width: 66ch; font-size: 16.5px; color: var(--lv-ink-2); }
 
 /* ── Панель (стекло) ── */
 .lv-panel {
@@ -192,17 +192,17 @@
   backdrop-filter: blur(12px); overflow: hidden;
   box-shadow: var(--lv-shadow);
 }
-.lv-panel-body { display: grid; grid-template-columns: 1fr 280px; }
+.lv-panel-body { display: grid; grid-template-columns: 1fr 300px; }
 .lv-board { padding: 22px 24px; border-right: 1px solid var(--lv-line); min-width: 0; }
 .lv-board-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; }
-.lv-board-head h4 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-.lv-ses { font-family: var(--lv-mono); font-size: 11px; color: var(--lv-ink-3); margin-left: auto; }
+.lv-board-head h4 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.lv-ses { font-family: var(--lv-mono); font-size: 12.5px; color: var(--lv-ink-3); margin-left: auto; }
 .lv-live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--lv-up); margin-right: 7px; animation: lv-pulse 2s ease-in-out infinite; }
 @keyframes lv-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.45); } 50% { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); } }
 
-.lv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lv-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .lv-table th {
-  text-align: left; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  text-align: left; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--lv-ink-3); font-weight: 600; padding: 8px; border-bottom: 1px solid var(--lv-line);
   background: none;
 }
@@ -211,20 +211,20 @@
 .lv-table tr:last-child td { border-bottom: none; }
 .lv-table tbody tr { cursor: pointer; }
 .lv-table tbody tr:hover td { background: rgba(255, 180, 94, 0.05); }
-.lv-tk { font-family: var(--lv-mono); font-weight: 700; font-size: 12.5px; }
-.lv-nm { display: block; font-size: 10.5px; color: var(--lv-ink-3); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lv-chg { font-family: var(--lv-mono); font-size: 12.5px; }
+.lv-tk { font-family: var(--lv-mono); font-weight: 700; font-size: 14px; }
+.lv-nm { display: block; font-size: 12px; color: var(--lv-ink-3); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-chg { font-family: var(--lv-mono); font-size: 14px; }
 .lv-spark-cell { width: 110px; }
 .lv-spark-cell .mini-sparkline { width: 96px; height: 26px; display: inline-block; }
 .lv-board-foot {
   display: flex; gap: 24px; margin-top: 14px; padding-top: 13px;
   border-top: 1px solid var(--lv-line);
-  font-family: var(--lv-mono); font-size: 11px; color: var(--lv-ink-3); flex-wrap: wrap;
+  font-family: var(--lv-mono); font-size: 12.5px; color: var(--lv-ink-3); flex-wrap: wrap;
 }
 .lv-board-foot b { color: var(--lv-ink-2); font-weight: 600; }
 
 .lv-rail { padding: 22px 20px; background: var(--lv-rail-bg); }
-.lv-rail h5 { margin: 0 0 12px; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lv-amber); }
+.lv-rail h5 { margin: 0 0 12px; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lv-amber); }
 .lv-rail h5 + .lv-mover ~ h5, .lv-rail .lv-mover + h5 { margin-top: 20px; }
 .lv-mover {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -240,7 +240,7 @@
    percentage out through the card's border. */
 .lv-mover-id { flex: 1; min-width: 0; }
 .lv-mover-id .lv-nm { max-width: none; }
-.lv-mover .pc { flex: none; font-family: var(--lv-mono); font-size: 12.5px; font-weight: 600; }
+.lv-mover .pc { flex: none; font-family: var(--lv-mono); font-size: 14px; font-weight: 600; }
 
 /* ── Компания ── */
 .lv-company-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 52px; align-items: center; }
@@ -248,28 +248,28 @@
 .lv-point { display: flex; gap: 18px; padding: 17px 0; border-bottom: 1px solid var(--lv-line); }
 .lv-point:last-child { border-bottom: none; }
 .lv-point-ico {
-  flex: none; width: 38px; height: 38px; border-radius: 9px;
+  flex: none; width: 42px; height: 42px; border-radius: 9px;
   border: 1px solid var(--lv-line); background: var(--lv-glass);
   display: grid; place-items: center; color: var(--lv-amber);
 }
-.lv-point h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--lv-ink); }
-.lv-point p { margin: 4px 0 0; font-size: 13px; color: var(--lv-ink-2); }
+.lv-point h3 { margin: 0; font-size: 17px; font-weight: 700; color: var(--lv-ink); }
+.lv-point p { margin: 4px 0 0; font-size: 15px; color: var(--lv-ink-2); }
 
 .lv-company-card { padding: 24px 26px 18px; cursor: pointer; transition: border-color 0.25s; }
 .lv-company-card:hover { border-color: var(--lv-amber-soft); }
 .lv-cc-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.lv-cc-top .lv-tk { font-size: 16px; }
-.lv-cc-top .lv-nm { display: inline-block; vertical-align: bottom; font-size: 12px; max-width: min(300px, 45vw); }
-.lv-cc-pr { margin-left: auto; font-family: var(--lv-mono); font-size: 15px; }
-.lv-cc-pr b { font-weight: 600; font-size: 13px; }
+.lv-cc-top .lv-tk { font-size: 18px; }
+.lv-cc-top .lv-nm { display: inline-block; vertical-align: bottom; font-size: 13.5px; max-width: min(300px, 45vw); }
+.lv-cc-pr { margin-left: auto; font-family: var(--lv-mono); font-size: 17px; }
+.lv-cc-pr b { font-weight: 600; font-size: 14.5px; }
 .lv-mchips { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .lv-mchip {
-  font-family: var(--lv-mono); font-size: 11.5px; color: var(--lv-ink-2);
+  font-family: var(--lv-mono); font-size: 13px; color: var(--lv-ink-2);
   border: 1px solid var(--lv-line); border-radius: 999px; padding: 6px 13px;
 }
 .lv-mchip b { color: var(--lv-ink); font-weight: 600; }
 .lv-bars-wrap { margin-top: 22px; }
-.lv-bars-title { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--lv-ink-3); }
+.lv-bars-title { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--lv-ink-3); }
 .lv-bars-title b { color: var(--lv-ink-2); }
 .lv-bars { display: flex; align-items: flex-end; gap: 14px; height: 168px; margin-top: 16px; }
 .lv-bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 8px; height: 100%; min-width: 0; }
@@ -284,9 +284,9 @@
 .lv-bar:nth-child(4) i { transition-delay: 0.36s; }
 .lv-bar:nth-child(5) i { transition-delay: 0.48s; }
 .lv-reveal.in .lv-bar i { height: var(--h); }
-.lv-bar .y { font-family: var(--lv-mono); font-size: 11px; color: var(--lv-ink-3); }
-.lv-bar .v { font-family: var(--lv-mono); font-size: 10.5px; color: var(--lv-ink-2); white-space: nowrap; }
-.lv-card-note { margin: 14px 0 0; font-size: 10.5px; color: var(--lv-ink-3); }
+.lv-bar .y { font-family: var(--lv-mono); font-size: 12px; color: var(--lv-ink-3); }
+.lv-bar .v { font-family: var(--lv-mono); font-size: 11.5px; color: var(--lv-ink-2); white-space: nowrap; }
+.lv-card-note { margin: 14px 0 0; font-size: 12px; color: var(--lv-ink-3); }
 
 /* ── Новости ── */
 .lv-news-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -297,16 +297,16 @@
   transition: transform 0.25s, border-color 0.25s;
 }
 .lv-news-card:hover { transform: translateY(-4px); border-color: var(--lv-amber-soft); }
-.lv-nc-meta { display: flex; align-items: center; gap: 10px; font-family: var(--lv-mono); font-size: 10.5px; color: var(--lv-ink-3); flex-wrap: wrap; }
-.lv-impact { font-family: var(--lv-mono); font-size: 10px; letter-spacing: 0.08em; padding: 4px 10px; border-radius: 999px; }
+.lv-nc-meta { display: flex; align-items: center; gap: 10px; font-family: var(--lv-mono); font-size: 12px; color: var(--lv-ink-3); flex-wrap: wrap; }
+.lv-impact { font-family: var(--lv-mono); font-size: 11.5px; letter-spacing: 0.08em; padding: 4px 10px; border-radius: 999px; }
 .lv-impact.hi { color: var(--lv-amber); border: 1px solid var(--lv-amber-soft); }
 .lv-impact.md { color: var(--lv-ink-2); border: 1px solid var(--lv-line); }
-.lv-news-card h3 { margin: 0; font-size: 14.5px; font-weight: 700; line-height: 1.4; color: var(--lv-ink); }
-.lv-news-card .lv-byline { margin-top: auto; font-size: 11px; color: var(--lv-ink-3); }
+.lv-news-card h3 { margin: 0; font-size: 16.5px; font-weight: 700; line-height: 1.4; color: var(--lv-ink); }
+.lv-news-card .lv-byline { margin-top: auto; font-size: 12.5px; color: var(--lv-ink-3); }
 .lv-news-card .lv-byline b { color: var(--lv-ink-2); }
 .lv-news-more {
   display: inline-flex; align-items: center; gap: 10px; margin-top: 28px;
-  font: inherit; font-size: 12.5px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600;
+  font: inherit; font-size: 14px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600;
   color: var(--lv-ink-2); background: none; border: none; cursor: pointer; padding: 0;
 }
 .lv-news-more:hover { color: var(--lv-amber); }
@@ -315,9 +315,9 @@
 .lv-steps { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--lv-line); border-radius: 14px; overflow: hidden; }
 .lv-step { padding: 28px 26px 32px; background: var(--lv-step-bg); border-right: 1px solid var(--lv-line); }
 .lv-step:last-child { border-right: none; }
-.lv-step .n { font-family: var(--lv-mono); font-size: 12px; color: var(--lv-amber); }
-.lv-step h3 { margin: 12px 0 0; font-size: 15.5px; font-weight: 700; color: var(--lv-ink); }
-.lv-step p { margin: 7px 0 0; font-size: 13px; color: var(--lv-ink-2); }
+.lv-step .n { font-family: var(--lv-mono); font-size: 13.5px; color: var(--lv-amber); }
+.lv-step h3 { margin: 12px 0 0; font-size: 17.5px; font-weight: 700; color: var(--lv-ink); }
+.lv-step p { margin: 7px 0 0; font-size: 15px; color: var(--lv-ink-2); }
 
 /* ── CTA ── */
 .lv-cta { position: relative; text-align: center; padding: 96px 24px 104px; overflow: hidden; }
@@ -328,11 +328,11 @@
 }
 .lv-cta h2 {
   position: relative; margin: 0;
-  font-size: clamp(26px, 3.8vw, 46px); font-weight: 800;
+  font-size: clamp(29px, 4.2vw, 52px); font-weight: 800;
   letter-spacing: 0.1em; text-transform: uppercase; text-wrap: balance;
   color: var(--lv-ink);
 }
-.lv-cta p { position: relative; margin: 16px auto 0; max-width: 52ch; font-size: 14.5px; color: var(--lv-ink-2); }
+.lv-cta p { position: relative; margin: 16px auto 0; max-width: 52ch; font-size: 16.5px; color: var(--lv-ink-2); }
 .lv-cta .lv-go { position: relative; margin-top: 32px; }
 
 @media (max-width: 980px) {
@@ -344,6 +344,18 @@
   .lv-step { border-right: none; border-bottom: 1px solid var(--lv-line); }
   .lv-step:last-child { border-bottom: none; }
   .lv-spark-cell { display: none; }
+}
+
+/* On the phone the enlarged type has to give a little back: the board table
+   and the tape are the two places where a wider glyph would start wrapping
+   the columns, so they step down while the prose keeps its new size. */
+@media (max-width: 760px) {
+  .lv-table { font-size: 13.5px; }
+  .lv-table th { font-size: 11px; }
+  .lv-tk, .lv-chg { font-size: 13px; }
+  .lv-nm { font-size: 11.5px; }
+  .lv-titem { font-size: 13.5px; padding: 12px 18px; }
+  .lv-lede p { font-size: 16.5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
