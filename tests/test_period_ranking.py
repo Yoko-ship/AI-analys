@@ -330,6 +330,12 @@ class TestUnitScale:
         assert set(rc.FIN_MONEY_FIELDS) == {
             "revenue", "gross_profit", "cash",
             "total_liabilities", "net_income", "operating_income",
+            "noninterest_income",
+        }
+        # The filed balance rides as a nested dict and is scaled key-by-key at
+        # the same boundary (api._market_inputs._scale).
+        assert set(rc.BALANCE_MONEY_KEYS) == {
+            "equity_start", "equity_end", "assets_start", "assets_end",
         }
 
     def test_absolute_ratio_sums_are_scaled_but_coefficients_are_not(self) -> None:

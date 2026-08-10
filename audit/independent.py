@@ -302,6 +302,48 @@ def price_earnings(cap: float | None, net_income: float | None) -> float | None:
     return cap / net_income
 
 
+def twelve_month_profit(fin: dict[str, Any] | None) -> float | None:
+    """The auditor's own twelve months of net profit, written from the rule.
+
+    ТЗ мультипликаторов V1: годовая величина + YTD текущего года − YTD того же
+    периода прошлого года; the last complete year alone when the filing prints
+    no comparative; the cumulative interim scaled ×12/months when no year
+    exists at all. Re-derived here from the raw financials row — deliberately
+    NOT imported from fundamentals, so a bug there cannot certify itself.
+    """
+    if not isinstance(fin, dict) or fin.get("year") is None:
+        return None
+    net = num(fin.get("net_income"))
+    quarter = int(num(fin.get("quarter")) or 0)
+    months = int(num(fin.get("period_months")) or (12 if not quarter else quarter * 3))
+    if months >= 12:
+        return net
+    year = int(num(fin.get("year")) or 0)
+    annual = fin.get("annual") if isinstance(fin.get("annual"), dict) else None
+    prior = fin.get("prior") if isinstance(fin.get("prior"), dict) else None
+    annual_net = num(annual.get("net_income")) if (
+        annual and num(annual.get("year")) == year - 1
+        and int(num(annual.get("period_months")) or 12) == 12) else None
+    prior_net = num(prior.get("net_income")) if (
+        prior and num(prior.get("year")) == year - 1
+        and int(num(prior.get("quarter")) or 0) == quarter) else None
+    if annual_net is not None and net is not None and prior_net is not None:
+        return annual_net + net - prior_net
+    if annual_net is not None:
+        return annual_net
+    if net is not None and months > 0:
+        return net * 12.0 / months
+    return None
+
+
+def statement_equity(fin: dict[str, Any] | None) -> float | None:
+    """Equity at the end of the filed balance riding on the row, if any."""
+    balance = (fin or {}).get("balance")
+    if isinstance(balance, dict):
+        return num(balance.get("equity_end"))
+    return None
+
+
 def price_book(cap: float | None, equity: float | None) -> float | None:
     if cap is None or equity is None or equity <= 0 or cap <= 0:
         return None

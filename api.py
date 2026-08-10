@@ -1474,22 +1474,33 @@ async def api_market_financials() -> dict[str, Any]:
 async def api_market_ratios() -> dict[str, Any]:
     """Per-ticker financial ratios & equity (openinfo financial_indicators),
     keyed by ticker. Feeds the market-wide multiplier columns (P/E, P/B) and
-    ratio coefficients of the §3.8 tabular reports."""
+    ratio coefficients of the §3.8 tabular reports.
+
+    Two exclusions by the 2026-08-10 audit: ``debt_to_equity`` left the
+    storefront entirely (лист 06 — 47 of 99 values reproduced under no formula,
+    the units were mixed and for banks the number was meaningless), and bond
+    tickers are not served (V17 — ten bond issues were inheriting their
+    issuer's ROE/ROA as if a coupon security had a return on equity).
+    """
     loop = asyncio.get_running_loop()
     try:
         ratios = await loop.run_in_executor(None, get_all_ratios)
+        securities = await loop.run_in_executor(None, get_securities_map)
     except Exception as exc:
         logger.exception("ratios cache read failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    bonds = {t for t, meta in (securities or {}).items()
+             if str((meta or {}).get("type") or "").lower() == "bond"}
     # Absolute sums (equity/assets) are stored in thousands of UZS; serve full
     # UZS so P/B = market_cap / total_equity divides like units.
     ratios = {
         ticker: {
-            **row,
+            **{k: v for k, v in row.items() if k != "debt_to_equity"},
             **{k: row[k] * NSBU_THOUSANDS_UZS
                for k in RATIO_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
         }
         for ticker, row in ratios.items()
+        if str(ticker).upper() not in bonds
     }
     return _json_safe({"ok": True, "count": len(ratios), "ratios": ratios})
 
@@ -1516,23 +1527,12 @@ def _etag_json(request: Request, payload: dict[str, Any], max_age: int) -> Respo
     return JSONResponse(body, headers=headers)
 
 
-def _earnings_for(fin: dict[str, Any] | None) -> dict[str, Any]:
-    """The 12-month profit a multiple divides by, and the period it covers.
-
-    NSBU quarterlies accumulate from 1 January, so an issuer's latest filing is
-    3, 6 or 9 months of profit depending only on when it filed. Prefer the last
-    complete fiscal year the collector stores alongside it, so P/E means the same
-    thing in every row (ТЗ §7).
-    """
-    if not fin:
-        return {"net_income": None, "period": None, "months": None}
-    annual = fin.get("annual")
-    if annual and annual.get("net_income") is not None:
-        return {"net_income": annual["net_income"],
-                "period": fundamentals.period_label(annual), "months": 12}
-    return {"net_income": fin.get("net_income"),
-            "period": fundamentals.period_label(fin),
-            "months": fundamentals.period_months(fin)}
+# The 12-month earnings base used to be selected here (_earnings_for: the last
+# complete fiscal year, else the raw cumulative quarter). ТЗ мультипликаторов
+# (2026-08-10) replaced that with the TTM assembly — годовая величина + YTD
+# текущего года − YTD прошлого года — which lives in
+# fundamentals.twelve_month_flows and runs inside issuer_multiples, so the
+# selection is no longer a caller's choice.
 
 
 async def _market_inputs() -> dict[str, Any]:
@@ -1550,9 +1550,24 @@ async def _market_inputs() -> dict[str, Any]:
     board = list(shares.get("stocks") or []) + list(bonds.get("stocks") or [])
     # Statement sums are stored in thousands of UZS; scale at the boundary so
     # every division below is like-for-like against a full-UZS market cap.
+    # The nested blocks that ride on a row — the filing's own comparative
+    # (``prior``, the TTM subtrahend) and the filed balance (``balance``, the
+    # P/B and ROE denominators) — carry the same thousands and must cross the
+    # boundary together, or the TTM would subtract thousands from full UZS.
     def _scale(row: dict[str, Any], fields) -> dict[str, Any]:
-        return {**row, **{k: row[k] * NSBU_THOUSANDS_UZS
-                          for k in fields if isinstance(row.get(k), (int, float))}}
+        out = {**row, **{k: row[k] * NSBU_THOUSANDS_UZS
+                         for k in fields if isinstance(row.get(k), (int, float))}}
+        prior = row.get("prior")
+        if isinstance(prior, dict):
+            out["prior"] = {**prior, **{k: prior[k] * NSBU_THOUSANDS_UZS
+                                        for k in fields
+                                        if isinstance(prior.get(k), (int, float))}}
+        balance = row.get("balance")
+        if isinstance(balance, dict):
+            out["balance"] = {k: (v * NSBU_THOUSANDS_UZS
+                                  if isinstance(v, (int, float)) else v)
+                              for k, v in balance.items()}
+        return out
 
     financials = {
         t: ({**_scale(r, FIN_MONEY_FIELDS), "annual": _scale(r["annual"], FIN_MONEY_FIELDS)}
@@ -1581,13 +1596,46 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
 
     # Share classes are grouped by issuer using the catalog, enriched with the
     # board's capitalisation and share count for each class.
+    #
+    # V9 (ТЗ мультипликаторов): a class that has never traded carries a price
+    # taken from the registry's nominal/reference, and a capitalisation built
+    # on a nominal is fiction — UZIN at 1 000, UZNG at 500, TGBK at 5 000 all
+    # produced fictitious caps and the P/E, P/B chain downstream of them. Such
+    # a class contributes NO capitalisation: the issuer's cap either comes from
+    # classes that actually traded or is honestly incomplete.
+    def _cap_for(row: dict[str, Any]) -> Any:
+        if not row:
+            return None
+        if not str(row.get("last_trade_date") or "").strip():
+            return None
+        return row.get("market_cap")
+
     catalog_rows = []
     for ticker, meta in (securities or {}).items():
         row = board_by_ticker.get(str(ticker).upper()) or {}
         catalog_rows.append({
             "ticker": str(ticker).upper(), **meta,
-            "market_cap": row.get("market_cap"),
+            "market_cap": _cap_for(row),
             "shares_outstanding": row.get("shares_outstanding") or meta.get("shares_outstanding"),
+        })
+    # Board rows with no catalog card yet (ТЗ мультипликаторов, лист 15: EQQU
+    # traded actively while its filings sat unread because the multiples
+    # universe was the catalog alone). The board row itself carries everything
+    # the grouping needs — name, class, cap — so the issuer appears on the
+    # multiples screen the day it appears on the board, and the missing card
+    # remains a catalog-sync task rather than a blank row.
+    known = {str(t).upper() for t in (securities or {})}
+    for ticker, row in board_by_ticker.items():
+        if not ticker or ticker in known:
+            continue
+        catalog_rows.append({
+            "ticker": ticker,
+            "name": row.get("name"),
+            "type": row.get("type") or "stock",
+            "share_type": row.get("share_type"),
+            "is_preferred": row.get("is_preferred"),
+            "market_cap": _cap_for(row),
+            "shares_outstanding": row.get("shares_outstanding"),
         })
     groups = fundamentals.group_by_issuer(catalog_rows)
 
@@ -1599,7 +1647,7 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
         # the same legal entity, so a preferred-only filing still applies.
         fin = next((financials.get(t) for t in tickers if financials.get(t)), None)
         rat = next((ratios.get(t) for t in tickers if ratios.get(t)), None)
-        multiples = fundamentals.issuer_multiples(classes, fin, rat, _earnings_for(fin))
+        multiples = fundamentals.issuer_multiples(classes, fin, rat)
         by_issuer[key] = {"tickers": tickers, "multiples": multiples}
         for cls in classes:
             rows.append({

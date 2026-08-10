@@ -91,7 +91,10 @@ ALL_RULES: tuple[Rule, ...] = (
     Rule("MUL-07", "MUL", "P/E в допустимом диапазоне", WARNING, "multiples.pe_range"),
     Rule("MUL-08", "MUL", "P/B в допустимом диапазоне", WARNING, "multiples.pb_range",
          "29 из 96 вне диапазона"),
-    Rule("MUL-09", "MUL", "ROE по модулю в разумных пределах", BLOCKING, "multiples.roe_abs_max",
+    # V15 (ТЗ мультипликаторов): вне диапазона значение публикуется с пометкой
+    # «проверить» — WARNING, чтобы аудитор не снимал с витрины то, что ТЗ велит
+    # показывать с флагом.
+    Rule("MUL-09", "MUL", "ROE по модулю в разумных пределах", WARNING, "multiples.roe_abs_max",
          "UTGAP: 10 715 %"),
     Rule("MUL-10", "MUL", "при убытке P/E не число, а статус", BLOCKING, None, "11 эмитентов"),
     Rule("MUL-11", "MUL", "год отчётности в знаменателе указан и не старше порога", WARNING,

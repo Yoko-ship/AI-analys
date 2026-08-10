@@ -62,6 +62,16 @@ def add_column(table: str, column: str, ddl: str) -> Step:
     return step
 
 
+def columns(table: str, *cols: tuple[str, str]) -> Step:
+    """Several additive columns on one table, each applied only when absent."""
+    steps = [add_column(table, name, ddl) for name, ddl in cols]
+
+    def step(conn: sqlite3.Connection) -> None:
+        for one in steps:
+            one(conn)
+    return step
+
+
 def run_sql(*statements: str) -> Step:
     def step(conn: sqlite3.Connection) -> None:
         for statement in statements:
@@ -109,6 +119,17 @@ MIGRATIONS: tuple[Migration, ...] = (
                        is_paid     INTEGER NOT NULL DEFAULT 0,
                        PRIMARY KEY (ticker, coupon_no)
                      )""")),
+    # ТЗ мультипликаторов (внешний аудит 2026-08-10): the market tab computes
+    # its own denominators from the filings. balance_period carries the filed
+    # equity/assets at start and end of the period (JSON, thousands);
+    # noninterest_income completes a bank's total income; org_type records
+    # which NSBU form the row was read from, because the display rules differ
+    # by form (no P/S for banks and insurers, the bank margin footnote).
+    Migration(7, "financials: filed balance, bank total income, form type",
+              columns("catalog_financials",
+                      ("noninterest_income", "REAL"),
+                      ("org_type", "TEXT"),
+                      ("balance_period", "TEXT"))),
 )
 
 

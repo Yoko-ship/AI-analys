@@ -115,17 +115,20 @@ def check_multiples_agree_across_classes(by_issuer: dict[str, dict[str, Any]]
 
 
 def check_multiples_in_range(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """V15 (ТЗ мультипликаторов): out of range the value is PUBLISHED, carrying
+    the «проверить» status — so the violation here is an out-of-range value
+    published WITHOUT that flag, not the publication itself."""
     cfg = formulas.thresholds()["multiples"]
     out: list[dict[str, Any]] = []
     for row in rows:
         for field, bounds in (("pe", cfg["pe_range"]), ("pb", cfg["pb_range"])):
             metric = row.get(field) or {}
             value = metric.get("value")
-            if value is None:
+            if value is None or metric.get("status") == "out_of_range":
                 continue
             if not (float(bounds[0]) <= value <= float(bounds[1])):
                 out.append(_finding("MUL-02", SEVERITY_BLOCKING,
-                                    f"{field} опубликован вне допустимого диапазона",
+                                    f"{field} опубликован вне диапазона без пометки «проверить»",
                                     ticker=row.get("ticker"), value=value, allowed=bounds))
         roe = (row.get("roe") or {}).get("value")
         if roe is not None and abs(roe) > float(cfg["roe_abs_max"]):

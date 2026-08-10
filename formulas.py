@@ -87,13 +87,25 @@ _DEFAULT_THRESHOLDS: dict[str, dict[str, Any]] = {
         # multiplies past 5x while the numbers are perfectly correct.
         "period_vs_annual_min_margin": 0.05,
         "roe_implied_vs_published_max": 8,
+        # ТЗ мультипликаторов V4: a statement older than this is not data —
+        # the cell says «нет данных», never a number off a 2019 balance.
+        "report_max_age_days": 730,
+        # V2: капитал + обязательства = активы, within 0,1 % of the filing.
+        "balance_identity_tolerance": 0.001,
     },
-    # ТЗ §8 — outside these a multiple is a data error, not a valuation.
+    # ТЗ мультипликаторов V15 — outside these ranges the value is PUBLISHED
+    # with a «проверить» flag (it used to be hidden, which turned KFSK's real
+    # P/B 73,86 into an unexplained dash).
     "multiples": {
-        "pe_range": [0.5, 200],
+        "pe_range": [0.1, 300],
         "pb_range": [0.05, 20],
+        "ps_range": [0.01, 50],
         "roe_abs_max": 100,
+        "margin_abs_max": 100,
         "cap_vs_price_shares_max": 1.5,
+        # V11/V12 (1 %) and V13/V14 (2 %) regression identities.
+        "identity_tolerance": 0.01,
+        "leverage_tolerance": 0.02,
     },
     # ТЗ §9 — below either of these one trade is deciding a tile's colour.
     "market_map": {
