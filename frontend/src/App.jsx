@@ -6084,7 +6084,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
 
   // The feed returns newest-first — sort ascending so time reads left→right.
   const daily = (history || []).map((h) => {
-    if (Array.isArray(h)) return { date: h[0], close: Number(h[1]) || 0, volume: 0, change: null };
+    if (Array.isArray(h)) return { date: h[0], close: Number(h[1]) || 0, volume: 0, turnover: 0, change: null };
     return {
       date: h.date || h.trade_date,
       open: h.open != null ? Number(h.open) : null,
@@ -6092,6 +6092,13 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       low: h.low != null ? Number(h.low) : null,
       close: Number(h.close ?? h.price ?? h.close_price ?? 0),
       volume: Number(h.volume ?? h.trading_volume ?? 0) || 0,
+      // «Объём» on this site means MONEY — the landing board says «Объём торгов ·
+      // 4,57 млрд сум» — so the chart has to mean the same thing by it. The
+      // endpoint has carried both all along: `volume` is the security count,
+      // `value` the turnover in сум. Measured 2026-08-10 over the full archive
+      // of UZTL / HMKB / KVTS (619 / 1947 / 2056 sessions back to 2016): every
+      // point that has a quantity has a turnover, so nothing degrades.
+      turnover: Number(h.value ?? h.trading_value ?? 0) || 0,
       change: h.change != null ? Number(h.change) : null,
     };
   }).filter((p) => p.close > 0 && p.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -6132,7 +6139,6 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const fmtAxis = (d) => d
     ? (months >= 12 ? new Date(d).toLocaleDateString(dateLocale, { year: "2-digit", month: "short" }) : fmtDate(d))
     : "";
-  const abbrev = (v) => v == null ? "—" : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : `${Math.round(v)}`;
   const fmtFull = (v) => v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 });
 
   const W = 820;
@@ -6194,7 +6200,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     : [];
   const minP = Math.min(...lows, ...cmpVals), maxP = Math.max(...highs, ...cmpVals);
   const rangeP = maxP - minP || 1;
-  const maxVol = Math.max(...points.map((p) => p.volume), 1);
+  const maxVol = Math.max(...points.map((p) => p.turnover || 0), 1);
   // Per-point markers only where a marker can be READ. On a step series every
   // point is a trade and worth showing, but KSCM at «Макс» has 1033 of them:
   // they stop being marks and become a smear over the line. Same measured-width
@@ -6299,7 +6305,8 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const yDecimals = yStep > 0 ? Math.max(2, Math.min(6, Math.ceil(-Math.log10(yStep)))) : 2;
   const fmtYPrice = (v) => (v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: yDecimals }));
   // Full numbers, not 10.0K: this is a price scale and the reference states it
-  // as one. `abbrev` stays for the tooltip's volume, where a K/M really helps.
+  // as one. The tooltip's turnover is the one place a млн/млрд helps, and it
+  // uses the shared `compact` so it reads like the rest of the site.
   // In compare mode the axis measures the move, not the price, and says so.
   const fmtAxisVal = cmpOn ? fmtPct : fmtYPrice;
   const yLabels = [];
@@ -6482,9 +6489,12 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         {/* ТЗ §6: on a step chart the points carry the day's volume in their
             size, so a run of identical prices does not read as steady trading;
             and a move that stopped exactly at the ±20 % daily limit is marked,
-            because it is a rule of the exchange, not a decision of the market. */}
+            because it is a rule of the exchange, not a decision of the market.
+            Sized on TURNOVER, the same thing the readout now names — a marker
+            scaled by share count next to a tooltip quoting сум would encode two
+            different quantities under one word. */}
         {showPointMarks && points.map((p, i) => {
-          const share = maxVol > 0 ? (p.volume || 0) / maxVol : 0;
+          const share = maxVol > 0 ? (p.turnover || 0) / maxVol : 0;
           const r = 1.6 + Math.sqrt(Math.max(share, 0)) * 3.4;
           const prev = i > 0 ? points[i - 1].close : null;
           const move = prev && prev > 0 ? ((p.close - prev) / prev) * 100 : null;
@@ -6547,7 +6557,9 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
               <div className="cpc-tt-row"><span>{t("Мин.", "Min.", "Low")}</span><b>{fmtFull(hp.low)}</b></div>
             </>
           )}
-          <div className="cpc-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span><b>{abbrev(hp.volume)}</b></div>
+          <div className="cpc-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
+            <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
+          </div>
           {hp.change != null && (
             <div className="cpc-tt-row"><span>{t("Изм.", "O'zg.", "Chg")}</span>
               <b style={{ color: hp.change >= 0 ? "#22c55e" : "#ef4444" }}>{hp.change >= 0 ? "+" : ""}{fmtFull(hp.change)}</b>
@@ -8511,7 +8523,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   // ── Data preparation ─────────────────────────────────────────────────────
   const daily = React.useMemo(() => (history || []).map((h) => (Array.isArray(h)
-    ? { date: h[0], close: Number(h[1]) || 0, volume: 0 }
+    ? { date: h[0], close: Number(h[1]) || 0, volume: 0, turnover: 0 }
     : {
         date: h.date || h.trade_date,
         open: h.open != null ? Number(h.open) : null,
@@ -8519,6 +8531,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
         low: h.low != null ? Number(h.low) : null,
         close: Number(h.close ?? h.price ?? h.close_price ?? 0),
         volume: Number(h.volume ?? h.trading_volume ?? 0) || 0,
+        // Money, not a security count — see the note on the company chart's
+        // normalizer. The pane, its scale label and the readout all use it.
+        turnover: Number(h.value ?? h.trading_value ?? 0) || 0,
         change: h.change != null ? Number(h.change) : null,
       }))
     .filter((p) => p.close > 0 && p.date)
@@ -8832,7 +8847,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const priceColor = cmpOn ? "#22c55e" : isUp ? "#22c55e" : "#ef4444";
   const baseLevel = n ? baseVals[0] : 0;
 
-  const maxVol = Math.max(1, ...points.map((p) => p.volume || 0));
+  const maxVol = Math.max(1, ...points.map((p) => p.turnover || 0));
 
   const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -9116,11 +9131,13 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                     strokeWidth="1.5" strokeOpacity="0.95" strokeLinejoin="round" />
                 ))}
 
-                {/* Volume. Not decoration: on this market a move on 40 shares
-                    and a move on 40 000 are different events, and the price
-                    line cannot tell them apart. */}
+                {/* Volume. Not decoration: on this market a move worth 40 000
+                    сум and a move worth 400 млн are different events, and the
+                    price line cannot tell them apart. Money rather than share
+                    count, so a 2 сум share and a 23 000 сум one are on the same
+                    scale — and so the bar agrees with the readout above it. */}
                 {points.map((p, i) => {
-                  const v = p.volume || 0;
+                  const v = p.turnover || 0;
                   if (!v) return null;
                   const h = (v / maxVol) * (volBot - volTop);
                   const upDay = i > 0 ? p.close >= points[i - 1].close : true;
@@ -9131,7 +9148,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot}
                   stroke="currentColor" strokeOpacity="0.18" />
                 <text x={PAD.left + 2} y={volTop + 11} fontSize="10" fill="currentColor" opacity="0.5">
-                  {t("Объём", "Hajm", "Volume")} · {abbrev(maxVol)}
+                  {t("Объём", "Hajm", "Volume")} · {fmtCompact(maxVol, lang)} {t("сум", "so'm", "UZS")}
                 </text>
 
                 {subPanes.map((pane, pi) => {
@@ -9275,7 +9292,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                     </>
                   )}
                   <div className="ac-tt-row"><span>{t("Закрытие", "Yopilish", "Close")}</span><b>{fmtFull(hp.close)}</b></div>
-                  <div className="ac-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span><b>{abbrev(hp.volume)}</b></div>
+                  <div className="ac-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
+                    <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
+                  </div>
                   {cmpOn && (
                     <div className="ac-tt-block">
                       <div className="ac-tt-row"><span style={{ color: priceColor }}>{up}</span>
