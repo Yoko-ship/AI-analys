@@ -195,14 +195,14 @@
 .lv-panel-body { display: grid; grid-template-columns: 1fr 300px; }
 .lv-board { padding: 22px 24px; border-right: 1px solid var(--lv-line); min-width: 0; }
 .lv-board-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; }
-.lv-board-head h4 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-.lv-ses { font-family: var(--lv-mono); font-size: 12.5px; color: var(--lv-ink-3); margin-left: auto; }
+.lv-board-head h4 { margin: 0; font-size: 17.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.lv-ses { font-family: var(--lv-mono); font-size: 13.5px; color: var(--lv-ink-3); margin-left: auto; }
 .lv-live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--lv-up); margin-right: 7px; animation: lv-pulse 2s ease-in-out infinite; }
 @keyframes lv-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.45); } 50% { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); } }
 
-.lv-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.lv-table { width: 100%; border-collapse: collapse; font-size: 16px; }
 .lv-table th {
-  text-align: left; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+  text-align: left; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--lv-ink-3); font-weight: 600; padding: 8px; border-bottom: 1px solid var(--lv-line);
   background: none;
 }
@@ -211,9 +211,16 @@
 .lv-table tr:last-child td { border-bottom: none; }
 .lv-table tbody tr { cursor: pointer; }
 .lv-table tbody tr:hover td { background: rgba(255, 180, 94, 0.05); }
-.lv-tk { font-family: var(--lv-mono); font-weight: 700; font-size: 14px; }
-.lv-nm { display: block; font-size: 12px; color: var(--lv-ink-3); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lv-chg { font-family: var(--lv-mono); font-size: 14px; }
+.lv-tk { font-family: var(--lv-mono); font-weight: 700; font-size: 15.5px; }
+/* max-width tracks the font size: at 12px/420px the legal names ellipsized at a
+   certain word, and a bigger glyph on the same 420px would have cut them EARLIER
+   — the enlargement would have read as "less name", not "bigger name". 470px is
+   the same 420 scaled by the type step, so the cut lands where it did before.
+   The vw half is what keeps that safe on a narrow screen: a flat pixel cap lets
+   this column argue for width the phone does not have, and the security column
+   is the one that has to yield. Same idiom as .lv-cc-top .lv-nm below. */
+.lv-nm { display: block; font-size: 13.5px; color: var(--lv-ink-3); max-width: min(470px, 52vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-chg { font-family: var(--lv-mono); font-size: 15.5px; }
 /* The 30-day line. A hairline stroke with no area fill and a small end dot —
    at 26px tall anything heavier stops reading as a price and starts reading as
    a drawn shape. No vector-effect here on purpose: the svg is rendered at its
@@ -231,12 +238,12 @@
 .lv-board-foot {
   display: flex; gap: 24px; margin-top: 14px; padding-top: 13px;
   border-top: 1px solid var(--lv-line);
-  font-family: var(--lv-mono); font-size: 12.5px; color: var(--lv-ink-3); flex-wrap: wrap;
+  font-family: var(--lv-mono); font-size: 13.5px; color: var(--lv-ink-3); flex-wrap: wrap;
 }
 .lv-board-foot b { color: var(--lv-ink-2); font-weight: 600; }
 
 .lv-rail { padding: 22px 20px; background: var(--lv-rail-bg); }
-.lv-rail h5 { margin: 0 0 12px; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lv-amber); }
+.lv-rail h5 { margin: 0 0 12px; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lv-amber); }
 .lv-rail h5 + .lv-mover ~ h5, .lv-rail .lv-mover + h5 { margin-top: 20px; }
 .lv-mover {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -252,7 +259,7 @@
    percentage out through the card's border. */
 .lv-mover-id { flex: 1; min-width: 0; }
 .lv-mover-id .lv-nm { max-width: none; }
-.lv-mover .pc { flex: none; font-family: var(--lv-mono); font-size: 14px; font-weight: 600; }
+.lv-mover .pc { flex: none; font-family: var(--lv-mono); font-size: 15px; font-weight: 600; }
 
 /* ── Компания ── */
 .lv-company-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 52px; align-items: center; }
@@ -362,10 +369,10 @@
    and the tape are the two places where a wider glyph would start wrapping
    the columns, so they step down while the prose keeps its new size. */
 @media (max-width: 760px) {
-  .lv-table { font-size: 13.5px; }
-  .lv-table th { font-size: 11px; }
-  .lv-tk, .lv-chg { font-size: 13px; }
-  .lv-nm { font-size: 11.5px; }
+  .lv-table { font-size: 14.5px; }
+  .lv-table th { font-size: 12px; }
+  .lv-tk, .lv-chg { font-size: 14px; }
+  .lv-nm { font-size: 12.5px; }
   .lv-titem { font-size: 13.5px; padding: 12px 18px; }
   .lv-lede p { font-size: 16.5px; }
 }
