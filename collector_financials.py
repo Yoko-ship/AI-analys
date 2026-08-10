@@ -284,7 +284,24 @@ def backfill_financials(min_year: int = 2015) -> int:
     """
     from securities_catalog import get_securities_map
 
-    tickers = sorted({str(t).upper() for t in (get_securities_map() or {})})
+    tickers = {str(t).upper() for t in (get_securities_map() or {})}
+    # The deployment's board is the universe the site serves, and it is wider
+    # than this machine's catalog (109 vs 78, measured 2026-08-10) — the same
+    # trap the quote-history backfill hit. Sourced locally, every board-only
+    # issuer (JASM, TGPG, SANE, ORGS, KFSK ...) kept a single parsed year while
+    # nine to eleven annuals sat in the report catalog unread.
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+    for kind in ("stock", "bond"):
+        try:
+            resp = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60)
+            resp.raise_for_status()
+            board = resp.json()
+            board = board if isinstance(board, list) else board.get("stocks") or []
+            tickers |= {str(r.get("ticker") or "").strip().upper()
+                        for r in board if r.get("ticker")}
+        except Exception:  # noqa: BLE001 — the local catalog still gives us a run
+            log.exception("financials backfill: could not read the deployment's %s board", kind)
+    tickers = sorted(t for t in tickers if t)
     log.info("financials backfill: %d tickers, annual reports from %d", len(tickers), min_year)
     rows: list[dict] = []
     ratio_rows: list[dict] = []
