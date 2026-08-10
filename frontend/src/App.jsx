@@ -10192,6 +10192,16 @@ function MarketView({
   };
   const dormantCount = byClass.filter(isDormant).length;
   const prepared = byClass.filter((r) => isDormant(r) === inactiveOnly);
+  // The MAP never shows a dormant listing. A treemap is a picture of a session —
+  // every tile's area is the day's turnover — and a security that had no session
+  // has no area to draw, so it can only be rendered as a placeholder square that
+  // says «—». Eleven of those told the reader nothing the «неактивные: 10» line
+  // on the capitalisation card does not already say, in words. Computed from the
+  // rows rather than from `inactiveOnly` on purpose: switching the table's filter
+  // on and then switching to the map must not carry the eleven across.
+  // The TABLE keeps the filter — there a dormant listing has a last close, a
+  // date and an issuer to read, which is a row worth having.
+  const mapRows = byClass.filter((r) => !isDormant(r));
   const search = String(query || "").trim().toLowerCase();
 
   // Gather sectors present in current data. Same resolver as the heat map, so a
@@ -10913,8 +10923,10 @@ function MarketView({
           )}
           {/* ТЗ §4: dormant listings are hidden, not dropped — the count says
               how many, so their absence is a stated fact rather than a silence,
-              and the chip shows exactly those rows. */}
-          {dormantCount > 0 && (
+              and the chip shows exactly those rows. Table only: the map has
+              nothing to draw for a security with no session (see `mapRows`), so
+              offering the switch there would be offering eleven empty squares. */}
+          {viewMode === "table" && dormantCount > 0 && (
             <button
               type="button"
               className={`market-fav-filter market-dormant-filter ${inactiveOnly ? "active" : ""}`}
@@ -11180,7 +11192,7 @@ function MarketView({
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
           ) : (
-            <MarketHeatmap rows={prepared} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} type={type} mapData={mapData} />
+            <MarketHeatmap rows={mapRows} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} type={type} mapData={mapData} />
           )
         ) : (
           <>
