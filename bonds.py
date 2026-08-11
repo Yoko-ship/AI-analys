@@ -127,6 +127,9 @@ def reference_state(reference: dict[str, Any] | None) -> dict[str, Any]:
             # this trading at 120% of par", and it belongs on the screen.
             "nominal": nominal,
             "coupon_rate": rate,
+            # A detected-but-unstated kind ("floating") is itself information:
+            # the column shows «плав.» instead of a dash that reads as silence.
+            "coupon_type": reference.get("coupon_type"),
             "coupon_freq": _num(reference.get("coupon_freq")),
             "maturity_date": reference.get("maturity_date"),
             # How many securities the issue IS, as registered — a different size

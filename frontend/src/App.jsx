@@ -5677,11 +5677,21 @@ function BondsTable({ language, onOpen }) {
 
   const money = (v) => fmtCompact(v, lang);
   const pct = (v) => fmtPct(v, lang);
+  // The API names the exact reference fields a withheld metric is waiting for;
+  // the tooltip has to name them in the reader's language, not as column names.
+  const missingLabel = {
+    nominal: t("номинал", "nominal", "the par value"),
+    coupon_rate: t("купонная ставка", "kupon stavkasi", "the coupon rate"),
+    maturity_date: t("дата погашения", "to'lov sanasi", "the maturity date"),
+  };
   const metric = (m) => {
     if (m?.value != null) return fmtMetric(m, lang);
     // A withheld value carries its reason; an em-dash alone would read as "we
     // did not bother" rather than "the source does not publish it".
-    return <span className="cell-status" title={m?.note || m?.status || ""}>—</span>;
+    const miss = (m?.missing || []).map((f) => missingLabel[f] || f).join(", ");
+    const title = [m?.note, miss && `${t("эмитент не подал", "emitent topshirmagan", "the issuer has not filed")}: ${miss}`]
+      .filter(Boolean).join(" · ");
+    return <span className="cell-status" title={title || m?.status || ""}>—</span>;
   };
 
   return (
@@ -5785,7 +5795,13 @@ function BondsTable({ language, onOpen }) {
                 <td className="num">
                   {b.reference?.coupon_rate != null
                     ? `${fmtNumber(b.reference.coupon_rate, lang, 2)}%`
-                    : <span className="cell-status" title={t("эмитент не подавал начислений по этому выпуску", "", "the issuer has filed no accrual for this issue")}>—</span>}
+                    : b.reference?.coupon_type === "floating"
+                      // The detector concluded the filings fit no single annual
+                      // rate — that is a property of the issue, not a data gap.
+                      ? <span className="cell-status" title={t("ставка не фиксированная: поданные начисления не сводятся к одной годовой ставке", "stavka qat'iy emas: topshirilgan hisoblashlar yagona yillik stavkaga to'g'ri kelmaydi", "the rate is not fixed: the filed accruals fit no single annual rate")}>
+                          {t("плав.", "suzuv.", "float")}
+                        </span>
+                      : <span className="cell-status" title={t("эмитент не подавал начислений по этому выпуску", "emitent bu chiqarilish bo'yicha hisoblash topshirmagan", "the issuer has filed no accrual for this issue")}>—</span>}
                 </td>
                 <td className="num">{metric(b.simple_yield)}</td>
                 <td className="num">{metric(b.ytm)}</td>
