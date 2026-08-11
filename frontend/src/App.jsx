@@ -6412,11 +6412,9 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   };
 
   const hp = hover != null ? points[hover] : null;
-  // Volume change is against the previous SESSION in the drawn window, and only
-  // when both sessions actually traded — a carried-forward row has no volume to
-  // measure a change from.
-  const hpPrevT = hover != null && hover > 0 ? points[hover - 1].turnover : null;
-  const volChg = hp && hp.turnover > 0 && hpPrevT > 0 ? hp.turnover - hpPrevT : null;
+  // Measured on the full loaded series, not the drawn window, so the first
+  // points of a 1М chart still have their history behind them.
+  const relVol = hp ? relativeVolume(daily, hp.date, hp.turnover) : null;
   const hx = hover != null ? xs(hover) : 0;
   const ttRight = hover != null && hx > W * 0.62;
 
@@ -6600,11 +6598,9 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           <div className="cpc-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
             <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
           </div>
-          {volChg != null && (
-            <div className="cpc-tt-row"><span>{t("Изм. объёма", "Hajm o'zg.", "Vol chg")}</span>
-              <b style={{ color: volChg >= 0 ? "#22c55e" : "#ef4444" }}>
-                {volChg >= 0 ? "+" : ""}{fmtCompact(volChg, lang)} ({signedFixed((volChg / hpPrevT) * 100, 1)}%)
-              </b>
+          {relVol != null && (
+            <div className="cpc-tt-row"><span>{t("Объём к среднему", "O'rtacha hajmga", "Vol vs avg")}</span>
+              <b>×{relVol.toFixed(1).replace(".", lang === "en" ? "." : ",")}</b>
             </div>
           )}
           {hp.change != null && (
@@ -6875,6 +6871,24 @@ function CompanyWatchRail({ ticker, rows, securitiesMap, series, favorites, onTo
  * UZIR's header read «-0.41 (-0.00%)» because the sign came from the raw
  * value while the digits came from the rounded one.
  */
+/**
+ * Relative volume: the day's turnover against the average of its previous
+ * 20 TRADED sessions. A carried-forward row holds a zero turnover — that is
+ * the absence of a session, not a small one, and averaging zeros in would
+ * call every trade on an illiquid name «×40». Fewer than 3 prior traded
+ * sessions and nothing is claimed.
+ */
+function relativeVolume(daily, date, turnover) {
+  if (!(turnover > 0)) return null;
+  const i = daily.findIndex((p) => p.date === date);
+  if (i < 0) return null;
+  let sum = 0, n = 0;
+  for (let j = i - 1; j >= 0 && n < 20; j--) {
+    if (daily[j].turnover > 0) { sum += daily[j].turnover; n += 1; }
+  }
+  return n >= 3 ? turnover / (sum / n) : null;
+}
+
 function signedFixed(v, dp = 2) {
   const r = Number(Number(v).toFixed(dp)) + 0; // +0 folds -0 into 0
   return `${r > 0 ? "+" : ""}${r.toFixed(dp)}`;
@@ -8917,10 +8931,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   };
 
   const hp = hover != null && points[hover] ? points[hover] : null;
-  // Same rule as the company chart's readout: a volume change exists only
-  // between two sessions that both traded.
-  const hpPrevT = hover != null && hover > 0 && points[hover - 1] ? points[hover - 1].turnover : null;
-  const volChg = hp && hp.turnover > 0 && hpPrevT > 0 ? hp.turnover - hpPrevT : null;
+  const relVol = hp ? relativeVolume(daily, hp.date, hp.turnover) : null;
 
   const legendChips = [
     ...(cmpOn ? cmp.series.map((s) => ({ key: `c:${s.ticker}`, color: s.color, text: s.ticker, off: () => toggleCompare(s.ticker) })) : []),
@@ -9356,11 +9367,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   <div className="ac-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
                     <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
                   </div>
-                  {volChg != null && (
-                    <div className="ac-tt-row"><span>{t("Изм. объёма", "Hajm o'zg.", "Vol chg")}</span>
-                      <b style={{ color: volChg >= 0 ? "#22c55e" : "#ef4444" }}>
-                        {volChg >= 0 ? "+" : ""}{fmtCompact(volChg, lang)} ({signedFixed((volChg / hpPrevT) * 100, 1)}%)
-                      </b>
+                  {relVol != null && (
+                    <div className="ac-tt-row"><span>{t("Объём к среднему", "O'rtacha hajmga", "Vol vs avg")}</span>
+                      <b>×{relVol.toFixed(1).replace(".", lang === "en" ? "." : ",")}</b>
                     </div>
                   )}
                   {cmpOn && (
@@ -10275,6 +10284,12 @@ function MarketView({
   // to no chip at all.
   const rowSector = (r) => sectorOf(r.ticker, smap, companyMap);
   const presentSectors = [...new Set(prepared.map(rowSector))].sort();
+  // A sector the current segment holds none of cannot filter it. Облигации are
+  // «Прочее» to a security and nothing else, so a «Финансы» picked under Акции
+  // would empty that table — and, since a chip row with one option is not drawn
+  // (see below), leave no control to undo it. The choice is only suspended, not
+  // thrown away: switching back to Акции applies it again.
+  const activeSector = presentSectors.includes(marketSector) ? marketSector : null;
 
   // §3.8 multipliers. Inputs are gathered here; the arithmetic lives in the one
   // shared valuationRatios() so this table and the company page cannot disagree.
@@ -10459,7 +10474,7 @@ function MarketView({
   const visibleRows = prepared
     .filter((row) => {
       if (favOnly && !hasFav(row.ticker)) return false;
-      if (marketSector && rowSector(row) !== marketSector) return false;
+      if (activeSector && rowSector(row) !== activeSector) return false;
       if (!search) return true;
       return `${row.ticker || ""} ${row.name || ""} ${row.isin || ""}`.toLowerCase().includes(search);
     })
@@ -10523,7 +10538,9 @@ function MarketView({
     const filters = [
       mt(lang, type === "stock" ? "stocks" : type === "bond" ? "bonds"
         : type === "preferred" ? "preferredStocks" : type === "ordinary" ? "ordinaryStocks" : "all"),
-      marketSector || "",
+      // The file states the filters that ACTUALLY shaped it — a suspended sector
+      // named in the header would describe a selection the rows never went through.
+      activeSector || "",
       favOnly ? mt(lang, "csvFav") : "",
       // The export states its filters, and «только неактивные» changes what the
       // whole file IS — a sheet of eleven dormant listings that looks like the
@@ -11214,7 +11231,14 @@ function MarketView({
           )}
         </div>
 
-        {presentSectors.length > 0 && viewMode === "table" && (
+        {/* More than one sector, not merely one: a row of «Все» + a single chip
+            offers no choice — both buttons select the same securities. That is
+            exactly the bonds segment, where every issue resolves to «Прочее»
+            (the catalog carries no sector for a bond), and the customer had that
+            chip off. Under Акции «Прочее» is a real bucket of 12 issuers the
+            catalog has not classified, so it stays: dropping the chip there
+            would leave those rows answering to none. */}
+        {presentSectors.length > 1 && viewMode === "table" && (
           <div className="sector-filter market-sector-filter">
             <button
               type="button"
