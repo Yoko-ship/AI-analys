@@ -113,9 +113,20 @@ just ordering by date. Three stages, all in one place so every consumer gets the
    (`NEWS_RANK_HALF_LIFE_H`). Deterministic and pure, so an ordering can be explained and
    tested. Each item carries its `rank` in the API response.
 3. **Cross-source de-duplication** — the same story from several outlets collapses to the
-   best-ranked copy, by Jaccard overlap of significant title words
-   (`NEWS_DEDUP_SIMILARITY`, default `0.62`) and only within `NEWS_DEDUP_WINDOW_H` (48 h),
-   because identical wording months apart is a recurring story, not a duplicate.
+   best-ranked copy, only within `NEWS_DEDUP_WINDOW_H` (72 h), because identical wording
+   months apart is a recurring story, not a duplicate. Similarity is the higher of two
+   Jaccard overlaps: significant **title** words (the copied headline) and significant
+   `summary_ru` words — the summaries are all our own Russian text from one classifier, so
+   they also match a story RETOLD under a rewritten headline or arriving in English/Uzbek,
+   which a title comparison can never see. At `NEWS_DEDUP_SIMILARITY` (default `0.55`) the
+   match stands alone; in the band `NEWS_DEDUP_BAND`..threshold (default `0.40`..) it
+   additionally needs a shared **figure** (integer part of any number in title+summary),
+   because there a rewritten retelling and two same-template stories («Узбекистан и X
+   обсудили проекты») overlap identically — measured 2026-08-11, what separates them is
+   that two tellings of one fact quote the same number and two different stories never do.
+   **Issuer disclosures are exempt on both sides**: the same issuer files «Сделка с
+   аффилированным лицом» week after week — identical titles, distinct statutory facts, and
+   merging them would silently drop a real disclosure.
 
 Ranking runs over a window three times wider than `limit`, so a strong item just outside
 today's newest N can still surface. `?order=recent` returns the plain newest-first list —
@@ -607,7 +618,7 @@ them — none gets `article_body: false`.
 The rate decision cross-posts to `cbu_releases` **and** `cbu_policy` under different ids.
 Both rows are stored and classified (~8 extra calls a year); the reader sees one card,
 because the titles are character-identical and `_dedupe_stories` collapses them at read
-time (Jaccard 1.000 vs the 0.62 threshold, verified on the 29 July decision). Dropping
+time (Jaccard 1.000 vs the 0.55 threshold, verified on the 29 July decision). Dropping
 either section would mean betting on which path the bank uses next.
 
 **napp.uz** — the capital-market regulator — uses the same adapter (`.info-in` cards,

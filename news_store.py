@@ -68,10 +68,31 @@ _RANK_HALF_LIFE_H = float(os.getenv("NEWS_RANK_HALF_LIFE_H", "36"))
 # 2026-07-25 on real rows: genuinely relevant items scored 0.60-0.85, rejected ones
 # 0.00-0.10, so this sits in an empty band. Set to 0 to disable the floor.
 _MIN_RELEVANCE = float(os.getenv("NEWS_MIN_RELEVANCE", "0.3"))
-# Jaccard similarity over significant title words above which two items are treated as the
-# same story from different outlets. 0 disables cross-source de-duplication.
-_DEDUP_SIMILARITY = float(os.getenv("NEWS_DEDUP_SIMILARITY", "0.62"))
-_DEDUP_WINDOW_H = float(os.getenv("NEWS_DEDUP_WINDOW_H", "48"))
+# Jaccard similarity above which two items are treated as the same story from different
+# outlets. Measured against the title AND our own summary_ru (see _dedupe_stories for why
+# the summary is the stronger signal). 0 disables cross-source de-duplication.
+# 0.55, from the 2026-08-11 audit of 200 served cards: every observed false pair (two
+# «Узбекистан и X обсудили проекты» meetings, a deposit-tax vs a carbon-tax proposal) sat
+# at ≤ 0.42, and the closest pair that is genuinely two stories — the ЦБ and the Институт
+# фискального анализа each commenting on the same tax idea — scored 0.53. True duplicates
+# run 0.55–1.0. The band 0.42–0.55 still holds real duplicates (a retold headline shares
+# fewer words than a copied one); they are the price of never merging two real stories.
+_DEDUP_SIMILARITY = float(os.getenv("NEWS_DEDUP_SIMILARITY", "0.55"))
+# The band below the threshold where a retelling can still hide (headline rewritten, only
+# the gist shared). Overlap alone cannot split this band — see _DEDUP_BAND's corroboration
+# rule in _dedupe_stories. 0 disables the band.
+_DEDUP_BAND = float(os.getenv("NEWS_DEDUP_BAND", "0.40"))
+# 72h, not 48: the same CBU reserves release was carded by two outlets 66h apart (weekend
+# in between), while genuinely recurring same-title items (spot's weekly «какие банки
+# работают в выходные») sit ≥ 160h apart — the window has room on both sides.
+_DEDUP_WINDOW_H = float(os.getenv("NEWS_DEDUP_WINDOW_H", "72"))
+# Summary similarity is only trusted when both summaries carry at least this many
+# significant words: two four-word summaries can collide on phrasing alone.
+_DEDUP_MIN_SUMMARY_WORDS = 5
+# The integer part of every figure an item states, title + summary: «64,34 млрд» and
+# «$64,3 млрд» both say 64. Fragments after the decimal separator are NOT tokens — \d+
+# alone would read «64,34» as a 64 and a 34, and the 34 could match anything.
+_NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)?")
 # Short/function words carry no topical signal, so they must not inflate the overlap.
 _STOPWORDS = {
     "в", "на", "и", "с", "по", "за", "из", "к", "у", "о", "об", "от", "до", "для", "не",
@@ -653,41 +674,86 @@ def _drop_noise(items: list[dict[str, Any]], min_relevance: float) -> list[dict[
     return kept
 
 
+def _jaccard(a: set[str], b: set[str]) -> float:
+    union = a | b
+    return len(a & b) / len(union) if union else 0.0
+
+
+def _number_tokens(it: dict[str, Any]) -> set[str]:
+    """The integer parts of the figures an item states, title + summary."""
+    text = f"{it.get('title') or ''} {it.get('summary_ru') or ''}"
+    return {m.group(0).split(",")[0].split(".")[0] for m in _NUMBER_RE.finditer(text)}
+
+
 def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[str, Any]]:
     """Collapse the same story reported by several outlets, keeping the best-ranked copy.
 
-    Compares significant title words (Jaccard) only between items published within
-    ``NEWS_DEDUP_WINDOW_H`` of each other — the same wording months apart is a different
-    story (a daily FX report, say), not a duplicate. Items are expected pre-sorted best
+    Two texts speak, and the higher similarity decides. Title similarity catches the copied
+    headline. ``summary_ru`` similarity catches what a title can never show: the same story
+    RETOLD — another outlet's own headline shares 40% of the words, and a story arriving in
+    English or Uzbek shares none. Our summaries are all written in Russian by the same
+    classifier, so two summaries of one fact converge on the same words whatever language
+    the sources wrote in (measured 2026-08-11: uza's English geology headline vs uzdaily's
+    Russian one — title overlap 0.0, summary overlap 1.0). The summary signal is only
+    trusted when both summaries are long enough to be distinctive
+    (``_DEDUP_MIN_SUMMARY_WORDS``).
+
+    Below the clean threshold sits a band (``_DEDUP_BAND``..threshold) where overlap alone
+    cannot decide: a rewritten headline of the SAME story and two stories cut from the same
+    template («Узбекистан и <кто-то> обсудили проекты») overlap identically there —
+    measured, both kinds sit at 0.40-0.53. What separates them in every audited pair is the
+    FIGURE: two tellings of one fact quote the same number (резервы «$64,3 млрд» / «64,34
+    млрд долларов», ставка «14%» twice, «27 скважин» twice), while two same-shaped stories
+    never do — different meetings, different sums. So in the band a shared number token is
+    required, and without one both items stay.
+
+    Compared only between items published within ``NEWS_DEDUP_WINDOW_H`` of each other —
+    the same wording months apart is a different story (a weekly banks-open-Sunday note,
+    say), not a duplicate.
+
+    Issuer disclosures are exempt on BOTH sides: a filing is the statutory record, and the
+    same issuer files «Сделка с аффилированным лицом» week after week — identical titles,
+    identical summaries, DISTINCT facts. Similarity between filings means nothing, so
+    merging them would silently drop a real disclosure. Items are expected pre-sorted best
     first, so the survivor is the one that already ranked highest.
     """
     if threshold <= 0 or len(items) < 2:
         return items
-    kept: list[tuple[set[str], datetime | None, dict[str, Any]]] = []
+    disclosures = disclosure_source_ids()
+    kept: list[tuple[set[str], set[str], set[str], datetime | None]] = []
+    out: list[dict[str, Any]] = []
     dropped = 0
     for it in items:
-        words = _title_words(it.get("title"))
+        if str(it.get("source_id") or "") in disclosures:
+            out.append(it)
+            continue
+        t_words = _title_words(it.get("title"))
+        s_words = _title_words(it.get("summary_ru"))
+        if len(s_words) < _DEDUP_MIN_SUMMARY_WORDS:
+            s_words = set()
+        numbers = _number_tokens(it)
         when = _parse_dt(it.get("published_at"))
         duplicate = False
-        if words:
-            for prev_words, prev_when, _prev in kept:
-                if not prev_words:
+        for prev_t, prev_s, prev_nums, prev_when in kept:
+            if when and prev_when:
+                gap_h = abs((when - prev_when).total_seconds()) / 3600.0
+                if gap_h > _DEDUP_WINDOW_H:
                     continue
-                if when and prev_when:
-                    gap_h = abs((when - prev_when).total_seconds()) / 3600.0
-                    if gap_h > _DEDUP_WINDOW_H:
-                        continue
-                union = words | prev_words
-                if union and len(words & prev_words) / len(union) >= threshold:
-                    duplicate = True
-                    break
+            score = _jaccard(t_words, prev_t) if t_words and prev_t else 0.0
+            if s_words and prev_s:
+                score = max(score, _jaccard(s_words, prev_s))
+            if score >= threshold or (
+                    0 < _DEDUP_BAND <= score and numbers & prev_nums):
+                duplicate = True
+                break
         if duplicate:
             dropped += 1
         else:
-            kept.append((words, when, it))
+            kept.append((t_words, s_words, numbers, when))
+            out.append(it)
     if dropped:
         logger.info("news feed: merged %d duplicate cross-source story/stories", dropped)
-    return [it for _w, _t, it in kept]
+    return out
 
 
 # --------------------------------------------------------------------------- #
