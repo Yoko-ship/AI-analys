@@ -5644,6 +5644,12 @@ function BondsTable({ language, onOpen }) {
         <span className="muted">
           {data.count} {t("выпусков", "chiqarilish", "issues")}
           {" · "}
+          {/* The session the rows are read against, and how many are not from
+              it. Four of the seventeen last traded days or months ago and, with
+              no date beside them, every one read as this morning's. */}
+          {t("сессия", "sessiya", "session")}: {data.board_day || "—"}
+          {data.stale > 0 && ` · ${data.traded_today} ${t("сегодня", "bugun", "today")}`}
+          {" · "}
           {/* NOT the equity market's capitalisation, and labelled so nobody
               adds the two together. */}
           {t("стоимость выпусков", "chiqarilish qiymati", "issue value")}: {money(data.issue_value_total)}
@@ -5683,6 +5689,11 @@ function BondsTable({ language, onOpen }) {
               <th>{t("Эмитент", "Emitent", "Issuer")}<TermInfo termId="issuer" lang={lang} /></th>
               <th className="num">{t("Цена", "Narx", "Price")}</th>
               <th className="num">{t("Изм.", "O'zg.", "Chg")}<TermInfo termId="change" lang={lang} /></th>
+              {/* Which session the three numbers on this row belong to. The
+                  board screen has always carried this column; without it here a
+                  price, a move and a turnover from another week sat in the same
+                  column as this morning's and could not be told apart. */}
+              <th className="num">{t("Сессия", "Sessiya", "Session")}</th>
               <th className="num">{t("Оборот", "Aylanma", "Turnover")}<TermInfo termId="volume" lang={lang} /></th>
               <th className="num">{t("Сделки", "Bitimlar", "Trades")}</th>
               {/* Two different sizes: how many securities the issue is, and what
@@ -5711,6 +5722,14 @@ function BondsTable({ language, onOpen }) {
                     title={b.issuer || b.name || ""}>{b.issuer || b.name || "—"}</td>
                 <td className="num">{fmtPrice(b.price, lang)}</td>
                 <td className={`num tone-${marketTone(b.change_pct)}`}>{pct(b.change_pct)}</td>
+                <td className={`num bond-session${b.is_current === false ? " bond-stale" : ""}`}
+                    title={b.is_current === false
+                      ? t("Последняя сессия этого выпуска — не сегодняшняя. Цена, изменение и оборот относятся к ней.",
+                          "Bu chiqarilishning oxirgi sessiyasi bugungi emas.",
+                          "This issue's last session is not today's. The price, the move and the turnover belong to it.")
+                      : ""}>
+                  {b.last_trade_date || "—"}
+                </td>
                 <td className="num">{money(b.turnover)}</td>
                 <td className="num">{Number.isFinite(b.trades) ? b.trades : "—"}</td>
                 <td className="num">{fmtNumber(b.reference?.issue_volume, lang, 0)}</td>

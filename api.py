@@ -1870,8 +1870,12 @@ async def api_bonds(request: Request) -> Response:
         inputs = await _market_inputs()
         references, coupons = provenance.bond_references(), provenance.bond_coupons()
         quality = await _bond_history_quality(inputs)
+        # The day statistics go in with the board: the quote feed lags for a thin
+        # issue (IQMK5B8 carried its 3 April print while the protocol held today's)
+        # and it carries no trade count for a bond at all.
         payload = bonds.build_bond_board(inputs["board"], inputs["securities"],
-                                         references, coupons, quality)
+                                         references, coupons, quality,
+                                         stats=inputs["stats"])
         payload["ok"] = True
         payload["trade_date"] = inputs["trade_date"]
         return _etag_json(request, payload, max_age=60)
@@ -1889,7 +1893,8 @@ async def api_bond_detail(ticker: str) -> dict[str, Any]:
     references, coupons = provenance.bond_references(), provenance.bond_coupons()
     quality = await _bond_history_quality(inputs)
     payload = bonds.build_bond_board(inputs["board"], inputs["securities"],
-                                     references, coupons, quality)
+                                     references, coupons, quality,
+                                     stats=inputs["stats"])
     row = next((r for r in payload["items"] if r["ticker"] == ticker), None)
     if not row:
         raise HTTPException(status_code=404, detail="bond not found")

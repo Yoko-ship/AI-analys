@@ -10932,3 +10932,15 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .bonds-note { font-size: 12px; line-height: 1.5; max-width: 760px; margin: 0 0 12px; }
 .bond-row { cursor: pointer; }
 .bond-row:hover { background: rgba(148,163,184,0.06); }
+/* A date is one token; wrapped after the year it reads as two numbers. */
+.bond-session { white-space: nowrap; }
+
+/* A session that is not the board's own. Marked on the date itself, because
+   that is the cell that answers "when" for the three numbers beside it — the
+   row is not wrong and must not read as a warning, it simply belongs to
+   another day. */
+.bond-stale {
+  color: var(--muted);
+  border-bottom: 1px dotted currentColor;
+  cursor: help;
+}

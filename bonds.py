@@ -49,6 +49,11 @@ logger = logging.getLogger(__name__)
 
 STATUS_NO_REFERENCE = "no_bond_reference"
 NO_REFERENCE_NOTE = "нет справочных данных по выпуску"
+# Redeemed is not "we lack the data": the reference is complete and the answer
+# is that there is nothing left to discount or accrue. Kept apart so the page
+# never blames a data gap for a fact about the issue.
+STATUS_MATURED = "matured"
+MATURED_NOTE = "выпуск погашен {date}"
 
 # Day-count basis. ТЗ А.5 requires this to be configuration AND to be stated in
 # the response: two developers who assume different bases both get a number and
@@ -133,6 +138,11 @@ def reference_state(reference: dict[str, Any] | None) -> dict[str, Any]:
 
 def _unavailable(reason: str = NO_REFERENCE_NOTE, **extra: Any) -> dict[str, Any]:
     return _metric(None, STATUS_NO_REFERENCE, note=reason, **extra)
+
+
+def _matured(maturity: date) -> dict[str, Any]:
+    """Absent because the issue is redeemed — its own status, not a missing reference."""
+    return _metric(None, STATUS_MATURED, note=MATURED_NOTE.format(date=maturity.isoformat()))
 
 
 # ---------------------------------------------------------------------------
@@ -266,10 +276,73 @@ def coupon_cashflows(reference: dict[str, Any], coupons: Iterable[dict[str, Any]
 def _as_date(value: Any) -> date | None:
     if isinstance(value, date):
         return value
+    text = str(value or "").strip()
+    # The three spellings this codebase carries: YYYY-MM-DD (registry), YYYYMMDD
+    # (day statistics) and DD.MM.YYYY (live feed). A parser that knew only the
+    # first read every statistics day as "no day" and silently took the branch
+    # for "these stats belong to no session".
+    if len(text) == 8 and text.isdigit():
+        text = f"{text[:4]}-{text[4:6]}-{text[6:]}"
+    elif len(text) == 10 and text[2] == "." and text[5] == ".":
+        text = f"{text[6:]}-{text[3:5]}-{text[:2]}"
     try:
-        return date.fromisoformat(str(value or "")[:10])
+        return date.fromisoformat(text[:10])
     except ValueError:
         return None
+
+
+def apply_day_stats(row: dict[str, Any], stats: dict[str, Any] | None) -> dict[str, Any]:
+    """Restate a feed row against the exchange's own day statistics.
+
+    The quote feed and the day statistics are two feeds and they describe
+    different sessions. The board screen has reconciled them since day one; the
+    bond section never did, and it showed:
+
+    * IQMK5B8 at its **3 April** price and April turnover — 101,92 млрд — while
+      the statistics held its trade of today, 124,53 млрд at 1 037 753,42. Four
+      months of staleness printed in the same column as this morning's prints.
+    * «Сделки» empty for 15 of 17 issues. The feed carries no trade count for a
+      bond at all; the statistics carry one for every single issue.
+
+    Two rules, the same ones the board applies:
+
+    * statistics OLDER than the row are ignored outright — a turnover from
+      another week belongs to no quote on this page;
+    * statistics NEWER than the row win the session: their close is the price,
+      their day is the row's day, and the row's stale close IS the previous
+      close, so the change is close-to-close, matching the daily bulletin.
+
+    Returns a NEW row; the input is left alone.
+    """
+    if not stats:
+        return row
+    ts_day = _as_date(stats.get("trade_date"))
+    if not ts_day:
+        return row
+    row_day = _as_date(row.get("last_trade_date")) or _as_date(row.get("close_date"))
+    if row_day and ts_day < row_day:
+        return row
+
+    out = dict(row)
+    for src, dst in (("total_value", "volume"), ("total_qty", "quantity"),
+                     ("trade_count", "trade_count")):
+        if stats.get(src) is not None:
+            out[dst] = stats[src]
+    if row_day and ts_day > row_day:
+        # The session's own close, or its VWAP when the protocol filed no close
+        # (the older statistics rows carry prices only in `avg_price`/`vwap`).
+        close = stats.get("close_price")
+        if close is None:
+            close = stats.get("vwap") if stats.get("vwap") is not None else stats.get("avg_price")
+        if close is not None:
+            out["close_price"] = row.get("last_price")
+            out["close_date"] = row.get("last_trade_date")
+            out["last_price"] = close
+        out["last_trade_date"] = ts_day.isoformat()
+        for src, dst in (("open_price", "open"), ("high_price", "high"), ("low_price", "low")):
+            if stats.get(src) is not None:
+                out[dst] = stats[src]
+    return out
 
 
 def _days_since_coupon(reference: dict[str, Any], coupons: Sequence[dict[str, Any]] | None,
@@ -302,14 +375,18 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
              quality: dict[str, Any] | None = None,
              reference: dict[str, Any] | None = None,
              coupons: Sequence[dict[str, Any]] | None = None,
-             key_rate: Any = None, today: date | None = None) -> dict[str, Any]:
+             key_rate: Any = None, today: date | None = None,
+             stats: dict[str, Any] | None = None,
+             board_day: date | None = None) -> dict[str, Any]:
     """One issue: what is computable today, and a reason for what is not."""
     meta = meta or {}
+    row = apply_day_stats(row, stats)
     ref_state = reference_state(reference)
     price = _num(row.get("last_price"))
     prev = _num(row.get("close_price"))
     change = ((price - prev) / prev * 100.0) if (price and prev and prev > 0) else None
     traded = (_num(row.get("trade_count")) or 0) > 0 or (_num(row.get("volume")) or 0) > 0
+    session_day = _as_date(row.get("last_trade_date"))
 
     out: dict[str, Any] = {
         "ticker": str(row.get("ticker") or "").upper(),
@@ -326,6 +403,14 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
         # The value of the issue, kept as its own line. It is NOT part of the
         # equity market's capitalisation and may never be summed into it.
         "issue_value": _num(row.get("market_cap")),
+        # WHICH session this row is. Five of the seventeen issues last traded
+        # days or months ago, and with no date beside them every one read as
+        # this morning's — a four-month-old turnover in the same column as a
+        # live one. `is_current` is that comparison made once, here, rather
+        # than left for each reader of the payload to make differently.
+        "last_trade_date": (session_day.isoformat() if session_day else None),
+        "is_current": (None if not (session_day and board_day)
+                       else session_day >= board_day),
         "quality": quality,
         "reference": ref_state,
         # ТЗ А.2: equity multiples are structurally unavailable for a bond —
@@ -358,7 +443,8 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
 
     # A filed redemption date in the past explains a missing price better than
     # "no trades" does — ACMT1B2 stopped printing because it is being redeemed.
-    if maturity and maturity <= today and price is None:
+    matured = bool(maturity and maturity <= today)
+    if matured:
         out["status"] = "matured"
         out["reason"] = f"выпуск погашается с {maturity.isoformat()}"
 
@@ -371,10 +457,15 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
             out[field] = _unavailable(missing=ref_state["missing"] or None)
         return out
 
-    days_from_coupon = _days_since_coupon(reference, coupons, freq, today)
+    # Accrual stops at redemption. Past its maturity ACMT1B2 was still earning
+    # a coupon on this page — 19 days of it — for an issue whose principal had
+    # already been paid back. There is no accrual to state after that date, and
+    # a number there is worse than a dash.
+    days_from_coupon = None if matured else _days_since_coupon(reference, coupons, freq, today)
     accrued = (accrued_interest(nominal, rate, days_from_coupon, when=today)
                if days_from_coupon is not None
-               else _unavailable("нет даты последней купонной выплаты"))
+               else (_matured(maturity) if matured
+                     else _unavailable("нет даты последней купонной выплаты")))
     clean = price
     dirty = dirty_price(clean, accrued.get("value"))
     out.update({
@@ -391,6 +482,15 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
     if not ref_state["is_complete"]:
         for field in ("ytm", "duration", "modified_duration", "spread"):
             out[field] = _unavailable(missing=ref_state["missing"] or None)
+        return out
+
+    # A redeemed issue has no cashflows left, so there is nothing to discount —
+    # and the reason must SAY that. It used to fall through to the solver, come
+    # back empty-handed and report «нет справочных данных по выпуску» about the
+    # one issue on the board whose reference is complete.
+    if matured:
+        for field in ("ytm", "duration", "modified_duration", "spread"):
+            out[field] = _matured(maturity)
         return out
 
     flows = coupon_cashflows(reference, coupons or [], today)
@@ -410,19 +510,44 @@ def build_bond_board(board: Iterable[dict[str, Any]],
                      references: dict[str, dict[str, Any]] | None = None,
                      coupons: dict[str, list[dict[str, Any]]] | None = None,
                      quality: dict[str, dict[str, Any]] | None = None,
-                     key_rate: Any = None) -> dict[str, Any]:
-    """The bond section of the market screen."""
+                     key_rate: Any = None,
+                     stats: dict[str, dict[str, Any]] | None = None,
+                     board_day: date | None = None) -> dict[str, Any]:
+    """The bond section of the market screen.
+
+    ``stats`` is the exchange's day statistics keyed by ISIN — the same store the
+    board screen reconciles its rows against. Passing them here is what stops
+    this section from printing one issue's April session next to another's this
+    morning, and what fills the trade count the quote feed never carries for a
+    bond.
+    """
     securities = securities or {}
     references = references or {}
+    stats = stats or {}
     rows = []
     for row in board:
         ticker = str(row.get("ticker") or "").upper()
         meta = securities.get(ticker) or {}
         if not is_bond(row, meta):
             continue
+        isin = str(row.get("isin") or meta.get("isin") or "")
+        # The statistics are keyed by the ISIN as the store spells it; the board
+        # row may spell it either way, so try both rather than lose the join.
+        day_stats = stats.get(isin) or stats.get(isin.upper()) or stats.get(isin.lower())
         rows.append(bond_row(row, meta, (quality or {}).get(ticker),
-                             references.get(ticker), (coupons or {}).get(ticker), key_rate))
+                             references.get(ticker), (coupons or {}).get(ticker), key_rate,
+                             stats=day_stats, board_day=board_day))
     rows.sort(key=lambda r: r["ticker"])
+    # The board's own day, as the ROWS report it — so «за сессию» on this
+    # section means the same session the rows do, even when the caller passes
+    # nothing. Recomputed after the statistics are applied, since applying them
+    # is what can move a row forward to today.
+    if board_day is None:
+        days = [_as_date(r.get("last_trade_date")) for r in rows]
+        board_day = max([d for d in days if d], default=None)
+        for r in rows:
+            day = _as_date(r.get("last_trade_date"))
+            r["is_current"] = (day >= board_day) if (day and board_day) else None
     total_issue_value = sum(r["issue_value"] for r in rows if r.get("issue_value"))
     with_reference = sum(1 for r in rows if r["reference"]["is_complete"])
     with_nominal = sum(1 for r in rows if r["reference"].get("has_nominal"))
@@ -439,5 +564,11 @@ def build_bond_board(board: Iterable[dict[str, Any]],
         # and the maturity only once a redemption window is filed.
         "with_nominal": with_nominal,
         "with_coupon": with_coupon,
+        # The session the rows are read against, and how many of them are not
+        # from it. A section whose rows span April to today has to say so; the
+        # alternative is a reader taking every line for this morning.
+        "board_day": board_day.isoformat() if board_day else None,
+        "traded_today": sum(1 for r in rows if r.get("is_current")),
+        "stale": sum(1 for r in rows if r.get("is_current") is False),
         "day_count_basis": day_count_basis(),
     }
