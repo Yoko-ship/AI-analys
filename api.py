@@ -3794,11 +3794,13 @@ async def api_quotes_series(request: Request, tickers: str = "", days: int = 30)
         series = {}
         for ticker, isin in isin_of.items():
             rows = history.get(str(isin or "").upper()) or []
-            # [date, close] pairs, not objects: this is the one payload that
-            # scales with tickers x sessions, and the key names would be most of
-            # the bytes on the wire.
-            points = [[r["trade_date"], r["close_price"]] for r in rows
-                      if r.get("close_price") is not None]
+            # [date, close, turnover] triples, not objects: this is the one
+            # payload that scales with tickers x sessions, and the key names
+            # would be most of the bytes on the wire. Turnover is сумы rounded
+            # to the whole сум; 0 means the session was carried forward, and
+            # the compare tooltip renders that as «—», never as a small trade.
+            points = [[r["trade_date"], r["close_price"], round(r.get("turnover") or 0)]
+                      for r in rows if r.get("close_price") is not None]
             if points:
                 series[ticker] = points
         return _etag_json(request, {"ok": True, "days": days, "count": len(series),
