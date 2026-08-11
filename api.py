@@ -1774,6 +1774,72 @@ async def api_market_summary(request: Request) -> Response:
         raise HTTPException(status_code=502, detail="summary unavailable") from exc
 
 
+# Official daily exchange rates. cbu.uz publishes them as JSON — no scraping —
+# and sets them once per business day, so a half-hour in-process cache keeps the
+# site current without leaning on the bank's server. A failed refresh serves the
+# last good answer: yesterday's official rate stays official until the bank
+# publishes the next one.
+CBU_RATES_URL = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
+CBU_RATES_TTL_SEC = int(os.getenv("CBU_RATES_TTL_SEC", "1800"))
+CBU_RATES_CURRENCIES = tuple(
+    c.strip().upper()
+    for c in os.getenv("CBU_RATES_CURRENCIES", "USD,EUR,RUB,GBP,CNY,JPY,KZT").split(",")
+    if c.strip())
+_cbu_rates_cache: dict[str, Any] = {"at": 0.0, "payload": None}
+_cbu_rates_lock = threading.Lock()
+
+
+def _fetch_cbu_rates() -> list[dict[str, Any]]:
+    resp = requests.get(CBU_RATES_URL, timeout=20)
+    resp.raise_for_status()
+    data = resp.json()
+    return data if isinstance(data, list) else []
+
+
+def _cbu_rates_payload() -> dict[str, Any]:
+    raw = _fetch_cbu_rates()
+    by_ccy = {str(r.get("Ccy", "")).upper(): r for r in raw if isinstance(r, dict)}
+    rates = []
+    for ccy in CBU_RATES_CURRENCIES:
+        row = by_ccy.get(ccy)
+        if not row:
+            continue
+        rates.append({
+            "ccy": ccy,
+            "name_ru": row.get("CcyNm_RU"),
+            "name_uz": row.get("CcyNm_UZ"),
+            "name_en": row.get("CcyNm_EN"),
+            "nominal": formulas.to_number(row.get("Nominal")),
+            "rate": formulas.to_number(row.get("Rate")),
+            "diff": formulas.to_number(row.get("Diff")),
+        })
+    return {
+        "ok": True,
+        "source": "cbu.uz",
+        "date": next((r.get("Date") for r in raw if r.get("Date")), None),
+        "rates": rates,
+    }
+
+
+@app.get("/api/currency/rates")
+async def api_currency_rates(request: Request) -> Response:
+    now = time.time()
+    if _cbu_rates_cache["payload"] is None or now - _cbu_rates_cache["at"] > CBU_RATES_TTL_SEC:
+        loop = asyncio.get_running_loop()
+        try:
+            payload = await loop.run_in_executor(None, _cbu_rates_payload)
+            with _cbu_rates_lock:
+                _cbu_rates_cache["payload"] = payload
+                _cbu_rates_cache["at"] = now
+        except Exception:
+            logger.exception("CBU rates refresh failed")
+            if _cbu_rates_cache["payload"] is None:
+                # Nothing cached and the bank unreachable — say so honestly
+                # rather than 502: the strip simply does not render.
+                return _etag_json(request, {"ok": False, "rates": []}, max_age=60)
+    return _etag_json(request, _cbu_rates_cache["payload"], max_age=300)
+
+
 @app.get("/api/heatmap")
 async def api_heatmap(request: Request) -> Response:
     """The market map: tiles, sectors and metadata in ONE response (ТЗ §9)."""

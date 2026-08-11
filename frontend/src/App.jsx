@@ -10053,6 +10053,20 @@ function MarketView({
     return () => { alive = false; };
   }, []);
 
+  // Official CBU (cbu.uz) daily rates for the strip above the stat cards. The
+  // board prices in UZS; the reader converting in their head needs the rate,
+  // not a converter widget. The server refreshes its cache itself, so this is
+  // one fetch per page open.
+  const [fxRates, setFxRates] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/currency/rates")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok && (d.rates || []).length) setFxRates(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   // Multiples come from the server, computed per ISSUER (ТЗ §8). Keyed by
   // ticker, but both classes of an issuer carry the same object — that is the
   // point: the board used to divide ONE class's capitalisation by the WHOLE
@@ -10938,6 +10952,34 @@ function MarketView({
           </div>
         )}
       </article>
+
+      {/* Official daily rates from the Central Bank. One slim line: the ccy,
+          the rate in UZS, and the day-on-day move in сум. The date is CBU's
+          own — these are set once per business day, not quoted live. */}
+      {fxRates && (
+        <div className="market-fx-strip" role="note">
+          <span className="market-fx-label">
+            {lang === "uz" ? "O‘zR MB kurslari" : lang === "en" ? "CBU rates" : "Курсы ЦБ РУз"}
+            {fxRates.date ? ` · ${fxRates.date}` : ""}
+          </span>
+          {fxRates.rates.map((r) => {
+            const name = lang === "uz" ? r.name_uz : lang === "en" ? r.name_en : r.name_ru;
+            const hasDiff = Number.isFinite(r.diff) && r.diff !== 0;
+            return (
+              <span className="market-fx-item" key={r.ccy}
+                title={`${name || r.ccy} · ${r.nominal || 1} ${r.ccy} = ${formatRatio(r.rate, 2, lang)} UZS`}>
+                <b>{r.ccy}</b>
+                <span className="market-fx-rate">{formatRatio(r.rate, 2, lang)}</span>
+                {hasDiff && (
+                  <span className={`market-fx-diff ${r.diff > 0 ? "up" : "down"}`}>
+                    {r.diff > 0 ? "▲" : "▼"}{formatRatio(Math.abs(r.diff), 2, lang)}
+                  </span>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       <div className="market-stats-grid">
         {/* Same reason: the count of instruments is the board's, not the
