@@ -85,6 +85,78 @@ class TestTheQueryItBuilds:
         assert "p.type IN" not in seen["sql"]
 
 
+class TestCorporateIsServedFromTheFilings:
+    """«Корпоративные» carries the issuers' own disclosures (customer, 2026-08-11).
+
+    A filing on openinfo is the primary record — dated, complete, naming its issuer in
+    the field the instrument split reads. A paper's write-up of the same filing arrives
+    later, names the company loosely, and puts a second card under one fact. So the
+    corporate CLASSES are served from the disclosure sources; the other two, and the
+    «Все» tab that asks for no class at all, keep every source.
+    """
+    def _sql(self, monkeypatch, news_type):
+        seen = {}
+
+        class _Conn:
+            def execute(self, sql, params):
+                seen["sql"], seen["params"] = sql, list(params)
+                return self
+
+            def fetchall(self):
+                return []
+
+            def close(self):
+                return None
+
+        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        ns.get_news_feed(news_type=news_type, order="recent", days=0)
+        return seen
+
+    def test_the_registry_names_openinfo_as_the_disclosure_source(self) -> None:
+        assert "openinfo_facts" in ns.disclosure_source_ids()
+
+    def test_a_corporate_request_is_narrowed_to_them(self, monkeypatch) -> None:
+        seen = self._sql(monkeypatch, "corporate")
+
+        assert "p.type NOT IN (?,?) OR COALESCE(n.source_id, '') IN (?)" in seen["sql"]
+        assert "openinfo_facts" in seen["params"]
+
+    def test_a_bare_corporate_class_is_narrowed_too(self, monkeypatch) -> None:
+        """The tab is one caller; the rule belongs to the class, not to the tab."""
+        seen = self._sql(monkeypatch, "financial_report")
+
+        assert "COALESCE(n.source_id, '') IN (?)" in seen["sql"]
+        # The clause is appended last, ahead of LIMIT's own parameter.
+        assert seen["params"][-3:-1] == ["financial_report", "openinfo_facts"]
+
+    def test_economy_keeps_every_source(self, monkeypatch) -> None:
+        assert "p.type NOT IN" not in self._sql(monkeypatch, "economy")["sql"]
+
+    def test_all_keeps_every_source(self, monkeypatch) -> None:
+        """«Все» claims to be one mixed feed, so it must not quietly be two."""
+        assert "p.type NOT IN" not in self._sql(monkeypatch, None)["sql"]
+
+    def test_a_mixed_request_narrows_only_its_corporate_half(self, monkeypatch) -> None:
+        """Written per type, so an economy item is not judged by a corporate rule."""
+        seen = self._sql(monkeypatch, "economy,corporate_event")
+
+        assert "p.type NOT IN (?) OR" in seen["sql"]
+        # Both halves are asked for…
+        assert seen["params"][:3] == ["market", "regulatory", "corporate_event"]
+        # …but the narrowing names the corporate class alone, so economy passes it.
+        assert seen["params"][-3:-1] == ["corporate_event", "openinfo_facts"]
+
+    def test_an_unreadable_registry_leaves_the_tab_full(self, monkeypatch) -> None:
+        """Fail-soft in the direction that shows too much, never too little."""
+        monkeypatch.setattr(ns, "_disclosure_ids", None)
+        monkeypatch.setattr(ns, "_ORIGINS_FILE", "no/such/news_sources.json")
+        try:
+            assert ns.disclosure_source_ids() == set()
+            assert "p.type NOT IN" not in self._sql(monkeypatch, "corporate")["sql"]
+        finally:
+            ns._disclosure_ids = None
+
+
 class TestTheInstrumentSplit:
     """«Корпоративные» splits again by the instrument a filing is ABOUT.
 

@@ -2723,6 +2723,11 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
     regulatory) and ``corporate`` (corporate_event + financial_report). The groups
     partition all four, so nothing is unreachable from both tabs.
 
+    A corporate request is served from the **disclosure sources alone** (openinfo, the
+    issuers' own filings — customer, 2026-08-11): a paper's write-up of a filing is a
+    retelling, and the tab is the record. Only the corporate classes are narrowed, so
+    ``type`` unset — the «Все» tab — is still the mixed feed it says it is.
+
     ``instrument`` (``stock`` / ``bond``) narrows the feed to the filings that name a
     security of that kind. The classifier files a coupon payment and a dividend under
     the same «corporate_event», so the split cannot come from it — it comes from the

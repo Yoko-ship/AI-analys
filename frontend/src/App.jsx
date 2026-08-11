@@ -152,7 +152,7 @@ const NEWS_TX = {
     tabHint: {
       all: "Экономика и эмитенты в одной ленте",
       economy: "Макроэкономика, ставки и регулирование — то, что двигает рынок целиком",
-      corporate: "События и отчётность конкретных эмитентов",
+      corporate: "Официальные раскрытия эмитентов — сообщения и отчётность с openinfo.uz",
     },
     emptyTab: "В этом разделе пока пусто — посмотрите «Все».",
     instruments: { all: "Все бумаги", stock: "Акции", bond: "Облигации" },
@@ -174,7 +174,7 @@ const NEWS_TX = {
     tabHint: {
       all: "The economy and the issuers in one feed",
       economy: "Macro, rates and regulation — what moves the market as a whole",
-      corporate: "Events and reporting of individual issuers",
+      corporate: "Issuers' official disclosures — filings and reporting from openinfo.uz",
     },
     emptyTab: "Nothing here yet — try “All”.",
     instruments: { all: "All securities", stock: "Shares", bond: "Bonds" },
@@ -196,7 +196,7 @@ const NEWS_TX = {
     tabHint: {
       all: "Iqtisodiyot va emitentlar bitta lentada",
       economy: "Makroiqtisodiyot, stavkalar va tartibga solish — bozorni butunlay harakatga keltiradigan narsalar",
-      corporate: "Aniq emitentlarning voqealari va hisobotlari",
+      corporate: "Emitentlarning rasmiy oshkor qilishlari — openinfo.uz'dagi xabar va hisobotlar",
     },
     emptyTab: "Bu bo'limda hozircha bo'sh — «Barchasi»ni ko'ring.",
     instruments: { all: "Barcha qog'ozlar", stock: "Aksiyalar", bond: "Obligatsiyalar" },
@@ -614,6 +614,10 @@ const NEWS_TABS = [
   { key: "economy", type: "economy" },       // market + regulatory
   { key: "corporate", type: "corporate" },   // corporate_event + financial_report
 ];
+// «Корпоративные» is a disclosure feed, not a press review: the server serves that
+// request from openinfo — the issuers' own filings — and only that request, so «Все»
+// still carries what the papers write about an issuer. The rule lives there, with the
+// source registry, not here: the tab asks for a reading mode, never for a source.
 
 // Корпоративные splits again, by the instrument the filing is ABOUT. The
 // classifier cannot make this split — a coupon payment and a dividend are both
