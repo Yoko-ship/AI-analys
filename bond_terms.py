@@ -226,6 +226,37 @@ def match_issue(row: dict[str, Any], issues: Sequence[dict[str, Any]]) -> dict[s
     return None
 
 
+def _repair_transposed(accruals: Sequence[dict[str, Any]]) -> None:
+    """Un-swap filings whose ``sum_per`` and ``percentage_nominal`` traded places.
+
+    DELTA's January 2026 accruals state sum_per 2.30 and percentage_nominal
+    23 013.69 while every sibling filing of the same issue states the exact
+    opposite — the two fields transposed at source, which read as a 2-сум coupon
+    and made the whole series fail the fixed-rate check. The repair demands BOTH
+    halves of the evidence: the filing's percentage matches the group's
+    per-security amount AND its amount matches the group's percentage. One
+    degenerate number alone stays as filed, so a genuinely broken series is
+    still refused a rate. Mutates in place so the coupon rows heal too.
+    """
+    amounts = [a["amount"] for a in accruals if a.get("amount")]
+    if len(amounts) < 3:
+        return
+    base = Counter(amounts).most_common(1)[0][0]
+    pcts = [a["pct"] for a in accruals
+            if a.get("pct") and a.get("amount") and abs(a["amount"] - base) <= base * 5e-3]
+    if not pcts:
+        return
+    base_pct = Counter(pcts).most_common(1)[0][0]
+    for a in accruals:
+        amount, pct = a.get("amount"), a.get("pct")
+        if not amount or not pct:
+            continue
+        if abs(pct - base) <= base * 5e-3 and abs(amount - base_pct) <= max(base_pct * 5e-3, 0.01):
+            log.info("accrual fact %s: sum_per and percentage_nominal transposed — repaired",
+                     a.get("fact_id"))
+            a["amount"], a["pct"] = pct, amount
+
+
 def _coupon_rate(nominal: float, accruals: Sequence[dict[str, Any]]) -> tuple[float | None, int | None, str]:
     """Annual rate, period length and coupon type from the filed accruals.
 
@@ -235,6 +266,7 @@ def _coupon_rate(nominal: float, accruals: Sequence[dict[str, Any]]) -> tuple[fl
     with a day count near the period — a floating coupon or a mis-joined series
     fails that and returns no rate.
     """
+    _repair_transposed(accruals)
     amounts = [a["amount"] for a in accruals if a.get("amount")]
     starts = sorted(a["pay_date"] for a in accruals if a.get("pay_date"))
     if not amounts or len(starts) < 1:
@@ -315,6 +347,9 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
                 if amount and pay:
                     accruals.append({"decision_date": _day(detail.get("date_solution")),
                                      "amount": amount, "pay_date": pay,
+                                     # Kept for the transposition repair below —
+                                     # some filings state the two fields swapped.
+                                     "pct": _num(detail.get("percentage_nominal")),
                                      "window_end": _day(detail.get("end_date_other_securities")),
                                      "fact_id": fact.get("id")})
             else:
@@ -341,7 +376,10 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
                 "issue_volume": row.get("issue_volume"),
                 "coupon_rate": rate,
                 "coupon_freq": int(round(365 / period)) if period else None,
-                "coupon_type": kind if rate else None,
+                # "floating" survives without a rate: the detector concluding
+                # "no single annual rate fits the filings" is information the
+                # coupon column can state, where a bare NULL reads as silence.
+                "coupon_type": kind if kind != "unknown" else None,
                 # Only a filed redemption window is a maturity. A term of "N days
                 # from the start of placement" is not a date.
                 "maturity_date": redemption["begins"].isoformat() if redemption else None,
