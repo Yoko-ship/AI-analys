@@ -62,6 +62,7 @@ PAPER_TYPE_BOND = 3
 # ignored and answer with the unfiltered 64k set — which reads exactly like a
 # filter that worked, so the page size is capped and the count is logged.
 _PAGE_SIZE = 100
+_MAX_FACT_PAGES = 20  # 2000 filings; the busiest issuer on the walk files ~1500
 _ALLOWED_PERIOD_DRIFT = 3  # a 31-day month is the same coupon as a 30-day one
 
 
@@ -91,16 +92,29 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
 
 
 def issuer_facts(org_id: Any) -> list[dict[str, Any]]:
-    """Every material fact filed by one issuer (newest-first, one page)."""
-    payload = _get("/disclosure/facts/", {"organization_id": org_id, "page_size": _PAGE_SIZE})
-    results = (payload.get("results") or []) if isinstance(payload, dict) else []
-    count = payload.get("count") if isinstance(payload, dict) else None
-    if count and count > 60000:
-        # The filter was ignored and we are holding the whole portal.
-        log.warning("org %s: facts filter ignored (count=%s) — skipping", org_id, count)
-        return []
-    if count and count > len(results):
-        log.info("org %s: %s filings, reading the newest %d", org_id, count, len(results))
+    """Every material fact filed by one issuer (newest-first, paged).
+
+    Reading one page regressed once: AGAT's matured first issue slid past the
+    newest 100 as later filings arrived, its registration stopped matching and
+    a run "lost" a coupon that was proved weeks earlier. An issuer's whole
+    history is a handful of pages, so read them all (capped well above any real
+    issuer, far below the portal).
+    """
+    results: list[dict[str, Any]] = []
+    for page in range(1, (_MAX_FACT_PAGES) + 1):
+        payload = _get("/disclosure/facts/",
+                       {"organization_id": org_id, "page_size": _PAGE_SIZE, "page": page})
+        batch = (payload.get("results") or []) if isinstance(payload, dict) else []
+        count = payload.get("count") if isinstance(payload, dict) else None
+        if count and count > 60000:
+            # The filter was ignored and we are holding the whole portal.
+            log.warning("org %s: facts filter ignored (count=%s) — skipping", org_id, count)
+            return []
+        results.extend(batch)
+        if not batch or (count and len(results) >= count):
+            break
+    else:
+        log.info("org %s: reading stopped at %d filings of %s", org_id, len(results), count)
     return results
 
 
