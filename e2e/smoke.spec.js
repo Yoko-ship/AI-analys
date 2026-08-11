@@ -680,6 +680,73 @@ test("dismissing the multi-sort hint keeps it dismissed", async ({ page }) => {
   await expect(page.locator(".market-sort-teach")).toHaveCount(0);
 });
 
+// A bond section that printed one issue's April session beside another's this
+// morning. The quote feed and the day statistics are two feeds describing two
+// days: IQMK5B8 sat at its 3 April price with April turnover — 101,92 млрд —
+// while the statistics held its trade of that very morning at 124,53 млрд, and
+// «Сделки» was empty for 15 of 17 because the feed carries no trade count for a
+// bond at all. The server reconciles them now; this pins what the reader sees.
+const ref = (nominal, coupon) => ({
+  is_complete: false, missing: ["maturity_date"], has_nominal: !!nominal, has_coupon: !!coupon,
+  nominal, coupon_rate: coupon, coupon_freq: 12, maturity_date: null, issue_volume: 400000,
+});
+const ok = (v) => ({ value: v, status: "ok" });
+const no = (note) => ({ value: null, status: "no_bond_reference", note });
+
+const BONDS = {
+  ok: true, count: 4, board_day: "2026-08-11", traded_today: 2, stale: 2,
+  issue_value_total: 2153364985020, day_count_basis: "ACT/365",
+  with_reference: 0, with_nominal: 3, with_coupon: 3, trade_date: "2026-08-11",
+  items: [
+    { ticker: "ACMT1B3", issuer: "\"AGAT CREDIT\" Aksiyadorlik jamiyati mikromoliya tashkiloti",
+      price: 104999.99, change_pct: -1.5, turnover: 4718157.99, trades: 17, issue_value: 42e9,
+      last_trade_date: "2026-08-11", is_current: true, status: "ok",
+      quality: { data_tier: "full" }, reference: ref(100000, 27),
+      price_pct: ok(105), simple_yield: ok(25.71), ytm: no("нет справочных данных по выпуску") },
+    { ticker: "IQMK5B8", issuer: "<O'zbekiston ipotekani qayta moliyalashtirish kompaniyasi> AJ",
+      price: 1037753.42, change_pct: 1.82, turnover: 124530410400, trades: 1, issue_value: 305.75e9,
+      last_trade_date: "2026-08-11", is_current: true, status: "ok",
+      quality: { data_tier: "illiquid" }, reference: ref(null, null),
+      price_pct: no("нет номинала"), simple_yield: no("нет купона"), ytm: no("нет справочных данных по выпуску") },
+    { ticker: "UZUMN2B2", issuer: "<MAKESENSE> mas'uliyati cheklangan jamiyati",
+      price: 100460273.98, change_pct: 0.2, turnover: 301380821.94, trades: 1, issue_value: 401.84e9,
+      last_trade_date: "2026-08-07", is_current: false, status: "ok",
+      quality: { data_tier: "illiquid" }, reference: ref(100000000, 24),
+      price_pct: ok(100.46), simple_yield: ok(23.89), ytm: no("нет справочных данных по выпуску") },
+    { ticker: "ACMT1B2", issuer: "\"AGAT CREDIT\" Aksiyadorlik jamiyati mikromoliya tashkiloti",
+      price: 100000.01, change_pct: -0.5, turnover: 4300000.36, trades: 7, issue_value: null,
+      last_trade_date: "2026-07-17", is_current: false, status: "matured",
+      reason: "выпуск погашается с 2026-07-23",
+      quality: { data_tier: "full" },
+      reference: { ...ref(100000, 28), is_complete: true, missing: [], maturity_date: "2026-07-23" },
+      price_pct: ok(100), simple_yield: ok(28),
+      ytm: { value: null, status: "matured", note: "выпуск погашен 2026-07-23" } },
+  ],
+};
+
+test("the bonds table says which session each row is from", async ({ page }) => {
+  await page.route("**/api/bonds", (route) => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify(BONDS),
+  }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await page.getByRole("button", { name: "Облигации", exact: true }).click();
+  await expect(page.locator(".bonds-table tbody tr").first()).toBeVisible();
+
+  // The section names the session it is read against, and how much of it is that session.
+  await expect(page.locator(".bonds-head")).toContainText("сессия: 2026-08-11");
+  await expect(page.locator(".bonds-head")).toContainText("2 сегодня");
+
+  // Every row carries its own day, and the two that are not today's are marked.
+  const session = page.locator(".bonds-table tbody .bond-session");
+  await expect(session).toHaveText(["2026-08-11", "2026-08-11", "2026-08-07", "2026-07-17"]);
+  await expect(page.locator(".bonds-table tbody .bond-stale")).toHaveCount(2);
+
+  // The redeemed issue blames its redemption, never a missing reference.
+  const acmt = page.locator(".bonds-table tbody tr", { hasText: "ACMT1B2" });
+  await expect(acmt.locator(".cell-status", { hasText: "в погашении" })).toBeVisible();
+});
+
 // A chip row of «Все» + one sector is not a filter — both buttons select the same
 // securities. That is exactly the bonds segment, where the catalog carries no sector
 // for an issue and every one of them answers to «Прочее»; the customer had that chip

@@ -188,6 +188,118 @@ class TestCouponWithoutMaturity:
         assert "погашается" in row["reason"]
 
 
+class TestTheSessionEachRowIsFrom:
+    """The quote feed and the day statistics are two feeds describing two days.
+
+    The board screen has reconciled them since day one. This section never did,
+    and on 2026-08-11 it printed IQMK5B8's **3 April** price and April turnover
+    (101,92 млрд) beside issues that had traded that morning — while the day
+    statistics held its trade of that very day, 124,53 млрд at 1 037 753,42.
+    The trade count was empty for 15 of the 17 for the same reason: the quote
+    feed carries none for a bond, and the statistics carry one for every issue.
+    """
+    ISIN = "UZ6056887AH6"
+
+    def _row(self, **kw):
+        return bond_row("IQMK5B8", price=1_019_168.31, prev=1_000_000.01, trades=None,
+                        turnover=101_916_831_000.0, isin=self.ISIN,
+                        last_trade_date="2026-04-03", **kw)
+
+    def _stats(self, day="20260811", **kw):
+        return {"trade_date": day, "total_value": 124_530_410_400.0, "total_qty": 120_000.0,
+                "trade_count": 1, "close_price": 1_037_753.42, "vwap": 1_037_753.42, **kw}
+
+    def test_a_newer_session_in_the_statistics_wins_the_row(self):
+        row = bonds.bond_row(self._row(), stats=self._stats())
+
+        assert row["price"] == pytest.approx(1_037_753.42)
+        assert row["turnover"] == pytest.approx(124_530_410_400.0)
+        assert row["last_trade_date"] == "2026-08-11"
+
+    def test_the_stale_price_becomes_the_previous_close(self):
+        """Close-to-close, matching the daily bulletin — not April against today."""
+        row = bonds.bond_row(self._row(), stats=self._stats())
+
+        assert row["change_pct"] == pytest.approx((1_037_753.42 / 1_019_168.31 - 1) * 100)
+
+    def test_statistics_older_than_the_row_are_ignored(self):
+        """ACMT1B2: the feed has 17.07, the statistics 14.07. A turnover from
+        another week belongs to no quote on this page."""
+        row = bonds.bond_row(
+            bond_row("ACMT1B2", price=100_000.01, prev=100_500.0, trades=7,
+                     turnover=4_300_000.36, isin="X", last_trade_date="2026-07-17"),
+            stats={"trade_date": "20260714", "total_value": 22_093_140.0, "trade_count": 16})
+
+        assert row["turnover"] == pytest.approx(4_300_000.36)
+        assert row["trades"] == 7
+        assert row["last_trade_date"] == "2026-07-17"
+
+    def test_the_trade_count_comes_from_the_statistics_when_the_feed_has_none(self):
+        row = bonds.bond_row(
+            bond_row("BFMT3V2", trades=None, turnover=3_956_244.42, isin="Y",
+                     last_trade_date="2026-08-11"),
+            stats={"trade_date": "20260811", "total_value": 3_956_244.42, "trade_count": 14})
+
+        assert row["trades"] == 14
+
+    def test_the_statistics_day_is_read_in_its_own_spelling(self):
+        """`YYYYMMDD` is how the statistics store spells a day. Read as ISO it
+        parses as nothing, and every row silently takes the "no session" branch."""
+        assert bonds._as_date("20260811") == date(2026, 8, 11)
+        assert bonds._as_date("11.08.2026") == date(2026, 8, 11)
+        assert bonds._as_date("2026-08-11") == date(2026, 8, 11)
+
+    def test_the_board_names_its_session_and_counts_what_is_not_from_it(self):
+        board = bonds.build_bond_board(
+            [bond_row("A", isin="A", last_trade_date="2026-08-11"),
+             bond_row("B", isin="B", last_trade_date="2026-08-04")])
+
+        assert board["board_day"] == "2026-08-11"
+        assert board["traded_today"] == 1 and board["stale"] == 1
+        by_ticker = {r["ticker"]: r for r in board["items"]}
+        assert by_ticker["A"]["is_current"] is True
+        assert by_ticker["B"]["is_current"] is False
+
+
+class TestARedeemedIssueSaysSo:
+    """ACMT1B2 was redeemed on 23.07 and kept earning a coupon on this page —
+    19 days of accrual on a principal already paid back — while its YTM blamed
+    «нет справочных данных по выпуску», about the one issue on the board whose
+    reference IS complete."""
+    def _reference(self, days_ago=19):
+        return {"nominal": 100_000.0, "coupon_rate": 28.0, "coupon_freq": 12,
+                "maturity_date": (date.today() - timedelta(days=days_ago)).isoformat()}
+
+    def _row(self):
+        return bonds.bond_row(bond_row("ACMT1B2", price=100_000.01, prev=100_500.0),
+                              reference=self._reference(),
+                              coupons=[{"pay_date": (date.today() - timedelta(days=40)).isoformat()}])
+
+    def test_the_accrual_stops_at_redemption(self):
+        assert self._row()["accrued"]["value"] is None
+
+    def test_the_discounting_metrics_blame_the_redemption_not_the_data(self):
+        row = self._row()
+        for field in ("ytm", "duration", "modified_duration", "spread"):
+            assert row[field]["value"] is None
+            assert row[field]["status"] == bonds.STATUS_MATURED
+            assert "погашен" in row[field]["note"]
+
+    def test_a_redeemed_issue_is_flagged_even_while_a_price_is_still_carried(self):
+        """The exchange carries the last close forward; that is not a live issue."""
+        assert self._row()["status"] == "matured"
+
+    def test_a_live_issue_is_untouched_by_any_of_this(self):
+        reference = {"nominal": 100_000.0, "coupon_rate": 28.0, "coupon_freq": 12,
+                     "maturity_date": (date.today() + timedelta(days=200)).isoformat()}
+        row = bonds.bond_row(bond_row("ACMT1B3", price=104_999.99), reference=reference,
+                             coupons=[{"pay_date": (date.today() - timedelta(days=10)).isoformat()}])
+
+        assert row["status"] == "ok"
+        assert row["accrued"]["value"] is not None
+        assert row["ytm"]["status"] != bonds.STATUS_MATURED
+
+
 class TestHistoryQuality:
     """The tier column shipped with no input behind it for a week."""
 
