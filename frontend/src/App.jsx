@@ -2605,7 +2605,6 @@ const MARKET_TEXTS = {
     topGainers: "Топ роста",
     topLosers: "Топ падения",
     topLiquidity: "Топ ликвидности",
-    topLiquiditySub: "оборот за сессию, сум",
     finRevenue: "Выручка",
     finGross: "Валовая прибыль",
     finCash: "Наличность в кассе",
@@ -2699,7 +2698,6 @@ const MARKET_TEXTS = {
     topGainers: "Top gainers",
     topLosers: "Top losers",
     topLiquidity: "Top liquidity",
-    topLiquiditySub: "session turnover, UZS",
     finRevenue: "Revenue",
     finGross: "Gross profit",
     finCash: "Cash on hand",
@@ -2793,7 +2791,6 @@ const MARKET_TEXTS = {
     topGainers: "Eng ko'p o'sganlar",
     topLosers: "Eng ko'p tushganlar",
     topLiquidity: "Eng likvidlar",
-    topLiquiditySub: "sessiya aylanmasi, so'm",
     finRevenue: "Tushum",
     finGross: "Yalpi foyda",
     finCash: "Kassadagi naqd",
@@ -10902,9 +10899,9 @@ function MarketView({
           tradeable. Ликвидность answers the question the two percent lists
           cannot — a +20 % on one 37 200-сум trade is a move, not a market —
           and it reads off the same «Объём» (turnover in money) the column, the
-          turnover card and the charts already mean. Its own unit is spelled
-          out in the head, because a number beside two percentages is read as a
-          third percentage otherwise. */}
+          turnover card and the charts already mean — in the same compact form
+          those use, so the figure is recognisable without a unit spelled out
+          beside it (one was tried in the head and the customer had it out). */}
       {viewMode === "table"
         && (stats.topGainers.length > 0 || stats.topLosers.length > 0 || stats.topVolume.length > 0) && (
         <div className="market-top-movers">
@@ -10914,14 +10911,12 @@ function MarketView({
             { key: "down", title: mt(lang, "topLosers"), rows: stats.topLosers,
               value: (r) => `${formatRatio(r.changePercent, 2, lang)}%` },
             { key: "vol", title: mt(lang, "topLiquidity"), rows: stats.topVolume,
-              note: mt(lang, "topLiquiditySub"),
               value: (r) => formatCompactVolume(r.stockVolume, lang) },
           ].map((col) => (
             <article className={`panel market-movers-col ${col.key}`} key={col.key}>
               <div className="market-movers-head">
                 <span className={`market-movers-dot ${col.key}`} />
                 <h3>{col.title}</h3>
-                {col.note && <span className="market-movers-note">{col.note}</span>}
               </div>
               <ul className="market-movers-list">
                 {col.rows.length ? col.rows.map((r) => (

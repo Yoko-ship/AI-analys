@@ -6893,14 +6893,6 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
    a third signal colour a reader would try to read as good or bad news. */
 .market-movers-dot.vol { background: var(--accent); }
 
-.market-movers-note {
-  color: var(--muted);
-  font-size: 0.72rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .market-movers-list {
   list-style: none;
   margin: 0;
