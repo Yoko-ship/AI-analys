@@ -680,6 +680,64 @@ test("dismissing the multi-sort hint keeps it dismissed", async ({ page }) => {
   await expect(page.locator(".market-sort-teach")).toHaveCount(0);
 });
 
+// A chip row of «Все» + one sector is not a filter — both buttons select the same
+// securities. That is exactly the bonds segment, where the catalog carries no sector
+// for an issue and every one of them answers to «Прочее»; the customer had that chip
+// off. Under Акции the same «Прочее» holds the issuers the catalog has not classified
+// yet, so there it stays and the rows keep a chip to answer to.
+const SECTOR_SHARES = { updated_at: "2026-08-11T14:00:00Z", stocks: [
+  { ticker: "AGBA", name: "AGBA Bank", isin: "UZ0001", last_price: 1500, close_price: 1250,
+    volume: 1.2e9, quantity: 100, trade_count: 40, nominal: 1000, last_trade_date: "11.08.2026" },
+  { ticker: "KVTS", name: "Kvarts", isin: "UZ0003", last_price: 320, close_price: 300,
+    volume: 4e8, quantity: 100, trade_count: 12, nominal: 100, last_trade_date: "11.08.2026" },
+  { ticker: "NOCL", name: "Unclassified", isin: "UZ0009", last_price: 100, close_price: 90,
+    volume: 1e7, quantity: 10, trade_count: 2, nominal: 100, last_trade_date: "11.08.2026" },
+] };
+const SECTOR_BONDS = { updated_at: "2026-08-11T14:00:00Z", stocks: [
+  { ticker: "BFMT2B5", name: "Biznes Finans", isin: "UZ00B1", last_price: 1000, close_price: 1000,
+    volume: 5e7, quantity: 50, trade_count: 3, nominal: 1000, last_trade_date: "11.08.2026", type: "bond" },
+] };
+const SECTOR_SECURITIES = { ok: true, securities: {
+  AGBA: { name: "AGBA Bank", type: "stock", sector: "finance" },
+  KVTS: { name: "Kvarts", type: "stock", sector: "manufacturing" },
+  NOCL: { name: "Unclassified", type: "stock" },          // no sector: «Прочее»
+  BFMT2B5: { name: "Biznes Finans", type: "bond" },
+} };
+
+test("the sector row is drawn only where it can actually choose", async ({ page }) => {
+  await page.route("**/api/**", (route) => {
+    const url = new URL(route.request().url());
+    const j = (b) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(b) });
+    if (url.pathname === "/api/market/stocks") {
+      return j(url.searchParams.get("type") === "bond" ? SECTOR_BONDS : SECTOR_SHARES);
+    }
+    if (url.pathname === "/api/securities") return j(SECTOR_SECURITIES);
+    if (url.pathname === "/api/bonds") return j({ ok: true, count: 1, items: [
+      { ticker: "BFMT2B5", name: "Biznes Finans", isin: "UZ00B1", price: 1000, nominal: 1000 },
+    ] });
+    return route.fallback();
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+
+  const chips = page.locator(".market-sector-filter .sector-chip");
+  await expect(chips).toHaveText(["Все", "Финансы", "Производство", "Прочее"]);
+
+  const tickers = page.locator(".market-table tbody .market-ticker-btn");
+  await page.getByRole("button", { name: "Финансы", exact: true }).click();
+  await expect(tickers).toHaveText(["AGBA"]);
+
+  // Bonds: one sector between them, so no row — and the choice made on the shares
+  // side must not be left applying invisibly, with no control left to undo it.
+  await page.getByRole("button", { name: "Облигации", exact: true }).click();
+  await expect(page.locator(".bonds-table tbody tr")).toHaveCount(1);
+  await expect(page.locator(".market-sector-filter")).toHaveCount(0);
+
+  // It is suspended, not thrown away.
+  await page.getByRole("button", { name: "Акции", exact: true }).click();
+  await expect(tickers).toHaveText(["AGBA"]);
+});
+
 // The strip above the board reads one session three ways. The two percent lists say
 // who moved; «Топ ликвидности» says who was actually tradeable — the question they
 // cannot answer, since a +20 % struck on one thin trade leads them either way. Its

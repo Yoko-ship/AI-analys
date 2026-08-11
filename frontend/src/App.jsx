@@ -11242,7 +11242,7 @@ function MarketView({
           <div className="sector-filter market-sector-filter">
             <button
               type="button"
-              className={`sector-chip${!marketSector ? " active" : ""}`}
+              className={`sector-chip${!activeSector ? " active" : ""}`}
               onClick={() => setMarketSector(null)}
             >
               {sectorLabel(lang, "all")}
@@ -11251,8 +11251,8 @@ function MarketView({
               <button
                 key={s}
                 type="button"
-                className={`sector-chip${marketSector === s ? " active" : ""}`}
-                onClick={() => setMarketSector(marketSector === s ? null : s)}
+                className={`sector-chip${activeSector === s ? " active" : ""}`}
+                onClick={() => setMarketSector(activeSector === s ? null : s)}
               >
                 {sectorLabel(lang, s)}
               </button>
