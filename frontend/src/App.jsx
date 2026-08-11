@@ -6415,6 +6415,11 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   };
 
   const hp = hover != null ? points[hover] : null;
+  // Volume change is against the previous SESSION in the drawn window, and only
+  // when both sessions actually traded — a carried-forward row has no volume to
+  // measure a change from.
+  const hpPrevT = hover != null && hover > 0 ? points[hover - 1].turnover : null;
+  const volChg = hp && hp.turnover > 0 && hpPrevT > 0 ? hp.turnover - hpPrevT : null;
   const hx = hover != null ? xs(hover) : 0;
   const ttRight = hover != null && hx > W * 0.62;
 
@@ -6598,6 +6603,13 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           <div className="cpc-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
             <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
           </div>
+          {volChg != null && (
+            <div className="cpc-tt-row"><span>{t("Изм. объёма", "Hajm o'zg.", "Vol chg")}</span>
+              <b style={{ color: volChg >= 0 ? "#22c55e" : "#ef4444" }}>
+                {volChg >= 0 ? "+" : ""}{fmtCompact(volChg, lang)} ({signedFixed((volChg / hpPrevT) * 100, 1)}%)
+              </b>
+            </div>
+          )}
           {hp.change != null && (
             <div className="cpc-tt-row"><span>{t("Изм.", "O'zg.", "Chg")}</span>
               <b style={{ color: hp.change >= 0 ? "#22c55e" : "#ef4444" }}>{hp.change >= 0 ? "+" : ""}{fmtFull(hp.change)}</b>
@@ -8908,6 +8920,10 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   };
 
   const hp = hover != null && points[hover] ? points[hover] : null;
+  // Same rule as the company chart's readout: a volume change exists only
+  // between two sessions that both traded.
+  const hpPrevT = hover != null && hover > 0 && points[hover - 1] ? points[hover - 1].turnover : null;
+  const volChg = hp && hp.turnover > 0 && hpPrevT > 0 ? hp.turnover - hpPrevT : null;
 
   const legendChips = [
     ...(cmpOn ? cmp.series.map((s) => ({ key: `c:${s.ticker}`, color: s.color, text: s.ticker, off: () => toggleCompare(s.ticker) })) : []),
@@ -9343,6 +9359,13 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   <div className="ac-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
                     <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
                   </div>
+                  {volChg != null && (
+                    <div className="ac-tt-row"><span>{t("Изм. объёма", "Hajm o'zg.", "Vol chg")}</span>
+                      <b style={{ color: volChg >= 0 ? "#22c55e" : "#ef4444" }}>
+                        {volChg >= 0 ? "+" : ""}{fmtCompact(volChg, lang)} ({signedFixed((volChg / hpPrevT) * 100, 1)}%)
+                      </b>
+                    </div>
+                  )}
                   {cmpOn && (
                     <div className="ac-tt-block">
                       <div className="ac-tt-row"><span style={{ color: priceColor }}>{up}</span>
