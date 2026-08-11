@@ -683,6 +683,27 @@ def push_listings() -> int:
     return status
 
 
+def _board_bonds() -> list[dict]:
+    """Bonds the board shows that openinfo's listing registry does not.
+
+    The reference walk starts from ``info_rfb.isin_codes`` of catalogued orgs,
+    but the board's universe is the exchange's own trade feed — an LLC issuer
+    (DELTA, UZUM SARMOYA, IMKON FINANS) has no info_rfb registry, so its bonds
+    never entered the walk and their par stayed NULL while the exchange card
+    states it. The board itself is the missing list: ask prod what it shows.
+    """
+    url = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/") + "/api/bonds"
+    try:
+        items = requests.get(url, timeout=60).json().get("items") or []
+    except Exception:  # noqa: BLE001 — an unreachable board must not fail the push
+        log.exception("board bond list fetch failed")
+        return []
+    return [{"ticker": str(it.get("ticker")).strip().upper(),
+             "isin": str(it.get("isin") or "").strip().upper()}
+            for it in items
+            if it.get("ticker") and str(it.get("isin") or "").upper().startswith("UZ6")]
+
+
 def push_bond_reference(listing_rows: list[dict]) -> int:
     """Push the bond issue reference (ТЗ Дополнение 1 §А.4).
 
@@ -693,7 +714,13 @@ def push_bond_reference(listing_rows: list[dict]) -> int:
     """
     import listings_collector as lc
 
-    rows = lc.collect_bond_reference_rows(listing_rows)
+    walk = list(listing_rows or [])
+    known = {str(r.get("isin") or "").strip().upper() for r in walk}
+    extra = [b for b in _board_bonds() if b["isin"] not in known]
+    if extra:
+        log.info("bond reference: %d board bonds absent from the listing registry: %s",
+                 len(extra), ", ".join(b["ticker"] for b in extra))
+    rows = lc.collect_bond_reference_rows(walk + extra)
     if not rows:
         log.info("bond reference: nothing to push")
         return 0
