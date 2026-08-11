@@ -1,7 +1,7 @@
 """The code-only language detector behind the Russian-first news feed (news_lang.py).
 
 Every string below is a real headline (or a real headline's shape) from an enabled source:
-kun.uz for Uzbek Latin, Moody's / Fitch / The Diplomat for English, kursiv / spot / uzdaily /
+kun.uz for Uzbek Latin, Moody's / Fitch / The Diplomat for English, spot / uzdaily /
 openinfo for Russian. The point of the module is that a Russian feed stays Russian, so the
 Russian cases are the ones that must never regress.
 """
@@ -176,7 +176,7 @@ def test_a_row_carries_a_headline_for_every_ui_language():
     import news_store
 
     item = news_store._row_to_item(
-        _row(source_id="kursiv", lang="ru", title="ЦБ сохранил ставку на уровне 13,5%"))
+        _row(source_id="spot", lang="ru", title="ЦБ сохранил ставку на уровне 13,5%"))
     assert item["lang"] == "ru"
     # Russian reader: the item is already Russian, so its own headline stands.
     assert item["title_ru"] is None
@@ -223,7 +223,7 @@ def test_a_translation_only_update_cannot_overwrite_or_reclassify(tmp_path, monk
     monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
 
     news_store.upsert_news([{
-        "url": "https://example.test/x", "source": "S", "source_id": "kursiv", "lang": "ru",
+        "url": "https://example.test/x", "source": "S", "source_id": "spot", "lang": "ru",
         "title": "ЦБ сохранил ставку", "snippet": "", "summary_ru": "Центробанк сохранил ставку.",
         "summary_en": "Written by the classifier.", "summary_uz": "",
         "relevant": True, "relevance_score": 0.8, "type": "regulatory", "tone": "neutral",

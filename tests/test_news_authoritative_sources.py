@@ -149,13 +149,16 @@ class TestWhenTheGateIsPerItem:
         assert not nc._skip_triage(_source("spot"), {"title": "Uzbekistan launches something"})
 
 
-class TestPaywalledSourcesAreNotPublished:
-    """A source whose article page asks for money is off the site (2026-08-09, customer).
+class TestHiddenSourcesAreNotPublished:
+    """Two ways off the site, one effect — the rows stay, the reader never sees them.
 
-    trend.az answers a story URL with a shell whose only paragraph is «Get access to all paid
-    news on Trend — just $1». Its cards were therefore the thinnest we publish — empty
-    snippet, one-line summary, no long read possible — and the one action they offered was
-    one the reader could not take.
+    ``paywall`` (2026-08-09, customer): trend.az answers a story URL with a shell whose only
+    paragraph is «Get access to all paid news on Trend — just $1». Its cards were therefore
+    the thinnest we publish — empty snippet, one-line summary, no long read possible — and
+    the one action they offered was one the reader could not take.
+
+    ``hidden`` (2026-08-11, customer): kursiv dropped for editorial reasons, with nothing
+    wrong with its pages.
     """
     def test_trend_is_flagged_and_off(self):
         trend = _source("trend")
@@ -163,15 +166,22 @@ class TestPaywalledSourcesAreNotPublished:
         assert trend["paywall"] is True
         assert trend["enabled"] is False
 
-    def test_the_store_reads_the_flag_from_the_registry(self):
+    def test_kursiv_is_flagged_and_off(self):
+        kursiv = _source("kursiv")
+
+        assert kursiv["hidden"] is True
+        assert kursiv["enabled"] is False
+
+    def test_the_store_reads_both_flags_from_the_registry(self):
         import news_store
 
-        assert "trend" in news_store.paywalled_source_ids()
+        assert {"trend", "kursiv"} <= news_store.hidden_source_ids()
 
-    def test_a_paywalled_source_is_never_collected_even_if_re_enabled(self, monkeypatch, tmp_path):
+    def test_a_hidden_source_is_never_collected_even_if_re_enabled(self, monkeypatch, tmp_path):
         """Two flags, two jobs — but collecting what nobody is shown is pure waste."""
         registry = {"sources": [
             {"id": "walled", "enabled": True, "paywall": True},
+            {"id": "dropped", "enabled": True, "hidden": True},
             {"id": "open", "enabled": True},
         ]}
         path = tmp_path / "news_sources.json"
@@ -181,10 +191,12 @@ class TestPaywalledSourcesAreNotPublished:
         assert [s["id"] for s in nc.load_sources()] == ["open"]
         # Naming it explicitly still works — that is how you re-check one.
         assert [s["id"] for s in nc.load_sources(only="walled")] == ["walled"]
+        assert [s["id"] for s in nc.load_sources(only="dropped")] == ["dropped"]
 
-    def test_items_from_a_paywalled_source_are_dropped_from_a_list(self):
+    def test_items_from_a_hidden_source_are_dropped_from_a_list(self):
         import news_store
 
-        items = [{"id": 1, "source_id": "trend"}, {"id": 2, "source_id": "spot"}]
+        items = [{"id": 1, "source_id": "trend"}, {"id": 2, "source_id": "spot"},
+                 {"id": 3, "source_id": "kursiv"}]
 
-        assert [i["id"] for i in news_store.drop_paywalled(items)] == [2]
+        assert [i["id"] for i in news_store.drop_hidden(items)] == [2]

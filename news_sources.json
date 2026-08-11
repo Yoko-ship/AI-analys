@@ -17,7 +17,9 @@
     "article_body": "false = the article page carries no readable body (a paywall, a registration wall, an SPA shell), so the story-page detail pass skips this source instead of spending its daily cap on it. Omit for sources whose pages can be read.",
     "origin": "'international' = an English-language wire or a foreign desk; anything else (the default) is a local outlet. The feed read balances the two so the local firehose, which outpublishes them ten to one, cannot bury them — see NEWS_INTERNATIONAL_SHARE in news_store.py.",
     "title_case": "'title' = the publisher lower-cases its slugs, so re-case the headline read out of the URL. Omit for slugs that carry their own capitals (Moody's).",
-    "skip_triage": "true = the item's relevance was established before any model saw it (a url_filter match on one of our issuers), so send it straight to the full classification. Triage rejections are stored permanently, so a wrong one is not retried."
+    "skip_triage": "true = the item's relevance was established before any model saw it (a url_filter match on one of our issuers), so send it straight to the full classification. Triage rejections are stored permanently, so a wrong one is not retried.",
+    "paywall": "true = the article page asks the reader for money, so the card's only action is one the reader cannot take. Hidden at READ time (news_store.hidden_source_ids) and never collected.",
+    "hidden": "true = the outlet is off the site by the customer's decision, with nothing wrong with its pages. Same read-time suppression as paywall: the stored rows are kept, so flipping the flag back brings the source's history with it."
   },
   "sources": [
     {
@@ -166,11 +168,12 @@
       "coverage_weight": 0.8,
       "legal": "caution",
       "attribution": "Kursiv Uzbekistan (uz.kursiv.media)",
-      "enabled": true,
+      "enabled": false,
+      "hidden": true,
       "crawl_delay_s": 10,
       "max_items": 25,
       "page_image": true,
-      "notes": "Whole-site feed (100 entries, ~79h deep): sports/entertainment/horoscopes alongside business, ~14-23 new items/day. Capped at 25 per run — raised from 15 when the schedule went to once daily, since one run now has to cover a full day's output rather than half of it. Feed ships full text; store snippet only. No featured image in the feed, but each article page exposes a real per-article og:image."
+      "notes": "Off the site 2026-08-11 by the customer's decision: not collected any more, and the rows already stored are hidden at read time. Nothing was wrong with the feed — keep the entry as-is so clearing 'hidden' + 'enabled' brings the source and its history straight back. Whole-site feed (100 entries, ~79h deep): sports/entertainment/horoscopes alongside business, ~14-23 new items/day. Capped at 25 per run — raised from 15 when the schedule went to once daily, since one run now has to cover a full day's output rather than half of it. Feed ships full text; store snippet only. No featured image in the feed, but each article page exposes a real per-article og:image."
     },
     {
       "id": "spot",

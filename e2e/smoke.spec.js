@@ -57,7 +57,7 @@ const PERIODS = { ok: true, periods: { annual_years: [2024, 2023, 2022], quarter
 // /news/{id} reads the same stored fields back — no model call on either path.
 const NEWS_DISCLAIMER = "Тональность новостей и оценка влияния — статистический сигнал, а не рекомендация.";
 const NEWS_ITEMS = [
-  { id: 11, url: "https://kursiv.uz/story-one", source: "Kursiv", source_id: "kursiv", lang: "ru",
+  { id: 11, url: "https://spot.uz/story-one", source: "Spot.uz", source_id: "spot", lang: "ru",
     title: "Биржа расширяет листинг банков",
     snippet: "Листинговый комитет допустил к торгам четыре выпуска акций.",
     summary_ru: "Краткое изложение первой новости.",
@@ -221,7 +221,7 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
   // Both stored texts are shown: our summary, then the source's own lead-in.
   await expect(page.locator(".led-art-quote")).toContainText("Листинговый комитет допустил");
   // Only the explicit CTA leaves the site, and the stored signal is shown alongside it.
-  await expect(page.locator(".led-art-cta")).toHaveAttribute("href", "https://kursiv.uz/story-one");
+  await expect(page.locator(".led-art-cta")).toHaveAttribute("href", "https://spot.uz/story-one");
   await expect(page.locator(".led-sig").first()).toContainText("высокое влияние");
   await expect(page.locator(".led-sig--rows")).toContainText("Опубликовано");
   // Issuer context: the quote and coverage tone we hold ourselves, not the outlet's text.
@@ -377,7 +377,7 @@ test("the market CSV is our report, not a board dump (§3.8)", async ({ page }) 
 // the English and Uzbek versions served a Russian feed. The classifier now writes all three
 // and the read path ships one headline per language; this pins that each reader gets theirs.
 const TRILINGUAL = [
-  { id: 91, url: "https://kursiv.uz/a", source: "Kursiv", source_id: "kursiv", lang: "ru",
+  { id: 91, url: "https://spot.uz/a", source: "Spot.uz", source_id: "spot", lang: "ru",
     title: "ЦБ сохранил ставку на уровне 13,5%", snippet: "Совет ЦБ принял решение.",
     summary_ru: "Центробанк сохранил ставку.", summary_en: "The central bank held its rate.",
     summary_uz: "Markaziy bank stavkani saqlab qoldi.",

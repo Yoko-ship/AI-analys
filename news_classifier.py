@@ -136,7 +136,7 @@ def get_classifier_client() -> LLMClient:
 # --------------------------------------------------------------------------- #
 # gate 0 — free, code-only prefilter
 # --------------------------------------------------------------------------- #
-# The enabled feeds are whole-site feeds: kursiv's carries sport, horoscopes, weather and
+# Several enabled feeds are whole-site feeds: kun.uz's and uzdaily's carry sport, weather and
 # traffic notices, and paying a model to read a horoscope is pure waste. Deliberately
 # asymmetric — an item is dropped ONLY when it matches a junk pattern AND carries no
 # market signal at all, so a wrong guess costs a missed item, never a wrong verdict.
