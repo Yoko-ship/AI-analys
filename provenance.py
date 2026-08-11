@@ -454,7 +454,12 @@ def upsert_bond_reference(rows: Sequence[dict[str, Any]]) -> int:
             values = [ticker] + [row.get(f, defaults.get(f)) if row.get(f) is not None
                                  else defaults.get(f) for f in fields[1:]] + [_now()]
             placeholders = ",".join("?" * (len(fields) + 1))
-            updates = ",".join(f"{f}=excluded.{f}" for f in fields[1:]) + ", synced_at=excluded.synced_at"
+            # COALESCE, not overwrite: a filed fact never un-files, so a term is
+            # arrival-only. The walk reads a WINDOW of each issuer's filings, and
+            # the run where an old issue slides out of it must not erase the
+            # coupon and maturity a previous run already proved.
+            updates = ",".join(f"{f}=COALESCE(excluded.{f}, bond_reference.{f})"
+                               for f in fields[1:]) + ", synced_at=excluded.synced_at"
             conn.execute(
                 f"INSERT INTO bond_reference ({','.join(fields)}, synced_at) "
                 f"VALUES ({placeholders}) ON CONFLICT(ticker) DO UPDATE SET {updates}", values)
