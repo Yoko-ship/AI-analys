@@ -25,9 +25,11 @@ logger = logging.getLogger(__name__)
 _TIMEOUT = float(os.getenv("NEWS_SEARCH_TIMEOUT", "20"))
 
 # Bias search toward Uzbek market sources; the agent can still override per query.
+# A source taken off the feed is off this list too (kursiv.media, 2026-08-11) — otherwise
+# the outlet we stopped publishing would come back through the search answer instead.
 _DEFAULT_INCLUDE_DOMAINS = [
     "spot.uz", "gazeta.uz", "kun.uz", "uzdaily.uz", "review.uz",
-    "kursiv.media", "uza.uz", "cbu.uz", "uzse.uz", "openinfo.uz",
+    "uza.uz", "cbu.uz", "uzse.uz", "openinfo.uz",
 ]
 
 

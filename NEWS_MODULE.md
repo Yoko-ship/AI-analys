@@ -197,7 +197,7 @@ a re-run after a failed push costs nothing.
 | `cbu_policy` | ✅ `/ru/monetary-policy/publications/press-releases/` | rate decisions, Russian-only listing |
 | `cbu_releases` | ✅ `/ru/press_center/releases/` | same caveat as `cbu` |
 | `cbu_finstab` | ✅ `/ru/financial-stability/press-releases/` | Russian-only listing |
-| `kursiv` | ✅ Russian-only feed | |
+| `kursiv` | ✅ Russian-only feed | off the site since 2026-08-11 (`hidden: true`) — see *Taking a source off the site* |
 | `spot` | ✅ `/rss/` → `/ru/rss/` | |
 | `kun` | ✅ **fixed** `/api/rss?lang=ru` | was the only Uzbek source |
 | `uzdaily` | ✅ `/rss` is Russian | host not reachable from every network; all stored rows detect `ru` |
@@ -540,10 +540,26 @@ Gazeta.uz bars reproduction — headline+link only). `uzse` requires a browser U
 and a 60 s crawl delay (it blocks AI-labelled bots). Every API response carries a
 `disclaimer`: news signals are statistical, not advice or claims of manipulation.
 
+## Taking a source off the site
+
+Two registry flags, one effect — `paywall: true` (the article page asks the reader for money,
+so the card's only action is one the reader cannot take: trend.az, 2026-08-09) and
+`hidden: true` (the customer dropped the outlet, with nothing wrong with its pages: kursiv,
+2026-08-11). Both also get `enabled: false`.
+
+The suppression is at **read time**, in `news_store.hidden_source_ids()`: the feed filters in
+SQL (a dropped row must not eat a slot out of the rank window), and the story page, the
+related rail, an issuer's news and the tone aggregate go through `drop_hidden()`. The stored
+rows are never deleted, so clearing the flag brings the source's history back with it instead
+of leaving a month-shaped hole. `load_sources()` skips a flagged source too — collecting what
+nobody is shown would spend a classifier call per item — but `--source <id>` still fetches it
+by name, which is how you re-check one before bringing it back.
+
 ## MVP scope & what's pending
 
-Enabled now: `openinfo_facts`, `cbu`, `cbu_policy`, `cbu_releases`, `cbu_finstab`, `napp`, `moodys`, `fitch`, `spglobal`, `thediplomat`, `trend`, `timesca`, `uza`, `uzse`, `kursiv`, `spot`, `kun`, `uzdaily` (covers
-taxonomy categories 1–9). Working today: RSS / html_list / sitemap / openinfo fetch + classify + store + push + serve +
+Enabled now: `openinfo_facts`, `cbu`, `cbu_policy`, `cbu_releases`, `cbu_finstab`, `napp`, `moodys`, `fitch`, `spglobal`, `thediplomat`, `timesca`, `uza`, `uzse`, `spot`, `kun`, `uzdaily` (covers
+taxonomy categories 1–9). Off the site: `trend` (paywall, 2026-08-09) and `kursiv` (customer's
+decision, 2026-08-11) — see *Taking a source off the site*. Working today: RSS / html_list / sitemap / openinfo fetch + classify + store + push + serve +
 `search_news`. **Pending adapters** (clearly stubbed, return `[]` with a log):
 - **html** (uzse/daryo sitemap scrape) and **telegram** (t.me mirror) — `fetch_pending`.
 

@@ -94,11 +94,11 @@ def _source_headers(source: dict[str, Any]) -> dict[str, str]:
 def load_sources(only: str | None = None) -> list[dict[str, Any]]:
     """The sources a run collects from.
 
-    ``paywall: true`` is skipped even when the source is still enabled: the read path hides
-    those items (``news_store.paywalled_source_ids``), so collecting them would spend a
-    classifier call per item on cards nobody will ever be shown. Naming the source explicitly
-    (``--source trend``) still works — that is how you check a source you are considering
-    bringing back.
+    ``paywall: true`` and ``hidden: true`` are skipped even when the source is still enabled:
+    the read path hides those items (``news_store.hidden_source_ids``), so collecting them
+    would spend a classifier call per item on cards nobody will ever be shown. Naming the
+    source explicitly (``--source trend``) still works — that is how you check a source you
+    are considering bringing back.
     """
     data = json.loads(SOURCES_FILE.read_text(encoding="utf-8"))
     out = []
@@ -107,7 +107,7 @@ def load_sources(only: str | None = None) -> list[dict[str, Any]]:
             continue
         if only:
             out.append(s)
-        elif s.get("enabled") and not s.get("paywall"):
+        elif s.get("enabled") and not s.get("paywall") and not s.get("hidden"):
             out.append(s)
     return out
 
