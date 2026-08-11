@@ -958,6 +958,16 @@ iframe {
     gap: 8px;
   }
 
+  /* Ликвидность is the third panel and it must not cost a third of the screen.
+     styles.css already gives it the full width and lays its five rows two
+     abreast (a «1,2B» will not share a 142px column with a ticker the way a
+     percent does); here the gap between those two only comes down to phone
+     scale. Measured at 390px: the whole block is 352px — the pair above it
+     keeps the position §11 put it in, and the board still starts on screen. */
+  .market-movers-col.vol .market-movers-list {
+    column-gap: 6px;
+  }
+
   .market-movers-col {
     padding: 10px 10px 8px;
   }
@@ -970,6 +980,10 @@ iframe {
   .market-movers-head h3 {
     font-size: 0.8rem;
     letter-spacing: -0.01em;
+  }
+
+  .market-movers-note {
+    font-size: 10px;
   }
 
   .market-movers-dot {

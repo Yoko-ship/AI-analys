@@ -680,6 +680,57 @@ test("dismissing the multi-sort hint keeps it dismissed", async ({ page }) => {
   await expect(page.locator(".market-sort-teach")).toHaveCount(0);
 });
 
+// The strip above the board reads one session three ways. The two percent lists say
+// who moved; «Топ ликвидности» says who was actually tradeable — the question they
+// cannot answer, since a +20 % struck on one thin trade leads them either way. Its
+// number is the same «Объём» (turnover in money) the column and the turnover card use.
+const MOVERS_STOCKS = { updated_at: "2026-08-11T14:00:00Z", stocks: [
+  // Heaviest turnover of the day AND the biggest move.
+  { ticker: "AAA", name: "Alpha", isin: "UZ00A", last_price: 120, close_price: 100,
+    volume: 1.2e9, quantity: 1000, trade_count: 40, last_trade_date: "11.08.2026" },
+  // Traded heavily and closed flat: in NEITHER percent list, second by turnover.
+  // This row is the reason the third panel exists.
+  { ticker: "QQQ", name: "Quiet", isin: "UZ00Q", last_price: 100, close_price: 100,
+    volume: 9e8, quantity: 9000, trade_count: 60, last_trade_date: "11.08.2026" },
+  { ticker: "BBB", name: "Beta", isin: "UZ00B", last_price: 86, close_price: 100,
+    volume: 8e8, quantity: 800, trade_count: 30, last_trade_date: "11.08.2026" },
+  { ticker: "CCC", name: "Gamma", isin: "UZ00C", last_price: 105, close_price: 100,
+    volume: 3e8, quantity: 300, trade_count: 12, last_trade_date: "11.08.2026" },
+  { ticker: "DDD", name: "Delta", isin: "UZ00D", last_price: 97, close_price: 100,
+    volume: 5e7, quantity: 50, trade_count: 4, last_trade_date: "11.08.2026" },
+  // A move with no turnover figure behind it: the day statistics never matched this
+  // row's session. It is a mover, and it is NOT a liquidity entry — an absent
+  // turnover must not sort as a zero that says the security traded for nothing.
+  { ticker: "EEE", name: "Epsilon", isin: "UZ00E", last_price: 102, close_price: 100,
+    volume: null, quantity: null, trade_count: null, last_trade_date: "11.08.2026" },
+] };
+
+test("the movers strip says who moved AND what was tradeable", async ({ page }) => {
+  await page.route("**/api/market/stocks**", (route) => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify(MOVERS_STOCKS),
+  }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Рынок", exact: true }).click();
+  await expect(page.locator(".market-movers-col")).toHaveCount(3);
+
+  const names = (col) => page.locator(`.market-movers-col.${col} .market-movers-name`);
+  // EEE is a mover like any other — a missing turnover figure hides it from the
+  // liquidity list below, never from the move it actually made.
+  await expect(names("up")).toHaveText(["AAA", "CCC", "EEE"]);
+  await expect(names("down")).toHaveText(["BBB", "DDD"]);
+
+  // Ordered by turnover, and it is turnover that is printed — not a percent.
+  await expect(names("vol")).toHaveText(["AAA", "QQQ", "BBB", "CCC", "DDD"]);
+  await expect(page.locator(".market-movers-col.vol .market-movers-chg").first())
+    .toHaveText("1,2B");
+
+  // The flat security is here and nowhere else; the one with no figure is nowhere.
+  await expect(names("vol")).toContainText(["QQQ"]);
+  await expect(names("up")).not.toContainText(["QQQ"]);
+  await expect(names("vol")).not.toContainText(["EEE"]);
+  await expect(names("up")).toContainText(["CCC"]);
+});
+
 // A phone has no Shift key and the board stays a table there, so the gesture has to
 // change and the hint has to name the one that device actually has. Touch emulation
 // is what makes `(pointer: coarse)` true — the wording is chosen off that query.

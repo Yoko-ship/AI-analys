@@ -2604,6 +2604,8 @@ const MARKET_TEXTS = {
     exportCsv: "Экспорт CSV",
     topGainers: "Топ роста",
     topLosers: "Топ падения",
+    topLiquidity: "Топ ликвидности",
+    topLiquiditySub: "оборот за сессию, сум",
     finRevenue: "Выручка",
     finGross: "Валовая прибыль",
     finCash: "Наличность в кассе",
@@ -2696,6 +2698,8 @@ const MARKET_TEXTS = {
     exportCsv: "Export CSV",
     topGainers: "Top gainers",
     topLosers: "Top losers",
+    topLiquidity: "Top liquidity",
+    topLiquiditySub: "session turnover, UZS",
     finRevenue: "Revenue",
     finGross: "Gross profit",
     finCash: "Cash on hand",
@@ -2788,6 +2792,8 @@ const MARKET_TEXTS = {
     exportCsv: "CSV eksport",
     topGainers: "Eng ko'p o'sganlar",
     topLosers: "Eng ko'p tushganlar",
+    topLiquidity: "Eng likvidlar",
+    topLiquiditySub: "sessiya aylanmasi, so'm",
     finRevenue: "Tushum",
     finGross: "Yalpi foyda",
     finCash: "Kassadagi naqd",
@@ -3223,10 +3229,19 @@ function buildMarketStats(rows) {
   const topDrop = withChange.reduce((worst, row) => (!worst || row.changePercent < worst.changePercent ? row : worst), null);
   const topGainers = withChange.filter((r) => r.changePercent > 0).sort((a, b) => b.changePercent - a.changePercent).slice(0, 5);
   const topLosers = withChange.filter((r) => r.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, 5);
+  // Ликвидность = the session's turnover in MONEY. `stockVolume` is the day
+  // statistics' `total_value` — the sum the security changed hands FOR, which
+  // is what «Объём» means in the column, in the turnover card and on the charts.
+  // Positive and finite only: a row whose stored day did not match its own
+  // session keeps no turnover at all (applyTradeStats refuses to paste another
+  // week's figure onto it), and that absence must not sort as a zero that
+  // claims the security traded for nothing.
+  const topVolume = todays.filter((r) => Number.isFinite(r.stockVolume) && r.stockVolume > 0)
+    .sort((a, b) => b.stockVolume - a.stockVolume).slice(0, 5);
   const totalVolume = todays.reduce((s, r) => s + (Number.isFinite(r.stockVolume) ? r.stockVolume : 0), 0);
   const totalTrades = todays.reduce((s, r) => s + (Number.isFinite(r.stockTradeCount) ? r.stockTradeCount : 0), 0);
   const totalMarketCap = rows.reduce((s, r) => s + (Number.isFinite(r.marketCap) && r.marketCap > 0 ? r.marketCap : 0), 0);
-  return { boardDay, traded, advancers, decliners, unchanged, topGrowth, topDrop, topGainers, topLosers, totalVolume, totalTrades, totalMarketCap };
+  return { boardDay, traded, advancers, decliners, unchanged, topGrowth, topDrop, topGainers, topLosers, topVolume, totalVolume, totalTrades, totalMarketCap };
 }
 
 const SCORE_EXPLANATION_TEXTS = {
@@ -10860,16 +10875,30 @@ function MarketView({
         {stats.totalVolume > 0 && <MarketStatCard label={mt(lang, "volume")} termId="volume" lang={lang} value={formatCompactVolume(stats.totalVolume, lang)} sub={stats.totalTrades ? `${formatRatio(stats.totalTrades, 0, lang)} ${tradeCountLabel(stats.totalTrades, lang)}` : null} />}
       </div>
 
-      {viewMode === "table" && (stats.topGainers.length > 0 || stats.topLosers.length > 0) && (
+      {/* Three readings of one session: who moved, and who was actually
+          tradeable. Ликвидность answers the question the two percent lists
+          cannot — a +20 % on one 37 200-сум trade is a move, not a market —
+          and it reads off the same «Объём» (turnover in money) the column, the
+          turnover card and the charts already mean. Its own unit is spelled
+          out in the head, because a number beside two percentages is read as a
+          third percentage otherwise. */}
+      {viewMode === "table"
+        && (stats.topGainers.length > 0 || stats.topLosers.length > 0 || stats.topVolume.length > 0) && (
         <div className="market-top-movers">
           {[
-            { key: "up", title: mt(lang, "topGainers"), rows: stats.topGainers },
-            { key: "down", title: mt(lang, "topLosers"), rows: stats.topLosers },
+            { key: "up", title: mt(lang, "topGainers"), rows: stats.topGainers,
+              value: (r) => `+${formatRatio(r.changePercent, 2, lang)}%` },
+            { key: "down", title: mt(lang, "topLosers"), rows: stats.topLosers,
+              value: (r) => `${formatRatio(r.changePercent, 2, lang)}%` },
+            { key: "vol", title: mt(lang, "topLiquidity"), rows: stats.topVolume,
+              note: mt(lang, "topLiquiditySub"),
+              value: (r) => formatCompactVolume(r.stockVolume, lang) },
           ].map((col) => (
             <article className={`panel market-movers-col ${col.key}`} key={col.key}>
               <div className="market-movers-head">
                 <span className={`market-movers-dot ${col.key}`} />
                 <h3>{col.title}</h3>
+                {col.note && <span className="market-movers-note">{col.note}</span>}
               </div>
               <ul className="market-movers-list">
                 {col.rows.length ? col.rows.map((r) => (
@@ -10883,9 +10912,7 @@ function MarketView({
                         <CompanyLogo logo={smap[r.ticker]?.logo_url} name={r.name || r.ticker} ticker={r.ticker} />
                         <span className="market-movers-name">{r.ticker}</span>
                       </span>
-                      <span className={`market-movers-chg ${col.key}`}>
-                        {col.key === "up" ? "+" : ""}{formatRatio(r.changePercent, 2, lang)}%
-                      </span>
+                      <span className={`market-movers-chg ${col.key}`}>{col.value(r)}</span>
                     </button>
                   </li>
                 )) : <li className="market-movers-empty">—</li>}
