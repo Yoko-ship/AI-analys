@@ -6860,7 +6860,7 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 
 .market-top-movers {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -6889,6 +6889,17 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 }
 .market-movers-dot.up { background: var(--success); }
 .market-movers-dot.down { background: var(--danger); }
+/* Turnover has no direction, so it gets the page's neutral accent rather than
+   a third signal colour a reader would try to read as good or bad news. */
+.market-movers-dot.vol { background: var(--accent); }
+
+.market-movers-note {
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .market-movers-list {
   list-style: none;
@@ -6947,11 +6958,28 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 }
 .market-movers-chg.up { color: var(--success); }
 .market-movers-chg.down { color: var(--danger); }
+.market-movers-chg.vol { color: var(--text); }
 
 .market-movers-empty {
   padding: 8px;
   text-align: center;
   color: var(--muted);
+}
+
+/* Three columns need ~1000px to keep a ticker, a logo and a compact turnover on
+   one line. Below that the two percent lists — the pair a reader compares —
+   stay side by side and ликвидность takes the full width underneath, rather
+   than all three narrowing until the numbers ellipsise. */
+@media (max-width: 1000px) {
+  .market-top-movers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Full width, and its five rows two abreast: a turnover row is a ticker and a
+     short number, so one per line across a whole page strands the value at the
+     far edge and costs five rows of height for two columns of reading. */
+  .market-movers-col.vol { grid-column: 1 / -1; }
+  .market-movers-col.vol .market-movers-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 14px;
+  }
 }
 
 @media (max-width: 720px) {
