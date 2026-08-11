@@ -108,14 +108,16 @@ class TestTheEndpoint:
                             lambda: {"UZTL": {"isin": ISIN_A}, "TGPG": {"isin": ISIN_B}})
         monkeypatch.setattr(api, "get_quote_history", lambda isins, days: {
             ISIN_A: [{"trade_date": "20260806", "close_price": 10000},
-                     {"trade_date": "20260807", "close_price": 12000}],
+                     {"trade_date": "20260807", "close_price": 12000, "turnover": 154900.4}],
         })
         return TestClient(api.app)
 
-    def test_serves_compact_pairs(self, client):
+    def test_serves_compact_triples(self, client):
+        """[date, close, turnover] — a carried-forward session's missing
+        turnover is served as 0, so the client can say «did not trade»."""
         body = client.get("/api/quotes/series?tickers=UZTL&days=30").json()
         assert body["ok"] is True
-        assert body["series"]["UZTL"] == [["20260806", 10000], ["20260807", 12000]]
+        assert body["series"]["UZTL"] == [["20260806", 10000, 0], ["20260807", 12000, 154900]]
 
     def test_a_ticker_with_no_stored_session_is_absent_not_flat(self, client):
         """No line beats an invented one — TGPG resolves but has no history."""

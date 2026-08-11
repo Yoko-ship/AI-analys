@@ -10379,6 +10379,10 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .cpc-adjust-note { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: var(--text-muted); }
 .cpc-tt-cmp { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--border); }
 .cpc-tt-cmp-price { font-weight: 500; opacity: 0.75; }
+/* A peer's volume line sits under its own row, quieter than the move it
+   belongs to — the «×N» multiple is the comparable part, the сумы are context. */
+.cpc-tt-volrow, .ac-tt-volrow { font-size: 10.5px; line-height: 1.3; margin: -2px 0 4px; padding-left: 10px; }
+.cpc-tt-volrow b, .ac-tt-volrow b { font-weight: 600; opacity: 0.8; }
 
 /* Быстрое сравнение — the peer strip under the chart. Cards, not rows: a card
    holds a logo, a name, a price and a move without any of them queueing behind

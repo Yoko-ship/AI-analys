@@ -5914,14 +5914,20 @@ function buildCompareSeries(windowed, compare) {
   const prepared = [];
   const dropped = [];
   for (const c of wanted) {
-    const pts = (Array.isArray(c.points) ? c.points : [])
+    const norm = (Array.isArray(c.points) ? c.points : [])
       .map((p) => (Array.isArray(p)
-        ? [compareIsoDay(p[0]), Number(p[1])]
-        : [compareIsoDay(p.date || p.trade_date), Number(p.close ?? p.close_price)]))
-      .filter(([d, v]) => d >= from && Number.isFinite(v) && v > 0)
+        ? [compareIsoDay(p[0]), Number(p[1]), Number(p[2]) || 0]
+        : [compareIsoDay(p.date || p.trade_date), Number(p.close ?? p.close_price),
+           Number(p.value ?? p.turnover ?? 0) || 0]))
+      .filter(([d, v]) => d && Number.isFinite(v) && v > 0)
       .sort((a, b) => a[0].localeCompare(b[0]));
+    // The volume history keeps its FULL depth, not the drawn window's: a
+    // «к среднему» read near the window's left edge averages the sessions
+    // BEFORE the window, exactly as the base security's does.
+    const volHist = norm.map(([d, , tv]) => ({ date: d, turnover: tv }));
+    const pts = norm.filter(([d]) => d >= from);
     if (pts.length < 2) dropped.push(c);
-    else prepared.push({ ...c, pts });
+    else prepared.push({ ...c, pts, volHist });
   }
   if (!prepared.length) return { points: windowed, series: [], dropped, start: null };
 
@@ -6119,7 +6125,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
 
   // The feed returns newest-first — sort ascending so time reads left→right.
   const daily = (history || []).map((h) => {
-    if (Array.isArray(h)) return { date: h[0], close: Number(h[1]) || 0, volume: 0, turnover: 0, change: null };
+    if (Array.isArray(h)) return { date: h[0], close: Number(h[1]) || 0, volume: 0, turnover: Number(h[2]) || 0, change: null };
     return {
       date: h.date || h.trade_date,
       open: h.open != null ? Number(h.open) : null,
@@ -6600,7 +6606,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           </div>
           {relVol != null && (
             <div className="cpc-tt-row"><span>{t("Объём к среднему", "O'rtacha hajmga", "Vol vs avg")}</span>
-              <b>×{relVol.toFixed(1).replace(".", lang === "en" ? "." : ",")}</b>
+              <b>{fmtRelVol(relVol, lang)}</b>
             </div>
           )}
           {hp.change != null && (
@@ -6617,17 +6623,30 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
                 <span style={{ color }}>{ticker || t("Эта бумага", "Bu qog'oz", "This security")}</span>
                 <b style={{ color }}>{fmtPct(baseVals[hover])}</b>
               </div>
-              {cmp.series.map((s) => (
-                <div className="cpc-tt-row" key={`tt${s.ticker}`}>
-                  <span style={{ color: s.color }}>{s.ticker}</span>
-                  <b style={{ color: s.color }}>
-                    {s.pct[hover] == null ? "—" : fmtPct(s.pct[hover])}
-                    {s.closes[hover] != null && (
-                      <span className="cpc-tt-cmp-price"> · {fmtFull(s.closes[hover])}</span>
-                    )}
-                  </b>
-                </div>
-              ))}
+              {cmp.series.map((s) => {
+                const pv = peerVolumeAt(s.volHist, hp.date);
+                return (
+                  <React.Fragment key={`tt${s.ticker}`}>
+                    <div className="cpc-tt-row">
+                      <span style={{ color: s.color }}>{s.ticker}</span>
+                      <b style={{ color: s.color }}>
+                        {s.pct[hover] == null ? "—" : fmtPct(s.pct[hover])}
+                        {s.closes[hover] != null && (
+                          <span className="cpc-tt-cmp-price"> · {fmtFull(s.closes[hover])}</span>
+                        )}
+                      </b>
+                    </div>
+                    {/* Raw volumes are each on their own scale; the «×N»
+                        multiple is the part that compares across securities. */}
+                    <div className="cpc-tt-row cpc-tt-volrow">
+                      <span>{t("объём", "hajm", "vol")}</span>
+                      <b>{pv
+                        ? `${fmtCompact(pv.turnover, lang)}${pv.rel != null ? ` · ${fmtRelVol(pv.rel, lang)}` : ""}`
+                        : "—"}</b>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
             </div>
           )}
         </div>
@@ -6887,6 +6906,23 @@ function relativeVolume(daily, date, turnover) {
     if (daily[j].turnover > 0) { sum += daily[j].turnover; n += 1; }
   }
   return n >= 3 ? turnover / (sum / n) : null;
+}
+
+/**
+ * A peer's session volume and its «к среднему» multiple at one date — or null
+ * when the peer did not trade that day. A carried-forward close has no volume,
+ * and «0 сум» would claim it traded nothing rather than not at all.
+ */
+function peerVolumeAt(volHist, date) {
+  const d = String(date);
+  const e = (volHist || []).find((p) => p.date === d);
+  if (!e || !(e.turnover > 0)) return null;
+  return { turnover: e.turnover, rel: relativeVolume(volHist, d, e.turnover) };
+}
+
+/** «×3,1» — the one way a volume is comparable ACROSS securities. */
+function fmtRelVol(v, lang) {
+  return `×${v.toFixed(1).replace(".", lang === "en" ? "." : ",")}`;
 }
 
 function signedFixed(v, dp = 2) {
@@ -8594,7 +8630,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   // ── Data preparation ─────────────────────────────────────────────────────
   const daily = React.useMemo(() => (history || []).map((h) => (Array.isArray(h)
-    ? { date: h[0], close: Number(h[1]) || 0, volume: 0, turnover: 0 }
+    ? { date: h[0], close: Number(h[1]) || 0, volume: 0, turnover: Number(h[2]) || 0 }
     : {
         date: h.date || h.trade_date,
         open: h.open != null ? Number(h.open) : null,
@@ -9369,19 +9405,30 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   </div>
                   {relVol != null && (
                     <div className="ac-tt-row"><span>{t("Объём к среднему", "O'rtacha hajmga", "Vol vs avg")}</span>
-                      <b>×{relVol.toFixed(1).replace(".", lang === "en" ? "." : ",")}</b>
+                      <b>{fmtRelVol(relVol, lang)}</b>
                     </div>
                   )}
                   {cmpOn && (
                     <div className="ac-tt-block">
                       <div className="ac-tt-row"><span style={{ color: priceColor }}>{up}</span>
                         <b style={{ color: priceColor }}>{fmtPctVal(baseVals[hover])}</b></div>
-                      {cmp.series.map((s) => (
-                        <div className="ac-tt-row" key={`tt${s.ticker}`}>
-                          <span style={{ color: s.color }}>{s.ticker}</span>
-                          <b style={{ color: s.color }}>{fmtPctVal(s.pct[hover])}</b>
-                        </div>
-                      ))}
+                      {cmp.series.map((s) => {
+                        const pv = peerVolumeAt(s.volHist, hp.date);
+                        return (
+                          <React.Fragment key={`tt${s.ticker}`}>
+                            <div className="ac-tt-row">
+                              <span style={{ color: s.color }}>{s.ticker}</span>
+                              <b style={{ color: s.color }}>{fmtPctVal(s.pct[hover])}</b>
+                            </div>
+                            <div className="ac-tt-row ac-tt-volrow">
+                              <span>{t("объём", "hajm", "vol")}</span>
+                              <b>{pv
+                                ? `${fmtCompact(pv.turnover, lang)}${pv.rel != null ? ` · ${fmtRelVol(pv.rel, lang)}` : ""}`
+                                : "—"}</b>
+                            </div>
+                          </React.Fragment>
+                        );
+                      })}
                     </div>
                   )}
                   {(indicators.size > 0 || finPanes.length > 0) && (
