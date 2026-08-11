@@ -703,6 +703,7 @@ _INTERNATIONAL_SHARE = max(0.0, min(float(os.getenv("NEWS_INTERNATIONAL_SHARE", 
 _ORIGINS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news_sources.json")
 _international_ids: set[str] | None = None
 _hidden_ids: set[str] | None = None
+_disclosure_ids: set[str] | None = None
 
 
 def hidden_source_ids() -> set[str]:
@@ -804,6 +805,32 @@ NEWS_GROUPS: dict[str, tuple[str, ...]] = {
     "economy": ("market", "regulatory"),
     "corporate": ("corporate_event", "financial_report"),
 }
+
+
+def disclosure_source_ids() -> set[str]:
+    """Source ids that are an issuer's own disclosure, not a paper's write-up.
+
+    ``type: "openinfo"`` in the registry — the statutory filing feed. «Корпоративные» is
+    served from these alone (customer, 2026-08-11): a filing is the primary record, dated
+    and complete, and it names its issuer in the field the instrument split reads, while a
+    press retelling of the same filing arrives later, names the company loosely and puts a
+    second card under the same fact.
+
+    Fail-soft to the empty set, which the caller reads as *no restriction*: a registry we
+    cannot parse must leave the tab full, never empty it.
+    """
+    global _disclosure_ids
+    if _disclosure_ids is None:
+        try:
+            with open(_ORIGINS_FILE, encoding="utf-8") as fh:
+                data = json.load(fh)
+            _disclosure_ids = {s["id"] for s in data.get("sources", [])
+                               if s.get("id") and s.get("type") == "openinfo"}
+        except (OSError, ValueError, KeyError):
+            logger.warning("could not read disclosure sources from %s — «корпоративные» "
+                           "keeps every source", _ORIGINS_FILE)
+            _disclosure_ids = set()
+    return _disclosure_ids
 
 
 def resolve_news_types(news_type: Any) -> list[str]:
@@ -927,6 +954,17 @@ def get_news_feed(
     if hidden:
         q.append(f"AND COALESCE(n.source_id, '') NOT IN ({','.join('?' * len(hidden))})")
         params.extend(hidden)
+    # «Корпоративные» is served from the filings alone (customer, 2026-08-11). Written per
+    # TYPE rather than as a flat AND over the whole query, so a request that mixes the
+    # groups («economy,corporate_event») still gets its economy items from every source —
+    # and so «Все», which asks for no type at all, stays the mixed feed it says it is.
+    corporate = [t for t in wanted if t in NEWS_GROUPS["corporate"]]
+    disclosure = sorted(disclosure_source_ids())
+    if corporate and disclosure:
+        q.append(f"AND (p.type NOT IN ({','.join('?' * len(corporate))})"
+                 f" OR COALESCE(n.source_id, '') IN ({','.join('?' * len(disclosure))}))")
+        params.extend(corporate)
+        params.extend(disclosure)
     q.append("ORDER BY COALESCE(n.published_at, n.collected_at) DESC LIMIT ?")
     params.append(fetch)
     rows = conn.execute(" ".join(q), params).fetchall()

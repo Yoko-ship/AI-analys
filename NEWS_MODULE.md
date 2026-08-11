@@ -86,6 +86,18 @@ python news_agent.py "Hamkorbank dividend"   # try the search agent (needs TAVIL
 
 Serve: `GET /api/news/feed?limit=60&days=30`, `GET /api/news/item/106`, `GET /api/news/ticker/HMKB`.
 
+`type` takes a classifier class, a comma-separated list, or one of the two reading groups the
+section offers — `economy` (market + regulatory) and `corporate` (corporate_event +
+financial_report), which partition all four classes so nothing is unreachable from both tabs.
+**A corporate request is served from the disclosure sources alone** (`type: "openinfo"` in the
+registry — the issuers' own filings; customer, 2026-08-11): a paper's write-up of a filing is
+a retelling that arrives later, names the company loosely and puts a second card under one
+fact, while the filing is the record and names its issuer in the very field the Акции/Облигации
+split reads. The narrowing is written per *class*, not as a flat `AND` over the query, so a
+mixed request still gets its economy half from every source and `type` unset — the «Все» tab —
+stays the mixed feed it says it is. Measured on the live feed the day it went in: 82 corporate
+items over 60 days, 47 of them filings.
+
 ## Ranking & noise control (the read path)
 
 The page promises news *sorted by likely price impact*, so `get_news_feed` ranks rather than
