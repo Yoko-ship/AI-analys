@@ -6805,6 +6805,52 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   gap: 10px;
 }
 
+/* Official CBU rates: one slim line above the stat cards. On a narrow screen
+   it scrolls sideways instead of stacking — seven currencies as seven rows
+   would push the market below the fold for a reference figure. */
+.market-fx-strip {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.market-fx-strip::-webkit-scrollbar { display: none; }
+
+.market-fx-label {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.market-fx-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.market-fx-item b { font-weight: 600; }
+
+.market-fx-rate { font-variant-numeric: tabular-nums; }
+
+.market-fx-diff {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-fx-diff.up { color: var(--success); }
+.market-fx-diff.down { color: var(--danger); }
+
 .market-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
