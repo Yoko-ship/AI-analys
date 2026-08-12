@@ -745,14 +745,17 @@ def _nsbu_export_urls(report_id: Any, period_type: str, org_type: str | None,
     return pdf_url, excel_url
 
 
-def _unified_pdf_id_map(session: Any, org_id: Any) -> dict[str, int]:
-    """Accounting object id → unified-feed record id, for one issuer.
+def _unified_pdf_id_map(session: Any, org_id: Any) -> dict[str, dict[str, Any]]:
+    """Accounting object id → {pdf_id, pub_date}, for one issuer.
 
     The unified feed is the only place the two id spaces meet: each record
     carries its own id (the ``to_pdf`` namespace) and a ``report_link`` whose
     tail is the accounting-report object id the structured sync works with.
+    It is also the only source of a PUBLICATION date for an accounting record,
+    which _effective_annual_year needs: the accounting-report endpoint itself
+    carries nothing but the (often mis-stamped) reporting_year.
     """
-    out: dict[str, int] = {}
+    out: dict[str, dict[str, Any]] = {}
     if not org_id:
         return out
     for page in range(1, 6):
@@ -766,10 +769,40 @@ def _unified_pdf_id_map(session: Any, org_id: Any) -> dict[str, int]:
         for rec in results:
             m = re.search(r"/reports/[a-z]+/[a-z]+/(\d+)/?$", str(rec.get("report_link") or ""))
             if m and rec.get("id"):
-                out[m.group(1)] = rec["id"]
+                out[m.group(1)] = {"pdf_id": rec["id"], "pub_date": rec.get("pub_date")}
         if len(results) < 200 or not (isinstance(payload, dict) and payload.get("next")):
             break
     return out
+
+
+# Annual accounting records whose CONTENT is wrong at the source, keyed by
+# (org_id, record_id). GRBK's record 261 (labeled FY2022, published 2022-07)
+# carries an income statement that is a line-for-line copy of the bank's 2016
+# filing (36/37 nonzero lines identical, measured 2026-08-12) over an unrelated
+# balance — no year label makes that filing true, so it is not ingested at all.
+_ANNUAL_RECORD_EXCLUSIONS: set[tuple[str, str]] = {("11", "261")}
+
+
+def _effective_annual_year(labeled_year: int, pub_date: str | None) -> int:
+    """The fiscal year an annual record can actually describe.
+
+    openinfo stamps many annuals with the UPLOAD season's year rather than the
+    fiscal year: fleet-wide, the FY2019 annual of almost every issuer is labeled
+    "2020" (published mid-2020, next to a second, genuine 2020), and several
+    issuers carry impossible "FY2026" labels on their FY2025 filings. A period
+    cannot end after the report describing it was published, so the label is
+    clamped to the last fiscal year complete at publication — the same invariant
+    period_year_quarter (openinfo_reconcile) applies on the unified-feed path.
+    A label EARLIER than the bound is left alone: late filings are normal
+    (AGMKP published its FY2021 annual in 2023 and its label is correct).
+    """
+    if not pub_date:
+        return labeled_year
+    try:
+        pub_year = int(str(pub_date)[:4])
+    except (TypeError, ValueError):
+        return labeled_year
+    return min(labeled_year, pub_year - 1)
 
 
 _ORG_TYPE_CANDIDATES = ("jsc", "bank", "insurance", "microfinance")
@@ -919,14 +952,6 @@ def sync_company(
         form1_annual = []
         errors.append(f"NSBU annual form1: {exc}")
 
-    # Index form1 by reporting_year for quick lookup
-    form1_annual_by_year: dict[int, dict] = {}
-    for rec in form1_annual:
-        yr = rec.get("reporting_year")
-        if isinstance(yr, int):
-            doc = _build_report_document(rec)
-            form1_annual_by_year[yr] = doc
-
     # The /reports/main/ search couldn't resolve org_type for this issuer, so the
     # NSBU Excel URLs below would all come out empty (→ no financials). Recover it
     # by probing the export endpoint against a real report id.
@@ -942,22 +967,50 @@ def sync_company(
         conn.execute("UPDATE catalog_reports SET pdf_url = NULL "
                      "WHERE ticker = ? AND report_form = 'NSBU'", (ticker,))
 
-    with conn:
-        for rec in form2_annual:
-            yr = rec.get("reporting_year")
-            if not isinstance(yr, int):
+    def _corrected_annuals(records: list[dict]) -> list[tuple[int, str, dict]]:
+        """(fiscal year, pub_date, record), source mislabels repaired.
+
+        Two records can land on the same corrected year (a filing and its
+        re-upload or revision — YGSY's preliminary FY2024, IPKY's revised
+        FY2023): sorting by (year, pub_date) lets the NEWEST publication
+        upsert last and win, deterministically.
+        """
+        out: list[tuple[int, str, dict]] = []
+        for rec in records:
+            labeled = rec.get("reporting_year")
+            if not isinstance(labeled, int):
                 continue
+            rid = str(rec.get("id") or "")
+            if (str(org_id), rid) in _ANNUAL_RECORD_EXCLUSIONS:
+                continue
+            pub = (pdf_ids.get(rid) or {}).get("pub_date")
+            yr = _effective_annual_year(labeled, pub)
             if _is_premature_annual_year(yr):
                 # openinfo lists a placeholder "annual" for the in-progress fiscal
                 # year (e.g. FY2026 mid-2026) whose export is a duplicate of, or an
                 # incomplete stand-in for, the prior year. Ingesting it as the newest
                 # annual dates the headline figures a year forward — skip it.
                 continue
+            out.append((yr, str(pub or ""), rec))
+        out.sort(key=lambda t: (t[0], t[1]))
+        return out
+
+    # Index form1 by CORRECTED fiscal year: the form1 record of a filing carries
+    # the same mislabel as its form2 sibling, so an uncorrected index would pair
+    # a relabeled income statement with the wrong year's balance (or none).
+    form1_annual_by_year: dict[int, dict] = {}
+    for yr, _pub, rec in _corrected_annuals(form1_annual):
+        form1_annual_by_year[yr] = _build_report_document(rec)
+
+    annual_years: set[int] = set()
+    moved_labels: set[int] = set()
+    with conn:
+        for yr, pub, rec in _corrected_annuals(form2_annual):
             doc2 = _build_report_document(rec)
             doc1 = form1_annual_by_year.get(yr)
             pdf_url, excel_url = _nsbu_export_urls(
                 doc2.get("id"), "annual", org_type,
-                pdf_id=pdf_ids.get(str(doc2.get("id") or "")))
+                pdf_id=(pdf_ids.get(str(doc2.get("id") or "")) or {}).get("pdf_id"))
             excel_url_form1 = _nsbu_export_urls(doc1.get("id"), "annual", org_type)[1] if doc1 else None
             new = _upsert_report(
                 conn, ticker,
@@ -966,7 +1019,7 @@ def sync_company(
                 year=yr,
                 quarter=0,
                 title=doc2.get("title"),
-                published_at=doc2.get("published_at"),
+                published_at=doc2.get("published_at") or (pub or None),
                 pdf_url=pdf_url,
                 excel_url=excel_url,
                 excel_url_form1=excel_url_form1,
@@ -975,6 +1028,33 @@ def sync_company(
             )
             if new:
                 added += 1
+            annual_years.add(yr)
+            if rec.get("reporting_year") != yr:
+                moved_labels.add(int(rec["reporting_year"]))
+
+        # A year that exists only as a mislabel is a ghost: before the correction
+        # existed, UZHM's FY2024 annual (labeled "2025") was catalogued — and its
+        # financials cached — under 2025, a year no record claims once the label
+        # is repaired. Rows under such years would sit next to the corrected ones
+        # forever (this cache is pruned by nothing else) and render as a duplicate
+        # column on the Финансы tab. Scoped to labels seen in THIS response, so a
+        # partial fetch can never sweep unrelated history.
+        stale_years = sorted(moved_labels - annual_years)
+        if stale_years and form2_annual:
+            marks = ",".join("?" for _ in stale_years)
+            conn.execute(
+                f"DELETE FROM catalog_reports WHERE ticker=? AND report_form='NSBU' "
+                f"AND period_type='annual' AND year IN ({marks})",
+                (ticker, *stale_years))
+            conn.execute(
+                f"DELETE FROM catalog_financials WHERE ticker=? AND form='NSBU' "
+                f"AND quarter=0 AND year IN ({marks})",
+                (ticker, *stale_years))
+            conn.execute(
+                f"DELETE FROM catalog_ratios WHERE ticker=? AND form='NSBU' "
+                f"AND quarter=0 AND year IN ({marks})",
+                (ticker, *stale_years))
+            logger.info("%s: pruned mislabel-only annual years %s", ticker, stale_years)
 
     # ---- NSBU quarterly ----------------------------------------------------
     try:
@@ -1019,7 +1099,7 @@ def sync_company(
             doc1 = form1_quarter_by_yq.get((yr, q))
             pdf_url, excel_url = _nsbu_export_urls(
                 doc2.get("id"), "quarter", org_type,
-                pdf_id=pdf_ids.get(str(doc2.get("id") or "")))
+                pdf_id=(pdf_ids.get(str(doc2.get("id") or "")) or {}).get("pdf_id"))
             excel_url_form1 = _nsbu_export_urls(doc1.get("id"), "quarter", org_type)[1] if doc1 else None
             new = _upsert_report(
                 conn, ticker,
