@@ -196,6 +196,24 @@ def test_a_zero_balance_sheet_is_dropped_even_with_a_stray_figure(monkeypatch):
     assert body["periods"] == ["2023"]
 
 
+def test_a_junk_zero_assets_line_beside_real_equity_is_kept(monkeypatch):
+    """GRBK 2024 defeated the assets-only test from the other direction: the
+    feed prints total_assets 0.0 beside an equity of 546.9 B (and a real filed
+    annual with a −64 B loss). A zero balance sheet means BOTH sides zero —
+    one junk line must not purge a genuine year."""
+    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 11})
+    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+        _fact("total_assets", "2024", 0.0),
+        _fact("total_equity", "2024", 546_908_188.0),
+        _fact("net_profit", "2024", -64_342_762.0),
+        _fact("total_assets", "2023", 1_681_035_452.0),
+        _fact("net_profit", "2023", 1_250_994.0),
+    ])
+    body = TestClient(api.app).get("/api/company/GRBK/financials").json()
+    assert body["periods"] == ["2024", "2023"]
+    assert body["series"]["net_profit"]["values"]["2024"] == -64_342_762_000.0
+
+
 def test_a_zero_income_line_on_a_real_balance_sheet_is_kept(monkeypatch):
     """BRBN and UZNGP file on forms with no revenue line, and UZNF is a fund
     that genuinely earns nothing while holding 30 T of assets. Those zeros are
