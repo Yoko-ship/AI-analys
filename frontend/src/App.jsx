@@ -6825,6 +6825,19 @@ function multipleStatusText(status, lang) {
   return words ? words[lang === "uz" ? 1 : lang === "en" ? 2 : 0] : null;
 }
 
+// Terminal practice (Bloomberg, MSN): a multiple outside its plausible band
+// prints «n/m» — not meaningful — instead of the raw figure. A P/E of 2 816×
+// is arithmetic, not a valuation: it only says the denominator is near zero.
+// The figure itself is not hidden — it moves into the tooltip.
+const nmLabel = (lang) => (lang === "ru" ? "н/зн" : "n/m");
+const nmTitle = (metric, digits, suffix, lang) => [
+  `${lang === "ru" ? "не показателен" : lang === "uz" ? "ko'rsatkichli emas" : "not meaningful"}: ` +
+    `${formatRatio(metric.value, digits, lang)}${suffix}` +
+    (metric.allowed ? ` ∉ [${metric.allowed.join("; ")}]` : ""),
+  metric.base_period,
+  metric.note,
+].filter(Boolean).join(" · ");
+
 // A row's price line, drawn from stored settled closes (/api/quotes/series).
 // Deliberately axis-less and label-less: at this size the only readable claim is
 // the SHAPE, and a series of fewer than two sessions has no shape to show.
@@ -7049,7 +7062,9 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   const putMultiple = (label, metric, digits = 2, suffix = "×", caption) => {
     if (!metric) return;
     let node;
-    if (metric.value != null) {
+    if (metric.value != null && metric.status === "out_of_range") {
+      node = <span className="cell-status" title={nmTitle(metric, digits, suffix, lang)}>{nmLabel(lang)}</span>;
+    } else if (metric.value != null) {
       node = <>{formatRatio(metric.value, digits, lang)}{suffix}</>;
     } else {
       const words = multipleStatusText(metric.status, lang);
@@ -10453,7 +10468,12 @@ function MarketView({
       server: false,
     };
   };
-  const peOf = (r) => valuationOf(r).pe?.value ?? null;
+  // An out-of-range multiple sorts (and exports) as absent: a P/E column
+  // ordered by value must not crown a 2 816× that the cell itself calls «н/зн».
+  const peOf = (r) => {
+    const m = valuationOf(r).pe;
+    return m?.status === "out_of_range" ? null : m?.value ?? null;
+  };
 
   // A flow figure scaled to twelve months, for SORTING only (ТЗ §7). Returns
   // null rather than a raw value when the period is unknown: ordering by a
@@ -10474,11 +10494,13 @@ function MarketView({
   // validation; a range status means the figure exists and is not believable.
   const statusText = (status) => multipleStatusText(status, lang);
   const multipleCell = (row, metric, digits, suffix = "×") => {
+    // Out of range the raw figure is noise, not a multiple — the cell says
+    // «н/зн» and the tooltip keeps the number (superseding V15's value+flag).
+    if (metric?.value != null && metric.status === "out_of_range") {
+      return <td className="num"><span className="cell-status" title={nmTitle(metric, digits, suffix, lang)}>{nmLabel(lang)}</span></td>;
+    }
     if (metric?.value != null) {
-      // V15 (ТЗ мультипликаторов): out of range the number is shown WITH its
-      // flag — «проверить» — and an annualised estimate carries «оценка».
       const flags = [];
-      if (metric.status === "out_of_range") flags.push(mt(lang, "checkFlag"));
       if (metric.estimate) flags.push(mt(lang, "estimateFlag"));
       const title = [
         metric.base_period,
@@ -10518,7 +10540,10 @@ function MarketView({
   // all (verified 10-year lookback): state "no trades" — the same fact the
   // trade-date column shows — rather than an ambiguous dash.
   const neverTraded = (r) => (!r.last_trade_date && !r.ts ? mt(lang, "noTrade") : "—");
-  const pbOf = (r) => valuationOf(r).pb?.value ?? null;
+  const pbOf = (r) => {
+    const m = valuationOf(r).pb;
+    return m?.status === "out_of_range" ? null : m?.value ?? null;
+  };
 
   // One financials cell, with the reporting period it belongs to underneath it.
   // The period is not decoration: these figures mix completed annuals with
@@ -10926,7 +10951,7 @@ function MarketView({
     mktCap: (row) => <td className="num">{(() => { const v = mktCapOf(row); return v == null ? noSecLabel(row) : formatRatio(v, 0, lang); })()}</td>,
     pe: (row) => {
       const m = valuationOf(row).pe;
-      if (m?.value == null) return multipleCell(row, m, 2);
+      if (m?.value == null || m.status === "out_of_range") return multipleCell(row, m, 2);
       // Name the earnings period on the cell: this is the one multiple whose
       // denominator can come from a different filing than the row's own figures.
       const period = m.base_period || earningsOf(row).period;
@@ -10935,8 +10960,8 @@ function MarketView({
         <td className="num" title={period ? `${lang === "ru" ? "прибыль за" : lang === "uz" ? "foyda" : "earnings for"} ${period}${months ? ` · ${months} ${lang === "ru" ? "мес." : lang === "uz" ? "oy" : "months"}` : ""}` : undefined}>
           <strong>{formatRatio(m.value, 2, lang)}×</strong>
           {(() => {
-            const sub = [period, m.status === "out_of_range" ? mt(lang, "checkFlag") : null,
-              m.estimate ? mt(lang, "estimateFlag") : null].filter(Boolean).join(" · ");
+            const sub = [period, m.estimate ? mt(lang, "estimateFlag") : null]
+              .filter(Boolean).join(" · ");
             return sub ? <span className="fin-cell-period">{sub}</span> : null;
           })()}
         </td>
