@@ -11020,16 +11020,11 @@ function MarketView({
       <FxRatesCards language={lang} />
 
       <div className="market-stats-grid">
-        {/* Same reason: the count of instruments is the board's, not the
-            filter's — «Показано: N/M» above the table already states what the
-            list on screen holds. */}
-        <MarketStatCard label={mt(lang, "instruments")}
-          value={formatRatio(byClass.filter((r) => !isDormant(r)).length || meta?.count || 0, 0, lang)}
-          sub={message || mt(lang, "ready")} />
-        <MarketStatCard label={mt(lang, "traded")} value={formatRatio(stats.traded, 0, lang)} sub={mt(lang, "date")} />
+        {/* Инструментов / Сделки сегодня / Без изменений were removed at the
+            customer's request (2026-08-12) — the row keeps only the counters
+            that name a mover or a sum of money. */}
         <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(stats.advancers, 0, lang)} sub={formatLeader(stats.topGrowth)} tone="good" />
         <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
-        <MarketStatCard label={mt(lang, "unchanged")} value={formatRatio(stats.unchanged, 0, lang)} sub={mt(lang, "date")} />
         {/* ТЗ §8: the market's capitalisation is its ACTIVE SHARES. The client
             sum counted bonds, which carry no ownership, and dormant listings —
             23 of them, 29 088 bn — inside a figure labelled "the market". The
