@@ -10635,6 +10635,14 @@ function MarketView({
   // that have not traded in three months, and named a «лидер роста» at 0 %.
   // The board is the traded set, whichever list is on screen below.
   const stats = buildMarketStats(byClass.filter((r) => !isDormant(r)));
+  // The movers panels, unlike the cards above, answer for the list on screen:
+  // a «Финансы» chip narrows the table to banks, and a «Топ роста» still
+  // naming a textile mill beside it reads as a mistake. Recomputed from the
+  // sector's own rows — not sliced out of the board's five — so a sector
+  // whose best mover is the board's sixth still fills its panel.
+  const moverStats = activeSector
+    ? buildMarketStats(byClass.filter((r) => !isDormant(r) && rowSector(r) === activeSector))
+    : stats;
 
   // §3.8: export the table the user is looking at as OUR report, client-side.
   //
@@ -11058,14 +11066,14 @@ function MarketView({
           those use, so the figure is recognisable without a unit spelled out
           beside it (one was tried in the head and the customer had it out). */}
       {viewMode === "table"
-        && (stats.topGainers.length > 0 || stats.topLosers.length > 0 || stats.topVolume.length > 0) && (
+        && (moverStats.topGainers.length > 0 || moverStats.topLosers.length > 0 || moverStats.topVolume.length > 0) && (
         <div className="market-top-movers">
           {[
-            { key: "up", title: mt(lang, "topGainers"), rows: stats.topGainers,
+            { key: "up", title: mt(lang, "topGainers"), rows: moverStats.topGainers,
               value: (r) => `+${formatRatio(r.changePercent, 2, lang)}%` },
-            { key: "down", title: mt(lang, "topLosers"), rows: stats.topLosers,
+            { key: "down", title: mt(lang, "topLosers"), rows: moverStats.topLosers,
               value: (r) => `${formatRatio(r.changePercent, 2, lang)}%` },
-            { key: "vol", title: mt(lang, "topLiquidity"), rows: stats.topVolume,
+            { key: "vol", title: mt(lang, "topLiquidity"), rows: moverStats.topVolume,
               value: (r) => formatCompactVolume(r.stockVolume, lang) },
           ].map((col) => (
             <article className={`panel market-movers-col ${col.key}`} key={col.key}>
