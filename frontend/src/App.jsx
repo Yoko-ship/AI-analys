@@ -5186,6 +5186,10 @@ function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
 // the bank's JSON, so rendering this on two pages costs two cheap requests.
 // The rates are set once per business day — the date in the caption is CBU's
 // own, never "live".
+// The sign travels with the code, not the figure — the big number is soums,
+// so "$" belongs to "USD", never to 11 889,95.
+const FX_CCY_SYMBOLS = { USD: "$", EUR: "€", RUB: "₽", GBP: "£", CNY: "¥", JPY: "¥", KZT: "₸" };
+
 function FxRatesCards({ language }) {
   const lang = normalizeLanguage(language);
   const [fx, setFx] = useState(null);
@@ -5211,10 +5215,12 @@ function FxRatesCards({ language }) {
         {fx.rates.map((r) => {
           const name = lang === "uz" ? r.name_uz : lang === "en" ? r.name_en : r.name_ru;
           const hasDiff = Number.isFinite(r.diff) && r.diff !== 0;
+          const symbol = FX_CCY_SYMBOLS[r.ccy];
+          const baseLabel = (r.nominal || 1) > 1 ? `${formatRatio(r.nominal, 0, lang)} ${r.ccy}` : r.ccy;
           return (
             <MarketStatCard
               key={r.ccy}
-              label={(r.nominal || 1) > 1 ? `${formatRatio(r.nominal, 0, lang)} ${r.ccy}` : r.ccy}
+              label={symbol ? `${baseLabel} · ${symbol}` : baseLabel}
               value={formatRatio(r.rate, 2, lang)}
               sub={hasDiff
                 ? `${r.diff > 0 ? "▲" : "▼"} ${formatRatio(Math.abs(r.diff), 2, lang)} · ${name || ""}`
