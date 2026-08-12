@@ -1783,7 +1783,9 @@ CBU_RATES_URL = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
 CBU_RATES_TTL_SEC = int(os.getenv("CBU_RATES_TTL_SEC", "1800"))
 CBU_RATES_CURRENCIES = tuple(
     c.strip().upper()
-    for c in os.getenv("CBU_RATES_CURRENCIES", "USD,EUR,RUB,GBP,CNY,JPY,KZT").split(",")
+    # GBP/CNY/JPY/KZT were dropped at the customer's request (2026-08-12);
+    # the env var can widen the set back without a code change.
+    for c in os.getenv("CBU_RATES_CURRENCIES", "USD,EUR,RUB").split(",")
     if c.strip())
 _cbu_rates_cache: dict[str, Any] = {"at": 0.0, "payload": None}
 _cbu_rates_lock = threading.Lock()
