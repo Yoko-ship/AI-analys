@@ -3698,12 +3698,18 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
                       else value)
             entry["values"][period] = scaled
             periods.add(period)
-        # A year with ZERO TOTAL ASSETS is an empty filing, not a year of no
+        # A year with a ZERO BALANCE SHEET is an empty filing, not a year of no
         # activity. A going concern cannot have no balance sheet, so this is the
         # sharp test — sharper than "every money field is zero", which SQBN 2024
         # defeated: assets, equity, liabilities and revenue all zero but a stray
         # net profit of 13 000 sums, enough to keep the column and draw a bank
         # collapsing to nothing and back on the chart.
+        #
+        # BOTH sides of the balance must be zero. GRBK 2024 defeated the
+        # assets-only test from the other direction: the feed prints
+        # total_assets 0.0 beside an equity of 546.9 B and a real filed annual
+        # (a −64 B loss year) — that zero is feed junk on one line, and purging
+        # the year here kept the genuine filing off the page permanently.
         #
         # Zeros in the INCOME lines are kept when the balance sheet is real:
         # UZNF is a fund that genuinely earns no revenue while holding 30 T of
@@ -3712,9 +3718,10 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
         purged_empty: set[str] = set()
         for period in list(periods):
             assets = (series.get("total_assets") or {}).get("values", {}).get(period)
+            equity = (series.get("total_equity") or {}).get("values", {}).get(period)
             money = [e["values"][period] for f, e in series.items()
                      if e["money"] and period in e["values"]]
-            empty = assets == 0 or (money and not any(money))
+            empty = (assets == 0 and not equity) or (money and not any(money))
             if empty:
                 purged_empty.add(period)
                 periods.discard(period)
