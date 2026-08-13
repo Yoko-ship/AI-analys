@@ -369,6 +369,89 @@ def backfill_financials(min_year: int = 2015) -> int:
     return status
 
 
+def backfill_quarterly_financials(min_year: int = 2023) -> int:
+    """Parse every issuer's QUARTERLY filing into the financials cache.
+
+    The daily pipeline keeps only the newest cumulative quarter per ticker —
+    all the market board's multiples need — so when the company page grew a
+    quarterly view there were 24 quarterly rows behind it against ~650 quarterly
+    reports the catalog already knew about (66 issuers, Q1–Q3 each year; the
+    annual stands in for Q4). Same shape as :func:`backfill_financials`: one
+    parse fills catalog_financials, registers provenance, and the batch is
+    PUSHED as an upsert so history lands behind whatever the board is serving.
+
+    Quarterly form 2 is cumulative from 1 January — stored as filed. The API
+    differences the running totals into three-month columns at read time, so
+    this stays a faithful copy of the source.
+    """
+    from securities_catalog import get_securities_map
+
+    tickers = {str(t).upper() for t in (get_securities_map() or {})}
+    # The deployment's board is the universe the site serves — wider than this
+    # machine's catalog. Same trap, same fix as the annual backfill above.
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+    for kind in ("stock", "bond"):
+        try:
+            resp = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60)
+            resp.raise_for_status()
+            board = resp.json()
+            board = board if isinstance(board, list) else board.get("stocks") or []
+            tickers |= {str(r.get("ticker") or "").strip().upper()
+                        for r in board if r.get("ticker")}
+        except Exception:  # noqa: BLE001 — the local catalog still gives us a run
+            log.exception("quarterly backfill: could not read the deployment's %s board", kind)
+    tickers = sorted(t for t in tickers if t)
+    log.info("quarterly backfill: %d tickers, quarterly reports from %d", len(tickers), min_year)
+    rows: list[dict] = []
+    scanned = failed = 0
+    for index, ticker in enumerate(tickers, 1):
+        try:
+            reports = rc.get_company_reports(ticker) or []
+        except Exception:
+            log.exception("quarterly backfill: cannot list reports for %s", ticker)
+            failed += 1
+            continue
+        quarters = sorted({(int(r["year"]), int(r["quarter"])) for r in reports
+                           if r.get("report_form") == "NSBU" and r.get("quarter")
+                           and str(r.get("year") or "").isdigit() and int(r["year"]) >= min_year},
+                          reverse=True)
+        for year, quarter in quarters:
+            scanned += 1
+            try:
+                data = rc.fetch_report_excel_data(ticker, "NSBU", year, quarter)
+                if not data.get("ok"):
+                    continue
+                ratios = rc.compute_financial_ratios(data.get("income"), data.get("balance")) or {}
+                vals = ratios.get("source_values") or {}
+                if not any(vals.get(k) is not None for k in rc.FIN_MONEY_FIELDS):
+                    continue
+                rows.append({"ticker": ticker, "year": year, "quarter": quarter,
+                             **{k: vals.get(k) for k in rc.FIN_MONEY_FIELDS}})
+                # Provenance first, mirror second — the same order the annual
+                # backfill settled on, for the same reasons.
+                report_id = rc._register_parse(ticker, "NSBU", year, quarter, data, vals)
+                rc.upsert_financials_cache(ticker, "NSBU", year, quarter, vals, report_id)
+            except Exception:
+                log.exception("quarterly backfill: %s %sQ%s failed", ticker, year, quarter)
+                failed += 1
+            time.sleep(0.2)
+        if index % 10 == 0:
+            log.info("quarterly backfill: %d/%d tickers, %d periods parsed",
+                     index, len(tickers), len(rows))
+    log.info("quarterly backfill: %d periods from %d reports (%d failures)",
+             len(rows), scanned, failed)
+    if not rows:
+        return 1
+    status = 0
+    # upsert, never replace: the newest cumulative quarter the board reads must
+    # survive a backfill that is only adding history behind it.
+    for start in range(0, len(rows), 500):
+        status = _post("/api/admin/financials",
+                       {"form": "NSBU", "mode": "upsert",
+                        "rows": rows[start:start + 500]}) or status
+    return status
+
+
 def _history_universe() -> set[str]:
     """Every ISIN the DEPLOYMENT's board carries, plus the local catalog's.
 
@@ -959,6 +1042,9 @@ def main() -> int:
     ap.add_argument("--backfill-financials", type=int, nargs="?", const=2015, default=None,
                     metavar="FROM_YEAR",
                     help="one-off: parse every historical annual filing into the financials cache")
+    ap.add_argument("--backfill-quarters", type=int, nargs="?", const=2023, default=None,
+                    metavar="FROM_YEAR",
+                    help="one-off: parse every historical QUARTERLY filing into the financials cache")
     args = ap.parse_args()
 
     global SKIP_QUOTES
@@ -974,6 +1060,13 @@ def main() -> int:
             return backfill_financials(args.backfill_financials)
         except Exception:
             log.exception("financials backfill failed")
+            return 1
+
+    if args.backfill_quarters is not None:
+        try:
+            return backfill_quarterly_financials(args.backfill_quarters)
+        except Exception:
+            log.exception("quarterly financials backfill failed")
             return 1
 
     if args.backfill_history is not None:

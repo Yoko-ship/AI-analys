@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import threading
 import time
@@ -40,6 +41,7 @@ from reports_catalog import (
     FACT_MONEY_FIELDS,
     FIN_MONEY_FIELDS,
     get_financials_series,
+    get_financials_series_quarterly,
     FACT_PERCENT_FIELDS,
     FACT_SHARE_FIELDS,
     RATIO_MONEY_FIELDS,
@@ -3621,8 +3623,91 @@ def duplicate_filed_years(series: dict[str, Any], periods: Any,
     return ghosts
 
 
+# The income-statement lines a quarterly filing states as a RUNNING TOTAL from
+# 1 January (NSBU form 2 is cumulative — a Q2 revenue is six months of revenue)
+# versus the balance lines, which are a snapshot of the quarter's last day.
+# The distinction decides everything below: flows are differenced into
+# three-month figures, stocks are served as filed.
+QUARTER_FLOW_FIELDS = {"revenue": "net_revenue", "gross_profit": "gross_profit",
+                       "operating_income": "operating_income", "net_income": "net_profit"}
+QUARTER_STOCK_FIELDS = {"cash": "cash", "total_liabilities": "total_liabilities"}
+
+
+def derive_quarterly_series(cumulative: dict[str, Any],
+                            annual: dict[str, Any]) -> tuple[list[str], dict[str, dict[str, Any]]]:
+    """Discrete three-month columns out of NSBU's cumulative quarterly filings.
+
+    This is the standard presentation for comparing quarters — every terminal
+    prints Q2 as the three months of Q2, not as «за 6 месяцев» — and it is the
+    only one on which a same-quarter-last-year comparison means anything. The
+    arithmetic is the one every data vendor applies to running totals:
+
+      Q1 = the Q1 filing;  Qn = filing(Qn) − filing(Qn−1);
+      Q4 = the annual filing − the nine-month filing,
+
+    because no issuer on this market files a fourth quarterly — the annual IS
+    the Q4 disclosure. A quarter whose predecessor was never filed yields no
+    figure rather than a running total masquerading as three months: a six-month
+    sum in a column of quarters is exactly the «full year beside a quarter»
+    defect _period_months exists to stop.
+
+    Balance-sheet lines (cash, obligations) are snapshots and pass through
+    untouched; the year-end snapshot doubles as Q4's.
+
+    Restatements can make a derived quarter negative on lines that are usually
+    positive. That is faithful: the two filings really do disagree by that
+    amount, and inventing a floor would hide the restatement.
+
+    Returns (periods newest-first, {field: {period: value}}) in the store's own
+    unit (thousands of UZS); the endpoint owns the scale contract, as everywhere.
+    """
+    cum: dict[tuple[int, int], dict[str, Any]] = {}
+    for p, fields in (cumulative or {}).items():
+        m = re.fullmatch(r"(\d{4})Q([1-4])", str(p))
+        # A row where every figure is zero-or-missing is an empty filing, the
+        # quarterly cousin of the zero-balance-sheet annual purged above.
+        if m and any(fields.get(k) for k in (*QUARTER_FLOW_FIELDS, *QUARTER_STOCK_FIELDS)):
+            cum[(int(m.group(1)), int(m.group(2)))] = fields
+
+    series: dict[str, dict[str, Any]] = {}
+    periods: set[str] = set()
+
+    def put(name: str, year: int, q: int, value: Any) -> None:
+        if value is None:
+            return
+        period = f"{year}Q{q}"
+        series.setdefault(name, {})[period] = value
+        periods.add(period)
+
+    for (year, q), fields in cum.items():
+        for src, name in QUARTER_FLOW_FIELDS.items():
+            v = fields.get(src)
+            if v is None:
+                continue
+            prev = 0.0 if q == 1 else cum.get((year, q - 1), {}).get(src)
+            put(name, year, q, v - prev if prev is not None else None)
+        for src, name in QUARTER_STOCK_FIELDS.items():
+            put(name, year, q, fields.get(src))
+
+    # Q4 exists only where the year filed quarterlies at all: synthesising a
+    # lone Q4 for an annual-only issuer would dress the annual view up as a
+    # quarterly one.
+    for year in {y for y, _ in cum}:
+        a = (annual or {}).get(str(year))
+        if not a:
+            continue
+        q3 = cum.get((year, 3), {})
+        for src, name in QUARTER_FLOW_FIELDS.items():
+            v, nine = a.get(src), q3.get(src)
+            put(name, year, 4, v - nine if v is not None and nine is not None else None)
+        for src, name in QUARTER_STOCK_FIELDS.items():
+            put(name, year, 4, a.get(src))
+
+    return sorted(periods, reverse=True), series
+
+
 @app.get("/api/company/{ticker}/financials")
-async def api_company_financials(request: Request, ticker: str) -> Response:
+async def api_company_financials(request: Request, ticker: str, freq: str = "annual") -> Response:
     """The issuer's annual series — one row per indicator, one column per year.
 
     Reads the `financial_indicators` fact store, which is where openinfo's
@@ -3642,6 +3727,54 @@ async def api_company_financials(request: Request, ticker: str) -> Response:
     """
     ticker = ticker.strip().upper()
     loop = asyncio.get_running_loop()
+    if str(freq or "").lower().startswith("q"):
+        # The quarterly view is its own, simpler read: the filings alone. The
+        # openinfo indicator feed publishes no quarterly sums, so there is
+        # nothing to merge, no ghost years and no feed junk to purge — the
+        # annual path's machinery has no work here.
+        try:
+            cumulative = await loop.run_in_executor(
+                None, partial(get_financials_series_quarterly, ticker))
+            annual = await loop.run_in_executor(
+                None, partial(get_financials_series, ticker))
+            # The share-class fallback the annual path applies: KFSKP and KSCMP
+            # carry no org row of their own, so the issuer's filings sit under
+            # the sibling ticker only.
+            sibling = ticker[:-1] if ticker.endswith("P") else f"{ticker}P"
+            if not cumulative and sibling and sibling != ticker:
+                cumulative = await loop.run_in_executor(
+                    None, partial(get_financials_series_quarterly, sibling))
+                sib_annual = await loop.run_in_executor(
+                    None, partial(get_financials_series, sibling))
+                for period, fields in (sib_annual or {}).items():
+                    annual.setdefault(period, fields)
+            q_periods, raw = derive_quarterly_series(cumulative, annual)
+            series: dict[str, dict[str, Any]] = {
+                name: {"unit": "UZS", "money": True,
+                       "values": {p: v * NSBU_THOUSANDS_UZS for p, v in values.items()}}
+                for name, values in raw.items()}
+            # Operating expenses and net margin, derived per QUARTER — the same
+            # two lines the annual table carries, formed from the same fields.
+            gp = raw.get("gross_profit") or {}
+            oi = raw.get("operating_income") or {}
+            opex = {p: (gp[p] - oi[p]) * NSBU_THOUSANDS_UZS for p in gp if p in oi}
+            if opex:
+                series["operating_expenses"] = {"unit": "UZS", "money": True,
+                                                "derived": True, "values": opex}
+            rev = raw.get("net_revenue") or {}
+            prof = raw.get("net_profit") or {}
+            margin = {p: round(prof[p] / rev[p] * 100.0, 4)
+                      for p in rev if rev.get(p) and p in prof}
+            if margin:
+                series["net_margin"] = {"unit": "%", "money": False,
+                                        "derived": True, "values": margin}
+            return _etag_json(request, {
+                "ok": True, "ticker": ticker, "currency": "UZS", "freq": "quarterly",
+                "periods": q_periods, "series": series,
+            }, max_age=300)
+        except Exception as exc:
+            logger.exception("company quarterly financials failed for %s", ticker)
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
     try:
         index = await loop.run_in_executor(None, partial(get_company_index, ticker))
         org_id = (index or {}).get("org_id")

@@ -4008,6 +4008,40 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
     return out
 
 
+def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str, dict[str, Any]]:
+    """Every QUARTERLY period parsed for one issuer, keyed "YYYYQn".
+
+    The figures are as the filings state them: NSBU quarterly form 2 is
+    CUMULATIVE from 1 January (a Q2 revenue is six months of revenue), and the
+    balance lines are as of the quarter's end. Turning the running totals into
+    three-month columns is the reader's job — the API derives them, so the raw
+    period stays available to anything that needs the filing's own figure.
+
+    Same issuer-wide read as :func:`get_financials_series`: a filing lands under
+    whichever share class it was catalogued under, and the requested ticker's
+    own rows win over a sibling's.
+    """
+    t = str(ticker or "").strip().upper()
+    if not t:
+        return {}
+    conn = get_catalog_conn()
+    try:
+        siblings = _org_siblings(conn, t) or [t]
+        placeholders = ",".join("?" * len(siblings))
+        fin = conn.execute(
+            f"SELECT ticker, year, quarter, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
+            f"WHERE ticker IN ({placeholders}) AND form=? AND quarter!=0 "
+            f"ORDER BY year, quarter",
+            (*siblings, form)).fetchall()
+    finally:
+        conn.close()
+    out: dict[str, dict[str, Any]] = {}
+    for row in sorted(fin, key=lambda r: r["ticker"] == t):
+        out.setdefault(f"{row['year']}Q{row['quarter']}", {}).update(
+            {k: row[k] for k in _FIN_FIELDS if row[k] is not None})
+    return out
+
+
 def get_sector_averages(sector_tickers: list[str], form: str, year: int) -> dict[str, Any]:
     if not sector_tickers:
         return {}
