@@ -3737,17 +3737,28 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                 None, partial(get_financials_series_quarterly, ticker))
             annual = await loop.run_in_executor(
                 None, partial(get_financials_series, ticker))
-            # The share-class fallback the annual path applies: KFSKP and KSCMP
-            # carry no org row of their own, so the issuer's filings sit under
-            # the sibling ticker only.
+            # The share-class fallback the annual path applies — and it must
+            # merge UNCONDITIONALLY, as that path does, not only when the
+            # ticker's own read is empty: AGMK carries the ONE row the daily
+            # pipeline pushes under its own name while the issuer's eleven
+            # backfilled quarters sit under AGMKP (the class the org row is
+            # on), and an if-empty fallback served that lone row as the whole
+            # history. The ticker's own figures win where both classes carry
+            # the same period.
             sibling = ticker[:-1] if ticker.endswith("P") else f"{ticker}P"
-            if not cumulative and sibling and sibling != ticker:
-                cumulative = await loop.run_in_executor(
+            if sibling and sibling != ticker:
+                sib_cum = await loop.run_in_executor(
                     None, partial(get_financials_series_quarterly, sibling))
+                for period, fields in (sib_cum or {}).items():
+                    merged = dict(fields)
+                    merged.update(cumulative.get(period) or {})
+                    cumulative[period] = merged
                 sib_annual = await loop.run_in_executor(
                     None, partial(get_financials_series, sibling))
                 for period, fields in (sib_annual or {}).items():
-                    annual.setdefault(period, fields)
+                    merged = dict(fields)
+                    merged.update(annual.get(period) or {})
+                    annual[period] = merged
             q_periods, raw = derive_quarterly_series(cumulative, annual)
             series: dict[str, dict[str, Any]] = {
                 name: {"unit": "UZS", "money": True,
