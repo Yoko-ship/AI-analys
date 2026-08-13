@@ -7248,6 +7248,50 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   letter-spacing: 0;
   font-weight: 400;
 }
+/* Pinned by a click: it takes the pointer, so its text can be selected, and it
+   carries the copy button. Hovered, it stays `pointer-events: none` — a tooltip
+   that reacts to the pointer chasing it is a tooltip that flickers. */
+.term-tooltip.is-pinned {
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: auto;
+  border-color: var(--accent);
+}
+.term-tooltip-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border, rgba(148, 163, 184, 0.28));
+}
+.term-tooltip-copy {
+  padding: 3px 9px;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.28));
+  border-radius: 7px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.term-tooltip-copy:hover { background: rgba(148, 163, 184, 0.18); }
+.term-tooltip-copy.is-done { color: var(--accent); border-color: var(--accent); }
+.term-tooltip-hint,
+.term-tooltip-teach {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-muted, #94a3b8);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.term-tooltip-teach { margin-top: 7px; opacity: 0.75; }
 @keyframes term-tooltip-in {
   from { opacity: 0; transform: translateY(-2px); }
   to { opacity: 1; transform: none; }
