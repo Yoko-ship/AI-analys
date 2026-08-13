@@ -1483,6 +1483,13 @@ async def api_market_ratios() -> dict[str, Any]:
     the units were mixed and for banks the number was meaningless), and bond
     tickers are not served (V17 — ten bond issues were inheriting their
     issuer's ROE/ROA as if a coupon security had a return on equity).
+
+    Beside ROE/ROA/current ratio this also serves the published coefficients the
+    company page's «Коэффициенты» card already shows — quick ratio, debt/assets,
+    asset turnover and ROCE — in the units the issuer published them in
+    (debt/assets a percent, the rest bare). ``periods`` names the reporting year
+    of each field on its own: one issuer can file liquidity for 2023 and ROE for
+    2025, and the single ``period`` above is only the newest of them.
     """
     loop = asyncio.get_running_loop()
     try:
@@ -1498,6 +1505,9 @@ async def api_market_ratios() -> dict[str, Any]:
     ratios = {
         ticker: {
             **{k: v for k, v in row.items() if k != "debt_to_equity"},
+            # The withheld field must not survive in the period map either.
+            "periods": {k: v for k, v in (row.get("periods") or {}).items()
+                        if k != "debt_to_equity"},
             **{k: row[k] * NSBU_THOUSANDS_UZS
                for k in RATIO_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
         }

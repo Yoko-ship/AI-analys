@@ -236,6 +236,21 @@ export const TERMS = {
     en: { term: "Quick ratio", def: "The same, excluding inventory — a more conservative read on solvency." },
     uz: { term: "Tez likvidlik koeffitsiyenti", def: "Xuddi shu, lekin zaxiralarsiz — to‘lov qobiliyatining ancha konservativ bahosi." },
   },
+  debtAssets: {
+    ru: { term: "Долг / Активы", def: "Доля активов, профинансированная обязательствами: 40 % означает, что четыре сума из десяти в балансе — чужие деньги. В отличие от D/E этот коэффициент воспроизводится из опубликованных сумм эмитента (обязательства ÷ активы) во всех отчётных годах, что мы проверили." },
+    en: { term: "Debt / assets", def: "The share of assets funded by liabilities: 40 % means four soum in every ten on the balance sheet are borrowed. Unlike D/E, this one reproduces from the issuer's own published sums (liabilities ÷ assets) in every reporting year we checked." },
+    uz: { term: "Qarz / Aktivlar", def: "Aktivlarning majburiyatlar hisobiga moliyalashtirilgan ulushi: 40 % — balansdagi har o‘n so‘mdan to‘rttasi qarz. D/E dan farqli o‘laroq, bu koeffitsiyent emitentning e’lon qilgan summalaridan (majburiyatlar ÷ aktivlar) biz tekshirgan barcha hisobot yillarida qayta hisoblanadi." },
+  },
+  assetTurnover: {
+    ru: { term: "Оборачиваемость активов", def: "Выручка, делённая на активы: сколько сумов продаж приносит каждый сум активов за год. 1,0 — активы «оборачиваются» ровно раз в год. У торговли она высокая, у капиталоёмкого производства и банков — низкая по природе бизнеса." },
+    en: { term: "Asset turnover", def: "Revenue over assets: how many soum of sales each soum of assets produces in a year. 1.0 means the asset base turns over exactly once. Retail runs high; capital-heavy manufacturing and banks run low by the nature of the business." },
+    uz: { term: "Aktivlar aylanmasi", def: "Tushumning aktivlarga nisbati: har bir so‘m aktiv yil davomida qancha so‘m savdo keltirishi. 1,0 — aktivlar yiliga roppa-rosa bir marta aylanadi. Savdoda yuqori, kapital talab qiladigan ishlab chiqarish va banklarda tabiatan past." },
+  },
+  roce: {
+    ru: { term: "ROCE (Return on Capital Employed)", def: "Отдача на задействованный капитал — собственный капитал плюс долгосрочный долг. Показывает, что зарабатывает бизнес на всех деньгах, которыми он распоряжается, а не только на деньгах акционеров. Эмитенты публикуют его коэффициентом, а не процентом: 0,07 — это 7 %." },
+    en: { term: "ROCE (return on capital employed)", def: "The return on equity plus long-term debt — what the business earns on all the money it has at its disposal, not just the shareholders'. Issuers publish it as a coefficient rather than a percent: 0.07 is 7 %." },
+    uz: { term: "ROCE (jalb qilingan kapital rentabelligi)", def: "O‘z kapitali va uzoq muddatli qarz yig‘indisiga qaytim — biznes ixtiyoridagi barcha puldan qancha topayotgani, faqat aksiyadorlar pulidan emas. Emitentlar buni foiz emas, koeffitsiyent sifatida e’lon qiladi: 0,07 — bu 7 %." },
+  },
 
   // ── Мультипликаторы ───────────────────────────────────────────────────────
   mktCap: {

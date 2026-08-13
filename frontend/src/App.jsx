@@ -2594,6 +2594,11 @@ const MARKET_TEXTS = {
     grpVolumes: "Объёмы",
     grpFinancials: "Фин. показатели",
     grpMultiples: "Мультипликаторы",
+    grpRatios: "Коэффициенты",
+    currentRatio: "Текущая ликвидность",
+    quickRatio: "Быстрая ликвидность",
+    debtAssets: "Долг/Активы",
+    assetTurnover: "Оборачиваемость активов",
     mktCap: "Капитализация",
     netMargin: "Чистая маржа",
     netMarginBankNote: "для банков — от совокупного дохода",
@@ -2687,6 +2692,11 @@ const MARKET_TEXTS = {
     grpVolumes: "Volumes",
     grpFinancials: "Financials",
     grpMultiples: "Multiples",
+    grpRatios: "Key ratios",
+    currentRatio: "Current ratio",
+    quickRatio: "Quick ratio",
+    debtAssets: "Debt/Assets",
+    assetTurnover: "Asset turnover",
     mktCap: "Market cap",
     netMargin: "Net margin",
     netMarginBankNote: "banks: over total income",
@@ -2780,6 +2790,11 @@ const MARKET_TEXTS = {
     grpVolumes: "Hajmlar",
     grpFinancials: "Moliyaviy ko'rsatkichlar",
     grpMultiples: "Multiplikatorlar",
+    grpRatios: "Koeffitsiyentlar",
+    currentRatio: "Joriy likvidlik",
+    quickRatio: "Tez likvidlik",
+    debtAssets: "Qarz/Aktivlar",
+    assetTurnover: "Aktivlar aylanmasi",
     mktCap: "Kapitalizatsiya",
     netMargin: "Sof marja",
     netMarginBankNote: "banklar uchun — jami daromaddan",
@@ -10549,6 +10564,18 @@ function MarketView({
       ["netMargin", mt(lang, "netMargin")],
       ["eqAssets", mt(lang, "equityAssets")],
     ] },
+    // The ratio rows of the company page's «Коэффициенты» card, on the board —
+    // the same numbers from the same indicator filings, so a reader who
+    // compares two issuers does not have to open two pages to do it. Published
+    // as the issuer published them (Долг/Активы in percent, the rest bare
+    // coefficients), with the year each one belongs to under the figure.
+    { key: "coefficients", title: mt(lang, "grpRatios"), cols: [
+      ["currentRatio", mt(lang, "currentRatio")],
+      ["quickRatio", mt(lang, "quickRatio")],
+      ["debtAssets", mt(lang, "debtAssets")],
+      ["assetTurnover", mt(lang, "assetTurnover")],
+      ["roce", "ROCE"],
+    ] },
   ];
   const MARKET_COLS = COL_GROUPS.flatMap((g) => g.cols);
   // Core columns are always shown — listed in the settings panel as locked rows.
@@ -10575,7 +10602,8 @@ function MarketView({
   // data (no market cap, P/E, ROE, or issuer financials). Hide the stock-only
   // columns on the bonds view instead of rendering misleading blank cells; stocks
   // and bonds are not comparable on the same metrics.
-  const EQUITY_ONLY_COLS = new Set(["mktCap", "pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets", "finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating"]);
+  const EQUITY_ONLY_COLS = new Set(["mktCap", "pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets", "finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating",
+    "currentRatio", "quickRatio", "debtAssets", "assetTurnover", "roce"]);
 
   // Drag-to-reorder columns. Ticker + company stay pinned left (identity cells);
   // everything from "last" onward is reorderable. Order is persisted per user.
@@ -10911,6 +10939,33 @@ function MarketView({
     );
   };
 
+  // One published coefficient from the issuer's own indicator filing — the same
+  // rows the company page's «Коэффициенты» card carries.
+  //
+  // UNITS ARE THE SOURCE'S. Долг/Активы is published as a percent; текущая и
+  // быстрая ликвидность, оборачиваемость активов and ROCE are published as bare
+  // coefficients (ROCE 0,07 is seven percent of capital employed). Of these,
+  // only debt_ratio and total_asset_turnover reproduce from the sums this
+  // platform holds — 401 of 401 issuer-years each; the others are the source's
+  // arithmetic on a base it does not name, so they are shown exactly as filed
+  // and never rescaled into a percent we would be inventing.
+  //
+  // The year sits under the figure and is per FIELD, not per issuer: a company
+  // can publish liquidity for 2023 and ROE for 2025, and one label over both
+  // would claim something the store does not say.
+  const ratioCell = (row, field, { digits = 2, suffix = "" } = {}) => {
+    const r = ratioOf(row.ticker);
+    const value = r?.[field];
+    if (!Number.isFinite(value)) return <td className="num">—</td>;
+    const period = (r.periods || {})[field] || null;
+    return (
+      <td className="num">
+        {formatRatio(value, digits, lang)}{suffix}
+        {period && <span className="fin-cell-period">{period}</span>}
+      </td>
+    );
+  };
+
   // Value read for each sortable column. ticker/company/date are strings, the rest numeric.
   const sortAccessors = {
     ticker: (r) => r.ticker || "",
@@ -10950,6 +11005,14 @@ function MarketView({
     roa: (r) => multiplesOf(r)?.roa?.value ?? ratioOf(r.ticker)?.roa,
     netMargin: (r) => multiplesOf(r)?.net_margin?.value ?? ratioOf(r.ticker)?.net_profit_margin,
     eqAssets: (r) => multiplesOf(r)?.equity_assets?.value ?? null,
+    // The published coefficients sort on what they show. Unlike the financials
+    // columns there is nothing to annualise: a liquidity ratio is a position on
+    // a date, and a turnover is already a full year's revenue over assets.
+    currentRatio: (r) => ratioOf(r.ticker)?.current_ratio,
+    quickRatio: (r) => ratioOf(r.ticker)?.quick_ratio,
+    debtAssets: (r) => ratioOf(r.ticker)?.debt_ratio,
+    assetTurnover: (r) => ratioOf(r.ticker)?.total_asset_turnover,
+    roce: (r) => ratioOf(r.ticker)?.return_to_capital_employed,
     // Normalized to YYYYMMDD so the comparison is chronological. The raw field is
     // a mix of DD.MM.YYYY (live feed) and YYYY-MM-DD (listings registry), and
     // comparing those as strings ordered by the leading digits — "31.01.2026"
@@ -11350,6 +11413,11 @@ function MarketView({
       return <td className="num">—</td>;
     },
     eqAssets: (row) => multipleCell(row, multiplesOf(row)?.equity_assets, 1, "%"),
+    currentRatio: (row) => ratioCell(row, "current_ratio"),
+    quickRatio: (row) => ratioCell(row, "quick_ratio"),
+    debtAssets: (row) => ratioCell(row, "debt_ratio", { digits: 1, suffix: "%" }),
+    assetTurnover: (row) => ratioCell(row, "total_asset_turnover"),
+    roce: (row) => ratioCell(row, "return_to_capital_employed"),
     date: (row) => (
       <td>
         {/* The live feed reports last_trade_date=null for some securities
