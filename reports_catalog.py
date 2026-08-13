@@ -3025,6 +3025,25 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
     except Exception:
         conn.close()
         return {}
+    # Долг/Активы also comes off the filings this platform parses itself, and for
+    # a BANK that is the only place it exists: the indicator feed publishes no
+    # debt_ratio for them, while the company page has shown one for years — from
+    # this table. Read it here so the board's column and that page cannot differ
+    # on a number they both have. Same precedence as the company page: the
+    # filing wins when it covers a year at least as recent as the feed's.
+    filed_debt: dict[str, tuple[str, float]] = {}
+    try:
+        for r in conn.execute(
+            "SELECT ticker, year, debt_ratio FROM catalog_ratios "
+            "WHERE quarter=0 AND form='NSBU' AND debt_ratio IS NOT NULL"
+        ).fetchall():
+            t = str(r["ticker"] or "").upper()
+            period = str(r["year"])
+            cur = filed_debt.get(t)
+            if t and (cur is None or _fact_period_rank(period) > _fact_period_rank(cur[0])):
+                filed_debt[t] = (period, float(r["debt_ratio"]))
+    except Exception:
+        logger.exception("filed debt_ratio read failed")
     best: dict[tuple[str, str], tuple[str, float]] = {}
     by_period: dict[tuple[str, str], dict[str, float]] = {}
     for r in rows:
@@ -3091,6 +3110,18 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             if hit is not None:
                 entry["debt_to_equity"] = hit[1]
                 field_periods["debt_to_equity"] = hit[0]
+        if entry:
+            # A filing lands under whichever share class it was catalogued
+            # under, so a preferred line reads its ordinary sibling's — the
+            # same fallback the annual series and the company page apply.
+            sibling = ticker[:-1] if ticker.endswith("P") else f"{ticker}P"
+            hit = filed_debt.get(ticker) or filed_debt.get(sibling)
+            filed_wins = hit is not None and (
+                "debt_ratio" not in field_periods
+                or _fact_period_rank(hit[0]) >= _fact_period_rank(field_periods["debt_ratio"]))
+            if filed_wins:
+                entry["debt_ratio"] = hit[1]
+                field_periods["debt_ratio"] = hit[0]
         if entry:
             entry["period"] = latest_period
             entry["periods"] = field_periods
