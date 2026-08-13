@@ -10365,6 +10365,13 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .fin-subtab { background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 0; font-size: 14px; cursor: pointer; color: var(--text-muted); transition: color .12s, border-color .12s; }
 .fin-subtab:hover { color: var(--text-primary); }
 .fin-subtab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+/* Годовые | Квартальные. A pill pair on the right of the sub-tab row — a
+   different control language from the sub-tabs on purpose: the sub-tabs choose
+   WHAT statement, this chooses the period every statement is cut by. */
+.fin-freq { display: inline-flex; margin-left: auto; align-self: center; border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px; }
+.fin-freq-btn { background: none; border: none; border-radius: 999px; padding: 4px 12px; font-size: 12.5px; line-height: 1.2; cursor: pointer; color: var(--text-muted); transition: all .12s; }
+.fin-freq-btn:hover { color: var(--text-primary); }
+.fin-freq-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
 .fin-panel { padding: 18px 20px; }
 .fin-chart { margin-bottom: 18px; position: relative; }
 /* Mirrors the price chart's readout so one hover language runs across the

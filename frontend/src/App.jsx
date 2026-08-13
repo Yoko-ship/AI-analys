@@ -7478,6 +7478,37 @@ const FIN_SECTIONS = [
   },
 ];
 
+// The quarterly view carries only what the quarterly FILINGS carry: the income
+// statement plus the two balance snapshots the parse keeps (cash, obligations).
+// No Коэффициенты sub-tab — quarterly ROE/ROA off a cumulative income against a
+// point-in-time balance is a figure that needs annualising to mean anything,
+// and a wrong ratio beside a right one discredits both.
+const FIN_SECTIONS_QUARTER = [
+  {
+    key: "income",
+    label: ["Прибыли и убытки", "Foyda va zarar", "Income Statement"],
+    rows: ["net_revenue", "gross_profit", "operating_expenses", "operating_income", "net_profit"],
+    margins: ["net_margin"],
+    chart: ["net_revenue", "operating_expenses", "operating_income"],
+  },
+  {
+    key: "balance",
+    label: ["Баланс", "Balans", "Balance Sheet"],
+    rows: ["cash", "total_liabilities"],
+    chart: ["cash", "total_liabilities"],
+  },
+];
+
+// "2024Q2" → {y: 2024, q: 2}; anything else → null.
+const parseQPeriod = (p) => {
+  const m = /^(\d{4})Q([1-4])$/.exec(String(p));
+  return m ? { y: +m[1], q: +m[2] } : null;
+};
+const finPeriodLabel = (p, compact) => {
+  const pq = parseQPeriod(p);
+  return pq ? (compact ? `Q${pq.q}'${String(pq.y).slice(2)}` : `Q${pq.q} ${pq.y}`) : String(p);
+};
+
 const FIN_FIELD_LABELS = {
   net_revenue: ["Выручка", "Tushum", "Revenue"],
   net_profit: ["Чистая прибыль", "Sof foyda", "Net Profit"],
@@ -7560,10 +7591,18 @@ function FinancialsChart({ fields, series, periods, lang }) {
           return <path key={d.f} d={path} fill="none" stroke={d.color} strokeWidth="2"
             strokeLinejoin="round" vectorEffect="non-scaling-stroke" />;
         })}
-        {cols.map((c, i) => (
-          <text key={c} x={x(i)} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5"
-            textAnchor={i === 0 ? "start" : i === cols.length - 1 ? "end" : "middle"}>{c}</text>
-        ))}
+        {cols.map((c, i) => {
+          // A quarterly series can put 15+ columns here; labels every ~60px at
+          // most, the ends always named.
+          const step = Math.max(1, Math.ceil(cols.length / 13));
+          if (i % step !== 0 && i !== cols.length - 1) return null;
+          return (
+            <text key={c} x={x(i)} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5"
+              textAnchor={i === 0 ? "start" : i === cols.length - 1 ? "end" : "middle"}>
+              {finPeriodLabel(c, true)}
+            </text>
+          );
+        })}
         {hover != null && (
           <>
             <line x1={x(hover)} y1={PAD.t} x2={x(hover)} y2={H - PAD.b}
@@ -7583,7 +7622,7 @@ function FinancialsChart({ fields, series, periods, lang }) {
               ? { right: `calc(${((W - x(hover)) / W) * 100}% + 12px)` }
               : { left: `calc(${(x(hover) / W) * 100}% + 12px)` }),
           }}>
-          <div className="cpc-tt-date">{cols[hover]}</div>
+          <div className="cpc-tt-date">{finPeriodLabel(cols[hover])}</div>
           {drawn.map((d) => {
             const v = d.s.values[cols[hover]];
             return (
@@ -7608,18 +7647,53 @@ function FinancialsChart({ fields, series, periods, lang }) {
   );
 }
 
-function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
+function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "annual", onFreqChange }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [section, setSection] = React.useState("income");
+  const quarterly = freq === "quarterly";
 
-  if (loading) return <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>;
+  // Годовые | Квартальные. The switch stays on screen in every state —
+  // including "this issuer files no quarterlies" — or there is no way back.
+  const freqToggle = onFreqChange ? (
+    <div className="fin-freq" role="group" aria-label={t("Период", "Davr", "Period")}>
+      {[["annual", t("Годовые", "Yillik", "Annual")],
+        ["quarterly", t("Квартальные", "Choraklik", "Quarterly")]].map(([k, label]) => (
+        <button key={k} type="button"
+          className={`fin-freq-btn ${freq === k ? "active" : ""}`}
+          onClick={() => onFreqChange(k)}>{label}</button>
+      ))}
+    </div>
+  ) : null;
+
+  if (loading) return (
+    <div className="company-financials">
+      <div className="fin-subtabs">{freqToggle}</div>
+      <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>
+    </div>
+  );
 
   // The server sends newest-first; the table reads oldest → newest, left → right.
   const cols = [...(periods || [])].reverse();
   const has = (f) => series?.[f] && cols.some((p) => Number.isFinite(series[f].values[p]));
-  const available = FIN_SECTIONS
+  const available = (quarterly ? FIN_SECTIONS_QUARTER : FIN_SECTIONS)
     .map((sec) => ({ ...sec, rows: (sec.rows || []).filter(has), margins: (sec.margins || []).filter(has) }))
     .filter((sec) => sec.rows.length + sec.margins.length > 0);
+
+  // 66 of ~110 issuers file quarterlies; for the rest this view is honestly
+  // empty. The annual fallback below must not answer for it — a reader who
+  // asked for quarters and got a single year's ratios would take them for one.
+  if (available.length === 0 && quarterly) {
+    return (
+      <div className="company-financials">
+        <div className="fin-subtabs">{freqToggle}</div>
+        <div className="panel" style={{ padding: 32, textAlign: "center" }}>
+          <p className="muted">{t("Эмитент не публикует квартальную отчётность",
+                                  "Emitent choraklik hisobot e'lon qilmaydi",
+                                  "No quarterly filings published")}</p>
+        </div>
+      </div>
+    );
+  }
 
   // Nothing in the fact store. Fall back to the single period the reports cache
   // holds rather than showing an empty tab — it is less, but it is what we have.
@@ -7678,6 +7752,18 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
   // change can see both numbers. What is gone is the wrong label.
   const yearOf = (p) => (/^\d{4}$/.test(String(p)) ? Number(p) : null);
   const growth = (f, i) => {
+    // Quarters compare with the SAME quarter a year earlier — the standard
+    // comparison, because Q4 against Q3 measures the season, not the business.
+    // The base is looked up by key, not by the column to the left, so a hole
+    // in the filings yields a dash instead of a mislabelled change.
+    if (quarterly) {
+      const pq = parseQPeriod(cols[i]);
+      if (!pq) return null;
+      const v = series[f].values[cols[i]];
+      const prev = series[f].values[`${pq.y - 1}Q${pq.q}`];
+      if (!Number.isFinite(v) || !Number.isFinite(prev) || prev === 0) return null;
+      return { value: ((v - prev) / Math.abs(prev)) * 100 };
+    }
     const v = series[f].values[cols[i]], prev = series[f].values[cols[i - 1]];
     const y = yearOf(cols[i]), yPrev = yearOf(cols[i - 1]);
     if (y != null && yPrev != null && y - yPrev !== 1) {
@@ -7744,6 +7830,7 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
             {sec.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
           </button>
         ))}
+        {freqToggle}
       </div>
 
       <div className="panel fin-panel">
@@ -7753,8 +7840,10 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
           <table className="fin-table">
             <thead>
               <tr>
-                <th scope="col">{t("Годовые данные", "Yillik malumotlar", "Fiscal year")}</th>
-                {cols.map((p) => <th key={p} scope="col" className="num">{p}</th>)}
+                <th scope="col">{quarterly
+                  ? t("Квартальные данные", "Choraklik malumotlar", "Fiscal quarter")
+                  : t("Годовые данные", "Yillik malumotlar", "Fiscal year")}</th>
+                {cols.map((p) => <th key={p} scope="col" className="num">{finPeriodLabel(p)}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -7772,13 +7861,17 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang }) {
         </div>
 
         <p className="fin-note muted">
-          {t("Суммы в сумах, по годовым отчётам эмитента. Коэффициенты — в тех единицах, в которых они опубликованы.",
-             "Summalar somda, emitentning yillik hisobotlari boyicha.",
-             "Sums in UZS, from the issuer's annual filings. Ratios in the units they were published in.")}
+          {quarterly
+            ? t("Суммы в сумах, за отдельный квартал (3 месяца) — рассчитаны из накопительных квартальных отчётов НСБУ; IV квартал — разница годового и девятимесячного отчётов. Рост г/г — к тому же кварталу прошлого года. Денежные средства и обязательства — на конец квартала.",
+                "Summalar somda, alohida chorak (3 oy) uchun — NSBU choraklik hisobotlaridan hisoblangan; IV chorak — yillik va 9 oylik hisobotlar farqi. Osish y/y — otgan yilning shu chorogiga nisbatan.",
+                "Sums in UZS per discrete quarter (3 months), derived from the cumulative NSBU filings; Q4 is the annual less the nine-month filing. Growth compares the same quarter a year earlier. Cash and liabilities are quarter-end snapshots.")
+            : t("Суммы в сумах, по годовым отчётам эмитента. Коэффициенты — в тех единицах, в которых они опубликованы.",
+                "Summalar somda, emitentning yillik hisobotlari boyicha.",
+                "Sums in UZS, from the issuer's annual filings. Ratios in the units they were published in.")}
           {/* Said once, under the table, rather than left for the reader to
               notice that 2019 is simply not there. Half the issuers on this
               market have at least one such hole. */}
-          {missingYears.length > 0 && (
+          {!quarterly && missingYears.length > 0 && (
             <> {t(`За ${missingYears.join(", ")} годовой отчётности нет — эти годы пропущены, и рост к ним не считается.`,
                   `${missingYears.join(", ")} uchun yillik hisobot yo'q.`,
                   `No annual filing for ${missingYears.join(", ")} — those years are absent, and no growth is formed against them.`)}</>
@@ -7926,6 +8019,11 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   // reads it, and most visits never open that tab.
   const [finSeries, setFinSeries] = React.useState(null);
   const [finLoading, setFinLoading] = React.useState(false);
+  // The Финансы tab's period switch. The quarterly series is its own request
+  // and its own cache: nobody pays for quarters they never open.
+  const [finFreq, setFinFreq] = React.useState("annual");
+  const [finQSeries, setFinQSeries] = React.useState(null);
+  const [finQLoading, setFinQLoading] = React.useState(false);
   const [divLoading, setDivLoading] = React.useState(false);
 
   // Failed requests must be visible and retryable: every fetch below reports
@@ -8049,7 +8147,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
     return () => { alive = false; };
   }, [ticker]);
 
-  React.useEffect(() => { setFinSeries(null); }, [ticker]);
+  React.useEffect(() => { setFinSeries(null); setFinQSeries(null); setFinFreq("annual"); }, [ticker]);
   React.useEffect(() => {
     if (!ticker || tab !== "financials" || finSeries !== null) return undefined;
     let alive = true;
@@ -8061,6 +8159,17 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
       .finally(() => { if (alive) setFinLoading(false); });
     return () => { alive = false; };
   }, [ticker, tab, finSeries]);
+  React.useEffect(() => {
+    if (!ticker || tab !== "financials" || finFreq !== "quarterly" || finQSeries !== null) return undefined;
+    let alive = true;
+    setFinQLoading(true);
+    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?freq=quarterly`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setFinQSeries(d.ok ? d : { periods: [], series: {} }); })
+      .catch(() => { if (alive) setFinQSeries({ periods: [], series: {} }); })
+      .finally(() => { if (alive) setFinQLoading(false); });
+    return () => { alive = false; };
+  }, [ticker, tab, finFreq, finQSeries]);
 
   // ТЗ §8: the server owns this arithmetic, per ISSUER, with the auditor's
   // blocking findings already applied. A failure leaves `mult` null and the rail
@@ -8308,8 +8417,12 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
         )}
         {tab === "financials" && (
           <CompanyFinancialsTab ratios={companyData?.ratios || {}} lang={lang}
-            series={finSeries?.series || {}} periods={finSeries?.periods || []}
-            loading={finLoading && finSeries === null} />
+            series={(finFreq === "quarterly" ? finQSeries?.series : finSeries?.series) || {}}
+            periods={(finFreq === "quarterly" ? finQSeries?.periods : finSeries?.periods) || []}
+            loading={finFreq === "quarterly"
+              ? (finQLoading && finQSeries === null)
+              : (finLoading && finSeries === null)}
+            freq={finFreq} onFreqChange={setFinFreq} />
         )}
       </div>
     </div>
