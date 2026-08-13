@@ -7386,6 +7386,123 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   background: rgba(148, 163, 184, 0.22);
 }
 
+/* ── Per-column controls ──────────────────────────────────────────────────────
+   The chevron that opens a column's own toolbar (sort / move / freeze / hide).
+   Subdued until the header is approached — a mark on all thirteen headers at
+   full strength would compete with the labels — but always present on a coarse
+   pointer, where there is no hover to reveal it and no drag to replace it. */
+.market-th-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  margin-left: 1px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.market-table th.market-th-sortable:hover .market-th-menu-btn,
+.market-table th.market-th-sortable:focus-within .market-th-menu-btn,
+.market-th-menu-btn.is-open,
+.market-th-menu-btn:focus-visible { opacity: 1; }
+.market-th-menu-btn:hover,
+.market-th-menu-btn.is-open {
+  color: var(--accent);
+  background: rgba(148, 163, 184, 0.24);
+}
+@media (pointer: coarse) {
+  .market-th-menu-btn { opacity: 0.65; }
+}
+/* Which column the open toolbar is talking about. An outline rather than an
+   inset shadow: a frozen column already spends its box-shadow on the edge
+   separator, and the two must be able to show at once. */
+.market-table th.market-th-sortable.menu-open {
+  color: var(--text);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.market-colmenu {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  /* Eight thumb-sized buttons are wider than a small phone. Wrapping to a second
+     row keeps every one of them reachable instead of hanging off the screen. */
+  flex-wrap: wrap;
+  max-width: calc(100vw - 16px);
+  gap: 2px;
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-elevated, var(--panel));
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.32);
+}
+.market-colmenu-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: var(--border);
+}
+.market-colmenu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.market-colmenu-btn:hover:not(:disabled) { color: var(--text); background: rgba(148, 163, 184, 0.2); }
+.market-colmenu-btn:disabled { opacity: 0.28; cursor: default; }
+.market-colmenu-btn.is-active { color: var(--accent); background: rgba(91, 140, 240, 0.16); }
+.market-colmenu-btn.is-danger:hover:not(:disabled) { color: var(--danger, #ef4444); background: rgba(239, 68, 68, 0.14); }
+@media (pointer: coarse) {
+  .market-colmenu-btn { width: 38px; height: 36px; }
+}
+
+/* ── Frozen columns ───────────────────────────────────────────────────────────
+   A pinned column, and with it the identity cells to its left, stop at the edge
+   of the wrap while the rest of the board slides underneath. Nothing here
+   applies until something is actually pinned: the offsets are inline, and a
+   column without one never gets the class. The background must be opaque —
+   `.market-table th` is translucent by design, and rows would read through. */
+.market-table-wrap > .market-table th.market-col-pinned,
+.market-table-wrap > .market-table td.market-col-pinned {
+  position: sticky;
+  z-index: 2;
+}
+.market-table-wrap > .market-table td.market-col-pinned { background: var(--panel); }
+.market-table-wrap > .market-table th.market-col-pinned {
+  z-index: 3;
+  background: var(--bg-2, var(--panel));
+}
+.market-table-wrap > .market-table th.market-col-pinned-edge,
+.market-table-wrap > .market-table td.market-col-pinned-edge {
+  box-shadow: 1px 0 0 var(--border), 10px 0 14px -10px rgba(0, 0, 0, 0.5);
+}
+/* The mirrored header bar scrolls in its own (overflow:hidden) box, so the same
+   inline offsets stick there too — the two headers have to agree. */
+.market-sticky-head .market-sticky-head__table th.market-col-pinned {
+  position: sticky;
+  z-index: 3;
+  background: var(--bg-2, var(--panel));
+}
+.market-sticky-head .market-sticky-head__table th.market-col-pinned-edge {
+  box-shadow: 1px 0 0 var(--border), 10px 0 14px -10px rgba(0, 0, 0, 0.5);
+}
+
 /* Floating horizontal scrollbar, clung to the bottom of the table's visible area.
    A custom thumb (not the OS scrollbar) so it looks identical across browsers/OSes
    and is always visible. Portaled to <body>, so position:fixed is relative to the
