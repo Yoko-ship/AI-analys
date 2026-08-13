@@ -7550,17 +7550,22 @@ const FIN_FIELD_LABELS = {
 const finLabel = (field, lang) =>
   (FIN_FIELD_LABELS[field] || [field, field, field])[lang === "uz" ? 1 : lang === "en" ? 2 : 0];
 
+// One palette for the chart, the legend and the table's row dots. A field's
+// colour comes from its position in the SECTION's row list, not in the current
+// selection — toggling a line on or off must not repaint the others.
+const FIN_CHART_COLORS = ["#38bdf8", "#f59e0b", "#a855f7", "#34d399", "#f472b6",
+                          "#facc15", "#60a5fa", "#fb7185", "#4ade80", "#c084fc"];
+
 // The section's headline lines over time. Deliberately not the price chart: no
 // range buttons, no hover — this is a shape, and the table underneath is the data.
-function FinancialsChart({ fields, series, periods, lang }) {
+function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
   // A chart nobody can interrogate is a picture. This one had no hover at all:
   // pointing at a year gave nothing, which is what «no info» meant.
   const [hover, setHover] = React.useState(null);
   const [hoverY, setHoverY] = React.useState(0);
   const cols = periods;               // already oldest → newest, left → right
-  const COLORS = ["#38bdf8", "#f59e0b", "#a855f7"];
   const drawn = fields
-    .map((f, i) => ({ f, color: COLORS[i % COLORS.length], s: series[f] }))
+    .map((f, i) => ({ f, color: colorOf ? colorOf(f) : FIN_CHART_COLORS[i % FIN_CHART_COLORS.length], s: series[f] }))
     .filter((d) => d.s && cols.some((c) => Number.isFinite(d.s.values[c])));
   if (drawn.length === 0 || cols.length < 2) return null;
 
@@ -7573,7 +7578,10 @@ function FinancialsChart({ fields, series, periods, lang }) {
   const x = (i) => PAD.l + (i / Math.max(1, cols.length - 1)) * (W - PAD.l - PAD.r);
   const y = (v) => PAD.t + (1 - (v - min) / span) * (H - PAD.t - PAD.b);
   const money = drawn[0].s.money;
-  const pct = drawn[0].s.unit === "%";
+  // The axis carries the % sign only when EVERY drawn line is a percentage:
+  // ROE beside Долг/Капитал shares a numeric scale, not a unit, and the
+  // per-row unit lives in the tooltip.
+  const pct = drawn.every((d) => d.s.unit === "%");
   const axis = (v) => (money ? formatCompactVolume(v, lang)
     : `${formatRatio(v, 1, lang)}${pct ? "%" : ""}`);
   const onMove = (e) => {
@@ -7652,11 +7660,16 @@ function FinancialsChart({ fields, series, periods, lang }) {
         </div>
       )}
       <div className="fin-legend">
-        {drawn.map((d) => (
+        {drawn.map((d) => (onToggle ? (
+          <button key={d.f} type="button" className="fin-legend-item clickable"
+            onClick={() => onToggle(d.f)}>
+            <i style={{ background: d.color }} />{finLabel(d.f, lang)}
+          </button>
+        ) : (
           <span key={d.f} className="fin-legend-item">
             <i style={{ background: d.color }} />{finLabel(d.f, lang)}
           </span>
-        ))}
+        )))}
       </div>
     </div>
   );
@@ -7665,6 +7678,10 @@ function FinancialsChart({ fields, series, periods, lang }) {
 function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "annual", onFreqChange }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [section, setSection] = React.useState("income");
+  // Which lines the chart draws, per section (annual and quarterly sections
+  // share a key space, which is fine — «income» means the same lines in both).
+  // Unset = the section's default; from the first click the reader owns it.
+  const [chartSel, setChartSel] = React.useState({});
   const quarterly = freq === "quarterly";
 
   // Годовые | Квартальные. The switch stays on screen in every state —
@@ -7748,6 +7765,31 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
 
   const active = available.find((sec) => sec.key === section) || available[0];
 
+  // Every row of the active section is a candidate line — the list is built
+  // from the section's rows, so a field added to FIN_SECTIONS later is
+  // clickable with no further wiring. Colours are keyed to this canonical
+  // order: toggling one line must not repaint the rest.
+  const sectionFields = [...(active.rows || []), ...(active.margins || [])];
+  const colorOf = (f) =>
+    FIN_CHART_COLORS[Math.max(0, sectionFields.indexOf(f)) % FIN_CHART_COLORS.length];
+  const defaultChart = (active.chart || []).filter(has);
+  const selected = (chartSel[active.key] || defaultChart)
+    .filter((f) => sectionFields.includes(f) && has(f));
+  const chartFields = sectionFields.filter((f) => selected.includes(f));
+  const toggleChartField = (f) => {
+    if (!has(f)) return;
+    setChartSel((prev) => {
+      const cur = prev[active.key] || defaultChart;
+      // Sums and coefficients cannot share an axis — a billion-сум revenue
+      // line flattens ROE into the baseline. Adding a line from the other
+      // register keeps only the rows it can honestly be drawn beside.
+      const next = cur.includes(f)
+        ? cur.filter((x) => x !== f)
+        : [...cur.filter((x) => !!series[x]?.money === !!series[f]?.money), f];
+      return { ...prev, [active.key]: next };
+    });
+  };
+
   // Years the issuer filed nothing for, between the oldest and newest it did.
   const yearNums = cols.map((p) => Number(p)).filter((n) => Number.isFinite(n));
   const missingYears = yearNums.length > 1
@@ -7818,7 +7860,19 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
   const rowsBlock = (fields, withGrowth) => fields.map((f) => (
     <React.Fragment key={f}>
       <tr>
-        <th scope="row">{finLabel(f, lang)}</th>
+        <th scope="row">
+          <button type="button"
+            className={`fin-row-toggle ${selected.includes(f) ? "on" : ""}`}
+            aria-pressed={selected.includes(f)}
+            onClick={() => toggleChartField(f)}
+            title={selected.includes(f)
+              ? t("Убрать с графика", "Grafikdan olib tashlash", "Remove from chart")
+              : t("Показать на графике", "Grafikda korsatish", "Show on chart")}>
+            <i className="fin-row-dot"
+              style={selected.includes(f) ? { background: colorOf(f) } : undefined} />
+            {finLabel(f, lang)}
+          </button>
+        </th>
         {cols.map((p) => <td key={p} className="num">{cell(f, p)}</td>)}
       </tr>
       {/* Only when there is a year to compare against: on a single-period
@@ -7874,7 +7928,8 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
       </div>
 
       <div className="panel fin-panel">
-        <FinancialsChart fields={(active.chart || []).filter(has)} series={series} periods={cols} lang={lang} />
+        <FinancialsChart fields={chartFields} series={series} periods={cols} lang={lang}
+          colorOf={colorOf} onToggle={toggleChartField} />
 
         <div className="fin-table-wrap">
           <table className="fin-table">
