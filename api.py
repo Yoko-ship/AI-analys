@@ -3667,7 +3667,51 @@ def derive_quarterly_series(cumulative: dict[str, Any],
         # A row where every figure is zero-or-missing is an empty filing, the
         # quarterly cousin of the zero-balance-sheet annual purged above.
         if m and any(fields.get(k) for k in (*QUARTER_FLOW_FIELDS, *QUARTER_STOCK_FIELDS)):
-            cum[(int(m.group(1)), int(m.group(2)))] = fields
+            cum[(int(m.group(1)), int(m.group(2)))] = dict(fields)
+
+    # THE WITNESS LINE. A running total of revenue cannot decrease — sales are
+    # not returnable in the aggregate — so within one year the cumulative
+    # revenue points, annual included, must form a non-decreasing chain. Where
+    # they do not, one of the filings misstates its period, and differencing it
+    # would print an impossible figure as a fact: TNBN's «Q1 2023» carries
+    # 932 B against a 585 B half-year — three months larger than six — and the
+    # subtraction served a revenue of −347 B; SQBN's empty 2024 annual (revenue
+    # zero against a 8 018 B nine-month) would have made Q4 −8 T. Measured
+    # fleet-wide: 14 ticker-years of 832 are inconsistent.
+    #
+    # The chain itself says which filing is the odd one out: keep the longest
+    # non-decreasing run (preferring the later filings on a tie — the annual
+    # anchors the tail, and a later filing is the better-corrected one) and
+    # drop the INCOME lines of what falls outside it. The whole statement is
+    # suspect, not just its revenue, so every flow goes; the balance snapshot
+    # stays — it is a statement of some real date even when mislabelled.
+    def keep_consistent(points: list[tuple[int, float]]) -> set[int]:
+        n = len(points)
+        best: tuple[int, tuple[int, ...]] = (0, ())
+        for mask in range(1 << n):
+            idx = tuple(i for i in range(n) if mask >> i & 1)
+            vals = [points[i][1] for i in idx]
+            if any(b < a for a, b in zip(vals, vals[1:])):
+                continue
+            best = max(best, (len(idx), idx))
+        return {points[i][0] for i in best[1]}
+
+    annual_q4_ok: dict[int, bool] = {}
+    for year in {y for y, _ in cum}:
+        a_rev = ((annual or {}).get(str(year)) or {}).get("revenue")
+        points = [(q, cum[(year, q)]["revenue"]) for q in (1, 2, 3)
+                  if (year, q) in cum and cum[(year, q)].get("revenue") is not None]
+        if a_rev is not None:
+            points.append((4, a_rev))
+        annual_q4_ok[year] = True
+        if len(points) < 2:
+            continue
+        for q in {q for q, _ in points} - keep_consistent(points):
+            if q == 4:
+                annual_q4_ok[year] = False
+            else:
+                for src in QUARTER_FLOW_FIELDS:
+                    cum[(year, q)].pop(src, None)
 
     series: dict[str, dict[str, Any]] = {}
     periods: set[str] = set()
@@ -3695,6 +3739,11 @@ def derive_quarterly_series(cumulative: dict[str, Any],
     for year in {y for y, _ in cum}:
         a = (annual or {}).get(str(year))
         if not a:
+            continue
+        # An annual the witness rejected contributes NOTHING — its balance is
+        # as unsupported as its income (SQBN 2024 files zeros on both sides,
+        # and a 0 in the Q4 cash column beside trillions reads as a figure).
+        if not annual_q4_ok.get(year, True):
             continue
         q3 = cum.get((year, 3), {})
         for src, name in QUARTER_FLOW_FIELDS.items():
