@@ -5308,7 +5308,7 @@ function squarifyTreemap(items, x, y, w, h) {
   return out;
 }
 
-function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, type, mapData }) {
+function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData }) {
   // Per-tile classification from /api/heatmap (ТЗ §9). The server decides what a
   // tile IS — priced, traded-but-unpriced, dormant, or resting on a single trade
   // — because the same judgement has to hold for the aggregates it also returns.
@@ -5547,7 +5547,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, ty
                         type="button"
                         className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}${statusClass}${confClass}`}
                         style={{ left: st.x + GAP / 2, top: st.y + GAP / 2, width: w, height: h, ...tileStyle }}
-                        onClick={() => onAnalyze(row.ticker)}
+                        onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
                         onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
                         onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
                       >
@@ -11490,7 +11490,7 @@ function MarketView({
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
           ) : (
-            <MarketHeatmap rows={mapRows} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} type={type} mapData={mapData} />
+            <MarketHeatmap rows={mapRows} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} onOpenCompany={onOpenCompany} type={type} mapData={mapData} />
           )
         ) : (
           <>
