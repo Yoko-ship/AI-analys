@@ -42,11 +42,14 @@ class TestFlowsAreDifferenced:
 
         assert "2024Q2" not in series.get("net_revenue", {})
 
-    def test_a_restated_quarter_may_go_negative_and_stays(self):
+    def test_a_loss_quarter_goes_negative_and_stays(self):
+        """Cumulative PROFIT legitimately falls when a quarter loses money —
+        only the revenue witness polices the chain, never the profit lines."""
         periods, series = api.derive_quarterly_series(
-            {"2024Q1": {"revenue": 300.0}, "2024Q2": {"revenue": 250.0}}, {})
+            {"2024Q1": {"revenue": 100.0, "net_income": 40.0},
+             "2024Q2": {"revenue": 250.0, "net_income": 25.0}}, {})
 
-        assert series["net_revenue"]["2024Q2"] == -50.0
+        assert series["net_profit"]["2024Q2"] == -15.0
 
 
 class TestQ4ComesFromTheAnnual:
@@ -88,6 +91,60 @@ class TestStocksPassThrough:
         assert series["total_liabilities"] == {"2024Q1": 200.0, "2024Q2": 180.0}
 
 
+class TestTheWitnessLine:
+    """Cumulative revenue cannot decrease; a filing that breaks the year's
+    chain misstates its period and its INCOME lines must not be differenced."""
+
+    def test_tnbn_2023_q1_larger_than_the_half_year_is_dropped_not_subtracted(self):
+        """The live defect: 932 B «Q1» against a 585 B half-year printed a
+        revenue of −347 B. The odd point out loses its flows; its balance
+        snapshot stays."""
+        periods, series = api.derive_quarterly_series(
+            {"2023Q1": {"revenue": 932.0, "net_income": 21.0, "cash": 50.0},
+             "2023Q2": {"revenue": 585.0, "net_income": 28.0},
+             "2023Q3": {"revenue": 894.0, "net_income": 33.0}},
+            {"2023": {"revenue": 1256.0}})
+
+        assert "2023Q1" not in series["net_revenue"]
+        assert "2023Q1" not in series["net_profit"]
+        assert series["cash"]["2023Q1"] == 50.0
+        # Q2 has no trusted predecessor left — a dash, never the running total.
+        assert "2023Q2" not in series["net_revenue"]
+        assert series["net_revenue"]["2023Q3"] == 894.0 - 585.0
+        assert series["net_revenue"]["2023Q4"] == 1256.0 - 894.0
+
+    def test_an_empty_annual_never_becomes_a_negative_q4(self):
+        """SQBN 2024: a zero annual against a 8 018 B nine-month would have
+        printed Q4 revenue of −8 T. The rejected annual contributes nothing —
+        not even its (equally empty) balance."""
+        periods, series = api.derive_quarterly_series(
+            {"2024Q1": {"revenue": 2551.0}, "2024Q2": {"revenue": 5196.0},
+             "2024Q3": {"revenue": 8018.0, "cash": 100.0}},
+            {"2024": {"revenue": 0.0, "cash": 0.0}})
+
+        assert "2024Q4" not in periods
+        assert series["net_revenue"]["2024Q3"] == 8018.0 - 5196.0
+
+    def test_a_consistent_chain_is_left_alone(self):
+        periods, series = api.derive_quarterly_series(
+            {"2024Q1": {"revenue": 100.0}, "2024Q2": {"revenue": 100.0},
+             "2024Q3": {"revenue": 300.0}},
+            {"2024": {"revenue": 420.0}})
+
+        assert series["net_revenue"] == {"2024Q1": 100.0, "2024Q2": 0.0,
+                                         "2024Q3": 200.0, "2024Q4": 120.0}
+
+    def test_on_a_tie_the_later_filing_is_believed(self):
+        """KSCM 2024: Q1 36.5 against Q2 27.3 with Q3 91.5 — either of the
+        first two chains with Q3. The later filing wins the tie."""
+        periods, series = api.derive_quarterly_series(
+            {"2024Q1": {"revenue": 36.5}, "2024Q2": {"revenue": 27.3},
+             "2024Q3": {"revenue": 91.5}}, {})
+
+        assert "2024Q1" not in series["net_revenue"]
+        assert series["net_revenue"]["2024Q3"] == 91.5 - 27.3
+
+
 class TestHygiene:
     def test_an_all_zero_row_is_an_empty_filing_and_is_dropped(self):
         periods, series = api.derive_quarterly_series(
@@ -97,8 +154,8 @@ class TestHygiene:
 
     def test_periods_come_newest_first(self):
         periods, _ = api.derive_quarterly_series(
-            {"2023Q3": {"revenue": 1.0, "cash": 5.0}, "2024Q1": {"revenue": 2.0},
-             "2023Q1": {"revenue": 3.0}}, {})
+            {"2023Q3": {"revenue": 3.0, "cash": 5.0}, "2024Q1": {"revenue": 2.0},
+             "2023Q1": {"revenue": 1.0}}, {})
 
         assert periods == ["2024Q1", "2023Q3", "2023Q1"]
 
