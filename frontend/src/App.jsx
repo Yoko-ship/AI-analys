@@ -7787,6 +7787,17 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
     if (!Number.isFinite(v) || !Number.isFinite(prev) || prev === 0) return null;
     return { value: ((v - prev) / Math.abs(prev)) * 100 };
   };
+  // The secondary convention, quarterly only: against the PREVIOUS quarter
+  // (Q1's predecessor is last year's Q4). Also keyed, never the neighbouring
+  // column, for the same reason as above.
+  const growthQoQ = (f, i) => {
+    const pq = parseQPeriod(cols[i]);
+    if (!pq) return null;
+    const prevKey = pq.q === 1 ? `${pq.y - 1}Q4` : `${pq.y}Q${pq.q - 1}`;
+    const v = series[f].values[cols[i]], prev = series[f].values[prevKey];
+    if (!Number.isFinite(v) || !Number.isFinite(prev) || prev === 0) return null;
+    return { value: ((v - prev) / Math.abs(prev)) * 100 };
+  };
   // The unit comes from the server, which owns the scale contract: money in
   // full UZS, every margin already converted to percent, plain coefficients
   // left alone. Nothing here decides what a number means.
@@ -7826,6 +7837,20 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
                       `${g.missing} uchun hisobot yo'q`,
                       `No filing for ${g.missing} — a year-on-year change cannot be formed`)
                   : undefined}>
+                {v == null ? "—" : `${signedFixed(v)}%`}
+              </td>
+            );
+          })}
+        </tr>
+      )}
+      {withGrowth && quarterly && cols.length > 1 && (
+        <tr className="fin-growth">
+          <th scope="row">{t("Рост кв/кв", "Osish ch/ch", "Growth QoQ")}</th>
+          {cols.map((p, i) => {
+            const g = growthQoQ(f, i);
+            const v = g ? g.value : null;
+            return (
+              <td key={p} className={`num ${v == null ? "" : v >= 0 ? "pos" : "neg"}`}>
                 {v == null ? "—" : `${signedFixed(v)}%`}
               </td>
             );
@@ -7877,9 +7902,9 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
 
         <p className="fin-note muted">
           {quarterly
-            ? t("Суммы в сумах, за отдельный квартал (3 месяца) — рассчитаны из накопительных квартальных отчётов НСБУ; IV квартал — разница годового и девятимесячного отчётов. Рост г/г — к тому же кварталу прошлого года. Денежные средства и обязательства — на конец квартала.",
-                "Summalar somda, alohida chorak (3 oy) uchun — NSBU choraklik hisobotlaridan hisoblangan; IV chorak — yillik va 9 oylik hisobotlar farqi. Osish y/y — otgan yilning shu chorogiga nisbatan.",
-                "Sums in UZS per discrete quarter (3 months), derived from the cumulative NSBU filings; Q4 is the annual less the nine-month filing. Growth compares the same quarter a year earlier. Cash and liabilities are quarter-end snapshots.")
+            ? t("Суммы в сумах, за отдельный квартал (3 месяца) — рассчитаны из накопительных квартальных отчётов НСБУ; IV квартал — разница годового и девятимесячного отчётов. Рост г/г — к тому же кварталу прошлого года, кв/кв — к предыдущему кварталу. Денежные средства и обязательства — на конец квартала.",
+                "Summalar somda, alohida chorak (3 oy) uchun — NSBU choraklik hisobotlaridan hisoblangan; IV chorak — yillik va 9 oylik hisobotlar farqi. Osish y/y — otgan yilning shu chorogiga, ch/ch — oldingi chorakka nisbatan.",
+                "Sums in UZS per discrete quarter (3 months), derived from the cumulative NSBU filings; Q4 is the annual less the nine-month filing. Growth YoY compares the same quarter a year earlier, QoQ the preceding quarter. Cash and liabilities are quarter-end snapshots.")
             : t("Суммы в сумах, по годовым отчётам эмитента. Коэффициенты — в тех единицах, в которых они опубликованы.",
                 "Summalar somda, emitentning yillik hisobotlari boyicha.",
                 "Sums in UZS, from the issuer's annual filings. Ratios in the units they were published in.")}
