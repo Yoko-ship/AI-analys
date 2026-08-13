@@ -10514,6 +10514,9 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .fin-table td.num, .fin-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .fin-table thead th { font-size: 12px; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface-1); }
 .fin-table tbody th[scope="row"] { font-weight: 600; color: var(--text-primary); }
+/* The ⓘ sits beside the row's label, in the label's own line box — the header
+   cell is `white-space: nowrap`, so it never wraps under the term. */
+.fin-table tbody th[scope="row"] .term-info-btn { margin-left: 6px; vertical-align: middle; }
 .fin-table tbody tr { border-bottom: 1px solid var(--border); }
 /* The growth line belongs to the row above it, so it carries no border of its
    own and sits in the muted register. */

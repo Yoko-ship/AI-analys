@@ -7550,6 +7550,26 @@ const FIN_FIELD_LABELS = {
 const finLabel = (field, lang) =>
   (FIN_FIELD_LABELS[field] || [field, field, field])[lang === "uz" ? 1 : lang === "en" ? 2 : 0];
 
+// Which glossary entry explains a row of the Финансы table (lib/glossary.js is
+// the one definition store; `id` matches the market board's column key, so most
+// of these are the field's own name and the map only bridges the two that are
+// not). A ratio is where the reader actually needs the explanation: «Выручка»
+// says what it is, «ROCE» and «Долг/Активы» do not, and a coefficient printed
+// bare — 0,07 — says least of all. Only the fields listed here get an ⓘ; the
+// marker renders nothing for a term that has no entry, so an unmapped row
+// simply stays plain.
+const FIN_FIELD_TERMS = {
+  net_margin: "netMargin",
+  roe: "roe",
+  roa: "roa",
+  current_ratio: "currentRatio",
+  quick_ratio: "quickRatio",
+  debt_ratio: "debtAssets",
+  debt_to_equity: "debtEq",
+  total_asset_turnover: "assetTurnover",
+  return_to_capital_employed: "roce",
+};
+
 // One palette for the chart, the legend and the table's row dots. A field's
 // colour comes from its position in the SECTION's row list, not in the current
 // selection — toggling a line on or off must not repaint the others.
@@ -7872,6 +7892,11 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
               style={selected.includes(f) ? { background: colorOf(f) } : undefined} />
             {finLabel(f, lang)}
           </button>
+          {/* Beside the label, not inside the toggle: the row header is already
+              a button (it draws the line on the chart), and a button inside a
+              button is invalid markup — the ⓘ would put a line on the chart
+              instead of explaining the term. */}
+          <TermInfo termId={FIN_FIELD_TERMS[f]} lang={lang} label={finLabel(f, lang)} />
         </th>
         {cols.map((p) => <td key={p} className="num">{cell(f, p)}</td>)}
       </tr>
