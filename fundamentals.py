@@ -162,7 +162,7 @@ def twelve_month_flows(fin: dict[str, Any] | None,
     Returns ``{"values": {key: float|None}, "methods": {key: str|None},
     "period": str|None, "months": 12|None, "estimate": bool, "status": str}``.
     ``period`` is the base-period label the interface shows next to the number
-    («2025A + 6М2026»), keyed to how net profit was assembled.
+    («2025A + 6М2026 − 6М2025»), keyed to how net profit was assembled.
     """
     if not fin or not fin.get("year"):
         return {"values": {k: None for k in keys}, "methods": {k: None for k in keys},
@@ -216,7 +216,12 @@ def twelve_month_flows(fin: dict[str, Any] | None,
 
     lead = methods.get("net_income") or methods.get("revenue")
     if lead == "ttm":
-        label = f"{year - 1}A + {_interim_label(year, quarter)}"
+        # The label IS the arithmetic. «2025A + 6М2026» read as eighteen months
+        # of profit — the subtracted comparative was assembled but never named,
+        # and a reader took the sum at face value. Spelled in full it can only
+        # be read as the sliding twelve months it is.
+        label = (f"{year - 1}A + {_interim_label(year, quarter)}"
+                 f" − {_interim_label(year - 1, quarter)}")
     elif lead == "annual":
         label = f"{annual['year']}A" if annual else None
     elif lead == "annualized":

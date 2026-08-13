@@ -358,7 +358,9 @@ class TestMultiples:
         })
         # NI_TTM = 100 + 120 − 40 = 180 → P/E = 1000 / 180.
         assert got["pe"]["value"] == pytest.approx(1000.0 / 180.0)
-        assert got["pe"]["base_period"] == "2025A + 6М2026"
+        # The label spells the whole formula: without the subtracted comparative
+        # «2025A + 6М2026» was read as eighteen months of profit.
+        assert got["pe"]["base_period"] == "2025A + 6М2026 − 6М2025"
         assert got["pe"].get("estimate") is None
         # P/S over the same TTM revenue: 900 + 600 − 300 = 1200.
         assert got["ps"]["value"] == pytest.approx(1000.0 / 1200.0)
