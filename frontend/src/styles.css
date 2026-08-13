@@ -10498,6 +10498,14 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .fin-legend { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; margin-top: 6px; }
 .fin-legend-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-secondary, var(--text-muted)); }
 .fin-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.fin-legend-item.clickable { background: none; border: none; padding: 0; font: inherit; cursor: pointer; }
+.fin-legend-item.clickable:hover { color: var(--text-primary); }
+/* A table row IS the chart's switch: the dot carries the line's colour when it
+   is drawn and sits hollow when it is not, so every row reads as clickable. */
+.fin-row-toggle { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; padding: 0; font: inherit; font-weight: 600; color: inherit; cursor: pointer; text-align: left; }
+.fin-row-toggle .fin-row-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-sizing: border-box; border: 1.5px solid var(--text-muted); opacity: .4; transition: opacity .12s, border-color .12s; }
+.fin-row-toggle:hover .fin-row-dot { opacity: .75; }
+.fin-row-toggle.on .fin-row-dot { border-color: transparent; opacity: 1; }
 /* The year columns can outrun a phone; the table scrolls inside its own box so
    the PAGE never gains a horizontal scrollbar. */
 .fin-table-wrap { overflow-x: auto; }
