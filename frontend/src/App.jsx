@@ -10202,6 +10202,145 @@ function MarketStickyHead({ wrapRef, cells, colSignature, rowCount, loading }) {
   );
 }
 
+// ── A column's own controls ───────────────────────────────────────────────────
+// Sort, move, freeze, hide — everything a reader does TO a column rather than
+// with its numbers, in one strip under the header that opened it. The board is
+// wider than any screen, and until now the only way to move a column was to drag
+// its header: impossible with a thumb, and awkward when the destination is six
+// columns off the right edge. These buttons say the same thing in one press.
+//
+// Portaled to <body>: a <th> is a table cell, and a popover inside one is both
+// clipped by the wrap's overflow and duplicated into the mirrored sticky header.
+// It re-finds its own header every frame instead of remembering a rectangle, so
+// it follows the column it belongs to when a move actually moves it.
+function MarketColMenu({ colKey, fromSticky, lang, state, actions, onClose }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState(null);
+  const placeRef = useRef(() => {});
+
+  useLayoutEffect(() => {
+    let raf = 0;
+    const place = () => {
+      raf = 0;
+      const scope = fromSticky ? ".market-sticky-head" : ".market-table-wrap";
+      const sel = `.market-table thead th[data-sort-key="${colKey}"]`;
+      const th = document.querySelector(`${scope} ${sel}`) || document.querySelector(`.market-table-wrap ${sel}`);
+      // The header went away — the column was hidden, the view switched, or the
+      // page scrolled it off. A toolbar for a column nobody can see is noise.
+      if (!th) { onClose(); return; }
+      const r = th.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight) { onClose(); return; }
+      const w = (ref.current && ref.current.offsetWidth) || 300;
+      const left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - w - 8)));
+      const top = Math.round(r.bottom + 6);
+      // Re-placed after every render, so a position that did not change must not
+      // reach state: a fresh object each time is an infinite render loop.
+      setPos((prev) => (prev && prev.top === top && prev.left === left ? prev : { top, left }));
+    };
+    placeRef.current = place;
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(place); };
+    place();
+    // capture:true so the wrap's own (non-bubbling) horizontal scroll re-anchors too.
+    window.addEventListener("scroll", schedule, { passive: true, capture: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      placeRef.current = () => {};
+      window.removeEventListener("scroll", schedule, { capture: true });
+      window.removeEventListener("resize", schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [colKey, fromSticky, onClose]);
+
+  // A move re-lays the header row out without any scroll or resize to observe.
+  useLayoutEffect(() => { placeRef.current(); });
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [onClose]);
+
+  const L = {
+    asc: lang === "en" ? "Sort ascending" : lang === "uz" ? "O'sish bo'yicha saralash" : "Сортировать по возрастанию",
+    desc: lang === "en" ? "Sort descending" : lang === "uz" ? "Kamayish bo'yicha saralash" : "Сортировать по убыванию",
+    start: lang === "en" ? "Move to start" : lang === "uz" ? "Boshiga ko'chirish" : "Переместить в начало",
+    left: lang === "en" ? "Move left" : lang === "uz" ? "Chapga ko'chirish" : "Переместить влево",
+    right: lang === "en" ? "Move right" : lang === "uz" ? "O'ngga ko'chirish" : "Переместить вправо",
+    end: lang === "en" ? "Move to end" : lang === "uz" ? "Oxiriga ko'chirish" : "Переместить в конец",
+    pin: lang === "en" ? "Freeze column" : lang === "uz" ? "Ustunni mahkamlash" : "Закрепить столбец",
+    unpin: lang === "en" ? "Unfreeze column" : lang === "uz" ? "Mahkamlashni bekor qilish" : "Открепить столбец",
+    hide: lang === "en" ? "Hide column" : lang === "uz" ? "Ustunni yashirish" : "Скрыть столбец",
+    hideLocked: lang === "en" ? "The price column always stays"
+      : lang === "uz" ? "Narx ustuni doim qoladi" : "Столбец с ценой всегда остаётся",
+    menu: lang === "en" ? "Column controls" : lang === "uz" ? "Ustun boshqaruvi" : "Управление столбцом",
+  };
+
+  const Btn = ({ label, onClick, disabled, active, danger, children }) => (
+    <button
+      type="button"
+      className={`market-colmenu-btn${active ? " is-active" : ""}${danger ? " is-danger" : ""}`}
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+  // 16px stroke glyphs, drawn inline: an icon font is one more thing to load for
+  // eight marks, and the board already pays for its fonts.
+  const Svg = ({ children }) => (
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor"
+      strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+
+  return createPortal(
+    <div
+      ref={ref}
+      className="market-colmenu"
+      role="toolbar"
+      aria-label={L.menu}
+      style={pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <Btn label={L.asc} active={state.dir === "asc"} onClick={() => actions.sort("asc")}>
+        <Svg><path d="M3 4h4" /><path d="M3 8h7" /><path d="M3 12h10" /></Svg>
+      </Btn>
+      <Btn label={L.desc} active={state.dir === "desc"} onClick={() => actions.sort("desc")}>
+        <Svg><path d="M3 4h10" /><path d="M3 8h7" /><path d="M3 12h4" /></Svg>
+      </Btn>
+      <span className="market-colmenu-sep" aria-hidden="true" />
+      <Btn label={L.start} disabled={!state.canLeft} onClick={() => actions.move("start")}>
+        <Svg><path d="M3 3v10" /><path d="M14 8H6.5" /><path d="M9.5 5 6.5 8l3 3" /></Svg>
+      </Btn>
+      <Btn label={L.left} disabled={!state.canLeft} onClick={() => actions.move(-1)}>
+        <Svg><path d="M13 8H4" /><path d="M7 5 4 8l3 3" /></Svg>
+      </Btn>
+      <Btn label={L.right} disabled={!state.canRight} onClick={() => actions.move(1)}>
+        <Svg><path d="M3 8h9" /><path d="M9 5l3 3-3 3" /></Svg>
+      </Btn>
+      <Btn label={L.end} disabled={!state.canRight} onClick={() => actions.move("end")}>
+        <Svg><path d="M13 3v10" /><path d="M2 8h7.5" /><path d="M6.5 5l3 3-3 3" /></Svg>
+      </Btn>
+      <span className="market-colmenu-sep" aria-hidden="true" />
+      <Btn label={state.pinned ? L.unpin : L.pin} active={state.pinned} onClick={actions.pin}>
+        <Svg><path d="M6 2h4l-.6 3.4 2.1 2.1H4.5l2.1-2.1z" /><path d="M8 7.5V14" /></Svg>
+      </Btn>
+      <Btn label={state.canHide ? L.hide : L.hideLocked} disabled={!state.canHide} danger onClick={actions.hide}>
+        <Svg><path d="M3 4.5h10" /><path d="M6.5 4.5V3h3v1.5" /><path d="M4.5 4.5 5 13.5h6l.5-9" /></Svg>
+      </Btn>
+    </div>,
+    document.body
+  );
+}
+
 function MarketView({
   rows,
   meta,
@@ -10471,10 +10610,87 @@ function MarketView({
     });
   };
   const resetColOrder = () => setColOrder(["last", ...MARKET_COLS.map(([k]) => k)]);
+
+  // Frozen columns. A column can only be frozen at the left edge — that is what
+  // freezing IS — so pinning hoists it to the front of the movable block and the
+  // identity cells (ticker, company) join the frozen group, otherwise the pinned
+  // column would float over the very names it is meant to be read against.
+  const [pinnedCols, setPinnedCols] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem("uz_market_pinned_cols")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
+    return new Set();
+  });
+  useEffect(() => { try { localStorage.setItem("uz_market_pinned_cols", JSON.stringify([...pinnedCols])); } catch (e) { /* ignore */ } }, [pinnedCols]);
+  const togglePin = (k) => setPinnedCols((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+
   // Visible movable columns in the user's chosen order ("last" is always shown).
-  const visibleOrder = colOrder.filter((k) =>
+  const shownOrder = colOrder.filter((k) =>
     (k === "last" || visibleCols.has(k)) && !(type === "bond" && EQUITY_ONLY_COLS.has(k)));
+  const pinnedOrder = shownOrder.filter((k) => pinnedCols.has(k));
+  const visibleOrder = [...pinnedOrder, ...shownOrder.filter((k) => !pinnedCols.has(k))];
   const colSpan = 3 + visibleOrder.length;
+
+  // Where each frozen column comes to rest: the summed width of everything
+  // frozen to its left, measured off the live header (the table lays itself out
+  // by content, so no width is knowable in advance). Re-measured after every
+  // render — the same trick MarketStickyHead uses, and just as cheap, because a
+  // measurement that changed nothing never reaches state.
+  const [pinOffsets, setPinOffsets] = useState({});
+  const pinMeasureRef = useRef(() => {});
+  const pinKeys = pinnedOrder.join("|");
+  useEffect(() => {
+    const measure = () => {
+      const head = wrapRef.current && wrapRef.current.querySelector(".market-table thead tr");
+      if (!head || !pinKeys) {
+        setPinOffsets((prev) => (Object.keys(prev).length ? {} : prev));
+        return;
+      }
+      const widths = Array.from(head.children).map((th) => th.getBoundingClientRect().width);
+      const next = {};
+      let acc = 0;
+      // The header row is [ticker, company, ...visibleOrder], and the frozen
+      // columns are the first of visibleOrder — so the run is contiguous.
+      ["__ticker", "__company", ...pinKeys.split("|")].forEach((k, i) => {
+        next[k] = Math.round(acc);
+        acc += widths[i] || 0;
+      });
+      setPinOffsets((prev) => {
+        const ks = Object.keys(next);
+        if (ks.length === Object.keys(prev).length && ks.every((k) => prev[k] === next[k])) return prev;
+        return next;
+      });
+    };
+    pinMeasureRef.current = measure;
+    measure();
+    window.addEventListener("resize", measure);
+    return () => { pinMeasureRef.current = () => {}; window.removeEventListener("resize", measure); };
+  }, [pinKeys]);
+  useLayoutEffect(() => { pinMeasureRef.current(); });
+  // Until the widths are known the columns would all stack at left: 0 — better
+  // one unfrozen frame than a frame of columns piled on each other.
+  const lastPinned = pinnedOrder[pinnedOrder.length - 1];
+  const pinAt = (key) => (pinKeys && pinOffsets[key] !== undefined
+    ? { left: pinOffsets[key], edge: key === lastPinned }
+    : null);
+  const pinCls = (pin) => (pin ? ` market-col-pinned${pin.edge ? " market-col-pinned-edge" : ""}` : "");
+
+  // Moves act inside the column's own block: a frozen column reorders among the
+  // frozen ones, a loose column among the loose. Otherwise "move right" on a
+  // frozen column would change nothing on screen, since freezing puts it back.
+  const colGroupOf = (key) => visibleOrder.filter((k) => pinnedCols.has(k) === pinnedCols.has(key));
+  const moveColBy = (key, step) => {
+    const group = colGroupOf(key);
+    const i = group.indexOf(key);
+    if (i < 0) return;
+    if (step === "start") { if (i > 0) moveCol(key, group[0]); return; }
+    if (step === "end") { if (i < group.length - 1) moveCol(key, group[group.length - 1]); return; }
+    const j = i + step;
+    if (j >= 0 && j < group.length) moveCol(key, group[j]);
+  };
+
+  // The header toolbar: which column it belongs to, and whether it was opened
+  // from the mirrored sticky bar (so it anchors to the header the reader sees).
+  const [colMenu, setColMenu] = useState(null);
+  const closeColMenu = React.useCallback(() => setColMenu(null), []);
 
   const openPanel = (ticker) => {
     setPanelTicker(ticker);
@@ -10922,7 +11138,8 @@ function MarketView({
   const formatLeader = (row) => row ? `${row.ticker} ${formatRatio(row.changePercent, 2, lang)}%` : "—";
 
   const sortTh = (key, label, opts = {}) => {
-    const { movable = false, num = false } = opts;
+    const { movable = false, num = false, pinKey = null } = opts;
+    const pin = pinKey ? pinAt(pinKey) : null;
     const rank = sortRankOf(key);
     const dir = sortDirOf(key);
     const chained = sortKeys.length > 1;
@@ -10933,7 +11150,11 @@ function MarketView({
       movable ? "market-th-movable" : "",
       movable && dragCol === key ? "dragging" : "",
       movable && dragOverCol === key && dragCol && dragCol !== key ? "drag-over" : "",
+      colMenu && colMenu.key === key ? "menu-open" : "",
+      pin ? `market-col-pinned${pin.edge ? " market-col-pinned-edge" : ""}` : "",
     ].filter(Boolean).join(" ");
+    const menuLabel = lang === "en" ? "Column controls"
+      : lang === "uz" ? "Ustun boshqaruvi" : "Управление столбцом";
     // ⌘ on a Mac, Ctrl elsewhere — Shift works everywhere and is the one we teach.
     const isAdditive = (e) => e.shiftKey || e.metaKey || e.ctrlKey;
     const hint = lang === "en" ? "Shift+click (or long-press) — add as a secondary sort"
@@ -10976,6 +11197,7 @@ function MarketView({
       onDrop={movable ? (e) => { e.preventDefault(); let from = dragCol; if (!from) { try { from = e.dataTransfer.getData("text/plain"); } catch (_) { from = null; } } moveCol(from, key); setDragCol(null); setDragOverCol(null); } : undefined}
       onDragEnd={movable ? () => { setDragCol(null); setDragOverCol(null); } : undefined}
       title={movable ? `${dragHint} · ${hint}` : hint}
+      style={pin ? { left: pin.left } : undefined}
     >
       <span className="market-th-inner">
         {movable && <span className="market-th-grip" aria-hidden="true">⋮⋮</span>}
@@ -10988,6 +11210,37 @@ function MarketView({
         {/* The rank only earns its space once the order actually has more than one
             key — a lone "1" beside a single sorted column says nothing. */}
         {chained && rank >= 0 && <span className="market-sort-rank" aria-hidden="true">{rank + 1}</span>}
+        {/* The column's own controls. Only the movable columns get it: ticker and
+            company cannot be moved, hidden or unfrozen, so a toolbar there would
+            be six dead buttons. The header's own click still sorts — this button
+            swallows every gesture that would otherwise reach it, including the
+            long-press and the drag. */}
+        {movable && (
+          <button
+            type="button"
+            className={`market-th-menu-btn${colMenu && colMenu.key === key ? " is-open" : ""}`}
+            draggable={false}
+            title={menuLabel}
+            aria-label={`${label} — ${menuLabel}`}
+            aria-haspopup="true"
+            aria-expanded={!!(colMenu && colMenu.key === key)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              const fromSticky = !!e.currentTarget.closest(".market-sticky-head");
+              setColMenu((c) => (c && c.key === key ? null : { key, fromSticky }));
+            }}
+          >
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 6l4 4 4-4" />
+            </svg>
+          </button>
+        )}
       </span>
     </th>
     );
@@ -11117,10 +11370,12 @@ function MarketView({
   // One header row, rendered twice: in the table itself and in the pinned bar
   // (MarketStickyHead), so both carry the same sort and drag-reorder handlers.
   const headCells = [
-    sortTh("ticker", mt(lang, "ticker")),
-    sortTh("company", mt(lang, "company")),
-    ...visibleOrder.map((k) => sortTh(k, LABEL_OF[k], { movable: true, num: NUM_COLS.has(k) })),
+    sortTh("ticker", mt(lang, "ticker"), { pinKey: "__ticker" }),
+    sortTh("company", mt(lang, "company"), { pinKey: "__company" }),
+    ...visibleOrder.map((k) => sortTh(k, LABEL_OF[k], { movable: true, num: NUM_COLS.has(k), pinKey: k })),
   ];
+  const pinTicker = pinAt("__ticker");
+  const pinCompany = pinAt("__company");
 
   return (
     <section className="market-layout">
@@ -11638,7 +11893,7 @@ function MarketView({
                     const isFav = hasFav(row.ticker);
                     return (
                     <tr key={`${row.ticker}-${row.isin}`}>
-                      <td className="market-ticker-cell">
+                      <td className={`market-ticker-cell${pinCls(pinTicker)}`} style={pinTicker ? { left: pinTicker.left } : undefined}>
                         <button
                           type="button"
                           className={`market-fav-btn ${isFav ? "is-fav" : ""}`}
@@ -11668,13 +11923,22 @@ function MarketView({
                           onClick={() => openPanel(row.ticker)}
                         >ℹ</button>
                       </td>
-                      <td>
+                      <td className={pinCls(pinCompany).trim() || undefined} style={pinCompany ? { left: pinCompany.left } : undefined}>
                         <button type="button" className="market-company-name-btn" onClick={() => onOpenCompany && onOpenCompany(row.ticker)}>
                           {row.name || sec.name || "—"}
                         </button>
                         <span>{row.isin || "—"}</span>
                       </td>
-                      {visibleOrder.map((k) => React.cloneElement(CELL_OF[k](row), { key: k }))}
+                      {visibleOrder.map((k) => {
+                        const cell = CELL_OF[k](row);
+                        const pin = pinAt(k);
+                        if (!pin) return React.cloneElement(cell, { key: k });
+                        return React.cloneElement(cell, {
+                          key: k,
+                          className: `${cell.props.className || ""}${pinCls(pin)}`.trim(),
+                          style: { ...(cell.props.style || {}), left: pin.left },
+                        });
+                      })}
                     </tr>
                     );
                   })
@@ -11705,6 +11969,33 @@ function MarketView({
             rowCount={visibleRows.length}
             loading={loading}
           />
+          {colMenu && visibleOrder.includes(colMenu.key) && (() => {
+            const key = colMenu.key;
+            const group = colGroupOf(key);
+            const i = group.indexOf(key);
+            return (
+              <MarketColMenu
+                colKey={key}
+                fromSticky={colMenu.fromSticky}
+                lang={lang}
+                state={{
+                  dir: sortDirOf(key),
+                  pinned: pinnedCols.has(key),
+                  canLeft: i > 0,
+                  canRight: i >= 0 && i < group.length - 1,
+                  // "Последняя" is a core column: the picker keeps it locked too.
+                  canHide: key !== "last",
+                }}
+                actions={{
+                  sort: (dir) => setSortKeys([{ key, dir }]),
+                  move: (step) => moveColBy(key, step),
+                  pin: () => togglePin(key),
+                  hide: () => { toggleCol(key); setColMenu(null); },
+                }}
+                onClose={closeColMenu}
+              />
+            );
+          })()}
           </>
         )}
       </article>
