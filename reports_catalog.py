@@ -2887,7 +2887,9 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
 # (93-maxsus trest net income 952.2; DORI year-end cash 4,757.9).
 _MIN_PLAUSIBLE = 10_000
 _FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income", "operating_income")
-_RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_ratio", "total_equity", "total_assets")
+_RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_ratio",
+                 "quick_ratio", "debt_ratio", "total_asset_turnover",
+                 "return_to_capital_employed", "total_equity", "total_assets")
 
 # Unit contract: NSBU statements and openinfo financial_indicators publish
 # absolute sums in THOUSANDS of UZS ("ming so'm"), and that is how they are
@@ -2932,6 +2934,12 @@ FACT_MONEY_FIELDS = ("net_revenue", "net_profit", "total_assets", "total_liabili
 # more: the store rounds them to a two-decimal SHARE (0.30) and writes 0 for a
 # negative margin, so UZINP's -4.77 % EBIT arrives as 0.00. We do not hold the
 # numerators per year to recompute them, so they are not shown.
+#
+# current_ratio, quick_ratio and return_to_capital_employed are the source's own
+# arithmetic on a base it does not name, and we hold no current/non-current
+# split to recompute them from. They are published EXACTLY as filed — bare
+# coefficients, never rescaled into a percent we would be inventing — on the
+# company page and, since 2026-08-13, in the board's «Коэффициенты» columns.
 FACT_PERCENT_FIELDS = ("roe", "roa", "debt_ratio")
 FACT_SHARE_FIELDS = ()
 
@@ -3060,24 +3068,32 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             continue
         entry: dict[str, Any] = {}
         latest_period = None
+        # Per-FIELD periods, not only the newest one across them: an issuer can
+        # publish its liquidity for 2023 and its ROE for 2025, and a single
+        # label over both would state a year the store never said.
+        field_periods: dict[str, str] = {}
         for field in _RATIO_FIELDS:
             hit = best.get((org, field))
             if hit is not None:
                 entry[field] = hit[1]
+                field_periods[field] = hit[0]
                 if latest_period is None or _fact_period_rank(hit[0]) > _fact_period_rank(latest_period):
                     latest_period = hit[0]
         if entry and entry.get("total_equity") is None:
             hit = derived_eq.get(org)
             if hit is not None:
                 entry["total_equity"] = hit[1]
+                field_periods["total_equity"] = hit[0]
                 if latest_period is None or _fact_period_rank(hit[0]) > _fact_period_rank(latest_period):
                     latest_period = hit[0]
         if entry and not entry.get("debt_to_equity"):
             hit = derived_de.get(org)
             if hit is not None:
                 entry["debt_to_equity"] = hit[1]
+                field_periods["debt_to_equity"] = hit[0]
         if entry:
             entry["period"] = latest_period
+            entry["periods"] = field_periods
             out[ticker] = entry
     conn.close()
     return out
