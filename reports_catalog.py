@@ -404,6 +404,15 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN org_type TEXT")
     if "balance_period" not in have_fin:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN balance_period TEXT")
+    # The quarterly Баланс sub-tab shows the same three lines as the annual one —
+    # Активы, Обязательства, Капитал (customer, 2026-08-16) — but the cache never
+    # kept the two balance totals the parse already extracts. Nullable: history
+    # fills from the quarterly re-backfill, and a row pushed with a filed balance
+    # block falls back to balance_period's assets_end/equity_end at read time.
+    if "total_assets" not in have_fin:
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN total_assets REAL")
+    if "total_equity" not in have_fin:
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN total_equity REAL")
     conn.commit()
 
 
@@ -1936,12 +1945,14 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
             INSERT INTO catalog_financials
                 (ticker, form, year, quarter, revenue, gross_profit, cash,
                  total_liabilities, net_income, operating_income,
+                 total_assets, total_equity,
                  field_periods, report_id, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
             ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                 revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                 cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                 net_income=excluded.net_income, operating_income=excluded.operating_income,
+                total_assets=excluded.total_assets, total_equity=excluded.total_equity,
                 field_periods=excluded.field_periods,
                 -- A re-parse that cannot name its source must not erase the
                 -- link the previous one established.
@@ -1952,6 +1963,8 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
              values.get("revenue"), values.get("gross_profit"), values.get("cash"),
              values.get("total_liabilities"), values.get("net_income"),
              values.get("operating_income"),
+             values.get("total_assets"),
+             values.get("total_equity", values.get("equity")),
              _encode_field_periods(values.get("field_periods")), report_id),
         )
     conn.close()
@@ -2041,6 +2054,7 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
     seed loader, this overwrites existing values (ON CONFLICT DO UPDATE).
     """
     _num = _financials_num
+    _bal_total = _balance_total_fallback
 
     conn = get_catalog_conn()
     n = 0
@@ -2059,9 +2073,10 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
+                         total_assets, total_equity,
                          noninterest_income, org_type, balance_period,
                          field_periods, prior_period, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
@@ -2069,6 +2084,12 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                         noninterest_income=excluded.noninterest_income,
                         -- An upsert that says nothing about the form or the
                         -- balance must not erase what a reconcile established.
+                        -- The balance totals likewise: a pusher still running
+                        -- code from before the columns existed sends nothing
+                        -- for them, and that nothing must not blank the
+                        -- backfilled history.
+                        total_assets=COALESCE(excluded.total_assets, catalog_financials.total_assets),
+                        total_equity=COALESCE(excluded.total_equity, catalog_financials.total_equity),
                         org_type=COALESCE(excluded.org_type, catalog_financials.org_type),
                         balance_period=COALESCE(excluded.balance_period,
                                                 catalog_financials.balance_period),
@@ -2080,6 +2101,8 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
                      _num(r.get("operating_income")),
+                     _bal_total(r, "total_assets", "assets_end"),
+                     _bal_total(r, "total_equity", "equity_end"),
                      _num(r.get("noninterest_income")),
                      (str(r.get("org_type")) if r.get("org_type") else None),
                      _encode_balance_period(r.get("balance")),
@@ -2110,6 +2133,7 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
     stored in thousands of UZS, as everywhere in this cache.
     """
     _num = _financials_num
+    _bal_total = _balance_total_fallback
 
     # A replace push speaks for a ticker's LATEST periods — the newest cumulative
     # quarter plus its companion fiscal year — and its job is to clear a stale or
@@ -2166,14 +2190,17 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
+                         total_assets, total_equity,
                          noninterest_income, org_type, balance_period,
                          field_periods, prior_period, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                         net_income=excluded.net_income,
                         operating_income=excluded.operating_income,
+                        total_assets=excluded.total_assets,
+                        total_equity=excluded.total_equity,
                         noninterest_income=excluded.noninterest_income,
                         org_type=excluded.org_type,
                         balance_period=excluded.balance_period,
@@ -2185,6 +2212,8 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
                      _num(r.get("operating_income")),
+                     _bal_total(r, "total_assets", "assets_end"),
+                     _bal_total(r, "total_equity", "equity_end"),
                      _num(r.get("noninterest_income")),
                      (str(r.get("org_type")) if r.get("org_type") else None),
                      _encode_balance_period(r.get("balance")),
@@ -2703,6 +2732,20 @@ def _encode_balance_period(value: Any) -> str | None:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
+def _balance_total_fallback(row: dict, field: str, balance_key: str) -> float | None:
+    """A pushed row's balance total, from its own field or its filed-balance block.
+
+    The reconcile pushes carried assets/equity inside `balance` (…_end) long
+    before catalog_financials had columns for them; a row that names neither
+    stays None rather than inventing a figure.
+    """
+    v = _financials_num(row.get(field))
+    if v is not None:
+        return v
+    balance = row.get("balance")
+    return _financials_num(balance.get(balance_key)) if isinstance(balance, dict) else None
+
+
 def _financials_enrich_enabled() -> bool:
     """Whether to apply org/fact enrichment when reading financials.
 
@@ -2886,7 +2929,8 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
 # single field: small values beside large ones are genuine published figures
 # (93-maxsus trest net income 952.2; DORI year-end cash 4,757.9).
 _MIN_PLAUSIBLE = 10_000
-_FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income", "operating_income")
+_FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income",
+               "operating_income", "total_assets", "total_equity")
 _RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_ratio",
                  "quick_ratio", "debt_ratio", "total_asset_turnover",
                  "return_to_capital_employed", "total_equity", "total_assets")
@@ -4009,6 +4053,23 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
         _FIN_LOCK.release()
 
 
+def _fin_row_fields(row: Any) -> dict[str, Any]:
+    """One cached row's non-null fields, for the series readers.
+
+    Rows written before the total_assets/total_equity columns existed can still
+    carry the same figures inside the filed-balance block the reconcile pushes
+    (balance_period's assets_end/equity_end) — those fill the gap, so the latest
+    quarters show a balance before any backfill re-parses the history.
+    """
+    fields = {k: row[k] for k in _FIN_FIELDS if row[k] is not None}
+    if fields.get("total_assets") is None or fields.get("total_equity") is None:
+        balance = _decode_balance_period(row["balance_period"]) or {}
+        for field, key in (("total_assets", "assets_end"), ("total_equity", "equity_end")):
+            if fields.get(field) is None and balance.get(key) is not None:
+                fields[field] = balance[key]
+    return fields
+
+
 def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str, Any]]:
     """Every ANNUAL period this platform has parsed for one issuer, by year.
 
@@ -4033,7 +4094,7 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
         siblings = _org_siblings(conn, t) or [t]
         placeholders = ",".join("?" * len(siblings))
         fin = conn.execute(
-            f"SELECT ticker, year, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
+            f"SELECT ticker, year, balance_period, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
             f"WHERE ticker IN ({placeholders}) AND form=? AND quarter=0 ORDER BY year",
             (*siblings, form)).fetchall()
         rat = conn.execute(
@@ -4046,8 +4107,7 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
     # Siblings first, the requested ticker last: where both classes carry the
     # same year (the same filing parsed twice) the requested one wins.
     for row in sorted(fin, key=lambda r: r["ticker"] == t):
-        out.setdefault(str(row["year"]), {}).update(
-            {k: row[k] for k in _FIN_FIELDS if row[k] is not None})
+        out.setdefault(str(row["year"]), {}).update(_fin_row_fields(row))
     for row in sorted(rat, key=lambda r: r["ticker"] == t):
         out.setdefault(str(row["year"]), {}).update(
             {k: row[k] for k in ("roa", "roe", "debt_ratio", "debt_to_equity")
@@ -4076,7 +4136,8 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
         siblings = _org_siblings(conn, t) or [t]
         placeholders = ",".join("?" * len(siblings))
         fin = conn.execute(
-            f"SELECT ticker, year, quarter, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
+            f"SELECT ticker, year, quarter, balance_period, {', '.join(_FIN_FIELDS)} "
+            f"FROM catalog_financials "
             f"WHERE ticker IN ({placeholders}) AND form=? AND quarter!=0 "
             f"ORDER BY year, quarter",
             (*siblings, form)).fetchall()
@@ -4084,8 +4145,7 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
         conn.close()
     out: dict[str, dict[str, Any]] = {}
     for row in sorted(fin, key=lambda r: r["ticker"] == t):
-        out.setdefault(f"{row['year']}Q{row['quarter']}", {}).update(
-            {k: row[k] for k in _FIN_FIELDS if row[k] is not None})
+        out.setdefault(f"{row['year']}Q{row['quarter']}", {}).update(_fin_row_fields(row))
     return out
 
 
@@ -4519,6 +4579,9 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         "cash": cash,
         "total_assets": total_assets,
         "equity": equity,
+        # The cache column's own name, beside the parser's historical "equity":
+        # the collectors build their push rows straight off FIN_MONEY_FIELDS.
+        "total_equity": equity,
         "total_liabilities": total_liabilities,
     }
 

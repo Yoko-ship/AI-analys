@@ -330,6 +330,7 @@ class TestUnitScale:
         assert set(rc.FIN_MONEY_FIELDS) == {
             "revenue", "gross_profit", "cash",
             "total_liabilities", "net_income", "operating_income",
+            "total_assets", "total_equity",
             "noninterest_income",
         }
         # The filed balance rides as a nested dict and is scaled key-by-key at

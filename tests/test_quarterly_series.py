@@ -90,6 +90,45 @@ class TestStocksPassThrough:
         assert series["cash"] == {"2024Q1": 20.0, "2024Q2": 30.0}
         assert series["total_liabilities"] == {"2024Q1": 200.0, "2024Q2": 180.0}
 
+    def test_assets_and_equity_pass_through_and_q4_takes_the_annuals(self):
+        """The quarterly Баланс shows the annual view's three lines — Активы,
+        Обязательства, Капитал — so the balance totals ride the same snapshot
+        rule as cash, year-end doubling as Q4's."""
+        periods, series = api.derive_quarterly_series(
+            {"2024Q3": {"revenue": 300.0, "total_assets": 1000.0, "total_equity": 400.0}},
+            {"2024": {"revenue": 420.0, "total_assets": 1100.0, "total_equity": 450.0}})
+
+        assert series["total_assets"] == {"2024Q3": 1000.0, "2024Q4": 1100.0}
+        assert series["total_equity"] == {"2024Q3": 400.0, "2024Q4": 450.0}
+
+
+class TestBalancePeriodFallback:
+    def test_a_row_without_the_columns_reads_its_filed_balance_block(self):
+        """Rows the reconcile pushed before the total_assets/total_equity
+        columns existed carry the same figures in balance_period; the series
+        reader serves them rather than a dash on the newest quarters."""
+        import reports_catalog as rc
+
+        row = {"revenue": 100.0, "gross_profit": None, "cash": 5.0,
+               "total_liabilities": 600.0, "net_income": 10.0,
+               "operating_income": None, "total_assets": None, "total_equity": None,
+               "balance_period": '{"assets_end": 1000.0, "assets_start": 900.0, '
+                                 '"equity_end": 400.0, "equity_start": 380.0}'}
+        fields = rc._fin_row_fields(row)
+        assert fields["total_assets"] == 1000.0
+        assert fields["total_equity"] == 400.0
+
+    def test_the_columns_win_over_the_balance_block(self):
+        import reports_catalog as rc
+
+        row = {"revenue": None, "gross_profit": None, "cash": None,
+               "total_liabilities": None, "net_income": None,
+               "operating_income": None, "total_assets": 1234.0, "total_equity": None,
+               "balance_period": '{"assets_end": 1000.0, "equity_end": 400.0}'}
+        fields = rc._fin_row_fields(row)
+        assert fields["total_assets"] == 1234.0
+        assert fields["total_equity"] == 400.0
+
 
 class TestTheWitnessLine:
     """Cumulative revenue cannot decrease; a filing that breaks the year's
