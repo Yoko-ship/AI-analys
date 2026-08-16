@@ -191,10 +191,10 @@ OPENINFO_PROXY=http://user:pass@your-relay:8080
 ### Scheduling the collector
 
 `collector_financials.py` runs the full pipeline in one invocation (financials +
-trade-stats + adapter facts + listings) and pushes to the API service via the
-admin endpoints (`/api/admin/financials`, `/api/admin/trade-stats`,
-`/api/admin/quotes`, `/api/admin/facts`, `/api/admin/listings`, all authenticated
-with `ADMIN_API_SECRET`):
+trade-stats + adapter facts + listings + ГЦБ auctions) and pushes to the API
+service via the admin endpoints (`/api/admin/financials`, `/api/admin/trade-stats`,
+`/api/admin/quotes`, `/api/admin/facts`, `/api/admin/listings`,
+`/api/admin/gov-auctions`, all authenticated with `ADMIN_API_SECRET`):
 
 ```bash
 python collector_financials.py                # full pipeline + push
@@ -203,7 +203,13 @@ python collector_financials.py --no-facts     # financials + trade-stats only
 python collector_financials.py --trades-only  # only the day's quotes/turnover (~7 min)
 python collector_financials.py --trades-only --no-quotes  # …without the per-security quote pass
 python collector_financials.py --watch-filings # only the issuers that just filed (~1 min)
+python collector_financials.py --gov-auctions-only # only ГЦБ auctions + key rate from cbu.uz (~10 s)
 ```
+
+The ГЦБ step reads the Central Bank's fiscal-agent page (auction results: tenor,
+maturity, placed volume, weighted-average rate) and the key rate from the front
+page. Auctions are monthly, the read is cheap, and re-pushing what prod already
+holds is a no-op — so it simply rides in the daily `collector` cron.
 
 Schedule it on any host that can reach openinfo:
 
