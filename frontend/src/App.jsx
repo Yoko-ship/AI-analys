@@ -60,7 +60,6 @@ const VIEW_PATHS = {
   main: "/",
   market: "/market",
   heatmap: "/heatmap",
-  bonds: "/bonds",
   catalog: "/catalog",
   news: "/news",
   analysis: "/analysis",
@@ -97,6 +96,11 @@ function pathToView(pathname) {
   }
   if (clean.startsWith("/bond/")) {
     return { view: "bond", ticker: decodeURIComponent(clean.slice("/bond/".length)), newsId: null };
+  }
+  // The bonds list is the market page's own «Облигации» segment, not a page of
+  // its own — an old /bonds link lands on the board with that segment selected.
+  if (clean === "/bonds") {
+    return { view: "market", ticker: null, newsId: null };
   }
   // /news is the feed; /news/{id} is one story on its own page.
   if (clean.startsWith("/news/")) {
@@ -5674,183 +5678,6 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Bonds (ТЗ Дополнение 1 §А.2)
-//
-// Eleven issues trade genuinely and had no place in the interface at all. They
-// get their own table rather than a row in the equity board, because the columns
-// differ: an issue has a value, not a capitalisation, and it has no earnings, so
-// P/E and P/B are not blank for it — they do not apply.
-// ---------------------------------------------------------------------------
-
-function BondsTable({ language, onOpen }) {
-  const lang = normalizeLanguage(language);
-  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
-  const [data, setData] = React.useState(null);
-  const [error, setError] = React.useState(false);
-
-  React.useEffect(() => {
-    let alive = true;
-    fetch("/api/bonds")
-      .then((r) => r.json())
-      .then((d) => { if (alive) { if (d && d.ok) setData(d); else setError(true); } })
-      .catch(() => { if (alive) setError(true); });
-    return () => { alive = false; };
-  }, []);
-
-  if (error) return <p className="muted">{t("Раздел облигаций недоступен", "Obligatsiyalar bo'limi mavjud emas", "Bonds section unavailable")}</p>;
-  if (!data) return <p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p>;
-
-  const money = (v) => fmtCompact(v, lang);
-  const pct = (v) => fmtPct(v, lang);
-  // The API names the exact reference fields a withheld metric is waiting for;
-  // the tooltip has to name them in the reader's language, not as column names.
-  const missingLabel = {
-    nominal: t("номинал", "nominal", "the par value"),
-    coupon_rate: t("купонная ставка", "kupon stavkasi", "the coupon rate"),
-    maturity_date: t("дата погашения", "to'lov sanasi", "the maturity date"),
-  };
-  const metric = (m) => {
-    if (m?.value != null) return fmtMetric(m, lang);
-    // A withheld value carries its reason; an em-dash alone would read as "we
-    // did not bother" rather than "the source does not publish it".
-    const miss = (m?.missing || []).map((f) => missingLabel[f] || f).join(", ");
-    const title = [m?.note, miss && `${t("эмитент не подал", "emitent topshirmagan", "the issuer has not filed")}: ${miss}`]
-      .filter(Boolean).join(" · ");
-    return <span className="cell-status" title={title || m?.status || ""}>—</span>;
-  };
-
-  return (
-    <div className="bonds-wrap">
-      <div className="bonds-head">
-        <span className="panel-label">{t("Облигации", "Obligatsiyalar", "Bonds")}</span>
-        <span className="muted">
-          {data.count} {t("выпусков", "chiqarilish", "issues")}
-          {" · "}
-          {/* The session the rows are read against, and how many are not from
-              it. Four of the seventeen last traded days or months ago and, with
-              no date beside them, every one read as this morning's. */}
-          {t("сессия", "sessiya", "session")}: {data.board_day || "—"}
-          {data.stale > 0 && ` · ${data.traded_today} ${t("сегодня", "bugun", "today")}`}
-          {" · "}
-          {/* NOT the equity market's capitalisation, and labelled so nobody
-              adds the two together. */}
-          {t("стоимость выпусков", "chiqarilish qiymati", "issue value")}: {money(data.issue_value_total)}
-          {" · "}
-          {t("базис дней", "kun bazisi", "day count")}: {data.day_count_basis}
-        </span>
-      </div>
-      {/* The contour turns on in three stages, so the note has to say WHICH one
-          is missing: the par comes from the exchange, the coupon from the
-          issuer's payment filings, and the maturity only once a redemption
-          window is filed. One sentence for all three would be wrong in whichever
-          state it is not describing. */}
-      {data.with_reference === 0 && (data.with_coupon ? (
-        <p className="bonds-note muted">
-          {t("Купон, НКД и текущая доходность посчитаны по существенным фактам эмитента, номинал — по данным биржи. Доходность к погашению и дюрация не считаются: дату погашения эмитент публикует только когда начинает выкуп, а срок «N дней с начала размещения» — это не дата.",
-             "Kupon, YHD va joriy daromadlilik emitentning muhim faktlari bo'yicha, nominal — birja ma'lumoti bo'yicha hisoblangan. Daromadlilik va duratsiya hisoblanmaydi: to'lov sanasi faqat qaytarib sotib olish boshlanganda e'lon qilinadi.",
-             "The coupon, the accrued interest and the running yield are computed from the issuer's material facts, the par from the exchange. Yield to maturity and duration are not: an issuer files a redemption date only when it starts redeeming, and \"N days after placement began\" is not a date.")}
-        </p>
-      ) : data.with_nominal ? (
-        <p className="bonds-note muted">
-          {t("Цена показана в процентах от номинала — номинал взят с биржи. Доходность к погашению и дюрация не считаются: купонная ставка и дата погашения не публикуются ни на бирже, ни в API.",
-             "Narx nominalga nisbatan foizda ko'rsatilgan — nominal birjadan olingan. Daromadlilik va duratsiya hisoblanmaydi: kupon stavkasi va to'lov sanasi e'lon qilinmaydi.",
-             "Price is shown as a percentage of par, with the par taken from the exchange. Yield to maturity and duration are not computed: the coupon rate and the maturity date are published neither by the exchange nor by the API.")}
-        </p>
-      ) : (
-        <p className="bonds-note muted">
-          {t("Доходность, дюрация и цена в процентах от номинала не считаются: источник не публикует номинал, купон и дату погашения. Как только справочник выпусков загружен, метрики появляются сами.",
-             "Daromadlilik va duratsiya hisoblanmaydi: manba nominal, kupon va to'lov sanasini e'lon qilmaydi.",
-             "Yield, duration and price as a percentage of par are not computed: the source publishes no nominal, coupon or maturity. They appear by themselves once the issue reference is loaded.")}
-        </p>
-      ))}
-      <div className="market-table-scroll">
-        <table className="market-table bonds-table">
-          <thead>
-            <tr>
-              <th>{t("Тикер", "Ticker", "Ticker")}<TermInfo termId="ticker" lang={lang} /></th>
-              <th>{t("Эмитент", "Emitent", "Issuer")}<TermInfo termId="issuer" lang={lang} /></th>
-              <th className="num">{t("Цена", "Narx", "Price")}</th>
-              <th className="num">{t("Изм.", "O'zg.", "Chg")}<TermInfo termId="change" lang={lang} /></th>
-              {/* Which session the three numbers on this row belong to. The
-                  board screen has always carried this column; without it here a
-                  price, a move and a turnover from another week sat in the same
-                  column as this morning's and could not be told apart. */}
-              <th className="num">{t("Сессия", "Sessiya", "Session")}</th>
-              <th className="num">{t("Оборот", "Aylanma", "Turnover")}<TermInfo termId="volume" lang={lang} /></th>
-              <th className="num">{t("Сделки", "Bitimlar", "Trades")}</th>
-              {/* Two different sizes: how many securities the issue is, and what
-                  they are worth at today's price. The second is not equity
-                  capitalisation and is never summed into it. */}
-              <th className="num">{t("Выпуск, бумаг", "Chiqarilish, dona", "Issue, securities")}</th>
-              <th className="num">{t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}</th>
-              <th className="num">% {t("номинала", "nominal", "of par")}<TermInfo termId="parPercent" lang={lang} /></th>
-              {/* Two yields, never merged into one column: the coupon is what
-                  the issuer pays on par, the running yield is what that coupon
-                  is worth at today's price, and YTM is neither. */}
-              <th className="num">{t("Купон", "Kupon", "Coupon")}<TermInfo termId="coupon" lang={lang} /></th>
-              <th className="num">{t("Тек. дох.", "Joriy dar.", "Running")}<TermInfo termId="runningYield" lang={lang} /></th>
-              <th className="num">{t("Доходность", "Daromadlilik", "YTM")}<TermInfo termId="ytm" lang={lang} /></th>
-              <th>{t("Качество", "Sifat", "Quality")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((b) => (
-              <tr key={b.ticker} onClick={() => onOpen && onOpen(b.ticker)} className="bond-row">
-                <td><strong>{b.ticker}</strong></td>
-                {/* The issuer's legal name runs to sixty characters and four of
-                    the twelve issues share one — truncated here rather than
-                    allowed to set the table's width. */}
-                <td style={{ maxWidth: 230, overflow: "hidden", textOverflow: "ellipsis" }}
-                    title={b.issuer || b.name || ""}>{b.issuer || b.name || "—"}</td>
-                <td className="num">{fmtPrice(b.price, lang)}</td>
-                <td className={`num tone-${marketTone(b.change_pct)}`}>{pct(b.change_pct)}</td>
-                <td className={`num bond-session${b.is_current === false ? " bond-stale" : ""}`}
-                    title={b.is_current === false
-                      ? t("Последняя сессия этого выпуска — не сегодняшняя. Цена, изменение и оборот относятся к ней.",
-                          "Bu chiqarilishning oxirgi sessiyasi bugungi emas.",
-                          "This issue's last session is not today's. The price, the move and the turnover belong to it.")
-                      : ""}>
-                  {b.last_trade_date || "—"}
-                </td>
-                <td className="num">{money(b.turnover)}</td>
-                <td className="num">{Number.isFinite(b.trades) ? b.trades : "—"}</td>
-                <td className="num">{fmtNumber(b.reference?.issue_volume, lang, 0)}</td>
-                <td className="num">{money(b.issue_value)}</td>
-                <td className="num">{metric(b.price_pct)}</td>
-                <td className="num">
-                  {b.reference?.coupon_rate != null
-                    ? `${fmtNumber(b.reference.coupon_rate, lang, 2)}%`
-                    : b.reference?.coupon_type === "floating"
-                      // The detector concluded the filings fit no single annual
-                      // rate — that is a property of the issue, not a data gap.
-                      ? <span className="cell-status" title={t("ставка не фиксированная: поданные начисления не сводятся к одной годовой ставке", "stavka qat'iy emas: topshirilgan hisoblashlar yagona yillik stavkaga to'g'ri kelmaydi", "the rate is not fixed: the filed accruals fit no single annual rate")}>
-                          {t("плав.", "suzuv.", "float")}
-                        </span>
-                      : <span className="cell-status" title={t("эмитент не подавал начислений по этому выпуску", "emitent bu chiqarilish bo'yicha hisoblash topshirmagan", "the issuer has filed no accrual for this issue")}>—</span>}
-                </td>
-                <td className="num">{metric(b.simple_yield)}</td>
-                <td className="num">{metric(b.ytm)}</td>
-                <td>
-                  {b.status !== "ok"
-                    ? <span className="cell-status" title={b.reason || ""}>
-                        {b.status === "matured"
-                          ? t("в погашении", "qaytarilmoqda", "redeeming")
-                          : b.status === "no_price"
-                            ? t("нет цены", "narx yo'q", "no price")
-                            : t("нет сделок", "bitim yo'q", "not traded")}
-                      </span>
-                    : <span className="muted">{b.quality?.data_tier || "—"}</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // The bond section: screener → issue card → yield map (ТЗ Дополнение 1 §А +
 // прототип UZ Bonds). Reads /api/bonds (rows with the three-stage reference
 // gate), /api/bonds/{ticker} (row + filed coupons) and /api/bonds/curve (the
@@ -5933,7 +5760,7 @@ function BondCoverageCell({ share, lang }) {
   );
 }
 
-function BondsView({ language, onOpenBond }) {
+function BondsView({ language, onOpenBond, embedded = false }) {
   const lang = normalizeLanguage(language);
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [data, setData] = React.useState(null);
@@ -5953,8 +5780,12 @@ function BondsView({ language, onOpenBond }) {
     return () => { alive = false; };
   }, []);
 
-  if (error) return <section className="panel"><p className="muted">{t("Раздел облигаций недоступен", "Obligatsiyalar bo'limi mavjud emas", "Bonds section unavailable")}</p></section>;
-  if (!data) return <section className="panel"><p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p></section>;
+  // Inside the market page's «Облигации» segment the panel chrome is the market
+  // page's own; standalone (the /bond/{T} card's neighbours) it brings its own.
+  const Wrap = embedded ? "div" : "section";
+  const wrapClass = embedded ? "bondsec bondsec-embedded" : "panel bondsec";
+  if (error) return <Wrap className={wrapClass}><p className="muted">{t("Раздел облигаций недоступен", "Obligatsiyalar bo'limi mavjud emas", "Bonds section unavailable")}</p></Wrap>;
+  if (!data) return <Wrap className={wrapClass}><p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p></Wrap>;
 
   const money = (v) => fmtCompact(v, lang);
   const val = (m) => (m && m.value != null ? m.value : null);
@@ -6034,7 +5865,7 @@ function BondsView({ language, onOpenBond }) {
   const withYtm = rows.filter((r) => r.ytm != null).length;
 
   return (
-    <section className="panel bondsec">
+    <Wrap className={wrapClass}>
       <div className="bondsec-header">
         <div>
           <h2 className="panel-title">{t("Облигации Узбекистана", "O'zbekiston obligatsiyalari", "Uzbekistan bonds")}</h2>
@@ -6171,7 +6002,7 @@ function BondsView({ language, onOpenBond }) {
       ) : (
         <BondYieldMap rows={rows} govPoints={govPoints} keyRate={keyRate} lang={lang} onOpenBond={onOpenBond} />
       )}
-    </section>
+    </Wrap>
   );
 }
 
@@ -13045,9 +12876,10 @@ function MarketView({
 
         {/* ТЗ Дополнение 1 §А.2: bonds get their own table, not a row in the
             equity board — an issue has a value rather than a capitalisation, and
-            no earnings for a multiple to divide by. */}
+            no earnings for a multiple to divide by. The «Облигации» segment IS
+            the bond section: screener + yield map, a row opens /bond/{T}. */}
         {viewMode === "table" && type === "bond" ? (
-          <BondsTable language={lang} onOpen={onOpenBond || onAnalyze} />
+          <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded />
         ) : viewMode === "heatmap" ? (
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
@@ -14688,7 +14520,9 @@ function App() {
   const [historyMode, setHistoryMode] = useState("all");
   const [marketRows, setMarketRows] = useState([]);
   const [marketMeta, setMarketMeta] = useState({ updated_at: null, count: 0 });
-  const [marketType, setMarketType] = useState("stock");
+  // /bonds is not a view of its own — it opens the board's bond segment.
+  const [marketType, setMarketType] = useState(() => (
+    window.location.pathname.replace(/\/+$/, "") === "/bonds" ? "bond" : "stock"));
   const [marketQuery, setMarketQuery] = useState("");
   const [marketLoading, setMarketLoading] = useState(false);
   const [marketMessage, setMarketMessage] = useState("");
@@ -15567,8 +15401,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "bonds", "heatmap", "catalog", "news", "profile", "analysis", "compare"]
-    : ["main", "market", "bonds", "heatmap", "catalog", "news", "auth", "analysis", "compare"];
+    ? ["main", "market", "heatmap", "catalog", "news", "profile", "analysis", "compare"]
+    : ["main", "market", "heatmap", "catalog", "news", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -15635,7 +15469,7 @@ function App() {
                       return ageH > 24 ? <span className="nav-stale-dot" title={language === "ru" ? "Каталог устарел" : "Catalog stale"} /> : null;
                     })()}
                   </span>
-                ) : key === "market" ? mt(language, "nav") : key === "bonds" ? (language === "ru" ? "Облигации" : language === "uz" ? "Obligatsiyalar" : "Bonds") : key === "heatmap" ? (language === "ru" ? "Карта рынка" : language === "uz" ? "Bozor xaritasi" : "Market Map") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
+                ) : key === "market" ? mt(language, "nav") : key === "heatmap" ? (language === "ru" ? "Карта рынка" : language === "uz" ? "Bozor xaritasi" : "Market Map") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
@@ -15834,16 +15668,17 @@ function App() {
             />
           )}
 
-          {activeView === "bonds" && (
-            <BondsView language={language} onOpenBond={openBondPage} />
-          )}
-
           {activeView === "bond" && companyTicker && (
             <BondCard
               key={companyTicker}
               ticker={companyTicker}
               language={language}
-              onBack={() => setActiveView(prevView === "bond" ? "bonds" : (prevView || "bonds"))}
+              onBack={() => {
+                // The list behind the card is the board's «Облигации» segment.
+                const target = prevView && prevView !== "bond" ? prevView : "market";
+                if (target === "market") setMarketType("bond");
+                setActiveView(target);
+              }}
               onOpenChart={openChartPage}
             />
           )}
