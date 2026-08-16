@@ -60,6 +60,7 @@ const VIEW_PATHS = {
   main: "/",
   market: "/market",
   heatmap: "/heatmap",
+  bonds: "/bonds",
   catalog: "/catalog",
   news: "/news",
   analysis: "/analysis",
@@ -77,6 +78,8 @@ function viewToPath(view, ticker, newsId, adminSection) {
   // The advanced chart is a page, not a tab: it has its own toolbar state and
   // that state lives in the query string, so the view has to be linkable.
   if (view === "chart" && ticker) return `/chart/${encodeURIComponent(ticker)}`;
+  // One bond issue on its own page, like /company/{T} for an issuer.
+  if (view === "bond" && ticker) return `/bond/${encodeURIComponent(ticker)}`;
   if (view === "newsArticle" && newsId) return `/news/${encodeURIComponent(newsId)}`;
   if (view === "admin") {
     return adminSection && adminSection !== "overview" ? `/admin/${adminSection}` : "/admin";
@@ -91,6 +94,9 @@ function pathToView(pathname) {
   }
   if (clean.startsWith("/chart/")) {
     return { view: "chart", ticker: decodeURIComponent(clean.slice("/chart/".length)), newsId: null };
+  }
+  if (clean.startsWith("/bond/")) {
+    return { view: "bond", ticker: decodeURIComponent(clean.slice("/bond/".length)), newsId: null };
   }
   // /news is the feed; /news/{id} is one story on its own page.
   if (clean.startsWith("/news/")) {
@@ -5843,6 +5849,934 @@ function BondsTable({ language, onOpen }) {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// The bond section: screener → issue card → yield map (ТЗ Дополнение 1 §А +
+// прототип UZ Bonds). Reads /api/bonds (rows with the three-stage reference
+// gate), /api/bonds/{ticker} (row + filed coupons) and /api/bonds/curve (the
+// ГЦБ primary market). Everything a metric cannot honestly compute stays a
+// dash that names its reason — the section never invents a term.
+// ---------------------------------------------------------------------------
+
+const BOND_COVERAGE_FIELDS = [
+  ["isin", (b) => b.isin],
+  ["price", (b) => b.price],
+  ["nominal", (b) => b.reference?.nominal],
+  ["coupon_rate", (b) => b.reference?.coupon_rate],
+  ["coupon_freq", (b) => b.reference?.coupon_freq],
+  ["maturity_date", (b) => b.reference?.maturity_date],
+  ["issue_volume", (b) => b.reference?.issue_volume],
+];
+
+function bondCoverage(b) {
+  const filled = BOND_COVERAGE_FIELDS.filter(([, get]) => get(b) != null && get(b) !== "").length;
+  return filled / BOND_COVERAGE_FIELDS.length;
+}
+
+function bondYearsLeft(b, asOf) {
+  const mat = b.reference?.maturity_date;
+  if (!mat) return null;
+  const days = (new Date(mat) - (asOf ? new Date(asOf) : new Date())) / 864e5;
+  return days > 0 ? days / 365 : 0;
+}
+
+/** Clamped linear interpolation on the auctioned tenors — mirrors the server's
+ * rule: no market evidence beyond the last tenor, so no extrapolation. */
+function govCurveAt(years, points) {
+  const usable = (points || [])
+    .filter((p) => Number.isFinite(Number(p.term_days)) && Number.isFinite(Number(p.rate)))
+    .map((p) => [Number(p.term_days), Number(p.rate)])
+    .sort((a, b) => a[0] - b[0]);
+  if (years == null || !usable.length) return null;
+  const days = years * 365;
+  if (days <= usable[0][0]) return usable[0][1];
+  if (days >= usable[usable.length - 1][0]) return usable[usable.length - 1][1];
+  for (let i = 0; i < usable.length - 1; i += 1) {
+    const [t0, r0] = usable[i]; const [t1, r1] = usable[i + 1];
+    if (days >= t0 && days <= t1) return t1 > t0 ? r0 + ((r1 - r0) * (days - t0)) / (t1 - t0) : r0;
+  }
+  return null;
+}
+
+const fmtBondDay = (iso) => (iso && iso.length >= 10 ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "—");
+
+/** Spreads read best in basis points: +194 б.п., not +1,94%. */
+function fmtBp(pp, lang) {
+  if (pp == null || !Number.isFinite(Number(pp))) return "—";
+  const bp = Number(pp) * 100;
+  const body = fmtNumber(Math.abs(bp), lang, 0);
+  return `${bp >= 0 ? "+" : "−"}${body} ${lang === "en" ? "bp" : "б.п."}`;
+}
+
+function bondSortCompare(a, b, dir) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  if (typeof a === "string" || typeof b === "string") {
+    return dir * String(a).localeCompare(String(b), "ru");
+  }
+  return dir * (a - b);
+}
+
+/** The coverage cell: how much of the issue's reference the sources publish. */
+function BondCoverageCell({ share, lang }) {
+  const pctVal = fmtNumber(share * 100, lang, 0);
+  const tone = share >= 0.7 ? "pos" : share >= 0.4 ? "warn" : "neg";
+  return (
+    <span className="bondsec-cov" title={lang === "en"
+      ? `${pctVal}% of the reference fields are published by a source`
+      : lang === "uz" ? `Ma'lumot maydonlarining ${pctVal}% manbada e'lon qilingan`
+      : `${pctVal}% справочных полей раскрыто источниками`}>
+      <span className="bondsec-cov-track"><i className={`bondsec-cov-fill tone-${tone}`} style={{ width: `${Math.max(share * 100, 4)}%` }} /></span>
+      <span className="bondsec-cov-num">{pctVal}%</span>
+    </span>
+  );
+}
+
+function BondsView({ language, onOpenBond }) {
+  const lang = normalizeLanguage(language);
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [data, setData] = React.useState(null);
+  const [error, setError] = React.useState(false);
+  const [mode, setMode] = React.useState("screener");
+  const [q, setQ] = React.useState("");
+  const [term, setTerm] = React.useState("");
+  const [coverFilter, setCoverFilter] = React.useState("");
+  const [sort, setSort] = React.useState({ key: "ytm", dir: -1 });
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/bonds")
+      .then((r) => r.json())
+      .then((d) => { if (alive) { if (d && d.ok) setData(d); else setError(true); } })
+      .catch(() => { if (alive) setError(true); });
+    return () => { alive = false; };
+  }, []);
+
+  if (error) return <section className="panel"><p className="muted">{t("Раздел облигаций недоступен", "Obligatsiyalar bo'limi mavjud emas", "Bonds section unavailable")}</p></section>;
+  if (!data) return <section className="panel"><p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p></section>;
+
+  const money = (v) => fmtCompact(v, lang);
+  const val = (m) => (m && m.value != null ? m.value : null);
+  const govPoints = data.gov_curve || [];
+  const keyRate = data.key_rate || null;
+
+  const missingLabel = {
+    nominal: t("номинал", "nominal", "the par value"),
+    coupon_rate: t("купонная ставка", "kupon stavkasi", "the coupon rate"),
+    maturity_date: t("дата погашения", "to'lov sanasi", "the maturity date"),
+  };
+  const metricCell = (m, formatter) => {
+    if (m?.value != null) return formatter ? formatter(m.value) : fmtMetric(m, lang);
+    const miss = (m?.missing || []).map((f) => missingLabel[f] || f).join(", ");
+    const title = [m?.note, miss && `${t("эмитент не подал", "emitent topshirmagan", "the issuer has not filed")}: ${miss}`]
+      .filter(Boolean).join(" · ");
+    return <span className="cell-status" title={title || m?.status || ""}>—</span>;
+  };
+
+  const rows = (data.items || []).map((b) => ({
+    b,
+    ticker: b.ticker,
+    issuer: b.issuer || b.name || "",
+    price: b.price,
+    pricePct: val(b.price_pct),
+    change: b.change_pct,
+    session: b.last_trade_date,
+    turnover: b.turnover,
+    trades: b.trades,
+    years: bondYearsLeft(b, data.board_day),
+    coupon: b.reference?.coupon_rate ?? null,
+    running: val(b.simple_yield),
+    ytm: val(b.ytm),
+    gspread: val(b.g_spread),
+    dur: val(b.duration),
+    accrued: val(b.accrued),
+    cov: bondCoverage(b),
+  }));
+
+  const needle = q.trim().toLowerCase();
+  let filtered = rows;
+  if (needle) {
+    filtered = filtered.filter((r) =>
+      `${r.ticker} ${r.issuer} ${r.b.isin || ""} ${r.b.name || ""}`.toLowerCase().includes(needle));
+  }
+  if (term !== "") {
+    filtered = filtered.filter((r) => {
+      if (r.years == null) return false;
+      if (term === "1") return r.years < 1;
+      if (term === "3") return r.years >= 1 && r.years <= 3;
+      return r.years > 3;
+    });
+  }
+  if (coverFilter === "ytm") filtered = filtered.filter((r) => r.ytm != null);
+  if (coverFilter === "full") filtered = filtered.filter((r) => r.cov >= 0.7);
+
+  const sorted = filtered.slice().sort((a, b) => bondSortCompare(a[sort.key], b[sort.key], sort.dir));
+  const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: key === "ticker" || key === "issuer" || key === "session" ? 1 : -1 }));
+
+  const columns = [
+    { key: "ticker", label: t("Выпуск", "Chiqarilish", "Issue"), left: true },
+    { key: "price", label: t("Цена", "Narx", "Price"), termId: "par" },
+    { key: "pricePct", label: `% ${t("ном.", "nom.", "par")}`, termId: "parPercent" },
+    { key: "change", label: t("Изм.", "O'zg.", "Chg"), termId: "change" },
+    { key: "session", label: t("Сессия", "Sessiya", "Session") },
+    { key: "turnover", label: t("Оборот", "Aylanma", "Turnover"), termId: "volume" },
+    { key: "years", label: t("Лет до погаш.", "Yil qoldi", "Yrs to mat.") },
+    { key: "coupon", label: t("Купон", "Kupon", "Coupon"), termId: "coupon" },
+    { key: "running", label: t("Тек. дох.", "Joriy dar.", "Running"), termId: "runningYield" },
+    { key: "ytm", label: t("Доходность", "Daromadlilik", "YTM"), termId: "ytm" },
+    { key: "gspread", label: t("G-спред", "G-spred", "G-spread"), termId: "gSpread" },
+    { key: "dur", label: t("Дюрация", "Dyuratsiya", "Duration"), termId: "duration" },
+    { key: "accrued", label: t("НКД", "TKD", "Accrued"), termId: "accrued" },
+    { key: "cov", label: t("Данные", "Ma'lumot", "Data") },
+  ];
+
+  const withYtm = rows.filter((r) => r.ytm != null).length;
+
+  return (
+    <section className="panel bondsec">
+      <div className="bondsec-header">
+        <div>
+          <h2 className="panel-title">{t("Облигации Узбекистана", "O'zbekiston obligatsiyalari", "Uzbekistan bonds")}</h2>
+          <p className="muted bondsec-sub">
+            {data.count} {t("выпусков", "chiqarilish", "issues")}
+            {" · "}{t("доходность вычислима для", "daromadlilik hisoblanadi", "yield computable for")} {withYtm}
+            {" · "}{t("сессия", "sessiya", "session")}: {fmtBondDay(data.board_day)}
+            {" · "}{t("стоимость выпусков", "chiqarilish qiymati", "issue value")}: {money(data.issue_value_total)}
+            {keyRate?.rate != null && (
+              <>
+                {" · "}
+                <span title={`${t("действует с", "amal qiladi", "effective from")} ${fmtBondDay(keyRate.effective_from)} · cbu.uz`}>
+                  {t("ставка ЦБ", "MB stavkasi", "key rate")}: {fmtNumber(keyRate.rate, lang, 2)}%
+                </span>
+              </>
+            )}
+            {govPoints.length > 0 && (
+              <>
+                {" · "}
+                <span title={t("средневзвешенные ставки последних аукционов ГЦБ", "so'nggi DQQ auksionlarining o'rtacha stavkalari", "weighted-average rates of the latest government auctions")}>
+                  {t("кривая ГЦБ", "DQQ egri chizig'i", "gov curve")}: {govPoints.map((p) => `${fmtNumber(p.term_days / 365, lang, 1)}${t("г", "y", "y")} ${fmtNumber(p.rate, lang, 2)}%`).join(" / ")}
+                </span>
+                <TermInfo termId="govCurve" lang={lang} />
+              </>
+            )}
+          </p>
+        </div>
+        <div className="segmented-control bondsec-mode" role="tablist">
+          <button type="button" className={mode === "screener" ? "active" : ""} onClick={() => setMode("screener")}>
+            {t("Скринер", "Skriner", "Screener")}
+          </button>
+          <button type="button" className={mode === "map" ? "active" : ""} onClick={() => setMode("map")}>
+            {t("Карта доходности", "Daromadlilik xaritasi", "Yield map")}
+          </button>
+        </div>
+      </div>
+
+      {mode === "screener" ? (
+        <>
+          <div className="bondsec-toolbar">
+            <input
+              type="search"
+              className="bondsec-search"
+              placeholder={t("Поиск: тикер, эмитент, ISIN", "Qidiruv: ticker, emitent, ISIN", "Search: ticker, issuer, ISIN")}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <select value={term} onChange={(e) => setTerm(e.target.value)} aria-label={t("Срок до погашения", "Muddat", "Term")}>
+              <option value="">{t("Срок: любой", "Muddat: istalgan", "Term: any")}</option>
+              <option value="1">{t("до 1 года", "1 yilgacha", "under 1y")}</option>
+              <option value="3">{t("1–3 года", "1–3 yil", "1–3y")}</option>
+              <option value="99">{t("более 3 лет", "3 yildan ortiq", "over 3y")}</option>
+            </select>
+            <select value={coverFilter} onChange={(e) => setCoverFilter(e.target.value)} aria-label={t("Полнота данных", "Ma'lumot to'liqligi", "Data completeness")}>
+              <option value="">{t("Все выпуски", "Barcha chiqarilishlar", "All issues")}</option>
+              <option value="ytm">{t("Только с доходностью", "Faqat daromadlilik bilan", "With yield only")}</option>
+              <option value="full">{t("Покрытие ≥ 70%", "Qamrov ≥ 70%", "Coverage ≥ 70%")}</option>
+            </select>
+            {(q || term || coverFilter) && (
+              <button type="button" className="ghost-btn" onClick={() => { setQ(""); setTerm(""); setCoverFilter(""); }}>
+                {t("Сбросить", "Tiklash", "Reset")}
+              </button>
+            )}
+            <span className="muted bondsec-shown">
+              {t("Показано", "Ko'rsatildi", "Shown")} {sorted.length} / {rows.length}
+            </span>
+          </div>
+
+          <div className="market-table-scroll">
+            <table className="market-table bonds-table bondsec-table">
+              <thead>
+                <tr>
+                  {columns.map((c) => (
+                    <th
+                      key={c.key}
+                      className={c.left ? "" : "num"}
+                      onClick={() => onSort(c.key)}
+                      data-sorted={sort.key === c.key ? "1" : undefined}
+                      title={t("Клик — сортировка", "Bosish — saralash", "Click to sort")}
+                    >
+                      {c.label}
+                      {c.termId ? <TermInfo termId={c.termId} lang={lang} /> : null}
+                      {sort.key === c.key ? (sort.dir < 0 ? " ↓" : " ↑") : ""}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((r) => (
+                  <tr key={r.ticker} className="bond-row" onClick={() => onOpenBond && onOpenBond(r.ticker)}>
+                    <td>
+                      <strong>{r.ticker}</strong>
+                      <span className="bondsec-issuer" title={r.issuer}>
+                        {r.issuer || "—"}{r.b.isin ? ` · ${r.b.isin}` : ""}
+                      </span>
+                    </td>
+                    <td className="num">{fmtPrice(r.price, lang)}</td>
+                    <td className="num">{metricCell(r.b.price_pct, (v) => `${fmtNumber(v, lang, 2)}%`)}</td>
+                    <td className={`num tone-${marketTone(r.change)}`}>{fmtPct(r.change, lang)}</td>
+                    <td className={`num bond-session${r.b.is_current === false ? " bond-stale" : ""}`}
+                        title={r.b.is_current === false
+                          ? t("Последняя сессия этого выпуска — не сегодняшняя.", "Oxirgi sessiya bugungi emas.", "This issue's last session is not today's.")
+                          : ""}>
+                      {fmtBondDay(r.session)}
+                    </td>
+                    <td className="num">{money(r.turnover)}</td>
+                    <td className="num">{r.years == null
+                      ? <span className="cell-status" title={t("дата погашения не подана эмитентом", "to'lov sanasi topshirilmagan", "no maturity filed")}>—</span>
+                      : fmtNumber(r.years, lang, 1)}</td>
+                    <td className="num">
+                      {r.coupon != null
+                        ? `${fmtNumber(r.coupon, lang, 2)}%`
+                        : r.b.reference?.coupon_type === "floating"
+                          ? <span className="cell-status" title={t("ставка не фиксированная", "stavka qat'iy emas", "the rate is not fixed")}>{t("плав.", "suzuv.", "float")}</span>
+                          : <span className="cell-status" title={t("эмитент не подавал начислений", "hisoblash topshirilmagan", "no accrual filed")}>—</span>}
+                    </td>
+                    <td className="num">{metricCell(r.b.simple_yield, (v) => `${fmtNumber(v, lang, 2)}%`)}</td>
+                    <td className="num bondsec-strong">{metricCell(r.b.ytm, (v) => `${fmtNumber(v, lang, 2)}%`)}</td>
+                    <td className="num">{metricCell(r.b.g_spread, (v) => fmtBp(v, lang))}</td>
+                    <td className="num">{metricCell(r.b.duration, (v) => fmtNumber(v, lang, 2))}</td>
+                    <td className="num">{metricCell(r.b.accrued, (v) => fmtNumber(v, lang, 0))}</td>
+                    <td className="num"><BondCoverageCell share={r.cov} lang={lang} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="muted bondsec-note">
+            {t("Клик по строке открывает карточку выпуска. Прочерк означает, что поле не раскрыто ни одним публичным источником — наведите курсор, чтобы увидеть причину.",
+               "Qator ustiga bosish chiqarilish kartochkasini ochadi. Chiziq — maydon hech bir ochiq manbada e'lon qilinmagan.",
+               "Clicking a row opens the issue card. A dash means no public source discloses the field — hover to see the reason.")}
+          </p>
+        </>
+      ) : (
+        <BondYieldMap rows={rows} govPoints={govPoints} keyRate={keyRate} lang={lang} onOpenBond={onOpenBond} />
+      )}
+    </section>
+  );
+}
+
+/** YTM against duration, bubble area = issue value, with the ГЦБ base curve.
+ * Only bonds whose yield IS computed appear — the map never plots a guess. */
+function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const pts = rows
+    .map((r) => ({
+      ...r,
+      x: r.dur != null ? r.dur : r.years,
+      y: r.ytm,
+      size: r.b.issue_value || 0,
+    }))
+    .filter((p) => p.x != null && p.y != null);
+
+  if (!pts.length) {
+    return (
+      <div className="bondsec-empty">
+        <b>{t("Карта пуста", "Xarita bo'sh", "The map is empty")}</b>
+        {t("Ни один выпуск сейчас не имеет одновременно цены, купона и даты погашения — доходность не вычислима, и точке неоткуда взяться.",
+           "Hozircha hech bir chiqarilishda narx, kupon va to'lov sanasi birga yo'q.",
+           "No issue currently has a price, a coupon and a maturity at once — no yield, no dot.")}
+      </div>
+    );
+  }
+
+  const W = 1060; const H = 460; const L = 58; const R = 170; const T = 24; const B = 54;
+  const pw = W - L - R; const ph = H - T - B;
+  const maxX = Math.max(4, ...pts.map((p) => p.x)) * 1.1;
+  const yVals = pts.map((p) => p.y).concat(govPoints.map((p) => p.rate)).concat(keyRate?.rate != null ? [keyRate.rate] : []);
+  const minY = Math.floor(Math.min(...yVals) / 5) * 5;
+  const maxY = Math.ceil((Math.max(...yVals) + 2) / 5) * 5;
+  const X = (v) => L + (pw * Math.min(v, maxX)) / maxX;
+  const Y = (v) => T + ph - (ph * (v - minY)) / (maxY - minY || 1);
+  const maxSize = Math.max(...pts.map((p) => p.size), 1);
+
+  const gridY = [];
+  for (let v = minY; v <= maxY; v += 5) gridY.push(v);
+  const gridX = [];
+  for (let v = 0; v <= maxX; v += 1) gridX.push(v);
+
+  const curvePath = govPoints.length
+    ? Array.from({ length: 81 }, (_, i) => {
+        const yrs = (maxX * i) / 80;
+        const rate = govCurveAt(yrs, govPoints);
+        return rate == null ? null : `${i === 0 ? "M" : "L"}${X(yrs).toFixed(1)},${Y(rate).toFixed(1)}`;
+      }).filter(Boolean).join(" ")
+    : null;
+
+  const spreadRows = pts.slice().sort((a, b) => (b.gspread ?? -1e9) - (a.gspread ?? -1e9));
+
+  return (
+    <div className="bondsec-map">
+      <div className="bondsec-legend muted">
+        <span><i className="bondsec-dot" style={{ background: "var(--accent)" }} />{t("выпуск (размер — стоимость выпуска)", "chiqarilish (o'lcham — qiymat)", "issue (size = issue value)")}</span>
+        {curvePath && <span><i className="bondsec-line" />{t("кривая ГЦБ", "DQQ egri chizig'i", "gov curve")}<TermInfo termId="govCurve" lang={lang} /></span>}
+        {keyRate?.rate != null && <span><i className="bondsec-line bondsec-line-dash" />{t("ставка ЦБ", "MB stavkasi", "key rate")} {fmtNumber(keyRate.rate, lang, 2)}%</span>}
+      </div>
+      <svg className="bondsec-chart" viewBox={`0 0 ${W} ${H}`} role="img"
+           aria-label={t("Карта доходности: доходность против дюрации", "Daromadlilik xaritasi", "Yield map: yield vs duration")}>
+        {gridY.map((v) => (
+          <g key={`y${v}`}>
+            <line x1={L} x2={L + pw} y1={Y(v)} y2={Y(v)} className="bondsec-grid" />
+            <text x={L - 8} y={Y(v) + 4} textAnchor="end" className="bondsec-tick">{v}%</text>
+          </g>
+        ))}
+        {gridX.map((v) => (
+          <g key={`x${v}`}>
+            <line x1={X(v)} x2={X(v)} y1={T} y2={T + ph} className="bondsec-grid" />
+            <text x={X(v)} y={T + ph + 18} textAnchor="middle" className="bondsec-tick">{v}</text>
+          </g>
+        ))}
+        <line x1={L} x2={L + pw} y1={T + ph} y2={T + ph} className="bondsec-axis" />
+        <line x1={L} x2={L} y1={T} y2={T + ph} className="bondsec-axis" />
+        <text x={L + pw / 2} y={H - 12} textAnchor="middle" className="bondsec-tick">
+          {t("Дюрация, лет (или срок до погашения)", "Dyuratsiya, yil", "Duration, years (or term to maturity)")}
+        </text>
+        <text x={L - 40} y={T - 8} className="bondsec-tick">{t("Доходность, % годовых", "Daromadlilik, % yillik", "Yield, % p.a.")}</text>
+        {keyRate?.rate != null && (
+          <line x1={L} x2={L + pw} y1={Y(keyRate.rate)} y2={Y(keyRate.rate)} className="bondsec-keyrate" />
+        )}
+        {curvePath && <path d={curvePath} className="bondsec-curve" fill="none" />}
+        {pts.slice().sort((a, b) => b.size - a.size).map((p) => {
+          const r = 6 + 10 * Math.sqrt(p.size / maxSize);
+          const base = govCurveAt(p.x, govPoints);
+          return (
+            <g key={p.ticker} className="bondsec-map-pt" onClick={() => onOpenBond && onOpenBond(p.ticker)}>
+              <circle cx={X(p.x)} cy={Y(p.y)} r={r} className="bondsec-bubble" />
+              <text x={X(p.x) + r + 6} y={Y(p.y) + 4} className="bondsec-label">{p.ticker}</text>
+              <title>
+                {`${p.ticker} · ${p.issuer}\n`}
+                {`${t("Доходность", "Daromadlilik", "Yield")}: ${fmtNumber(p.y, lang, 2)}%\n`}
+                {`${t("Дюрация", "Dyuratsiya", "Duration")}: ${fmtNumber(p.x, lang, 2)} ${t("г.", "y.", "y")}\n`}
+                {base != null ? `${t("Кривая ГЦБ", "DQQ egri chizig'i", "Gov curve")}: ${fmtNumber(base, lang, 2)}%\n${t("Спред", "Spred", "Spread")}: ${fmtBp(p.y - base, lang)}\n` : ""}
+                {`${t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}: ${fmtCompact(p.size, lang)}`}
+              </title>
+            </g>
+          );
+        })}
+      </svg>
+
+      <h3 className="bondsec-h3">{t("Спреды к базовой кривой", "Tayanch egri chiziqqa spredlar", "Spreads to the base curve")}<TermInfo termId="gSpread" lang={lang} /></h3>
+      <div className="market-table-scroll">
+        <table className="market-table bondsec-spread-table">
+          <thead>
+            <tr>
+              <th>{t("Выпуск", "Chiqarilish", "Issue")}</th>
+              <th className="num">{t("Дюрация, лет", "Dyuratsiya, yil", "Duration, yrs")}</th>
+              <th className="num">{t("Доходность", "Daromadlilik", "Yield")}</th>
+              <th className="num">{t("Кривая ГЦБ", "DQQ egri chizig'i", "Gov curve")}</th>
+              <th className="num">{t("G-спред", "G-spred", "G-spread")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {spreadRows.map((p) => {
+              const base = govCurveAt(p.x, govPoints);
+              return (
+                <tr key={p.ticker} className="bond-row" onClick={() => onOpenBond && onOpenBond(p.ticker)}>
+                  <td><strong>{p.ticker}</strong> <span className="muted">{p.issuer}</span></td>
+                  <td className="num">{fmtNumber(p.x, lang, 2)}</td>
+                  <td className="num">{fmtNumber(p.y, lang, 2)}%</td>
+                  <td className="num">{base != null ? `${fmtNumber(base, lang, 2)}%` : "—"}</td>
+                  <td className="num">{base != null ? fmtBp(p.y - base, lang) : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted bondsec-note">
+        {t("Кривая построена по средневзвешенным ставкам последних аукционов ГЦБ (фискальный агент — ЦБ РУз) с линейной интерполяцией между сроками; за пределы аукционных сроков она не продлевается. Вертикальный зазор между точкой и линией — кредитный спред выпуска.",
+           "Egri chiziq so'nggi DQQ auksionlarining o'rtacha tortilgan stavkalari bo'yicha qurilgan; auksion muddatlaridan tashqariga uzaytirilmaydi.",
+           "The curve is built from the weighted-average rates of the latest government auctions (the Central Bank is fiscal agent), linear between tenors and never extended beyond them. The vertical gap between a dot and the line is the issue's credit spread.")}
+      </p>
+    </div>
+  );
+}
+
+function BondCard({ ticker, language, onBack, onOpenChart }) {
+  const lang = normalizeLanguage(language);
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [bond, setBond] = React.useState(null);
+  const [board, setBoard] = React.useState(null);
+  const [curveData, setCurveData] = React.useState(null);
+  const [error, setError] = React.useState(false);
+  const [tab, setTab] = React.useState("overview");
+
+  React.useEffect(() => {
+    let alive = true;
+    setBond(null); setError(false); setTab("overview");
+    fetch(`/api/bonds/${encodeURIComponent(ticker)}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) { if (d && d.ok) setBond(d); else setError(true); } })
+      .catch(() => { if (alive) setError(true); });
+    fetch("/api/bonds").then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setBoard(d); }).catch(() => {});
+    fetch("/api/bonds/curve").then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setCurveData(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [ticker]);
+
+  if (error) return <section className="panel"><p className="muted">{t("Выпуск не найден", "Chiqarilish topilmadi", "Issue not found")}</p></section>;
+  if (!bond) return <section className="panel"><p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p></section>;
+
+  const val = (m) => (m && m.value != null ? m.value : null);
+  const ref = bond.reference || {};
+  const govPoints = bond.gov_curve || [];
+  const keyRate = bond.key_rate || null;
+  const years = bondYearsLeft(bond, bond.board_day);
+  const coupons = bond.coupons || [];
+  const today = new Date().toISOString().slice(0, 10);
+  const futureCoupons = coupons.filter((c) => c.pay_date && c.pay_date.slice(0, 10) > today);
+  const nextCoupon = futureCoupons[0] || null;
+
+  const dash = (reason) => <span className="cell-status" title={reason || ""}>—</span>;
+  const num2 = (v, d = 2) => fmtNumber(v, lang, d);
+  const m = (mm, formatter) => (mm?.value != null
+    ? (formatter ? formatter(mm.value) : num2(mm.value))
+    : dash(mm?.note || (mm?.missing || []).join(", ") || mm?.status));
+
+  return (
+    <section className="panel bondsec bondsec-card">
+      <div className="bondsec-card-head">
+        <div>
+          <button type="button" className="ghost-btn" onClick={onBack}>← {t("К списку облигаций", "Obligatsiyalar ro'yxatiga", "Back to bonds")}</button>
+          <h2 className="panel-title bondsec-card-title">
+            {bond.ticker}
+            {bond.isin ? <span className="muted bondsec-card-isin"> · {bond.isin}</span> : null}
+          </h2>
+          <p className="muted bondsec-sub">
+            {bond.issuer || bond.name || "—"} · UZS
+            {bond.status === "matured" && ` · ${t("выпуск погашается", "chiqarilish so'ndirilmoqda", "redeeming")}`}
+          </p>
+        </div>
+        <div className="bondsec-card-actions">
+          <button type="button" className="ghost-btn" onClick={() => onOpenChart && onOpenChart(bond.ticker)}>
+            {t("Открыть график цены", "Narx grafigini ochish", "Open price chart")}
+          </button>
+        </div>
+      </div>
+
+      <div className="bondsec-summary">
+        {bond.price != null && ref.nominal != null ? (
+          <>
+            {t("Облигация стоит сейчас", "Obligatsiya hozir", "The bond now costs")}{" "}
+            <b>{fmtPrice(bond.price, lang)} {t("сум", "so'm", "UZS")}</b>
+            {val(bond.price_pct) != null && <> ({t("или", "yoki", "or")} <b>{num2(val(bond.price_pct))}%</b> {t("от номинала", "nominaldan", "of par")})</>}
+            {". "}
+            {ref.maturity_date
+              ? <>{t("Погашение по номиналу", "Nominal bo'yicha so'ndirish", "Redeemed at par on")} {fmtBondDay(ref.maturity_date)}. </>
+              : <>{t("Дату погашения эмитент ещё не подал — она появляется в раскрытии только с началом выкупа. ", "To'lov sanasi hali topshirilmagan. ", "The issuer has not yet filed a maturity date — it appears in disclosure only once redemption begins. ")}</>}
+            {val(bond.accrued) != null && nextCoupon && (
+              <>
+                {t("Покупая одну облигацию сейчас, вы заплатите продавцу НКД", "Hozir bitta obligatsiya olsangiz, sotuvchiga TKD to'laysiz", "Buying one bond now you pay the seller accrued interest of")}{" "}
+                <b>{num2(val(bond.accrued), 0)} {t("сум", "so'm", "UZS")}</b>
+                {nextCoupon.amount != null && <>, {t("а следующий купон", "keyingi kupon esa", "and the next coupon of")} {num2(nextCoupon.amount, 0)} {t("сум получите", "so'mni olasiz", "UZS arrives")} {fmtBondDay(nextCoupon.pay_date)}</>}
+                {". "}
+              </>
+            )}
+            {val(bond.ytm) != null && (
+              <>
+                {t("Доходность к погашению —", "So'ndirishgacha daromadlilik —", "Yield to maturity is")}{" "}
+                <b>{num2(val(bond.ytm))}%</b> {t("годовых", "yillik", "p.a.")}
+                {val(bond.g_spread) != null && <>, {t("спред к кривой ГЦБ —", "DQQ egri chizig'iga spred —", "spread to the government curve —")} <b>{fmtBp(val(bond.g_spread), lang)}</b></>}
+                {"."}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <b>{t("Расчёт доходности недоступен.", "Daromadlilik hisoblab bo'lmaydi.", "Yield cannot be computed.")}</b>{" "}
+            {t("Публично раскрыта только часть параметров выпуска", "Chiqarilish parametrlarining faqat bir qismi ochiq", "Only part of the issue's parameters is publicly disclosed")}
+            {ref.coupon_rate != null && <> — {t("ставка купона", "kupon stavkasi", "the coupon rate of")} {num2(ref.coupon_rate)}%</>}
+            {". "}
+            {t("Отсутствуют:", "Yo'q:", "Missing:")}{" "}
+            {(bond.ytm?.missing || ref.missing || []).map((f) => ({
+              nominal: t("номинал", "nominal", "par"),
+              coupon_rate: t("ставка купона", "kupon stavkasi", "coupon rate"),
+              maturity_date: t("дата погашения", "to'lov sanasi", "maturity date"),
+            }[f] || f)).join(", ") || t("цена сделки", "bitim narxi", "a traded price")}
+            {". "}
+            {t("Метрики появятся сами, как только источники раскроют недостающее.", "Manbalar yetishmayotganini e'lon qilishi bilan ko'rsatkichlar o'zi paydo bo'ladi.", "The metrics appear by themselves once the sources disclose what is missing.")}
+          </>
+        )}
+      </div>
+
+      <div className="bondsec-cols">
+        <div className="bondsec-kv-card">
+          <table className="bondsec-kv">
+            <tbody>
+              <tr><td>{t("Котировка", "Kotirovka", "Quote")}<TermInfo termId="parPercent" lang={lang} /></td><td>{m(bond.price_pct, (v) => `${num2(v)}%`)}</td></tr>
+              <tr><td>{t("Цена", "Narx", "Price")}</td><td>{bond.price != null ? fmtPrice(bond.price, lang) : dash(bond.reason)}</td></tr>
+              <tr><td>{t("Изменение за сессию", "Sessiya o'zgarishi", "Session change")}</td><td className={`tone-${marketTone(bond.change_pct)}`}>{fmtPct(bond.change_pct, lang)}</td></tr>
+              <tr><td>{t("Сессия", "Sessiya", "Session")}</td><td>{fmtBondDay(bond.last_trade_date)}</td></tr>
+              <tr><td>{t("Оборот за сессию", "Sessiya aylanmasi", "Session turnover")}</td><td>{fmtCompact(bond.turnover, lang)}</td></tr>
+              <tr><td>{t("Сделки", "Bitimlar", "Trades")}</td><td>{Number.isFinite(bond.trades) ? bond.trades : "—"}</td></tr>
+              <tr><td>{t("Лет до погашения", "So'ndirishgacha yil", "Years to maturity")}</td><td>{years != null ? num2(years) : dash(t("дата погашения не подана", "to'lov sanasi topshirilmagan", "no maturity filed"))}</td></tr>
+              <tr>
+                <td>{t("Дата погашения", "To'lov sanasi", "Maturity")}</td>
+                <td>{ref.maturity_date
+                  ? <span title={t("из факта выкупа, поданного эмитентом на openinfo.uz", "emitentning openinfo.uz'dagi so'ndirish faktidan", "from the issuer's redemption filing on openinfo.uz")}>{fmtBondDay(ref.maturity_date)}</span>
+                  : dash(t("эмитент публикует дату только с началом выкупа", "sana faqat so'ndirish boshlanganda e'lon qilinadi", "filed only once redemption begins"))}</td>
+              </tr>
+              <tr><td>{t("Валюта", "Valyuta", "Currency")}</td><td>UZS</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="bondsec-kv-card">
+          <table className="bondsec-kv">
+            <tbody>
+              <tr>
+                <td>{t("Ставка купона", "Kupon stavkasi", "Coupon rate")}<TermInfo termId="coupon" lang={lang} /></td>
+                <td>{ref.coupon_rate != null ? `${num2(ref.coupon_rate)}%`
+                  : ref.coupon_type === "floating" ? t("плавающая", "suzuvchi", "floating")
+                  : dash(t("эмитент не подавал начислений", "hisoblash topshirilmagan", "no accrual filed"))}</td>
+              </tr>
+              <tr><td>{t("Номинал", "Nominal", "Par")}<TermInfo termId="par" lang={lang} /></td><td>{ref.nominal != null ? num2(ref.nominal, 0) : dash()}</td></tr>
+              <tr><td>{t("Частота купона, раз в год", "Kupon chastotasi", "Coupon frequency")}</td><td>{ref.coupon_freq != null ? num2(ref.coupon_freq, 0) : dash(t("не раскрыта", "e'lon qilinmagan", "not disclosed"))}</td></tr>
+              <tr><td>{t("НКД", "TKD", "Accrued")}<TermInfo termId="accrued" lang={lang} /></td><td>{m(bond.accrued, (v) => `${num2(v, 0)} ${t("сум", "so'm", "UZS")}`)}</td></tr>
+              <tr><td>{t("«Грязная» цена", "«Iflos» narx", "Dirty price")}</td><td>{m(bond.dirty, (v) => fmtPrice(v, lang))}</td></tr>
+              <tr>
+                <td>{t("Следующий купон", "Keyingi kupon", "Next coupon")}</td>
+                <td>{nextCoupon
+                  ? `${fmtBondDay(nextCoupon.pay_date)}${nextCoupon.amount != null ? ` · ${num2(nextCoupon.amount, 0)} ${t("сум", "so'm", "UZS")}` : ""}`
+                  : dash(t("будущих купонов в раскрытии нет", "kelgusi kuponlar e'lon qilinmagan", "no future coupons filed"))}</td>
+              </tr>
+              <tr><td>{t("Купонов подано", "Kupon topshirilgan", "Coupons filed")}</td><td>{coupons.length || dash()}</td></tr>
+              <tr><td>{t("Текущая доходность", "Joriy daromadlilik", "Running yield")}<TermInfo termId="runningYield" lang={lang} /></td><td>{m(bond.simple_yield, (v) => `${num2(v)}%`)}</td></tr>
+              <tr><td>{t("Базис дней", "Kun bazisi", "Day count")}</td><td>{bond.day_count_basis || "—"}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="bondsec-kv-card">
+          <table className="bondsec-kv">
+            <tbody>
+              <tr><td>{t("Доходность к погашению", "So'ndirishgacha daromadlilik", "YTM")}<TermInfo termId="ytm" lang={lang} /></td><td className="bondsec-strong">{m(bond.ytm, (v) => `${num2(v)}%`)}</td></tr>
+              <tr><td>{t("G-спред", "G-spred", "G-spread")}<TermInfo termId="gSpread" lang={lang} /></td><td>{m(bond.g_spread, (v) => fmtBp(v, lang))}</td></tr>
+              <tr><td>{t("Премия к ставке ЦБ", "MB stavkasiga mukofot", "Premium to key rate")}<TermInfo termId="keyRatePremium" lang={lang} /></td><td>{m(bond.spread, (v) => fmtBp(v, lang))}</td></tr>
+              <tr><td>{t("Дюрация Маколея, лет", "Makoley dyuratsiyasi", "Macaulay duration")}<TermInfo termId="duration" lang={lang} /></td><td>{m(bond.duration)}</td></tr>
+              <tr><td>{t("Модифицированная дюрация", "Modifikatsiyalangan dyuratsiya", "Modified duration")}</td><td>{m(bond.modified_duration)}</td></tr>
+              <tr><td>{t("Выпуклость", "Qavariqlik", "Convexity")}<TermInfo termId="convexity" lang={lang} /></td><td>{m(bond.convexity)}</td></tr>
+              <tr><td>{t("BPV", "BPV", "BPV")}<TermInfo termId="bpv" lang={lang} /></td><td>{m(bond.bpv, (v) => `${num2(v, 0)} ${t("сум", "so'm", "UZS")}`)}</td></tr>
+              <tr><td>{t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}</td><td>{fmtCompact(bond.issue_value, lang)}</td></tr>
+              <tr><td>{t("Качество истории", "Tarix sifati", "History quality")}</td><td>{bond.quality?.data_tier || "—"}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bondsec-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === "overview"} onClick={() => setTab("overview")}>
+          {t("Кривая ГЦБ", "DQQ egri chizig'i", "Gov curve")}
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "coupons"} onClick={() => setTab("coupons")}>
+          {t("Купоны", "Kuponlar", "Coupons")}
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "ladder"} onClick={() => setTab("ladder")}>
+          {t("Лестница доходностей", "Daromadlilik zinasi", "Yield ladder")}
+        </button>
+      </div>
+
+      {tab === "overview" && <BondGovCurvePanel curveData={curveData} keyRate={keyRate} lang={lang} />}
+      {tab === "coupons" && <BondCouponsPanel bond={bond} coupons={coupons} lang={lang} />}
+      {tab === "ladder" && <BondLadderPanel board={board} current={bond.ticker} lang={lang} />}
+    </section>
+  );
+}
+
+/** Auction history per tenor plus the key rate — the market the spread is
+ * measured against, drawn from the auctions actually held. */
+function BondGovCurvePanel({ curveData, keyRate, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  if (!curveData) return <p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p>;
+  const auctions = (curveData.auctions || []).filter((a) => a.wavg_rate != null && a.auction_date);
+  if (!auctions.length) {
+    return (
+      <div className="bondsec-empty">
+        <b>{t("Аукционы ещё не собраны", "Auksionlar hali yig'ilmagan", "No auctions collected yet")}</b>
+        {t("Коллектор читает страницу фискального агента ЦБ РУз; данные появятся после его первого запуска.",
+           "Kollektor MB fiskal agenti sahifasini o'qiydi; ma'lumot birinchi ishga tushirishdan keyin paydo bo'ladi.",
+           "The collector reads the Central Bank fiscal-agent page; data appears after its first run.")}
+      </div>
+    );
+  }
+  // The two (or more) tenors the Ministry actually places, newest 14 auctions each.
+  const byTerm = new Map();
+  auctions.forEach((a) => {
+    const term = Number(a.term_days);
+    if (!Number.isFinite(term)) return;
+    if (!byTerm.has(term)) byTerm.set(term, []);
+    byTerm.get(term).push(a);
+  });
+  const tenors = [...byTerm.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 3)
+    .map(([term, list]) => [term, list.slice().sort((x, y) => x.auction_date.localeCompare(y.auction_date)).slice(-14)])
+    .sort((a, b) => a[0] - b[0]);
+
+  const allDates = [...new Set(tenors.flatMap(([, list]) => list.map((a) => a.auction_date)))].sort();
+  const rates = tenors.flatMap(([, list]) => list.map((a) => a.wavg_rate))
+    .concat(keyRate?.rate != null ? [keyRate.rate] : []);
+  const lo = Math.floor(Math.min(...rates)) - 0.5;
+  const hi = Math.ceil(Math.max(...rates)) + 0.5;
+
+  const W = 1060; const H = 300; const L = 50; const R = 170; const T = 20; const B = 44;
+  const pw = W - L - R; const ph = H - T - B;
+  const X = (d) => L + (pw * Math.max(allDates.indexOf(d), 0)) / Math.max(allDates.length - 1, 1);
+  const Y = (v) => T + ph - (ph * (v - lo)) / (hi - lo || 1);
+  const tenorClass = ["a", "b", "c"];
+
+  return (
+    <div className="bondsec-panel">
+      <div className="bondsec-legend muted">
+        {tenors.map(([term], i) => (
+          <span key={term}><i className={`bondsec-line bondsec-line-${tenorClass[i]}`} />
+            {term} {t("дней", "kun", "days")}
+          </span>
+        ))}
+        {keyRate?.rate != null && <span><i className="bondsec-line bondsec-line-dash" />{t("ставка ЦБ", "MB stavkasi", "key rate")}</span>}
+      </div>
+      <svg className="bondsec-chart" viewBox={`0 0 ${W} ${H}`} role="img"
+           aria-label={t("Аукционы ГЦБ по датам", "DQQ auksionlari", "Government auctions over time")}>
+        {Array.from({ length: Math.floor(hi) - Math.ceil(lo) + 1 }, (_, i) => Math.ceil(lo) + i).map((v) => (
+          <g key={v}>
+            <line x1={L} x2={L + pw} y1={Y(v)} y2={Y(v)} className="bondsec-grid" />
+            <text x={L - 8} y={Y(v) + 4} textAnchor="end" className="bondsec-tick">{v}%</text>
+          </g>
+        ))}
+        <line x1={L} x2={L + pw} y1={T + ph} y2={T + ph} className="bondsec-axis" />
+        {keyRate?.rate != null && (
+          <>
+            <line x1={L} x2={L + pw} y1={Y(keyRate.rate)} y2={Y(keyRate.rate)} className="bondsec-keyrate" />
+            <text x={L + pw + 8} y={Y(keyRate.rate) + 4} className="bondsec-label">
+              {t("ставка ЦБ", "MB stavkasi", "key rate")} {fmtNumber(keyRate.rate, lang, 2)}%
+            </text>
+          </>
+        )}
+        {tenors.map(([term, list], i) => {
+          const path = list.map((a, j) => `${j === 0 ? "M" : "L"}${X(a.auction_date).toFixed(1)},${Y(a.wavg_rate).toFixed(1)}`).join(" ");
+          const last = list[list.length - 1];
+          return (
+            <g key={term}>
+              <path d={path} className={`bondsec-series bondsec-series-${tenorClass[i]}`} fill="none" />
+              {list.map((a) => (
+                <circle key={a.sec_id + a.auction_date} cx={X(a.auction_date)} cy={Y(a.wavg_rate)} r={3.5}
+                        className={`bondsec-seriesdot bondsec-series-${tenorClass[i]}`}>
+                  <title>
+                    {`${t("Аукцион", "Auksion", "Auction")} ${fmtBondDay(a.auction_date)} · ${term} ${t("дней", "kun", "days")}\n`}
+                    {`${t("Ставка (средневзв.)", "Stavka (o'rtacha)", "Rate (w.avg)")}: ${fmtNumber(a.wavg_rate, lang, 2)}%`}
+                    {a.min_rate != null && a.max_rate != null ? ` (${fmtNumber(a.min_rate, lang, 2)}–${fmtNumber(a.max_rate, lang, 2)}%)` : ""}
+                    {a.placed_value != null ? `\n${t("Размещено", "Joylashtirildi", "Placed")}: ${fmtNumber(a.placed_value, lang, 2)} ${t("млрд сум", "mlrd so'm", "bn UZS")}` : ""}
+                    {a.isin ? `\nISIN: ${a.isin}` : ""}
+                  </title>
+                </circle>
+              ))}
+              <text x={X(last.auction_date) + 10} y={Y(last.wavg_rate) + 4} className="bondsec-label bondsec-label-strong">
+                {fmtNumber(last.wavg_rate, lang, 2)}%
+              </text>
+            </g>
+          );
+        })}
+        {allDates.map((d, i) => (
+          (allDates.length <= 8 || i % Math.ceil(allDates.length / 8) === 0) && (
+            <text key={d} x={X(d)} y={T + ph + 18} textAnchor="middle" className="bondsec-tick">{fmtBondDay(d).slice(0, 5)}</text>
+          )
+        ))}
+      </svg>
+      <p className="muted bondsec-note">
+        {t("Средневзвешенная доходность размещения по каждому аукциону; наведите на точку — объём и коридор ставок. Источник: cbu.uz, операции фискального агента.",
+           "Har auksion bo'yicha o'rtacha tortilgan joylashtirish daromadliligi. Manba: cbu.uz.",
+           "The weighted-average placement yield of each auction; hover a dot for the volume and the rate band. Source: cbu.uz, fiscal-agent operations.")}
+      </p>
+    </div>
+  );
+}
+
+function BondCouponsPanel({ bond, coupons, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  if (!coupons.length) {
+    return (
+      <div className="bondsec-empty">
+        <b>{t("Календарь купонов недоступен", "Kupon kalendari mavjud emas", "No coupon calendar")}</b>
+        {t("Эмитент не подавал начислений по этому выпуску: купоны появляются в разделе существенных фактов openinfo.uz по мере выплат.",
+           "Emitent bu chiqarilish bo'yicha hisoblash topshirmagan.",
+           "The issuer has filed no accruals for this issue: coupons appear among openinfo.uz material facts as they are paid.")}
+      </div>
+    );
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const nominal = bond.reference?.nominal;
+  const maturity = bond.reference?.maturity_date;
+  const flows = coupons
+    .filter((c) => c.pay_date)
+    .map((c) => ({
+      date: c.pay_date.slice(0, 10),
+      coupon: c.amount,
+      principal: maturity && c.pay_date.slice(0, 10) === maturity.slice(0, 10) && nominal != null ? nominal : 0,
+      paid: c.is_paid || c.pay_date.slice(0, 10) <= today,
+      no: c.coupon_no,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (maturity && nominal != null && !flows.some((f) => f.principal)) {
+    flows.push({ date: maturity.slice(0, 10), coupon: null, principal: nominal, paid: maturity.slice(0, 10) <= today, no: null });
+  }
+
+  const known = flows.filter((f) => (f.coupon || 0) + (f.principal || 0) > 0);
+  const maxV = Math.max(...known.map((f) => (f.coupon || 0) + (f.principal || 0)), 1);
+  const W = 1060; const H = 280; const L = 70; const R = 16; const T = 20; const B = 46;
+  const pw = W - L - R; const ph = H - T - B;
+  const band = pw / Math.max(flows.length, 1);
+  const bw = Math.min(26, band * 0.55);
+
+  return (
+    <div className="bondsec-panel">
+      <div className="bondsec-legend muted">
+        <span><i className="bondsec-dot" style={{ background: "var(--accent)" }} />{t("купон", "kupon", "coupon")}</span>
+        {flows.some((f) => f.principal > 0) && <span><i className="bondsec-dot bondsec-dot-principal" />{t("погашение номинала", "nominal qaytishi", "principal")}</span>}
+        <span>{t("бледное — уже выплачено", "xira — allaqachon to'langan", "faded = already paid")}</span>
+      </div>
+      <svg className="bondsec-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("Календарь выплат", "To'lovlar kalendari", "Payment calendar")}>
+        <line x1={L} x2={W - R} y1={T + ph} y2={T + ph} className="bondsec-axis" />
+        {flows.map((f, i) => {
+          const cx = L + band * (i + 0.5);
+          const hC = f.coupon ? (ph * f.coupon) / maxV : 0;
+          const hP = f.principal ? (ph * f.principal) / maxV : 0;
+          return (
+            <g key={`${f.date}-${i}`} opacity={f.paid ? 0.38 : 1}>
+              {hP > 0 && <rect x={cx - bw / 2} y={T + ph - hC - hP} width={bw} height={hP} className="bondsec-bar-principal" rx="3" />}
+              {hC > 0 && <rect x={cx - bw / 2} y={T + ph - hC} width={bw} height={hC} className="bondsec-bar" rx="3" />}
+              {hC === 0 && hP === 0 && (
+                <text x={cx} y={T + ph - 6} textAnchor="middle" className="bondsec-tick">?</text>
+              )}
+              {flows.length <= 16 && (
+                <text x={cx} y={T + ph + 16} textAnchor="middle" className="bondsec-tick">{fmtBondDay(f.date).slice(0, 5)}</text>
+              )}
+              <rect x={cx - band / 2} y={T} width={band} height={ph} fill="transparent">
+                <title>
+                  {`${fmtBondDay(f.date)}${f.no != null ? ` · ${t("купон №", "kupon №", "coupon #")}${f.no}` : ""}\n`}
+                  {f.coupon != null ? `${t("Купон", "Kupon", "Coupon")}: ${fmtNumber(f.coupon, lang, 2)} ${t("сум", "so'm", "UZS")}\n` : `${t("Сумма купона не подана", "Kupon summasi topshirilmagan", "Coupon amount not filed")}\n`}
+                  {f.principal > 0 ? `${t("Номинал", "Nominal", "Principal")}: ${fmtNumber(f.principal, lang, 0)} ${t("сум", "so'm", "UZS")}\n` : ""}
+                  {f.paid ? t("выплачено", "to'langan", "paid") : t("предстоит", "kutilmoqda", "upcoming")}
+                </title>
+              </rect>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="market-table-scroll">
+        <table className="market-table bondsec-spread-table">
+          <thead>
+            <tr>
+              <th>№</th>
+              <th>{t("Дата выплаты", "To'lov sanasi", "Pay date")}</th>
+              <th className="num">{t("Купон, сум", "Kupon, so'm", "Coupon, UZS")}</th>
+              <th className="num">{t("Номинал, сум", "Nominal, so'm", "Principal, UZS")}</th>
+              <th>{t("Статус", "Holat", "Status")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {flows.map((f, i) => (
+              <tr key={`${f.date}-r${i}`}>
+                <td>{f.no != null ? f.no : "—"}</td>
+                <td>{fmtBondDay(f.date)}</td>
+                <td className="num">{f.coupon != null ? fmtNumber(f.coupon, lang, 2) : "—"}</td>
+                <td className="num">{f.principal > 0 ? fmtNumber(f.principal, lang, 0) : "—"}</td>
+                <td className="muted">{f.paid ? t("выплачено", "to'langan", "paid") : t("предстоит", "kutilmoqda", "upcoming")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted bondsec-note">
+        {t("Календарь — это поданные эмитентом существенные факты, а не сгенерированный график: показываются только выплаты, которые эмитент раскрыл.",
+           "Kalendar — emitent topshirgan muhim faktlar, yaratilgan jadval emas.",
+           "The calendar is the issuer's filed material facts, not a generated schedule: only disclosed payments appear.")}
+      </p>
+    </div>
+  );
+}
+
+/** Every issue's yield on one ruler, the current one highlighted. Issues whose
+ * yield is not computable show their coupon, marked as such — a different
+ * number, never passed off as a yield. */
+function BondLadderPanel({ board, current, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  if (!board) return <p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p>;
+  const rows = (board.items || [])
+    .map((b) => {
+      const ytm = b.ytm?.value;
+      const coupon = b.reference?.coupon_rate;
+      return { ticker: b.ticker, v: ytm != null ? ytm : coupon, isYtm: ytm != null };
+    })
+    .filter((r) => r.v != null)
+    .sort((a, b) => a.v - b.v);
+  if (!rows.length) return <div className="bondsec-empty"><b>{t("Нет данных", "Ma'lumot yo'q", "No data")}</b></div>;
+
+  const maxV = Math.max(...rows.map((r) => r.v)) * 1.15;
+  const keyRateVal = board.key_rate?.rate;
+  const W = 1060; const L = 120; const R = 90; const T = 28; const B = 34;
+  const rowH = 26;
+  const H = T + B + rows.length * rowH;
+  const pw = W - L - R;
+  const X = (v) => L + (pw * v) / maxV;
+
+  return (
+    <div className="bondsec-panel">
+      <svg className="bondsec-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("Лестница доходностей", "Daromadlilik zinasi", "Yield ladder")}>
+        {[0, 5, 10, 15, 20, 25, 30].filter((v) => v <= maxV).map((v) => (
+          <g key={v}>
+            <line x1={X(v)} x2={X(v)} y1={T} y2={H - B} className="bondsec-grid" />
+            <text x={X(v)} y={H - B + 16} textAnchor="middle" className="bondsec-tick">{v}%</text>
+          </g>
+        ))}
+        {keyRateVal != null && keyRateVal <= maxV && (
+          <>
+            <line x1={X(keyRateVal)} x2={X(keyRateVal)} y1={T - 12} y2={H - B} className="bondsec-keyrate" />
+            <text x={X(keyRateVal) + 5} y={T - 14} className="bondsec-label">{t("ставка ЦБ", "MB stavkasi", "key rate")} {fmtNumber(keyRateVal, lang, 2)}%</text>
+          </>
+        )}
+        {rows.map((r, i) => {
+          const y = T + i * rowH + rowH / 2;
+          const me = r.ticker === current;
+          return (
+            <g key={r.ticker} opacity={me ? 1 : 0.68}>
+              <rect x={L} y={y - 8} width={Math.max(X(r.v) - L, 2)} height={16} rx="4"
+                    className={me ? "bondsec-bar bondsec-bar-me" : "bondsec-bar"} />
+              <text x={L - 8} y={y + 4} textAnchor="end" className={`bondsec-label${me ? " bondsec-label-strong" : ""}`}>{r.ticker}</text>
+              <text x={X(r.v) + 6} y={y + 4} className={`bondsec-label${me ? " bondsec-label-strong" : ""}`}>
+                {fmtNumber(r.v, lang, 2)}%{r.isYtm ? "" : ` ${t("к", "k", "c")}`}
+              </text>
+              <title>{r.isYtm ? t("доходность к погашению", "so'ndirishgacha daromadlilik", "yield to maturity") : t("ставка купона — доходность не вычислима", "kupon stavkasi — daromadlilik hisoblanmaydi", "coupon rate — yield not computable")}</title>
+            </g>
+          );
+        })}
+      </svg>
+      <p className="muted bondsec-note">
+        {t("«к» — показана ставка купона: у выпуска нет цены или даты погашения, и доходность к погашению не вычислима.",
+           "«k» — kupon stavkasi ko'rsatilgan: chiqarilishning narxi yoki to'lov sanasi yo'q.",
+           "\"c\" marks a coupon rate: the issue lacks a price or a maturity, so a true yield cannot be computed.")}
+      </p>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The auditor's own screen used to live here as AuditAdminPage, authenticated by
 // typing the machine X-Admin-Secret into a field. It is superseded by the admin
@@ -10559,6 +11493,7 @@ function MarketView({
   onRefresh,
   onAnalyze,
   onOpenCompany,
+  onOpenBond,
   language,
   companies,
   securitiesMap,
@@ -12112,7 +13047,7 @@ function MarketView({
             equity board — an issue has a value rather than a capitalisation, and
             no earnings for a multiple to divide by. */}
         {viewMode === "table" && type === "bond" ? (
-          <BondsTable language={lang} onOpen={onAnalyze} />
+          <BondsTable language={lang} onOpen={onOpenBond || onAnalyze} />
         ) : viewMode === "heatmap" ? (
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
@@ -14067,6 +15002,15 @@ function App() {
     setActiveView("company");
   };
 
+  // One bond issue on its own /bond/{T} page — the debt counterpart of
+  // openCompanyPage, so a click on the screener never lands in AI analysis.
+  const openBondPage = (ticker) => {
+    if (!ticker) return;
+    setPrevView(activeView);
+    setCompanyTicker(ticker);
+    setActiveView("bond");
+  };
+
   // The advanced chart. `state` carries the small chart's period, type and
   // comparisons across, so «развернуть» opens the view the reader was already
   // looking at rather than a default one.
@@ -14623,8 +15567,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "heatmap", "catalog", "news", "profile", "analysis", "compare"]
-    : ["main", "market", "heatmap", "catalog", "news", "auth", "analysis", "compare"];
+    ? ["main", "market", "bonds", "heatmap", "catalog", "news", "profile", "analysis", "compare"]
+    : ["main", "market", "bonds", "heatmap", "catalog", "news", "auth", "analysis", "compare"];
 
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -14691,7 +15635,7 @@ function App() {
                       return ageH > 24 ? <span className="nav-stale-dot" title={language === "ru" ? "Каталог устарел" : "Catalog stale"} /> : null;
                     })()}
                   </span>
-                ) : key === "market" ? mt(language, "nav") : key === "heatmap" ? (language === "ru" ? "Карта рынка" : language === "uz" ? "Bozor xaritasi" : "Market Map") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
+                ) : key === "market" ? mt(language, "nav") : key === "bonds" ? (language === "ru" ? "Облигации" : language === "uz" ? "Obligatsiyalar" : "Bonds") : key === "heatmap" ? (language === "ru" ? "Карта рынка" : language === "uz" ? "Bozor xaritasi" : "Market Map") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
@@ -14890,6 +15834,20 @@ function App() {
             />
           )}
 
+          {activeView === "bonds" && (
+            <BondsView language={language} onOpenBond={openBondPage} />
+          )}
+
+          {activeView === "bond" && companyTicker && (
+            <BondCard
+              key={companyTicker}
+              ticker={companyTicker}
+              language={language}
+              onBack={() => setActiveView(prevView === "bond" ? "bonds" : (prevView || "bonds"))}
+              onOpenChart={openChartPage}
+            />
+          )}
+
           {(activeView === "market" || activeView === "heatmap") && (
             <MarketView
               rows={marketRows}
@@ -14906,6 +15864,7 @@ function App() {
                 setActiveView("analysis");
               }}
               onOpenCompany={openCompanyPage}
+              onOpenBond={openBondPage}
               language={language}
               companies={companies}
               securitiesMap={securitiesMap}
