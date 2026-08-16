@@ -8259,7 +8259,10 @@ const FIN_SECTIONS = [
 ];
 
 // The quarterly view carries only what the quarterly FILINGS carry: the income
-// statement plus the two balance snapshots the parse keeps (cash, obligations).
+// statement plus the balance snapshots the parse keeps. Its Баланс sub-tab
+// shows the SAME three lines as the annual one — Активы, Обязательства,
+// Капитал (customer, 2026-08-16: the two views must read alike; cash came off
+// the display, though the endpoint still serves it).
 // No Коэффициенты sub-tab — quarterly ROE/ROA off a cumulative income against a
 // point-in-time balance is a figure that needs annualising to mean anything,
 // and a wrong ratio beside a right one discredits both.
@@ -8274,8 +8277,8 @@ const FIN_SECTIONS_QUARTER = [
   {
     key: "balance",
     label: ["Баланс", "Balans", "Balance Sheet"],
-    rows: ["cash", "total_liabilities"],
-    chart: ["cash", "total_liabilities"],
+    rows: ["total_assets", "total_liabilities", "total_equity"],
+    chart: ["total_assets", "total_liabilities", "total_equity"],
   },
 ];
 
@@ -8747,9 +8750,9 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
 
         <p className="fin-note muted">
           {quarterly
-            ? t("Суммы в сумах, за отдельный квартал (3 месяца) — рассчитаны из накопительных квартальных отчётов НСБУ; IV квартал — разница годового и девятимесячного отчётов. Рост г/г — к тому же кварталу прошлого года, кв/кв — к предыдущему кварталу. Денежные средства и обязательства — на конец квартала.",
-                "Summalar somda, alohida chorak (3 oy) uchun — NSBU choraklik hisobotlaridan hisoblangan; IV chorak — yillik va 9 oylik hisobotlar farqi. Osish y/y — otgan yilning shu chorogiga, ch/ch — oldingi chorakka nisbatan.",
-                "Sums in UZS per discrete quarter (3 months), derived from the cumulative NSBU filings; Q4 is the annual less the nine-month filing. Growth YoY compares the same quarter a year earlier, QoQ the preceding quarter. Cash and liabilities are quarter-end snapshots.")
+            ? t("Суммы в сумах, за отдельный квартал (3 месяца) — рассчитаны из накопительных квартальных отчётов НСБУ; IV квартал — разница годового и девятимесячного отчётов. Рост г/г — к тому же кварталу прошлого года, кв/кв — к предыдущему кварталу. Активы, обязательства и капитал — на конец квартала.",
+                "Summalar somda, alohida chorak (3 oy) uchun — NSBU choraklik hisobotlaridan hisoblangan; IV chorak — yillik va 9 oylik hisobotlar farqi. Osish y/y — otgan yilning shu chorogiga, ch/ch — oldingi chorakka nisbatan. Aktivlar, majburiyatlar va kapital — chorak oxiriga.",
+                "Sums in UZS per discrete quarter (3 months), derived from the cumulative NSBU filings; Q4 is the annual less the nine-month filing. Growth YoY compares the same quarter a year earlier, QoQ the preceding quarter. Assets, liabilities and equity are quarter-end snapshots.")
             : t("Суммы в сумах, по годовым отчётам эмитента. Коэффициенты — в тех единицах, в которых они опубликованы.",
                 "Summalar somda, emitentning yillik hisobotlari boyicha.",
                 "Sums in UZS, from the issuer's annual filings. Ratios in the units they were published in.")}

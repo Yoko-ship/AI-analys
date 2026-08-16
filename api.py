@@ -3700,7 +3700,8 @@ def duplicate_filed_years(series: dict[str, Any], periods: Any,
 # three-month figures, stocks are served as filed.
 QUARTER_FLOW_FIELDS = {"revenue": "net_revenue", "gross_profit": "gross_profit",
                        "operating_income": "operating_income", "net_income": "net_profit"}
-QUARTER_STOCK_FIELDS = {"cash": "cash", "total_liabilities": "total_liabilities"}
+QUARTER_STOCK_FIELDS = {"cash": "cash", "total_liabilities": "total_liabilities",
+                        "total_assets": "total_assets", "total_equity": "total_equity"}
 
 
 def derive_quarterly_series(cumulative: dict[str, Any],
