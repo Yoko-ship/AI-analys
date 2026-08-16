@@ -162,6 +162,16 @@ MIGRATIONS: tuple[Migration, ...] = (
                        source_url     TEXT,
                        synced_at      TEXT
                      )""")),
+    # HMKB 14.08.2026: a negotiated 2,2-млрд-бумаг deal at 55,00 (board T1)
+    # was summed into the session's turnover, quantity, low and VWAP, while
+    # the exchange's own bulletin excludes it. Day statistics now aggregate
+    # price-eligible executions only; the day's negotiated deals are carried
+    # beside the session in their own columns.
+    Migration(9, "trade stats: negotiated deals apart from the session",
+              columns("catalog_trade_stats",
+                      ("block_count", "INTEGER"),
+                      ("block_qty", "REAL"),
+                      ("block_value", "REAL"))),
 )
 
 
