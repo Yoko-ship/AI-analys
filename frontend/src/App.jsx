@@ -5211,11 +5211,10 @@ function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
   );
 }
 
-// Official CBU (cbu.uz) daily rates in a single thin strip under the topbar,
-// so the rate is visible from every page instead of a block of full-size
-// cards on two of them. Self-fetching: the server caches the bank's JSON, so
-// this costs one cheap request per app load. The rates are set once per
-// business day — the date in the label is CBU's own, never "live". The day
+// Official CBU (cbu.uz) daily rates in a single thin strip — one row where
+// the full-size cards used to stand. Self-fetching: the server caches the
+// bank's JSON, so this costs one cheap request per mount. The rates are set
+// once per business day — the date in the label is CBU's own, never "live". The day
 // change reads as a percent of the previous fix — shorter than сумы in a
 // one-line strip; the exact сум difference stays in the item's tooltip.
 function FxRatesBar({ language }) {
@@ -12424,6 +12423,11 @@ function MarketView({
         )}
       </article>
 
+      {/* The CBU strip sits under the page hero (moved from under the topbar
+          at the customer's request, 2026-08-16) — one thin line between the
+          title panel and the market's own counters. */}
+      <FxRatesBar language={lang} />
+
       <div className="market-stats-grid">
         {/* Инструментов / Сделки сегодня / Без изменений were removed at the
             customer's request (2026-08-12) — the row keeps only the counters
@@ -15528,11 +15532,6 @@ function App() {
             </div>
           </div>
         </header>
-
-        {/* Official CBU rates as a one-line strip under the topbar — chosen
-            over the full-size cards (fx_mockups variant А, 2026-08-16). Not
-            sticky: it scrolls away with the page, so it costs no viewport. */}
-        <FxRatesBar language={language} />
 
         <main className="content">
           {activeView === "main" && (
