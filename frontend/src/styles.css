@@ -2725,18 +2725,19 @@ body {
   box-shadow: none;
 }
 
-/* Official CBU rates as a one-line strip glued under the topbar (fx_mockups
-   variant А): same background as the bar above so the two read as one header
-   block. Not sticky — it scrolls away with the page. On narrow screens the
-   row keeps its single line and pans sideways instead of wrapping. */
+/* Official CBU rates as a one-line strip (fx_mockups variant А), placed under
+   the market page's hero panel — a slim panel of its own, one row tall. On
+   narrow screens the row keeps its single line and pans sideways instead of
+   wrapping into a column. */
 .fx-bar {
   display: flex;
   align-items: center;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 0 40px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2794,20 +2795,13 @@ body {
   color: var(--muted);
 }
 
-body[data-theme="dark"] .fx-bar {
-  background: #0d0e11;
-  border-color: rgba(255, 255, 255, 0.06);
+/* The last separator would double against the panel's own right border. */
+.fx-bar-item:last-child {
+  border-right: none;
 }
 
-body[data-theme="dark"] .fx-bar-label,
-body[data-theme="dark"] .fx-bar-item {
-  border-color: rgba(255, 255, 255, 0.06);
-}
-
-@media (max-width: 640px) {
-  .fx-bar {
-    padding: 0 8px;
-  }
+body[data-theme="light"] .fx-bar {
+  background: #fff;
 }
 
 .topbar-brand {
