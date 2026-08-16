@@ -5862,37 +5862,9 @@ function BondsView({ language, onOpenBond, embedded = false }) {
     { key: "cov", label: t("Данные", "Ma'lumot", "Data") },
   ];
 
-  const withYtm = rows.filter((r) => r.ytm != null).length;
-
   return (
     <Wrap className={wrapClass}>
       <div className="bondsec-header">
-        <div>
-          <h2 className="panel-title">{t("Облигации Узбекистана", "O'zbekiston obligatsiyalari", "Uzbekistan bonds")}</h2>
-          <p className="muted bondsec-sub">
-            {data.count} {t("выпусков", "chiqarilish", "issues")}
-            {" · "}{t("доходность вычислима для", "daromadlilik hisoblanadi", "yield computable for")} {withYtm}
-            {" · "}{t("сессия", "sessiya", "session")}: {fmtBondDay(data.board_day)}
-            {" · "}{t("стоимость выпусков", "chiqarilish qiymati", "issue value")}: {money(data.issue_value_total)}
-            {keyRate?.rate != null && (
-              <>
-                {" · "}
-                <span title={`${t("действует с", "amal qiladi", "effective from")} ${fmtBondDay(keyRate.effective_from)} · cbu.uz`}>
-                  {t("ставка ЦБ", "MB stavkasi", "key rate")}: {fmtNumber(keyRate.rate, lang, 2)}%
-                </span>
-              </>
-            )}
-            {govPoints.length > 0 && (
-              <>
-                {" · "}
-                <span title={t("средневзвешенные ставки последних аукционов ГЦБ", "so'nggi DQQ auksionlarining o'rtacha stavkalari", "weighted-average rates of the latest government auctions")}>
-                  {t("кривая ГЦБ", "DQQ egri chizig'i", "gov curve")}: {govPoints.map((p) => `${fmtNumber(p.term_days / 365, lang, 1)}${t("г", "y", "y")} ${fmtNumber(p.rate, lang, 2)}%`).join(" / ")}
-                </span>
-                <TermInfo termId="govCurve" lang={lang} />
-              </>
-            )}
-          </p>
-        </div>
         <div className="segmented-control bondsec-mode" role="tablist">
           <button type="button" className={mode === "screener" ? "active" : ""} onClick={() => setMode("screener")}>
             {t("Скринер", "Skriner", "Screener")}

@@ -11185,6 +11185,9 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 }
 .bondsec-sub { margin: 4px 0 0; font-size: 0.85rem; line-height: 1.6; }
 .bondsec-mode { flex: none; }
+/* Inside the market panel the block inherits no inset from the slot it fills —
+   the same 22px the panel's own controls row uses. */
+.bondsec-embedded { padding: 14px 22px 18px; }
 .bondsec-toolbar {
   display: flex;
   gap: 10px;
