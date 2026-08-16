@@ -134,6 +134,38 @@ def _create_schema(conn: sqlite3.Connection) -> None:
               is_paid     INTEGER NOT NULL DEFAULT 0,
               PRIMARY KEY (ticker, coupon_no)
             );
+            -- ГЦБ primary-market results from the Central Bank's fiscal-agent
+            -- page — the base curve every corporate spread is measured against.
+            -- Keyed by (sec_id, auction_date): a reopened line keeps its number
+            -- but each placement is its own result.
+            CREATE TABLE IF NOT EXISTS gov_bond_auctions (
+              sec_id          TEXT NOT NULL,
+              auction_date    TEXT NOT NULL,
+              isin            TEXT,
+              term_days       INTEGER,
+              maturity_date   TEXT,
+              income_type     TEXT,
+              announced_volume REAL,
+              dealers         INTEGER,
+              placed_qty      REAL,
+              placed_value    REAL,
+              wavg_rate       REAL,
+              min_rate        REAL,
+              max_rate        REAL,
+              source_url      TEXT,
+              synced_at       TEXT,
+              PRIMARY KEY (sec_id, auction_date)
+            );
+            CREATE INDEX IF NOT EXISTS ix_gov_auctions_date
+              ON gov_bond_auctions (auction_date DESC);
+            -- The key rate as the Central Bank's front page states it, one row
+            -- per change — arrival-only history, never a hand-configured number.
+            CREATE TABLE IF NOT EXISTS gov_key_rate (
+              effective_from TEXT PRIMARY KEY,
+              rate           REAL NOT NULL,
+              source_url     TEXT,
+              synced_at      TEXT
+            );
             """
     )
     conn.commit()
@@ -516,6 +548,77 @@ def bond_coupons() -> dict[str, list[dict[str, Any]]]:
         for row in conn.execute("SELECT * FROM bond_coupons ORDER BY ticker, coupon_no"):
             out.setdefault(row["ticker"], []).append(dict(row))
         return out
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# ГЦБ auctions + key rate — the base curve of the UZS market
+# ---------------------------------------------------------------------------
+
+def upsert_gov_auctions(rows: Sequence[dict[str, Any]]) -> int:
+    """Auction results are final the day they are published: a plain overwrite,
+    no COALESCE — re-reading the page can only restate the same protocol."""
+    init()
+    conn = _conn()
+    fields = ("sec_id", "auction_date", "isin", "term_days", "maturity_date",
+              "income_type", "announced_volume", "dealers", "placed_qty",
+              "placed_value", "wavg_rate", "min_rate", "max_rate", "source_url")
+    updates = ",".join(f"{f}=excluded.{f}" for f in fields[2:]) + ", synced_at=excluded.synced_at"
+    written = 0
+    try:
+        for row in rows or []:
+            sec_id = str(row.get("sec_id") or "").strip().upper()
+            day = str(row.get("auction_date") or "").strip()
+            if not sec_id or not day:
+                continue
+            values = [sec_id, day] + [row.get(f) for f in fields[2:]] + [_now()]
+            conn.execute(
+                f"INSERT INTO gov_bond_auctions ({','.join(fields)}, synced_at) "
+                f"VALUES ({','.join('?' * (len(fields) + 1))}) "
+                f"ON CONFLICT(sec_id, auction_date) DO UPDATE SET {updates}", values)
+            written += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return written
+
+
+def upsert_key_rate(row: dict[str, Any] | None) -> int:
+    init()
+    if not row or row.get("rate") is None or not row.get("effective_from"):
+        return 0
+    conn = _conn()
+    try:
+        conn.execute(
+            "INSERT INTO gov_key_rate (effective_from, rate, source_url, synced_at) "
+            "VALUES (?,?,?,?) ON CONFLICT(effective_from) DO UPDATE SET "
+            "rate=excluded.rate, source_url=excluded.source_url, synced_at=excluded.synced_at",
+            (str(row["effective_from"]), float(row["rate"]), row.get("source_url"), _now()))
+        conn.commit()
+    finally:
+        conn.close()
+    return 1
+
+
+def gov_auctions() -> list[dict[str, Any]]:
+    init()
+    conn = _conn()
+    try:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM gov_bond_auctions ORDER BY auction_date DESC, term_days")]
+    finally:
+        conn.close()
+
+
+def key_rate() -> dict[str, Any] | None:
+    """The latest key rate on record, with the date it took effect."""
+    init()
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT * FROM gov_key_rate ORDER BY effective_from DESC LIMIT 1").fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 

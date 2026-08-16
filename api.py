@@ -467,6 +467,13 @@ class AdminListingsRequest(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
 
 
+class AdminGovAuctionsRequest(BaseModel):
+    """ГЦБ auction results from the fiscal-agent page, plus the key rate the
+    Central Bank's front page states — both read, never configured."""
+    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+    key_rate: dict[str, Any] | None = None
+
+
 class AdminNewsRequest(BaseModel):
     items: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
 
@@ -1950,14 +1957,22 @@ async def api_bonds(request: Request) -> Response:
         inputs = await _market_inputs()
         references, coupons = provenance.bond_references(), provenance.bond_coupons()
         quality = await _bond_history_quality(inputs)
+        # The base curve and the key rate ride in from their own store: the
+        # spread columns were shipped with no key rate ever passed, so every
+        # row answered `no_bond_reference` about a number nobody had given it.
+        gov_points = bonds.gov_curve_points(provenance.gov_auctions())
+        key_rate = provenance.key_rate()
         # The day statistics go in with the board: the quote feed lags for a thin
         # issue (IQMK5B8 carried its 3 April print while the protocol held today's)
         # and it carries no trade count for a bond at all.
         payload = bonds.build_bond_board(inputs["board"], inputs["securities"],
                                          references, coupons, quality,
-                                         stats=inputs["stats"])
+                                         key_rate=(key_rate or {}).get("rate"),
+                                         stats=inputs["stats"], gov_points=gov_points)
         payload["ok"] = True
         payload["trade_date"] = inputs["trade_date"]
+        payload["gov_curve"] = gov_points
+        payload["key_rate"] = key_rate
         return _etag_json(request, payload, max_age=60)
     except HTTPException:
         raise
@@ -1966,19 +1981,50 @@ async def api_bonds(request: Request) -> Response:
         raise HTTPException(status_code=502, detail="bonds unavailable") from exc
 
 
+@app.get("/api/bonds/curve")
+async def api_bonds_curve(request: Request) -> Response:
+    """The UZS base curve: every ГЦБ auction on record, the interpolable points
+    of the current curve (freshest auction per tenor), and the key rate.
+
+    Declared before /api/bonds/{ticker} so "curve" cannot be read as a ticker.
+    """
+    try:
+        auctions = provenance.gov_auctions()
+        payload = {
+            "ok": True,
+            "count": len(auctions),
+            "auctions": auctions,
+            "points": bonds.gov_curve_points(auctions),
+            "window_days": bonds.GOV_CURVE_WINDOW_DAYS,
+            "key_rate": provenance.key_rate(),
+            "source_url": "https://cbu.uz/ru/monetary-policy/operations/fiscal-agent/",
+        }
+        return _etag_json(request, payload, max_age=300)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("bonds curve failed")
+        raise HTTPException(status_code=502, detail="bonds curve unavailable") from exc
+
+
 @app.get("/api/bonds/{ticker}")
 async def api_bond_detail(ticker: str) -> dict[str, Any]:
     ticker = ticker.upper()
     inputs = await _market_inputs()
     references, coupons = provenance.bond_references(), provenance.bond_coupons()
     quality = await _bond_history_quality(inputs)
+    gov_points = bonds.gov_curve_points(provenance.gov_auctions())
+    key_rate = provenance.key_rate()
     payload = bonds.build_bond_board(inputs["board"], inputs["securities"],
                                      references, coupons, quality,
-                                     stats=inputs["stats"])
+                                     key_rate=(key_rate or {}).get("rate"),
+                                     stats=inputs["stats"], gov_points=gov_points)
     row = next((r for r in payload["items"] if r["ticker"] == ticker), None)
     if not row:
         raise HTTPException(status_code=404, detail="bond not found")
-    return _json_safe({"ok": True, **row, "coupons": coupons.get(ticker, [])})
+    return _json_safe({"ok": True, **row, "coupons": coupons.get(ticker, []),
+                       "gov_curve": gov_points, "key_rate": key_rate,
+                       "board_day": payload.get("board_day")})
 
 
 @app.get("/api/bonds/{ticker}/coupons")
@@ -2001,6 +2047,20 @@ async def api_admin_bond_reference(payload: dict[str, Any],
     written = provenance.upsert_bond_reference(payload.get("rows") or [])
     coupons = provenance.upsert_bond_coupons(payload.get("coupons") or [])
     return {"ok": True, "upserted": written, "coupons": coupons}
+
+
+@app.post("/api/admin/gov-auctions")
+async def api_admin_gov_auctions(payload: AdminGovAuctionsRequest,
+                                 _: None = Depends(_require_admin)) -> dict[str, Any]:
+    """ГЦБ auction results + the key rate, pushed by the collector.
+
+    Each row is a published placement protocol — final the day it appears, so
+    the upsert overwrites rather than merges. The key rate is a history table:
+    one row per change, arrival-only.
+    """
+    written = provenance.upsert_gov_auctions(payload.rows)
+    rate_written = provenance.upsert_key_rate(payload.key_rate)
+    return {"ok": True, "upserted": written, "key_rate": rate_written}
 
 
 @app.get("/api/catalog/reports/summary")

@@ -246,6 +246,96 @@ def spread_to_key_rate(ytm_pct: float | None, key_rate_pct: Any) -> dict[str, An
     return _metric(ytm_pct - key, "ok", key_rate=key)
 
 
+def convexity(cashflows: Sequence[tuple[float, float]], dirty: float | None,
+              ytm_pct: float | None) -> dict[str, Any]:
+    """Second-order price sensitivity — the correction duration alone misses."""
+    if not cashflows or not dirty or ytm_pct is None:
+        return _unavailable()
+    y = ytm_pct / 100.0
+    weighted = sum(t * (t + 1.0) * cf / (1.0 + y) ** (t + 2.0) for t, cf in cashflows)
+    return _metric(weighted / dirty, "ok")
+
+
+def bpv(mod_duration: float | None, dirty: float | None) -> dict[str, Any]:
+    """Price change of one bond for a 1 b.p. move, in the bond's own currency."""
+    if mod_duration is None or not dirty:
+        return _unavailable()
+    return _metric(mod_duration * dirty * 1e-4, "ok")
+
+
+# ---------------------------------------------------------------------------
+# The ГЦБ base curve (primary-market auctions, cbu.uz fiscal agent)
+# ---------------------------------------------------------------------------
+
+# An auction older than this no longer describes today's curve. Six months
+# covers the Ministry's monthly cadence with room for a skipped auction, while
+# keeping a two-year-old 12-month rate from posing as current.
+GOV_CURVE_WINDOW_DAYS = 200
+
+
+def gov_curve_points(auctions: Iterable[dict[str, Any]],
+                     today: date | None = None,
+                     window_days: int = GOV_CURVE_WINDOW_DAYS) -> list[dict[str, Any]]:
+    """The freshest weighted-average rate per tenor, one point per term.
+
+    The fiscal agent places two tenors a month (364 and 1 095 days of late,
+    other terms in earlier years). The curve takes each tenor's LATEST auction
+    inside the window — a curve mixing this month's 3-year with last year's
+    1-year would carry two different monetary regimes as one line.
+    """
+    today = today or date.today()
+    best: dict[int, tuple[date, dict[str, Any]]] = {}
+    for auction in auctions or []:
+        term, rate = _num(auction.get("term_days")), _num(auction.get("wavg_rate"))
+        day = _as_date(auction.get("auction_date"))
+        if not term or term <= 0 or rate is None or not day:
+            continue
+        if (today - day).days > window_days:
+            continue
+        held = best.get(int(term))
+        if held is None or day > held[0]:
+            best[int(term)] = (day, auction)
+    return [{"term_days": term, "rate": _num(a.get("wavg_rate")),
+             "auction_date": day.isoformat(), "sec_id": a.get("sec_id"),
+             "isin": a.get("isin")}
+            for term, (day, a) in sorted(best.items())]
+
+
+def gov_curve_yield(years: float | None, points: Sequence[dict[str, Any]]) -> float | None:
+    """Linear interpolation on the auction tenors, clamped at the ends.
+
+    Clamped, not extrapolated: beyond the last auctioned tenor there is no
+    market evidence, and a straight line extended past it manufactures some.
+    """
+    if years is None or not points:
+        return None
+    days = years * 365.0
+    usable = [(float(p["term_days"]), float(p["rate"])) for p in points
+              if _num(p.get("term_days")) and _num(p.get("rate")) is not None]
+    if not usable:
+        return None
+    usable.sort()
+    if days <= usable[0][0]:
+        return usable[0][1]
+    if days >= usable[-1][0]:
+        return usable[-1][1]
+    for (t0, r0), (t1, r1) in zip(usable, usable[1:]):
+        if t0 <= days <= t1:
+            return r0 + (r1 - r0) * (days - t0) / (t1 - t0) if t1 > t0 else r0
+    return None
+
+
+def g_spread(ytm_pct: float | None, years: float | None,
+             points: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Yield over the ГЦБ curve at the bond's own horizon, in percentage points."""
+    if ytm_pct is None:
+        return _unavailable()
+    base = gov_curve_yield(years, points)
+    if base is None:
+        return _metric(None, "no_curve", note="нет данных аукционов ГЦБ")
+    return _metric(ytm_pct - base, "ok", curve_rate=base, term_years=years)
+
+
 def coupon_cashflows(reference: dict[str, Any], coupons: Iterable[dict[str, Any]],
                      today: date | None = None) -> list[tuple[float, float]]:
     """Remaining coupons plus redemption, as (years_from_today, amount)."""
@@ -380,7 +470,8 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
              coupons: Sequence[dict[str, Any]] | None = None,
              key_rate: Any = None, today: date | None = None,
              stats: dict[str, Any] | None = None,
-             board_day: date | None = None) -> dict[str, Any]:
+             board_day: date | None = None,
+             gov_points: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
     """One issue: what is computable today, and a reason for what is not."""
     meta = meta or {}
     row = apply_day_stats(row, stats)
@@ -456,7 +547,8 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
     # knowable years before anyone files a redemption date.
     if not ref_state["has_coupon"]:
         for field in ("accrued", "clean", "dirty", "simple_yield", "ytm",
-                      "duration", "modified_duration", "spread"):
+                      "duration", "modified_duration", "spread",
+                      "convexity", "bpv", "g_spread"):
             out[field] = _unavailable(missing=ref_state["missing"] or None)
         return out
 
@@ -483,7 +575,8 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
     # term reconstructed from "N days after placement began" lands days away
     # from the filed date — near enough to look right and not near enough to be.
     if not ref_state["is_complete"]:
-        for field in ("ytm", "duration", "modified_duration", "spread"):
+        for field in ("ytm", "duration", "modified_duration", "spread",
+                      "convexity", "bpv", "g_spread"):
             out[field] = _unavailable(missing=ref_state["missing"] or None)
         return out
 
@@ -492,18 +585,28 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
     # back empty-handed and report «нет справочных данных по выпуску» about the
     # one issue on the board whose reference is complete.
     if matured:
-        for field in ("ytm", "duration", "modified_duration", "spread"):
+        for field in ("ytm", "duration", "modified_duration", "spread",
+                      "convexity", "bpv", "g_spread"):
             out[field] = _matured(maturity)
         return out
 
     flows = coupon_cashflows(reference, coupons or [], today)
     ytm = yield_to_maturity(flows, dirty) if dirty else _unavailable()
     duration = macaulay_duration(flows, dirty, ytm.get("value")) if dirty else _unavailable()
+    mod = modified_duration(duration.get("value"), ytm.get("value"), freq)
+    # The curve is read at the bond's own horizon — its duration when the solver
+    # produced one, its remaining term otherwise.
+    horizon = duration.get("value")
+    if horizon is None and maturity:
+        horizon = (maturity - today).days / 365.0
     out.update({
         "ytm": ytm,
         "duration": duration,
-        "modified_duration": modified_duration(duration.get("value"), ytm.get("value"), freq),
+        "modified_duration": mod,
         "spread": spread_to_key_rate(ytm.get("value"), key_rate),
+        "convexity": convexity(flows, dirty, ytm.get("value")),
+        "bpv": bpv(mod.get("value"), dirty),
+        "g_spread": g_spread(ytm.get("value"), horizon, gov_points or []),
     })
     return out
 
@@ -515,7 +618,8 @@ def build_bond_board(board: Iterable[dict[str, Any]],
                      quality: dict[str, dict[str, Any]] | None = None,
                      key_rate: Any = None,
                      stats: dict[str, dict[str, Any]] | None = None,
-                     board_day: date | None = None) -> dict[str, Any]:
+                     board_day: date | None = None,
+                     gov_points: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
     """The bond section of the market screen.
 
     ``stats`` is the exchange's day statistics keyed by ISIN — the same store the
@@ -539,7 +643,7 @@ def build_bond_board(board: Iterable[dict[str, Any]],
         day_stats = stats.get(isin) or stats.get(isin.upper()) or stats.get(isin.lower())
         rows.append(bond_row(row, meta, (quality or {}).get(ticker),
                              references.get(ticker), (coupons or {}).get(ticker), key_rate,
-                             stats=day_stats, board_day=board_day))
+                             stats=day_stats, board_day=board_day, gov_points=gov_points))
     rows.sort(key=lambda r: r["ticker"])
     # The board's own day, as the ROWS report it — so «за сессию» on this
     # section means the same session the rows do, even when the caller passes
