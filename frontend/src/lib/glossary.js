@@ -345,6 +345,36 @@ export const TERMS = {
     en: { term: "Duration", def: "The average time to recover the money invested, coupons included. The longer it is, the more the bond's price moves when rates change." },
     uz: { term: "Dyuratsiya", def: "Kuponlarni hisobga olgan holda qo‘yilgan pulning qaytish o‘rtacha muddati. U qancha uzun bo‘lsa, stavkalar o‘zgarganda obligatsiya narxi shuncha kuchli reaksiya qiladi." },
   },
+  accrued: {
+    ru: { term: "НКД — накопленный купонный доход", def: "Часть купона, которую бумага «заработала» с последней выплаты. Покупатель платит его продавцу сверх цены, а затем получает купон целиком." },
+    en: { term: "Accrued interest", def: "The part of the coupon the bond has earned since the last payment. The buyer pays it to the seller on top of the price, then receives the full coupon." },
+    uz: { term: "To‘plangan kupon daromadi", def: "Oxirgi to‘lovdan beri qog‘oz «ishlab topgan» kupon qismi. Xaridor uni narx ustiga sotuvchiga to‘laydi, so‘ng kuponni to‘liq oladi." },
+  },
+  gSpread: {
+    ru: { term: "G-спред", def: "Насколько доходность выпуска выше кривой ГЦБ на его же горизонте. Это цена кредитного риска эмитента: за государственный риск на том же сроке рынок берёт меньше. Кривая строится по аукционам Минэкономфина (фискальный агент — ЦБ РУз)." },
+    en: { term: "G-spread", def: "How far the issue's yield sits above the government curve at its own horizon — the price of the issuer's credit risk. The curve comes from the Ministry of Finance auctions (the Central Bank is fiscal agent)." },
+    uz: { term: "G-spred", def: "Chiqarilish daromadliligi o‘z gorizontida davlat qimmatli qog‘ozlari egri chizig‘idan qancha yuqoriligi — emitent kredit xavfining narxi. Egri chiziq Iqtisodiyot va moliya vazirligi auksionlaridan olinadi." },
+  },
+  keyRatePremium: {
+    ru: { term: "Премия к основной ставке", def: "Разница между доходностью выпуска и основной ставкой ЦБ РУз. Грубый ориентир: кривая ГЦБ точнее, потому что учитывает срок." },
+    en: { term: "Premium to the key rate", def: "The gap between the issue's yield and the Central Bank's key rate. A rough anchor — the government curve is finer because it accounts for the term." },
+    uz: { term: "Asosiy stavkaga mukofot", def: "Chiqarilish daromadliligi bilan Markaziy bank asosiy stavkasi orasidagi farq. Taxminiy mo‘ljal — davlat egri chizig‘i muddatni hisobga olgani uchun aniqroq." },
+  },
+  convexity: {
+    ru: { term: "Выпуклость", def: "Поправка второго порядка к дюрации: при больших движениях ставок цена меняется не по прямой, и выпуклость измеряет этот изгиб." },
+    en: { term: "Convexity", def: "The second-order correction to duration: for large rate moves the price does not move along a straight line, and convexity measures that curvature." },
+    uz: { term: "Qavariqlik", def: "Dyuratsiyaga ikkinchi tartibli tuzatish: stavkalar katta o‘zgarganda narx to‘g‘ri chiziq bo‘ylab o‘zgarmaydi, qavariqlik shu egilishni o‘lchaydi." },
+  },
+  bpv: {
+    ru: { term: "BPV — цена базисного пункта", def: "На сколько сумов изменится цена одной облигации при сдвиге доходности на 0,01 п.п. Мера чувствительности в деньгах, а не в процентах." },
+    en: { term: "BPV — basis point value", def: "How many soums one bond's price moves when the yield shifts by 0.01 p.p. Sensitivity in money rather than in percent." },
+    uz: { term: "BPV — bazis punkt qiymati", def: "Daromadlilik 0,01 f.p.ga siljiganda bitta obligatsiya narxi necha so‘mga o‘zgarishi. Sezuvchanlikning foizda emas, pulda o‘lchovi." },
+  },
+  govCurve: {
+    ru: { term: "Кривая ГЦБ", def: "Базовая кривая доходности рынка UZS: средневзвешенные ставки последних аукционов государственных ценных бумаг по каждому сроку. Между аукционными сроками — линейная интерполяция; за их пределы кривая не продлевается." },
+    en: { term: "Government curve", def: "The UZS market's base yield curve: the weighted-average rates of the latest government-bond auction at each tenor. Linear between auctioned tenors; never extended beyond them." },
+    uz: { term: "Davlat qimmatli qog‘ozlari egri chizig‘i", def: "UZS bozorining tayanch daromadlilik egri chizig‘i: har muddat bo‘yicha so‘nggi davlat obligatsiyalari auksionlarining o‘rtacha tortilgan stavkalari. Auksion muddatlari orasida chiziqli interpolyatsiya." },
+  },
 };
 
 /** One term in one language, falling back to Russian while a translation is missing. */

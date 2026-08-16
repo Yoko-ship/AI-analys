@@ -11169,3 +11169,200 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
   border-bottom: 1px dotted currentColor;
   cursor: help;
 }
+
+/* ---------------------------------------------------------------------------
+   The bond section: screener → issue card → yield map (/bonds, /bond/{T}).
+   Charts are inline SVG themed through the same tokens as the rest of the
+   site — a class per role, never a hard-coded colour on the element.
+--------------------------------------------------------------------------- */
+.bondsec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.bondsec-sub { margin: 4px 0 0; font-size: 0.85rem; line-height: 1.6; }
+.bondsec-mode { flex: none; }
+.bondsec-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.bondsec-toolbar input[type="search"],
+.bondsec-toolbar select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+}
+.bondsec-search { min-width: 220px; }
+.bondsec-shown { margin-left: auto; font-size: 0.8rem; }
+.bondsec-table th { cursor: pointer; user-select: none; white-space: nowrap; }
+.bondsec-table th[data-sorted] { color: var(--text); }
+.bondsec-table td { white-space: nowrap; }
+.bondsec-issuer {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bondsec-strong { font-weight: 650; }
+.bondsec-note { font-size: 0.8rem; margin-top: 10px; line-height: 1.6; }
+.bondsec-h3 { margin: 22px 0 8px; font-size: 0.95rem; display: flex; align-items: center; gap: 4px; }
+
+/* Coverage bar: how much of the issue's reference the sources publish. */
+.bondsec-cov { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; cursor: help; }
+.bondsec-cov-track {
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+  display: inline-block;
+}
+.bondsec-cov-fill { display: block; height: 100%; border-radius: 3px; }
+.bondsec-cov-fill.tone-pos { background: var(--success); }
+.bondsec-cov-fill.tone-warn { background: var(--warning); }
+.bondsec-cov-fill.tone-neg { background: var(--danger); }
+.bondsec-cov-num { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Charts */
+.bondsec-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.bondsec-grid { stroke: var(--chart-grid); stroke-width: 1; }
+.bondsec-axis { stroke: var(--border-hover); stroke-width: 1; }
+.bondsec-tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bondsec-label { fill: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bondsec-label-strong { fill: var(--text); font-weight: 640; }
+.bondsec-curve { stroke: var(--muted-light); stroke-width: 2; stroke-linecap: round; }
+.bondsec-keyrate { stroke: var(--muted-light); stroke-width: 1; stroke-dasharray: 5 4; }
+.bondsec-bubble {
+  fill: var(--accent);
+  opacity: 0.75;
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+.bondsec-map-pt { cursor: pointer; }
+.bondsec-map-pt:hover .bondsec-bubble { opacity: 1; }
+.bondsec-series { stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.bondsec-series-a { stroke: var(--chart-primary); }
+.bondsec-series-b { stroke: var(--chart-secondary); }
+.bondsec-series-c { stroke: var(--chart-tertiary); }
+.bondsec-seriesdot.bondsec-series-a { fill: var(--chart-primary); stroke: var(--panel); stroke-width: 1.5; }
+.bondsec-seriesdot.bondsec-series-b { fill: var(--chart-secondary); stroke: var(--panel); stroke-width: 1.5; }
+.bondsec-seriesdot.bondsec-series-c { fill: var(--chart-tertiary); stroke: var(--panel); stroke-width: 1.5; }
+.bondsec-bar { fill: var(--accent); }
+.bondsec-bar-me { fill: var(--accent); }
+.bondsec-bar-principal { fill: var(--chart-tertiary); }
+.bondsec-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.bondsec-dot-principal { background: var(--chart-tertiary); }
+.bondsec-line {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  display: inline-block;
+  flex: none;
+  background: var(--muted-light);
+}
+.bondsec-line-dash { background: repeating-linear-gradient(90deg, var(--muted-light) 0 4px, transparent 4px 7px); }
+.bondsec-line-a { background: var(--chart-primary); }
+.bondsec-line-b { background: var(--chart-secondary); }
+.bondsec-line-c { background: var(--chart-tertiary); }
+.bondsec-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 6px 0 10px;
+  font-size: 0.8rem;
+}
+.bondsec-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Empty states say WHY, like the rest of the site's dashes. */
+.bondsec-empty {
+  border: 1px dashed var(--border-hover);
+  border-radius: var(--radius-sm);
+  padding: 22px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.bondsec-empty b { display: block; color: var(--text); margin-bottom: 4px; }
+
+/* The issue card */
+.bondsec-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.bondsec-card-title { margin: 10px 0 0; }
+.bondsec-card-isin { font-size: 0.8em; font-weight: 400; }
+.bondsec-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.bondsec-summary {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: 14px 16px;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+.bondsec-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+@media (max-width: 1080px) { .bondsec-cols { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px) { .bondsec-cols { grid-template-columns: 1fr; } }
+.bondsec-kv-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  overflow: hidden;
+}
+.bondsec-kv { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.bondsec-kv td { padding: 8px 12px; border-bottom: 1px solid var(--chart-grid); }
+.bondsec-kv tr:last-child td { border-bottom: 0; }
+.bondsec-kv td:first-child { color: var(--muted); }
+.bondsec-kv td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.bondsec-tabs {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.bondsec-tabs button {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 9px 13px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.bondsec-tabs button[aria-selected="true"] {
+  color: var(--text);
+  font-weight: 620;
+  border-bottom-color: var(--accent);
+}
+.bondsec-panel { margin-bottom: 8px; }
+@media (max-width: 640px) {
+  .bondsec-search { min-width: 140px; flex: 1; }
+  .bondsec-shown { margin-left: 0; width: 100%; }
+}
