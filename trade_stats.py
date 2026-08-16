@@ -38,6 +38,17 @@ def _feed_session() -> requests.Session:
 _KEYS = ("total_value", "total_qty", "trade_count", "avg_price",
          "largest_qty", "largest_value", "largest_pct_value", "largest_pct_qty")
 
+# The exchange's own execution classification, measured over the full sessions
+# of 12–14.08.2026: every auction execution — stock and bond alike — carries
+# board_id "G1"; a negotiated (пакетная) deal carries "T1", and the exchange's
+# OWN daily bulletin excludes it. HMKB 14.08 is the proof: 878 G1 executions
+# sum to exactly the bulletin's 839 168 papers / 82,9 млн, while the lone T1
+# execution moved 2,2 млрд papers at 55,00 — a −44% discount that belongs to
+# no session's OHLC. Folding it in made the card contradict itself three ways:
+# a day's turnover 2,2× the year's, an average price outside the day's range,
+# and a stored low (55,0) the exchange never printed.
+NEGO_BOARD_IDS = {"T1"}
+
 
 def _f(v: Any) -> float:
     try:
@@ -46,20 +57,47 @@ def _f(v: Any) -> float:
         return 0.0
 
 
+def _is_block(trade: dict) -> bool:
+    return str(trade.get("board_id") or "") in NEGO_BOARD_IDS
+
+
 def _aggregate(isin: str, lst: list[dict], trade_date: str) -> dict[str, Any]:
-    """Per-security day statistics from that day's individual executions."""
-    total_value = sum(_f(x.get("trading_value")) for x in lst)
-    total_qty = sum(_f(x.get("trade_quantity")) for x in lst)
-    prices = [_f(x.get("trade_price")) for x in lst if _f(x.get("trade_price")) > 0]
-    big = max(lst, key=lambda x: _f(x.get("trading_value")))
-    bv, bq = _f(big.get("trading_value")), _f(big.get("trade_quantity"))
+    """Per-security day statistics from that day's individual executions.
+
+    The session numbers — totals, OHLC, averages, the largest trade — are
+    computed from PRICE-ELIGIBLE executions only, which is the set the
+    exchange's own bulletin aggregates. Negotiated deals are recorded beside
+    them in ``block_*``: real money that changed hands that day, but at a
+    bilaterally agreed price that never stood in the order book, so it may not
+    move a candle, a turnover column or a "top liquidity" panel.
+
+    openinfo's archive marks every execution with ``board_id``; whether the
+    UZSE rolling feed carries the field too is unverified (the feed is empty
+    on weekends) — the loud warning below is what answers that question from
+    the first weekday run's log.
+    """
+    eligible = [x for x in lst if not _is_block(x)]
+    blocks = [x for x in lst if _is_block(x)]
+    unmarked = sum(1 for x in lst if "board_id" not in x)
+    if unmarked:
+        logger.warning(
+            "%s %s: %d of %d executions carry no board_id — negotiated deals "
+            "cannot be told apart and are counted into the session",
+            isin, trade_date, unmarked, len(lst))
+
+    total_value = sum(_f(x.get("trading_value")) for x in eligible)
+    total_qty = sum(_f(x.get("trade_quantity")) for x in eligible)
+    prices = [_f(x.get("trade_price")) for x in eligible if _f(x.get("trade_price")) > 0]
+    big = max(eligible, key=lambda x: _f(x.get("trading_value")), default=None)
+    bv = _f(big.get("trading_value")) if big else None
+    bq = _f(big.get("trade_quantity")) if big else None
     # Session OHLC from the executions in time order — the exchange's official
     # closing price is the day's LAST trade, which the averages can't stand in
     # for (the daily bulletin's change is computed close-to-close). openinfo's
     # archive records carry trade_datetime; the UZSE rolling feed does NOT —
     # there the monotonically increasing id/trade_number is the time order
     # (the feed itself lists newest first, so input order must not be trusted).
-    timed = sorted((x for x in lst if _f(x.get("trade_price")) > 0),
+    timed = sorted((x for x in eligible if _f(x.get("trade_price")) > 0),
                    key=lambda x: (str(x.get("trade_datetime") or ""),
                                   _f(x.get("trade_number")), _f(x.get("id"))))
     open_p = _f(timed[0].get("trade_price")) if timed else None
@@ -76,13 +114,18 @@ def _aggregate(isin: str, lst: list[dict], trade_date: str) -> dict[str, Any]:
         "trade_date": trade_date,
         "total_value": round(total_value, 2),
         "total_qty": total_qty,
-        "trade_count": len(lst),
+        "trade_count": len(eligible),
         "avg_price": round(sum(prices) / len(prices), 2) if prices else None,
         "vwap": round(total_value / total_qty, 2) if total_qty else None,
         "largest_qty": bq,
-        "largest_value": round(bv, 2),
-        "largest_pct_value": round(bv / total_value * 100, 2) if total_value else None,
-        "largest_pct_qty": round(bq / total_qty * 100, 2) if total_qty else None,
+        "largest_value": round(bv, 2) if bv is not None else None,
+        "largest_pct_value": round(bv / total_value * 100, 2) if (bv is not None and total_value) else None,
+        "largest_pct_qty": round(bq / total_qty * 100, 2) if (bq is not None and total_qty) else None,
+        # The negotiated deals of the day, apart from the session — the flag
+        # a bar carries; the deals themselves keep their own numbers.
+        "block_count": len(blocks),
+        "block_qty": sum(_f(x.get("trade_quantity")) for x in blocks) or None,
+        "block_value": round(sum(_f(x.get("trading_value")) for x in blocks), 2) or None,
     }
 
 

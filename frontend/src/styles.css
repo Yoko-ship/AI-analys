@@ -11256,6 +11256,14 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .bondsec-cov-fill.tone-warn { background: var(--warning); }
 .bondsec-cov-fill.tone-neg { background: var(--danger); }
 .bondsec-cov-num { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Off-session negotiated deal beside the turnover — a footnote, not a number. */
+.bondsec-block-mark {
+  color: var(--warning);
+  font-size: 0.75rem;
+  margin-left: 3px;
+  cursor: help;
+  vertical-align: super;
+}
 
 /* Charts */
 .bondsec-chart { display: block; width: 100%; height: auto; overflow: visible; }

@@ -157,6 +157,13 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             high_price        REAL,
             low_price         REAL,
             close_price       REAL,
+            -- Negotiated (пакетные) deals of the day, kept OUT of every session
+            -- number above: their price never stood in the order book, so it
+            -- may not move a candle or a turnover column (HMKB 14.08.2026 —
+            -- 2,2 млрд бумаг по 55,00 при рынке 95,5–99,99).
+            block_count       INTEGER,
+            block_qty         REAL,
+            block_value       REAL,
             updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
@@ -2258,8 +2265,9 @@ def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> 
                     INSERT INTO catalog_trade_stats
                         (isin, trade_date, total_value, total_qty, trade_count, avg_price,
                          largest_qty, largest_value, largest_pct_value, largest_pct_qty,
-                         open_price, high_price, low_price, close_price, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                         open_price, high_price, low_price, close_price,
+                         block_count, block_qty, block_value, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(isin) DO UPDATE SET
                         trade_date=excluded.trade_date, total_value=excluded.total_value,
                         total_qty=excluded.total_qty, trade_count=excluded.trade_count,
@@ -2269,6 +2277,8 @@ def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> 
                         largest_pct_qty=excluded.largest_pct_qty,
                         open_price=excluded.open_price, high_price=excluded.high_price,
                         low_price=excluded.low_price, close_price=excluded.close_price,
+                        block_count=excluded.block_count, block_qty=excluded.block_qty,
+                        block_value=excluded.block_value,
                         updated_at=datetime('now')
                     WHERE excluded.trade_date >= catalog_trade_stats.trade_date
                     """,
@@ -2278,7 +2288,9 @@ def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> 
                      _num(r.get("largest_qty")), _num(r.get("largest_value")),
                      _num(r.get("largest_pct_value")), _num(r.get("largest_pct_qty")),
                      _num(r.get("open_price")), _num(r.get("high_price")),
-                     _num(r.get("low_price")), _num(r.get("close_price"))),
+                     _num(r.get("low_price")), _num(r.get("close_price")),
+                     (int(_num(r.get("block_count")) or 0) or None),
+                     _num(r.get("block_qty")), _num(r.get("block_value"))),
                 )
                 n += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
     finally:
@@ -2292,7 +2304,8 @@ def get_all_trade_stats() -> dict[str, dict[str, Any]]:
     rows = conn.execute(
         """SELECT isin, trade_date, total_value, total_qty, trade_count, avg_price,
                   largest_qty, largest_value, largest_pct_value, largest_pct_qty,
-                  open_price, high_price, low_price, close_price, updated_at
+                  open_price, high_price, low_price, close_price,
+                  block_count, block_qty, block_value, updated_at
            FROM catalog_trade_stats"""
     ).fetchall()
     conn.close()

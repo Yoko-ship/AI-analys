@@ -415,8 +415,26 @@ def apply_day_stats(row: dict[str, Any], stats: dict[str, Any] | None) -> dict[s
     row_day = _as_date(row.get("last_trade_date")) or _as_date(row.get("close_date"))
     if row_day and ts_day < row_day:
         return row
+    # A day whose only executions were negotiated deals is NOT a session: the
+    # exchange's bulletin says nothing traded, and a bilaterally agreed price
+    # must not become the row's close. IQMK5B8 13.08.2026 was exactly this —
+    # one T1 deal of 120 000 bonds at 1 069 393,45 printed as the market price.
+    # The deal itself stays visible through the block_* fields below.
+    if not ((_num(stats.get("total_qty")) or 0) > 0 or (_num(stats.get("trade_count")) or 0) > 0):
+        out = dict(row)
+        if _num(stats.get("block_value")):
+            out["block_value"] = _num(stats.get("block_value"))
+            out["block_qty"] = _num(stats.get("block_qty"))
+            out["block_date"] = ts_day.isoformat()
+        return out
 
     out = dict(row)
+    # The day's negotiated deals, apart from the session — real money, not a
+    # market price; shown as its own line, never summed into the turnover.
+    if _num(stats.get("block_value")):
+        out["block_value"] = _num(stats.get("block_value"))
+        out["block_qty"] = _num(stats.get("block_qty"))
+        out["block_date"] = ts_day.isoformat()
     for src, dst in (("total_value", "volume"), ("total_qty", "quantity"),
                      ("trade_count", "trade_count")):
         if stats.get(src) is not None:

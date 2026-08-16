@@ -3115,6 +3115,11 @@ function applyTradeStats(r, tmap, latestTsDay) {
   // feed has none is honest, a number from another week is not.
   if (!tradeStatsApply(r.last_trade_date, t.trade_date)) return r;
   const out = { ...r, ts: t };
+  // A day whose only executions were negotiated deals is NOT a session: the
+  // bulletin says nothing traded, so its zeros must not replace the row's own
+  // last real session, and its price must not become the row's close. The
+  // deal stays reachable through `ts.block_value` for its own line on the card.
+  if (!(t.trade_count > 0) && !(t.total_qty > 0)) return out;
   if (Number.isFinite(t.total_value)) out.stockVolume = t.total_value;
   if (Number.isFinite(t.total_qty)) out.stockQuantity = t.total_qty;
   if (Number.isFinite(t.trade_count)) out.stockTradeCount = t.trade_count;
@@ -5946,7 +5951,15 @@ function BondsView({ language, onOpenBond, embedded = false }) {
                           : ""}>
                       {fmtBondDay(r.session)}
                     </td>
-                    <td className="num">{money(r.turnover)}</td>
+                    <td className="num">
+                      {money(r.turnover)}
+                      {r.b.block_value > 0 && (
+                        <span
+                          className="bondsec-block-mark"
+                          title={`${t("Пакетная сделка вне сессии", "Sessiyadan tashqari paket bitim", "Off-session block trade")}${r.b.block_date ? ` (${fmtBondDay(r.b.block_date)})` : ""}: ${money(r.b.block_value)}. ${t("В оборот сессии не входит: цена согласована вне стакана.", "Sessiya aylanmasiga kirmaydi.", "Not part of the session's turnover: the price was agreed off-book.")}`}
+                        >†</span>
+                      )}
+                    </td>
                     <td className="num">{r.years == null
                       ? <span className="cell-status" title={t("дата погашения не подана эмитентом", "to'lov sanasi topshirilmagan", "no maturity filed")}>—</span>
                       : fmtNumber(r.years, lang, 1)}</td>
@@ -7884,6 +7897,13 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   put(t("Сделок", "Bitimlar", "Trades"), count(row?.stockTradeCount));
   put(t("Средняя цена", "O'rtacha narx", "Average price"),
       price(Number.isFinite(row?.avgPrice) ? row.avgPrice : avgSharePrice(row)));
+  // A negotiated deal is real money at a bilaterally agreed price — not a
+  // session number. Its own line, never summed into the turnover above
+  // (HMKB 14.08: 2,2 млрд бумаг по 55 при рынке 95,5–99,99).
+  if (Number.isFinite(row?.ts?.block_value) && row.ts.block_value > 0) {
+    put(t("Пакетные сделки, вне сессии", "Paket bitimlar, sessiyadan tashqari", "Block trades, off-session"),
+        `${compact(row.ts.block_value)} UZS`);
+  }
   const sessionRows = rows.splice(0, rows.length);
   // The date is not decoration: the board carries a close forward through
   // sessions with no executions, so a rail with no date invites reading an old
