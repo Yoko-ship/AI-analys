@@ -524,6 +524,12 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
         "is_current": (None if not (session_day and board_day)
                        else session_day >= board_day),
         "quality": quality,
+        # The day's negotiated deals, carried through from the statistics —
+        # real money at an off-book price, shown beside the session and never
+        # summed into it.
+        "block_value": _num(row.get("block_value")),
+        "block_qty": _num(row.get("block_qty")),
+        "block_date": row.get("block_date"),
         "reference": ref_state,
         # ТЗ А.2: equity multiples are structurally unavailable for a bond —
         # the fields are absent, not null. A null invites "we could not compute

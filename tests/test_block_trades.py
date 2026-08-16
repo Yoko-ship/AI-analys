@@ -107,3 +107,17 @@ class TestBondsApplyDayStats:
 
     def test_no_stats_no_change(self):
         assert bonds.apply_day_stats(self.ROW, None) == self.ROW
+
+    def test_bond_row_carries_the_block_through_to_the_response(self):
+        """apply_day_stats attaches the fields; bond_row rebuilds its dict with
+        fixed keys, so without an explicit passthrough the API drops them."""
+        stats = {"trade_date": "20260813", "total_qty": 0, "trade_count": 0,
+                 "close_price": None, "block_value": 128_327_214_000.0,
+                 "block_qty": 120_000.0}
+        row = bonds.bond_row({**self.ROW, "isin": "UZ6056887AH6"},
+                             stats=stats, board_day=date(2026, 8, 14))
+        assert row["block_value"] == pytest.approx(128_327_214_000.0)
+        assert row["block_qty"] == pytest.approx(120_000.0)
+        assert row["block_date"] == "2026-08-13"
+        # and the session itself still belongs to the last real trading day
+        assert row["last_trade_date"] == "2026-08-11"
