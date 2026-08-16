@@ -5846,7 +5846,7 @@ function BondsView({ language, onOpenBond, embedded = false }) {
   const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: key === "ticker" || key === "issuer" || key === "session" ? 1 : -1 }));
 
   const columns = [
-    { key: "ticker", label: t("Выпуск", "Chiqarilish", "Issue"), left: true },
+    { key: "issuer", label: t("Выпуск", "Chiqarilish", "Issue"), left: true },
     { key: "price", label: t("Цена", "Narx", "Price"), termId: "par" },
     { key: "pricePct", label: `% ${t("ном.", "nom.", "par")}`, termId: "parPercent" },
     { key: "change", label: t("Изм.", "O'zg.", "Chg"), termId: "change" },
@@ -5957,9 +5957,12 @@ function BondsView({ language, onOpenBond, embedded = false }) {
                 {sorted.map((r) => (
                   <tr key={r.ticker} className="bond-row" onClick={() => onOpenBond && onOpenBond(r.ticker)}>
                     <td>
-                      <strong>{r.ticker}</strong>
-                      <span className="bondsec-issuer" title={r.issuer}>
-                        {r.issuer || "—"}{r.b.isin ? ` · ${r.b.isin}` : ""}
+                      {/* The full legal name leads; the ticker is the small
+                          print. Four series can share one issuer, so the
+                          ticker+ISIN line is what tells them apart. */}
+                      <strong className="bondsec-name" title={r.issuer || r.ticker}>{r.issuer || r.ticker}</strong>
+                      <span className="bondsec-issuer">
+                        {r.ticker}{r.b.isin ? ` · ${r.b.isin}` : ""}
                       </span>
                     </td>
                     <td className="num">{fmtPrice(r.price, lang)}</td>
@@ -6122,7 +6125,7 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond }) {
               const base = govCurveAt(p.x, govPoints);
               return (
                 <tr key={p.ticker} className="bond-row" onClick={() => onOpenBond && onOpenBond(p.ticker)}>
-                  <td><strong>{p.ticker}</strong> <span className="muted">{p.issuer}</span></td>
+                  <td><strong>{p.issuer || p.ticker}</strong> <span className="muted">{p.ticker}</span></td>
                   <td className="num">{fmtNumber(p.x, lang, 2)}</td>
                   <td className="num">{fmtNumber(p.y, lang, 2)}%</td>
                   <td className="num">{base != null ? `${fmtNumber(base, lang, 2)}%` : "—"}</td>
@@ -6190,11 +6193,11 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
         <div>
           <button type="button" className="ghost-btn" onClick={onBack}>← {t("К списку облигаций", "Obligatsiyalar ro'yxatiga", "Back to bonds")}</button>
           <h2 className="panel-title bondsec-card-title">
-            {bond.ticker}
-            {bond.isin ? <span className="muted bondsec-card-isin"> · {bond.isin}</span> : null}
+            {bond.issuer || bond.name || bond.ticker}
           </h2>
           <p className="muted bondsec-sub">
-            {bond.issuer || bond.name || "—"} · UZS
+            {bond.ticker}
+            {bond.isin ? ` · ${bond.isin}` : ""} · UZS
             {bond.status === "matured" && ` · ${t("выпуск погашается", "chiqarilish so'ndirilmoqda", "redeeming")}`}
           </p>
         </div>

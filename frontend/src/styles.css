@@ -11207,11 +11207,18 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .bondsec-table th { cursor: pointer; user-select: none; white-space: nowrap; }
 .bondsec-table th[data-sorted] { color: var(--text); }
 .bondsec-table td { white-space: nowrap; }
+.bondsec-name {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .bondsec-issuer {
   display: block;
   font-size: 0.72rem;
   color: var(--muted);
-  max-width: 250px;
+  max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
