@@ -3005,6 +3005,18 @@ body {
     bottom: max(12px, env(safe-area-inset-bottom));
     width: min(46vw, 170px);
   }
+
+  /* A 30px circle is a mouse target; a finger needs ~44px. The count pill
+     follows the buttons so the × does not jump in size when it replaces it. */
+  .sponsor-overlay-sound,
+  .sponsor-overlay-close,
+  .sponsor-overlay-count {
+    width: 42px;
+    height: 42px;
+    font-size: 15px;
+  }
+
+  .sponsor-overlay-close { font-size: 24px; }
 }
 
 .hero-panel::before {
