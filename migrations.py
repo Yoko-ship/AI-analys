@@ -130,6 +130,38 @@ MIGRATIONS: tuple[Migration, ...] = (
                       ("noninterest_income", "REAL"),
                       ("org_type", "TEXT"),
                       ("balance_period", "TEXT"))),
+    # ГЦБ primary market (cbu.uz fiscal-agent page) + the key rate history —
+    # the base curve of the UZS market and the anchor of every bond spread.
+    # CREATE IF NOT EXISTS: a fresh database already gets both from the
+    # provenance schema initializer; this applies them to deployed ones.
+    Migration(8, "bonds: gov auction results + key rate history",
+              run_sql(
+                  """CREATE TABLE IF NOT EXISTS gov_bond_auctions (
+                       sec_id          TEXT NOT NULL,
+                       auction_date    TEXT NOT NULL,
+                       isin            TEXT,
+                       term_days       INTEGER,
+                       maturity_date   TEXT,
+                       income_type     TEXT,
+                       announced_volume REAL,
+                       dealers         INTEGER,
+                       placed_qty      REAL,
+                       placed_value    REAL,
+                       wavg_rate       REAL,
+                       min_rate        REAL,
+                       max_rate        REAL,
+                       source_url      TEXT,
+                       synced_at       TEXT,
+                       PRIMARY KEY (sec_id, auction_date)
+                     )""",
+                  "CREATE INDEX IF NOT EXISTS ix_gov_auctions_date "
+                  "ON gov_bond_auctions (auction_date DESC)",
+                  """CREATE TABLE IF NOT EXISTS gov_key_rate (
+                       effective_from TEXT PRIMARY KEY,
+                       rate           REAL NOT NULL,
+                       source_url     TEXT,
+                       synced_at      TEXT
+                     )""")),
 )
 
 

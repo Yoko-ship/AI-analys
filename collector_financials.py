@@ -827,6 +827,23 @@ def push_bond_reference(listing_rows: list[dict]) -> int:
     return _post("/api/admin/bonds/reference", {"rows": rows, "coupons": coupons})
 
 
+def push_gov_auctions() -> int:
+    """Push the ГЦБ primary market + the key rate (cbu.uz fiscal agent).
+
+    Monthly auctions read on a daily cron: nearly every run re-states what prod
+    already holds, and the upsert makes that a no-op. The base curve these rows
+    build is what turns a bond's yield into a spread.
+    """
+    import gov_bonds_collector as gc
+
+    rows = gc.collect_gov_auctions()
+    if not rows:
+        log.info("gov auctions: nothing parsed — leaving prod as it stands")
+        return 0
+    return _post("/api/admin/gov-auctions",
+                 {"rows": rows, "key_rate": gc.collect_key_rate()})
+
+
 def register_catalog() -> int:
     """Link the figures just pushed to the filings they came from (§Б.2/§Б.3).
 
@@ -1029,6 +1046,10 @@ def main() -> int:
     ap.add_argument("--facts-only", action="store_true", help="only run+push the source-adapter facts")
     ap.add_argument("--no-listings", action="store_true", help="skip the exchange-listing registry step")
     ap.add_argument("--listings-only", action="store_true", help="only collect+push the listing registry")
+    ap.add_argument("--no-gov-auctions", action="store_true",
+                    help="skip the ГЦБ auction step (cbu.uz fiscal agent)")
+    ap.add_argument("--gov-auctions-only", action="store_true",
+                    help="only collect+push ГЦБ auction results and the key rate")
     ap.add_argument("--no-reconcile", action="store_true", help="skip the structured-JSON reconciliation push")
     ap.add_argument("--reconcile-only", action="store_true",
                     help="only reconcile financials against openinfo JSON and push (authoritative)")
@@ -1098,6 +1119,17 @@ def main() -> int:
             push_heartbeat(status)
         return status
 
+    if args.gov_auctions_only:
+        status = 0
+        try:
+            status = push_gov_auctions()
+        except Exception:
+            log.exception("gov auctions step failed")
+            status = 1
+        if not args.no_push:
+            push_heartbeat(status)
+        return status
+
     rc_status = 0
     if not (args.no_financials or args.trades_only or args.facts_only or args.listings_only):
         if not args.push_only:
@@ -1134,6 +1166,16 @@ def main() -> int:
             rc_status = push_listings() or rc_status
         except Exception:
             log.exception("listings step failed")
+            rc_status = rc_status or 1
+
+    # The ГЦБ primary market — cheap (two cbu.uz pages), monthly cadence read
+    # daily so a new auction lands the morning after it is published.
+    if not (args.no_gov_auctions or args.no_push or args.trades_only
+            or args.facts_only or args.listings_only):
+        try:
+            rc_status = push_gov_auctions() or rc_status
+        except Exception:
+            log.exception("gov auctions step failed")
             rc_status = rc_status or 1
 
     # Authoritative structured-JSON reconciliation — runs last so it supersedes the
