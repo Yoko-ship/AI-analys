@@ -3826,6 +3826,28 @@ def derive_quarterly_series(cumulative: dict[str, Any],
     return sorted(periods, reverse=True), series
 
 
+def _fill_equity_by_identity(series: dict[str, dict[str, Any]]) -> None:
+    """Close the Капитал holes the sources leave, by the balance identity.
+
+    On every published balance assets = liabilities + equity, so a period that
+    states the first two states the third — the 2015-style «—» beside two
+    filled lines is a presentation gap, not a missing fact (customer,
+    2026-08-16). Only periods with no equity of their own are filled: a figure
+    the feed or a filing carries always wins, including a filed zero.
+    """
+    assets = (series.get("total_assets") or {}).get("values", {})
+    liab = (series.get("total_liabilities") or {}).get("values", {})
+    entry = series.get("total_equity")
+    have = (entry or {}).get("values", {})
+    gap = {p: assets[p] - liab[p] for p in assets if p in liab and p not in have}
+    if not gap:
+        return
+    if entry is None:
+        entry = series["total_equity"] = {"unit": "UZS", "money": True,
+                                          "derived": True, "values": {}}
+    entry["values"].update(gap)
+
+
 @app.get("/api/company/{ticker}/financials")
 async def api_company_financials(request: Request, ticker: str, freq: str = "annual") -> Response:
     """The issuer's annual series — one row per indicator, one column per year.
@@ -3899,6 +3921,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
             if margin:
                 series["net_margin"] = {"unit": "%", "money": False,
                                         "derived": True, "values": margin}
+            _fill_equity_by_identity(series)
             return _etag_json(request, {
                 "ok": True, "ticker": ticker, "currency": "UZS", "freq": "quarterly",
                 "periods": q_periods, "series": series,
@@ -4101,6 +4124,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         if derived:
             series["net_margin"] = {"unit": "%", "money": False, "derived": True,
                                     "values": derived}
+        _fill_equity_by_identity(series)
         return _etag_json(request, {
             "ok": True, "ticker": ticker, "org_id": org_id, "currency": "UZS",
             "periods": sorted(periods, reverse=True),

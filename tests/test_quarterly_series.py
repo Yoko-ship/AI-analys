@@ -102,6 +102,40 @@ class TestStocksPassThrough:
         assert series["total_equity"] == {"2024Q3": 400.0, "2024Q4": 450.0}
 
 
+class TestEquityByIdentity:
+    """assets = liabilities + equity on every published balance, so a period
+    that states the first two states the third — the dash was a presentation
+    gap, not a missing fact."""
+
+    def _series(self, equity_values=None, with_equity=True):
+        s = {"total_assets": {"unit": "UZS", "money": True,
+                              "values": {"2015": 1000.0, "2016": 1200.0}},
+             "total_liabilities": {"unit": "UZS", "money": True,
+                                   "values": {"2015": 600.0, "2016": 700.0}}}
+        if with_equity:
+            s["total_equity"] = {"unit": "UZS", "money": True,
+                                 "values": dict(equity_values or {})}
+        return s
+
+    def test_a_missing_period_is_closed_by_the_identity(self):
+        s = self._series(equity_values={"2016": 480.0})
+        api._fill_equity_by_identity(s)
+        assert s["total_equity"]["values"]["2015"] == 400.0
+        # ... and a figure the source carries always wins over the derivation.
+        assert s["total_equity"]["values"]["2016"] == 480.0
+
+    def test_an_absent_series_is_created_and_marked_derived(self):
+        s = self._series(with_equity=False)
+        api._fill_equity_by_identity(s)
+        assert s["total_equity"]["derived"] is True
+        assert s["total_equity"]["values"] == {"2015": 400.0, "2016": 500.0}
+
+    def test_one_side_missing_derives_nothing(self):
+        s = {"total_assets": {"unit": "UZS", "money": True, "values": {"2015": 1000.0}}}
+        api._fill_equity_by_identity(s)
+        assert "total_equity" not in s
+
+
 class TestBalancePeriodFallback:
     def test_a_row_without_the_columns_reads_its_filed_balance_block(self):
         """Rows the reconcile pushed before the total_assets/total_equity
