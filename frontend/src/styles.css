@@ -2725,6 +2725,91 @@ body {
   box-shadow: none;
 }
 
+/* Official CBU rates as a one-line strip glued under the topbar (fx_mockups
+   variant А): same background as the bar above so the two read as one header
+   block. Not sticky — it scrolls away with the page. On narrow screens the
+   row keeps its single line and pans sideways instead of wrapping. */
+.fx-bar {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.fx-bar-label {
+  flex: none;
+  padding: 9px 16px 9px 8px;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.fx-bar-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 9px 16px;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.fx-bar-ccy {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.fx-bar-rate {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.fx-bar-pct {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+}
+
+.fx-bar-pct.is-up {
+  color: var(--success);
+}
+
+.fx-bar-pct.is-down {
+  color: var(--danger);
+}
+
+.fx-bar-pct.is-flat {
+  color: var(--muted);
+}
+
+body[data-theme="dark"] .fx-bar {
+  background: #0d0e11;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+body[data-theme="dark"] .fx-bar-label,
+body[data-theme="dark"] .fx-bar-item {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 640px) {
+  .fx-bar {
+    padding: 0 8px;
+  }
+}
+
 .topbar-brand {
   display: flex;
   align-items: center;
@@ -6815,52 +6900,6 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 10px;
-}
-
-/* Official CBU rates as full-size cards: the same visual weight as the
-   market's own counters. auto-fit keeps all seven on one desktop row; a
-   phone gets two per row instead of a squint-sized strip. */
-.market-fx-block {
-  display: grid;
-  gap: 10px;
-}
-
-.market-fx-caption {
-  color: var(--muted);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-}
-
-.market-fx-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 14px;
-}
-
-/* The stat card carries the look; a rate card just doesn't need the same
-   height as a counter with a two-line footnote. */
-.market-fx-grid .market-stat-card {
-  min-height: 0;
-  padding: 14px 16px;
-}
-
-.market-fx-grid .market-stat-card em {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* The landing shows the same cards between the tape and the board section. */
-.lv-fx {
-  padding: 26px 0 0;
-}
-
-@media (max-width: 640px) {
-  .market-fx-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .market-stats-grid {

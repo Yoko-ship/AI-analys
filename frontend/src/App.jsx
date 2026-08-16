@@ -5211,14 +5211,14 @@ function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
   );
 }
 
-// Official CBU (cbu.uz) daily rates, in the same cards as the market's own
-// counters so the figure reads at a glance. Self-fetching: the server caches
-// the bank's JSON, so rendering this on two pages costs two cheap requests.
-// The rates are set once per business day — the date in the caption is CBU's
-// own, never "live".
-const FX_CCY_SYMBOLS = { USD: "$", EUR: "€", RUB: "₽", GBP: "£", CNY: "¥", JPY: "¥", KZT: "₸" };
-
-function FxRatesCards({ language }) {
+// Official CBU (cbu.uz) daily rates in a single thin strip under the topbar,
+// so the rate is visible from every page instead of a block of full-size
+// cards on two of them. Self-fetching: the server caches the bank's JSON, so
+// this costs one cheap request per app load. The rates are set once per
+// business day — the date in the label is CBU's own, never "live". The day
+// change reads as a percent of the previous fix — shorter than сумы in a
+// one-line strip; the exact сум difference stays in the item's tooltip.
+function FxRatesBar({ language }) {
   const lang = normalizeLanguage(language);
   const [fx, setFx] = useState(null);
   useEffect(() => {
@@ -5230,34 +5230,28 @@ function FxRatesCards({ language }) {
     return () => { alive = false; };
   }, []);
   if (!fx) return null;
+  const src = lang === "uz" ? "O‘zR MB" : lang === "en" ? "CBU" : "ЦБ РУз";
   return (
-    <div className="market-fx-block" role="note">
-      <div className="market-fx-caption">
-        {lang === "uz" ? "O‘zbekiston Markaziy banki kurslari"
-          : lang === "en" ? "Central Bank of Uzbekistan rates"
-            : "Курсы Центрального банка РУз"}
-        {fx.date ? ` · ${fx.date}` : ""}
-        {" · UZS"}
-      </div>
-      <div className="market-fx-grid">
-        {fx.rates.map((r) => {
-          const name = lang === "uz" ? r.name_uz : lang === "en" ? r.name_en : r.name_ru;
-          const hasDiff = Number.isFinite(r.diff) && r.diff !== 0;
-          const symbol = FX_CCY_SYMBOLS[r.ccy];
-          const baseLabel = (r.nominal || 1) > 1 ? `${formatRatio(r.nominal, 0, lang)} ${r.ccy}` : r.ccy;
-          return (
-            <MarketStatCard
-              key={r.ccy}
-              label={baseLabel}
-              value={symbol ? `${formatRatio(r.rate, 2, lang)} ${symbol}` : formatRatio(r.rate, 2, lang)}
-              sub={hasDiff
-                ? `${r.diff > 0 ? "▲" : "▼"} ${formatRatio(Math.abs(r.diff), 2, lang)} · ${name || ""}`
-                : name}
-              tone={hasDiff ? (r.diff > 0 ? "good" : "danger") : "neutral"}
-            />
-          );
-        })}
-      </div>
+    <div className="fx-bar" role="note" aria-label={src}>
+      <span className="fx-bar-label">{src}{fx.date ? ` · ${fx.date.slice(0, 5)}` : ""}</span>
+      {fx.rates.map((r) => {
+        const name = lang === "uz" ? r.name_uz : lang === "en" ? r.name_en : r.name_ru;
+        const prev = Number.isFinite(r.diff) ? r.rate - r.diff : null;
+        const pct = prev > 0 && r.diff !== 0 ? (r.diff / prev) * 100 : 0;
+        const code = (r.nominal || 1) > 1 ? `${formatRatio(r.nominal, 0, lang)} ${r.ccy}` : r.ccy;
+        const title = pct !== 0
+          ? `${name || r.ccy} · ${r.diff > 0 ? "+" : "−"}${formatRatio(Math.abs(r.diff), 2, lang)} UZS`
+          : name || r.ccy;
+        return (
+          <span key={r.ccy} className="fx-bar-item" title={title}>
+            <span className="fx-bar-ccy">{code}</span>
+            <span className="fx-bar-rate">{formatRatio(r.rate, 2, lang)}</span>
+            <span className={`fx-bar-pct ${pct > 0 ? "is-up" : pct < 0 ? "is-down" : "is-flat"}`}>
+              {pct > 0 ? "+" : pct < 0 ? "−" : ""}{formatRatio(Math.abs(pct), 2, lang)}%
+            </span>
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -12430,11 +12424,6 @@ function MarketView({
         )}
       </article>
 
-      {/* Official CBU rates in full-size cards — the same weight as the
-          market's own counters, because a reader converting the board's сумы
-          needs the rate legible at a glance, not squinted at in a strip. */}
-      <FxRatesCards language={lang} />
-
       <div className="market-stats-grid">
         {/* Инструментов / Сделки сегодня / Без изменений were removed at the
             customer's request (2026-08-12) — the row keeps only the counters
@@ -14257,14 +14246,6 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
         </div>
       )}
 
-      {/* ── Курсы ЦБ — the figure a reader carrying the board's сумы into
-          dollars or roubles converts with. Same cards, same source as /market. ── */}
-      <section className="lv-fx">
-        <div className="lv-container lv-wide">
-          <FxRatesCards language={language} />
-        </div>
-      </section>
-
       {/* ── 02 · Табло рынка ── */}
       <section className="lv-sec">
         <div className="lv-container lv-wide">
@@ -15547,6 +15528,11 @@ function App() {
             </div>
           </div>
         </header>
+
+        {/* Official CBU rates as a one-line strip under the topbar — chosen
+            over the full-size cards (fx_mockups variant А, 2026-08-16). Not
+            sticky: it scrolls away with the page, so it costs no viewport. */}
+        <FxRatesBar language={language} />
 
         <main className="content">
           {activeView === "main" && (
