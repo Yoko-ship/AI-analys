@@ -12056,9 +12056,11 @@ function MarketView({
   // The key carries a version. A new column added to the DEFAULT set is invisible
   // to every reader who has ever opened this table, because their saved selection
   // is what loads — the week and month change columns would have shipped to
-  // nobody. Bumping the key retires the old selection once, deliberately.
+  // nobody. Bumping the key retires the old selection once, deliberately. It went
+  // to _v3 in the same session as _v2: «Номинал» joined the default set an hour
+  // later, and a reader who had already picked up _v2 would not have seen it.
   const [visibleCols, setVisibleCols] = useState(() => {
-    try { const s = JSON.parse(localStorage.getItem("uz_market_cols_v2")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
+    try { const s = JSON.parse(localStorage.getItem("uz_market_cols_v3")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
     return new Set(["change", "change1w", "change1m", "nominal",
                     "open", "high", "low", "volume", "date", "source"]);
   });
@@ -12067,7 +12069,7 @@ function MarketView({
   const [colsSearch, setColsSearch] = useState("");
   const [openGroups, setOpenGroups] = useState(() => new Set(["overview", "volumes", "financials"]));
   const toggleGroup = (k) => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  useEffect(() => { try { localStorage.setItem("uz_market_cols_v2", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
+  useEffect(() => { try { localStorage.setItem("uz_market_cols_v3", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
   const toggleCol = (k) => setVisibleCols((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   // Bonds carry no equity metrics — the exchange feed gives them only price/trade
   // data (no market cap, P/E, ROE, or issuer financials). Hide the stock-only
@@ -12079,7 +12081,7 @@ function MarketView({
   // Drag-to-reorder columns. Ticker + company stay pinned left (identity cells);
   // everything from "last" onward is reorderable. Order is persisted per user.
   const MOVABLE_KEYS = ["last", ...MARKET_COLS.map(([k]) => k)];
-  // The key carries a version alongside uz_market_cols_v2, and for the same reason:
+  // The key carries a version alongside uz_market_cols_v3, and for the same reason:
   // a saved order keeps only the keys it knew and APPENDS the rest, so a column
   // added next to «Изм.» landed at the far right of the board for every reader who
   // had ever opened it — three screens of horizontal scroll from the column it
