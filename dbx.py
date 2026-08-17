@@ -192,6 +192,28 @@ def _split_literals(sql: str) -> list[tuple[str, bool]]:
     return parts
 
 
+def escape_percent(sql: str, target: str) -> str:
+    """Double every `%` that is NOT a placeholder, for a parameterised statement.
+
+    psycopg scans the whole query string for `%` whenever a params argument is
+    present, so one inside a string literal reads as a malformed placeholder and
+    the statement raises before it runs — «only '%s', '%b', '%t' are allowed as
+    placeholders, got '%''». That is what `published_at LIKE '____-__-__%'` did to
+    the market-events feed: HTTP 500 on every request.
+
+    Only INERT fragments are touched — string literals and comments — because the
+    `%s` placeholders live in the code fragments and doubling those would unbind
+    every parameter. And this is applied ONLY on the parameterised path: psycopg
+    does no unescaping when it is given no params, so a doubled `%%` in a bare
+    statement would reach the database literally and `LIKE 'sqlite_%%'` matches a
+    different set of tables than `LIKE 'sqlite_%'`.
+    """
+    if target != POSTGRES or "%" not in sql:
+        return sql
+    return "".join(fragment.replace("%", "%%") if is_literal else fragment
+                   for fragment, is_literal in _split_literals(sql))
+
+
 def translate(sql: str, target: str) -> str:
     """Rewrite a SQLite statement for `target`. A no-op for SQLite."""
     if target != POSTGRES:
@@ -316,9 +338,9 @@ class Cursor:
         if isinstance(params, dict):
             if self._target == POSTGRES:
                 statement = _NAMED.sub(_NAMED_REPLACEMENT, statement)
-            self._raw.execute(statement, params)
+            self._raw.execute(escape_percent(statement, self._target), params)
         elif params:
-            self._raw.execute(statement, tuple(params))
+            self._raw.execute(escape_percent(statement, self._target), tuple(params))
         else:
             # No parameters means no parameter PARSING. psycopg scans for `%`
             # whenever a params argument is present -- even an empty tuple --
@@ -330,7 +352,9 @@ class Cursor:
 
     def executemany(self, sql: str, seq: Iterable[Sequence[Any]]) -> "Cursor":
         check_supported(sql)
-        self._raw.executemany(translate(sql, self._target), [tuple(p) for p in seq])
+        # Always parameterised, so a literal `%` always needs doubling here.
+        self._raw.executemany(escape_percent(translate(sql, self._target), self._target),
+                              [tuple(p) for p in seq])
         return self
 
     def _columns(self) -> list[str]:
