@@ -6605,12 +6605,15 @@ function BondLadderPanel({ board, current, lang }) {
 // month — and `days`/`ytd` then narrow the loaded series on the client. Keeping
 // both in one table is what stops the buttons and the fetch drifting apart.
 //
-// There is deliberately NO 1D. UZSE publishes one row per SESSION and no
-// intraday ticks (see the candle note below: bars can only be rolled up, never
-// down), so a day view would be a single candle — a button that looks like the
-// others and answers nothing.
+// `hourly` marks the ranges the company chart draws from the exchange's own
+// executions log rolled up to hourly bars (/api/intraday). 1Д exists BECAUSE of
+// that log — uzse's page stamps every trade with its time, the collector banks
+// them hourly, and a day is ~7 bars, not the single candle it used to be. The
+// bank starts the day the collector first ran, so 1Н mixes hourly bars with
+// daily closes for the days the bank does not cover.
 const CHART_RANGES = [
-  { key: "1w", months: 1, days: 7, span: 0.25, label: ["1Н", "1H", "1W"] },
+  { key: "1d", months: 1, days: 1, span: 0.05, hourly: true, label: ["1Д", "1K", "1D"] },
+  { key: "1w", months: 1, days: 7, span: 0.25, hourly: true, label: ["1Н", "1H", "1W"] },
   { key: "1m", months: 1, span: 1, label: ["1М", "1O", "1M"] },
   { key: "3m", months: 3, span: 3, label: ["3М", "3O", "3M"] },
   { key: "6m", months: 6, span: 6, label: ["6М", "6O", "6M"] },
@@ -6906,7 +6909,7 @@ function QuickCompareStrip({ peers, securitiesMap, selected, colors, onToggle, l
 }
 
 function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments, lang, quality, metricsWindows,
-                             ticker, compare, compareLoading, onExpand }) {
+                             ticker, compare, compareLoading, onExpand, intraday }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const months = chartRangeSpan(range);
   const [hover, setHover] = React.useState(null);
@@ -6994,10 +6997,60 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // The endpoint's smallest unit is a month, so 1Н and YTD ask for the month(s)
   // that contain them and are trimmed here. ISO dates compare as strings.
   const cutoff = chartRangeCutoff(range);
-  const windowed = cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
+  // The hourly ranges draw the executions-log bars (see CHART_RANGES). Peer
+  // compare stays on daily closes: the peers arrive as daily series, and a
+  // percent line needs every line sampled on the same dates.
+  const peersOn = Boolean((compare || []).some((s) => s.points && s.points.length));
+  // On 1Д the peers are dropped instead: a session of hourly bars has no dates
+  // a daily peer series could be sampled on, and an empty frame under a chip
+  // that has data would read as a bug.
+  const hourly = chartRange(range).hourly && (range === "1d" || !peersOn)
+    ? (intraday || []).map((h) => ({
+        date: h.date,
+        open: h.open != null ? Number(h.open) : null,
+        high: h.high != null ? Number(h.high) : null,
+        low: h.low != null ? Number(h.low) : null,
+        close: Number(h.close ?? 0),
+        volume: Number(h.volume ?? 0) || 0,
+        turnover: Number(h.value ?? 0) || 0,
+        change: null,
+      })).filter((p) => p.close > 0 && p.date)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    : [];
+  let windowed;
+  if (range === "1d") {
+    // The newest banked SESSION, not the last 24 calendar hours: on a Sunday
+    // the answer to «1Д» is Friday's session, not an empty frame.
+    const lastDay = hourly.length ? String(hourly[hourly.length - 1].date).slice(0, 10) : null;
+    windowed = lastDay ? hourly.filter((p) => String(p.date).startsWith(lastDay)) : [];
+  } else if (hourly.length) {
+    // 1Н: hourly bars where the bank has them, the settled daily close where it
+    // does not (the bank only starts the day the collector first stored the
+    // log). "2026-08-17" < "2026-08-17T10:00" as strings, so one sort holds.
+    const covered = new Set(hourly.map((p) => String(p.date).slice(0, 10)));
+    const merged = [...daily.filter((p) => !covered.has(String(p.date).slice(0, 10))), ...hourly]
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    windowed = cutoff ? merged.filter((p) => String(p.date) >= cutoff) : merged;
+  } else {
+    windowed = cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
+  }
   // A week with no executions is a fact about the security, not a failure to
   // load anything — on this market most securities trade on a minority of days,
   // and «история недоступна» would be a lie about a page that has years of it.
+  if (range === "1d" && windowed.length < 2) return (
+    <div className="company-chart-wrap">
+      <div className="company-chart-toolbar">{rangeBar}</div>
+      <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>
+        {hourly.length === 0
+          ? t("Часовые данные с UZSE ещё накапливаются — график дня появится после ближайшей торговой сессии",
+              "UZSE soatlik ma'lumotlari hali yig'ilmoqda — kunlik grafik keyingi savdo sessiyasidan so'ng chiqadi",
+              "Hourly data from UZSE is still being banked — the day view appears after the next trading session")
+          : t("За последнюю сессию все сделки прошли в один час — часовой график не нарисовать",
+              "So'nggi sessiyada barcha bitimlar bir soat ichida o'tdi",
+              "The last session's trades all fell in one hour — nothing to draw hourly")}
+      </div>
+    </div>
+  );
   if (cutoff && windowed.length < 2 && daily.length >= 2) return (
     <div className="company-chart-wrap">
       <div className="company-chart-toolbar">{rangeBar}</div>
@@ -7020,13 +7073,22 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
 
   // uz-UZ renders months as "M01"/"M02"; keep Russian month names for ru+uz.
   const dateLocale = lang === "en" ? "en-US" : "ru-RU";
-  const fmtDate = (d, withYear) => d
-    ? new Date(d).toLocaleDateString(dateLocale, withYear ? { year: "2-digit", month: "short", day: "numeric" } : { month: "short", day: "numeric" })
-    : "";
+  // An hourly bar's date carries its hour ("2026-08-17T14:00") and is labelled
+  // with it — a tooltip saying only «17 авг.» over seven same-day bars answers
+  // nothing.
+  const isHourly = (d) => String(d || "").includes("T");
+  const fmtDate = (d, withYear) => {
+    if (!d) return "";
+    if (isHourly(d)) return new Date(d).toLocaleString(dateLocale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    return new Date(d).toLocaleDateString(dateLocale, withYear ? { year: "2-digit", month: "short", day: "numeric" } : { month: "short", day: "numeric" });
+  };
   // Multi-year ranges show "mon 'yy" on the axis (day-of-month is noise at monthly/quarterly buckets).
-  const fmtAxis = (d) => d
-    ? (months >= 12 ? new Date(d).toLocaleDateString(dateLocale, { year: "2-digit", month: "short" }) : fmtDate(d))
-    : "";
+  // On the one-session axis the date would repeat on every tick — the hour IS the label.
+  const fmtAxis = (d) => {
+    if (!d) return "";
+    if (isHourly(d) && range === "1d") return new Date(d).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" });
+    return months >= 12 ? new Date(d).toLocaleDateString(dateLocale, { year: "2-digit", month: "short" }) : fmtDate(d);
+  };
   const fmtFull = (v) => v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 });
 
   const W = 820;
@@ -7068,7 +7130,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // span every line has and the axis stops being сумы — see buildCompareSeries.
   // Nothing below this point reads `p.close` for a Y position; it reads
   // `baseVals`, which is the close or the percent depending on the mode.
-  const cmp = buildCompareSeries(windowed, compare);
+  const cmp = buildCompareSeries(windowed, range === "1d" ? null : compare);
   const cmpOn = Boolean(cmp && cmp.series.length);
   const points = cmpOn ? cmp.points : windowed;
   const baseVals = cmpOn ? cmp.basePct : points.map((p) => p.close);
@@ -8066,7 +8128,7 @@ function dividendSummary(items, { isPreferred, lastPrice } = {}) {
   };
 }
 
-function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, priceRange, onRangeChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
+function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, intraday, priceRange, onRangeChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
 
   return (
@@ -8084,7 +8146,7 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
                 here (`quality`) and how long a moving average is (`ma_windows`);
                 only its numbers stopped being printed. */}
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={onRangeChange} adjustments={priceAdjustments} lang={lang}
-              quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows}
+              intraday={intraday} quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows}
               ticker={ticker} compare={compare?.series} compareLoading={compare?.loading}
               onExpand={onExpandChart} />
             {/* Inside the chart panel, as on the reference page: the strip is a
@@ -8879,6 +8941,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   // Non-empty only for a series that spans a split or a bonus issue — the chart has to
   // say the older prices were restated, or they read as wrong against uzse.uz.
   const [priceAdjustments, setPriceAdjustments] = React.useState([]);
+  // Hourly bars from the exchange's executions log (/api/intraday) — what 1Д
+  // draws and what 1Н mixes with daily closes. Fetched once per ticker, not per
+  // range: the whole answer is a week of bars.
+  const [intraday, setIntraday] = React.useState(null);
   // The button's identity, not a month count: 1Н and 1М both fetch one month,
   // and YTD's month count moves through the year. `chartRangeMonths` turns it
   // into what the endpoint understands.
@@ -8989,6 +9055,19 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
       .finally(() => { if (alive) setPriceLoading(false); });
     return () => { alive = false; };
   }, [ticker, priceMonths, priceRetry]);
+
+  React.useEffect(() => {
+    if (!ticker) return undefined;
+    let alive = true;
+    setIntraday(null);
+    // Failure degrades, never blocks: with no bars the 1Н button draws daily
+    // closes exactly as before, and 1Д says the bank is still empty.
+    fetch(`/api/intraday/${encodeURIComponent(ticker)}?days=8`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setIntraday(d.ok ? (d.points || []) : []); })
+      .catch(() => { if (alive) setIntraday([]); });
+    return () => { alive = false; };
+  }, [ticker]);
 
   // Metrics are the server's job (ТЗ §3, second principle: one calc layer, and
   // the screen is not one of its implementations). The page reads `quality`
@@ -9250,13 +9329,16 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
         )}
         {tab === "overview" && (
           <CompanyOverviewTab sec={sec} ticker={ticker} priceHistory={priceHistory} priceLoading={priceLoading}
-            priceAdjustments={priceAdjustments}
+            priceAdjustments={priceAdjustments} intraday={intraday}
             compare={{
               peers: comparePeers, securitiesMap, selected: compareTickers,
               onToggle: toggleCompare, series: compareLines, loading: compareLoading,
             }}
             onExpandChart={onOpenChart
-              ? () => onOpenChart(ticker, { range: priceRange, type: "line", compare: compareTickers,
+              // The advanced chart draws the daily archive and offers no 1Д —
+              // expanding from it opens the week instead of an empty frame.
+              ? () => onOpenChart(ticker, { range: priceRange === "1d" ? "1w" : priceRange,
+                                            type: "line", compare: compareTickers,
                                             indicators: [], fin: [], from: "", to: "" })
               : null}
             priceRange={priceRange} onRangeChange={setPriceRange}
@@ -9274,10 +9356,11 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
           <div className="panel" style={{ padding: 24 }}>
             <h3 className="section-heading" style={{ marginBottom: 16 }}>{lang === "ru" ? `История цен — ${ticker}` : `Price History — ${ticker}`}</h3>
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={setPriceRange} lang={lang}
-              quality={metrics?.quality} metricsWindows={metrics?.ma_windows}
+              intraday={intraday} quality={metrics?.quality} metricsWindows={metrics?.ma_windows}
               ticker={ticker} compare={compareLines} compareLoading={compareLoading}
               onExpand={onOpenChart
-                ? () => onOpenChart(ticker, { range: priceRange, type: "line", compare: compareTickers,
+                ? () => onOpenChart(ticker, { range: priceRange === "1d" ? "1w" : priceRange,
+                                              type: "line", compare: compareTickers,
                                               indicators: [], fin: [], from: "", to: "" })
                 : null} />
             <QuickCompareStrip peers={comparePeers} securitiesMap={securitiesMap}
@@ -9907,7 +9990,10 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   const rangeBar = (
     <div className="ac-ranges">
-      {CHART_RANGES.map((r) => (
+      {/* No 1Д here: the advanced chart draws the daily archive and computes
+          calendar-windowed indicators on it — a one-session window would be a
+          button that answers nothing. The hourly view lives on the company page. */}
+      {CHART_RANGES.filter((r) => r.key !== "1d").map((r) => (
         <button key={r.key} type="button"
           className={`ac-range-btn ${!custom && range === r.key ? "active" : ""}`}
           onClick={() => { setSpan({ from: "", to: "" }); setRange(r.key); }}>

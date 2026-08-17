@@ -66,6 +66,8 @@ from reports_catalog import (
     bulk_upsert_quotes,
     bulk_upsert_quote_history,
     get_quote_history,
+    bulk_upsert_intraday_history,
+    get_intraday_history,
     get_all_listings,
     bulk_upsert_listings,
     purge_delisted,
@@ -457,6 +459,9 @@ class AdminQuotesRequest(BaseModel):
     # Settled daily closes riding along with the session quotes: ~21 sessions
     # for each security the run read, so the cap is an order above `rows`.
     history: list[dict[str, Any]] = Field(default_factory=list, max_length=40000)
+    # Hourly bars from the executions log on the same pages — at most ~7 trading
+    # hours per session per security, so the quotes cap times ten holds it.
+    intraday: list[dict[str, Any]] = Field(default_factory=list, max_length=20000)
 
 
 class AdminFactsRequest(BaseModel):
@@ -3402,8 +3407,15 @@ async def api_admin_quotes(
                 None, partial(bulk_upsert_quote_history, payload.history))
         except Exception:  # noqa: BLE001 — history is not worth the session
             logger.exception("admin quote-history upsert failed")
+    bars = 0
+    if payload.intraday:
+        try:
+            bars = await loop.run_in_executor(
+                None, partial(bulk_upsert_intraday_history, payload.intraday))
+        except Exception:  # noqa: BLE001 — hourly bars are not worth the session either
+            logger.exception("admin intraday-history upsert failed")
     _schedule_audit("ingest:quotes")
-    return {"ok": True, "upserted": n, "history": days}
+    return {"ok": True, "upserted": n, "history": days, "intraday": bars}
 
 
 @app.post("/api/admin/financials")
@@ -4914,7 +4926,7 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
 # Names for the day-based windows. formulas.WINDOW_LABELS_RU is keyed by month
 # count and has no entry for a week or for a year-to-date span, which is exactly
 # why those two used to arrive labelled as a month.
-_WINDOW_LABELS_RU = {"1w": "за неделю", "ytd": "с начала года"}
+_WINDOW_LABELS_RU = {"1d": "за сессию", "1w": "за неделю", "ytd": "с начала года"}
 
 
 @app.get("/api/company/{ticker}/metrics")
@@ -5026,6 +5038,46 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
         }
     except Exception as exc:
         logger.exception("price-history failed for %s", ticker)
+        return {"ok": False, "ticker": ticker, "error": str(exc), "points": []}
+
+
+@app.get("/api/intraday/{ticker}")
+async def api_intraday(ticker: str, days: int = 8) -> dict[str, Any]:
+    """Hourly bars for the 1Д/1Н chart, from the stored executions-log roll-up.
+
+    uzse.uz publishes per-trade times only on the security's own quote page and
+    only while the page still shows the session, so this is served from
+    ``catalog_intraday_history`` — whatever the collector has banked. The series
+    STARTS the day the collector first ran with the intraday step: days before
+    that honestly have no bars, and the chart mixes in daily closes for them.
+    Dates are ISO with an hour ("2026-08-17T14:00") so a series shared with the
+    daily feed still sorts as strings.
+    """
+    ticker = ticker.upper()
+    days = max(1, min(days, 60))
+    loop = asyncio.get_running_loop()
+    try:
+        isin = await _resolve_isin(ticker)
+        if not isin:
+            return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found",
+                                 "points": []}, status_code=404)
+        rows = await loop.run_in_executor(None, partial(get_intraday_history, isin, days))
+        points = [
+            {
+                "date": f"{d[:4]}-{d[4:6]}-{d[6:8]}T{int(r['hour']):02d}:00",
+                "open": r.get("open_price"),
+                "high": r.get("high_price"),
+                "low": r.get("low_price"),
+                "close": r.get("close_price"),
+                "volume": r.get("quantity"),
+                "value": r.get("turnover"),
+            }
+            for r in rows
+            if (d := str(r.get("trade_date") or "")) and r.get("close_price") is not None
+        ]
+        return {"ok": True, "ticker": ticker, "isin": isin, "points": points}
+    except Exception as exc:
+        logger.exception("intraday failed for %s", ticker)
         return {"ok": False, "ticker": ticker, "error": str(exc), "points": []}
 
 

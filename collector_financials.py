@@ -705,7 +705,23 @@ def push_quotes(stats: dict[str, dict]) -> int:
                             "change_value": h.get("change"), "quantity": h.get("quantity"),
                             "turnover": h.get("turnover")})
     log.info("quotes: %d settled daily closes across %d securities", len(history), len(quotes))
-    status = _post("/api/admin/quotes", {"rows": quotes, "history": history})
+    # The executions log rides the same pages: hourly bars for the session(s)
+    # each page still shows. The exchange keeps no archive of the log, so a bar
+    # not banked on this run is gone — which is the whole reason they ride
+    # along instead of waiting for a collector of their own.
+    intraday: list[dict[str, Any]] = []
+    for q in quotes:
+        isin = str(q.get("isin") or "").upper()
+        for b in (q.pop("intraday", None) or []):
+            if not isin or not b.get("date"):
+                continue
+            intraday.append({"isin": isin, "trade_date": b["date"], "hour": b.get("hour"),
+                             "open": b.get("open"), "high": b.get("high"),
+                             "low": b.get("low"), "close": b.get("close"),
+                             "quantity": b.get("quantity"), "turnover": b.get("turnover")})
+    log.info("quotes: %d hourly bars across %d securities", len(intraday), len(quotes))
+    status = _post("/api/admin/quotes",
+                   {"rows": quotes, "history": history, "intraday": intraday})
     if status == 0:
         # The newest session in the batch, not whichever row happened to be first:
         # a settled row is dated the day its security last traded, which for a
