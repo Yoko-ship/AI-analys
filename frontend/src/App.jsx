@@ -8558,6 +8558,143 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
   );
 }
 
+// The same series as columns of bars. A line says "this is the shape of a
+// trend"; a bar says "this is how big each period was" — for revenue or profit,
+// which is what most readers open this tab for, the second is the honest picture,
+// and a line between two annual points implies twelve months of movement nobody
+// measured.
+//
+// Deliberately the same frame as FinancialsChart — same viewBox, padding, axis
+// formatter, palette and tooltip — so switching the view does not re-teach the
+// reader where to look. The zero line is drawn, not implied: on this market a
+// year of losses is common, and a bar hanging below the axis has to hang from
+// something.
+function FinancialsBars({ fields, series, periods, lang, colorOf, onToggle }) {
+  const [hover, setHover] = React.useState(null);
+  const [hoverY, setHoverY] = React.useState(0);
+  const cols = periods;
+  const drawn = fields
+    .map((f, i) => ({ f, color: colorOf ? colorOf(f) : FIN_CHART_COLORS[i % FIN_CHART_COLORS.length], s: series[f] }))
+    .filter((d) => d.s && cols.some((c) => Number.isFinite(d.s.values[c])));
+  if (drawn.length === 0 || cols.length === 0) return null;
+
+  const all = drawn.flatMap((d) => cols.map((c) => d.s.values[c]).filter(Number.isFinite));
+  const max = Math.max(...all, 0), min = Math.min(...all, 0);
+  const span = max - min || 1;
+  const W = 820, H = 210, PAD = { t: 12, r: 14, b: 26, l: 70 };
+  const plot = W - PAD.l - PAD.r;
+  const y = (v) => PAD.t + (1 - (v - min) / span) * (H - PAD.t - PAD.b);
+  const zero = y(0);
+  const money = drawn[0].s.money;
+  const pct = drawn.every((d) => d.s.unit === "%");
+  const axis = (v) => (money ? formatCompactVolume(v, lang)
+    : `${formatRatio(v, 1, lang)}${pct ? "%" : ""}`);
+  // One slot per period, the bars of a period sharing it. A tenth of the slot
+  // stays empty on each side so neighbouring periods do not touch.
+  const slot = plot / cols.length;
+  const groupW = slot * 0.8;
+  const barW = Math.max(1.5, groupW / drawn.length);
+  const slotX = (i) => PAD.l + i * slot;
+  const onMove = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (!r.width) return;
+    const relX = ((e.clientX - r.left) / r.width) * W;
+    const i = Math.max(0, Math.min(cols.length - 1, Math.floor((relX - PAD.l) / slot)));
+    setHover(i);
+    const wrap = e.currentTarget.parentElement;
+    setHoverY(e.clientY - (wrap ? wrap.getBoundingClientRect().top : r.top));
+  };
+
+  return (
+    <div className="fin-chart">
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}
+        onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+        {[0, 0.5, 1].map((f, i) => (
+          <line key={i} x1={PAD.l} y1={y(min + f * span)} x2={W - PAD.r} y2={y(min + f * span)}
+            stroke="currentColor" strokeOpacity="0.16" strokeDasharray="4 6" strokeWidth="0.8" />
+        ))}
+        {[0, 0.5, 1].map((f, i) => (
+          <text key={`l${i}`} x={PAD.l - 8} y={y(min + f * span) + 3.5} textAnchor="end"
+            fontSize="10" fill="currentColor" opacity="0.5">{axis(min + f * span)}</text>
+        ))}
+        {min < 0 && (
+          <line x1={PAD.l} y1={zero} x2={W - PAD.r} y2={zero}
+            stroke="currentColor" strokeOpacity="0.45" strokeWidth="1" />
+        )}
+        {hover != null && (
+          <rect x={slotX(hover)} y={PAD.t} width={slot} height={H - PAD.t - PAD.b}
+            fill="currentColor" opacity="0.06" />
+        )}
+        {cols.map((c, i) => drawn.map((d, k) => {
+          const v = d.s.values[c];
+          if (!Number.isFinite(v)) return null;
+          const top = Math.min(y(v), zero);
+          // A period whose value rounds to nothing still gets a visible sliver:
+          // «0» and «not filed» are different statements and the chart must not
+          // render them the same way.
+          const height = Math.max(1, Math.abs(zero - y(v)));
+          const x = slotX(i) + (slot - groupW) / 2 + k * barW;
+          return <rect key={`${c}-${d.f}`} x={x.toFixed(1)} y={top.toFixed(1)}
+            width={Math.max(1, barW - 1.5).toFixed(1)} height={height.toFixed(1)}
+            fill={d.color} rx={Math.min(2, barW / 3)} />;
+        }))}
+        {cols.map((c, i) => {
+          const step = Math.max(1, Math.ceil(cols.length / 13));
+          if (i % step !== 0 && i !== cols.length - 1) return null;
+          return (
+            <text key={c} x={slotX(i) + slot / 2} y={H - 8} fontSize="10" fill="currentColor"
+              opacity="0.5" textAnchor="middle">{finPeriodLabel(c, true)}</text>
+          );
+        })}
+      </svg>
+      {hover != null && (
+        <div className="cpc-tooltip"
+          style={{
+            top: `${Math.max(6, hoverY - 40)}px`,
+            ...((slotX(hover) + slot / 2) > W * 0.62
+              ? { right: `calc(${((W - slotX(hover)) / W) * 100}% + 12px)` }
+              : { left: `calc(${((slotX(hover) + slot) / W) * 100}% + 12px)` }),
+          }}>
+          <div className="cpc-tt-date">{finPeriodLabel(cols[hover])}</div>
+          {drawn.map((d) => {
+            const v = d.s.values[cols[hover]];
+            return (
+              <div className="cpc-tt-row" key={d.f}>
+                <span><i className="fin-tt-dot" style={{ background: d.color }} />{finLabel(d.f, lang)}</span>
+                <b>{!Number.isFinite(v) ? "—"
+                  : d.s.money ? formatCompactVolume(v, lang)
+                  : `${formatRatio(v, 2, lang)}${d.s.unit === "%" ? "%" : ""}`}</b>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="fin-legend">
+        {drawn.map((d) => (onToggle ? (
+          <button key={d.f} type="button" className="fin-legend-item clickable"
+            onClick={() => onToggle(d.f)}>
+            <i style={{ background: d.color }} />{finLabel(d.f, lang)}
+          </button>
+        ) : (
+          <span key={d.f} className="fin-legend-item">
+            <i style={{ background: d.color }} />{finLabel(d.f, lang)}
+          </span>
+        )))}
+      </div>
+    </div>
+  );
+}
+
+// How the financial section is drawn. Three, because that is what the customer
+// asked for and because they answer three different questions: a line for the
+// trend, bars for the size of each period, the table for the figures themselves.
+const FIN_DASHBOARDS = [
+  { key: "line", label: ["Линейный", "Chizmali", "Line"] },
+  { key: "bar", label: ["Столбчатый", "Ustunli", "Bars"] },
+  { key: "table", label: ["Таблица", "Jadval", "Table"] },
+];
+const FIN_DASHBOARD_KEY = "uz_fin_dashboard";
+
 function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "annual", onFreqChange }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [section, setSection] = React.useState("income");
@@ -8565,6 +8702,19 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
   // share a key space, which is fine — «income» means the same lines in both).
   // Unset = the section's default; from the first click the reader owns it.
   const [chartSel, setChartSel] = React.useState({});
+  // Line | Bars | Table — the reader's choice, remembered. Exclusive on purpose:
+  // «TABLE» is one of the three, so it cannot also be permanently underneath the
+  // other two, and a chart with the whole table below it is what this tab was.
+  const [dashboard, setDashboard] = React.useState(() => {
+    try {
+      const saved = localStorage.getItem(FIN_DASHBOARD_KEY);
+      if (FIN_DASHBOARDS.some((d) => d.key === saved)) return saved;
+    } catch (e) { /* ignore */ }
+    return "table";
+  });
+  React.useEffect(() => {
+    try { localStorage.setItem(FIN_DASHBOARD_KEY, dashboard); } catch (e) { /* ignore */ }
+  }, [dashboard]);
   const quarterly = freq === "quarterly";
 
   // Годовые | Квартальные. The switch stays on screen in every state —
@@ -8813,12 +8963,57 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
           </button>
         ))}
         {freqToggle}
+        {/* Line | Bars | Table. Sits with the period switch because it answers
+            the same kind of question — how to READ this section, not which
+            section — and the two are the only controls this tab has. */}
+        <div className="fin-freq fin-dash" role="group"
+          aria-label={t("Вид", "Ko'rinish", "View")}>
+          {FIN_DASHBOARDS.map((d) => (
+            <button key={d.key} type="button"
+              className={`fin-freq-btn ${dashboard === d.key ? "active" : ""}`}
+              aria-pressed={dashboard === d.key}
+              onClick={() => setDashboard(d.key)}>
+              {d.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="panel fin-panel">
-        <FinancialsChart fields={chartFields} series={series} periods={cols} lang={lang}
-          colorOf={colorOf} onToggle={toggleChartField} />
+        {dashboard !== "table" && (
+          <>
+            {/* In a chart view the table is not on screen, so its row headers
+                cannot be what picks the lines. Every row of the section is a
+                chip here: the legend below the chart can only take a line away,
+                and a reader who has switched them all off would otherwise be
+                looking at an empty frame with no way back. */}
+            <div className="fin-picker">
+              {sectionFields.filter(has).map((f) => (
+                <button key={f} type="button"
+                  className={`fin-picker-chip ${selected.includes(f) ? "on" : ""}`}
+                  aria-pressed={selected.includes(f)}
+                  onClick={() => toggleChartField(f)}>
+                  <i style={selected.includes(f) ? { background: colorOf(f) } : undefined} />
+                  {finLabel(f, lang)}
+                </button>
+              ))}
+            </div>
+            {dashboard === "bar"
+              ? <FinancialsBars fields={chartFields} series={series} periods={cols} lang={lang}
+                  colorOf={colorOf} onToggle={toggleChartField} />
+              : <FinancialsChart fields={chartFields} series={series} periods={cols} lang={lang}
+                  colorOf={colorOf} onToggle={toggleChartField} />}
+            {chartFields.length === 0 && (
+              <p className="fin-note muted" style={{ textAlign: "center" }}>
+                {t("Выберите показатель выше, чтобы построить график",
+                   "Grafik uchun yuqoridan ko'rsatkich tanlang",
+                   "Pick an indicator above to draw the chart")}
+              </p>
+            )}
+          </>
+        )}
 
+        {dashboard === "table" && (
         <div className="fin-table-wrap">
           <table className="fin-table">
             <thead>
@@ -8842,6 +9037,7 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
             </tbody>
           </table>
         </div>
+        )}
 
         <p className="fin-note muted">
           {quarterly
