@@ -182,6 +182,12 @@ MIGRATIONS: tuple[Migration, ...] = (
                       ("current_assets", "REAL"),
                       ("current_liabilities", "REAL"),
                       ("inventories", "REAL"))),
+    # «Номинальная стоимость» of every listed security. The exchange states it as
+    # `parval` on the same security card the share count comes from — for shares
+    # (AGBA 1 168 sums) as well as for bonds, where only the bond contour was
+    # reading it. No page showed it for a share.
+    Migration(11, "listings: the security's par value",
+              columns("catalog_listings", ("nominal", "REAL"))),
 )
 
 

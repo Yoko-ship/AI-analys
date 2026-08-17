@@ -240,11 +240,18 @@ def _uzse_equity(session: Any, isin: str) -> dict | None:
                 continue
             for sh in rec.get("shares") or []:
                 if str(sh.get("isu_cd") or "").upper() == isin.upper():
+                    parval = _num(sh.get("parval"))
                     result = {
                         "shares": _num(sh.get("list_shrs")),
                         "price": _num(sh.get("trade_price")),
                         "date": sh.get("executions_date"),
                         "mktcap": _num(rec.get("market_capitalization")),
+                        # The share's PAR — «номинальная стоимость» — as the
+                        # exchange's own card states it (AGBA 1 168 sums, and the
+                        # preferred line carries the same par). A zero is the
+                        # card's way of saying "not stated", never a par of zero,
+                        # so it lands as absent.
+                        "nominal": parval if parval else None,
                     }
                     break
             if result:
@@ -354,6 +361,13 @@ def collect_listing_rows() -> list[dict[str, Any]]:
                 # Exchange bond (UZ6… ISIN) with no openinfo reference price:
                 # par from UZSE so the cap shows outstanding face value.
                 reference_price = _uzse_bond_nominal(isin)
+            # «Номинальная стоимость» — a fact about the security that no page
+            # showed. The exchange states it as `parval` on the same card for
+            # both classes of instrument: read off the equity detail for a share,
+            # off the bond card for an issue.
+            nominal = (uz or {}).get("nominal")
+            if nominal is None and isin.startswith("UZ6"):
+                nominal = _uzse_bond_nominal(isin)
 
             last = _last_conclusion(session, isin)
             last_close = _num(last.get("close")) if last else None
@@ -387,6 +401,7 @@ def collect_listing_rows() -> list[dict[str, Any]]:
                 "share_type": _STOCK_TYPE.get(str(ic.get("stock_type") or ""), "ordinary"),
                 "listing_date": _fmt_date(ic.get("listing_date")),
                 "shares_outstanding": shares,
+                "nominal": nominal,
                 "reference_price": reference_price,
                 "last_price": last_price,
                 "last_trade_date": last_trade_date,
@@ -415,6 +430,7 @@ def collect_listing_rows() -> list[dict[str, Any]]:
                 "ticker": ticker, "isin": uz_isin, "name": name,
                 "share_type": "ordinary", "listing_date": None,
                 "shares_outstanding": uz_shares, "reference_price": None,
+                "nominal": (_uzse_equity(session, uz_isin) or {}).get("nominal") if uz_isin else None,
                 "last_price": last_price, "last_trade_date": (last or {}).get("date"),
                 "open_price": _num(last.get("open")) if last else None,
                 "high_price": _num(last.get("high")) if last else None,
