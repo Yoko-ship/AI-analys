@@ -11725,6 +11725,127 @@ function MarketColMenu({ colKey, fromSticky, lang, state, actions, onClose }) {
   );
 }
 
+// ЛЕНТА СОБЫТИЙ ПО БУМАГАМ. /api/news has served a dated timeline of real market
+// events — filings, listings, delistings — since the §3.2 work, and no page ever
+// read it: it was built and left invisible while the News section grew out of the
+// separate editorial module. This is that timeline, on the board it describes.
+//
+// Every row is dated by the ISSUER's own publication date and links to the
+// document, so it is a way INTO the filing rather than a note that one exists.
+function MarketEventsFeed({ lang, onOpenCompany }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [items, setItems] = React.useState(null);
+  const [kind, setKind] = React.useState("all");
+  const [expanded, setExpanded] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/news?limit=120&days=365")
+      .then((r) => r.json())
+      .then((d) => { if (alive) setItems(d && d.ok ? (d.items || []) : []); })
+      .catch(() => { if (alive) setItems([]); });
+    return () => { alive = false; };
+  }, []);
+
+  if (items === null) return null;
+
+  const KINDS = [
+    ["all", t("Все", "Barchasi", "All")],
+    ["report", t("Отчётность", "Hisobot", "Filings")],
+    ["listing", t("Листинги", "Listinglar", "Listings")],
+    ["delisting", t("Делистинг", "Delisting", "Delisting")],
+  ];
+  const counts = items.reduce((acc, i) => ({ ...acc, [i.type]: (acc[i.type] || 0) + 1 }), {});
+  const shown = kind === "all" ? items : items.filter((i) => i.type === kind);
+  if (items.length === 0) return null;
+  const visible = expanded ? shown.slice(0, 120) : shown.slice(0, 12);
+
+  const day = (d) => {
+    const s = String(d || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+    const [y, m, dd] = s.split("-");
+    return `${dd}.${m}.${y}`;
+  };
+  // The period a filing covers, said the way the reader asked for it elsewhere on
+  // the site: «2025 · год» / «2026 · II кв.».
+  const period = (i) => {
+    if (!i.year) return "";
+    if (i.quarter) {
+      const roman = ["", "I", "II", "III", "IV"][i.quarter] || i.quarter;
+      return `${i.year} · ${roman} ${t("кв.", "chorak", "Q")}`;
+    }
+    return `${i.year} · ${t("год", "yil", "FY")}`;
+  };
+  const headline = (i) => {
+    if (i.type === "report") {
+      const form = i.report_form === "NSBU" ? t("НСБУ", "NSBU", "NAS")
+        : i.report_form === "MSFO" ? t("МСФО", "MSFO", "IFRS")
+        : i.report_form === "Audition" ? t("Аудит", "Audit", "Audit") : i.report_form;
+      return `${t("Опубликована отчётность", "Hisobot e'lon qilindi", "Filing published")} · ${form}`;
+    }
+    if (i.type === "listing") return t("Допуск к торгам", "Savdoga qo'yildi", "Admitted to trading");
+    return t("Нет сделок более 60 дней", "60 kundan ortiq bitimsiz", "No trades for over 60 days");
+  };
+
+  return (
+    <article className="panel market-events">
+      <div className="market-events-head">
+        <div>
+          <div className="panel-label">{t("Биржевые события", "Birja hodisalari", "Market events")}</div>
+          <h2>{t("Лента событий по бумагам", "Qog'ozlar bo'yicha hodisalar lentasi", "Securities events feed")}</h2>
+        </div>
+        <div className="market-events-kinds">
+          {KINDS.map(([k, label]) => (
+            <button key={k} type="button"
+              className={`sector-chip${kind === k ? " active" : ""}`}
+              aria-pressed={kind === k}
+              onClick={() => { setKind(k); setExpanded(false); }}>
+              {label}
+              {k !== "all" && counts[k] ? ` (${counts[k]})` : ""}
+            </button>
+          ))}
+        </div>
+      </div>
+      <ul className="market-events-list">
+        {visible.map((i, index) => (
+          <li key={`${i.type}-${i.ticker}-${i.date}-${i.year || ""}-${i.quarter || ""}-${index}`}
+            className={`market-events-row ev-${i.type}`}>
+            <time className="ev-date">{day(i.date)}</time>
+            <button type="button" className="ev-ticker"
+              onClick={() => onOpenCompany && onOpenCompany(i.ticker)}>{i.ticker}</button>
+            <span className="ev-what">
+              <span className="ev-headline">{headline(i)}</span>
+              {period(i) ? <span className="ev-period">{period(i)}</span> : null}
+              <span className="ev-company">{i.company}</span>
+            </span>
+            {/* The document, where the source published one. NSBU quarterlies carry
+                both forms in one workbook, so one link is the whole filing. */}
+            <span className="ev-links">
+              {i.pdf_url && (
+                <a href={i.pdf_url} target="_blank" rel="noopener noreferrer">PDF</a>
+              )}
+              {i.excel_url && (
+                <a href={i.excel_url} target="_blank" rel="noopener noreferrer">XLS</a>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {shown.length > visible.length && (
+        <button type="button" className="market-events-more" onClick={() => setExpanded(true)}>
+          {t(`Показать все ${shown.length}`, `Barchasini ko'rsatish (${shown.length})`,
+             `Show all ${shown.length}`)}
+        </button>
+      )}
+      <p className="fin-note muted">
+        {t("События по данным биржи и openinfo.uz. Дата — дата публикации эмитентом, не дата нашей загрузки.",
+           "Hodisalar birja va openinfo.uz ma'lumotlari bo'yicha. Sana — emitent e'lon qilgan sana.",
+           "Events from the exchange and openinfo.uz. The date is the issuer's publication date, not the date we ingested it.")}
+      </p>
+    </article>
+  );
+}
+
 // The periods the board can measure a change over. `1d` is the session — it comes
 // off the live board row, not the stored history, because that is the number the
 // exchange itself publishes today; the rest are windows over the settled closes
@@ -13801,6 +13922,10 @@ function MarketView({
           </>
         )}
       </article>
+
+      {viewMode === "table" && (
+        <MarketEventsFeed lang={lang} onOpenCompany={onOpenCompany || onAnalyze} />
+      )}
 
       {panelTicker && (
         <CompanyInfoPanel

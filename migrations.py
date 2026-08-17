@@ -188,6 +188,18 @@ MIGRATIONS: tuple[Migration, ...] = (
     # reading it. No page showed it for a share.
     Migration(11, "listings: the security's par value",
               columns("catalog_listings", ("nominal", "REAL"))),
+    # `DEFAULT (datetime('now'))` reached PostgreSQL as `DEFAULT (TEXT('now'))` —
+    # pg_migrate's type map rewrote DATETIME to TEXT before it looked for
+    # `datetime('now')`, so the default became a cast of the literal string. 195 of
+    # the 199 rows in catalog_new_reports were stamped «now», the word: it sorts
+    # above every real date and satisfies every `>= datetime('now', ?)` window, so
+    # those rows took the head of the market-events timeline permanently and no
+    # cleanup could reach them either. The rewrite and the INSERT are both fixed;
+    # this clears what the broken default already wrote. The rows are not history —
+    # the filings themselves are, in catalog_reports, dated by their issuer.
+    Migration(12, "events: drop the rows a mistranslated default stamped «now»",
+              run_sql("DELETE FROM catalog_new_reports "
+                      "WHERE detected_at IS NULL OR detected_at NOT LIKE '____-__-__%'")),
 )
 
 

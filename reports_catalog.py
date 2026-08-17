@@ -709,7 +709,19 @@ def _upsert_report(
     if is_new:
         try:
             conn.execute(
-                "INSERT INTO catalog_new_reports (ticker, report_form, period_type, year, quarter, title) VALUES (?,?,?,?,?,?)",
+                # detected_at is written EXPLICITLY rather than left to the column
+                # default. pg_migrate's type map rewrites `DATETIME` to `TEXT`
+                # before it looks for `datetime('now')`, so the default reached
+                # PostgreSQL as `DEFAULT (TEXT('now'))` — the literal string «now».
+                # 195 of the 199 events in this table on prod carried it, and
+                # because "now" sorts above every real date and passes every
+                # `>= datetime('now', ?)` window, they pinned themselves to the top
+                # of the timeline forever and could never be cleaned up either.
+                # The rewrite is fixed too, but a writer that states its own clock
+                # cannot be broken by a DDL translation again.
+                "INSERT INTO catalog_new_reports "
+                "(ticker, report_form, period_type, year, quarter, title, detected_at) "
+                "VALUES (?,?,?,?,?,?,datetime('now'))",
                 (ticker, report_form, period_type, year, quarter, title),
             )
         except Exception:
@@ -1175,7 +1187,14 @@ def sync_company(
                 year=yr,
                 quarter=q,
                 title=doc2.get("title"),
-                published_at=doc2.get("published_at"),
+                # The accounting feed carries no publication date, and the annual
+                # path already falls back to the unified feed's for exactly that
+                # reason — the quarterly path did not, so every quarter synced
+                # through the structured endpoint had NO date at all. That is the
+                # date the market-events timeline is ordered by, so the newest
+                # filings on the site were the undated ones.
+                published_at=(doc2.get("published_at")
+                              or (pdf_ids.get(str(doc2.get("id") or "")) or {}).get("pub_date")),
                 pdf_url=pdf_url,
                 excel_url=excel_url,
                 excel_url_form1=excel_url_form1,
@@ -4728,17 +4747,61 @@ def get_sector_averages(sector_tickers: list[str], form: str, year: int) -> dict
 
 def get_recent_new_reports(since_days: int = 120, limit: int = 80) -> list[dict[str, Any]]:
     """Recently detected new report filings across every ticker — the source for
-    the public market-news feed (ТЗ §3.2 item 6)."""
+    the public market-news feed (ТЗ §3.2 item 6).
+
+    A row whose ``detected_at`` is not a date is skipped: the literal «now» that
+    a broken DDL default wrote sorts above every real timestamp and satisfies
+    every window, so it would take the head of the timeline and stay there.
+    """
     conn = get_catalog_conn()
     rows = conn.execute(
         """
         SELECT ticker, report_form, period_type, year, quarter, title, detected_at
         FROM catalog_new_reports
         WHERE detected_at >= datetime('now', ?)
+          AND detected_at LIKE '____-__-__%'
         ORDER BY detected_at DESC
         LIMIT ?
         """,
         (f"-{max(1, since_days)} days", max(1, limit)),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_recent_filings(since_days: int = 120, limit: int = 120,
+                       form: str | None = None) -> list[dict[str, Any]]:
+    """Filings ordered by the date the ISSUER published them.
+
+    The events timeline used to be ordered by when WE first noticed a filing
+    (`catalog_new_reports.detected_at`) — a fact about our sync schedule, not
+    about the market, and one that survives a re-sync no better than a cache. The
+    issuer's own publication date is the event, it is stored on the filing, and it
+    is the same date openinfo prints beside the document.
+
+    Rows with no publication date are left out rather than dated by a fallback: a
+    timeline is a claim about WHEN, and «unknown» has no place in it.
+    """
+    conn = get_catalog_conn()
+    params: list[Any] = [f"-{max(1, since_days)} days"]
+    clause = ""
+    if form:
+        clause = "AND report_form = ? "
+        params.append(form)
+    params.append(max(1, limit))
+    rows = conn.execute(
+        f"""
+        SELECT ticker, report_form, period_type, year, quarter, title,
+               published_at, pdf_url, excel_url
+        FROM catalog_reports
+        WHERE published_at IS NOT NULL
+          AND published_at LIKE '____-__-__%'
+          AND published_at >= datetime('now', ?)
+          {clause}
+        ORDER BY published_at DESC
+        LIMIT ?
+        """,
+        tuple(params),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
