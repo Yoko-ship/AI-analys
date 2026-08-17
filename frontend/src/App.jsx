@@ -12425,10 +12425,34 @@ function MarketView({
   // The year sits under the figure and is per FIELD, not per issuer: a company
   // can publish liquidity for 2023 and ROE for 2025, and one label over both
   // would claim something the store does not say.
+  // The two liquidity ratios are defined on a balance that splits current from
+  // non-current assets, and the bank form does not: a bank's balance is ordered by
+  // instrument, not by maturity, and «текущая ликвидность» has no meaning on it.
+  // The remaining 28 empty cells on this board are exactly the thirteen banks and
+  // their preferred lines — so the cell says «н/п», the way the gross-profit and
+  // operating-income columns already do for the same forms, rather than leaving a
+  // dash a reader would read as our gap.
+  const LIQUIDITY_FIELDS = new Set(["current_ratio", "quick_ratio"]);
   const ratioCell = (row, field, { digits = 2, suffix = "" } = {}) => {
     const r = ratioOf(row.ticker);
     const value = r?.[field];
-    if (!Number.isFinite(value)) return <td className="num">—</td>;
+    if (!Number.isFinite(value)) {
+      const form = finOf(row.ticker)?.org_type;
+      if (LIQUIDITY_FIELDS.has(field) && form === "bank") {
+        return (
+          <td className="num">
+            <span className="cell-status" title={lang === "en"
+              ? "The bank balance is not split into current and non-current assets — no liquidity ratio is defined on it"
+              : lang === "uz"
+                ? "Bank balansi joriy va uzoq muddatli aktivlarga bo'linmaydi — likvidlik koeffitsiyenti aniqlanmaydi"
+                : "Банковский баланс не делится на текущие и долгосрочные активы — коэффициент ликвидности на нём не определён"}>
+              {lang === "en" ? "n/a" : "н/п"}
+            </span>
+          </td>
+        );
+      }
+      return <td className="num">—</td>;
+    }
     const period = (r.periods || {})[field] || null;
     return (
       <td className="num">
