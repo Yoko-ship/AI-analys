@@ -11,6 +11,7 @@ import re
 import secrets
 import threading
 import time
+from datetime import date, timedelta
 from functools import partial
 from urllib.parse import quote, urlencode
 from pathlib import Path
@@ -1796,6 +1797,106 @@ async def api_market_summary(request: Request) -> Response:
     except Exception as exc:
         logger.exception("market summary failed")
         raise HTTPException(status_code=502, detail="summary unavailable") from exc
+
+
+# The periods the board can measure a change over, in calendar days back from the
+# last settled session. Calendar, not sessions: «за неделю» means the price seven
+# days ago, and on a market where a security can go a fortnight without a trade,
+# counting sessions would call a three-month-old price a week old. YTD carries no
+# span — its base is 1 January, however far back that is today.
+MARKET_CHANGE_WINDOWS: dict[str, int | None] = {
+    "1w": 7, "1m": 30, "3m": 91, "6m": 182, "1y": 365, "ytd": None,
+}
+
+
+def _window_change(points: list[dict[str, Any]], span_days: int | None,
+                   as_of: date) -> dict[str, Any] | None:
+    """The change from the price ``span_days`` ago to the latest close.
+
+    The base is the LAST close at or before the cutoff — the price the security
+    was worth then — not the first close after it. On a market where a security
+    can go weeks without a trade the two are wildly different things: the first
+    close inside a seven-day window is routinely yesterday's, which would print a
+    one-session move under a label that says a week.
+
+    A carried-forward close (the store's turnover 0) is a legitimate base: it is
+    what the security was last worth, and it is what the exchange itself shows.
+    Where the store reaches no further back than the cutoff there is no base and
+    no figure — an issuer whose history starts inside the window has not moved
+    over it, it simply was not there.
+    """
+    if not points:
+        return None
+    cutoff = date(as_of.year, 1, 1) if span_days is None else as_of - timedelta(days=span_days)
+    if cutoff >= as_of:
+        return None
+    base = None
+    for p in points:
+        if p["d"] <= cutoff:
+            base = p
+        else:
+            break
+    last = points[-1]
+    if base is None or last is base or not base["close"]:
+        return None
+    return {"pct": round((last["close"] - base["close"]) / abs(base["close"]) * 100.0, 2),
+            "from": base["date"], "base": base["close"]}
+
+
+@app.get("/api/market/changes")
+async def api_market_changes(request: Request) -> Response:
+    """Per-security price change over each period the board offers.
+
+    The board's «Изменение» column measured one thing — the session — so a reader
+    who wanted to know what a week or a month had done had to open every company
+    page in turn. These are the same closes the sparklines are drawn from
+    (`catalog_quote_history`), so the column and the chart cannot disagree.
+
+    Every figure names the session its base came from: a change is a statement
+    about two dates, and on this market the earlier one is rarely the date the
+    label implies. The client shows it in the cell's tooltip.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        smap = await loop.run_in_executor(None, get_securities_map)
+        isin_of = {t: str((meta or {}).get("isin") or "").upper()
+                   for t, meta in (smap or {}).items()}
+        codes = sorted({i for i in isin_of.values() if i})
+        # 400 sessions is over a year of trading for even the most liquid line,
+        # and many more for a quiet one — get_quote_history counts sessions, not
+        # days, precisely so a security that rarely trades still answers.
+        history = await loop.run_in_executor(None, partial(get_quote_history, codes, 400))
+    except Exception as exc:
+        logger.exception("market changes failed")
+        raise HTTPException(status_code=502, detail="changes unavailable") from exc
+
+    series: dict[str, list[dict[str, Any]]] = {}
+    for isin, rows in history.items():
+        points = []
+        for r in rows:
+            close = formulas.to_number(r.get("close_price"))
+            stamp = str(r.get("trade_date") or "")
+            if close is None or len(stamp) != 8 or not stamp.isdigit():
+                continue
+            points.append({"d": date(int(stamp[:4]), int(stamp[4:6]), int(stamp[6:8])),
+                           "date": stamp, "close": close})
+        if points:
+            series[isin] = sorted(points, key=lambda p: p["d"])
+
+    changes: dict[str, dict[str, Any]] = {}
+    for ticker, isin in isin_of.items():
+        points = series.get(isin)
+        if not points:
+            continue
+        as_of = points[-1]["d"]
+        row = {code: _window_change(points, span, as_of)
+               for code, span in MARKET_CHANGE_WINDOWS.items()}
+        row = {k: v for k, v in row.items() if v}
+        if row:
+            row["as_of"] = points[-1]["date"]
+            changes[ticker] = row
+    return _etag_json(request, {"ok": True, "windows": list(MARKET_CHANGE_WINDOWS),
+                               "count": len(changes), "changes": changes}, max_age=300)
 
 
 # Official daily exchange rates. cbu.uz publishes them as JSON — no scraping —
