@@ -351,3 +351,37 @@ class TestIntrospectionAcceptsRawConnections:
         raw.execute("CREATE TABLE t (a TEXT, b INTEGER)")
         assert set(dbx.columns(raw, "t")) == {"a", "b"}
         assert "t" in dbx.tables(raw)
+
+
+class TestPercentEscaping:
+    """A literal `%` beside a parameter is a malformed placeholder to psycopg.
+
+    psycopg scans the whole query for `%` whenever params are present, so
+    `published_at LIKE '____-__-__%'` with a bound window raised «only '%s', '%b',
+    '%t' are allowed as placeholders, got '%''» — HTTP 500 on every request to the
+    market-events feed, with nothing wrong with the SQL itself.
+    """
+
+    def test_a_percent_in_a_literal_is_doubled(self):
+        sql = "SELECT * FROM t WHERE at LIKE '____-__-__%' AND at >= %s"
+        got = dbx.escape_percent(sql, dbx.POSTGRES)
+        assert "'____-__-__%%'" in got
+
+    def test_a_placeholder_is_left_alone(self):
+        sql = "SELECT * FROM t WHERE a = %s AND b LIKE 'x%'"
+        got = dbx.escape_percent(sql, dbx.POSTGRES)
+        assert "a = %s" in got, "doubling a placeholder unbinds every parameter after it"
+        assert "'x%%'" in got
+
+    def test_a_percent_in_a_comment_is_doubled_too(self):
+        # psycopg's scan does not know what a comment is.
+        got = dbx.escape_percent("-- 100% of rows\nSELECT ?", dbx.POSTGRES)
+        assert "100%% of rows" in got
+
+    def test_sqlite_is_a_no_op(self):
+        sql = "SELECT * FROM t WHERE at LIKE '____-__-__%'"
+        assert dbx.escape_percent(sql, dbx.SQLITE) == sql
+
+    def test_a_statement_with_no_percent_is_returned_unchanged(self):
+        sql = "SELECT * FROM t WHERE id = ?"
+        assert dbx.escape_percent(sql, dbx.POSTGRES) is sql
