@@ -125,6 +125,21 @@ function newsArticlePath(item) {
 const STORAGE_KEY = "uz_stock_analyzer_token";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
 const THEME_KEY = "uz_stock_analyzer_theme";
+const TEXT_SCALE_KEY = "uz_text_scale";
+// Text size, as a percentage of the design's own. Five steps: two down for a
+// reader on a small laptop who wants more rows in view, two up for one who is
+// reading a table of figures at arm's length.
+//
+// Applied as `zoom` on the root element, not as a root font-size. This stylesheet
+// states most of its sizes in PIXELS — a table of numbers is laid out against
+// tabular figures and hairline borders, and eleven thousand lines of it cannot be
+// converted to rem without redesigning every table on the site. Root zoom scales
+// what the reader actually sees (text, controls, the gaps between rows) uniformly
+// and consistently, including the popovers that portal to <body>, and the browser
+// evaluates media queries against the scaled viewport — so at 140 % the phone
+// layout arrives early, which is the right answer for a reader who has asked for
+// bigger text.
+const TEXT_SCALES = [85, 100, 115, 130, 150];
 
 // Mandatory legal disclaimer (ТЗ §3.2) — shown on every page and forced into every report.
 const DISCLAIMER = {
@@ -14775,6 +14790,25 @@ function App() {
     if (saved === "light" || saved === "dark") return saved;
     return "dark"; // Default to dark theme (Finam AI style)
   });
+  const [textScale, setTextScale] = useState(() => {
+    const saved = Number(localStorage.getItem(TEXT_SCALE_KEY));
+    return TEXT_SCALES.includes(saved) ? saved : 100;
+  });
+  useEffect(() => {
+    // 100 % clears the property rather than writing "1": a stylesheet that never
+    // sees `zoom` is the one the design was drawn against, and an explicit 1 on
+    // the root element creates a containing block that a `position: fixed`
+    // overlay would resolve against instead of the viewport.
+    const root = document.documentElement;
+    if (textScale === 100) root.style.removeProperty("zoom");
+    else root.style.zoom = String(textScale / 100);
+    try { localStorage.setItem(TEXT_SCALE_KEY, String(textScale)); } catch (e) { /* ignore */ }
+  }, [textScale]);
+  const stepTextScale = (delta) => setTextScale((current) => {
+    const at = TEXT_SCALES.indexOf(current);
+    const next = TEXT_SCALES[Math.min(TEXT_SCALES.length - 1, Math.max(0, (at < 0 ? 1 : at) + delta))];
+    return next;
+  });
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -15860,6 +15894,35 @@ function App() {
                   <option value="uz">UZ</option>
                 </select>
               </label>
+
+              {/* Text size. Two buttons and the current percentage between them —
+                  the number is there so a reader who has drifted from 100 % can
+                  see it and click back, and so the control reads as a setting
+                  rather than as a pair of mystery arrows. */}
+              <div className="topbar-textsize" role="group"
+                aria-label={language === "en" ? "Text size" : language === "uz" ? "Matn o'lchami" : "Размер шрифта"}>
+                <button
+                  type="button"
+                  onClick={() => stepTextScale(-1)}
+                  disabled={textScale === TEXT_SCALES[0]}
+                  title={language === "en" ? "Smaller text" : language === "uz" ? "Matnni kichraytirish" : "Уменьшить шрифт"}
+                  aria-label={language === "en" ? "Smaller text" : language === "uz" ? "Matnni kichraytirish" : "Уменьшить шрифт"}
+                >A−</button>
+                <button
+                  type="button"
+                  className="topbar-textsize-now"
+                  onClick={() => setTextScale(100)}
+                  disabled={textScale === 100}
+                  title={language === "en" ? "Reset to 100%" : language === "uz" ? "100% ga qaytarish" : "Вернуть 100%"}
+                >{textScale}%</button>
+                <button
+                  type="button"
+                  onClick={() => stepTextScale(1)}
+                  disabled={textScale === TEXT_SCALES[TEXT_SCALES.length - 1]}
+                  title={language === "en" ? "Larger text" : language === "uz" ? "Matnni kattalashtirish" : "Увеличить шрифт"}
+                  aria-label={language === "en" ? "Larger text" : language === "uz" ? "Matnni kattalashtirish" : "Увеличить шрифт"}
+                >A+</button>
+              </div>
 
               <button className="theme-toggle" type="button" onClick={toggleTheme} title={theme === "dark" ? t(language, "theme.light") : t(language, "theme.dark")}>
                 <strong>{theme === "dark" ? "☀" : "☾"}</strong>
