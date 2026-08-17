@@ -972,6 +972,7 @@ def _listing_to_stock(lst: dict[str, Any]) -> dict[str, Any]:
         "trade_count": None,
         "security_type_text": None,
         "shares_outstanding": lst.get("shares_outstanding"),
+        "nominal": lst.get("nominal"),
         "market_cap": lst.get("market_cap"),
         "inactive": True,
     }
@@ -1231,6 +1232,15 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
         str(lst.get("isin") or "").upper(): lst
         for lst in listings.values() if lst.get("isin")
     }
+    # The par value comes only from the registry — the live feed does not carry it
+    # — so it is joined for EVERY row, including the ones that already have a
+    # capitalisation and skip the loop below.
+    for row in merged:
+        if row.get("nominal") is None:
+            lst = (listings.get(str(row.get("ticker") or "").upper())
+                   or listings_by_isin.get(str(row.get("isin") or "").upper()))
+            if lst and lst.get("nominal") is not None:
+                row["nominal"] = lst["nominal"]
     for row in merged:
         if row.get("market_cap"):
             continue

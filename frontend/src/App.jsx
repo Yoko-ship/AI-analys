@@ -2610,6 +2610,8 @@ const MARKET_TEXTS = {
     volumeCol: "Объём",
     tradeCount: "сделок",
     volQty: "Объём (шт)",
+    nominalCol: "Номинал",
+    nominalToPrice: "Цена / номинал",
     avgSharePrice: "Ср. цена акции",
     avgTradePrice: "Ср. сумма сделки",
     volShare: "% объёма",
@@ -2708,6 +2710,8 @@ const MARKET_TEXTS = {
     volumeCol: "Volume",
     tradeCount: "trades",
     volQty: "Volume (units)",
+    nominalCol: "Par value",
+    nominalToPrice: "Price / par",
     avgSharePrice: "Avg share price",
     avgTradePrice: "Avg trade size",
     volShare: "% of volume",
@@ -2806,6 +2810,8 @@ const MARKET_TEXTS = {
     volumeCol: "Hajm",
     tradeCount: "savdo",
     volQty: "Hajm (dona)",
+    nominalCol: "Nominal",
+    nominalToPrice: "Narx / nominal",
     avgSharePrice: "O'rt. aksiya narxi",
     avgTradePrice: "O'rt. bitim summasi",
     volShare: "Hajm %",
@@ -8055,6 +8061,19 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   put(t("Капитализация", "Kapitalizatsiya", "Market cap"),
       compact(capClass) ? `${compact(capClass)} UZS` : null);
   put(t("Акций в обращении", "Muomaladagi aksiyalar", "Shares outstanding"), count(row?.sharesOutstanding));
+  // «Номинальная стоимость» — the par the exchange's own card states (`parval`),
+  // beside what the market pays for it. A par is only informative next to a
+  // price, so the two travel together: UZTL at 60× its par and a bond at 1.00×
+  // are the same statement in the same units.
+  const par = Number.isFinite(row?.nominal) && row.nominal > 0 ? row.nominal : null;
+  if (par) {
+    const paid = Number.isFinite(lastPrice) && lastPrice > 0 ? lastPrice / par : null;
+    put(t("Номинал", "Nominal", "Par value"),
+        <>{num(par)}
+          {paid ? <span className="co-metric-period"> · {formatRatio(paid, 2, lang)}×</span> : null}
+        </>,
+        paid ? `${t("цена к номиналу", "narx nominalga", "price to par")}: ${formatRatio(paid, 2, lang)}×` : undefined);
+  }
   if ((mult?.issuer_classes?.length || 0) > 1 && Number.isFinite(capIssuer)
       && (!Number.isFinite(capClass) || Math.abs(capIssuer - capClass) > 1)) {
     put(t("Капитализация эмитента", "Emitent kapitalizatsiyasi", "Issuer market cap"),
@@ -11521,6 +11540,27 @@ function MarketView({
     return hit && Number.isFinite(hit.pct) ? hit : null;
   };
 
+  // «Номинальная стоимость» of the security, off the exchange's own card via the
+  // listing registry (`parval`), joined onto the board row by the server. A zero
+  // par is the card saying "not stated" and the collector lands that as absent —
+  // so any number here is a filed one, and a dash is the source's silence rather
+  // than a rounding of nothing.
+  const parOf = (row) => {
+    const par = Number(row?.nominal);
+    return Number.isFinite(par) && par > 0 ? par : null;
+  };
+  // What the market pays per sum of par. For a bond this is the конвенция the
+  // whole market quotes in (a price is a percentage of par); for a share it is
+  // the plainest possible statement of how far the price has left its issue
+  // value behind. Shown as a multiple, not a percent, because on this market the
+  // numbers run from 0.3x to 60x and a percent column of «5 800 %» reads as an
+  // error.
+  const priceToPar = (row) => {
+    const par = parOf(row);
+    const price = marketDisplayPrice(row);
+    return par && Number.isFinite(price) && price > 0 ? price / par : null;
+  };
+
   // Multiples come from the server, computed per ISSUER (ТЗ §8). Keyed by
   // ticker, but both classes of an issuer carry the same object — that is the
   // point: the board used to divide ONE class's capitalisation by the WHOLE
@@ -11653,6 +11693,12 @@ function MarketView({
       ["change", `${mt(lang, "change")} (${changePeriodLabel(changePeriod, lang, "short")})`],
       ["change1w", `${mt(lang, "change")} 1${lang === "en" ? "W" : lang === "uz" ? "H" : "Н"}`],
       ["change1m", `${mt(lang, "change")} 1${lang === "en" ? "M" : lang === "uz" ? "O" : "М"}`],
+      // «Номинальная стоимость» and what the market pays for it. The par is a
+      // registry fact about the security; the ratio beside it is the reading a
+      // par is FOR — a share trading at eighteen times its par and one trading
+      // below it are two different propositions.
+      ["nominal", mt(lang, "nominalCol")],
+      ["priceToPar", mt(lang, "nominalToPrice")],
       ["open", mt(lang, "open")],
       ["high", mt(lang, "high")],
       ["low", mt(lang, "low")],
@@ -12105,6 +12151,8 @@ function MarketView({
       : (changeOver(r.ticker, changePeriod)?.pct ?? null)),
     change1w: (r) => changeOver(r.ticker, "1w")?.pct ?? null,
     change1m: (r) => changeOver(r.ticker, "1m")?.pct ?? null,
+    nominal: (r) => parOf(r),
+    priceToPar: (r) => priceToPar(r),
     open: (r) => r.openPrice,
     high: (r) => r.highPrice,
     low: (r) => r.lowPrice,
@@ -12540,6 +12588,21 @@ function MarketView({
       : windowChangeCell(row, changePeriod)),
     change1w: (row) => windowChangeCell(row, "1w"),
     change1m: (row) => windowChangeCell(row, "1m"),
+    nominal: (row) => {
+      const par = parOf(row);
+      return <td className="num">{par == null ? "—" : formatMarketNumber(par, lang)}</td>;
+    },
+    priceToPar: (row) => {
+      const ratio = priceToPar(row);
+      return (
+        <td className="num" title={ratio == null ? undefined : (lang === "en"
+          ? `price ${formatMarketNumber(marketDisplayPrice(row), lang)} · par ${formatMarketNumber(parOf(row), lang)}`
+          : lang === "uz" ? `narx ${formatMarketNumber(marketDisplayPrice(row), lang)} · nominal ${formatMarketNumber(parOf(row), lang)}`
+          : `цена ${formatMarketNumber(marketDisplayPrice(row), lang)} · номинал ${formatMarketNumber(parOf(row), lang)}`)}>
+          {ratio == null ? "—" : `${formatRatio(ratio, 2, lang)}×`}
+        </td>
+      );
+    },
     open: (row) => <td className="num">{(() => { const v = row.openPrice !== null ? row.openPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
     high: (row) => <td className="num">{(() => { const v = row.highPrice !== null ? row.highPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
     low: (row) => <td className="num">{(() => { const v = row.lowPrice !== null ? row.lowPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,

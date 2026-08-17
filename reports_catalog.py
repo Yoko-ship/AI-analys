@@ -265,6 +265,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             share_type         TEXT,
             listing_date       TEXT,
             shares_outstanding REAL,
+            nominal            REAL,
             reference_price    REAL,
             last_price         REAL,
             last_trade_date    TEXT,
@@ -461,6 +462,10 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     for column in ("current_assets", "current_liabilities", "inventories"):
         if column not in have_fin:
             conn.execute(f"ALTER TABLE catalog_financials ADD COLUMN {column} REAL")
+    # «Номинальная стоимость» of the security, as the exchange's own card states
+    # it (`parval`). Every listed line has one and no page showed it.
+    if "nominal" not in set(dbx.columns(conn, "catalog_listings")):
+        conn.execute("ALTER TABLE catalog_listings ADD COLUMN nominal REAL")
     conn.commit()
 
 
@@ -2685,6 +2690,10 @@ def get_all_quotes() -> dict[str, dict[str, Any]]:
 
 _LISTING_COLS = (
     "ticker", "isin", "name", "share_type", "listing_date", "shares_outstanding",
+    # «Номинальная стоимость» — the exchange states it as `parval` on the security
+    # card for both shares and bonds. Nullable: a card that leaves it at zero has
+    # not stated a par, and a zero par is not a fact about any security.
+    "nominal",
     "reference_price", "last_price", "last_trade_date", "open_price", "high_price",
     "low_price", "volume", "market_cap",
 )
@@ -2718,13 +2727,17 @@ def bulk_upsert_listings(rows: list[dict]) -> int:
                     """
                     INSERT INTO catalog_listings
                         (ticker, isin, name, share_type, listing_date, shares_outstanding,
+                         nominal,
                          reference_price, last_price, last_trade_date, open_price, high_price,
                          low_price, volume, market_cap, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker) DO UPDATE SET
                         isin=excluded.isin, name=excluded.name, share_type=excluded.share_type,
                         listing_date=excluded.listing_date,
                         shares_outstanding=excluded.shares_outstanding,
+                        -- A collector build from before the column existed sends
+                        -- nothing for the par, and that nothing must not erase it.
+                        nominal=COALESCE(excluded.nominal, catalog_listings.nominal),
                         reference_price=excluded.reference_price, last_price=excluded.last_price,
                         last_trade_date=excluded.last_trade_date, open_price=excluded.open_price,
                         high_price=excluded.high_price, low_price=excluded.low_price,
@@ -2733,7 +2746,8 @@ def bulk_upsert_listings(rows: list[dict]) -> int:
                     """,
                     (ticker, str(r.get("isin") or "") or None, str(r.get("name") or "") or None,
                      str(r.get("share_type") or "") or None, str(r.get("listing_date") or "") or None,
-                     _num(r.get("shares_outstanding")), _num(r.get("reference_price")),
+                     _num(r.get("shares_outstanding")), _num(r.get("nominal")),
+                     _num(r.get("reference_price")),
                      _num(r.get("last_price")), str(r.get("last_trade_date") or "") or None,
                      _num(r.get("open_price")), _num(r.get("high_price")), _num(r.get("low_price")),
                      _num(r.get("volume")), _num(r.get("market_cap"))),
