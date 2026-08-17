@@ -7158,6 +7158,144 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   font-size: 1.25rem;
 }
 
+/* ── Лента событий по бумагам ──────────────────────────────────────────────
+   A dated list, not a table: every row is one event and reads left to right —
+   when, which security, what happened, and the document it happened in. */
+.market-events {
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.market-events-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.market-events-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.market-events-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.market-events-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.market-events-row {
+  display: grid;
+  /* date · ticker · what happened · document */
+  grid-template-columns: 5.6em 5.5em minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--border-soft, var(--border));
+}
+
+.market-events-row:last-child { border-bottom: none; }
+.market-events-row:hover { background: var(--accent-light); }
+
+/* The event's KIND is carried by a rule down the left edge, so the three types
+   separate at a glance without a badge on every row. */
+.market-events-row { border-left: 3px solid transparent; }
+.market-events-row.ev-report { border-left-color: var(--accent); }
+.market-events-row.ev-listing { border-left-color: var(--success); }
+.market-events-row.ev-delisting { border-left-color: var(--danger); }
+
+.ev-date {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.84rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.ev-ticker {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-weight: 650;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+}
+.ev-ticker:hover { color: var(--accent); text-decoration: underline; }
+
+.ev-what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.ev-headline { font-size: 0.92rem; }
+
+.ev-period {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.ev-company {
+  flex: 1 1 100%;
+  font-size: 0.82rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ev-links {
+  display: flex;
+  gap: 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+.ev-links a {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.ev-links a:hover { color: var(--accent); border-bottom-color: currentColor; }
+
+.market-events-more {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: var(--accent);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.market-events-more:hover { background: var(--accent-light); }
+
+.market-events .fin-note { padding: 12px 22px 16px; margin: 0; }
+
+@media (max-width: 760px) {
+  /* On a phone the date and the ticker share the first line and the event drops
+     under them: four columns in 360px would truncate the one thing worth reading. */
+  .market-events-row {
+    grid-template-columns: 5.6em minmax(0, 1fr) auto;
+    padding: 11px 14px;
+  }
+  .ev-what { grid-column: 1 / -1; }
+}
+
 .market-controls {
   align-items: stretch;
   background: rgba(148, 163, 184, 0.06);

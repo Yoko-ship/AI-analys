@@ -74,6 +74,7 @@ from reports_catalog import (
     purge_delisted,
     refresh_financials_cache,
     get_new_reports_for_tickers,
+    get_recent_filings,
     get_recent_new_reports,
     get_report_urls,
     get_sector_averages,
@@ -2926,8 +2927,13 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
 
     loop = asyncio.get_running_loop()
     try:
-        reports, listings = await asyncio.gather(
-            loop.run_in_executor(None, partial(get_recent_new_reports, max(1, days), max(1, limit))),
+        # Ordered by the date the ISSUER published the filing, not by when our sync
+        # first saw it. `detected_at` is a fact about our schedule; it also carried
+        # the literal string «now» on 195 of 199 rows (a DDL default that
+        # pg_migrate mistranslated), which sorted above every real date and could
+        # never age out — so the timeline was 195 undated items deep.
+        filings, listings = await asyncio.gather(
+            loop.run_in_executor(None, partial(get_recent_filings, max(1, days), max(1, limit))),
             loop.run_in_executor(None, get_all_listings),
         )
     except Exception as exc:
@@ -2935,7 +2941,7 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     items: list[dict[str, Any]] = []
-    for r in reports or []:
+    for r in filings or []:
         tk = r.get("ticker")
         items.append({
             "type": "report",
@@ -2946,7 +2952,11 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
             "year": r.get("year"),
             "quarter": r.get("quarter"),
             "title": r.get("title"),
-            "date": r.get("detected_at"),
+            # The document itself, so a row in the timeline is a way INTO the
+            # filing rather than only a note that it exists.
+            "pdf_url": r.get("pdf_url"),
+            "excel_url": r.get("excel_url"),
+            "date": r.get("published_at"),
         })
 
     listing_map = listings or {}
