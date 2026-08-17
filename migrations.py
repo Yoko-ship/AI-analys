@@ -172,6 +172,16 @@ MIGRATIONS: tuple[Migration, ...] = (
                       ("block_count", "INTEGER"),
                       ("block_qty", "REAL"),
                       ("block_value", "REAL"))),
+    # openinfo's indicator feed publishes a liquidity ratio and an asset turnover
+    # for 56 of the 95 issuers on the board and ROCE for 64, so three of the four
+    # «Коэффициенты» columns were blank for the rest — while every one of them
+    # files the balance lines those ratios are built from. Parsed and stored, the
+    # coefficients become derivable wherever the feed is silent.
+    Migration(10, "financials: the balance's current section",
+              columns("catalog_financials",
+                      ("current_assets", "REAL"),
+                      ("current_liabilities", "REAL"),
+                      ("inventories", "REAL"))),
 )
 
 

@@ -241,14 +241,71 @@ class TestSeveralPeriodsPerTicker:
         assert got["annual"]["year"] == last_fy
         assert got["annual"]["net_income"] == 400.0
 
-    def test_the_replace_still_clears_a_stale_period(self, catalog) -> None:
+    def test_the_replace_still_clears_a_period_that_would_shadow_the_push(self, catalog) -> None:
+        """Only a period ranked ABOVE the newest one pushed is stale.
+
+        That is the whole of what a replace exists to remove — a spurious future
+        quarter that the read path would serve as the latest figure.
+        """
         last_fy = rc._latest_complete_fiscal_year()
-        rc.bulk_replace_financials([{"ticker": "AAA", "year": last_fy, "quarter": 3, "net_income": 7.0}])
+        rc.bulk_upsert_financials([{"ticker": "AAA", "year": last_fy, "quarter": 3, "net_income": 7.0}])
 
         rc.bulk_replace_financials([{"ticker": "AAA", "year": last_fy, "quarter": 0, "net_income": 400.0}])
 
-        rows = catalog.execute("SELECT year, quarter FROM catalog_financials WHERE ticker='AAA'").fetchall()
-        assert [(r["year"], r["quarter"]) for r in rows] == [(last_fy, 0)]
+        rows = catalog.execute("SELECT year, quarter FROM catalog_financials "
+                               "WHERE ticker='AAA' ORDER BY quarter").fetchall()
+        # The annual is the year's final figure; its own nine-month filing ranks
+        # below it, shadows nothing, and is the row Q4 is derived FROM.
+        assert [(r["year"], r["quarter"]) for r in rows] == [(last_fy, 0), (last_fy, 3)]
+
+    def test_the_replace_keeps_the_quarters_between_its_two_rows(self, catalog) -> None:
+        """The daily reconcile must not erase the year's cumulative quarters.
+
+        It pushes exactly two rows — the newest cumulative quarter and the last
+        complete fiscal year — and the annual used to clear from the START of its
+        year, so every quarter between the two went with it: on 2026-08-17 the
+        served store held 19 quarterly periods for 2025 against 301 for 2023, and
+        the Финансы tab's quarterly view showed a two-year hole ending at the
+        current quarter. The nine-month filing is also Q4's minuend, so the year
+        lost its fourth quarter as well.
+        """
+        last_fy = rc._latest_complete_fiscal_year()
+        history = [{"ticker": "AAA", "year": last_fy, "quarter": q, "net_income": float(q)}
+                   for q in (1, 2, 3)]
+        history.append({"ticker": "AAA", "year": last_fy + 1, "quarter": 1, "net_income": 11.0})
+        rc.bulk_upsert_financials(history)
+
+        rc.bulk_replace_financials([
+            {"ticker": "AAA", "year": last_fy + 1, "quarter": 2, "net_income": 100.0},
+            {"ticker": "AAA", "year": last_fy, "quarter": 0, "net_income": 400.0},
+        ])
+
+        rows = catalog.execute(
+            "SELECT year, quarter, net_income FROM catalog_financials "
+            "WHERE ticker='AAA' ORDER BY year, quarter").fetchall()
+        got = {(r["year"], r["quarter"]): r["net_income"] for r in rows}
+        assert got[(last_fy, 1)] == 1.0
+        assert got[(last_fy, 2)] == 2.0
+        assert got[(last_fy, 3)] == 3.0
+        assert got[(last_fy, 0)] == 400.0
+        assert got[(last_fy + 1, 1)] == 11.0, "the quarter before the pushed one is history"
+        assert got[(last_fy + 1, 2)] == 100.0
+
+    def test_the_replace_clears_a_spurious_future_quarter(self, catalog) -> None:
+        last_fy = rc._latest_complete_fiscal_year()
+        # A row that the входная проверка of a later release would have refused,
+        # already sitting in the cache and outranking everything real.
+        catalog.execute(
+            "INSERT INTO catalog_financials (ticker, form, year, quarter, net_income) "
+            "VALUES ('AAA','NSBU',?,4,999.0)", (last_fy + 1,))
+        catalog.commit()
+
+        rc.bulk_replace_financials([
+            {"ticker": "AAA", "year": last_fy + 1, "quarter": 2, "net_income": 100.0}])
+
+        rows = catalog.execute("SELECT year, quarter FROM catalog_financials "
+                               "WHERE ticker='AAA'").fetchall()
+        assert [(r["year"], r["quarter"]) for r in rows] == [(last_fy + 1, 2)]
 
     def test_the_replace_keeps_the_backfilled_history_behind_it(self, catalog) -> None:
         """The daily reconcile must not erase the historical annuals.
@@ -332,6 +389,10 @@ class TestUnitScale:
             "total_liabilities", "net_income", "operating_income",
             "total_assets", "total_equity",
             "noninterest_income",
+            # The balance's current section — sums in the same thousands, read so
+            # the liquidity, quick and turnover coefficients can be computed for
+            # the issuers whose indicator feed publishes none of them.
+            "current_assets", "current_liabilities", "inventories",
         }
         # The filed balance rides as a nested dict and is scaled key-by-key at
         # the same boundary (api._market_inputs._scale).
