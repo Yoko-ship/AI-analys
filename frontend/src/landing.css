@@ -197,6 +197,17 @@
 .lv-board-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; }
 .lv-board-head h4 { margin: 0; font-size: 17.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .lv-ses { font-family: var(--lv-mono); font-size: 13.5px; color: var(--lv-ink-3); margin-left: auto; }
+
+/* The span each change is measured over. Deliberately quiet: the board's subject
+   is the securities, and this is the reader's preference about how to read them. */
+.lv-period { display: flex; gap: 2px; flex-wrap: wrap; }
+.lv-period button {
+  font-family: var(--lv-mono); font-size: 12px; line-height: 1;
+  padding: 5px 7px; border: 1px solid var(--lv-line); border-radius: 5px;
+  background: none; color: var(--lv-ink-3); cursor: pointer;
+}
+.lv-period button:hover { color: var(--lv-ink); border-color: var(--lv-ink-3); }
+.lv-period button.active { color: var(--lv-ink); border-color: var(--lv-amber-soft); background: rgba(255, 180, 94, 0.12); }
 .lv-live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--lv-up); margin-right: 7px; animation: lv-pulse 2s ease-in-out infinite; }
 @keyframes lv-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.45); } 50% { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); } }
 

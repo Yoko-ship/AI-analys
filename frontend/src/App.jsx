@@ -5259,6 +5259,17 @@ function MarketChangeBadge({ value, percent, language }) {
   const tone = marketTone(percent);
   const sign = Number(value) > 0 ? "+" : "";
   const percentSign = Number(percent) > 0 ? "+" : "";
+  // A change over a WINDOW arrives as a percent alone: its absolute counterpart
+  // would subtract a live price from a settled close of weeks ago, two figures
+  // the exchange never puts side by side. The session's change carries both,
+  // because both come off the same row.
+  if (value === undefined && Number.isFinite(percent)) {
+    return (
+      <span className={`market-change-badge tone-${tone}`}>
+        {`${percentSign}${formatRatio(percent, 2, language)}%`}
+      </span>
+    );
+  }
   return (
     <span className={`market-change-badge tone-${tone}`}>
       {value === null || percent === null
@@ -11389,6 +11400,26 @@ function MarketColMenu({ colKey, fromSticky, lang, state, actions, onClose }) {
   );
 }
 
+// The periods the board can measure a change over. `1d` is the session — it comes
+// off the live board row, not the stored history, because that is the number the
+// exchange itself publishes today; the rest are windows over the settled closes
+// (/api/market/changes, MARKET_CHANGE_WINDOWS on the server side).
+const CHANGE_PERIODS = [
+  { code: "1d", label: ["За сессию", "Sessiya", "Session"], short: ["сессия", "sessiya", "session"] },
+  { code: "1w", label: ["1Н", "1H", "1W"], short: ["нед.", "hafta", "wk"] },
+  { code: "1m", label: ["1М", "1O", "1M"], short: ["мес.", "oy", "mo"] },
+  { code: "3m", label: ["3М", "3O", "3M"], short: ["3 мес.", "3 oy", "3mo"] },
+  { code: "6m", label: ["6М", "6O", "6M"], short: ["6 мес.", "6 oy", "6mo"] },
+  { code: "1y", label: ["1Г", "1Y", "1Y"], short: ["год", "yil", "yr"] },
+  { code: "ytd", label: ["С начала года", "Yil boshidan", "YTD"], short: ["с 1 янв.", "1-yanv.dan", "YTD"] },
+];
+const CHANGE_PERIOD_KEY = "uz_market_change_period";
+const changePeriodLabel = (code, lang, field = "label") => {
+  const found = CHANGE_PERIODS.find((p) => p.code === code) || CHANGE_PERIODS[0];
+  const i = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
+  return found[field][i];
+};
+
 function MarketView({
   rows,
   meta,
@@ -11435,6 +11466,45 @@ function MarketView({
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  // Price change over a WEEK, a MONTH, a quarter, half a year, a year and
+  // year-to-date, per security, off the same stored closes the charts draw
+  // (/api/market/changes). The board measured one period — the session — so
+  // «сколько он сделал за месяц?» meant opening every company page in turn.
+  //
+  // The period is the reader's choice and it travels: the «Изменение» column,
+  // the movers strip on this page and the board preview on the landing page all
+  // follow it, because three answers to one question on one screen is worse than
+  // none. The explicit «Изм. 1Н» and «Изм. 1М» columns never move — a reader
+  // comparing the week against the month needs both at once.
+  const [changes, setChanges] = useState({});
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/market/changes")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setChanges(d.changes || {}); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const [changePeriod, setChangePeriod] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CHANGE_PERIOD_KEY);
+      if (CHANGE_PERIODS.some((p) => p.code === saved)) return saved;
+    } catch (e) { /* ignore */ }
+    return "1d";
+  });
+  useEffect(() => {
+    try { localStorage.setItem(CHANGE_PERIOD_KEY, changePeriod); } catch (e) { /* ignore */ }
+  }, [changePeriod]);
+  // One security's change over one period, as {pct, from} or null. The session
+  // keeps its own rule — a security that did not trade today has NO change to
+  // report (ТЗ §2.4), which is a different statement from a flat one — while a
+  // window is answered by the stored closes or not at all.
+  const changeOver = (ticker, code) => {
+    if (code === "1d") return null;
+    const hit = (changes[String(ticker || "").toUpperCase()] || {})[code];
+    return hit && Number.isFinite(hit.pct) ? hit : null;
+  };
 
   // Multiples come from the server, computed per ISSUER (ТЗ §8). Keyed by
   // ticker, but both classes of an issuer carry the same object — that is the
@@ -11562,7 +11632,12 @@ function MarketView({
   // Each section is a sibling of "AI screener overview" (not nested under it).
   const COL_GROUPS = [
     { key: "overview", title: mt(lang, "grpOverview"), cols: [
-      ["change", mt(lang, "change")],
+      // «Изм.» follows the period selector; these two never do. A reader who is
+      // comparing the week against the month needs both on screen at once, and a
+      // column whose meaning depends on a control elsewhere cannot be that.
+      ["change", `${mt(lang, "change")} (${changePeriodLabel(changePeriod, lang, "short")})`],
+      ["change1w", `${mt(lang, "change")} 1${lang === "en" ? "W" : lang === "uz" ? "H" : "Н"}`],
+      ["change1m", `${mt(lang, "change")} 1${lang === "en" ? "M" : lang === "uz" ? "O" : "М"}`],
       ["open", mt(lang, "open")],
       ["high", mt(lang, "high")],
       ["low", mt(lang, "low")],
@@ -11621,16 +11696,20 @@ function MarketView({
   // Every sortable column by its screen label — the sort chain and the CSV header
   // both name keys the reader only ever sees as column titles.
   const SORT_LABEL_OF = Object.fromEntries([...CORE_COLS, ...MARKET_COLS]);
+  // The key carries a version. A new column added to the DEFAULT set is invisible
+  // to every reader who has ever opened this table, because their saved selection
+  // is what loads — the week and month change columns would have shipped to
+  // nobody. Bumping the key retires the old selection once, deliberately.
   const [visibleCols, setVisibleCols] = useState(() => {
-    try { const s = JSON.parse(localStorage.getItem("uz_market_cols")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
-    return new Set(["change", "open", "high", "low", "volume", "date", "source"]);
+    try { const s = JSON.parse(localStorage.getItem("uz_market_cols_v2")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
+    return new Set(["change", "change1w", "change1m", "open", "high", "low", "volume", "date", "source"]);
   });
   const [colsOpen, setColsOpen] = useState(false);
   const colsBtnRef = useRef(null); // the popover is portaled — it anchors off this
   const [colsSearch, setColsSearch] = useState("");
   const [openGroups, setOpenGroups] = useState(() => new Set(["overview", "volumes", "financials"]));
   const toggleGroup = (k) => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  useEffect(() => { try { localStorage.setItem("uz_market_cols", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
+  useEffect(() => { try { localStorage.setItem("uz_market_cols_v2", JSON.stringify([...visibleCols])); } catch (e) { /* ignore */ } }, [visibleCols]);
   const toggleCol = (k) => setVisibleCols((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   // Bonds carry no equity metrics — the exchange feed gives them only price/trade
   // data (no market cap, P/E, ROE, or issuer financials). Hide the stock-only
@@ -12005,7 +12084,12 @@ function MarketView({
     ticker: (r) => r.ticker || "",
     company: (r) => r.name || "",
     last: (r) => marketDisplayPrice(r),
-    change: (r) => r.changePercent,
+    // The selected period's change, so the order follows what the column shows.
+    change: (r) => (changePeriod === "1d"
+      ? r.changePercent
+      : (changeOver(r.ticker, changePeriod)?.pct ?? null)),
+    change1w: (r) => changeOver(r.ticker, "1w")?.pct ?? null,
+    change1m: (r) => changeOver(r.ticker, "1m")?.pct ?? null,
     open: (r) => r.openPrice,
     high: (r) => r.highPrice,
     low: (r) => r.lowPrice,
@@ -12094,6 +12178,27 @@ function MarketView({
   const moverStats = activeSector
     ? buildMarketStats(byClass.filter((r) => !isDormant(r) && rowSector(r) === activeSector))
     : stats;
+  // Over a WINDOW the movers are a different list, and they are not drawn from
+  // the latest session's rows: a security that has not traded today still moved
+  // over the month, and leaving it out would rank the month by who happened to
+  // trade this morning. The turnover panel keeps the session — «ликвидность за
+  // месяц» is a sum this platform does not hold, and inventing one from thirty
+  // session totals it has not stored would be the wrong answer to a question
+  // nobody asked.
+  const periodMovers = React.useMemo(() => {
+    if (changePeriod === "1d") return moverStats;
+    const pool = byClass
+      .filter((r) => !isDormant(r) && (!activeSector || rowSector(r) === activeSector))
+      .map((r) => ({ row: r, pct: changeOver(r.ticker, changePeriod)?.pct }))
+      .filter((x) => Number.isFinite(x.pct));
+    const up = pool.filter((x) => x.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 5);
+    const down = pool.filter((x) => x.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 5);
+    return {
+      ...moverStats,
+      topGainers: up.map((x) => ({ ...x.row, periodPct: x.pct })),
+      topLosers: down.map((x) => ({ ...x.row, periodPct: x.pct })),
+    };
+  }, [changePeriod, changes, byClass, activeSector, moverStats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // §3.8: export the table the user is looking at as OUR report, client-side.
   //
@@ -12173,7 +12278,15 @@ function MarketView({
     const header = [
       mt(lang, "ticker"), mt(lang, "company"), mt(lang, "isin"), mt(lang, "sector"),
       mt(lang, "shareType"), mt(lang, "date"),
-      mt(lang, "last"), `${mt(lang, "change")}, %`, mt(lang, "open"), mt(lang, "high"), mt(lang, "low"),
+      mt(lang, "last"), `${mt(lang, "change")}, %`,
+      // Each window change names the session it was measured from — the same
+      // statement the cell's tooltip makes, because a percent without its base
+      // date is not reproducible from a spreadsheet.
+      `${mt(lang, "change")} 1${lang === "en" ? "W" : lang === "uz" ? "H" : "Н"}, %`,
+      lang === "en" ? "1W base" : lang === "uz" ? "1H bazasi" : "База 1Н",
+      `${mt(lang, "change")} 1${lang === "en" ? "M" : lang === "uz" ? "O" : "М"}, %`,
+      lang === "en" ? "1M base" : lang === "uz" ? "1O bazasi" : "База 1М",
+      mt(lang, "open"), mt(lang, "high"), mt(lang, "low"),
       mt(lang, "volumeCol"), mt(lang, "csvTrades"), mt(lang, "volQty"),
       mt(lang, "avgSharePrice"), "VWAP", mt(lang, "bigTrade"), mt(lang, "volShare"),
       mt(lang, "finPeriod"), mt(lang, "finCoverage"),
@@ -12204,6 +12317,8 @@ function MarketView({
           : isPreferred ? mt(lang, "preferred") : mt(lang, "ordinary"),
         day(marketRowDay(row)),
         round(marketDisplayPrice(row), 2), round(row.changePercent, 2),
+        round(changeOver(row.ticker, "1w")?.pct, 2), day(changeOver(row.ticker, "1w")?.from),
+        round(changeOver(row.ticker, "1m")?.pct, 2), day(changeOver(row.ticker, "1m")?.from),
         round(row.openPrice, 2), round(row.highPrice, 2), round(row.lowPrice, 2),
         money(row.stockVolume), row.stockTradeCount, row.stockQuantity,
         round(Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row), 2),
@@ -12343,6 +12458,56 @@ function MarketView({
     );
   };
 
+  // ТЗ §2.4/§9: "отсутствие данных показывается как нулевое изменение" was the
+  // defect. This cell substituted 0 whenever a close price existed, so a security
+  // that has not traded since 15.07 read as "unchanged today" beside securities
+  // that genuinely did not move. Measured against the trade archive, seven rows
+  // showed 0 % where the last real session moved by up to 20 %. No trading in
+  // this session means no change to report — the cell says so, and names the day
+  // the price is actually from.
+  const sessionChangeCell = (row) => {
+    if (!row.tradedToday) {
+      const when = row.last_trade_date || row.ts?.trade_date;
+      return (
+        <td className="num">
+          <span className="cell-status" title={when
+            ? `${lang === "ru" ? "цена за" : lang === "uz" ? "narx" : "price from"} ${when}`
+            : undefined}>
+            {lang === "en" ? "no trades" : lang === "uz" ? "bitim yo'q" : "нет сделок"}
+          </span>
+        </td>
+      );
+    }
+    return <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>;
+  };
+
+  // A change over a window says which session it measured FROM. On this market
+  // the base is rarely the date the label implies — a security can go a fortnight
+  // without a trade, so «за неделю» is routinely measured from a close three
+  // weeks old, and a reader is entitled to know that before acting on it.
+  const windowChangeCell = (row, code) => {
+    const hit = changeOver(row.ticker, code);
+    if (!hit) {
+      return (
+        <td className="num">
+          <span className="cell-status" title={lang === "en"
+            ? "no settled close that far back"
+            : lang === "uz" ? "bu davr uchun yopilish narxi yo'q"
+            : "нет закрытия за этот период"}>—</span>
+        </td>
+      );
+    }
+    const from = String(hit.from || "");
+    const pretty = from.length === 8 ? `${from.slice(6)}.${from.slice(4, 6)}.${from.slice(0, 4)}` : from;
+    return (
+      <td className="num" title={pretty
+        ? `${lang === "en" ? "from the close of" : lang === "uz" ? "yopilishdan" : "от закрытия"} ${pretty}`
+        : undefined}>
+        <MarketChangeBadge percent={hit.pct} language={lang} />
+      </td>
+    );
+  };
+
   // Label + cell registry so the movable columns can render in any order.
   const LABEL_OF = Object.fromEntries([["last", mt(lang, "last")], ...MARKET_COLS]);
   const NUM_COLS = new Set(MOVABLE_KEYS.filter((k) => k !== "date" && k !== "source"));
@@ -12355,21 +12520,11 @@ function MarketView({
     // archive, seven rows showed 0 % where the last real session moved by up to
     // 20 %. No trading in this session means no change to report — the cell
     // says so, and names the day the price is actually from.
-    change: (row) => {
-      if (!row.tradedToday) {
-        const when = row.last_trade_date || row.ts?.trade_date;
-        return (
-          <td className="num">
-            <span className="cell-status" title={when
-              ? `${lang === "ru" ? "цена за" : lang === "uz" ? "narx" : "price from"} ${when}`
-              : undefined}>
-              {lang === "en" ? "no trades" : lang === "uz" ? "bitim yo'q" : "нет сделок"}
-            </span>
-          </td>
-        );
-      }
-      return <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>;
-    },
+    change: (row) => (changePeriod === "1d"
+      ? sessionChangeCell(row)
+      : windowChangeCell(row, changePeriod)),
+    change1w: (row) => windowChangeCell(row, "1w"),
+    change1m: (row) => windowChangeCell(row, "1m"),
     open: (row) => <td className="num">{(() => { const v = row.openPrice !== null ? row.openPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
     high: (row) => <td className="num">{(() => { const v = row.highPrice !== null ? row.highPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
     low: (row) => <td className="num">{(() => { const v = row.lowPrice !== null ? row.lowPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
@@ -12556,14 +12711,19 @@ function MarketView({
           those use, so the figure is recognisable without a unit spelled out
           beside it (one was tried in the head and the customer had it out). */}
       {viewMode === "table"
-        && (moverStats.topGainers.length > 0 || moverStats.topLosers.length > 0 || moverStats.topVolume.length > 0) && (
+        && (periodMovers.topGainers.length > 0 || periodMovers.topLosers.length > 0 || periodMovers.topVolume.length > 0) && (
         <div className="market-top-movers">
           {[
-            { key: "up", title: mt(lang, "topGainers"), rows: moverStats.topGainers,
-              value: (r) => `+${formatRatio(r.changePercent, 2, lang)}%` },
-            { key: "down", title: mt(lang, "topLosers"), rows: moverStats.topLosers,
-              value: (r) => `${formatRatio(r.changePercent, 2, lang)}%` },
-            { key: "vol", title: mt(lang, "topLiquidity"), rows: moverStats.topVolume,
+            // The two change panels carry the selected period in their heading:
+            // «Топ роста» over a month and over a session are different claims,
+            // and the strip is read at a glance without the control in view.
+            { key: "up", title: `${mt(lang, "topGainers")}${changePeriod === "1d" ? "" : ` · ${changePeriodLabel(changePeriod, lang, "short")}`}`,
+              rows: periodMovers.topGainers,
+              value: (r) => `+${formatRatio(changePeriod === "1d" ? r.changePercent : r.periodPct, 2, lang)}%` },
+            { key: "down", title: `${mt(lang, "topLosers")}${changePeriod === "1d" ? "" : ` · ${changePeriodLabel(changePeriod, lang, "short")}`}`,
+              rows: periodMovers.topLosers,
+              value: (r) => `${formatRatio(changePeriod === "1d" ? r.changePercent : r.periodPct, 2, lang)}%` },
+            { key: "vol", title: mt(lang, "topLiquidity"), rows: periodMovers.topVolume,
               value: (r) => formatCompactVolume(r.stockVolume, lang) },
           ].map((col) => (
             <article className={`panel market-movers-col ${col.key}`} key={col.key}>
@@ -12669,6 +12829,30 @@ function MarketView({
                 ))}
               </div>
             )}
+          </div>
+          {/* The period every «изменение» on this screen is measured over. It
+              moves the «Изм.» column, the movers strip and the map together —
+              one question, one answer. The two fixed 1Н/1М columns stay where
+              they are; a reader can still have all three on screen. */}
+          <div className="segmented-control market-period-control"
+            role="group"
+            aria-label={lang === "en" ? "Change period" : lang === "uz" ? "O'zgarish davri" : "Период изменения"}>
+            {CHANGE_PERIODS.map((p) => (
+              <button
+                key={p.code}
+                type="button"
+                className={changePeriod === p.code ? "active" : ""}
+                aria-pressed={changePeriod === p.code}
+                onClick={() => setChangePeriod(p.code)}
+                title={lang === "en" ? `Change over ${changePeriodLabel(p.code, lang)}`
+                  : lang === "uz" ? `${changePeriodLabel(p.code, lang)} o'zgarishi`
+                  : `Изменение за ${changePeriodLabel(p.code, lang).toLowerCase()}`}
+              >
+                {p.code === "1d"
+                  ? (lang === "en" ? "Session" : lang === "uz" ? "Sessiya" : "Сессия")
+                  : p.code === "ytd" ? "YTD" : changePeriodLabel(p.code, lang)}
+              </button>
+            ))}
           </div>
           {viewMode === "table" && (
             <button
@@ -14194,6 +14378,52 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
     .slice(0, 14), [prepared, stats]);
   const boardRows = tape.slice(0, 8);
 
+  // The change period the reader chose on /market, honoured here (goal: «дать
+  // рынку выбирать периоды их изменений и показывать на главном»). Both screens
+  // read and write the one key, so the landing page and the board can never
+  // answer «сколько он сделал?» with two different spans.
+  const [changePeriod, setChangePeriod] = React.useState(() => {
+    try {
+      const saved = localStorage.getItem(CHANGE_PERIOD_KEY);
+      if (CHANGE_PERIODS.some((p) => p.code === saved)) return saved;
+    } catch (e) { /* ignore */ }
+    return "1d";
+  });
+  React.useEffect(() => {
+    try { localStorage.setItem(CHANGE_PERIOD_KEY, changePeriod); } catch (e) { /* ignore */ }
+  }, [changePeriod]);
+  const [changes, setChanges] = React.useState({});
+  React.useEffect(() => {
+    if (changePeriod === "1d") return undefined;   // the session is on the row already
+    let alive = true;
+    fetch("/api/market/changes")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setChanges(d.changes || {}); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [changePeriod]);
+  const periodPct = (ticker) => {
+    if (changePeriod === "1d") return undefined;
+    const hit = (changes[String(ticker || "").toUpperCase()] || {})[changePeriod];
+    return hit && Number.isFinite(hit.pct) ? hit.pct : null;
+  };
+  // What the change column and the rail show: the session's own figure, or the
+  // window's. `null` is a period the stored closes cannot reach — printed as a
+  // dash, never as nought.
+  const shownPct = (row) => (changePeriod === "1d" ? row.changePercent : periodPct(row.ticker));
+  const periodRail = React.useMemo(() => {
+    if (changePeriod === "1d") {
+      return { up: stats.topGainers.slice(0, 3), down: stats.topLosers.slice(0, 2) };
+    }
+    const pool = prepared
+      .map((r) => ({ row: r, pct: periodPct(r.ticker) }))
+      .filter((x) => Number.isFinite(x.pct));
+    return {
+      up: pool.filter((x) => x.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 3).map((x) => x.row),
+      down: pool.filter((x) => x.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 2).map((x) => x.row),
+    };
+  }, [changePeriod, changes, prepared, stats]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const sparkKey = boardRows.map((r) => r.ticker).join(",");
   const [spark, setSpark] = React.useState({});
   React.useEffect(() => {
@@ -14349,19 +14579,38 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
               <div className="lv-board">
                 <div className="lv-board-head">
                   <h4><span className="lv-live" aria-hidden="true" />{LT.boardTitle}</h4>
+                  {/* The board is still the day's most liquid securities; the
+                      selector changes the SPAN each change is measured over, not
+                      which rows are here. */}
+                  <div className="lv-period" role="group"
+                    aria-label={lang === "en" ? "Change period" : lang === "uz" ? "O'zgarish davri" : "Период изменения"}>
+                    {CHANGE_PERIODS.map((p) => (
+                      <button key={p.code} type="button"
+                        className={changePeriod === p.code ? "active" : ""}
+                        aria-pressed={changePeriod === p.code}
+                        onClick={() => setChangePeriod(p.code)}>
+                        {p.code === "1d"
+                          ? (lang === "en" ? "D" : lang === "uz" ? "K" : "Д")
+                          : p.code === "ytd" ? "YTD" : changePeriodLabel(p.code, lang)}
+                      </button>
+                    ))}
+                  </div>
                   {sesLabel && <span className="lv-ses">{sesLabel} · 15:30 (UTC+5)</span>}
                 </div>
                 <table className="lv-table">
                   <thead>
-                    <tr><th>{LT.thSecurity}</th><th className="r">{LT.thPrice}</th><th className="r">{LT.thDay}</th><th className="r lv-spark-cell">{LT.th30d}</th></tr>
+                    <tr><th>{LT.thSecurity}</th><th className="r">{LT.thPrice}</th>
+                      <th className="r">{changePeriod === "1d" ? LT.thDay
+                        : `${lang === "en" ? "Chg" : lang === "uz" ? "O'zg." : "Изм."} ${changePeriodLabel(changePeriod, lang, "short")}`}</th>
+                      <th className="r lv-spark-cell">{LT.th30d}</th></tr>
                   </thead>
                   <tbody>
                     {boardRows.map((r) => (
                       <tr key={r.ticker} onClick={() => onOpenCompany(r.ticker)}>
                         <td><span className="lv-tk">{r.ticker}</span><span className="lv-nm">{nameOf(r.ticker)}</span></td>
                         <td className="r">{fmtPrice(marketDisplayPrice(r), lang)}</td>
-                        <td className={`r lv-chg ${r.changePercent > 0.05 ? "lv-u" : r.changePercent < -0.05 ? "lv-d" : "lv-f0"}`}>
-                          {fmtPct(r.changePercent, lang, 2)}
+                        <td className={`r lv-chg ${shownPct(r) > 0.05 ? "lv-u" : shownPct(r) < -0.05 ? "lv-d" : "lv-f0"}`}>
+                          {Number.isFinite(shownPct(r)) ? fmtPct(shownPct(r), lang, 2) : "—"}
                         </td>
                         <td className="r lv-spark-cell">
                           <LandingSpark values={((spark[r.ticker]) || []).map((p) => p[1])} label={`${r.ticker} · ${LT.th30d}`} />
@@ -14378,18 +14627,18 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
                 </div>
               </div>
               <aside className="lv-rail">
-                <h5>{LT.railGainers}</h5>
-                {stats.topGainers.slice(0, 3).map((r) => (
+                <h5>{LT.railGainers}{changePeriod !== "1d" && ` · ${changePeriodLabel(changePeriod, lang, "short")}`}</h5>
+                {periodRail.up.map((r) => (
                   <button type="button" className="lv-mover" key={r.ticker} onClick={() => onOpenCompany(r.ticker)}>
                     <span className="lv-mover-id"><span className="lv-tk">{r.ticker}</span><span className="lv-nm">{nameOf(r.ticker)}</span></span>
-                    <span className="pc lv-u">{fmtPct(r.changePercent, lang, 2)}</span>
+                    <span className="pc lv-u">{fmtPct(shownPct(r), lang, 2)}</span>
                   </button>
                 ))}
-                <h5>{LT.railLosers}</h5>
-                {stats.topLosers.slice(0, 2).map((r) => (
+                <h5>{LT.railLosers}{changePeriod !== "1d" && ` · ${changePeriodLabel(changePeriod, lang, "short")}`}</h5>
+                {periodRail.down.map((r) => (
                   <button type="button" className="lv-mover" key={r.ticker} onClick={() => onOpenCompany(r.ticker)}>
                     <span className="lv-mover-id"><span className="lv-tk">{r.ticker}</span><span className="lv-nm">{nameOf(r.ticker)}</span></span>
-                    <span className="pc lv-d">{fmtPct(r.changePercent, lang, 2)}</span>
+                    <span className="pc lv-d">{fmtPct(shownPct(r), lang, 2)}</span>
                   </button>
                 ))}
               </aside>

@@ -7131,6 +7131,19 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   font-size: 0.86rem;
 }
 
+/* The period every change on the screen is measured over. Seven buttons is a lot
+   of bar, so they are the smallest thing in it and they wrap before anything
+   else does — the control is a preference, not the primary filter. */
+.market-period-control {
+  width: auto;
+  flex-wrap: wrap;
+}
+.market-period-control button {
+  padding: 7px 11px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .market-search {
   flex: 1;
   min-width: 220px;
