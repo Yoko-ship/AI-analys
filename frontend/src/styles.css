@@ -11252,6 +11252,14 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 }
 .bondsec-search { min-width: 220px; }
 .bondsec-shown { margin-left: auto; font-size: 0.8rem; }
+/* The bond tables sit in .market-table-scroll, which had NO rule at all: the
+   980px-min table just overflowed a non-scrolling div, and on the phone a
+   left/right swipe moved nothing — the columns past «Дата выплаты» were simply
+   unreachable. The wrapper is the scrollport, so it scrolls. */
+.market-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .bondsec-table th { cursor: pointer; user-select: none; white-space: nowrap; }
 .bondsec-table th[data-sorted] { color: var(--text); }
 .bondsec-table td { white-space: nowrap; }
