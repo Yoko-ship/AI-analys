@@ -3156,6 +3156,23 @@ function applyTradeStats(r, tmap, latestTsDay) {
   if (!t) return r;
   const rowDay = normalizeMarketDay(r.last_trade_date);
   const tsDay = normalizeMarketDay(t.trade_date);
+  // A NEGOTIATED deal is dated, not current, and it belongs to the row whatever
+  // the session guard below decides: the deals on this market in August 2026 were
+  // struck on 02.07, 10.07, 07.08 and 13.08, all older than their securities' last
+  // auction session, so the guard would have hidden every one of them from the
+  // NEGO board. Carried on its own key so it can never be mistaken for session
+  // turnover — which is the whole point of keeping the two boards apart.
+  if (Number.isFinite(t.block_value) && t.block_value > 0) {
+    r = {
+      ...r,
+      nego: {
+        value: t.block_value,
+        qty: Number.isFinite(t.block_qty) ? t.block_qty : null,
+        count: Number.isFinite(t.block_count) ? t.block_count : null,
+        date: tsDay || null,
+      },
+    };
+  }
   // The day stats and the feed row must describe the SAME session — a stored
   // day older than the row's own last trade is a snapshot the nightly push
   // never refreshed, and its turnover belongs to no quote on the page. Fall
@@ -8020,9 +8037,23 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   // A negotiated deal is real money at a bilaterally agreed price — not a
   // session number. Its own line, never summed into the turnover above
   // (HMKB 14.08: 2,2 млрд бумаг по 55 при рынке 95,5–99,99).
-  if (Number.isFinite(row?.ts?.block_value) && row.ts.block_value > 0) {
+  // Read off `nego`, which carries the deal whatever the session guard decided:
+  // every negotiated deal on this market in August 2026 was older than its
+  // security's last auction session, so the guard hid all of them from this line.
+  // The DATE travels with the figure — a negotiated deal is a dated event, not a
+  // running total, and «2,2 млрд» with no date reads as today's.
+  const nego = row?.nego || (Number.isFinite(row?.ts?.block_value) && row.ts.block_value > 0
+    ? { value: row.ts.block_value, date: null } : null);
+  if (Number.isFinite(nego?.value) && nego.value > 0) {
+    const day = String(nego.date || "");
+    const shown = /^\d{8}$/.test(day) ? `${day.slice(6)}.${day.slice(4, 6)}.${day.slice(0, 4)}` : null;
     put(t("Пакетные сделки, вне сессии", "Paket bitimlar, sessiyadan tashqari", "Block trades, off-session"),
-        `${compact(row.ts.block_value)} UZS`);
+        <>{compact(nego.value)} UZS
+          {shown ? <span className="co-metric-period"> · {shown}</span> : null}
+        </>,
+        t("переговорная сделка: цена согласована вне стакана и в оборот сессии не входит",
+          "kelishilgan bitim: narx stakandan tashqari kelishilgan",
+          "a negotiated deal: the price was agreed off-book and is not part of the session's turnover"));
   }
   const sessionRows = rows.splice(0, rows.length);
   // The date is not decoration: the board carries a close forward through
@@ -12205,22 +12236,31 @@ function MarketView({
   // negotiated average price derived from them. The PRICES stay the session's —
   // a negotiated price is not a quote, which is the whole reason the boards are
   // separate — and the note under the table says so.
-  const negotiated = (r) => {
-    const value = r?.ts?.block_value;
-    return Number.isFinite(value) && value > 0;
-  };
+  const negotiated = (r) => Number.isFinite(r?.nego?.value) && r.nego.value > 0;
   const asNegotiated = (r) => ({
     ...r,
-    stockVolume: r.ts.block_value,
-    stockQuantity: Number.isFinite(r.ts.block_qty) ? r.ts.block_qty : null,
-    stockTradeCount: Number.isFinite(r.ts.block_count) ? r.ts.block_count : null,
+    stockVolume: r.nego.value,
+    stockQuantity: r.nego.qty,
+    stockTradeCount: r.nego.count,
     // Cleared so «Ср. цена акции» derives from the NEGOTIATED turnover and
     // quantity (avgSharePrice) instead of serving the auction's VWAP under a
     // negotiated row. Same for the session VWAP column.
     avgPrice: undefined,
     vwap: null,
+    // The date column must name the day the DEAL was struck. A negotiated deal is
+    // not a session and is routinely weeks old — the ones on this market in
+    // August 2026 were dated 02.07, 10.07, 07.08 and 13.08 — so showing the
+    // auction's last-trade date beside a negotiated turnover would date the deal
+    // to a session it had nothing to do with.
+    last_trade_date: r.nego.date || r.last_trade_date,
   });
   const negotiatedCount = preparedEnriched.filter(negotiated).length;
+  // How many negotiated deals the stored statistics know about ALTOGETHER. Most of
+  // them are on bonds, and the bonds segment is its own section — so an empty NEGO
+  // board here has to say where the deals actually are, or it reads as «this
+  // market has none» when the market has four.
+  const negotiatedAnywhere = Object.values(tmap).filter(
+    (s) => Number.isFinite(s?.block_value) && s.block_value > 0).length;
   const preparedAll = segment === "nego"
     ? preparedEnriched.filter(negotiated).map(asNegotiated)
     : preparedEnriched;
@@ -13621,9 +13661,14 @@ function MarketView({
           )}
           {segment === "nego" && negotiatedCount === 0 && !loading && (
             <p className="market-dormant-note">
-              {lang === "en" ? "No negotiated deals in the latest session."
-                : lang === "uz" ? "Oxirgi sessiyada kelishilgan bitimlar bo'lmagan."
-                : "В последней сессии переговорных сделок не было."}
+              {lang === "en"
+                ? `No negotiated deals on record for the securities on this board.${
+                    negotiatedAnywhere ? ` The exchange's statistics hold ${negotiatedAnywhere} for other instruments — most of them bonds, which have their own section.` : ""}`
+                : lang === "uz"
+                  ? `Bu ro'yxatdagi qog'ozlar bo'yicha kelishilgan bitimlar yo'q.${
+                      negotiatedAnywhere ? ` Boshqa instrumentlar bo'yicha — ${negotiatedAnywhere}, asosan obligatsiyalar.` : ""}`
+                  : `По бумагам этого раздела переговорных сделок не зафиксировано.${
+                      negotiatedAnywhere ? ` В статистике биржи их ${negotiatedAnywhere} по другим инструментам — в основном по облигациям, у которых свой раздел.` : ""}`}
             </p>
           )}
           <div className="market-table-wrap" ref={wrapRef}>
