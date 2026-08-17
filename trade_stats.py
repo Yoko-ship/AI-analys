@@ -9,6 +9,8 @@ first, 50-per-page rolling list, so we paginate until we pass the latest day.
 from __future__ import annotations
 
 import logging
+import re
+import time
 from collections import defaultdict
 from typing import Any
 
@@ -59,6 +61,129 @@ def _f(v: Any) -> float:
 
 def _is_block(trade: dict) -> bool:
     return str(trade.get("board_id") or "") in NEGO_BOARD_IDS
+
+
+# The rolling feed's records carry no trade_datetime FIELD, but every record's
+# `header` — the exchange's fixed-width protocol line — embeds the execution's
+# moment as {YYYYMMDD}{HHMMSS} (the HTML view renders exactly that stamp as its
+# «Время» column). Matched anywhere in the header and validated against the
+# record's own trade_date, so a member number that happens to read like a date
+# cannot stamp a trade.
+_HEADER_MOMENT_RE = re.compile(r"(20\d{6})(\d{2})(\d{2})(\d{2})")
+
+
+def trade_moment(trade: dict) -> tuple[str, int, tuple] | None:
+    """One execution's (day, hour, sortable within-day stamp), from its header."""
+    day = str(trade.get("trade_date") or "")
+    for m in _HEADER_MOMENT_RE.finditer(str(trade.get("header") or "")):
+        if m.group(1) == day and int(m.group(2)) <= 23 \
+                and int(m.group(3)) <= 59 and int(m.group(4)) <= 59:
+            return day, int(m.group(2)), (m.group(0), _f(trade.get("trade_number")),
+                                          _f(trade.get("id")))
+    return None
+
+
+def hourly_bars(trades: list[dict]) -> list[dict[str, Any]]:
+    """Executions rolled up to hourly OHLC bars per security, oldest first.
+
+    This is what the 1Д/1Н chart draws (catalog_intraday_history). Same
+    eligibility as the day statistics above: negotiated (T1) deals are
+    excluded — a block at a bilaterally agreed price never stood in the order
+    book, and one of them prints an hour's high or low the session never saw
+    (HMKB 14.08: a lone T1 at 55,00 under a 98-сум session). An execution whose
+    header carries no readable moment is skipped and counted, never guessed.
+    """
+    bars: dict[tuple[str, str, int], dict[str, Any]] = {}
+    unstamped = 0
+    for x in trades:
+        if _is_block(x):
+            continue
+        price = _f(x.get("trade_price"))
+        isin = str(x.get("issue_code") or "").upper()
+        if price <= 0 or not isin:
+            continue
+        moment = trade_moment(x)
+        if moment is None:
+            unstamped += 1
+            continue
+        day, hour, stamp = moment
+        b = bars.get((isin, day, hour))
+        if b is None:
+            bars[(isin, day, hour)] = b = {
+                "isin": isin, "date": day, "hour": hour,
+                "open": price, "high": price, "low": price, "close": price,
+                "quantity": 0.0, "turnover": 0.0, "_first": stamp, "_last": stamp,
+            }
+        # The feed lists newest first and pages interleave — order by the stamp,
+        # never by input position (the same rule _aggregate's close follows).
+        if stamp < b["_first"]:
+            b["_first"], b["open"] = stamp, price
+        if stamp >= b["_last"]:
+            b["_last"], b["close"] = stamp, price
+        b["high"] = max(b["high"], price)
+        b["low"] = min(b["low"], price)
+        b["quantity"] += _f(x.get("trade_quantity"))
+        b["turnover"] += _f(x.get("trading_value"))
+    if unstamped:
+        logger.warning("hourly bars: %d executions carried no readable moment "
+                       "in their header — dropped, not guessed", unstamped)
+    out = []
+    for key in sorted(bars):
+        b = dict(bars[key])
+        del b["_first"], b["_last"]
+        out.append(b)
+    return out
+
+
+def fetch_day_trades(day: str, session: requests.Session | None = None,
+                     max_pages: int = 400) -> list[dict] | None:
+    """Every execution of ONE past session, from the feed's date-filtered view.
+
+    uzse.uz/trade_results honours begin/end months back (measured: a February
+    day answers in August) — the rolling two-day window is only what the
+    UNFILTERED view shows. This is the intraday backfill's source.
+
+    Returns None when any page could not be read: a partially walked day would
+    upsert bars with understated volumes over correct ones, which is worse than
+    leaving the day for the next run.
+    """
+    day = str(day).replace("-", "")
+    if len(day) != 8 or not day.isdigit():
+        return None
+    stated = f"{day[6:]}.{day[4:6]}.{day[:4]}"  # the view speaks DD.MM.YYYY
+    s = session or _feed_session()
+    headers = {"User-Agent": _UA, "Accept": "application/json",
+               "X-Requested-With": "XMLHttpRequest"}
+    trades: list[dict] = []
+    seen: set = set()
+    for page in range(1, max_pages + 1):
+        payload = None
+        # The feed rate-limits with non-JSON bodies that _feed_session's
+        # HTTP-status retries never see — so decode failures retry here.
+        for attempt in range(3):
+            try:
+                resp = s.get(UZSE_TRADE_URL, headers=headers, timeout=30,
+                             params={"mkt_id": "ALL", "begin": stated,
+                                     "end": stated, "page": page})
+                payload = resp.json()
+                break
+            except Exception:  # noqa: BLE001 — one bad page must not end the day
+                time.sleep(3 * (attempt + 1))
+        if not isinstance(payload, dict):
+            logger.error("day trades %s: page %d unreadable — day abandoned", day, page)
+            return None
+        res = payload.get("results") or []
+        for x in res:
+            tid = x.get("id")
+            if tid in seen:
+                continue
+            seen.add(tid)
+            trades.append(x)
+        meta = payload.get("meta") or {}
+        if not res or page >= int(meta.get("total_pages") or 1):
+            break
+        time.sleep(0.2)
+    return trades
 
 
 def _aggregate(isin: str, lst: list[dict], trade_date: str) -> dict[str, Any]:
@@ -239,8 +364,12 @@ def fetch_trade_stats(max_pages: int = 400, session: requests.Session | None = N
         if not isin:
             continue
         stats[isin] = _aggregate(isin, lst, latest_day)
+    # The same walked executions, rolled up hourly for the 1Д/1Н chart — the
+    # walk is already paid for, a second one for the bars would be the waste.
+    intraday = hourly_bars([x for lst in by.values() for x in lst]) if complete else []
     return {"trade_date": latest_day, "count": len(stats),
-            "reachable": reachable, "complete": complete, "stats": stats}
+            "reachable": reachable, "complete": complete, "stats": stats,
+            "intraday": intraday}
 
 
 if __name__ == "__main__":

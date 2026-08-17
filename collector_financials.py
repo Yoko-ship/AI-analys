@@ -250,6 +250,18 @@ def push_trade_stats() -> int:
     status = _post("/api/admin/trade-stats", {"trade_date": data.get("trade_date"), "rows": rows})
     if status == 0:
         _stamp_step("trade_stats", str(data.get("trade_date") or ""))
+    # Hourly bars for the 1Д/1Н chart, rolled up from the SAME walked executions
+    # (negotiated T1 deals already excluded by trade_stats.hourly_bars). Failure
+    # is logged, not fatal: the day statistics are what this step exists for.
+    bars = data.get("intraday") or []
+    if bars:
+        try:
+            if _post("/api/admin/quotes", {"rows": [], "history": [], "intraday": bars}):
+                log.error("intraday bars push failed (%d bars)", len(bars))
+            else:
+                log.info("intraday: %d hourly bars pushed for %s", len(bars), data.get("trade_date"))
+        except Exception:
+            log.exception("intraday bars push failed")
     if not SKIP_QUOTES:
         try:
             status = push_quotes(stats) or status
@@ -592,6 +604,41 @@ def backfill_quarter_history(limit_per_ticker: int = 40) -> int:
     return status
 
 
+def backfill_intraday(days: int = 30) -> int:
+    """One-off: bank hourly bars for the last ``days`` calendar days.
+
+    The exchange's trade feed honours begin/end months back when date-filtered
+    (the two-day window is only what the unfiltered view shows), so the hourly
+    series does not have to start the day the collector first ran. Idempotent:
+    every bar upserts on (isin, day, hour), and a day that cannot be walked
+    COMPLETELY is skipped rather than pushed short — understated volumes over
+    correct ones would be the worse outcome.
+    """
+    from datetime import date, timedelta
+
+    session = None
+    status = 0
+    total = 0
+    for offset in range(days, -1, -1):
+        day = (date.today() - timedelta(days=offset)).strftime("%Y%m%d")
+        trades = ts.fetch_day_trades(day, session=session)
+        if trades is None:
+            log.error("intraday backfill: %s could not be walked completely — skipped", day)
+            status = 1
+            continue
+        if not trades:
+            continue  # a weekend or holiday, not a failure
+        bars = ts.hourly_bars(trades)
+        log.info("intraday backfill %s: %d executions -> %d hourly bars",
+                 day, len(trades), len(bars))
+        if bars:
+            status = _post("/api/admin/quotes",
+                           {"rows": [], "history": [], "intraday": bars}) or status
+            total += len(bars)
+    log.info("intraday backfill: %d bars pushed across %d days", total, days + 1)
+    return status
+
+
 def _history_universe() -> set[str]:
     """Every ISIN the DEPLOYMENT's board carries, plus the local catalog's.
 
@@ -845,23 +892,7 @@ def push_quotes(stats: dict[str, dict]) -> int:
                             "change_value": h.get("change"), "quantity": h.get("quantity"),
                             "turnover": h.get("turnover")})
     log.info("quotes: %d settled daily closes across %d securities", len(history), len(quotes))
-    # The executions log rides the same pages: hourly bars for the session(s)
-    # each page still shows. The exchange keeps no archive of the log, so a bar
-    # not banked on this run is gone — which is the whole reason they ride
-    # along instead of waiting for a collector of their own.
-    intraday: list[dict[str, Any]] = []
-    for q in quotes:
-        isin = str(q.get("isin") or "").upper()
-        for b in (q.pop("intraday", None) or []):
-            if not isin or not b.get("date"):
-                continue
-            intraday.append({"isin": isin, "trade_date": b["date"], "hour": b.get("hour"),
-                             "open": b.get("open"), "high": b.get("high"),
-                             "low": b.get("low"), "close": b.get("close"),
-                             "quantity": b.get("quantity"), "turnover": b.get("turnover")})
-    log.info("quotes: %d hourly bars across %d securities", len(intraday), len(quotes))
-    status = _post("/api/admin/quotes",
-                   {"rows": quotes, "history": history, "intraday": intraday})
+    status = _post("/api/admin/quotes", {"rows": quotes, "history": history})
     if status == 0:
         # The newest session in the batch, not whichever row happened to be first:
         # a settled row is dated the day its security last traded, which for a
@@ -1230,6 +1261,10 @@ def main() -> int:
                     metavar="PERIODS",
                     help="one-off: re-parse the newest filings for the balance's current "
                          "section, which the liquidity/quick/turnover ratios need")
+    ap.add_argument("--backfill-intraday", type=int, nargs="?", const=30, default=None,
+                    metavar="DAYS",
+                    help="one-off: bank hourly bars for the last N calendar days from "
+                         "the exchange's date-filtered trade feed (default 30)")
     args = ap.parse_args()
 
     global SKIP_QUOTES
@@ -1273,6 +1308,13 @@ def main() -> int:
             return backfill_quote_history(args.backfill_history)
         except Exception:
             log.exception("history backfill failed")
+            return 1
+
+    if args.backfill_intraday is not None:
+        try:
+            return backfill_intraday(args.backfill_intraday)
+        except Exception:
+            log.exception("intraday backfill failed")
             return 1
 
     if args.watch_filings:

@@ -1,16 +1,19 @@
-"""The hourly series: the executions log, its store, and the 1Д/1Н endpoint.
+"""The hourly series: the trade feed's roll-up, its store, and the 1Д/1Н endpoint.
 
-uzse.uz stamps every execution with its time on the security's own quote page —
-"17 авг., 16:02" — and keeps that log only while the page still shows the
-session. There is no archive of it anywhere on the exchange, so the hourly
-chart exists exactly as far back as the collector has banked these bars.
+The bars come from uzse.uz/trade_results — the exchange's own execution feed.
+Each record's ``header`` (a fixed-width protocol line) embeds the trade's
+moment as {YYYYMMDD}{HHMMSS}; there is no trade_datetime field, and the quote
+page's executions log was rejected as a source because it cannot say which
+trades were negotiated (T1) deals.
 
 Pinned here:
 
-  * the log parses into hourly OHLC bars in page order reversed (the page is
-    newest-first, an hour's open is its EARLIEST trade);
-  * the yearless timestamp is dated correctly, including a December row read in
-    January;
+  * the moment is read from the header and VALIDATED against the record's own
+    trade_date — a member number that happens to read like a date must not
+    stamp a trade;
+  * a negotiated deal never prints an hour's OHLC (the HMKB 14.08 lesson);
+  * open/close follow the stamp, never input order — the feed lists newest
+    first and pages interleave;
   * the store is deduplicated, idempotent and pruned — same PG constraints as
     catalog_quote_history;
   * the endpoint serves ISO-with-hour dates, which is what lets a series mixed
@@ -22,72 +25,74 @@ import datetime as dt
 import importlib
 
 import pytest
-from bs4 import BeautifulSoup
 from fastapi.testclient import TestClient
 
 import reports_catalog as rc
-import uzse_quotes as uq
+import trade_stats as ts
 
 api = importlib.import_module("api")
 
 ISIN = "UZ7011340005"
 
 
-def _table(rows: list[tuple[str, str, str, str, str]]):
-    body = "".join(
-        f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td>{d}</td><td>{e}</td></tr>"
-        for a, b, c, d, e in rows)
-    html = ("<table><tr><th>Время</th><th>Цена</th><th>Изменение</th>"
-            f"<th>Кол-во ЦБ</th><th>Объём торгов (UZS)</th></tr>{body}</table>")
-    return BeautifulSoup(html, "html.parser").find("table")
+def _trade(hhmmss: str, price, qty, value, *, day="20260817", board="G1",
+           isin=ISIN, tid=None):
+    return {
+        "id": tid, "issue_code": isin, "trade_date": day, "board_id": board,
+        "header": f"0910DATS00000057485009010090101{day}{hhmmss}039G 0000",
+        "trade_price": str(price), "trade_quantity": qty, "trading_value": str(value),
+    }
 
 
-class TestTheLogParse:
-    def test_rolls_the_log_up_into_hourly_bars(self):
-        # Newest first, as the page prints it. 10:xx traded 100→104→101.
-        bars = uq._hourly_bars(_table([
-            ("17 авг., 11:05", "102", "▲ 2", "5", "510"),
-            ("17 авг., 10:59", "101", "▲ 1", "10", "1,010"),
-            ("17 авг., 10:30", "104", "▲ 4", "2", "208"),
-            ("17 авг., 10:00", "100", "—", "3", "300"),
-        ]))
-        year = dt.date.today().year
+class TestTheFeedRollUp:
+    def test_rolls_executions_up_into_hourly_bars(self):
+        # Newest first, as the feed pages them. 10:xx traded 100→104→101.
+        bars = ts.hourly_bars([
+            _trade("110500", 102, 5, 510),
+            _trade("105900", 101, 10, 1010),
+            _trade("103000", 104, 2, 208),
+            _trade("100000", 100, 3, 300),
+        ])
         assert [b["hour"] for b in bars] == [10, 11]
         ten = bars[0]
-        assert ten["date"] == f"{year}0817"
-        # Open is the EARLIEST trade of the hour — page order reversed.
+        assert (ten["isin"], ten["date"]) == (ISIN, "20260817")
+        # Open is the hour's EARLIEST stamp, close its latest — never input order.
         assert (ten["open"], ten["high"], ten["low"], ten["close"]) == (100, 104, 100, 101)
         assert ten["quantity"] == pytest.approx(15)
         assert ten["turnover"] == pytest.approx(1518)
 
-    def test_two_sessions_in_one_log_stay_two_dates(self):
-        bars = uq._hourly_bars(_table([
-            ("15 мая, 10:10", "50", "—", "1", "50"),
-            ("14 мая, 15:40", "49", "—", "1", "49"),
-        ]))
-        assert [b["date"][4:] for b in bars] == ["0514", "0515"]
+    def test_a_negotiated_deal_never_prints_a_bar(self):
+        """HMKB 14.08: one T1 block at 55,00 under a 98-сум session — folding it
+        in would hand the hour a low the order book never stood at."""
+        bars = ts.hourly_bars([
+            _trade("100100", 98, 10, 980),
+            _trade("100200", 55, 2_200_000, 121_000_000, board="T1"),
+        ])
+        assert len(bars) == 1
+        assert bars[0]["low"] == pytest.approx(98)
+        assert bars[0]["quantity"] == pytest.approx(10)
 
-    def test_a_december_row_read_in_january_is_last_years(self):
-        # A date the log cannot mean (well ahead of today) must be read as the
-        # previous year's — that is exactly what 31 December looks like on
-        # 2 January.
-        ahead = dt.date.today() + dt.timedelta(days=30)
-        months = {1: "янв", 2: "фев", 3: "мар", 4: "апр", 5: "мая", 6: "июн",
-                  7: "июл", 8: "авг", 9: "сен", 10: "окт", 11: "ноя", 12: "дек"}
-        moment = uq._exec_moment(f"{ahead.day} {months[ahead.month]}., 12:30")
-        assert moment is not None
-        assert moment[0] == dt.date(ahead.year - 1, ahead.month, ahead.day).strftime("%Y%m%d")
+    def test_the_header_moment_must_agree_with_the_trade_date(self):
+        # A header whose only date-like digits belong to ANOTHER day (or to a
+        # member/account number) stamps nothing — the trade is dropped, not
+        # misfiled onto a neighbouring session.
+        t = _trade("100000", 100, 1, 100)
+        t["header"] = "0910DATS0000005748500901009010120260816100000039G 0000"
+        assert ts.trade_moment(t) is None
+        assert ts.hourly_bars([t]) == []
 
-    def test_garbage_rows_do_not_invent_a_bar(self):
-        bars = uq._hourly_bars(_table([
-            ("не время", "100", "—", "1", "100"),
-            ("17 авг., 10:00", "", "—", "1", "100"),
-            ("17 авг., 10:00", "0", "—", "1", "100"),
-        ]))
-        assert bars == []
+    def test_two_sessions_stay_two_dates(self):
+        bars = ts.hourly_bars([
+            _trade("101000", 50, 1, 50, day="20260515"),
+            _trade("154000", 49, 1, 49, day="20260514"),
+        ])
+        assert [b["date"] for b in bars] == ["20260514", "20260515"]
 
-    def test_no_table_is_no_bars(self):
-        assert uq._hourly_bars(None) == []
+    def test_garbage_prices_do_not_invent_a_bar(self):
+        assert ts.hourly_bars([
+            _trade("100000", 0, 1, 0),
+            _trade("100000", "", 1, 100),
+        ]) == []
 
 
 @pytest.fixture()
