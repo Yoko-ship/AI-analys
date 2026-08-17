@@ -24,7 +24,6 @@ exchange itself.
 """
 from __future__ import annotations
 
-import datetime as dt
 import logging
 import re
 import time
@@ -52,14 +51,6 @@ _JSON_HEADERS = {"User-Agent": _UA, "Accept": "application/json, text/javascript
 
 _DATE_RE = re.compile(r"\b(\d{2})\.(\d{2})\.(\d{4})\b")
 _UP, _DOWN = "▲", "▼"  # ▲ ▼ — the only marks that carry the change's sign
-
-# The executions log stamps each trade "17 авг., 16:02" — a Russian month
-# abbreviation and NO year. Matched by 3-letter prefix because the site declines
-# May both ways ("мая" in the log, "май" elsewhere).
-_EXEC_TIME_RE = re.compile(r"(\d{1,2})\s+([а-яё]+)\.?,?\s+(?:(\d{4})\s*,?\s+)?(\d{1,2}):(\d{2})",
-                           re.IGNORECASE)
-_RU_MONTHS = {"янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "мая": 5, "июн": 6,
-              "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12}
 
 
 def _num(value: Any) -> float | None:
@@ -108,68 +99,6 @@ def _find_table(tables: list, *, first_label: str, contains: str | None = None):
     return None
 
 
-def _exec_moment(cell: str) -> tuple[str, int] | None:
-    """One executions-log timestamp as (YYYYMMDD, hour of day).
-
-    The log prints no year. It rolls over with the session, so a row is at most
-    days old: the year is this one, except across New Year, where a December row
-    read in January belongs to the year before. "More than two days in the
-    future" is the test — a date the log cannot mean — rather than a plain
-    month/day comparison, which would misfile a same-week row on a skewed clock.
-    """
-    m = _EXEC_TIME_RE.search(cell or "")
-    if not m:
-        return None
-    day, mon = int(m.group(1)), _RU_MONTHS.get(m.group(2).lower()[:3])
-    year_text, hour = m.group(3), int(m.group(4))
-    if not mon or not (0 <= hour <= 23):
-        return None
-    today = dt.date.today()
-    try:
-        date = dt.date(int(year_text) if year_text else today.year, mon, day)
-        if not year_text and date > today + dt.timedelta(days=2):
-            date = dt.date(today.year - 1, mon, day)
-    except ValueError:
-        return None
-    return date.strftime("%Y%m%d"), hour
-
-
-def _hourly_bars(table) -> list[dict[str, Any]]:
-    """The executions log rolled up to hourly bars, oldest first.
-
-    "Время | Цена | Изменение | Кол-во ЦБ | Объём торгов" — one row per
-    EXECUTION, newest at the top, for the session(s) the page still shows. The
-    exchange publishes no finer intraday series anywhere else, and the log is
-    gone once the page rolls over — these bars are only durable because the
-    collector stores them on every pass. Open/close follow page order reversed;
-    quantity and turnover are summed into the bar.
-    """
-    if table is None:
-        return []
-    bars: dict[tuple[str, int], dict[str, Any]] = {}
-    for row in reversed(table.find_all("tr")[1:]):  # the log is newest-first
-        cells = _cells(row)
-        moment = _exec_moment(cells[0]) if cells else None
-        price = _num(cells[1]) if len(cells) > 1 else None
-        if moment is None or price is None or price <= 0:
-            continue
-        bar = bars.get(moment)
-        if bar is None:
-            bars[moment] = bar = {"date": moment[0], "hour": moment[1],
-                                  "open": price, "high": price, "low": price,
-                                  "close": price, "quantity": 0.0, "turnover": 0.0}
-        bar["high"] = max(bar["high"], price)
-        bar["low"] = min(bar["low"], price)
-        bar["close"] = price
-        quantity = _num(cells[3]) if len(cells) > 3 else None
-        turnover = _num(cells[4]) if len(cells) > 4 else None
-        if quantity:
-            bar["quantity"] += quantity
-        if turnover:
-            bar["turnover"] += turnover
-    return [bars[key] for key in sorted(bars)]
-
-
 def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict[str, Any] | None:
     """One security's session quote from its uzse.uz page.
 
@@ -209,7 +138,6 @@ def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict
     session = _find_table(tables, first_label="Изменение")
     ohlc = _find_table(tables, first_label="Стартовая цена")
     history = _find_table(tables, first_label="Дата", contains="Цена закрытия")
-    executions = _find_table(tables, first_label="Время")
     if session is None or history is None:
         logger.warning("uzse quote: %s page has no session/history table", page_isin or isin)
         return None
@@ -292,7 +220,12 @@ def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict
         "last_price": last_price,
         "last_trade_date": last_trade_day,
         "history": closes,
-        "intraday": _hourly_bars(executions),
+        # NOTE: this page also carries an executions log ("Время | Цена | ...").
+        # It is NOT parsed for the hourly series — the log cannot say which
+        # trades were negotiated (T1) deals, and one block at an off-market
+        # price poisons an hour's OHLC. trade_stats.hourly_bars reads the same
+        # executions from the trade feed, which carries board_id and a
+        # to-the-second moment in each record's header.
     }
 
 

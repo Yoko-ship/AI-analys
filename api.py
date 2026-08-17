@@ -5179,13 +5179,14 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
 
 @app.get("/api/intraday/{ticker}")
 async def api_intraday(ticker: str, days: int = 8) -> dict[str, Any]:
-    """Hourly bars for the 1Д/1Н chart, from the stored executions-log roll-up.
+    """Hourly bars for the 1Д/1Н chart, from ``catalog_intraday_history``.
 
-    uzse.uz publishes per-trade times only on the security's own quote page and
-    only while the page still shows the session, so this is served from
-    ``catalog_intraday_history`` — whatever the collector has banked. The series
-    STARTS the day the collector first ran with the intraday step: days before
-    that honestly have no bars, and the chart mixes in daily closes for them.
+    The bars are rolled up from the exchange's own trade feed (per-trade moments
+    live in each record's header; negotiated T1 deals are excluded — see
+    trade_stats.hourly_bars) and banked by the collector: hourly by the
+    trade-stats cron, historically by ``--backfill-intraday``, which the feed's
+    date-filtered view makes possible months back. Days the bank has nothing
+    for honestly have no bars, and the chart mixes in daily closes for them.
     Dates are ISO with an hour ("2026-08-17T14:00") so a series shared with the
     daily feed still sorts as strings.
     """

@@ -6688,11 +6688,11 @@ function BondLadderPanel({ board, current, lang }) {
 // both in one table is what stops the buttons and the fetch drifting apart.
 //
 // `hourly` marks the ranges the company chart draws from the exchange's own
-// executions log rolled up to hourly bars (/api/intraday). 1Д exists BECAUSE of
-// that log — uzse's page stamps every trade with its time, the collector banks
-// them hourly, and a day is ~7 bars, not the single candle it used to be. The
-// bank starts the day the collector first ran, so 1Н mixes hourly bars with
-// daily closes for the days the bank does not cover.
+// trade feed rolled up to hourly bars (/api/intraday). 1Д exists BECAUSE of
+// that feed — every execution carries its moment, the collector banks them
+// hourly (negotiated T1 deals excluded), and a day is ~7 bars, not the single
+// candle it used to be. 1Н still mixes in daily closes for any day the bank
+// does not cover — a security can sit out any number of sessions.
 const CHART_RANGES = [
   { key: "1d", months: 1, days: 1, span: 0.05, hourly: true, label: ["1Д", "1K", "1D"] },
   { key: "1w", months: 1, days: 7, span: 0.25, hourly: true, label: ["1Н", "1H", "1W"] },
@@ -7124,9 +7124,9 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       <div className="company-chart-toolbar">{rangeBar}</div>
       <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>
         {hourly.length === 0
-          ? t("Часовые данные с UZSE ещё накапливаются — график дня появится после ближайшей торговой сессии",
-              "UZSE soatlik ma'lumotlari hali yig'ilmoqda — kunlik grafik keyingi savdo sessiyasidan so'ng chiqadi",
-              "Hourly data from UZSE is still being banked — the day view appears after the next trading session")
+          ? t("В последних сессиях сделок не было — часовой график недоступен",
+              "So'nggi sessiyalarda bitim bo'lmagan — soatlik grafik mavjud emas",
+              "No trades in the recent sessions — no hourly view to draw")
           : t("За последнюю сессию все сделки прошли в один час — часовой график не нарисовать",
               "So'nggi sessiyada barcha bitimlar bir soat ichida o'tdi",
               "The last session's trades all fell in one hour — nothing to draw hourly")}
