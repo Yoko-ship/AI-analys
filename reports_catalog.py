@@ -221,6 +221,26 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_quote_history_isin
             ON catalog_quote_history (isin, trade_date);
 
+        -- One row per security per HOUR of a session, rolled up from the
+        -- executions log on the uzse.uz quote page ("Время | Цена | ... "). The
+        -- exchange publishes that log only while the page still shows the
+        -- session — there is no archive of it — so the hourly series exists
+        -- exactly as long as the collector keeps storing it here. This is what
+        -- the 1Д/1Н chart draws; daily closes stay in catalog_quote_history.
+        CREATE TABLE IF NOT EXISTS catalog_intraday_history (
+            isin        TEXT NOT NULL,
+            trade_date  TEXT NOT NULL,
+            hour        INTEGER NOT NULL,
+            open_price  REAL,
+            high_price  REAL,
+            low_price   REAL,
+            close_price REAL,
+            quantity    REAL,
+            turnover    REAL,
+            updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (isin, trade_date, hour)
+        );
+
         -- Exchange-listing registry for issuers that are listed on RFB Tashkent
         -- (openinfo info_rfb.isin_codes) but absent from the live uzse-stock feed
         -- because they have not traded recently. Carries the last-known trade
@@ -2488,6 +2508,103 @@ def get_quote_history(isins: Sequence[str], days: int = 30) -> dict[str, list[di
     # days: a quiet security would otherwise return an empty series and read as
     # "no data" when what it did was not trade.
     return {isin: series[-days:] for isin, series in out.items()}
+
+
+_INTRADAY_COLS = ("open_price", "high_price", "low_price", "close_price",
+                  "quantity", "turnover")
+# The hourly series exists to draw a day and a week; sixty days is history the
+# chart never asks for, kept only long enough that a pruning bug would be seen
+# before it mattered.
+INTRADAY_KEEP_DAYS = int(os.getenv("INTRADAY_KEEP_DAYS", "60"))
+
+
+def bulk_upsert_intraday_history(rows: list[dict]) -> int:
+    """Store hourly bars from the exchange's executions log, one statement per batch.
+
+    Same shape and same reasons as ``bulk_upsert_quote_history`` above: one
+    executemany (round trips are the Postgres cost model), deduplicated on the
+    full key first (PG refuses one statement touching a key twice), last write
+    wins (a later read of the same session is strictly more settled — the log
+    grows through the day and is immutable after it).
+
+    Also prunes bars older than ``INTRADAY_KEEP_DAYS``: the log feeds a day and
+    a week view, and unlike daily closes this table gains hundreds of rows per
+    session fleet-wide with no reader for the old ones.
+    """
+    def _num(v: Any) -> float | None:
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    seen: dict[tuple[str, str, int], list[Any]] = {}
+    for r in rows or []:
+        isin = str(r.get("isin") or "").strip().upper()
+        day = str(r.get("trade_date") or r.get("date") or "").strip().replace("-", "")
+        try:
+            hour = int(r.get("hour"))
+        except (TypeError, ValueError):
+            continue
+        if not isin or not re.fullmatch(r"\d{8}", day) or not 0 <= hour <= 23:
+            continue
+        seen[(isin, day, hour)] = [isin, day, hour,
+                                   _num(r.get("open_price") or r.get("open")),
+                                   _num(r.get("high_price") or r.get("high")),
+                                   _num(r.get("low_price") or r.get("low")),
+                                   _num(r.get("close_price") or r.get("close")),
+                                   _num(r.get("quantity")), _num(r.get("turnover"))]
+    if not seen:
+        return 0
+    assignments = ", ".join(f"{c}=excluded.{c}" for c in _INTRADAY_COLS)
+    cutoff = (date.today() - timedelta(days=INTRADAY_KEEP_DAYS)).strftime("%Y%m%d")
+    conn = get_catalog_conn()
+    try:
+        with conn:
+            conn.executemany(
+                f"""
+                INSERT INTO catalog_intraday_history
+                    (isin, trade_date, hour, {', '.join(_INTRADAY_COLS)}, updated_at)
+                VALUES ({','.join('?' * (len(_INTRADAY_COLS) + 3))}, datetime('now'))
+                ON CONFLICT(isin, trade_date, hour) DO UPDATE SET
+                    {assignments}, updated_at=datetime('now')
+                """,
+                list(seen.values()),
+            )
+            conn.execute("DELETE FROM catalog_intraday_history WHERE trade_date < ?",
+                         (cutoff,))
+    finally:
+        conn.close()
+    return len(seen)
+
+
+def get_intraday_history(isin: str, days: int = 7) -> list[dict[str, Any]]:
+    """Hourly bars for one security over the last ``days`` CALENDAR days, oldest first.
+
+    Calendar days, not sessions, unlike ``get_quote_history``: the hourly view
+    answers "what happened this week", and stretching a quiet security's last
+    active week under a «1Н» label would date the chart wrong. The chart falls
+    back to daily closes for the days this table has nothing for.
+    """
+    code = str(isin or "").strip().upper()
+    if not code:
+        return []
+    days = max(1, min(int(days or 7), INTRADAY_KEEP_DAYS))
+    # Inclusive of today: days=1 is TODAY's bars, not today's and yesterday's.
+    cutoff = (date.today() - timedelta(days=days - 1)).strftime("%Y%m%d")
+    conn = get_catalog_conn()
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT trade_date, hour, {', '.join(_INTRADAY_COLS)}
+            FROM catalog_intraday_history
+            WHERE isin = ? AND trade_date >= ?
+            ORDER BY trade_date, hour
+            """,
+            (code, cutoff),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
 
 
 def get_all_quotes() -> dict[str, dict[str, Any]]:
