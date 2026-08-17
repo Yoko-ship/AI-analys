@@ -12059,7 +12059,8 @@ function MarketView({
   // nobody. Bumping the key retires the old selection once, deliberately.
   const [visibleCols, setVisibleCols] = useState(() => {
     try { const s = JSON.parse(localStorage.getItem("uz_market_cols_v2")); if (Array.isArray(s)) return new Set(s); } catch (e) { /* ignore */ }
-    return new Set(["change", "change1w", "change1m", "open", "high", "low", "volume", "date", "source"]);
+    return new Set(["change", "change1w", "change1m", "nominal",
+                    "open", "high", "low", "volume", "date", "source"]);
   });
   const [colsOpen, setColsOpen] = useState(false);
   const colsBtnRef = useRef(null); // the popover is portaled — it anchors off this
@@ -12078,9 +12079,14 @@ function MarketView({
   // Drag-to-reorder columns. Ticker + company stay pinned left (identity cells);
   // everything from "last" onward is reorderable. Order is persisted per user.
   const MOVABLE_KEYS = ["last", ...MARKET_COLS.map(([k]) => k)];
+  // The key carries a version alongside uz_market_cols_v2, and for the same reason:
+  // a saved order keeps only the keys it knew and APPENDS the rest, so a column
+  // added next to «Изм.» landed at the far right of the board for every reader who
+  // had ever opened it — three screens of horizontal scroll from the column it
+  // belongs beside. Bumping the key retires the old order once, deliberately.
   const [colOrder, setColOrder] = useState(() => {
     try {
-      const s = JSON.parse(localStorage.getItem("uz_market_col_order"));
+      const s = JSON.parse(localStorage.getItem("uz_market_col_order_v2"));
       if (Array.isArray(s)) {
         const known = new Set(["last", ...MARKET_COLS.map(([k]) => k)]);
         const kept = s.filter((k) => known.has(k));
@@ -12090,7 +12096,7 @@ function MarketView({
     } catch (e) { /* ignore */ }
     return ["last", ...MARKET_COLS.map(([k]) => k)];
   });
-  useEffect(() => { try { localStorage.setItem("uz_market_col_order", JSON.stringify(colOrder)); } catch (e) { /* ignore */ } }, [colOrder]);
+  useEffect(() => { try { localStorage.setItem("uz_market_col_order_v2", JSON.stringify(colOrder)); } catch (e) { /* ignore */ } }, [colOrder]);
   const [dragCol, setDragCol] = useState(null);
   const [dragOverCol, setDragOverCol] = useState(null);
   const wrapRef = useRef(null); // .market-table-wrap — for the horizontal scroll controls
