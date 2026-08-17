@@ -7174,6 +7174,17 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   font-size: 0.86rem;
 }
 
+/* MAIN | NEGO. Sized like the share-class control below it: both are "which
+   market", and the instrument class above stays the loudest of the three. */
+.market-segment-control {
+  width: auto;
+}
+.market-segment-control button {
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
 /* The period every change on the screen is measured over. Seven buttons is a lot
    of bar, so they are the smallest thing in it and they wrap before anything
    else does — the control is a preference, not the primary filter. */
