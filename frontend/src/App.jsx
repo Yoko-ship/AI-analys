@@ -11716,6 +11716,11 @@ function MarketView({
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+  // Which of the exchange's two boards is on screen. Not persisted: MAIN is the
+  // market, NEGO is a handful of deals on a given day, and a reader who returns
+  // tomorrow to a five-row board they do not remember choosing would read it as
+  // the market having collapsed.
+  const [segment, setSegment] = useState("main");
   const [changePeriod, setChangePeriod] = useState(() => {
     try {
       const saved = localStorage.getItem(CHANGE_PERIOD_KEY);
@@ -12119,9 +12124,42 @@ function MarketView({
   };
   const tmap = tradeStats || {};
   const latestTsDay = latestTradeStatsDay(tmap);
-  const preparedAll = (Array.isArray(rows) ? rows : [])
+  const preparedEnriched = (Array.isArray(rows) ? rows : [])
     .map(enrichMarketStock)
     .map((r) => applyTradeStats(r, tmap, latestTsDay));
+
+  // MAIN | NEGO — the exchange's own two boards. Its execution feed tags every
+  // deal with a board id: G1 is the auction, T1 is a negotiated (переговорная)
+  // deal struck bilaterally at an agreed price. The two are not one market and
+  // must not be summed: a 2,2-млрд-бумаг T1 deal at 55 while the auction traded
+  // 95,5–99,99 (HMKB, 14.08.2026) poisoned the session's turnover, low and VWAP
+  // until the day statistics were split.
+  //
+  // MAIN is the board this page has always shown. NEGO is the same securities
+  // seen through their negotiated deals: only the lines that had one, with the
+  // negotiated turnover, quantity and count in the volume columns and the
+  // negotiated average price derived from them. The PRICES stay the session's —
+  // a negotiated price is not a quote, which is the whole reason the boards are
+  // separate — and the note under the table says so.
+  const negotiated = (r) => {
+    const value = r?.ts?.block_value;
+    return Number.isFinite(value) && value > 0;
+  };
+  const asNegotiated = (r) => ({
+    ...r,
+    stockVolume: r.ts.block_value,
+    stockQuantity: Number.isFinite(r.ts.block_qty) ? r.ts.block_qty : null,
+    stockTradeCount: Number.isFinite(r.ts.block_count) ? r.ts.block_count : null,
+    // Cleared so «Ср. цена акции» derives from the NEGOTIATED turnover and
+    // quantity (avgSharePrice) instead of serving the auction's VWAP under a
+    // negotiated row. Same for the session VWAP column.
+    avgPrice: undefined,
+    vwap: null,
+  });
+  const negotiatedCount = preparedEnriched.filter(negotiated).length;
+  const preparedAll = segment === "nego"
+    ? preparedEnriched.filter(negotiated).map(asNegotiated)
+    : preparedEnriched;
   // "preferred" is a client-side subset of stocks (the feed was fetched as
   // type=stock); narrow to preferred shares so the table, sectors and heatmap
   // all reflect the filter.
@@ -13089,6 +13127,31 @@ function MarketView({
                 );
               })}
             </div>
+            {/* MAIN | NEGO — the exchange's own two boards, side by side with the
+                instrument class because that is the same kind of choice: which
+                market you are looking at, not which slice of one. The count says
+                how many lines had a negotiated deal, so an empty NEGO board
+                reads as «none today» rather than as a broken page. */}
+            <div className="segmented-control market-segment-control"
+              role="group"
+              aria-label={lang === "en" ? "Market board" : lang === "uz" ? "Bozor" : "Рынок"}>
+              {[["main", lang === "en" ? "Main" : lang === "uz" ? "Asosiy" : "Основной"],
+                ["nego", lang === "en" ? "Negotiated" : lang === "uz" ? "Kelishilgan" : "Переговорный"]]
+                .map(([value, label]) => (
+                  <button key={value} type="button"
+                    className={segment === value ? "active" : ""}
+                    aria-pressed={segment === value}
+                    onClick={() => setSegment(value)}
+                    title={value === "main"
+                      ? (lang === "en" ? "The auction session (board G1)"
+                         : lang === "uz" ? "Auksion sessiyasi (G1)" : "Аукционная сессия (борд G1)")
+                      : (lang === "en" ? "Negotiated deals, struck bilaterally (board T1)"
+                         : lang === "uz" ? "Kelishilgan bitimlar (T1)" : "Переговорные сделки, вне сессии (борд T1)")}>
+                    {label}
+                    {value === "nego" && negotiatedCount > 0 ? ` (${negotiatedCount})` : ""}
+                  </button>
+                ))}
+            </div>
             {/* Level 2: share class — only meaningful inside stocks. */}
             {type !== "bond" && (
               <div className="segmented-control market-subtype-control">
@@ -13436,6 +13499,25 @@ function MarketView({
                 : lang === "uz"
                   ? "90 kundan ortiq bitimsiz qog'ozlar. Narx — ularning oxirgi yopilishi, oldinga ko'chirilgan; kunlik o'zgarish yo'q va yuqoridagi kapitalizatsiya ularni hisobga olmaydi."
                   : "Бумаги без сделок более 90 дней. Цена — их последнее закрытие, перенесённое вперёд: дневного изменения нет, и в капитализацию рынка выше они не входят."}
+            </p>
+          )}
+          {/* The NEGO board's own contract, stated where it is read: which
+              columns are negotiated figures, which are still the session's, and
+              why the two are never added together. */}
+          {segment === "nego" && (
+            <p className="market-dormant-note">
+              {lang === "en"
+                ? "Negotiated deals (exchange board T1) — struck bilaterally at an agreed price, outside the auction. Turnover, quantity, trades and the average price are the negotiated ones; the quote, the day's change and the OHLC remain the auction session's, because a negotiated price is not a quote. The exchange's own bulletin excludes these deals from the session, and so does the Main board."
+                : lang === "uz"
+                  ? "Kelishilgan bitimlar (T1 bordi) — auksiondan tashqari, kelishilgan narxda. Aylanma, hajm, bitimlar soni va o'rtacha narx — kelishilgan; kotirovka, kunlik o'zgarish va OHLC — auksion sessiyasining, chunki kelishilgan narx kotirovka emas."
+                  : "Переговорные сделки (борд T1) — заключены двусторонне по согласованной цене, вне аукциона. Оборот, количество, число сделок и средняя цена — переговорные; котировка, дневное изменение и OHLC остаются аукционными, потому что переговорная цена не является котировкой. Бюллетень биржи не включает эти сделки в сессию — и «Основной» рынок здесь тоже."}
+            </p>
+          )}
+          {segment === "nego" && negotiatedCount === 0 && !loading && (
+            <p className="market-dormant-note">
+              {lang === "en" ? "No negotiated deals in the latest session."
+                : lang === "uz" ? "Oxirgi sessiyada kelishilgan bitimlar bo'lmagan."
+                : "В последней сессии переговорных сделок не было."}
             </p>
           )}
           <div className="market-table-wrap" ref={wrapRef}>
