@@ -2876,6 +2876,11 @@ body[data-theme="light"] .fx-bar {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Never squeezed and never squeezed OUT: the nav beside it scrolls when the
+     row runs short (see mobile.css), and these are the controls a reader needs
+     to still be able to reach — the theme toggle spent a release pushed past the
+     right edge of the viewport because this block could be overrun. */
+  flex: 0 0 auto;
 }
 
 .topbar-language {
@@ -7185,17 +7190,44 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   white-space: nowrap;
 }
 
-/* The period every change on the screen is measured over. Seven buttons is a lot
-   of bar, so they are the smallest thing in it and they wrap before anything
-   else does — the control is a preference, not the primary filter. */
+/* The period every change on the screen is measured over. Seven buttons do not
+   fit in the slot beside the instrument-class control — wrapped inside the
+   segmented pill they made a three-row blob with a rounded background around it —
+   so the row takes a line of its own and states what it is choosing. */
+.market-period-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 0 100%;
+  min-width: 0;
+  /* Last in the bar, whatever the markup order: a full-width row placed between
+     the instrument class and the search would strand both on lines of their own
+     with half the bar empty beside them. */
+  order: 9;
+}
+
+.market-period-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .market-period-control {
   width: auto;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  /* One line, always: on a narrow window it pans sideways rather than folding,
+     the same choice the FX strip and the sector chips make. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.market-period-control::-webkit-scrollbar { display: none; }
 .market-period-control button {
   padding: 7px 11px;
   font-size: 0.82rem;
   white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .market-search {
@@ -7904,14 +7936,36 @@ body:has(.topbar.is-nav-open) .market-float-scroll {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
+  gap: 8px;
+  /* Sized to its label now, with the icon-only width as the floor so it keeps its
+     shape where mobile.css hides the label. */
+  min-width: 42px;
   height: 42px;
+  padding: 0 14px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border);
   background: var(--bg-2);
   color: var(--muted);
+  font-size: 0.9rem;
   cursor: pointer;
   transition: all var(--duration-normal) var(--ease-out);
+}
+
+.market-cols-btn .market-btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.market-cols-count {
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  background: var(--accent-light);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 .market-cols-btn:hover { color: var(--text); }
 .market-cols-btn.active { background: var(--panel-elevated); color: var(--text); box-shadow: var(--shadow-sm); }

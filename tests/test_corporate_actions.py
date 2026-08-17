@@ -97,3 +97,58 @@ def test_actions_are_ordered_and_well_formed():
             assert action.ratio > 1, ticker          # every event adds shares
             assert action.kind in {"split", "bonus"}, ticker
             assert action.source.startswith("https://"), ticker
+
+
+class TestTheStoredDailyCloseSeries:
+    """The same restatement, on the shape `catalog_quote_history` keeps.
+
+    That store dates its sessions YYYYMMDD and names the price `close_price`, and
+    it is what the market board's period changes, every sparkline and the Quick
+    Compare peer lines are drawn from. It was NOT adjusted: a window spanning
+    ALSM's 2025 recapitalisation reported a 40 % collapse to a holder who had in
+    fact gained, and the sparkline drew the same cliff the price chart had already
+    been taught to remove.
+    """
+
+    def test_a_stored_row_is_restated_like_a_chart_point(self):
+        rows = [{"trade_date": "20250403", "close_price": 1495.0},
+                {"trade_date": "20251007", "close_price": 897.0}]
+
+        adjusted, applied = adjust_history(rows, "ALSM", date_key="trade_date",
+                                           price_fields=("close_price",))
+
+        assert adjusted[0]["close_price"] == pytest.approx(1495.0 / 3, rel=1e-6)
+        assert adjusted[1]["close_price"] == 897.0
+        assert [a["kind"] for a in applied] == ["split", "bonus"]
+
+    def test_the_two_date_shapes_place_a_point_the_same_way(self):
+        """A digit-only date must not compare as greater than every ISO one.
+
+        «20250926» > «2025-04-03» as strings, so an unnormalised comparison finds
+        no point before the event and silently rescales nothing — the failure mode
+        with no symptom.
+        """
+        iso, _ = adjust_history([{"date": "2025-04-03", "close": 1495.0}], "ALSM")
+        stored, _ = adjust_history([{"trade_date": "20250403", "close_price": 1495.0}],
+                                    "ALSM", date_key="trade_date",
+                                    price_fields=("close_price",))
+
+        assert iso[0]["close"] == pytest.approx(stored[0]["close_price"], rel=1e-9)
+
+    def test_a_security_with_no_action_comes_back_untouched(self):
+        rows = [{"trade_date": "20240110", "close_price": 500.0}]
+
+        adjusted, applied = adjust_history(rows, "UZTL", date_key="trade_date",
+                                           price_fields=("close_price",))
+
+        assert adjusted == rows and applied == []
+
+    def test_the_isin_finds_the_action_when_the_ticker_is_absent(self):
+        rows = [{"trade_date": "20250403", "close_price": 1495.0}]
+
+        adjusted, applied = adjust_history(rows, None, "UZ7045320007",
+                                           date_key="trade_date",
+                                           price_fields=("close_price",))
+
+        assert adjusted[0]["close_price"] == pytest.approx(1495.0 / 3, rel=1e-6)
+        assert len(applied) == 2

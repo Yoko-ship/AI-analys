@@ -86,6 +86,7 @@ from reports_catalog import (
 from market_audit import audit_session
 # ТЗ v1.2 domain layer: every formula lives in these, and nothing above them
 # recomputes one. The API is serialisation and cache headers only (§11.1).
+import corporate_actions  # noqa: E402
 import formulas  # noqa: E402
 import fundamentals  # noqa: E402
 import heatmap  # noqa: E402
@@ -1880,8 +1881,17 @@ async def api_market_changes(request: Request) -> Response:
         logger.exception("market changes failed")
         raise HTTPException(status_code=502, detail="changes unavailable") from exc
 
+    ticker_of = {isin: ticker for ticker, isin in isin_of.items() if isin}
     series: dict[str, list[dict[str, Any]]] = {}
     for isin, rows in history.items():
+        # Back-adjusted for splits and bonus issues FIRST. The stored closes are
+        # what the exchange printed on the day, and a window spanning ALSM's 2025
+        # recapitalisation (one April share is three of today's) would otherwise
+        # report a 40 % collapse to a holder who had in fact gained. This is the
+        # same restatement the price chart applies; the two must not disagree.
+        rows, _applied = corporate_actions.adjust_history(
+            rows, ticker_of.get(isin), isin,
+            date_key="trade_date", price_fields=("close_price",))
         points = []
         for r in rows:
             close = formulas.to_number(r.get("close_price"))
@@ -4285,6 +4295,11 @@ async def api_quotes_series(request: Request, tickers: str = "", days: int = 30)
         series = {}
         for ticker, isin in isin_of.items():
             rows = history.get(str(isin or "").upper()) or []
+            # Restated onto today's share, exactly as /api/price-history is: these
+            # points draw the sparklines and the Quick Compare peer lines, and an
+            # unadjusted series puts a 40 % cliff in the middle of a flat one.
+            rows, _applied = corporate_actions.adjust_history(
+                rows, ticker, isin, date_key="trade_date", price_fields=("close_price",))
             # [date, close, turnover] triples, not objects: this is the one
             # payload that scales with tickers x sessions, and the key names
             # would be most of the bytes on the wire. Turnover is сумы rounded

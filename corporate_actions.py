@@ -147,10 +147,24 @@ def resolve_ticker(ticker: str | None, isin: str | None = None) -> str | None:
     return ISIN_TICKERS.get(str(isin or "").strip().upper()) or None
 
 
+def _day_key(value: Any) -> str:
+    """A date as bare digits, so «2025-09-26» and «20250926» compare as one thing.
+
+    The two shapes are both in the codebase — the openinfo archive dates a point
+    ISO, the stored daily-close table keys its sessions YYYYMMDD — and an event
+    date compared against the wrong one silently rescales nothing (a dash-free
+    "20250926" is greater than every "2025-.." string).
+    """
+    return "".join(ch for ch in str(value or "") if ch.isdigit())[:8]
+
+
 def adjust_history(
     points: Iterable[dict[str, Any]] | None,
     ticker: str | None,
     isin: str | None = None,
+    *,
+    date_key: str = "date",
+    price_fields: tuple[str, ...] = _PRICE_FIELDS,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Rescale pre-event prices onto the current share.
 
@@ -158,6 +172,12 @@ def adjust_history(
     and the actions that actually moved at least one point, so a caller can say so on the
     chart. Points are never dropped or reordered, and a series that begins after every
     known event comes back untouched.
+
+    ``date_key`` and ``price_fields`` exist for the stored daily-close series
+    (`catalog_quote_history`: ``trade_date`` + ``close_price``), which the market
+    board's period changes and every sparkline are drawn from. That series was
+    NOT adjusted, so a window spanning ALSM's 2025 recapitalisation would have
+    reported a 40 % collapse to a holder who had in fact gained.
     """
     adjusted = [dict(point) for point in (points or [])]
     actions = actions_for(resolve_ticker(ticker, isin))
@@ -166,7 +186,7 @@ def adjust_history(
 
     touched = [0] * len(actions)
     for point in adjusted:
-        day = str(point.get("date") or "")
+        day = _day_key(point.get(date_key))
         # A point with no date cannot be placed either side of an event; leaving it raw
         # keeps it wrong in one known way instead of silently rescaled into another.
         if not day:
@@ -176,12 +196,12 @@ def adjust_history(
         # survive that intact.
         factor = 1.0
         for index, action in enumerate(actions):
-            if day < action.ex_date:
+            if day < _day_key(action.ex_date):
                 factor /= action.ratio
                 touched[index] += 1
         if factor == 1.0:
             continue
-        for field in _PRICE_FIELDS:
+        for field in price_fields:
             value = point.get(field)
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 point[field] = round(value * factor, 8)

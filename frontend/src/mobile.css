@@ -92,7 +92,12 @@ iframe {
    `min-width: 1181px` left a hairline band (innerWidth 1181, clientWidth 1173)
    where neither matched and the topbar snapped back to its 1445px layout. The
    drawer block below is later in the cascade and overrides what it needs. */
-@media (max-width: 1460px) {
+/* The desktop topbar has no slack: measured on prod at a 1526px window, its
+   contents came to 1518px — so ANY control added to it pushed the theme toggle
+   clean off the right edge, and the text-size group did exactly that. The band
+   where the nav goes compact therefore starts at 1700px, not 1460: below that
+   width the row is sized to its contents rather than to a hope. */
+@media (max-width: 1700px) {
   .topbar {
     gap: 10px;
     padding: 0 14px;
@@ -469,6 +474,10 @@ iframe {
     flex: 0 0 auto;
     height: 38px;
     width: 38px;
+    /* The desktop rule gives the labelled button a 42px floor; without this the
+       floor would win over the width above and the icon-only button would sit
+       4px wider than the star beside it. */
+    min-width: 38px;
     padding: 0;
     justify-content: center;
   }
