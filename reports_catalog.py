@@ -9,6 +9,7 @@ import threading
 import time
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlencode
 
@@ -53,7 +54,18 @@ for _name, _ticker in COMPANY_CATALOG.items():
 # ---------------------------------------------------------------------------
 
 def _catalog_db_path() -> str:
-    path = APP_DATA_DIR / "reports_catalog.db"
+    """Where the catalogue lives — ``CATALOG_DB_PATH`` overrides the data dir.
+
+    The override is not a convenience. Four tests in test_balance_block set
+    CATALOG_DB_PATH to a tmp_path and, because nothing read it, wrote their
+    fixtures into the real catalogue instead: a synthetic «KSCM 2025Q4, revenue
+    900» and two rows under the tickers "X" and "Y" were sitting in
+    data/reports_catalog.db on 2026-08-17. That store is what the collector's
+    backfills read and push to production, so a test fixture was one sweep away
+    from being served as a filing.
+    """
+    override = os.getenv("CATALOG_DB_PATH")
+    path = Path(override) if override else (APP_DATA_DIR / "reports_catalog.db")
     path.parent.mkdir(parents=True, exist_ok=True)
     return str(path)
 
@@ -440,6 +452,15 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN total_assets REAL")
     if "total_equity" not in have_fin:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN total_equity REAL")
+    # The current section of the balance — «Итого по разделу II» of the asset
+    # side, «Текущие обязательства, всего» and «Товарно-материальные запасы».
+    # The indicator feed publishes liquidity, asset turnover and ROCE for barely
+    # half the board (56, 56 and 64 of 95 on 2026-08-17) while every one of those
+    # issuers files the lines they are computed from, so the columns were empty
+    # for the rest. These three make them derivable.
+    for column in ("current_assets", "current_liabilities", "inventories"):
+        if column not in have_fin:
+            conn.execute(f"ALTER TABLE catalog_financials ADD COLUMN {column} REAL")
     conn.commit()
 
 
@@ -661,7 +682,12 @@ def _upsert_report(
         -- unqualified form does not degrade, it stops the sync dead.
         ON CONFLICT(ticker, report_form, period_type, year, quarter) DO UPDATE SET
             title               = excluded.title,
-            published_at        = excluded.published_at,
+            -- The structured accounting feed carries no publication date, so an
+            -- hourly sync would blank the one the unified feed established —
+            -- and the historical-quarter harvest reads that date to tell a
+            -- superseded revision from a filing it has never seen. Same rule as
+            -- the links below: a payload silent about a field leaves it alone.
+            published_at        = COALESCE(excluded.published_at, catalog_reports.published_at),
             pdf_url             = COALESCE(excluded.pdf_url, catalog_reports.pdf_url),
             excel_url           = COALESCE(excluded.excel_url, catalog_reports.excel_url),
             excel_url_form1     = COALESCE(excluded.excel_url_form1, catalog_reports.excel_url_form1),
@@ -1973,13 +1999,22 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
                 (ticker, form, year, quarter, revenue, gross_profit, cash,
                  total_liabilities, net_income, operating_income,
                  total_assets, total_equity,
+                 current_assets, current_liabilities, inventories,
                  field_periods, report_id, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
             ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                 revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                 cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                 net_income=excluded.net_income, operating_income=excluded.operating_income,
                 total_assets=excluded.total_assets, total_equity=excluded.total_equity,
+                -- A form with no current section (the bank balance) states none
+                -- of these, and a re-parse of one must not blank what another
+                -- form's filing established for an earlier period.
+                current_assets=COALESCE(excluded.current_assets,
+                                        catalog_financials.current_assets),
+                current_liabilities=COALESCE(excluded.current_liabilities,
+                                             catalog_financials.current_liabilities),
+                inventories=COALESCE(excluded.inventories, catalog_financials.inventories),
                 field_periods=excluded.field_periods,
                 -- A re-parse that cannot name its source must not erase the
                 -- link the previous one established.
@@ -1992,6 +2027,8 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
              values.get("operating_income"),
              values.get("total_assets"),
              values.get("total_equity", values.get("equity")),
+             values.get("current_assets"), values.get("current_liabilities"),
+             values.get("inventories"),
              _encode_field_periods(values.get("field_periods")), report_id),
         )
     conn.close()
@@ -2101,13 +2138,20 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
                          total_assets, total_equity,
+                         current_assets, current_liabilities, inventories,
                          noninterest_income, org_type, balance_period,
                          field_periods, prior_period, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                         net_income=excluded.net_income, operating_income=excluded.operating_income,
+                        current_assets=COALESCE(excluded.current_assets,
+                                                catalog_financials.current_assets),
+                        current_liabilities=COALESCE(excluded.current_liabilities,
+                                                     catalog_financials.current_liabilities),
+                        inventories=COALESCE(excluded.inventories,
+                                             catalog_financials.inventories),
                         noninterest_income=excluded.noninterest_income,
                         -- An upsert that says nothing about the form or the
                         -- balance must not erase what a reconcile established.
@@ -2130,6 +2174,8 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("operating_income")),
                      _bal_total(r, "total_assets", "assets_end"),
                      _bal_total(r, "total_equity", "equity_end"),
+                     _num(r.get("current_assets")), _num(r.get("current_liabilities")),
+                     _num(r.get("inventories")),
                      _num(r.get("noninterest_income")),
                      (str(r.get("org_type")) if r.get("org_type") else None),
                      _encode_balance_period(r.get("balance")),
@@ -2146,11 +2192,11 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
     """Make the supplied rows the *authoritative* set of periods for their tickers.
 
     Unlike :func:`bulk_upsert_financials` (which only upserts one (ticker, form,
-    year, quarter) key and leaves other period rows in place), this deletes every
-    stored period for each ticker in ``rows`` and inserts what was supplied. It is
-    used to push structured-JSON reconciled figures (openinfo_reconcile): the read
-    path serves the highest-ranked period, so a stale or spurious higher period
-    already in the cache would otherwise shadow a correct annual/earlier period.
+    year, quarter) key and leaves every other period row alone), this also clears
+    the periods stored ABOVE the newest one supplied. It is used to push
+    structured-JSON reconciled figures (openinfo_reconcile): the read path serves
+    the highest-ranked period, so a stale or spurious higher period already in the
+    cache would otherwise shadow the figures this push establishes.
 
     A ticker may legitimately supply SEVERAL periods — the latest cumulative
     quarter plus the last complete fiscal year that ratios need a 12-month
@@ -2169,24 +2215,33 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
     # every backfilled historical year went with it, so the multi-year income
     # statement landed on 2026-08-08 and was gone by the next daily reconcile,
     # with the hourly filings watch erasing it ticker by ticker in between.
-    # Nothing ranked BELOW the push can shadow it, so only the range from the
-    # push's oldest period upward is cleared; the history behind it stands.
-    def _floor(year: int, quarter: int) -> int:
-        # Stored rows rank as in get_company_ratios_cached: an annual (quarter 0)
-        # is the year's FINAL figure, year*10+5. A pushed annual clears from the
-        # START of its year — its own stale quarters are partials it supersedes —
-        # while a pushed quarter clears only from itself upward.
-        return year * 10 + (0 if not quarter else int(quarter))
+    #
+    # Only a period ranked ABOVE the newest one pushed can shadow it, so that —
+    # strictly above the CEILING — is the whole of what a replace may clear.
+    # Clearing from the push's oldest period upward, as this did, deleted the
+    # periods BETWEEN the two rows of a normal reconcile push: an annual ranked
+    # from the start of its year, so the daily push of «2026Q2 + FY2025» erased
+    # 2025Q1, 2025Q2, 2025Q3 and 2026Q1 every single day. Measured fleet-wide
+    # 2026-08-17: 19 quarterly periods stored for 2025 against 301 for 2023,
+    # and the quarterly view showed a two-year hole between 2024Q4 and the
+    # current quarter. Worse, the 9-month filing it deleted is the very row Q4
+    # is derived from (annual − 9M), so the year lost its fourth quarter too.
+    def _rank(year: int, quarter: int) -> int:
+        # The rank the DELETE below computes, and the one get_company_ratios_cached
+        # orders by: an annual (quarter 0) is the year's FINAL figure, year*10+5,
+        # so a cumulative quarter of the same year always ranks below it and can
+        # never shadow it.
+        return year * 10 + (5 if not quarter else int(quarter))
 
-    floors: dict[tuple[str, str], int] = {}
+    ceilings: dict[tuple[str, str], int] = {}
     for r in rows or []:
         ticker = str(r.get("ticker") or "").strip().upper()
         period = _financials_period(r)
         if not ticker or period is None:
             continue
         key = (ticker, str(r.get("form") or form))
-        rank = _floor(*period)
-        floors[key] = min(floors.get(key, rank), rank)
+        rank = _rank(*period)
+        ceilings[key] = max(ceilings.get(key, rank), rank)
 
     conn = get_catalog_conn()
     n = 0
@@ -2205,8 +2260,8 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                 if (ticker, row_form) not in cleared:
                     conn.execute(
                         "DELETE FROM catalog_financials WHERE ticker=? AND form=? "
-                        "AND (year*10 + CASE WHEN quarter=0 THEN 5 ELSE quarter END) >= ?",
-                        (ticker, row_form, floors[(ticker, row_form)]))
+                        "AND (year*10 + CASE WHEN quarter=0 THEN 5 ELSE quarter END) > ?",
+                        (ticker, row_form, ceilings[(ticker, row_form)]))
                     cleared.add((ticker, row_form))
                 conn.execute(
                     """
@@ -2218,9 +2273,10 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
                          total_liabilities, net_income, operating_income,
                          total_assets, total_equity,
+                         current_assets, current_liabilities, inventories,
                          noninterest_income, org_type, balance_period,
                          field_periods, prior_period, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
@@ -2228,6 +2284,12 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                         operating_income=excluded.operating_income,
                         total_assets=excluded.total_assets,
                         total_equity=excluded.total_equity,
+                        current_assets=COALESCE(excluded.current_assets,
+                                                catalog_financials.current_assets),
+                        current_liabilities=COALESCE(excluded.current_liabilities,
+                                                     catalog_financials.current_liabilities),
+                        inventories=COALESCE(excluded.inventories,
+                                             catalog_financials.inventories),
                         noninterest_income=excluded.noninterest_income,
                         org_type=excluded.org_type,
                         balance_period=excluded.balance_period,
@@ -2241,6 +2303,8 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("operating_income")),
                      _bal_total(r, "total_assets", "assets_end"),
                      _bal_total(r, "total_equity", "equity_end"),
+                     _num(r.get("current_assets")), _num(r.get("current_liabilities")),
+                     _num(r.get("inventories")),
                      _num(r.get("noninterest_income")),
                      (str(r.get("org_type")) if r.get("org_type") else None),
                      _encode_balance_period(r.get("balance")),
@@ -3061,6 +3125,11 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
 _MIN_PLAUSIBLE = 10_000
 _FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income",
                "operating_income", "total_assets", "total_equity")
+# The current section of the balance. Not part of _FIN_FIELDS — these are not
+# lines the Финансы tab shows; they exist so the liquidity, turnover and ROCE
+# coefficients can be computed for the 39 issuers whose indicator feed publishes
+# none of them. They travel on the push rows like every other parsed sum.
+_FIN_CURRENT_FIELDS = ("current_assets", "current_liabilities", "inventories")
 _RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_ratio",
                  "quick_ratio", "debt_ratio", "total_asset_turnover",
                  "return_to_capital_employed", "total_equity", "total_assets")
@@ -3072,7 +3141,7 @@ _RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_r
 # factor at the response boundary so the client never mixes units — dividing a
 # full-UZS market cap by thousands-UZS earnings understated P/E and P/B ~1000×.
 NSBU_THOUSANDS_UZS = 1000.0
-FIN_MONEY_FIELDS = _FIN_FIELDS + ("noninterest_income",)
+FIN_MONEY_FIELDS = _FIN_FIELDS + ("noninterest_income",) + _FIN_CURRENT_FIELDS
 RATIO_MONEY_FIELDS = ("total_equity", "total_assets")
 # The filed-balance block travels as a nested dict; its members are the same
 # thousands-of-UZS sums and are scaled at the same response boundary.
@@ -3218,6 +3287,62 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
                 filed_debt[t] = (period, float(r["debt_ratio"]))
     except Exception:
         logger.exception("filed debt_ratio read failed")
+    # LIQUIDITY AND TURNOVER OFF THE FILINGS. The indicator feed publishes a
+    # current ratio and an asset turnover for 56 of the 95 issuers on the board
+    # and nothing for the other 39, so three of the four «Коэффициенты» columns
+    # were empty for two issuers in five while every one of them files the lines
+    # the ratios are made of.
+    #
+    # These three identities are the source's own, MEASURED against it: over the
+    # issuer-years where the feed publishes a value and this platform has parsed
+    # the same year's filing (2026-08-17),
+    #
+    #   current_ratio        = current assets / current liabilities   35 of 38 exact
+    #   quick_ratio          = (current assets − stocks) / same       35 of 38 exact
+    #   total_asset_turnover = revenue / total assets                 34 of 37 exact
+    #
+    # to the two decimals the feed publishes. All three misses are BIOK, QZSM and
+    # UQEQ, the issuers whose filing years the platform already flags as
+    # disagreeing with the feed — not a disagreement about the formula.
+    #
+    # ROCE is NOT derived. «EBIT / (assets − current liabilities)», the textbook
+    # base, reproduces the feed's figure 7 times in 42 — the feed computes it on
+    # something it does not name, so it stays exactly as published, blank where
+    # the source is silent, rather than being replaced by our own different number
+    # under the source's label.
+    filed_ratios: dict[str, dict[str, tuple[str, float]]] = {}
+    try:
+        for r in conn.execute(
+            "SELECT ticker, year, quarter, revenue, total_assets, current_assets, "
+            "       current_liabilities, inventories "
+            "FROM catalog_financials WHERE form='NSBU' "
+            "  AND (current_assets IS NOT NULL OR total_assets IS NOT NULL)"
+        ).fetchall():
+            t = str(r["ticker"] or "").upper()
+            if not t:
+                continue
+            period = _row_period({"year": r["year"], "quarter": r["quarter"]})
+            if not period:
+                continue
+            ca, cl = r["current_assets"], r["current_liabilities"]
+            inv, assets, revenue = r["inventories"], r["total_assets"], r["revenue"]
+            derived: dict[str, float] = {}
+            if ca is not None and cl:
+                derived["current_ratio"] = round(ca / cl, 2)
+                derived["quick_ratio"] = round((ca - (inv or 0.0)) / cl, 2)
+            # A cumulative quarter is three, six or nine months of revenue; over
+            # a full-year balance it would read as a business a third the size it
+            # is. The turnover comes off ANNUAL rows only — the balance ratios
+            # above are point-in-time and any period states them.
+            if not r["quarter"] and revenue is not None and assets:
+                derived["total_asset_turnover"] = round(revenue / assets, 2)
+            for field, value in derived.items():
+                slot = filed_ratios.setdefault(t, {})
+                if (field not in slot
+                        or _fact_period_rank(period) > _fact_period_rank(slot[field][0])):
+                    slot[field] = (period, value)
+    except Exception:
+        logger.exception("filed liquidity/turnover read failed")
     best: dict[tuple[str, str], tuple[str, float]] = {}
     by_period: dict[tuple[str, str], dict[str, float]] = {}
     for r in rows:
@@ -3296,6 +3421,18 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             if filed_wins:
                 entry["debt_ratio"] = hit[1]
                 field_periods["debt_ratio"] = hit[0]
+            # Liquidity and turnover, same precedence and same sibling fallback:
+            # the filing wins when it covers a period at least as recent as the
+            # feed's, and fills the field outright where the feed has nothing.
+            for field, hit in (filed_ratios.get(ticker)
+                               or filed_ratios.get(sibling) or {}).items():
+                if (field not in field_periods
+                        or _fact_period_rank(hit[0]) >= _fact_period_rank(field_periods[field])):
+                    entry[field] = hit[1]
+                    field_periods[field] = hit[0]
+                    if (latest_period is None
+                            or _fact_period_rank(hit[0]) > _fact_period_rank(latest_period)):
+                        latest_period = hit[0]
         if entry:
             entry["period"] = latest_period
             entry["periods"] = field_periods
@@ -4279,6 +4416,274 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
     return out
 
 
+# ---------------------------------------------------------------------------
+# Historical quarters — beyond the source's ten-quarter window
+# ---------------------------------------------------------------------------
+#
+# `/reports/accounting-report/{org}/?report_type=quarter` answers with the TEN
+# most recent quarterly filings and nothing older. page_size, limit, page and
+# year are all ignored (measured 2026-08-17 against org 446, which has published
+# thirty). So the structured sync can only ever teach this catalog the last two
+# and a half years, and a quarter it never saw inside that window is lost to it
+# permanently — which is why the Финансы tab's quarterly view began in 2023 for
+# every issuer while openinfo has been publishing quarterlies since 2016.
+#
+# The unified feed lists EVERY filing, back to the first one, but states no
+# period for any of them. The period comes out of the workbook instead: the
+# quarterly form's header carries «Период квартала». Filings from 2016-2017
+# leave that cell as "-", and there the publication date stands in — a quarterly
+# is filed within a month of the quarter it closes, and no filing can predate
+# the period it describes.
+
+# The month a quarter ends in, for the "published after the period ended" bound.
+_QUARTER_END_MONTH = {1: 3, 2: 6, 3: 9, 4: 12}
+
+_STATED_QUARTER_LABELS = ("период квартала", "chorak davri", "chorak muddati")
+
+# Publication month → the quarter such a filing can only be closing. Nobody on
+# this market files a fourth quarterly (the annual IS the Q4 disclosure), so a
+# filing published in January–March is a late nine-month report, not a Q4.
+_PUB_MONTH_QUARTER = {1: 3, 2: 3, 3: 3, 4: 1, 5: 1, 6: 1,
+                      7: 2, 8: 2, 9: 2, 10: 3, 11: 3, 12: 3}
+
+
+def _stated_quarter(parsed: dict[str, Any] | None) -> int | None:
+    """The quarter the workbook's own header states (1-4), or None if it does not."""
+    for sheet in ((parsed or {}).get("sheets") or []):
+        for row in (sheet.get("table_rows") or []):
+            label = str(row.get("label") or "").lower()
+            if not any(hint in label for hint in _STATED_QUARTER_LABELS):
+                continue
+            for value in (row.get("numeric_values") or []):
+                try:
+                    quarter = int(value)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= quarter <= 4:
+                    return quarter
+    return None
+
+
+def _quarter_period_from_publication(quarter: int, pub: datetime) -> tuple[int, int]:
+    """(fiscal year, quarter) for a filing published on ``pub``.
+
+    A period cannot end after the report describing it was published — the same
+    invariant :func:`_effective_annual_year` applies to annuals. So the year is
+    the publication year when the quarter had already closed by then, and the
+    year before it otherwise (a late filing).
+    """
+    year = pub.year if pub.month > _QUARTER_END_MONTH[quarter] else pub.year - 1
+    return year, quarter
+
+
+EXCEL_HARVEST_MAX_BYTES = int(os.getenv("OPENINFO_EXCEL_MAX_BYTES", "3000000"))
+
+
+def _parse_workbook_uncached(session: Any, excel_url: str) -> dict[str, Any]:
+    """Download and parse one NSBU workbook, bypassing the snapshot cache.
+
+    :func:`parse_excel_report_document` memoises into a single JSON file that it
+    rewrites whole on every write and trims to 500 entries. At ~60 KB a snapshot
+    that file is already 30 MB, so a sweep of two thousand historical filings
+    would rewrite 30 MB two thousand times to keep 500 of them — minutes of disk
+    for a cache that cannot hold the sweep anyway. A one-pass backfill has no
+    second read to serve, so it takes the workbook straight.
+    """
+    from openinfo_collector import _parse_excel_workbook
+
+    response = session.get(excel_url, timeout=REQUEST_TIMEOUT)
+    response.raise_for_status()
+    content = response.content
+    if len(content) > EXCEL_HARVEST_MAX_BYTES:
+        return {"ok": False, "error": f"Excel file is too large: {len(content)} bytes"}
+    return {"ok": True, "source": "openinfo_excel", **_parse_excel_workbook(content)}
+
+
+EXCEL_HARVEST_MAX_BYTES = int(os.getenv("OPENINFO_EXCEL_MAX_BYTES", "3000000"))
+
+
+def unified_quarterly_records(session: Any, org_id: Any) -> list[dict[str, Any]]:
+    """Every NSBU quarterly filing the unified feed lists for one issuer.
+
+    Returns records carrying the accounting id the Excel export takes
+    (``report_link``'s tail), the ``to_pdf`` id, the publication date and the
+    export URL — everything except the period, which only the workbook knows.
+    """
+    out: list[dict[str, Any]] = []
+    if not org_id:
+        return out
+    for page in range(1, 6):
+        try:
+            payload = _json_get(session, "/reports/unified-financial-reports/",
+                                {"format": "json", "page": page, "page_size": 200,
+                                 "organization": org_id})
+        except Exception:  # noqa: BLE001 — a short feed is still worth harvesting
+            break
+        results = list(payload.get("results") or []) if isinstance(payload, dict) else []
+        for rec in results:
+            props = rec.get("properties") or {}
+            if str(rec.get("report_type") or "") != "NSBU":
+                continue
+            if str(props.get("report_type") or "").lower() != "quarter":
+                continue
+            m = re.search(r"/reports/[a-z]+/[a-z]+/(\d+)/?$", str(rec.get("report_link") or ""))
+            if not m or not rec.get("pub_date"):
+                continue
+            out.append({
+                "accounting_id": m.group(1),
+                "pdf_id": rec.get("id"),
+                "pub_date": str(rec["pub_date"]),
+                "org_type": props.get("org_type"),
+                "title": props.get("report_title"),
+                "excel_url": rec.get("excel_url") or _nsbu_export_urls(
+                    m.group(1), "quarter", props.get("org_type"))[1],
+            })
+        if len(results) < 200 or not (isinstance(payload, dict) and payload.get("next")):
+            break
+    # Newest first: a sweep that is cut short by a limit keeps the recent history
+    # a reader is likelier to open.
+    out.sort(key=lambda r: r["pub_date"], reverse=True)
+    return out
+
+
+def parse_catalogued_report(ticker: str, form: str, year: int, quarter: int,
+                            session: Any | None = None) -> dict[str, Any]:
+    """Re-parse one catalogued filing and return its ``source_values``.
+
+    :func:`fetch_report_excel_data` with the snapshot cache taken out of the way
+    — see :func:`_parse_workbook_uncached` for why a sweep must not go through it.
+    One workbook carries both NSBU forms, so both links point at the same
+    document and it is fetched once.
+    """
+    urls = get_report_urls(ticker, form, year, quarter) or {}
+    excel = urls.get("excel_url") or urls.get("excel_url_form1")
+    if not excel:
+        return {}
+    parsed = _parse_workbook_uncached(session or _make_session(), excel)
+    if not parsed.get("ok"):
+        return {}
+    other = urls.get("excel_url_form1")
+    second = parsed
+    if other and other != excel:
+        second = _parse_workbook_uncached(session or _make_session(), other)
+        second = second if second.get("ok") else parsed
+    return (compute_financial_ratios(parsed, second) or {}).get("source_values") or {}
+
+
+def harvest_historical_quarters(ticker: str, *, limit: int = 40,
+                                session: Any | None = None,
+                                pace: float = 0.2) -> dict[str, Any]:
+    """Catalogue and parse the quarterly filings older than the source's window.
+
+    Only filings this catalog has never recorded are fetched — the accounting id
+    is the identity — so a second run over the same issuer costs one feed read
+    and no workbooks.
+
+    Returns ``{"ticker", "rows", "added", "skipped", "errors"}``; ``rows`` are
+    admin-push shaped, so a collector can hand them to /api/admin/financials the
+    way the other backfills do.
+    """
+    t = str(ticker or "").strip().upper()
+    if not t:
+        return {"ticker": t, "rows": [], "added": 0, "skipped": 0, "errors": ["no ticker"]}
+    session = session or _make_session()
+    conn = get_catalog_conn()
+    try:
+        org = conn.execute("SELECT org_id FROM catalog_companies WHERE ticker=?", (t,)).fetchone()
+        org_id = (org or {})["org_id"] if org else None
+        if not org_id:
+            return {"ticker": t, "rows": [], "added": 0, "skipped": 0,
+                    "errors": ["issuer not catalogued — run the report sync first"]}
+        stored = conn.execute(
+            "SELECT year, quarter, openinfo_report_id, published_at FROM catalog_reports "
+            "WHERE ticker=? AND report_form='NSBU' AND period_type='quarter'", (t,)).fetchall()
+    finally:
+        conn.close()
+    seen = {str(r["openinfo_report_id"]) for r in stored if r["openinfo_report_id"]}
+    # When was the filing we already hold for a period published? A record older
+    # than that is a superseded revision of a period we have — openinfo lists
+    # both (KSCM filed its 2023 half-year on 31 July and again on 8 August) and
+    # re-parsing it every sweep buys an identical upsert for a download.
+    held: dict[tuple[int, int], str] = {}
+    for row in stored:
+        if row["year"] and row["quarter"] and row["published_at"]:
+            key = (int(row["year"]), int(row["quarter"]))
+            held[key] = max(held.get(key, ""), str(row["published_at"]))
+
+    records = unified_quarterly_records(session, org_id)
+
+    def _is_fresh_record(rec: dict[str, Any]) -> bool:
+        if rec["accounting_id"] in seen or not rec["excel_url"]:
+            return False
+        # The period from the publication date alone — the workbook has the
+        # authoritative answer, but reading it is the download this skips.
+        try:
+            pub = datetime.fromisoformat(rec["pub_date"].replace("Z", "+00:00"))
+        except ValueError:
+            return True
+        key = _quarter_period_from_publication(_PUB_MONTH_QUARTER[pub.month], pub)
+        return held.get(key, "") < rec["pub_date"]
+
+    fresh = [r for r in records if _is_fresh_record(r)]
+    errors: list[str] = []
+    rows: list[dict[str, Any]] = []
+    for rec in fresh[:limit]:
+        try:
+            pub = datetime.fromisoformat(rec["pub_date"].replace("Z", "+00:00"))
+        except ValueError:
+            errors.append(f"{rec['accounting_id']}: unreadable pub_date {rec['pub_date']!r}")
+            continue
+        try:
+            parsed = _parse_workbook_uncached(session, rec["excel_url"])
+        except Exception as exc:  # noqa: BLE001 — one bad workbook is not the sweep
+            errors.append(f"{rec['accounting_id']}: {exc}")
+            continue
+        if not parsed.get("ok"):
+            errors.append(f"{rec['accounting_id']}: {parsed.get('error')}")
+            continue
+        quarter = _stated_quarter(parsed) or _PUB_MONTH_QUARTER[pub.month]
+        year, quarter = _quarter_period_from_publication(quarter, pub)
+        if _is_future_period(year, quarter):
+            errors.append(f"{rec['accounting_id']}: derived {year}Q{quarter} has not ended")
+            continue
+        values = (compute_financial_ratios(parsed, parsed) or {}).get("source_values") or {}
+        if not any(values.get(k) is not None for k in FIN_MONEY_FIELDS):
+            errors.append(f"{rec['accounting_id']}: no indicator read from {year}Q{quarter}")
+            continue
+        conn = get_catalog_conn()
+        try:
+            with conn:
+                _upsert_report(
+                    conn, t,
+                    report_form="NSBU",
+                    period_type="quarter",
+                    year=year,
+                    quarter=quarter,
+                    title=rec.get("title"),
+                    published_at=rec["pub_date"],
+                    pdf_url=(f"{OPENINFO_WEB_BASE}/ru/reports/to_pdf{rec['pdf_id']}/"
+                             if rec.get("pdf_id") else None),
+                    excel_url=rec["excel_url"],
+                    # One workbook carries BOTH forms — the balance and the
+                    # income statement sit in the same sheet — so the two links
+                    # are the same document, exactly as the structured path
+                    # already stores them for the current quarters.
+                    excel_url_form1=rec["excel_url"],
+                    openinfo_report_id=rec["accounting_id"],
+                    object_id=None,
+                )
+        finally:
+            conn.close()
+        report_id = _register_parse(t, "NSBU", year, quarter, parsed, values)
+        upsert_financials_cache(t, "NSBU", year, quarter, values, report_id)
+        rows.append({"ticker": t, "year": year, "quarter": quarter,
+                     **{k: values.get(k) for k in FIN_MONEY_FIELDS}})
+        if pace:
+            time.sleep(pace)
+    return {"ticker": t, "rows": rows, "added": len(rows),
+            "skipped": len(records) - len(fresh), "errors": errors}
+
+
 def get_sector_averages(sector_tickers: list[str], form: str, year: int) -> dict[str, Any]:
     if not sector_tickers:
         return {}
@@ -4415,6 +4820,12 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
     # split into long-term (стр.490) + current (стр.600); summed as a fallback.
     "lt_liabilities": ["долгосрочные обязательства"],
     "cur_liabilities": ["текущие обязательства", "краткосрочные обязательства"],
+    # Товарно-материальные запасы, всего — стр.140 on the jsc form, стр.140 on the
+    # insurance one (a shorter roll-up: стр.150+160). The quick ratio is the
+    # current ratio less this line, so it is read from the same balance rather
+    # than left to the indicator feed, which publishes neither for 39 issuers.
+    "inventories": ["товарно-материальные запасы", "tovar-moddiy zaxira",
+                    "tovar-modiy zaxira"],
     # Валовая прибыль (форма №2): "Валовая прибыль (убыток) от реализации ..."
     "gross_profit": ["валовая прибыл", "валовой доход", "валовая выручка",
                      "gross profit", "yalpi foyda"],
@@ -4585,6 +4996,28 @@ def _squash(label: Any) -> str:
 # wording because the asset side of both forms prints «ИТОГО ПО РАЗДЕЛУ II» too.
 _LIABILITIES_SECTION_FORMULAS = ("490+600", "730+930")
 
+# The CURRENT-assets subtotal, by the same trick and for the same reason: the
+# label «Итого по разделу II» belongs to four different lines across the two
+# commercial forms (current assets, equity, insurance reserves, obligations) and
+# only the formula in the parentheses tells them apart. Measured over the 500
+# workbook snapshots cached on 2026-08-17: «стр. 140+190+200+210+320+370+380»
+# on 369 of them (jsc, стр.390) and «стр. 140+170+180+190+410+460+470» on 49
+# (insurance, стр.480). The bank form has no current section at all — a balance
+# sheet of a bank is not split that way, and no current ratio is defined for it.
+_CURRENT_ASSETS_SECTION_FORMULAS = ("140+190+200+210+320+370+380",
+                                    "140+170+180+190+410+460+470")
+
+
+def _extract_current_assets(rows: list[dict]) -> float | None:
+    """«Итого по разделу II» of the ASSET side — the current-assets subtotal."""
+    for row in rows:
+        squashed = _squash(row.get("label"))
+        if "итого" in squashed and any(f in squashed for f in _CURRENT_ASSETS_SECTION_FORMULAS):
+            value = _row_value(row.get("numeric_values") or [])
+            if value is not None:
+                return value
+    return None
+
 
 def _extract_liabilities_total(rows: list[dict]) -> float | None:
     """The obligations total the issuer itself published, if the form prints one.
@@ -4682,6 +5115,15 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     if equity is None and total_assets is not None and total_liabilities is not None:
         equity = total_assets - total_liabilities
     cash = _extract_cash(balance_rows or all_rows)
+    # The current section of the balance. openinfo's indicator feed publishes a
+    # liquidity ratio for 56 of the 95 issuers on the board and an asset turnover
+    # for the same 56, so those two columns and ROCE were simply blank for the
+    # rest — while the balance every one of them files states the lines they are
+    # built from. Read here, stored beside the headline sums, and turned into
+    # coefficients at read time where the feed is silent.
+    current_assets = _extract_current_assets(balance_rows or all_rows)
+    current_liabilities = _extract_metric(balance_rows or all_rows, "cur_liabilities")
+    inventories = _extract_metric(balance_rows or all_rows, "inventories")
 
     def _safe_ratio(num: float | None, den: float | None) -> float | None:
         if num is None or den is None or den == 0:
@@ -4713,6 +5155,9 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         # the collectors build their push rows straight off FIN_MONEY_FIELDS.
         "total_equity": equity,
         "total_liabilities": total_liabilities,
+        "current_assets": current_assets,
+        "current_liabilities": current_liabilities,
+        "inventories": inventories,
     }
 
     return {"metrics": metrics, "source_values": source_rows}

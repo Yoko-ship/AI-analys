@@ -452,6 +452,146 @@ def backfill_quarterly_financials(min_year: int = 2023) -> int:
     return status
 
 
+def backfill_current_section(periods_per_ticker: int = 2) -> int:
+    """Re-parse the newest filings so the balance's CURRENT section is stored.
+
+    The liquidity, quick and asset-turnover coefficients are computed from
+    current assets, stocks and current liabilities — three lines every issuer
+    files and this platform did not keep, which is why the board's
+    «Коэффициенты» columns were blank for the 39 issuers whose indicator feed
+    publishes none of them. The columns exist now; this fills them from the
+    filings already catalogued, newest first, and pushes the full parsed row (a
+    partial push would blank the headline sums beside it).
+    """
+    from securities_catalog import get_securities_map
+
+    tickers = {str(t).upper() for t in (get_securities_map() or {})}
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+    for kind in ("stock", "bond"):
+        try:
+            resp = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60)
+            resp.raise_for_status()
+            board = resp.json()
+            board = board if isinstance(board, list) else board.get("stocks") or []
+            tickers |= {str(r.get("ticker") or "").strip().upper()
+                        for r in board if r.get("ticker")}
+        except Exception:  # noqa: BLE001 — the local catalog still gives us a run
+            log.exception("current-section backfill: cannot read the deployment's %s board", kind)
+    tickers = sorted(t for t in tickers if t)
+    log.info("current-section backfill: %d tickers, %d annual + %d quarterly each",
+             len(tickers), periods_per_ticker, periods_per_ticker)
+    rows: list[dict] = []
+    filled = failed = 0
+    for index, ticker in enumerate(tickers, 1):
+        try:
+            reports = rc.get_company_reports(ticker) or []
+        except Exception:
+            log.exception("current-section backfill: cannot list reports for %s", ticker)
+            failed += 1
+            continue
+        nsbu = [r for r in reports if r.get("report_form") == "NSBU"
+                and str(r.get("year") or "").isdigit()]
+        annuals = sorted({int(r["year"]) for r in nsbu if not r.get("quarter")}, reverse=True)
+        quarters = sorted({(int(r["year"]), int(r["quarter"])) for r in nsbu if r.get("quarter")},
+                          reverse=True)
+        periods = ([(y, 0) for y in annuals[:periods_per_ticker]]
+                   + list(quarters[:periods_per_ticker]))
+        for year, quarter in periods:
+            try:
+                values = rc.parse_catalogued_report(ticker, "NSBU", year, quarter)
+            except Exception:
+                log.exception("current-section backfill: %s %sQ%s failed", ticker, year, quarter)
+                failed += 1
+                continue
+            if not any(values.get(k) is not None for k in rc.FIN_MONEY_FIELDS):
+                continue
+            if values.get("current_assets") is not None:
+                filled += 1
+            rows.append({"ticker": ticker, "year": year, "quarter": quarter,
+                         **{k: values.get(k) for k in rc.FIN_MONEY_FIELDS}})
+            report_id = rc._register_parse(ticker, "NSBU", year, quarter,
+                                           {"ok": True}, values)
+            rc.upsert_financials_cache(ticker, "NSBU", year, quarter, values, report_id)
+            time.sleep(0.2)
+        if index % 10 == 0:
+            log.info("current-section backfill: %d/%d tickers, %d rows (%d with a current section)",
+                     index, len(tickers), len(rows), filled)
+    log.info("current-section backfill: %d rows, %d carry a current section (%d failures)",
+             len(rows), filled, failed)
+    if not rows:
+        return 1
+    status = 0
+    for start in range(0, len(rows), 500):
+        status = _post("/api/admin/financials",
+                       {"form": "NSBU", "mode": "upsert",
+                        "rows": rows[start:start + 500]}) or status
+    return status
+
+
+def backfill_quarter_history(limit_per_ticker: int = 40) -> int:
+    """Reach BEHIND the source's ten-quarter window and bank what it forgot.
+
+    openinfo's structured quarterly endpoint answers with the ten most recent
+    filings for an issuer and refuses every paging parameter, so
+    :func:`backfill_quarterly_financials` — which works off the report catalogue
+    the structured sync builds — can never see a quarter that closed before the
+    window opened. Measured 2026-08-17: org 446 has published thirty quarterlies
+    since 2016 and the catalogue knew ten of them.
+
+    The unified feed lists all thirty. ``harvest_historical_quarters`` fetches
+    each workbook this catalogue has never recorded, reads the period out of the
+    filing itself, and lands both the document and its figures; this walks the
+    board with it and pushes the batch the way the other backfills do.
+    """
+    from securities_catalog import get_securities_map
+
+    tickers = {str(t).upper() for t in (get_securities_map() or {})}
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+    for kind in ("stock", "bond"):
+        try:
+            resp = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60)
+            resp.raise_for_status()
+            board = resp.json()
+            board = board if isinstance(board, list) else board.get("stocks") or []
+            tickers |= {str(r.get("ticker") or "").strip().upper()
+                        for r in board if r.get("ticker")}
+        except Exception:  # noqa: BLE001 — the local catalog still gives us a run
+            log.exception("quarter-history backfill: cannot read the deployment's %s board", kind)
+    tickers = sorted(t for t in tickers if t)
+    log.info("quarter-history backfill: %d tickers, up to %d filings each",
+             len(tickers), limit_per_ticker)
+    rows: list[dict] = []
+    failed = 0
+    for index, ticker in enumerate(tickers, 1):
+        try:
+            result = rc.harvest_historical_quarters(ticker, limit=limit_per_ticker)
+        except Exception:
+            log.exception("quarter-history backfill: %s failed", ticker)
+            failed += 1
+            continue
+        rows.extend(result["rows"])
+        if result["errors"]:
+            # Not a failure of the sweep: a 2016 filing with an unreadable
+            # workbook is a fact about the source, and naming it is how the next
+            # run knows the gap is not ours.
+            log.info("quarter-history backfill: %s — %s", ticker,
+                     "; ".join(result["errors"][:4]))
+        if result["added"]:
+            log.info("quarter-history backfill: %s +%d periods", ticker, result["added"])
+        if index % 10 == 0:
+            log.info("quarter-history backfill: %d/%d tickers, %d periods",
+                     index, len(tickers), len(rows))
+    log.info("quarter-history backfill: %d new periods (%d ticker failures)", len(rows), failed)
+    if not rows:
+        return 0 if not failed else 1
+    status = 0
+    for start in range(0, len(rows), 500):
+        status = _post("/api/admin/financials",
+                       {"form": "NSBU", "mode": "upsert",
+                        "rows": rows[start:start + 500]}) or status
+    return status
+
+
 def _history_universe() -> set[str]:
     """Every ISIN the DEPLOYMENT's board carries, plus the local catalog's.
 
@@ -1082,6 +1222,14 @@ def main() -> int:
     ap.add_argument("--backfill-quarters", type=int, nargs="?", const=2023, default=None,
                     metavar="FROM_YEAR",
                     help="one-off: parse every historical QUARTERLY filing into the financials cache")
+    ap.add_argument("--backfill-quarter-history", type=int, nargs="?", const=40, default=None,
+                    metavar="PER_TICKER",
+                    help="one-off: harvest the quarterly filings that fell out of openinfo's "
+                         "ten-quarter window (default 40 workbooks per issuer)")
+    ap.add_argument("--backfill-current-section", type=int, nargs="?", const=2, default=None,
+                    metavar="PERIODS",
+                    help="one-off: re-parse the newest filings for the balance's current "
+                         "section, which the liquidity/quick/turnover ratios need")
     args = ap.parse_args()
 
     global SKIP_QUOTES
@@ -1104,6 +1252,20 @@ def main() -> int:
             return backfill_quarterly_financials(args.backfill_quarters)
         except Exception:
             log.exception("quarterly financials backfill failed")
+            return 1
+
+    if args.backfill_quarter_history is not None:
+        try:
+            return backfill_quarter_history(args.backfill_quarter_history)
+        except Exception:
+            log.exception("quarter-history backfill failed")
+            return 1
+
+    if args.backfill_current_section is not None:
+        try:
+            return backfill_current_section(args.backfill_current_section)
+        except Exception:
+            log.exception("current-section backfill failed")
             return 1
 
     if args.backfill_history is not None:
