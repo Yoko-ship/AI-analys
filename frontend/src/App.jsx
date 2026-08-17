@@ -13231,35 +13231,6 @@ function MarketView({
               </div>
             )}
           </div>
-          {/* The period every «изменение» on this screen is measured over. It
-              moves the «Изм.» column, the movers strip and the map together —
-              one question, one answer. The two fixed 1Н/1М columns stay where
-              they are; a reader can still have all three on screen. */}
-          <div className="market-period-row">
-          <span className="market-period-label">
-            {lang === "en" ? "Change over" : lang === "uz" ? "O'zgarish davri" : "Изменение за"}
-          </span>
-          <div className="segmented-control market-period-control"
-            role="group"
-            aria-label={lang === "en" ? "Change period" : lang === "uz" ? "O'zgarish davri" : "Период изменения"}>
-            {CHANGE_PERIODS.map((p) => (
-              <button
-                key={p.code}
-                type="button"
-                className={changePeriod === p.code ? "active" : ""}
-                aria-pressed={changePeriod === p.code}
-                onClick={() => setChangePeriod(p.code)}
-                title={lang === "en" ? `Change over ${changePeriodLabel(p.code, lang)}`
-                  : lang === "uz" ? `${changePeriodLabel(p.code, lang)} o'zgarishi`
-                  : `Изменение за ${changePeriodLabel(p.code, lang).toLowerCase()}`}
-              >
-                {p.code === "1d"
-                  ? (lang === "en" ? "Session" : lang === "uz" ? "Sessiya" : "Сессия")
-                  : p.code === "ytd" ? "YTD" : changePeriodLabel(p.code, lang)}
-              </button>
-            ))}
-          </div>
-          </div>
           {viewMode === "table" && (
             <button
               type="button"
@@ -13467,6 +13438,36 @@ function MarketView({
               )}
             </div>
           )}
+        </div>
+
+          {/* The period every «изменение» on this screen is measured over. It
+            moves the «Изм.» column, the movers strip and the map together —
+            one question, one answer. The two fixed 1Н/1М columns stay where
+            they are; a reader can still have all three on screen. */}
+        <div className="market-period-row">
+        <span className="market-period-label">
+          {lang === "en" ? "Change over" : lang === "uz" ? "O'zgarish davri" : "Изменение за"}
+        </span>
+        <div className="segmented-control market-period-control"
+          role="group"
+          aria-label={lang === "en" ? "Change period" : lang === "uz" ? "O'zgarish davri" : "Период изменения"}>
+          {CHANGE_PERIODS.map((p) => (
+            <button
+              key={p.code}
+              type="button"
+              className={changePeriod === p.code ? "active" : ""}
+              aria-pressed={changePeriod === p.code}
+              onClick={() => setChangePeriod(p.code)}
+              title={lang === "en" ? `Change over ${changePeriodLabel(p.code, lang)}`
+                : lang === "uz" ? `${changePeriodLabel(p.code, lang)} o'zgarishi`
+                : `Изменение за ${changePeriodLabel(p.code, lang).toLowerCase()}`}
+            >
+              {p.code === "1d"
+                ? (lang === "en" ? "Session" : lang === "uz" ? "Sessiya" : "Сессия")
+                : p.code === "ytd" ? "YTD" : changePeriodLabel(p.code, lang)}
+            </button>
+          ))}
+        </div>
         </div>
 
         {/* More than one sector, not merely one: a row of «Все» + a single chip

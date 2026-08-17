@@ -7194,16 +7194,19 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
    fit in the slot beside the instrument-class control — wrapped inside the
    segmented pill they made a three-row blob with a rounded background around it —
    so the row takes a line of its own and states what it is choosing. */
+/* Its own row under the control bar, not an item inside it: .market-controls is
+   `flex-wrap: nowrap`, so a `flex-basis: 100%` child does not start a new line —
+   it takes 1392px ON that line and pushes itself 1100px past the right edge,
+   where nothing but a horizontal scroll can reach it. Measured on prod. */
 .market-period-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1 0 100%;
   min-width: 0;
-  /* Last in the bar, whatever the markup order: a full-width row placed between
-     the instrument class and the search would strand both on lines of their own
-     with half the bar empty beside them. */
-  order: 9;
+  /* The same gutter the sector chips below it use, so the three bands of the
+     filter bar line up on one left edge. */
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
 }
 
 .market-period-label {
