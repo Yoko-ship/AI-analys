@@ -141,6 +141,33 @@ const TEXT_SCALE_KEY = "uz_text_scale";
 // bigger text.
 const TEXT_SCALES = [85, 100, 115, 130, 150];
 
+/**
+ * The root's zoom factor, and the viewport measured in the units a FIXED child of
+ * that root is positioned in.
+ *
+ * Every overlay on this page is portaled to <body> and placed by hand from a
+ * `getBoundingClientRect()` — the column picker, the column menu, the sticky
+ * header, the float scrollbar, the ⓘ tooltip. A client rect is in VIEWPORT
+ * pixels; a `left: 1214px` written onto a fixed element inside a zoomed root is
+ * in CSS pixels, which the zoom then multiplies. At 150 % the column picker was
+ * placed at left 1214 and rendered at 1821 — entirely outside a 1526px viewport,
+ * invisible, with nothing on screen to say why.
+ *
+ * So: divide a measured coordinate by the zoom before writing it, and clamp
+ * against the viewport expressed in the same units.
+ */
+function rootZoom() {
+  if (typeof document === "undefined") return 1;
+  const raw = Number(document.documentElement.style.zoom);
+  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+}
+
+/** {zoom, vw, vh} — the viewport in the units a fixed child of the root uses. */
+function zoomedViewport() {
+  const zoom = rootZoom();
+  return { zoom, vw: window.innerWidth / zoom, vh: window.innerHeight / zoom };
+}
+
 // Mandatory legal disclaimer (ТЗ §3.2) — shown on every page and forced into every report.
 const DISCLAIMER = {
   ru: "Аналитические материалы, прогнозы и оценки, представленные на платформе, носят исключительно информационный характер и подготовлены на основе публично доступных данных. Они не являются инвестиционными рекомендациями, офертой или призывом к совершению каких-либо операций с ценными бумагами. Платформа не несёт ответственности за инвестиционные решения, принятые пользователями на основе представленной информации.",
@@ -5799,7 +5826,13 @@ function BondsView({ language, onOpenBond, embedded = false }) {
   const [q, setQ] = React.useState("");
   const [term, setTerm] = React.useState("");
   const [coverFilter, setCoverFilter] = React.useState("");
-  const [sort, setSort] = React.useState({ key: "ytm", dir: -1 });
+  // Ordered by the RUNNING yield, not by YTM. A yield to maturity needs a
+  // redemption date, and only the issuer's material fact #31 publishes one —
+  // filed for 1 of the 18 issues on the board (measured 2026-08-17), so sorting
+  // by it left seventeen rows in whatever order they arrived and called it
+  // «по доходности». The running yield (annual coupon over price) needs no
+  // maturity and is computed for every issue that has filed a coupon.
+  const [sort, setSort] = React.useState({ key: "running", dir: -1 });
 
   React.useEffect(() => {
     let alive = true;
@@ -11013,22 +11046,26 @@ function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
       const r = el.getBoundingClientRect();
       const sw = el.scrollWidth, cw = el.clientWidth;
       const max = sw - cw;
+      // The bar is a fixed child of the zoomed root, so its geometry is written in
+      // CSS pixels while the rect arrives in viewport pixels — see rootZoom().
+      const { zoom, vw, vh } = zoomedViewport();
       // Clamp to the table's VISIBLE rectangle: the wrap can extend past the viewport
       // (the layout has a min-width and .app-shell-wrap clips the overflow).
-      const left = Math.max(r.left, 0);
-      const right = Math.min(r.right, window.innerWidth);
+      const left = Math.max(r.left / zoom, 0);
+      const right = Math.min(r.right / zoom, vw);
       const trackW = right - left;
+      const rTop = r.top / zoom, rBottom = r.bottom / zoom;
       // The wrap's native bar is hidden (see CSS) — this floating bar is the only
       // horizontal scrollbar. It clings to the viewport bottom while the table runs
       // below the fold, and to the table's own bottom edge once the end scrolls into
       // view, so exactly one bar is visible whenever the table is on screen.
-      const inView = max > 1 && r.top < window.innerHeight && r.bottom > 40 && trackW > 40;
+      const inView = max > 1 && rTop < vh && rBottom > 40 && trackW > 40;
       if (!inView) {
         setBox((b) => (b.show ? { ...b, show: false } : b));
         return;
       }
       const BAR = 14;
-      const top = Math.min(window.innerHeight, r.bottom) - BAR;
+      const top = Math.min(vh, rBottom) - BAR;
       setBox({ show: true, left, width: trackW, top });
       const tw = Math.max(trackW * (cw / sw), MIN_THUMB);
       const tl = max > 0 ? (el.scrollLeft / max) * (trackW - tw) : 0;
@@ -11061,7 +11098,10 @@ function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
       if (!d || !el) return;
       const denom = d.trackW - d.thumbW;
       const max = el.scrollWidth - el.clientWidth;
-      el.scrollLeft = denom > 0 ? d.startScroll + ((e.clientX - d.startX) / denom) * max : d.startScroll;
+      // The track is measured in CSS pixels and the pointer reports viewport ones,
+      // so the drag would run at 1.5x the thumb under a 150 % text size.
+      const moved = (e.clientX - d.startX) / rootZoom();
+      el.scrollLeft = denom > 0 ? d.startScroll + (moved / denom) * max : d.startScroll;
     };
     const onUp = () => { if (drag.current) { drag.current = null; document.body.classList.remove("market-float-dragging"); } };
     window.addEventListener("pointermove", onMove);
@@ -11080,7 +11120,7 @@ function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
     if (e.target !== trackRef.current) return; // ignore clicks on the thumb
     const el = wrapRef.current;
     if (!el) return;
-    const clickX = e.clientX - trackRef.current.getBoundingClientRect().left;
+    const clickX = (e.clientX - trackRef.current.getBoundingClientRect().left) / rootZoom();
     const dir = clickX < thumb.left ? -1 : 1; // page toward the click
     el.scrollBy({ left: dir * el.clientWidth * 0.9, behavior: "smooth" });
   };
@@ -11147,12 +11187,17 @@ function TermInfo({ termId, lang, label }) {
       const btn = btnRef.current;
       if (!btn) return;
       const r = btn.getBoundingClientRect();
-      const width = Math.min(320, window.innerWidth - 24);
-      const left = Math.max(12, Math.min(r.left + r.width / 2 - width / 2, window.innerWidth - width - 12));
+      // CSS pixels of the zoomed root, not viewport pixels — see rootZoom().
+      const { zoom, vw, vh } = zoomedViewport();
+      const mid = (r.left + r.width / 2) / zoom;
+      const markerTop = r.top / zoom, markerBottom = r.bottom / zoom;
+      const width = Math.min(320, vw - 24);
+      const left = Math.max(12, Math.min(mid - width / 2, vw - width - 12));
       // Below the marker by default; above it when the viewport bottom is closer
       // than the tooltip is tall, so it is never half off-screen.
-      const below = window.innerHeight - r.bottom;
-      setPos({ left, width, top: below > 190 ? r.bottom + 8 : null, bottom: below > 190 ? null : window.innerHeight - r.top + 8 });
+      const below = vh - markerBottom;
+      setPos({ left, width, top: below > 190 ? markerBottom + 8 : null,
+               bottom: below > 190 ? null : vh - markerTop + 8 });
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(place); };
     place();
@@ -11309,11 +11354,15 @@ function MarketColsPopover({ anchorRef, onClose, title, closeLabel, children }) 
       const btn = anchorRef.current;
       if (!btn) return;
       const r = btn.getBoundingClientRect();
-      const width = Math.min(300, window.innerWidth - 24);
+      // In the units a fixed child of the (possibly zoomed) root is placed in —
+      // see rootZoom(). Measured pixels come in from the rect, CSS pixels go out.
+      const { zoom, vw, vh } = zoomedViewport();
+      const anchorRight = r.right / zoom, anchorBottom = r.bottom / zoom;
+      const width = Math.min(300, vw - 24);
       // Right-aligned to the button, but never off either edge of the viewport.
-      const left = Math.max(12, Math.min(r.right - width, window.innerWidth - width - 12));
-      const top = Math.max(8, Math.min(r.bottom + 8, window.innerHeight - 200));
-      setPos({ top, left, width, maxHeight: Math.max(200, window.innerHeight - top - 16) });
+      const left = Math.max(12, Math.min(anchorRight - width, vw - width - 12));
+      const top = Math.max(8, Math.min(anchorBottom + 8, vh - 200));
+      setPos({ top, left, width, maxHeight: Math.max(200, vh - top - 16) });
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(place); };
     place();
@@ -11405,25 +11454,36 @@ function MarketStickyHead({ wrapRef, cells, colSignature, rowCount, loading }) {
       // Pin under the sticky topbar, whose height differs per breakpoint. The
       // filter bar above the table scrolls away with the page (by request), so
       // the topbar is the only thing this has to clear.
+      // The bar is fixed inside the (possibly zoomed) root, so every measured
+      // coordinate is divided into the CSS pixels it will be written back as —
+      // see rootZoom(). The column WIDTHS go through the same division, or the
+      // mirrored header's cells would be 1.5x their columns at a 150 % text size
+      // and the labels would walk off their own columns to the right.
+      const { zoom, vw } = zoomedViewport();
       const topbar = document.querySelector(".topbar");
-      const pin = topbar ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom)) : 0;
+      const pin = topbar
+        ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom / zoom)) : 0;
       const headRect = headRow.getBoundingClientRect();
       const tableRect = table.getBoundingClientRect();
       const wrapRect = el.getBoundingClientRect();
-      const left = Math.max(wrapRect.left, 0);
-      const width = Math.min(wrapRect.right, window.innerWidth) - left;
+      const left = Math.max(wrapRect.left / zoom, 0);
+      const width = Math.min(wrapRect.right / zoom, vw) - left;
       // Only while the real header sits above the pin line and rows are still
       // under it — otherwise the bar would hang over a table that has scrolled by.
-      if (headRect.bottom > pin + 1 || tableRect.bottom < pin + headRect.height + 24 || width < 60) { hide(); return; }
+      if (headRect.bottom / zoom > pin + 1
+          || tableRect.bottom / zoom < pin + headRect.height / zoom + 24
+          || width < 60) { hide(); return; }
       // Half-pixel rounding: enough to keep the labels over their columns, coarse
       // enough that sub-pixel noise doesn't re-render the bar on every frame.
       const round = (v) => Math.round(v * 2) / 2;
-      const cols = Array.from(headRow.children).map((th) => round(th.getBoundingClientRect().width));
-      const key = `${round(left)}|${round(width)}|${pin}|${round(tableRect.width)}|${cols.join(",")}`;
-      syncScroll(el, wrapRect.left);
+      const cols = Array.from(headRow.children)
+        .map((th) => round(th.getBoundingClientRect().width / zoom));
+      const tableWidth = round(tableRect.width / zoom);
+      const key = `${round(left)}|${round(width)}|${pin}|${tableWidth}|${cols.join(",")}`;
+      syncScroll(el, wrapRect.left / zoom);
       if (key === lastKey.current) return;
       lastKey.current = key;
-      setBox({ show: true, left, width, top: pin, tableWidth: round(tableRect.width), cols });
+      setBox({ show: true, left, width, top: pin, tableWidth, cols });
     };
     measureRef.current = measure;
     const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };
@@ -11518,10 +11578,14 @@ function MarketColMenu({ colKey, fromSticky, lang, state, actions, onClose }) {
       // page scrolled it off. A toolbar for a column nobody can see is noise.
       if (!th) { onClose(); return; }
       const r = th.getBoundingClientRect();
-      if (r.bottom < 0 || r.top > window.innerHeight) { onClose(); return; }
+      // CSS pixels of the zoomed root, as everywhere a fixed overlay is placed
+      // from a measured rectangle — see rootZoom().
+      const { zoom, vw, vh } = zoomedViewport();
+      const thLeft = r.left / zoom, thBottom = r.bottom / zoom, thTop = r.top / zoom;
+      if (thBottom < 0 || thTop > vh) { onClose(); return; }
       const w = (ref.current && ref.current.offsetWidth) || 300;
-      const left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - w - 8)));
-      const top = Math.round(r.bottom + 6);
+      const left = Math.round(Math.max(8, Math.min(thLeft, vw - w - 8)));
+      const top = Math.round(thBottom + 6);
       // Re-placed after every render, so a position that did not change must not
       // reach state: a fresh object each time is an infinite render loop.
       setPos((prev) => (prev && prev.top === top && prev.left === left ? prev : { top, left }));
@@ -13171,6 +13235,10 @@ function MarketView({
               moves the «Изм.» column, the movers strip and the map together —
               one question, one answer. The two fixed 1Н/1М columns stay where
               they are; a reader can still have all three on screen. */}
+          <div className="market-period-row">
+          <span className="market-period-label">
+            {lang === "en" ? "Change over" : lang === "uz" ? "O'zgarish davri" : "Изменение за"}
+          </span>
           <div className="segmented-control market-period-control"
             role="group"
             aria-label={lang === "en" ? "Change period" : lang === "uz" ? "O'zgarish davri" : "Период изменения"}>
@@ -13190,6 +13258,7 @@ function MarketView({
                   : p.code === "ytd" ? "YTD" : changePeriodLabel(p.code, lang)}
               </button>
             ))}
+          </div>
           </div>
           {viewMode === "table" && (
             <button
@@ -13246,9 +13315,21 @@ function MarketView({
                 className={`market-cols-btn ${colsOpen ? "active" : ""}`}
                 aria-haspopup="true" aria-expanded={colsOpen}
                 onClick={() => setColsOpen((o) => !o)}
-                title={lang === "en" ? "Columns" : lang === "uz" ? "Ustunlar" : "Колонки"}
+                title={lang === "en"
+                  ? "Choose which columns the table shows"
+                  : lang === "uz" ? "Jadval ustunlarini tanlash"
+                  : "Выбрать колонки таблицы"}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                {/* Named, like every other button in this bar. A bare gear beside
+                    «Избранное», «Неактивные» and «Экспорт CSV» read as an
+                    afterthought and was the one control a reader had to guess at —
+                    which is how a board with fifteen hidden columns looks like a
+                    board that has none. The count says how many are on. */}
+                <span className="market-btn-label">
+                  {lang === "en" ? "Columns" : lang === "uz" ? "Ustunlar" : "Колонки"}
+                  <span className="market-cols-count">{shownOrder.length}</span>
+                </span>
               </button>
               {colsOpen && (
                 <MarketColsPopover
