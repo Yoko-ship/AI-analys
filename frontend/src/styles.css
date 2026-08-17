@@ -3535,6 +3535,49 @@ body[data-theme="dark"] .activity-footer > div:hover {
   display: none;
 }
 
+/* Text size: A− | 100% | A+, one bordered group so it reads as a single control. */
+.topbar-textsize {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.topbar-textsize button {
+  min-width: 32px;
+  height: 36px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.topbar-textsize button + button {
+  border-left: 1px solid var(--border);
+}
+
+.topbar-textsize button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--accent-light);
+}
+
+/* Disabled means "already there" — at 100 % the reset is not an error, it is the
+   state. So it dims rather than looking broken, and keeps the default cursor. */
+.topbar-textsize button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.topbar-textsize-now {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
 .theme-toggle strong {
   font-size: 0.9rem;
   font-weight: normal;

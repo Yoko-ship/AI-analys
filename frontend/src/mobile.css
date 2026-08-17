@@ -197,6 +197,23 @@ iframe {
     flex-shrink: 0;
   }
 
+  /* The topbar on a 360px phone already carries the burger, the language and the
+     theme. The percentage readout is the part a reader does not need to TOUCH —
+     A− and A+ stay, at a real touch size, and stepping down from 115 % to 100 %
+     is the same gesture the readout offered. */
+  .topbar-textsize {
+    flex-shrink: 0;
+  }
+
+  .topbar-textsize-now {
+    display: none;
+  }
+
+  .topbar-textsize button {
+    min-width: 34px;
+    height: 40px;
+  }
+
   /* Drawer items are the primary navigation on a phone — give them a real touch
      target and room for the notch. The band above turned the nav into a
      horizontal scroller; as a drawer it scrolls vertically instead. */
