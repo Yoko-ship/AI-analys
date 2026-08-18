@@ -12719,19 +12719,38 @@ function MarketView({
       }
       return 0;
     });
-  // The summary cards describe the MARKET, not the current filter. Fed the
+  // The summary cards describe the BOARD, not the table's filter. Fed the
   // dormant subset they answered «сделки сегодня: 11» about eleven securities
   // that have not traded in three months, and named a «лидер роста» at 0 %.
-  // The board is the traded set, whichever list is on screen below.
+  // Favourites, search and «Неактивные» therefore still never reach them.
+  //
+  // The sector chip is the one exception (customer, 2026-08-18): it picks WHICH
+  // market is being read, not which rows of one are hidden, and a «Финансы»
+  // board whose cards went on counting the whole exchange's advancers and
+  // capitalisation was answering a question nobody had asked. The pool is the
+  // one the movers panels have used since 2026-08-12, so the cards and the
+  // strip under them can never describe different sets of securities.
+  //
+  // Only while the chip row is on screen, though. The map has no sector control
+  // (its tiles are the whole board) and a card silently answering for one sector
+  // beside a picture of all of them would be unreadable — with nothing to click
+  // to find out why.
+  const cardSector = viewMode === "table" ? activeSector : null;
+  // Two readings, deliberately: `stats` stays the whole board because the CSV,
+  // the session date and the «доля объёма» column all make a claim ABOUT THE
+  // MARKET — a row's share of the day's turnover is not a share of its sector's
+  // — while `cardStats` is what the four cards and the movers strip report.
   const stats = buildMarketStats(byClass.filter((r) => !isDormant(r)));
-  // The movers panels, unlike the cards above, answer for the list on screen:
-  // a «Финансы» chip narrows the table to banks, and a «Топ роста» still
-  // naming a textile mill beside it reads as a mistake. Recomputed from the
-  // sector's own rows — not sliced out of the board's five — so a sector
-  // whose best mover is the board's sixth still fills its panel.
-  const moverStats = activeSector
-    ? buildMarketStats(byClass.filter((r) => !isDormant(r) && rowSector(r) === activeSector))
+  const cardStats = cardSector
+    ? buildMarketStats(byClass.filter((r) => !isDormant(r) && rowSector(r) === cardSector))
     : stats;
+  const moverStats = cardStats;
+  // Dormant listings inside the selected sector — what the capitalisation card
+  // below leaves out of its own sum, counted on the same basis the server's
+  // whole-market answer counts them.
+  const sectorDormant = cardSector
+    ? byClass.filter((r) => isDormant(r) && rowSector(r) === cardSector).length
+    : 0;
   // Over a WINDOW the movers are a different list, and they are not drawn from
   // the latest session's rows: a security that has not traded today still moved
   // over the month, and leaving it out would rank the month by who happened to
@@ -12742,7 +12761,7 @@ function MarketView({
   const periodMovers = React.useMemo(() => {
     if (changePeriod === "1d") return moverStats;
     const pool = byClass
-      .filter((r) => !isDormant(r) && (!activeSector || rowSector(r) === activeSector))
+      .filter((r) => !isDormant(r) && (!cardSector || rowSector(r) === cardSector))
       .map((r) => ({ row: r, pct: changeOver(r.ticker, changePeriod)?.pct }))
       .filter((x) => Number.isFinite(x.pct));
     const up = pool.filter((x) => x.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 5);
@@ -12752,7 +12771,7 @@ function MarketView({
       topGainers: up.map((x) => ({ ...x.row, periodPct: x.pct })),
       topLosers: down.map((x) => ({ ...x.row, periodPct: x.pct })),
     };
-  }, [changePeriod, changes, byClass, activeSector, moverStats]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [changePeriod, changes, byClass, cardSector, moverStats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // §3.8: export the table the user is looking at as OUR report, client-side.
   //
@@ -13238,30 +13257,59 @@ function MarketView({
           title panel and the market's own counters. */}
       <FxRatesBar language={lang} />
 
+      {/* The chips that scope these four cards are further down the page, past
+          the filter bar — so the row has to say for itself which sector it is
+          answering for, and offer the way back. Without this the numbers change
+          under a control the reader cannot see from here. */}
+      {cardSector && (
+        <div className="market-stats-scope">
+          <span className="market-stats-scope-label">
+            {lang === "en" ? "Sector" : lang === "uz" ? "Tarmoq" : "Категория"}:
+          </span>
+          <button type="button" className="market-stats-scope-chip" onClick={() => setMarketSector(null)}>
+            {sectorLabel(lang, cardSector)}
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      )}
+
       <div className="market-stats-grid">
         {/* Инструментов / Сделки сегодня / Без изменений were removed at the
             customer's request (2026-08-12) — the row keeps only the counters
             that name a mover or a sum of money. */}
-        <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(stats.advancers, 0, lang)} sub={formatLeader(stats.topGrowth)} tone="good" />
-        <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(stats.decliners, 0, lang)} sub={formatLeader(stats.topDrop)} tone="danger" />
+        <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(cardStats.advancers, 0, lang)} sub={formatLeader(cardStats.topGrowth)} tone="good" />
+        <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(cardStats.decliners, 0, lang)} sub={formatLeader(cardStats.topDrop)} tone="danger" />
         {/* ТЗ §8: the market's capitalisation is its ACTIVE SHARES. The client
             sum counted bonds, which carry no ownership, and dormant listings —
             23 of them, 29 088 bn — inside a figure labelled "the market". The
             server now answers with the total and with what it left out. */}
         {(() => {
-          const server = marketSummary?.market_cap;
-          const value = server?.value ?? stats.totalMarketCap;
+          // Whole board: the server's own figure, because only it can say what it
+          // left out. Under a sector chip there is no server answer to ask for, so
+          // the sum comes from that sector's active rows — the same pool the three
+          // counters beside it use — and the note counts what it left out of THEM.
+          const server = cardSector ? null : marketSummary?.market_cap;
+          const value = server?.value ?? cardStats.totalMarketCap;
           if (!(value > 0)) return null;
-          const ex = server?.excluded || {};
-          const excludedNote = [
-            ex.bonds?.instruments ? `${lang === "ru" ? "облигации" : lang === "uz" ? "obligatsiyalar" : "bonds"}: ${ex.bonds.instruments}` : null,
-            ex.inactive_listings?.instruments ? `${lang === "ru" ? "неактивные" : lang === "uz" ? "faol emas" : "inactive"}: ${ex.inactive_listings.instruments}` : null,
-          ].filter(Boolean).join(", ");
+          let sub = "UZS";
+          if (server) {
+            const ex = server.excluded || {};
+            const excludedNote = [
+              ex.bonds?.instruments ? `${lang === "ru" ? "облигации" : lang === "uz" ? "obligatsiyalar" : "bonds"}: ${ex.bonds.instruments}` : null,
+              ex.inactive_listings?.instruments ? `${lang === "ru" ? "неактивные" : lang === "uz" ? "faol emas" : "inactive"}: ${ex.inactive_listings.instruments}` : null,
+            ].filter(Boolean).join(", ");
+            if (excludedNote) sub = `UZS · ${lang === "ru" ? "без" : lang === "uz" ? "hisobsiz" : "excl."} ${excludedNote}`;
+          } else if (sectorDormant) {
+            // Its own sentence, not the market note's list with one item left in
+            // it: «без облигации: 17, неактивные: 10» works as an enumeration
+            // after «без», «без неактивные: 10» on its own does not.
+            sub = `UZS · ${lang === "ru" ? "без неактивных" : lang === "uz" ? "faol emaslarsiz" : "excl. inactive"}: ${sectorDormant}`;
+          }
           return (
             <MarketStatCard
               label={mt(lang, "marketCap")}
               value={formatCompactVolume(value, lang)}
-              sub={excludedNote ? `UZS · ${lang === "ru" ? "без" : lang === "uz" ? "hisobsiz" : "excl."} ${excludedNote}` : "UZS"} />
+              sub={sub} />
           );
         })()}
         {/* The day's turnover is the sum of the rows below it, not a separate
@@ -13269,7 +13317,7 @@ function MarketView({
             44 securities and called 31.07 "120,7 млн over ~900 trades" while the
             board it sits above listed 1,56 млрд over 6 507 — and it cannot
             answer per tab, so the shares view was quoting bond turnover too. */}
-        {stats.totalVolume > 0 && <MarketStatCard label={mt(lang, "volume")} termId="volume" lang={lang} value={formatCompactVolume(stats.totalVolume, lang)} sub={stats.totalTrades ? `${formatRatio(stats.totalTrades, 0, lang)} ${tradeCountLabel(stats.totalTrades, lang)}` : null} />}
+        {cardStats.totalVolume > 0 && <MarketStatCard label={mt(lang, "volume")} termId="volume" lang={lang} value={formatCompactVolume(cardStats.totalVolume, lang)} sub={cardStats.totalTrades ? `${formatRatio(cardStats.totalTrades, 0, lang)} ${tradeCountLabel(cardStats.totalTrades, lang)}` : null} />}
       </div>
 
       {/* Three readings of one session: who moved, and who was actually

@@ -7611,6 +7611,42 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   font-size: 12px;
   color: var(--text-muted, #94a3b8);
 }
+
+/* The scope caption over the four summary cards: same chip idiom as the sort
+   chain, because it is the same kind of statement — "this row is narrowed, and
+   here is the way back". */
+.market-stats-scope {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.market-stats-scope-label {
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+}
+.market-stats-scope-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--accent, rgba(148, 163, 184, 0.28));
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.market-stats-scope-chip:hover {
+  background: rgba(148, 163, 184, 0.22);
+}
+.market-stats-scope-chip span {
+  color: var(--text-muted, #94a3b8);
+  font-size: 13px;
+  line-height: 1;
+}
 .market-sort-chain-chip {
   display: inline-flex;
   align-items: center;
