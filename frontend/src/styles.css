@@ -2956,6 +2956,18 @@ body[data-theme="light"] .fx-bar {
   color: #fff;
 }
 
+/* Real logos sit on a white chip: the files are normalized onto white, and
+   the chip keeps a dark-theme row from swallowing dark marks. */
+.bankfx-rank-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #fff;
+  object-fit: contain;
+  padding: 2px;
+  border: 1px solid var(--border);
+}
+
 .bankfx-rank-name {
   font-weight: 600;
   font-size: 13.5px;

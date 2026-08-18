@@ -5384,6 +5384,26 @@ function bankInitials(name) {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
+// The bank's real logo, captured from bankxizmatlari.uz into our own static
+// (frontend/public/bank-logos/{code}.png, normalized to 128px on white) — no
+// hotlinking, so their server changing paths cannot blank our page. A bank
+// without a captured file falls back to the coloured monogram.
+function BankFxLogo({ code, name }) {
+  const [broken, setBroken] = useState(false);
+  if (broken || !code) {
+    return <span className="bankfx-rank-badge" style={bankBadgeStyle(code)} aria-hidden="true">{bankInitials(name)}</span>;
+  }
+  return (
+    <img
+      className="bankfx-rank-logo"
+      src={`/bank-logos/${code}.png`}
+      alt=""
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
 // «Где выгоднее обменять» — a page of its own at /currency, reached from the
 // «Рынок» drop-down and the «Курсы банков» button on the CBU strip. The page
 // answers the reader's question rather than showing a directory: the amount
@@ -5571,7 +5591,7 @@ function BankFxPage({ language }) {
               return (
                 <div key={r.code} className={`bankfx-rank-row${isLead ? " is-lead" : ""}`}>
                   <span className="bankfx-rank-pos">{i + 1}</span>
-                  <span className="bankfx-rank-badge" style={bankBadgeStyle(r.code)} aria-hidden="true">{bankInitials(r.name)}</span>
+                  <BankFxLogo code={r.code} name={r.name} />
                   <span className="bankfx-rank-name">
                     {r.name}
                     {r.flag && <span className="bankfx-flag" title={flagTitle}> ⚠</span>}
