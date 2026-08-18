@@ -16781,8 +16781,44 @@ function App() {
   // The «Рынок» item carries a Finam-style drop-down (sections with their own
   // headers). Hover-driven on desktop; the drawer shows the extra destinations
   // as plain indented rows instead — see .nav-dd-* in styles.css.
+  //
+  // The panel is PORTALED to <body> and fixed at the trigger's measured rect:
+  // below 1700px the nav is a horizontal scrollport (mobile.css gives it
+  // overflow-x: auto), and a scrollport clips absolutely-positioned children
+  // on both axes — an in-place panel opened invisibly on every laptop-width
+  // window. Fixed at rect.bottom it stays flush with the trigger, so the
+  // pointer never crosses a dead gap; the short close timer covers re-entry.
   const [marketMenuOpen, setMarketMenuOpen] = useState(false);
+  const [marketMenuPos, setMarketMenuPos] = useState(null);
   const [bankFxOpen, setBankFxOpen] = useState(false);
+  const marketMenuWrapRef = useRef(null);
+  const marketMenuTimer = useRef(null);
+  useEffect(() => () => clearTimeout(marketMenuTimer.current), []);
+  const openMarketMenu = () => {
+    clearTimeout(marketMenuTimer.current);
+    const r = marketMenuWrapRef.current?.getBoundingClientRect();
+    if (r) {
+      const z = rootZoom();
+      setMarketMenuPos({ top: r.bottom / z, left: r.left / z });
+    }
+    setMarketMenuOpen(true);
+  };
+  const closeMarketMenuSoon = () => {
+    clearTimeout(marketMenuTimer.current);
+    marketMenuTimer.current = setTimeout(() => setMarketMenuOpen(false), 140);
+  };
+  const closeMarketMenu = () => {
+    clearTimeout(marketMenuTimer.current);
+    setMarketMenuOpen(false);
+  };
+  // The portaled panel is fixed — a scroll would carry the topbar away and
+  // leave it floating, so any scroll closes it (capture: inner scrollports too).
+  useEffect(() => {
+    if (!marketMenuOpen) return undefined;
+    const close = () => { clearTimeout(marketMenuTimer.current); setMarketMenuOpen(false); };
+    window.addEventListener("scroll", close, { passive: true, capture: true });
+    return () => window.removeEventListener("scroll", close, { capture: true });
+  }, [marketMenuOpen]);
   const navDdLabel = (ru, uz, en) => (language === "en" ? en : language === "uz" ? uz : ru);
 
   const onAvatarChange = async (event) => {
@@ -16843,44 +16879,60 @@ function App() {
               <div
                 key={key}
                 className="nav-dd-wrap"
-                onMouseEnter={() => setMarketMenuOpen(true)}
-                onMouseLeave={() => setMarketMenuOpen(false)}
+                ref={marketMenuWrapRef}
+                onMouseEnter={openMarketMenu}
+                onMouseLeave={closeMarketMenuSoon}
               >
                 <button
                   className={`topbar-nav-btn ${activeView === key ? "active" : ""}`}
                   type="button"
                   aria-haspopup="menu"
                   aria-expanded={marketMenuOpen}
-                  onClick={() => { setActiveView("market"); setMobileNavOpen(false); setMarketMenuOpen(false); }}
+                  onClick={() => { setActiveView("market"); setMobileNavOpen(false); closeMarketMenu(); }}
                 >
                   {mt(language, "nav")}
                   <span className="nav-dd-caret" aria-hidden="true">▾</span>
                 </button>
-                {marketMenuOpen && (
-                  <div className="nav-dd-panel" role="menu">
+                {marketMenuOpen && marketMenuPos && createPortal(
+                  <div
+                    className="nav-dd-panel"
+                    role="menu"
+                    style={{ top: marketMenuPos.top, left: marketMenuPos.left }}
+                    ref={(el) => {
+                      // Clamp into the viewport once the width is known — the
+                      // trigger can sit far enough right (compact band, long
+                      // translations) that a left-anchored panel runs off-screen.
+                      if (!el) return;
+                      const { vw } = zoomedViewport();
+                      el.style.left = `${Math.max(8, Math.min(marketMenuPos.left, vw - el.offsetWidth - 8))}px`;
+                    }}
+                    onMouseEnter={openMarketMenu}
+                    onMouseLeave={closeMarketMenuSoon}
+                  >
                     <div className="nav-dd-col">
                       <div className="nav-dd-head">{navDdLabel("Биржа", "Birja", "Exchange")}</div>
                       <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setActiveView("market"); setMarketMenuOpen(false); }}>
+                        onClick={() => { setActiveView("market"); closeMarketMenu(); }}>
                         {navDdLabel("Биржевые инструменты", "Birja instrumentlari", "Exchange instruments")}
                       </button>
                       <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setActiveView("heatmap"); setMarketMenuOpen(false); }}>
+                        onClick={() => { setActiveView("heatmap"); closeMarketMenu(); }}>
                         {navDdLabel("Карта рынка", "Bozor xaritasi", "Market map")}
                       </button>
                     </div>
                     <div className="nav-dd-col">
                       <div className="nav-dd-head">{navDdLabel("Валюта", "Valyuta", "Currency")}</div>
                       <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setBankFxOpen(true); setMarketMenuOpen(false); }}>
+                        onClick={() => { setBankFxOpen(true); closeMarketMenu(); }}>
                         {navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates")}
                       </button>
                       <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setActiveView("market"); setMarketMenuOpen(false); }}>
+                        onClick={() => { setActiveView("market"); closeMarketMenu(); }}>
                         {navDdLabel("Курсы ЦБ РУз", "O‘zR MB kurslari", "CBU official rates")}
                       </button>
                     </div>
-                  </div>
+                  </div>,
+                  document.body
                 )}
                 {/* Drawer counterpart of the drop-down: one indented row. The
                     board and the map already sit in the drawer as their own

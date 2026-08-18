@@ -3107,13 +3107,15 @@ body[data-theme="light"] .fx-bar {
   opacity: 0.65;
 }
 
-/* Anchored flush to the trigger (top: 100%, no margin) so the pointer never
-   crosses a dead gap that would fire mouseleave and close it. */
+/* Portaled to <body> and fixed at the trigger's measured rect — an in-place
+   absolute panel is clipped by the nav once mobile.css turns it into a
+   horizontal scrollport (≤1700px). Flush anchoring (top = rect.bottom, no
+   margin) keeps the pointer path continuous; z-index above the portaled
+   market-sticky-head (50) and the cols dropdown (121)'s layer, below the
+   bankfx modal (200). */
 .nav-dd-panel {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 70;
+  position: fixed;
+  z-index: 130;
   display: flex;
   gap: 36px;
   padding: 16px 24px 18px;
