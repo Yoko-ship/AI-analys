@@ -482,6 +482,13 @@ class AdminGovAuctionsRequest(BaseModel):
     key_rate: dict[str, Any] | None = None
 
 
+class AdminBankFxRequest(BaseModel):
+    """Commercial-bank exchange rates from bankxizmatlari.uz — 31 banks x 3
+    currencies x 3 channels is under 300 rows a poll; the ceiling is headroom,
+    not a real bound."""
+    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+
+
 class AdminNewsRequest(BaseModel):
     items: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
 
@@ -2047,6 +2054,57 @@ async def api_currency_rates(request: Request) -> Response:
     return _etag_json(request, _cbu_rates_cache["payload"], max_age=300)
 
 
+def _bank_fx_payload() -> dict[str, Any]:
+    """Group the flat rate-cell rows into one entry per bank, plus the best
+    buy/sell across banks for each currency+channel — flagged cells are
+    excluded from "best" so a suspect quote never wins the ranking, but they
+    are still served on the bank's own card (ТЗ: show the real number, mark
+    uncertainty, never hide it)."""
+    rows = provenance.bank_fx_rates_latest()
+    banks: dict[str, dict[str, Any]] = {}
+    best: dict[str, dict[str, Any]] = {}
+    for r in rows:
+        code = r["bank_code"]
+        bank = banks.setdefault(code, {
+            "bank_code": code, "bank_name": r["bank_name"],
+            "updated_at": r["bank_updated_at"], "rates": {},
+        })
+        # A bank's cards can carry more than one bank_updated_at across
+        # currencies (a channel refreshed independently) — the newest wins as
+        # the bank's headline "as of" stamp.
+        if r["bank_updated_at"] and r["bank_updated_at"] > (bank["updated_at"] or ""):
+            bank["updated_at"] = r["bank_updated_at"]
+        bank["rates"].setdefault(r["ccy"], {})[r["channel"]] = {
+            "buy": r["buy"], "sell": r["sell"], "flag": r["flag"],
+        }
+        if r["flag"]:
+            continue
+        slot = best.setdefault(r["ccy"], {}).setdefault(r["channel"], {"best_buy": None, "best_sell": None})
+        if r["buy"] is not None and (slot["best_buy"] is None or r["buy"] > slot["best_buy"]["value"]):
+            slot["best_buy"] = {"bank_code": code, "bank_name": r["bank_name"], "value": r["buy"]}
+        if r["sell"] is not None and (slot["best_sell"] is None or r["sell"] < slot["best_sell"]["value"]):
+            slot["best_sell"] = {"bank_code": code, "bank_name": r["bank_name"], "value": r["sell"]}
+    return {
+        "ok": True,
+        "source": "bankxizmatlari.uz",
+        "banks": sorted(banks.values(), key=lambda b: b["bank_name"] or ""),
+        "best": best,
+    }
+
+
+@app.get("/api/bank-fx")
+async def api_bank_fx(request: Request) -> Response:
+    """Every commercial bank's published exchange rate, refreshed hourly by
+    the collector — see bank_fx_collector.py for what the source publishes
+    and why a wide spread is flagged rather than dropped."""
+    try:
+        payload = _bank_fx_payload()
+    except Exception:
+        logger.exception("bank-fx read failed")
+        return _etag_json(request, {"ok": False, "banks": [], "best": {}}, max_age=60)
+    return _etag_json(request, payload, max_age=300)
+
+
 @app.get("/api/heatmap")
 async def api_heatmap(request: Request) -> Response:
     """The market map: tiles, sectors and metadata in ONE response (ТЗ §9)."""
@@ -2247,6 +2305,18 @@ async def api_admin_gov_auctions(payload: AdminGovAuctionsRequest,
     written = provenance.upsert_gov_auctions(payload.rows)
     rate_written = provenance.upsert_key_rate(payload.key_rate)
     return {"ok": True, "upserted": written, "key_rate": rate_written}
+
+
+@app.post("/api/admin/bank-fx")
+async def api_admin_bank_fx(payload: AdminBankFxRequest,
+                            _: None = Depends(_require_admin)) -> dict[str, Any]:
+    """Commercial-bank exchange rates from bankxizmatlari.uz, pushed hourly.
+
+    Keyed on each bank's own stated update time, so a quiet poll — nobody
+    moved a rate — writes nothing new; only an actual change lands a row.
+    """
+    written = provenance.upsert_bank_fx_rates(payload.rows)
+    return {"ok": True, "upserted": written}
 
 
 @app.get("/api/catalog/reports/summary")

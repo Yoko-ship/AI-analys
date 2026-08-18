@@ -166,6 +166,28 @@ def _create_schema(conn: sqlite3.Connection) -> None:
               source_url     TEXT,
               synced_at      TEXT
             );
+            -- Commercial-bank exchange rates from bankxizmatlari.uz. Keyed on the
+            -- BANK's own stated update time (bank_updated_at), not ours: a bank
+            -- that has not moved its rate since the last poll re-states the same
+            -- key and the upsert is a no-op, so history grows only when a bank
+            -- actually changes something. When the source's own timestamp fails
+            -- to parse, the collector falls back to its own fetch time so the
+            -- key is never NULL (PostgreSQL rejects NULL in a primary key).
+            CREATE TABLE IF NOT EXISTS bank_fx_rates (
+              bank_code       TEXT NOT NULL,
+              bank_name       TEXT,
+              ccy             TEXT NOT NULL,
+              channel         TEXT NOT NULL,
+              buy             REAL,
+              sell            REAL,
+              flag            TEXT,
+              bank_updated_at TEXT NOT NULL,
+              source_url      TEXT,
+              synced_at       TEXT,
+              PRIMARY KEY (bank_code, ccy, channel, bank_updated_at)
+            );
+            CREATE INDEX IF NOT EXISTS ix_bank_fx_latest
+              ON bank_fx_rates (ccy, channel, bank_updated_at DESC);
             """
     )
     conn.commit()
@@ -619,6 +641,72 @@ def key_rate() -> dict[str, Any] | None:
         row = conn.execute(
             "SELECT * FROM gov_key_rate ORDER BY effective_from DESC LIMIT 1").fetchone()
         return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Commercial-bank exchange rates (bankxizmatlari.uz)
+# ---------------------------------------------------------------------------
+
+def upsert_bank_fx_rates(rows: Sequence[dict[str, Any]]) -> int:
+    """Upsert bank rate cells, keyed on each bank's OWN stated update time.
+
+    A bank that has not moved a rate since the last poll republishes the same
+    ``bank_updated_at``, so the conflict path fires and no new history row is
+    created — a quiet hour changes nothing on disk. A bank that moves its rate
+    (or the same page load parsed without a readable timestamp) gets a new key
+    and a new row.
+    """
+    init()
+    conn = _conn()
+    fields = ("bank_code", "bank_name", "ccy", "channel", "buy", "sell",
+              "flag", "bank_updated_at", "source_url")
+    updates = ",".join(f"{f}=excluded.{f}" for f in fields[1:]) + ", synced_at=excluded.synced_at"
+    fetched = _now()
+    written = 0
+    try:
+        for row in rows or []:
+            bank_code = str(row.get("bank_code") or "").strip()
+            ccy = str(row.get("ccy") or "").strip().upper()
+            channel = str(row.get("channel") or "").strip().upper()
+            if not bank_code or not ccy or not channel:
+                continue
+            # The key must never be NULL — PostgreSQL rejects that in a
+            # primary key — so an unparsed source timestamp falls back to our
+            # own fetch time, which still keys a real, distinct poll.
+            updated_at = str(row.get("bank_updated_at") or fetched)
+            values = [bank_code, row.get("bank_name"), ccy, channel,
+                     row.get("buy"), row.get("sell"), row.get("flag"),
+                     updated_at, row.get("source_url"), fetched]
+            conn.execute(
+                f"INSERT INTO bank_fx_rates ({','.join(fields)}, synced_at) "
+                f"VALUES ({','.join('?' * (len(fields) + 1))}) "
+                f"ON CONFLICT(bank_code, ccy, channel, bank_updated_at) DO UPDATE SET {updates}",
+                values)
+            written += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return written
+
+
+def bank_fx_rates_latest() -> list[dict[str, Any]]:
+    """The newest row per (bank, currency, channel) — the board a reader sees."""
+    init()
+    conn = _conn()
+    try:
+        return [dict(r) for r in conn.execute(
+            """
+            SELECT bank_code, bank_name, ccy, channel, buy, sell, flag,
+                   bank_updated_at, source_url, synced_at
+            FROM bank_fx_rates b
+            WHERE bank_updated_at = (
+                SELECT MAX(bank_updated_at) FROM bank_fx_rates
+                WHERE bank_code = b.bank_code AND ccy = b.ccy AND channel = b.channel
+            )
+            ORDER BY bank_name, ccy, channel
+            """)]
     finally:
         conn.close()
 
