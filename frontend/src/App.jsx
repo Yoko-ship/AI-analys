@@ -5285,6 +5285,7 @@ function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
 function FxRatesBar({ language }) {
   const lang = normalizeLanguage(language);
   const [fx, setFx] = useState(null);
+  const [banksOpen, setBanksOpen] = useState(false);
   useEffect(() => {
     let alive = true;
     fetch("/api/currency/rates")
@@ -5316,7 +5317,226 @@ function FxRatesBar({ language }) {
           </span>
         );
       })}
+      <button
+        type="button"
+        className="fx-bar-banks"
+        onClick={() => setBanksOpen(true)}
+        title={lang === "en" ? "Commercial banks' cash rates"
+          : lang === "uz" ? "Tijorat banklarining kurslari"
+          : "Курсы коммерческих банков"}
+      >
+        {lang === "en" ? "Bank rates" : lang === "uz" ? "Bank kurslari" : "Курсы банков"}
+        <span aria-hidden="true">→</span>
+      </button>
+      {banksOpen && <BankFxModal language={lang} onClose={() => setBanksOpen(false)} />}
     </div>
+  );
+}
+
+// The three sale channels bankxizmatlari.uz publishes for every bank. The
+// order is the portal's own; a bank that publishes none of a channel simply
+// has no row under that chip.
+const BANK_FX_CHANNELS = ["BANK", "APP", "ATM"];
+
+function bankFxChannelLabel(channel, lang) {
+  const labels = {
+    BANK: { ru: "Обменный пункт", uz: "Ayirboshlash shoxobchasi", en: "Exchange office" },
+    APP: { ru: "Приложение", uz: "Ilova", en: "Mobile app" },
+    ATM: { ru: "Банкомат", uz: "Bankomat", en: "ATM" },
+  };
+  return labels[channel]?.[lang] || labels[channel]?.ru || channel;
+}
+
+// The bank's own stated update time arrives as ISO with a +05:00 offset.
+// Rendered from the STRING, not through Date: it is Tashkent wall-clock the
+// bank printed on its card, and shifting it into the reader's zone would show
+// a time the bank never stated.
+function bankFxStamp(iso) {
+  if (!iso || iso.length < 16) return "—";
+  return `${iso.slice(11, 16)}, ${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+}
+
+// Same three Russian forms as tradeCountLabel, for the bank counter in the head.
+function bankCountLabel(n, lang) {
+  if (lang === "uz") return "bank";
+  if (lang === "en") return n === 1 ? "bank" : "banks";
+  const m10 = n % 10; const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return "банк";
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return "банка";
+  return "банков";
+}
+
+// Every commercial bank's published rate for one currency and channel, behind
+// the «Курсы банков» button on the CBU strip. The list is bankxizmatlari.uz's
+// (the Central Bank's retail portal) — fetched only when opened, so the market
+// page itself never pays for it.
+function BankFxModal({ language, onClose }) {
+  const lang = normalizeLanguage(language);
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [ccy, setCcy] = useState("USD");
+  const [channel, setChannel] = useState("BANK");
+  // key: name | buy | sell; dir flips on a second click of the same header.
+  const [sort, setSort] = useState({ key: "buy", dir: -1 });
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/bank-fx")
+      .then((r) => r.json())
+      .then((d) => { if (!alive) return; if (d && d.ok) setData(d); else setFailed(true); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; };
+  }, []);
+
+  // Esc closes; the page behind is frozen so the wheel belongs to the table.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  const banks = data?.banks || [];
+  const ccySet = new Set();
+  banks.forEach((b) => Object.keys(b.rates || {}).forEach((c) => ccySet.add(c)));
+  const ccys = ["USD", "EUR", "RUB"].filter((c) => ccySet.has(c))
+    .concat([...ccySet].filter((c) => !["USD", "EUR", "RUB"].includes(c)).sort());
+  const activeCcy = ccys.includes(ccy) ? ccy : (ccys[0] || ccy);
+
+  const rows = banks
+    .map((b) => {
+      const cell = b.rates?.[activeCcy]?.[channel];
+      if (!cell || (cell.buy === null && cell.sell === null)) return null;
+      return { code: b.bank_code, name: b.bank_name, updated: b.updated_at, ...cell };
+    })
+    .filter(Boolean);
+  rows.sort((a, b) => {
+    if (sort.key === "name") return sort.dir * String(a.name).localeCompare(String(b.name), "ru");
+    const av = a[sort.key]; const bv = b[sort.key];
+    // A bank that does not publish the sorted side sinks to the bottom
+    // whichever way the column is flipped.
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    return sort.dir * (av - bv);
+  });
+
+  const best = data?.best?.[activeCcy]?.[channel] || {};
+  const toggleSort = (key) => setSort((s) => (
+    s.key === key ? { key, dir: -s.dir } : { key, dir: key === "name" ? 1 : key === "sell" ? 1 : -1 }
+  ));
+  const arrow = (key) => (sort.key === key ? (sort.dir > 0 ? " ↑" : " ↓") : "");
+
+  const title = lang === "en" ? "Bank exchange rates" : lang === "uz" ? "Banklarda valyuta kurslari" : "Курсы валют в банках";
+  const buyLabel = lang === "en" ? "Buy" : lang === "uz" ? "Olish" : "Покупка";
+  const sellLabel = lang === "en" ? "Sell" : lang === "uz" ? "Sotish" : "Продажа";
+  const flagTitle = lang === "en" ? "Unusually wide spread — under review"
+    : lang === "uz" ? "G'ayrioddiy keng spred — tekshirilmoqda"
+    : "Аномально широкий спред — котировка проверяется";
+
+  return createPortal(
+    <div className="bankfx-overlay" onClick={onClose}>
+      <section className="bankfx-modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <header className="bankfx-head">
+          <div>
+            <h3>{title}</h3>
+            <span className="bankfx-src">
+              {lang === "en" ? "Source" : lang === "uz" ? "Manba" : "Источник"}: bankxizmatlari.uz
+              {rows.length ? ` · ${rows.length} ${bankCountLabel(rows.length, lang)}` : ""}
+            </span>
+          </div>
+          <button type="button" className="bankfx-close" onClick={onClose} aria-label={lang === "en" ? "Close" : lang === "uz" ? "Yopish" : "Закрыть"}>×</button>
+        </header>
+
+        <div className="bankfx-controls">
+          <div className="segmented-control" role="group" aria-label={lang === "en" ? "Currency" : lang === "uz" ? "Valyuta" : "Валюта"}>
+            {(ccys.length ? ccys : ["USD", "EUR", "RUB"]).map((c) => (
+              <button key={c} type="button" className={c === activeCcy ? "active" : ""}
+                aria-pressed={c === activeCcy} onClick={() => setCcy(c)}>{c}</button>
+            ))}
+          </div>
+          <div className="segmented-control" role="group" aria-label={lang === "en" ? "Channel" : lang === "uz" ? "Kanal" : "Канал"}>
+            {BANK_FX_CHANNELS.map((ch) => (
+              <button key={ch} type="button" className={ch === channel ? "active" : ""}
+                aria-pressed={ch === channel} onClick={() => setChannel(ch)}>{bankFxChannelLabel(ch, lang)}</button>
+            ))}
+          </div>
+        </div>
+
+        {(best.best_buy || best.best_sell) && (
+          <div className="bankfx-best">
+            <div className="bankfx-best-card">
+              <span className="bankfx-best-label">
+                {lang === "en" ? "Best buy rate" : lang === "uz" ? "Eng yaxshi olish kursi" : "Лучшая покупка"}
+              </span>
+              <strong>{best.best_buy ? formatRatio(best.best_buy.value, 2, lang) : "—"}</strong>
+              <span className="bankfx-best-bank">{best.best_buy?.bank_name || ""}</span>
+            </div>
+            <div className="bankfx-best-card">
+              <span className="bankfx-best-label">
+                {lang === "en" ? "Best sell rate" : lang === "uz" ? "Eng yaxshi sotish kursi" : "Лучшая продажа"}
+              </span>
+              <strong>{best.best_sell ? formatRatio(best.best_sell.value, 2, lang) : "—"}</strong>
+              <span className="bankfx-best-bank">{best.best_sell?.bank_name || ""}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="bankfx-table-wrap">
+          {failed ? (
+            <p className="bankfx-empty">
+              {lang === "en" ? "Could not load the rates. Try again later."
+                : lang === "uz" ? "Kurslarni yuklab bo'lmadi. Keyinroq urinib ko'ring."
+                : "Не удалось загрузить курсы. Попробуйте позже."}
+            </p>
+          ) : !data ? (
+            <p className="bankfx-empty">{lang === "en" ? "Loading..." : lang === "uz" ? "Yuklanmoqda..." : "Загрузка..."}</p>
+          ) : !rows.length ? (
+            <p className="bankfx-empty">
+              {lang === "en" ? "No published rates for this currency and channel yet."
+                : lang === "uz" ? "Bu valyuta va kanal uchun e'lon qilingan kurslar hozircha yo'q."
+                : "Опубликованных курсов для этой валюты и канала пока нет."}
+            </p>
+          ) : (
+            <table className="bankfx-table">
+              <thead>
+                <tr>
+                  <th><button type="button" onClick={() => toggleSort("name")}>{lang === "en" ? "Bank" : "Банк"}{arrow("name")}</button></th>
+                  <th className="num"><button type="button" onClick={() => toggleSort("buy")}
+                    title={lang === "en" ? "The bank buys the currency at this rate"
+                      : lang === "uz" ? "Bank valyutani shu kursda oladi"
+                      : "Банк покупает валюту по этому курсу"}>{buyLabel}{arrow("buy")}</button></th>
+                  <th className="num"><button type="button" onClick={() => toggleSort("sell")}
+                    title={lang === "en" ? "The bank sells the currency at this rate"
+                      : lang === "uz" ? "Bank valyutani shu kursda sotadi"
+                      : "Банк продаёт валюту по этому курсу"}>{sellLabel}{arrow("sell")}</button></th>
+                  <th className="num">{lang === "en" ? "Updated" : lang === "uz" ? "Yangilangan" : "Обновлено"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.code}>
+                    <td>{r.name}{r.flag && <span className="bankfx-flag" title={flagTitle}> ⚠</span>}</td>
+                    <td className={`num${!r.flag && best.best_buy && r.buy === best.best_buy.value ? " is-best" : ""}`}>
+                      {r.buy === null ? "—" : formatRatio(r.buy, 2, lang)}
+                    </td>
+                    <td className={`num${!r.flag && best.best_sell && r.sell === best.best_sell.value ? " is-best" : ""}`}>
+                      {r.sell === null ? "—" : formatRatio(r.sell, 2, lang)}
+                    </td>
+                    <td className="num bankfx-stamp">{bankFxStamp(r.updated)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+    </div>,
+    document.body
   );
 }
 
