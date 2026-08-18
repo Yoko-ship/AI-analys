@@ -5344,13 +5344,25 @@ function MarketChangeBadge({ value, percent, language }) {
   );
 }
 
-function heatmapTileStyle(changePercent) {
+// How far a move has to go before the tile is fully saturated, per period. A
+// session's 5 % is a big day; six months' 5 % is nothing, and drawing a half-year
+// on the session's scale paints almost every tile the same flat green — a picture
+// with no information left in it. The legend is built from the same number, so
+// the swatches and the tiles can never describe different scales.
+const HEATMAP_FULL_SCALE = { "1d": 5, "1w": 10, "1m": 20, "3m": 35, "6m": 50, "1y": 75, ytd: 75 };
+const heatmapFullScale = (period) => HEATMAP_FULL_SCALE[period] || 5;
+
+function heatmapTileStyle(changePercent, full = 5) {
   if (changePercent === null || !Number.isFinite(changePercent)) return {};
+  const span = Number.isFinite(full) && full > 0 ? full : 5;
+  // The dead band that reads as "unchanged" travels with the scale: ±0.1 % on a
+  // session, ±1,5 % over a year, where a tenth of a percent is noise.
+  const dead = span / 50;
   const abs = Math.abs(changePercent);
-  // 0.1% → L 20%; 5%+ → L 42% (TradingView-style vivid HSL)
-  const lightness = Math.min(20 + (abs / 5) * 22, 44).toFixed(0);
-  if (changePercent > 0.1) return { background: `hsl(160 65% ${lightness}%)` };
-  if (changePercent < -0.1) return { background: `hsl(0 70% ${lightness}%)` };
+  // dead band → L 20%; `span`+ → L 42% (TradingView-style vivid HSL)
+  const lightness = Math.min(20 + (abs / span) * 22, 44).toFixed(0);
+  if (changePercent > dead) return { background: `hsl(160 65% ${lightness}%)` };
+  if (changePercent < -dead) return { background: `hsl(0 70% ${lightness}%)` };
   return {};
 }
 
@@ -5407,7 +5419,14 @@ function squarifyTreemap(items, x, y, w, h) {
   return out;
 }
 
-function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData }) {
+function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, period = "1d" }) {
+  // Which question the map is drawing. Over a window every tile's colour is the
+  // change over it and every tile's AREA is the turnover over it — the caller
+  // has already restated the rows (see `mapRows`), so the treemap arithmetic
+  // below needs no special case. What does need one is everything the SERVER
+  // said about today; see `tileStatus`.
+  const windowed = period !== "1d";
+  const fullScale = heatmapFullScale(period);
   // Per-tile classification from /api/heatmap (ТЗ §9). The server decides what a
   // tile IS — priced, traded-but-unpriced, dormant, or resting on a single trade
   // — because the same judgement has to hold for the aggregates it also returns.
@@ -5418,13 +5437,21 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   }, [mapData]);
   const metaOf = (r) => tileMeta.get(String(r?.ticker || "").toUpperCase()) || null;
   const tileStatus = (r) => {
+    // The server's classification answers «did this trade TODAY», and over a
+    // window the map is not drawing today: a security that sat out this morning
+    // but moved 30 % since May is not a «не торговалась» grey square. A window's
+    // own test is simply whether the stored closes reach back far enough to
+    // measure it — the same test the «Изм. 1М» column applies.
+    if (windowed) return Number.isFinite(r?.changePercent) ? "ok" : "not_traded";
     const meta = metaOf(r);
     if (meta) return meta.status;
     // Before the response lands, fall back to the same rule the server applies.
     if (!Number.isFinite(r?.changePercent)) return r?.inactive ? "inactive" : "not_traded";
     return "ok";
   };
-  const lowConfidence = (r) => metaOf(r)?.confidence === "low";
+  // «Rests on fewer than five trades» is a statement about one session. A month
+  // of sessions is not low-confidence because this morning was thin.
+  const lowConfidence = (r) => !windowed && metaOf(r)?.confidence === "low";
   const lang = normalizeLanguage(language);
   const wrapRef = React.useRef(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -5560,19 +5587,24 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     : (lang === "ru" ? "Обыкновенные" : lang === "uz" ? "Oddiy aksiyalar" : "Ordinary");
 
   const GAP = 1.5;
+  // Drawn from the period's own scale, never from a fixed ±5 %: a legend that
+  // says «≥ +5%» over a picture where the saturation point is 50 % is not a key,
+  // it is a wrong caption. The stops sit just past saturation and at two fifths
+  // of it, which is exactly where the session's ±5,5/±2 always were.
+  const mid = fullScale * 0.4;
   const LEGEND_STOPS = [
-    { pct: -5.5, label: "≤ −5%" },
-    { pct: -2,   label: "−2%" },
-    { pct: 0,    label: "0" },
-    { pct: 2,    label: "+2%" },
-    { pct: 5.5,  label: "≥ +5%" },
+    { pct: -fullScale * 1.1, label: `≤ −${formatRatio(fullScale, 0, lang)}%` },
+    { pct: -mid,             label: `−${formatRatio(mid, 0, lang)}%` },
+    { pct: 0,                label: "0" },
+    { pct: mid,              label: `+${formatRatio(mid, 0, lang)}%` },
+    { pct: fullScale * 1.1,  label: `≥ +${formatRatio(fullScale, 0, lang)}%` },
   ];
 
   return (
     <div className="heatmap-wrap">
       <div className="heatmap-legend">
         {LEGEND_STOPS.map(({ pct, label }) => {
-          const s = heatmapTileStyle(pct);
+          const s = heatmapTileStyle(pct, fullScale);
           return (
             <span key={label} className="heatmap-legend-item">
               <span className="heatmap-legend-swatch" style={s.background ? { background: s.background } : undefined} />
@@ -5625,7 +5657,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                   {sec.stocks.map((st) => {
                     const row = st.row;
                     const status = tileStatus(row);
-                    const tileStyle = heatmapTileStyle(row.changePercent);
+                    const tileStyle = heatmapTileStyle(row.changePercent, fullScale);
                     const isNeutral = !tileStyle.background;
                     // ТЗ §9: a tile with no price gets its own look, not the
                     // neutral grey that reads as "unchanged"; a tile resting on
@@ -5683,13 +5715,28 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         const avgTrade = avgTradeValue(r);
         const largest = r.ts && Number.isFinite(r.ts.largest_value) ? r.ts.largest_value : null;
         const num = (v, d = 0) => (Number.isFinite(v) && v > 0 ? formatRatio(v, d, lang) : "—");
-        const stats = [
-          [mt(lang, "volumeCol"), num(r.stockVolume)],
-          [mt(lang, "volQty"), num(r.stockQuantity)],
-          [mt(lang, "avgSharePrice"), Number.isFinite(avgShare) && avgShare > 0 ? formatMarketNumber(avgShare, lang) : "—"],
-          [mt(lang, "avgTradePrice"), num(avgTrade)],
-          [mt(lang, "bigTrade"), num(largest)],
-        ];
+        const from = String(r.periodFrom || "");
+        const prettyFrom = from.length === 8 ? `${from.slice(6)}.${from.slice(4, 6)}.${from.slice(0, 4)}` : "";
+        // Under a window the session's own figures are dropped rather than
+        // relabelled: «средняя цена сделки» and «крупнейшая сделка» are facts
+        // about this morning, and printing them under a tile coloured by six
+        // months would attach today's trade to half a year's move. What the
+        // window CAN answer takes their place — how much changed hands over it,
+        // across how many sessions, from which one.
+        const stats = windowed
+          ? [
+              [mt(lang, "volumeCol"), num(r.stockVolume)],
+              [lang === "en" ? "Sessions" : lang === "uz" ? "Sessiyalar" : "Сессий",
+               Number.isFinite(r.periodSessions) ? formatRatio(r.periodSessions, 0, lang) : "—"],
+              [lang === "en" ? "Since" : lang === "uz" ? "Boshlab" : "С", prettyFrom || "—"],
+            ]
+          : [
+              [mt(lang, "volumeCol"), num(r.stockVolume)],
+              [mt(lang, "volQty"), num(r.stockQuantity)],
+              [mt(lang, "avgSharePrice"), Number.isFinite(avgShare) && avgShare > 0 ? formatMarketNumber(avgShare, lang) : "—"],
+              [mt(lang, "avgTradePrice"), num(avgTrade)],
+              [mt(lang, "bigTrade"), num(largest)],
+            ];
         // position: fixed at the cursor, clamped inside the viewport
         const TT_W = 236, TT_H = 210;
         const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
@@ -5710,6 +5757,19 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
             {/* ТЗ §9: the tooltip carries the ACTUAL figures behind the colour,
                 so a move that rests on one lot cannot be read as a market. */}
             {(() => {
+              if (windowed) {
+                // The server's `reason` strings are about today ("не торговалась
+                // в этой сессии") and would be a wrong explanation here. A
+                // window has exactly one reason to be blank, and it is this one.
+                if (Number.isFinite(r.changePercent)) return null;
+                return (
+                  <div className="heatmap-tt-note">
+                    {lang === "en" ? "no settled close that far back"
+                      : lang === "uz" ? "bu davr uchun yopilish narxi yo'q"
+                      : "нет закрытия за этот период"}
+                  </div>
+                );
+              }
               const meta = metaOf(r);
               if (!meta) return null;
               if (meta.status !== "ok") {
@@ -12432,6 +12492,32 @@ function MarketView({
   // The TABLE keeps the filter — there a dormant listing has a last close, a
   // date and an issuer to read, which is a row worth having.
   const mapRows = byClass.filter((r) => !isDormant(r));
+  // The map answers for the SELECTED period, like the «Изм.» column and the
+  // movers strip beside it — one question on the screen, one answer. Rather than
+  // thread the period through every place the treemap reads a row, the row is
+  // restated once here: over a window `changePercent` is the change over it and
+  // `stockVolume` is the turnover over it, so a tile's colour and its AREA both
+  // describe the window the reader chose. Both come from the same stored closes
+  // (/api/market/changes) the column already uses, so the two cannot disagree.
+  //
+  // `changeValue` is dropped, not converted: a window has no single сум figure —
+  // it spans many sessions — and carrying the session's would put this morning's
+  // сумы beside half a year's percent.
+  const periodMapRows = React.useMemo(() => {
+    if (changePeriod === "1d") return mapRows;
+    return mapRows.map((r) => {
+      const hit = changeOver(r.ticker, changePeriod);
+      const turn = turnoverOver(r.ticker, changePeriod);
+      return {
+        ...r,
+        changePercent: hit ? hit.pct : null,
+        changeValue: null,
+        stockVolume: turn ? turn.value : null,
+        periodFrom: turn?.from || hit?.from || null,
+        periodSessions: turn?.sessions ?? null,
+      };
+    });
+  }, [mapRows, changePeriod, changes]); // eslint-disable-line react-hooks/exhaustive-deps
   const search = String(query || "").trim().toLowerCase();
 
   // Gather sectors present in current data. Same resolver as the heat map, so a
@@ -13848,7 +13934,7 @@ function MarketView({
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
           ) : (
-            <MarketHeatmap rows={mapRows} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} onOpenCompany={onOpenCompany} type={type} mapData={mapData} />
+            <MarketHeatmap rows={periodMapRows} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} onOpenCompany={onOpenCompany} type={type} mapData={mapData} period={changePeriod} />
           )
         ) : (
           <>
