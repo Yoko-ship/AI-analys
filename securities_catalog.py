@@ -244,13 +244,35 @@ BOND_ISSUER_LOGOS: dict[str, str] = {
 }
 
 
-def _preferred_flag(share_type, name) -> bool:
+# Securities the exchange's own ``share_type`` gets wrong AND whose name carries
+# no «привилегированные» to catch it. This is a list of decided facts, not a rule
+# — every entry has to be established one ticker at a time, because the thing it
+# corrects is the source of truth.
+#
+# UZINP (O'zbekinvest, 2026-08-18, on the customer's instruction) is the
+# preferred line of an issuer that lists no ordinary shares here, so the feed has
+# no sibling to contrast it against and simply reports ``ordinary``, and the name
+# carries no «привилегированные» either. COMPANY_TICKERS in company_catalog.py
+# has said «only the preferred (UZINP) is UZSE-listed» all along; the 2026-08-09
+# sweep grouped it with BNGP and got it wrong. BNGP really is ordinary — it has a
+# separate BNGPP — and must stay out of this set. UZNGP is the same failure as
+# UZINP with a name that gives it away, which the suffix rule below catches.
+_PREFERRED_OVERRIDE = {"UZINP"}
+
+
+def _preferred_flag(share_type, name, ticker=None) -> bool:
     """Preferred is what the feed SAYS is preferred, never what the ticker
-    looks like. BNGP and UZINP are ordinary shares whose tickers happen to end
-    in ``P``, and the old ticker-shape guess labelled both «Привилегированная»
-    on their pages. The name suffix covers the one row the feed itself
-    mislabels: UZNGP carries ``share_type=ordinary`` under a name that says
-    «привилегированные»."""
+    looks like. BNGP is an ordinary share whose ticker happens to end in ``P``
+    — it has a separate BNGPP preferred line — and the old ticker-shape guess
+    labelled it «Привилегированная» on its page.
+
+    Two escapes from the feed's own answer, both narrow. The name suffix covers
+    the row the feed mislabels under a name that says so: UZNGP carries
+    ``share_type=ordinary`` under «привилегированные». ``_PREFERRED_OVERRIDE``
+    covers the row where neither the class field nor the name is right.
+    """
+    if str(ticker or "").strip().upper() in _PREFERRED_OVERRIDE:
+        return True
     return (str(share_type or "").lower() == "preferred"
             or "привилегирован" in str(name or "").lower())
 
@@ -295,7 +317,9 @@ def sync_securities(stocks: list[dict], logos: dict[str, str]) -> int:
         if not ticker or ticker in DELISTED_TICKERS:
             continue
         sector = _TICKER_SECTORS.get(ticker, "other")
-        is_preferred = 1 if _preferred_flag(s.get("share_type"), s.get("name") or s.get("company_name")) else 0
+        is_preferred = 1 if _preferred_flag(s.get("share_type"),
+                                            s.get("name") or s.get("company_name"),
+                                            ticker) else 0
         conn.execute(
             """
             INSERT INTO securities
@@ -356,9 +380,10 @@ def get_securities_map() -> dict[str, dict]:
             # Deleted from the site: skip on read as well as on write, so a row
             # written before the ticker was delisted cannot serve a company page.
             continue
-        # Recomputed on read so rows written under the old ticker-shape guess
-        # (BNGP, UZINP) answer correctly without waiting for the next sync.
-        d["is_preferred"] = _preferred_flag(d.get("share_type"), d.get("name"))
+        # Recomputed on read so a row written under an older rule — the ticker-
+        # shape guess that mislabelled BNGP, or the feed's own «ordinary» for
+        # UZINP — answers correctly without waiting for the next sync.
+        d["is_preferred"] = _preferred_flag(d.get("share_type"), d.get("name"), d.get("ticker"))
         vr = records.get(d["ticker"])
         if vr:
             d["max_volume"] = vr["max_volume"]
