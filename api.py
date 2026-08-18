@@ -1855,6 +1855,51 @@ def _window_change(points: list[dict[str, Any]], span_days: int | None,
             "from": base["date"], "base": base["close"]}
 
 
+def _window_turnover(points: list[dict[str, Any]], span_days: int | None,
+                     as_of: date) -> dict[str, Any] | None:
+    """What the security changed hands FOR over the window, in сумы.
+
+    The board's «Топ ликвидности» could only ever answer for the session, because
+    a windowed turnover was a sum nobody held. It is held now: every settled
+    session's `total_value` has been stored per security since 2025-08-13, so the
+    month's turnover is the month's sessions added up — not one day's figure
+    reprinted under a heading that says a month.
+
+    Only sessions the security actually traded in are counted. A carried-forward
+    close is written with turnover 0 and it is not a small trade: adding it would
+    inflate nothing but it would make `sessions` claim activity that did not
+    happen, and `sessions` is what tells a reader whether the sum is a month of
+    trading or one busy Tuesday inside it.
+
+    The window is the same half-open span the change over it uses — everything
+    strictly after the cutoff, through the latest session — so a figure and the
+    percent beside it describe the same stretch of calendar. `from` is the first
+    session inside it that traded, which on this market is routinely weeks after
+    the cutoff, and that is the fact a reader needs before comparing two lines.
+    """
+    if not points:
+        return None
+    cutoff = date(as_of.year, 1, 1) if span_days is None else as_of - timedelta(days=span_days)
+    if cutoff >= as_of:
+        return None
+    total = 0.0
+    sessions = 0
+    first: str | None = None
+    for p in points:
+        if p["d"] <= cutoff:
+            continue
+        value = p.get("turnover")
+        if value is None or value <= 0:
+            continue
+        total += value
+        sessions += 1
+        if first is None:
+            first = p["date"]
+    if not sessions:
+        return None
+    return {"value": round(total), "sessions": sessions, "from": first}
+
+
 @app.get("/api/market/changes")
 async def api_market_changes(request: Request) -> Response:
     """Per-security price change over each period the board offers.
@@ -1899,8 +1944,12 @@ async def api_market_changes(request: Request) -> Response:
             stamp = str(r.get("trade_date") or "")
             if close is None or len(stamp) != 8 or not stamp.isdigit():
                 continue
+            # Turnover rides along on the same point. It is money, so the split
+            # restatement above must not touch it — a сум in April is a сум now,
+            # whatever happened to the share count in between.
             points.append({"d": date(int(stamp[:4]), int(stamp[4:6]), int(stamp[6:8])),
-                           "date": stamp, "close": close})
+                           "date": stamp, "close": close,
+                           "turnover": formulas.to_number(r.get("turnover"))})
         if points:
             series[isin] = sorted(points, key=lambda p: p["d"])
 
@@ -1913,8 +1962,18 @@ async def api_market_changes(request: Request) -> Response:
         row = {code: _window_change(points, span, as_of)
                for code, span in MARKET_CHANGE_WINDOWS.items()}
         row = {k: v for k, v in row.items() if v}
-        if row:
+        # Turnover per window, under its own key rather than beside `pct` in each
+        # window's object: a security can have traded over a month without having
+        # a base close a month back (its history starts inside the window), and
+        # the liquidity panel must still rank it. Keeping the two independent is
+        # what lets each answer when the other cannot.
+        turnover = {code: _window_turnover(points, span, as_of)
+                    for code, span in MARKET_CHANGE_WINDOWS.items()}
+        turnover = {k: v for k, v in turnover.items() if v}
+        if row or turnover:
             row["as_of"] = points[-1]["date"]
+            if turnover:
+                row["turnover"] = turnover
             changes[ticker] = row
     return _etag_json(request, {"ok": True, "windows": list(MARKET_CHANGE_WINDOWS),
                                "count": len(changes), "changes": changes}, max_age=300)
