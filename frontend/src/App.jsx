@@ -62,6 +62,9 @@ const VIEW_PATHS = {
   heatmap: "/heatmap",
   catalog: "/catalog",
   news: "/news",
+  // Commercial-bank exchange rates — reached from the «Рынок» drop-down and
+  // the CBU strip on the board, not from the top-level nav row.
+  bankfx: "/currency",
   analysis: "/analysis",
   compare: "/compare",
   profile: "/profile",
@@ -5282,10 +5285,9 @@ function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
 // once per business day — the date in the label is CBU's own, never "live". The day
 // change reads as a percent of the previous fix — shorter than сумы in a
 // one-line strip; the exact сум difference stays in the item's tooltip.
-function FxRatesBar({ language }) {
+function FxRatesBar({ language, onOpenBanks }) {
   const lang = normalizeLanguage(language);
   const [fx, setFx] = useState(null);
-  const [banksOpen, setBanksOpen] = useState(false);
   useEffect(() => {
     let alive = true;
     fetch("/api/currency/rates")
@@ -5317,18 +5319,19 @@ function FxRatesBar({ language }) {
           </span>
         );
       })}
-      <button
-        type="button"
-        className="fx-bar-banks"
-        onClick={() => setBanksOpen(true)}
-        title={lang === "en" ? "Commercial banks' cash rates"
-          : lang === "uz" ? "Tijorat banklarining kurslari"
-          : "Курсы коммерческих банков"}
-      >
-        {lang === "en" ? "Bank rates" : lang === "uz" ? "Bank kurslari" : "Курсы банков"}
-        <span aria-hidden="true">→</span>
-      </button>
-      {banksOpen && <BankFxModal language={lang} onClose={() => setBanksOpen(false)} />}
+      {onOpenBanks && (
+        <button
+          type="button"
+          className="fx-bar-banks"
+          onClick={onOpenBanks}
+          title={lang === "en" ? "Commercial banks' cash rates"
+            : lang === "uz" ? "Tijorat banklarining kurslari"
+            : "Курсы коммерческих банков"}
+        >
+          {lang === "en" ? "Bank rates" : lang === "uz" ? "Bank kurslari" : "Курсы банков"}
+          <span aria-hidden="true">→</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -5366,14 +5369,14 @@ function bankCountLabel(n, lang) {
   return "банков";
 }
 
-// Every commercial bank's published rate for one currency and channel, behind
-// the «Курсы банков» button on the CBU strip. The list is bankxizmatlari.uz's
-// (the Central Bank's retail portal) — fetched only when opened, so the market
-// page itself never pays for it.
-function BankFxModal({ language, onClose }) {
+// Every commercial bank's published rate — a page of its own at /currency,
+// reached from the «Рынок» drop-down and the «Курсы банков» button on the CBU
+// strip. The list is bankxizmatlari.uz's (the Central Bank's retail portal).
+function BankFxPage({ language }) {
   const lang = normalizeLanguage(language);
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
+  const [cbu, setCbu] = useState(null);
   const [ccy, setCcy] = useState("USD");
   const [channel, setChannel] = useState("BANK");
   // key: name | buy | sell; dir flips on a second click of the same header.
@@ -5385,20 +5388,14 @@ function BankFxModal({ language, onClose }) {
       .then((r) => r.json())
       .then((d) => { if (!alive) return; if (d && d.ok) setData(d); else setFailed(true); })
       .catch(() => { if (alive) setFailed(true); });
+    // The official CBU rate anchors the board — a bank's buy/sell mean little
+    // without the reference level they straddle.
+    fetch("/api/currency/rates")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setCbu(d); })
+      .catch(() => {});
     return () => { alive = false; };
   }, []);
-
-  // Esc closes; the page behind is frozen so the wheel belongs to the table.
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
 
   const banks = data?.banks || [];
   const ccySet = new Set();
@@ -5426,6 +5423,7 @@ function BankFxModal({ language, onClose }) {
   });
 
   const best = data?.best?.[activeCcy]?.[channel] || {};
+  const cbuRate = cbu?.rates?.find((r) => r.ccy === activeCcy) || null;
   const toggleSort = (key) => setSort((s) => (
     s.key === key ? { key, dir: -s.dir } : { key, dir: key === "name" ? 1 : key === "sell" ? 1 : -1 }
   ));
@@ -5438,19 +5436,27 @@ function BankFxModal({ language, onClose }) {
     : lang === "uz" ? "G'ayrioddiy keng spred — tekshirilmoqda"
     : "Аномально широкий спред — котировка проверяется";
 
-  return createPortal(
-    <div className="bankfx-overlay" onClick={onClose}>
-      <section className="bankfx-modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <header className="bankfx-head">
+  return (
+    <section className="bankfx-page">
+      <article className="panel">
+        <div className="panel-head">
           <div>
-            <h3>{title}</h3>
-            <span className="bankfx-src">
+            <div className="panel-label">{lang === "en" ? "Currency" : lang === "uz" ? "Valyuta" : "Валюта"}</div>
+            <h2>{title}</h2>
+            <p className="bankfx-page-sub">
+              {lang === "en"
+                ? "Cash buy and sell rates published by Uzbekistan's commercial banks."
+                : lang === "uz"
+                  ? "O'zbekiston tijorat banklari e'lon qilgan naqd valyuta olish va sotish kurslari."
+                  : "Курсы покупки и продажи наличной валюты, опубликованные коммерческими банками Узбекистана."}
+              {" "}
               {lang === "en" ? "Source" : lang === "uz" ? "Manba" : "Источник"}: bankxizmatlari.uz
-              {rows.length ? ` · ${rows.length} ${bankCountLabel(rows.length, lang)}` : ""}
-            </span>
+            </p>
           </div>
-          <button type="button" className="bankfx-close" onClick={onClose} aria-label={lang === "en" ? "Close" : lang === "uz" ? "Yopish" : "Закрыть"}>×</button>
-        </header>
+          {rows.length > 0 && (
+            <span className="status-badge muted">{rows.length} {bankCountLabel(rows.length, lang)}</span>
+          )}
+        </div>
 
         <div className="bankfx-controls">
           <div className="segmented-control" role="group" aria-label={lang === "en" ? "Currency" : lang === "uz" ? "Valyuta" : "Валюта"}>
@@ -5467,7 +5473,7 @@ function BankFxModal({ language, onClose }) {
           </div>
         </div>
 
-        {(best.best_buy || best.best_sell) && (
+        {(best.best_buy || best.best_sell || cbuRate) && (
           <div className="bankfx-best">
             <div className="bankfx-best-card">
               <span className="bankfx-best-label">
@@ -5482,6 +5488,15 @@ function BankFxModal({ language, onClose }) {
               </span>
               <strong>{best.best_sell ? formatRatio(best.best_sell.value, 2, lang) : "—"}</strong>
               <span className="bankfx-best-bank">{best.best_sell?.bank_name || ""}</span>
+            </div>
+            <div className="bankfx-best-card">
+              <span className="bankfx-best-label">
+                {lang === "en" ? "CBU official rate" : lang === "uz" ? "O‘zR MB rasmiy kursi" : "Курс ЦБ РУз"}
+              </span>
+              <strong>{cbuRate ? formatRatio(cbuRate.rate, 2, lang) : "—"}</strong>
+              <span className="bankfx-best-bank">
+                {cbu?.date ? (lang === "en" ? `as of ${cbu.date}` : lang === "uz" ? `${cbu.date} holatiga` : `на ${cbu.date}`) : ""}
+              </span>
             </div>
           </div>
         )}
@@ -5534,9 +5549,16 @@ function BankFxModal({ language, onClose }) {
             </table>
           )}
         </div>
-      </section>
-    </div>,
-    document.body
+
+        <p className="bankfx-page-note">
+          {lang === "en"
+            ? "«Updated» is the time each bank stated on its own card (Tashkent time). ⚠ marks a quote with an unusually wide spread — shown as published, but excluded from the best-rate cards."
+            : lang === "uz"
+              ? "«Yangilangan» — har bir bank o'z kartasida ko'rsatgan vaqt (Toshkent vaqti). ⚠ — g'ayrioddiy keng spredli kurs: e'lon qilinganidek ko'rsatiladi, lekin eng yaxshi kurs kartalariga kirmaydi."
+              : "«Обновлено» — время, которое каждый банк указал на своей карточке (ташкентское). ⚠ — котировка с аномально широким спредом: показывается как опубликована, но не участвует в карточках лучших курсов."}
+        </p>
+      </article>
+    </section>
   );
 }
 
@@ -12159,6 +12181,7 @@ function MarketView({
   onAnalyze,
   onOpenCompany,
   onOpenBond,
+  onOpenBankFx,
   language,
   companies,
   securitiesMap,
@@ -13589,7 +13612,7 @@ function MarketView({
       {/* The CBU strip sits under the page hero (moved from under the topbar
           at the customer's request, 2026-08-16) — one thin line between the
           title panel and the market's own counters. */}
-      <FxRatesBar language={lang} />
+      <FxRatesBar language={lang} onOpenBanks={onOpenBankFx} />
 
       {/* The chips that scope these four cards are further down the page, past
           the filter bar — so the row has to say for itself which sector it is
@@ -16790,7 +16813,6 @@ function App() {
   // pointer never crosses a dead gap; the short close timer covers re-entry.
   const [marketMenuOpen, setMarketMenuOpen] = useState(false);
   const [marketMenuPos, setMarketMenuPos] = useState(null);
-  const [bankFxOpen, setBankFxOpen] = useState(false);
   const marketMenuWrapRef = useRef(null);
   const marketMenuTimer = useRef(null);
   useEffect(() => () => clearTimeout(marketMenuTimer.current), []);
@@ -16884,7 +16906,7 @@ function App() {
                 onMouseLeave={closeMarketMenuSoon}
               >
                 <button
-                  className={`topbar-nav-btn ${activeView === key ? "active" : ""}`}
+                  className={`topbar-nav-btn ${activeView === key || activeView === "bankfx" ? "active" : ""}`}
                   type="button"
                   aria-haspopup="menu"
                   aria-expanded={marketMenuOpen}
@@ -16915,20 +16937,12 @@ function App() {
                         onClick={() => { setActiveView("market"); closeMarketMenu(); }}>
                         {navDdLabel("Биржевые инструменты", "Birja instrumentlari", "Exchange instruments")}
                       </button>
-                      <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setActiveView("heatmap"); closeMarketMenu(); }}>
-                        {navDdLabel("Карта рынка", "Bozor xaritasi", "Market map")}
-                      </button>
                     </div>
                     <div className="nav-dd-col">
                       <div className="nav-dd-head">{navDdLabel("Валюта", "Valyuta", "Currency")}</div>
                       <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setBankFxOpen(true); closeMarketMenu(); }}>
+                        onClick={() => { setActiveView("bankfx"); closeMarketMenu(); }}>
                         {navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates")}
-                      </button>
-                      <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setActiveView("market"); closeMarketMenu(); }}>
-                        {navDdLabel("Курсы ЦБ РУз", "O‘zR MB kurslari", "CBU official rates")}
                       </button>
                     </div>
                   </div>,
@@ -16940,11 +16954,10 @@ function App() {
                 <button
                   className="topbar-nav-btn nav-dd-mobile-item"
                   type="button"
-                  onClick={() => { setBankFxOpen(true); setMobileNavOpen(false); }}
+                  onClick={() => { setActiveView("bankfx"); setMobileNavOpen(false); }}
                 >
                   {navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates")}
                 </button>
-                {bankFxOpen && <BankFxModal language={language} onClose={() => setBankFxOpen(false)} />}
               </div>
             ) : (
               <button key={key} className={`topbar-nav-btn ${activeView === key || (key === "news" && activeView === "newsArticle") ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>
@@ -17217,6 +17230,7 @@ function App() {
               }}
               onOpenCompany={openCompanyPage}
               onOpenBond={openBondPage}
+              onOpenBankFx={() => setActiveView("bankfx")}
               language={language}
               companies={companies}
               securitiesMap={securitiesMap}
@@ -17229,6 +17243,8 @@ function App() {
               isAdmin={Boolean(user?.is_admin)}
             />
           )}
+
+          {activeView === "bankfx" && <BankFxPage language={language} />}
 
           {activeView === "auth" && (
             <section className="auth-layout">
