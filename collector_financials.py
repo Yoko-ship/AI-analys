@@ -1031,6 +1031,23 @@ def push_gov_auctions() -> int:
                  {"rows": rows, "key_rate": gc.collect_key_rate()})
 
 
+def push_bank_fx() -> int:
+    """Push commercial-bank exchange rates (bankxizmatlari.uz).
+
+    Runs on its own hourly cron, separate from the daily pipeline: banks
+    update through the business day, not once a day like a filing. Keyed on
+    each bank's own stated update time, so a quiet poll pushes rows that just
+    upsert to themselves — no history growth, no error either.
+    """
+    import bank_fx_collector as bf
+
+    rows = bf.collect_bank_rates()
+    if not rows:
+        log.info("bank fx: nothing parsed — leaving prod as it stands")
+        return 0
+    return _post("/api/admin/bank-fx", {"rows": rows})
+
+
 def register_catalog() -> int:
     """Link the figures just pushed to the filings they came from (§Б.2/§Б.3).
 
@@ -1237,6 +1254,8 @@ def main() -> int:
                     help="skip the ГЦБ auction step (cbu.uz fiscal agent)")
     ap.add_argument("--gov-auctions-only", action="store_true",
                     help="only collect+push ГЦБ auction results and the key rate")
+    ap.add_argument("--bank-fx-only", action="store_true",
+                    help="only collect+push commercial-bank exchange rates (bankxizmatlari.uz)")
     ap.add_argument("--no-reconcile", action="store_true", help="skip the structured-JSON reconciliation push")
     ap.add_argument("--reconcile-only", action="store_true",
                     help="only reconcile financials against openinfo JSON and push (authoritative)")
@@ -1345,6 +1364,17 @@ def main() -> int:
             status = push_gov_auctions()
         except Exception:
             log.exception("gov auctions step failed")
+            status = 1
+        if not args.no_push:
+            push_heartbeat(status)
+        return status
+
+    if args.bank_fx_only:
+        status = 0
+        try:
+            status = push_bank_fx()
+        except Exception:
+            log.exception("bank fx step failed")
             status = 1
         if not args.no_push:
             push_heartbeat(status)

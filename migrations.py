@@ -200,6 +200,27 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(12, "events: drop the rows a mistranslated default stamped «now»",
               run_sql("DELETE FROM catalog_new_reports "
                       "WHERE detected_at IS NULL OR detected_at NOT LIKE '____-__-__%'")),
+    # Commercial-bank exchange rates from bankxizmatlari.uz. CREATE IF NOT
+    # EXISTS: a fresh database already gets this from the provenance schema
+    # initializer; this applies it to already-deployed ones and records it in
+    # schema_migrations so /ready can say whether the shape is current.
+    Migration(13, "bank fx: commercial-bank exchange rate matrix",
+              run_sql(
+                  """CREATE TABLE IF NOT EXISTS bank_fx_rates (
+                       bank_code       TEXT NOT NULL,
+                       bank_name       TEXT,
+                       ccy             TEXT NOT NULL,
+                       channel         TEXT NOT NULL,
+                       buy             REAL,
+                       sell            REAL,
+                       flag            TEXT,
+                       bank_updated_at TEXT NOT NULL,
+                       source_url      TEXT,
+                       synced_at       TEXT,
+                       PRIMARY KEY (bank_code, ccy, channel, bank_updated_at)
+                     )""",
+                  "CREATE INDEX IF NOT EXISTS ix_bank_fx_latest "
+                  "ON bank_fx_rates (ccy, channel, bank_updated_at DESC)")),
 )
 
 

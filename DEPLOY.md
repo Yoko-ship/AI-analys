@@ -204,12 +204,25 @@ python collector_financials.py --trades-only  # only the day's quotes/turnover (
 python collector_financials.py --trades-only --no-quotes  # …without the per-security quote pass
 python collector_financials.py --watch-filings # only the issuers that just filed (~1 min)
 python collector_financials.py --gov-auctions-only # only ГЦБ auctions + key rate from cbu.uz (~10 s)
+python collector_financials.py --bank-fx-only # only commercial-bank exchange rates (~5 s)
 ```
 
 The ГЦБ step reads the Central Bank's fiscal-agent page (auction results: tenor,
 maturity, placed volume, weighted-average rate) and the key rate from the front
 page. Auctions are monthly, the read is cheap, and re-pushing what prod already
 holds is a no-op — so it simply rides in the daily `collector` cron.
+
+The bank-fx step reads bankxizmatlari.uz's `/ru/rates/` page — the Central
+Bank's own retail-services portal, which already carries every commercial
+bank's rate matrix (USD/EUR/RUB x buy/sell x обменный пункт/приложение/банкомат)
+as `data-*` attributes on one server-rendered page, plus each bank's own
+stated update time. It runs on its **own hourly cron** (`bank-fx` in the table
+below), separate from the daily pipeline, because banks move their rates
+through the business day rather than once a day like a filing. See
+`bank_fx_collector.py` for the parse and why a wide bid/ask spread is flagged
+rather than dropped (a thin RUB market can genuinely be that wide; there is no
+authoritative "correct" level to check a bank against, so the guard is
+peer-relative within the same poll, never a silent deletion).
 
 Schedule it on any host that can reach openinfo:
 
@@ -248,6 +261,7 @@ Schedule it on any host that can reach openinfo:
   | `quotes-1610` | `quotes` | `10 11 * * 1-6` | 16:10 Mon–Sat | quotes/turnover, trading over but **not yet published** |
   | `quotes-2130` | `quotes` | `30 16 * * 1-6` | 21:30 Mon–Sat | quotes/turnover, the session as the exchange finally published it |
   | `reports-watch` | `reports-watch` | `0 4-18 * * 1-6` | hourly 09:00–23:00 Mon–Sat | issuers that filed since the last sweep |
+  | `bank-fx` | `bank-fx` | `0 3-13 * * *` | hourly 08:00–18:00 daily | commercial-bank exchange rates |
   | `news-collector` | `news-collector` | `10 11 * * *` | 16:10 daily | §3.11 news feed (see NEWS_MODULE.md) |
 
   **16:10 is not "after the close" in any useful sense, and this table said it was for
