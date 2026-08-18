@@ -2831,8 +2831,7 @@ body[data-theme="light"] .fx-bar {
 /* ── Курсы валют в банках — страница /currency ─────────────────────────── */
 
 .bankfx-page {
-  max-width: 980px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .bankfx-page .panel {
@@ -2922,7 +2921,7 @@ body[data-theme="light"] .fx-bar {
 
 .bankfx-rank-row {
   display: grid;
-  grid-template-columns: 30px 34px minmax(150px, 230px) 1fr minmax(150px, auto) 90px;
+  grid-template-columns: 30px 34px minmax(150px, 300px) 1fr minmax(150px, auto) 90px;
   align-items: center;
   gap: 12px;
   padding: 9px 16px;
