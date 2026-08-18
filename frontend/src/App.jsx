@@ -16778,6 +16778,13 @@ function App() {
     ? ["main", "market", "heatmap", "catalog", "news", "profile", "analysis", "compare"]
     : ["main", "market", "heatmap", "catalog", "news", "auth", "analysis", "compare"];
 
+  // The «Рынок» item carries a Finam-style drop-down (sections with their own
+  // headers). Hover-driven on desktop; the drawer shows the extra destinations
+  // as plain indented rows instead — see .nav-dd-* in styles.css.
+  const [marketMenuOpen, setMarketMenuOpen] = useState(false);
+  const [bankFxOpen, setBankFxOpen] = useState(false);
+  const navDdLabel = (ru, uz, en) => (language === "en" ? en : language === "uz" ? uz : ru);
+
   const onAvatarChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -16832,7 +16839,62 @@ function App() {
 
           <button className="topbar-nav-scrim" type="button" aria-hidden="true" tabIndex={-1} onClick={() => setMobileNavOpen(false)} />
           <nav className="topbar-nav">
-            {navItems.map((key) => (
+            {navItems.map((key) => key === "market" ? (
+              <div
+                key={key}
+                className="nav-dd-wrap"
+                onMouseEnter={() => setMarketMenuOpen(true)}
+                onMouseLeave={() => setMarketMenuOpen(false)}
+              >
+                <button
+                  className={`topbar-nav-btn ${activeView === key ? "active" : ""}`}
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={marketMenuOpen}
+                  onClick={() => { setActiveView("market"); setMobileNavOpen(false); setMarketMenuOpen(false); }}
+                >
+                  {mt(language, "nav")}
+                  <span className="nav-dd-caret" aria-hidden="true">▾</span>
+                </button>
+                {marketMenuOpen && (
+                  <div className="nav-dd-panel" role="menu">
+                    <div className="nav-dd-col">
+                      <div className="nav-dd-head">{navDdLabel("Биржа", "Birja", "Exchange")}</div>
+                      <button type="button" className="nav-dd-item" role="menuitem"
+                        onClick={() => { setActiveView("market"); setMarketMenuOpen(false); }}>
+                        {navDdLabel("Биржевые инструменты", "Birja instrumentlari", "Exchange instruments")}
+                      </button>
+                      <button type="button" className="nav-dd-item" role="menuitem"
+                        onClick={() => { setActiveView("heatmap"); setMarketMenuOpen(false); }}>
+                        {navDdLabel("Карта рынка", "Bozor xaritasi", "Market map")}
+                      </button>
+                    </div>
+                    <div className="nav-dd-col">
+                      <div className="nav-dd-head">{navDdLabel("Валюта", "Valyuta", "Currency")}</div>
+                      <button type="button" className="nav-dd-item" role="menuitem"
+                        onClick={() => { setBankFxOpen(true); setMarketMenuOpen(false); }}>
+                        {navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates")}
+                      </button>
+                      <button type="button" className="nav-dd-item" role="menuitem"
+                        onClick={() => { setActiveView("market"); setMarketMenuOpen(false); }}>
+                        {navDdLabel("Курсы ЦБ РУз", "O‘zR MB kurslari", "CBU official rates")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {/* Drawer counterpart of the drop-down: one indented row. The
+                    board and the map already sit in the drawer as their own
+                    top-level items, so only the bank rates need a way in. */}
+                <button
+                  className="topbar-nav-btn nav-dd-mobile-item"
+                  type="button"
+                  onClick={() => { setBankFxOpen(true); setMobileNavOpen(false); }}
+                >
+                  {navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates")}
+                </button>
+                {bankFxOpen && <BankFxModal language={language} onClose={() => setBankFxOpen(false)} />}
+              </div>
+            ) : (
               <button key={key} className={`topbar-nav-btn ${activeView === key || (key === "news" && activeView === "newsArticle") ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>
                 {key === "catalog" ? (
                   <span className="nav-catalog-wrap">
@@ -16843,7 +16905,7 @@ function App() {
                       return ageH > 24 ? <span className="nav-stale-dot" title={language === "ru" ? "Каталог устарел" : "Catalog stale"} /> : null;
                     })()}
                   </span>
-                ) : key === "market" ? mt(language, "nav") : key === "heatmap" ? (language === "ru" ? "Карта рынка" : language === "uz" ? "Bozor xaritasi" : "Market Map") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
+                ) : key === "heatmap" ? (language === "ru" ? "Карта рынка" : language === "uz" ? "Bozor xaritasi" : "Market Map") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
