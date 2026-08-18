@@ -5369,9 +5369,27 @@ function bankCountLabel(n, lang) {
   return "банков";
 }
 
-// Every commercial bank's published rate — a page of its own at /currency,
-// reached from the «Рынок» drop-down and the «Курсы банков» button on the CBU
-// strip. The list is bankxizmatlari.uz's (the Central Bank's retail portal).
+// A stable monogram colour per bank: the three-digit bank code drives a
+// golden-angle hue, so a bank keeps its colour across visits without a
+// hand-kept palette.
+function bankBadgeStyle(code) {
+  const n = parseInt(code, 10) || 0;
+  return { background: `hsl(${(n * 137) % 360} 48% 38%)` };
+}
+
+function bankInitials(name) {
+  const words = String(name || "").replace(/["«»']/g, "").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+// «Где выгоднее обменять» — a page of its own at /currency, reached from the
+// «Рынок» drop-down and the «Курсы банков» button on the CBU strip. The page
+// answers the reader's question rather than showing a directory: the amount
+// and direction are set on top, banks are RANKED by the resulting sum, and
+// the lag from the leader is stated in soums (variant Б of the mockups,
+// chosen by the customer 2026-08-19). Rates come from bankxizmatlari.uz.
 function BankFxPage({ language }) {
   const lang = normalizeLanguage(language);
   const [data, setData] = useState(null);
@@ -5379,8 +5397,11 @@ function BankFxPage({ language }) {
   const [cbu, setCbu] = useState(null);
   const [ccy, setCcy] = useState("USD");
   const [channel, setChannel] = useState("BANK");
-  // key: name | buy | sell; dir flips on a second click of the same header.
-  const [sort, setSort] = useState({ key: "buy", dir: -1 });
+  // "sell" = the reader sells currency (the bank BUYS at cell.buy);
+  // "buy" = the reader buys it (the bank SELLS at cell.sell).
+  const [mode, setMode] = useState("sell");
+  const [amountDigits, setAmountDigits] = useState("1000");
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -5388,8 +5409,8 @@ function BankFxPage({ language }) {
       .then((r) => r.json())
       .then((d) => { if (!alive) return; if (d && d.ok) setData(d); else setFailed(true); })
       .catch(() => { if (alive) setFailed(true); });
-    // The official CBU rate anchors the board — a bank's buy/sell mean little
-    // without the reference level they straddle.
+    // The official CBU rate anchors the ranking — a bank's rate means little
+    // without the reference level it sits against.
     fetch("/api/currency/rates")
       .then((r) => r.json())
       .then((d) => { if (alive && d && d.ok) setCbu(d); })
@@ -5404,37 +5425,58 @@ function BankFxPage({ language }) {
     .concat([...ccySet].filter((c) => !["USD", "EUR", "RUB"].includes(c)).sort());
   const activeCcy = ccys.includes(ccy) ? ccy : (ccys[0] || ccy);
 
+  const side = mode === "sell" ? "buy" : "sell";
+  // An emptied field falls back to ONE unit: the list then ranks by the bare
+  // rate instead of multiplying everything by zero into a tie of «лучший»-s.
+  const amount = parseInt(amountDigits, 10) || 1;
+
   const rows = banks
     .map((b) => {
       const cell = b.rates?.[activeCcy]?.[channel];
-      if (!cell || (cell.buy === null && cell.sell === null)) return null;
-      return { code: b.bank_code, name: b.bank_name, updated: b.updated_at, ...cell };
+      if (!cell || cell[side] === null || cell[side] === undefined) return null;
+      return { code: b.bank_code, name: b.bank_name, updated: b.updated_at, value: cell[side], flag: cell.flag };
     })
     .filter(Boolean);
-  rows.sort((a, b) => {
-    if (sort.key === "name") return sort.dir * String(a.name).localeCompare(String(b.name), "ru");
-    const av = a[sort.key]; const bv = b[sort.key];
-    // A bank that does not publish the sorted side sinks to the bottom
-    // whichever way the column is flipped.
-    if (av === null && bv === null) return 0;
-    if (av === null) return 1;
-    if (bv === null) return -1;
-    return sort.dir * (av - bv);
-  });
+  // Selling: the highest buy rate wins; buying: the lowest sell rate. Flagged
+  // (wide-spread) quotes sink below the clean ones whatever their number says —
+  // an implausible rate must not top a ranking a reader acts on, but it stays
+  // on the list, marked, as published (ТЗ: show, flag, never hide).
+  const dir = mode === "sell" ? -1 : 1;
+  rows.sort((a, b) => ((a.flag ? 1 : 0) - (b.flag ? 1 : 0)) || dir * (a.value - b.value)
+    || String(a.name).localeCompare(String(b.name), "ru"));
 
   const best = data?.best?.[activeCcy]?.[channel] || {};
+  const bestVal = (mode === "sell" ? best.best_buy : best.best_sell)?.value ?? null;
   const cbuRate = cbu?.rates?.find((r) => r.ccy === activeCcy) || null;
-  const toggleSort = (key) => setSort((s) => (
-    s.key === key ? { key, dir: -s.dir } : { key, dir: key === "name" ? 1 : key === "sell" ? 1 : -1 }
-  ));
-  const arrow = (key) => (sort.key === key ? (sort.dir > 0 ? " ↑" : " ↓") : "");
+  // Averages (and the CBU comparison) only over clean quotes, and only when
+  // the CBU rate is per ONE unit — a nominal-100 quote would compare apples
+  // to hundredweights.
+  const cleanVals = rows.filter((r) => !r.flag).map((r) => r.value);
+  const avg = cleanVals.length ? cleanVals.reduce((s, v) => s + v, 0) / cleanVals.length : null;
+  const cbuComparable = cbuRate && (cbuRate.nominal || 1) === 1 ? cbuRate.rate : null;
 
-  const title = lang === "en" ? "Bank exchange rates" : lang === "uz" ? "Banklarda valyuta kurslari" : "Курсы валют в банках";
-  const buyLabel = lang === "en" ? "Buy" : lang === "uz" ? "Olish" : "Покупка";
-  const sellLabel = lang === "en" ? "Sell" : lang === "uz" ? "Sotish" : "Продажа";
-  const flagTitle = lang === "en" ? "Unusually wide spread — under review"
-    : lang === "uz" ? "G'ayrioddiy keng spred — tekshirilmoqda"
-    : "Аномально широкий спред — котировка проверяется";
+  // Bar lengths: best clean quote = full bar, worst = short but visible. The
+  // bar ranks, the numbers speak — flagged rows just clamp into range.
+  const scores = cleanVals.map((v) => dir * -v);
+  const hiScore = scores.length ? Math.max(...scores) : 0;
+  const loScore = scores.length ? Math.min(...scores) : 0;
+  const barWidth = (v) => {
+    if (hiScore === loScore) return 100;
+    const s = dir * -v;
+    return Math.max(8, Math.min(100, 15 + 85 * ((s - loScore) / (hiScore - loScore))));
+  };
+
+  const sumWord = lang === "en" ? "UZS" : lang === "uz" ? "so'm" : "сум";
+  const title = lang === "en" ? "Where to exchange best" : lang === "uz" ? "Qayerda almashtirgan ma'qul" : "Где выгоднее обменять";
+  const flagTitle = lang === "en" ? "Unusually wide spread — under review, excluded from the ranking's top"
+    : lang === "uz" ? "G'ayrioddiy keng spred — tekshirilmoqda, reyting yuqorisiga kirmaydi"
+    : "Аномально широкий спред — котировка проверяется и не участвует в верхушке рейтинга";
+  const updWord = lang === "en" ? "updated" : lang === "uz" ? "yangilangan" : "обновлено";
+  const rateWord = lang === "en" ? "rate" : lang === "uz" ? "kurs" : "курс";
+  const visible = showAll ? rows : rows.slice(0, 12);
+
+  const sellWord = lang === "en" ? "Sell" : lang === "uz" ? "Sotish" : "Продать";
+  const buyWord = lang === "en" ? "Buy" : lang === "uz" ? "Olish" : "Купить";
 
   return (
     <section className="bankfx-page">
@@ -5445,10 +5487,10 @@ function BankFxPage({ language }) {
             <h2>{title}</h2>
             <p className="bankfx-page-sub">
               {lang === "en"
-                ? "Cash buy and sell rates published by Uzbekistan's commercial banks."
+                ? "Cash rates published by Uzbekistan's commercial banks, ranked by what your amount actually comes to."
                 : lang === "uz"
-                  ? "O'zbekiston tijorat banklari e'lon qilgan naqd valyuta olish va sotish kurslari."
-                  : "Курсы покупки и продажи наличной валюты, опубликованные коммерческими банками Узбекистана."}
+                  ? "O'zbekiston tijorat banklari e'lon qilgan naqd kurslar — summangiz amalda nechaga chiqishi bo'yicha saralangan."
+                  : "Наличные курсы коммерческих банков Узбекистана — по тому, во что реально превращается ваша сумма."}
               {" "}
               {lang === "en" ? "Source" : lang === "uz" ? "Manba" : "Источник"}: bankxizmatlari.uz
             </p>
@@ -5458,7 +5500,23 @@ function BankFxPage({ language }) {
           )}
         </div>
 
-        <div className="bankfx-controls">
+        <div className="bankfx-calc">
+          <div className="segmented-control" role="group" aria-label={lang === "en" ? "Direction" : lang === "uz" ? "Yo'nalish" : "Направление"}>
+            <button type="button" className={mode === "sell" ? "active" : ""} aria-pressed={mode === "sell"}
+              onClick={() => setMode("sell")}>{sellWord}</button>
+            <button type="button" className={mode === "buy" ? "active" : ""} aria-pressed={mode === "buy"}
+              onClick={() => setMode("buy")}>{buyWord}</button>
+          </div>
+          <label className="bankfx-amount">
+            <input
+              value={amountDigits ? formatRatio(parseInt(amountDigits, 10), 0, lang) : ""}
+              inputMode="numeric"
+              aria-label={lang === "en" ? "Amount" : lang === "uz" ? "Summa" : "Сумма"}
+              placeholder="1 000"
+              onChange={(e) => setAmountDigits(e.target.value.replace(/\D/g, "").slice(0, 9))}
+            />
+            <span className="bankfx-amount-ccy">{activeCcy}</span>
+          </label>
           <div className="segmented-control" role="group" aria-label={lang === "en" ? "Currency" : lang === "uz" ? "Valyuta" : "Валюта"}>
             {(ccys.length ? ccys : ["USD", "EUR", "RUB"]).map((c) => (
               <button key={c} type="button" className={c === activeCcy ? "active" : ""}
@@ -5471,91 +5529,94 @@ function BankFxPage({ language }) {
                 aria-pressed={ch === channel} onClick={() => setChannel(ch)}>{bankFxChannelLabel(ch, lang)}</button>
             ))}
           </div>
-        </div>
-
-        {(best.best_buy || best.best_sell || cbuRate) && (
-          <div className="bankfx-best">
-            <div className="bankfx-best-card">
-              <span className="bankfx-best-label">
-                {lang === "en" ? "Best buy rate" : lang === "uz" ? "Eng yaxshi olish kursi" : "Лучшая покупка"}
-              </span>
-              <strong>{best.best_buy ? formatRatio(best.best_buy.value, 2, lang) : "—"}</strong>
-              <span className="bankfx-best-bank">{best.best_buy?.bank_name || ""}</span>
-            </div>
-            <div className="bankfx-best-card">
-              <span className="bankfx-best-label">
-                {lang === "en" ? "Best sell rate" : lang === "uz" ? "Eng yaxshi sotish kursi" : "Лучшая продажа"}
-              </span>
-              <strong>{best.best_sell ? formatRatio(best.best_sell.value, 2, lang) : "—"}</strong>
-              <span className="bankfx-best-bank">{best.best_sell?.bank_name || ""}</span>
-            </div>
-            <div className="bankfx-best-card">
-              <span className="bankfx-best-label">
-                {lang === "en" ? "CBU official rate" : lang === "uz" ? "O‘zR MB rasmiy kursi" : "Курс ЦБ РУз"}
-              </span>
-              <strong>{cbuRate ? formatRatio(cbuRate.rate, 2, lang) : "—"}</strong>
-              <span className="bankfx-best-bank">
-                {cbu?.date ? (lang === "en" ? `as of ${cbu.date}` : lang === "uz" ? `${cbu.date} holatiga` : `на ${cbu.date}`) : ""}
-              </span>
-            </div>
-          </div>
-        )}
-
-        <div className="bankfx-table-wrap">
-          {failed ? (
-            <p className="bankfx-empty">
-              {lang === "en" ? "Could not load the rates. Try again later."
-                : lang === "uz" ? "Kurslarni yuklab bo'lmadi. Keyinroq urinib ko'ring."
-                : "Не удалось загрузить курсы. Попробуйте позже."}
+          {cbuComparable !== null && (
+            <p className="bankfx-calc-note">
+              {lang === "en" ? "CBU rate" : lang === "uz" ? "MB kursi" : "Курс ЦБ"}: <b>{formatRatio(cbuComparable, 2, lang)}</b>
+              {avg !== null && Math.round(Math.abs(cbuComparable - avg)) > 0 && (
+                mode === "sell"
+                  ? (lang === "en"
+                      ? ` · banks buy on average ${formatRatio(Math.abs(cbuComparable - avg), 0, lang)} UZS ${avg < cbuComparable ? "below" : "above"} it`
+                      : lang === "uz"
+                        ? ` · banklar o'rtacha ${formatRatio(Math.abs(cbuComparable - avg), 0, lang)} so'm ${avg < cbuComparable ? "past" : "yuqori"} oladi`
+                        : ` · банки покупают в среднем на ${formatRatio(Math.abs(cbuComparable - avg), 0, lang)} сум ${avg < cbuComparable ? "ниже" : "выше"}`)
+                  : (lang === "en"
+                      ? ` · banks sell on average ${formatRatio(Math.abs(avg - cbuComparable), 0, lang)} UZS ${avg > cbuComparable ? "above" : "below"} it`
+                      : lang === "uz"
+                        ? ` · banklar o'rtacha ${formatRatio(Math.abs(avg - cbuComparable), 0, lang)} so'm ${avg > cbuComparable ? "yuqori" : "past"} sotadi`
+                        : ` · банки продают в среднем на ${formatRatio(Math.abs(avg - cbuComparable), 0, lang)} сум ${avg > cbuComparable ? "выше" : "ниже"}`)
+              )}
             </p>
-          ) : !data ? (
-            <p className="bankfx-empty">{lang === "en" ? "Loading..." : lang === "uz" ? "Yuklanmoqda..." : "Загрузка..."}</p>
-          ) : !rows.length ? (
-            <p className="bankfx-empty">
-              {lang === "en" ? "No published rates for this currency and channel yet."
-                : lang === "uz" ? "Bu valyuta va kanal uchun e'lon qilingan kurslar hozircha yo'q."
-                : "Опубликованных курсов для этой валюты и канала пока нет."}
-            </p>
-          ) : (
-            <table className="bankfx-table">
-              <thead>
-                <tr>
-                  <th><button type="button" onClick={() => toggleSort("name")}>{lang === "en" ? "Bank" : "Банк"}{arrow("name")}</button></th>
-                  <th className="num"><button type="button" onClick={() => toggleSort("buy")}
-                    title={lang === "en" ? "The bank buys the currency at this rate"
-                      : lang === "uz" ? "Bank valyutani shu kursda oladi"
-                      : "Банк покупает валюту по этому курсу"}>{buyLabel}{arrow("buy")}</button></th>
-                  <th className="num"><button type="button" onClick={() => toggleSort("sell")}
-                    title={lang === "en" ? "The bank sells the currency at this rate"
-                      : lang === "uz" ? "Bank valyutani shu kursda sotadi"
-                      : "Банк продаёт валюту по этому курсу"}>{sellLabel}{arrow("sell")}</button></th>
-                  <th className="num">{lang === "en" ? "Updated" : lang === "uz" ? "Yangilangan" : "Обновлено"}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.code}>
-                    <td>{r.name}{r.flag && <span className="bankfx-flag" title={flagTitle}> ⚠</span>}</td>
-                    <td className={`num${!r.flag && best.best_buy && r.buy === best.best_buy.value ? " is-best" : ""}`}>
-                      {r.buy === null ? "—" : formatRatio(r.buy, 2, lang)}
-                    </td>
-                    <td className={`num${!r.flag && best.best_sell && r.sell === best.best_sell.value ? " is-best" : ""}`}>
-                      {r.sell === null ? "—" : formatRatio(r.sell, 2, lang)}
-                    </td>
-                    <td className="num bankfx-stamp">{bankFxStamp(r.updated)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           )}
         </div>
 
+        {failed ? (
+          <p className="bankfx-empty">
+            {lang === "en" ? "Could not load the rates. Try again later."
+              : lang === "uz" ? "Kurslarni yuklab bo'lmadi. Keyinroq urinib ko'ring."
+              : "Не удалось загрузить курсы. Попробуйте позже."}
+          </p>
+        ) : !data ? (
+          <p className="bankfx-empty">{lang === "en" ? "Loading..." : lang === "uz" ? "Yuklanmoqda..." : "Загрузка..."}</p>
+        ) : !rows.length ? (
+          <p className="bankfx-empty">
+            {lang === "en" ? "No published rates for this currency and channel yet."
+              : lang === "uz" ? "Bu valyuta va kanal uchun e'lon qilingan kurslar hozircha yo'q."
+              : "Опубликованных курсов для этой валюты и канала пока нет."}
+          </p>
+        ) : (
+          <div className="bankfx-rank">
+            {visible.map((r, i) => {
+              const isLead = !r.flag && bestVal !== null && r.value === bestVal;
+              const diff = bestVal === null ? null : Math.round((r.value - bestVal) * amount);
+              return (
+                <div key={r.code} className={`bankfx-rank-row${isLead ? " is-lead" : ""}`}>
+                  <span className="bankfx-rank-pos">{i + 1}</span>
+                  <span className="bankfx-rank-badge" style={bankBadgeStyle(r.code)} aria-hidden="true">{bankInitials(r.name)}</span>
+                  <span className="bankfx-rank-name">
+                    {r.name}
+                    {r.flag && <span className="bankfx-flag" title={flagTitle}> ⚠</span>}
+                    <span className="bankfx-rank-sub">
+                      {rateWord} {formatRatio(r.value, 2, lang)} · {updWord} {bankFxStamp(r.updated)}
+                    </span>
+                  </span>
+                  <span className="bankfx-rank-bar" aria-hidden="true"><i style={{ width: `${barWidth(r.value)}%` }} /></span>
+                  <span
+                    className="bankfx-rank-sum"
+                    title={mode === "sell"
+                      ? (lang === "en" ? "You receive" : lang === "uz" ? "Siz olasiz" : "Вы получите")
+                      : (lang === "en" ? "You pay" : lang === "uz" ? "Siz to'laysiz" : "Вы заплатите")}
+                  >
+                    {formatRatio(Math.round(r.value * amount), 0, lang)} {sumWord}
+                  </span>
+                  {r.flag ? (
+                    <span className="bankfx-rank-diff is-flagged" title={flagTitle}>⚠</span>
+                  ) : isLead || diff === 0 ? (
+                    <span className="bankfx-rank-diff is-lead">{lang === "en" ? "best" : lang === "uz" ? "eng yaxshi" : "лучший"}</span>
+                  ) : (
+                    <span className="bankfx-rank-diff">
+                      {mode === "sell" ? "−" : "+"}{formatRatio(Math.abs(diff), 0, lang)}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {rows.length > visible.length && (
+          <button type="button" className="bankfx-more" onClick={() => setShowAll(true)}>
+            {lang === "en" ? `${rows.length - visible.length} more banks ↓`
+              : lang === "uz" ? `Yana ${rows.length - visible.length} bank ↓`
+              : `Ещё ${rows.length - visible.length} ${bankCountLabel(rows.length - visible.length, lang)} ↓`}
+          </button>
+        )}
+
         <p className="bankfx-page-note">
           {lang === "en"
-            ? "«Updated» is the time each bank stated on its own card (Tashkent time). ⚠ marks a quote with an unusually wide spread — shown as published, but excluded from the best-rate cards."
+            ? "The sum is the published rate times your amount — cash-desk fees, if any, are the bank's own. Each bank's time is what it stated on its card (Tashkent). ⚠ marks an unusually wide spread: shown as published, kept out of the ranking's top."
             : lang === "uz"
-              ? "«Yangilangan» — har bir bank o'z kartasida ko'rsatgan vaqt (Toshkent vaqti). ⚠ — g'ayrioddiy keng spredli kurs: e'lon qilinganidek ko'rsatiladi, lekin eng yaxshi kurs kartalariga kirmaydi."
-              : "«Обновлено» — время, которое каждый банк указал на своей карточке (ташкентское). ⚠ — котировка с аномально широким спредом: показывается как опубликована, но не участвует в карточках лучших курсов."}
+              ? "Summa — e'lon qilingan kurs × summangiz; kassa yig'imlari bo'lsa, ular bankning o'ziniki. Vaqt — bank o'z kartasida ko'rsatgani (Toshkent). ⚠ — g'ayrioddiy keng spred: e'lon qilinganidek ko'rsatiladi, reyting yuqorisiga kirmaydi."
+              : "Сумма — опубликованный курс × ваша сумма; кассовые сборы, если есть, — на стороне банка. Время у каждого банка — то, которое он указал на своей карточке (ташкентское). ⚠ — аномально широкий спред: показывается как опубликован, но не попадает в верхушку рейтинга."}
         </p>
       </article>
     </section>

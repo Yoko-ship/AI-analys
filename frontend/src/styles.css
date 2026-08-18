@@ -2853,118 +2853,191 @@ body[data-theme="light"] .fx-bar {
   line-height: 1.5;
 }
 
-.bankfx-controls {
+/* The calc hero: direction, amount, currency and channel in one bar — the
+   question is asked here, the list below is the answer. */
+.bankfx-calc {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-2);
+  padding: 14px 16px;
 }
 
-.bankfx-best {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
-.bankfx-best-card {
-  display: grid;
-  gap: 2px;
+.bankfx-amount {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--bg-2);
-  padding: 12px 16px;
-  line-height: 1.35;
+  padding: 8px 14px;
 }
 
-.bankfx-best-label {
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+.bankfx-amount:focus-within {
+  border-color: var(--accent);
 }
 
-.bankfx-best-card strong {
-  font-size: 1.35rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-
-.bankfx-best-bank {
-  font-size: 12px;
-  color: var(--muted);
-  min-height: 1.2em;
-}
-
-.bankfx-table-wrap {
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.bankfx-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.bankfx-table th {
-  position: sticky;
-  top: 0;
-  background: var(--bg-2);
-  text-align: left;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  font-size: 11.5px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.bankfx-table th button {
-  background: none;
+.bankfx-amount input {
+  width: 8ch;
   border: none;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-
-.bankfx-table th button:hover {
+  background: none;
   color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
 }
 
-.bankfx-table td {
-  padding: 7px 12px;
+.bankfx-amount-ccy {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.bankfx-calc-note {
+  margin: 0 0 0 auto;
+  font-size: 12.5px;
+  color: var(--muted);
+  max-width: 36ch;
+  line-height: 1.45;
+}
+
+.bankfx-calc-note b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The ranking: place, monogram, bank, lag bar, resulting sum, delta chip. */
+.bankfx-rank {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bankfx-rank-row {
+  display: grid;
+  grid-template-columns: 30px 34px minmax(150px, 230px) 1fr minmax(150px, auto) 90px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
   border-bottom: 1px solid var(--border);
-  color: var(--text);
 }
 
-.bankfx-table tr:last-child td {
+.bankfx-rank-row:last-child {
   border-bottom: none;
 }
 
-.bankfx-table th:first-child,
-.bankfx-table td:first-child {
-  padding-left: 20px;
+.bankfx-rank-row.is-lead {
+  background: var(--success-light);
 }
 
-.bankfx-table th:last-child,
-.bankfx-table td:last-child {
-  padding-right: 20px;
-}
-
-.bankfx-table .num {
-  text-align: right;
+.bankfx-rank-pos {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+.bankfx-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.bankfx-rank-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bankfx-rank-sub {
+  display: block;
+  font-weight: 400;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bankfx-rank-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.bankfx-rank-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0.75;
+}
+
+.bankfx-rank-row.is-lead .bankfx-rank-bar i {
+  background: var(--success);
+  opacity: 0.9;
+}
+
+.bankfx-rank-sum {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   white-space: nowrap;
 }
 
-.bankfx-table td.is-best {
-  color: var(--success);
-  font-weight: 700;
+.bankfx-rank-diff {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 
-.bankfx-stamp {
-  font-size: 12px;
-  color: var(--muted);
+.bankfx-rank-diff.is-lead {
+  color: var(--success);
+}
+
+.bankfx-rank-diff.is-flagged {
+  color: var(--warning, #d97706);
+  cursor: help;
+}
+
+.bankfx-more {
+  align-self: center;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 10px;
+}
+
+.bankfx-more:hover {
+  color: var(--accent-hover);
 }
 
 .bankfx-flag {
@@ -2987,8 +3060,28 @@ body[data-theme="light"] .fx-bar {
 }
 
 @media (max-width: 760px) {
-  .bankfx-best {
-    grid-template-columns: 1fr;
+  .bankfx-calc-note {
+    margin-left: 0;
+    max-width: none;
+  }
+
+  /* The bar is a luxury on a phone — place, bank, sum and delta carry it. */
+  .bankfx-rank-row {
+    grid-template-columns: 22px 30px minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 9px 12px;
+  }
+
+  .bankfx-rank-bar {
+    display: none;
+  }
+
+  .bankfx-rank-sum {
+    grid-column: 4;
+  }
+
+  .bankfx-rank-diff {
+    display: none;
   }
 }
 
