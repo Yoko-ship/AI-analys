@@ -11956,6 +11956,16 @@ function MarketView({
     const hit = (changes[String(ticker || "").toUpperCase()] || {})[code];
     return hit && Number.isFinite(hit.pct) ? hit : null;
   };
+  // The same window's TURNOVER, as {value, sessions, from} — the sum of what the
+  // security changed hands for over it. Kept separate from the change because a
+  // line can have traded over a month without having a close a month back to
+  // measure from (its history starts inside the window), and the liquidity panel
+  // must still be able to rank it.
+  const turnoverOver = (ticker, code) => {
+    if (code === "1d") return null;
+    const hit = ((changes[String(ticker || "").toUpperCase()] || {}).turnover || {})[code];
+    return hit && Number.isFinite(hit.value) ? hit : null;
+  };
 
   // «Номинальная стоимость» of the security, off the exchange's own card via the
   // listing registry (`parval`), joined onto the board row by the server. A zero
@@ -12751,25 +12761,43 @@ function MarketView({
   const sectorDormant = cardSector
     ? byClass.filter((r) => isDormant(r) && rowSector(r) === cardSector).length
     : 0;
-  // Over a WINDOW the movers are a different list, and they are not drawn from
-  // the latest session's rows: a security that has not traded today still moved
-  // over the month, and leaving it out would rank the month by who happened to
-  // trade this morning. The turnover panel keeps the session — «ликвидность за
-  // месяц» is a sum this platform does not hold, and inventing one from thirty
-  // session totals it has not stored would be the wrong answer to a question
-  // nobody asked.
+  // Over a WINDOW all three panels are a different list, and they are not drawn
+  // from the latest session's rows: a security that has not traded today still
+  // moved over the month, and leaving it out would rank the month by who
+  // happened to trade this morning.
+  //
+  // Ликвидность followed the same rule until 2026-08-18 only because the sum did
+  // not exist — the strip could show the session's turnover or nothing. Every
+  // settled session's total_value has been stored per security since 2025-08-13,
+  // so the month's turnover is now the month's sessions added up, served beside
+  // the change over the same window (/api/market/changes → `turnover`). It is a
+  // sum of what actually traded, and each line carries the session count and the
+  // first session inside the window in its tooltip, because on this market «за
+  // полгода» is routinely four sessions and a reader must be able to see that.
   const periodMovers = React.useMemo(() => {
     if (changePeriod === "1d") return moverStats;
-    const pool = byClass
-      .filter((r) => !isDormant(r) && (!cardSector || rowSector(r) === cardSector))
+    const rows = byClass.filter(
+      (r) => !isDormant(r) && (!cardSector || rowSector(r) === cardSector));
+    const pool = rows
       .map((r) => ({ row: r, pct: changeOver(r.ticker, changePeriod)?.pct }))
       .filter((x) => Number.isFinite(x.pct));
     const up = pool.filter((x) => x.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 5);
     const down = pool.filter((x) => x.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 5);
+    const liquid = rows
+      .map((r) => ({ row: r, turn: turnoverOver(r.ticker, changePeriod) }))
+      .filter((x) => x.turn && x.turn.value > 0)
+      .sort((a, b) => b.turn.value - a.turn.value)
+      .slice(0, 5);
     return {
       ...moverStats,
       topGainers: up.map((x) => ({ ...x.row, periodPct: x.pct })),
       topLosers: down.map((x) => ({ ...x.row, periodPct: x.pct })),
+      topVolume: liquid.map((x) => ({
+        ...x.row,
+        periodVolume: x.turn.value,
+        periodSessions: x.turn.sessions,
+        periodFrom: x.turn.from,
+      })),
     };
   }, [changePeriod, changes, byClass, cardSector, moverStats]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -13340,8 +13368,22 @@ function MarketView({
             { key: "down", title: `${mt(lang, "topLosers")}${changePeriod === "1d" ? "" : ` · ${changePeriodLabel(changePeriod, lang, "short")}`}`,
               rows: periodMovers.topLosers,
               value: (r) => `${formatRatio(changePeriod === "1d" ? r.changePercent : r.periodPct, 2, lang)}%` },
-            { key: "vol", title: mt(lang, "topLiquidity"), rows: periodMovers.topVolume,
-              value: (r) => formatCompactVolume(r.stockVolume, lang) },
+            // Ликвидность carries the period too, and over a window it says how
+            // many sessions it added up and from which one: «5,6 млрд» over six
+            // months means one thing across 80 sessions and quite another across
+            // three, and the panel is read without the control in view.
+            { key: "vol", title: `${mt(lang, "topLiquidity")}${changePeriod === "1d" ? "" : ` · ${changePeriodLabel(changePeriod, lang, "short")}`}`,
+              rows: periodMovers.topVolume,
+              value: (r) => formatCompactVolume(changePeriod === "1d" ? r.stockVolume : r.periodVolume, lang),
+              hint: (r) => {
+                if (changePeriod === "1d" || !r.periodSessions) return undefined;
+                const from = String(r.periodFrom || "");
+                const pretty = from.length === 8 ? `${from.slice(6)}.${from.slice(4, 6)}.${from.slice(0, 4)}` : from;
+                const sessions = `${formatRatio(r.periodSessions, 0, lang)} ${sessionCountLabel(r.periodSessions, lang)}`;
+                return pretty
+                  ? `${sessions} ${lang === "en" ? "since" : lang === "uz" ? "boshlab" : "с"} ${pretty}`
+                  : sessions;
+              } },
           ].map((col) => (
             <article className={`panel market-movers-col ${col.key}`} key={col.key}>
               <div className="market-movers-head">
@@ -13354,6 +13396,7 @@ function MarketView({
                     <button
                       type="button"
                       className="market-movers-item"
+                      title={col.hint ? col.hint(r) : undefined}
                       onClick={() => onOpenCompany ? onOpenCompany(r.ticker) : onAnalyze(r.ticker)}
                     >
                       <span className="market-movers-tk">
