@@ -247,6 +247,37 @@ def report_age_days(fin: dict[str, Any] | None, today: date | None = None) -> in
     return ((today or date.today()) - end).days
 
 
+def base_report_age(fin: dict[str, Any] | None,
+                    today: date | None = None) -> tuple[str | None, int | None]:
+    """The OLDEST period the earnings base rests on, and its age in days.
+
+    Judging the latest filing alone is what let UZMT carry a P/E: its annualised
+    9М2025 was 323 days old and passed, while the newest audited twelve months
+    behind it — FY2019, 2423 days — was never looked at. UTGA the same, on a
+    FY2023 annual. The complete twelve-month period is the thing a multiple is
+    anchored to, so it is judged alongside the row: an issuer that has stopped
+    filing annuals is out of date however punctually it files its quarters.
+
+    The annual companion is the newest complete twelve months the issuer has
+    (a filed annual, or the Q4 cumulative that stands in for one), attached by
+    the read path whether or not the arithmetic ends up using it. Where none is
+    attached the issuer has never filed one and the row answers for itself.
+
+    Returns ``(period_label, age_days)`` for whichever period is older.
+    """
+    candidates = []
+    for row in (fin, (fin or {}).get("annual")):
+        if not row:
+            continue
+        age = report_age_days(row, today)
+        if age is not None:
+            candidates.append((age, period_label(row)))
+    if not candidates:
+        return (period_label(fin), None)
+    age, label = max(candidates)
+    return (label, age)
+
+
 def _opening(value: Any, closing: float | None) -> float | None:
     """The period-opening balance, or None when the form left the column empty.
 
@@ -747,15 +778,19 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     base_months = flows["months"] or period_months(fin)
     estimate = True if flows["estimate"] else None
 
-    # V4: a statement older than two years is not current data. «нет данных»,
-    # not a number computed off a 2019 balance (the UZMT case).
-    age = report_age_days(fin, today)
+    # V4: a base older than two years is not current data. «нет данных», not a
+    # number computed off a 2019 annual (the UZMT case) — and the age is the age
+    # of the OLDEST period the base rests on, the last complete twelve months
+    # included, not of the most recent filing alone.
+    stale_period, age = base_report_age(fin, today)
     max_age = int(fcfg.get("report_max_age_days", 730))
     if fin and age is not None and age > max_age:
-        stale = _metric(None, STATUS_STALE, base_period=period_label(fin), age_days=age,
-                        note="последний отчёт старше 2 лет")
+        note = ("последний годовой отчёт старше 2 лет"
+                if stale_period != period_label(fin) else "последний отчёт старше 2 лет")
+        stale = _metric(None, STATUS_STALE, base_period=stale_period, age_days=age,
+                        note=note)
         return {
-            "market_cap_issuer": cap, "base_period": period_label(fin),
+            "market_cap_issuer": cap, "base_period": stale_period,
             "base_months": period_months(fin), "balance_period": period_label(fin),
             "org_type": org_type,
             "pe": dict(stale), "pb": dict(stale), "ps": dict(stale),

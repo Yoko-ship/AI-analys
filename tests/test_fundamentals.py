@@ -451,6 +451,34 @@ class TestMultiples:
             assert got[field]["value"] is None
             assert got[field]["status"] == fundamentals.STATUS_STALE
 
+    def test_a_stale_annual_gates_a_punctual_quarterly_filer(self):
+        """The UZMT case: 9М2025 was 323 days old and passed, while the newest
+        audited twelve months behind it — FY2019 — was never looked at."""
+        got = self._issuer(fin={"year": 2026, "quarter": 2, "period_months": 6,
+                                "annual": {"year": 2019, "quarter": 0,
+                                           "period_months": 12, "net_income": 100.0},
+                                "prior": None})
+        for field in ("pe", "pb", "ps", "roe", "roa", "net_margin", "equity_assets"):
+            assert got[field]["status"] == fundamentals.STATUS_STALE
+        assert got["pe"]["base_period"] == "2019A"
+        assert got["pe"]["note"] == "последний годовой отчёт старше 2 лет"
+
+    def test_a_current_annual_lets_the_quarterly_through(self):
+        """BNGP/UZMK file no annual for the year just gone but their last
+        complete twelve months is inside the window — they still compute."""
+        got = self._issuer(fin={"year": 2026, "quarter": 2, "period_months": 6,
+                                "net_income": 100.0, "revenue": 600.0,
+                                "annual": {"year": 2024, "quarter": 4,
+                                           "period_months": 12, "net_income": 150.0},
+                                "prior": None})
+        assert got["pe"]["status"] != fundamentals.STATUS_STALE
+
+    def test_an_issuer_that_never_filed_an_annual_answers_for_its_own_row(self):
+        got = self._issuer(fin={"year": 2026, "quarter": 2, "period_months": 6,
+                                "net_income": 100.0, "revenue": 600.0,
+                                "annual": None, "prior": None})
+        assert got["pe"]["status"] != fundamentals.STATUS_STALE
+
     def test_ps_is_not_a_bank_or_insurer_figure(self):
         got = self._issuer(fin={"org_type": "insurance"})
         assert got["ps"]["value"] is None
