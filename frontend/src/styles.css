@@ -3280,11 +3280,12 @@ body[data-theme="light"] .fx-bar {
   display: none;
 }
 
-/* ── Курс доллара в шапке ─────────────────────────────────────────────────
-   CBU's daily dollar fix, hoisted out of the market page's strip into the
-   sticky header (customer, 2026-08-19). It is a button, not a badge: it opens
-   «Где выгоднее обменять». Quiet until hovered — the header already carries
-   the brand, the nav and three controls, and this must not shout over them. */
+/* ── Курсы валют в шапке ──────────────────────────────────────────────────
+   CBU's daily fixes, hoisted out of the market page's strip into the sticky
+   header (customer, 2026-08-19) and cycling one currency at a time. It is a
+   button, not a badge: it opens «Где выгоднее обменять». Quiet until hovered —
+   the header already carries the brand, the nav and three controls, and this
+   must not shout over them. */
 .topbar-fx {
   display: inline-flex;
   align-items: center;
@@ -3307,10 +3308,48 @@ body[data-theme="light"] .fx-bar {
   background: var(--panel);
 }
 
+/* One turn of the cycle. The width is FIXED rather than fitted: «Доллар США
+   11 820,4» and «Российский рубль 147,61» differ by ~30px, and a header that
+   re-flows every six seconds would nudge the language select and the theme
+   toggle sideways under the reader's cursor. Sized to the longest of the
+   three, left-aligned so the number does not wander either. */
+.topbar-fx-slide {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* 144 = flag 21 + gap 8 + the widest measured pair, «13 788,05 ▲8,47». */
+  width: 144px;
+  animation: topbar-fx-in var(--duration-normal, 220ms) var(--ease-out, ease);
+}
+
+@keyframes topbar-fx-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* A reader who asked not to be moved gets the change without the motion —
+   the number still swaps, it just does not slide in. */
+@media (prefers-reduced-motion: reduce) {
+  .topbar-fx-slide {
+    animation: none;
+  }
+}
+
 .topbar-fx-flag {
   flex: none;
   border-radius: 2px;
   box-shadow: 0 0 0 1px var(--border);
+}
+
+/* Fallback for a currency with no drawn flag: its code, in the flag's slot. */
+.topbar-fx-code {
+  flex: none;
+  width: 21px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .topbar-fx-body {
@@ -3319,9 +3358,36 @@ body[data-theme="light"] .fx-bar {
   align-items: flex-start;
   gap: 1px;
   line-height: 1.15;
+  min-width: 0;
 }
 
+/* Where the cycle stands. Deliberately tiny: it is an answer to "will this
+   change again?", not a control. */
+.topbar-fx-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+
+.topbar-fx-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background var(--duration-fast, 120ms) var(--ease-out, ease);
+}
+
+.topbar-fx-dots i.is-on {
+  background: var(--muted);
+}
+
+/* The name is the part that can outgrow the fixed slide («Российский рубль»);
+   it truncates rather than pushing the numbers around. */
 .topbar-fx-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--muted);
   font-size: 11px;
 }

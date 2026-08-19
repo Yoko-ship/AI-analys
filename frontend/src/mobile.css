@@ -246,6 +246,12 @@ iframe {
     gap: 0;
   }
 
+  /* The cycle indicator is desktop-only: 26px of header for a hint that the
+     rotation itself already gives away, in a row that has none to spare. */
+  .topbar-fx-dots {
+    display: none;
+  }
+
   /* The rate is a fixed-width block now, and the brand is the flexible one —
      without this the icon itself was squeezed out of existence at 390px and
      the header lost its only mark of whose site this is. The wordmark still
@@ -275,6 +281,32 @@ iframe {
   }
 }
 
+/* Phone width: the last thing to go before the rate itself is the day change.
+   The number is the answer a reader came for; the delta is context, and it is
+   still one tap away on /currency. Measured at 390px — with the change in, the
+   header ran 17px over and took the brand with it. The slide narrows with what
+   is left inside it: its width is fixed so a rotation cannot shove the
+   controls beside it sideways, which means each band has to restate it. */
+@media (max-width: 900px) {
+  .topbar-fx-diff {
+    display: none;
+  }
+
+  .topbar-fx-slide {
+    width: 88px;
+  }
+}
+
+/* Under ~460px the wordmark is the flexible item in a row that no longer has
+   slack, so it renders as a 2-4px sliver of a letter — worse than absent.
+   Dropping it outright gives the icon its full 34px back; the icon is what
+   identifies the site at this width, and the tab title still spells it. */
+@media (max-width: 460px) {
+  .brand-copy {
+    display: none;
+  }
+}
+
 @media (max-width: 380px) {
   /* The wordmark is the first thing that may go; the icon still identifies the
      site and the space buys the language + theme controls their full size. */
@@ -296,28 +328,20 @@ iframe {
     gap: 4px;
   }
 
-  .topbar-fx-flag {
+  .topbar-fx-flag,
+  .topbar-fx-code {
     display: none;
   }
-}
 
-/* Phone width: the last thing to go before the rate itself is the day change.
-   The number is the answer a reader came for; the delta is context, and it is
-   still one tap away on /currency. Measured at 390px — with the change in, the
-   header ran 17px over and took the brand with it. */
-@media (max-width: 900px) {
-  .topbar-fx-diff {
-    display: none;
+  .topbar-fx-slide {
+    width: 62px;
   }
-}
 
-/* Under ~460px the wordmark is the flexible item in a row that no longer has
-   slack, so it renders as a 2-4px sliver of a letter — worse than absent.
-   Dropping it outright gives the icon its full 34px back; the icon is what
-   identifies the site at this width, and the tab title still spells it. */
-@media (max-width: 460px) {
-  .brand-copy {
-    display: none;
+  /* The euro is the widest of the three («13 788,05») and at 13.5px it ran
+     6px past the slide into the language select. There is no width left to
+     give it at 360px, so the number gives instead. */
+  .topbar-fx-rate {
+    font-size: 12px;
   }
 }
 
