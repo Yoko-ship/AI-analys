@@ -526,7 +526,43 @@ def group_by_issuer(securities: Iterable[dict[str, Any]]) -> dict[str, list[dict
         if str(sec.get("type") or "").lower() == "bond":
             continue
         out.setdefault(issuer_key(sec), []).append(sec)
+    _rejoin_preferred_classes(out)
     return out
+
+
+def _rejoin_preferred_classes(groups: dict[str, list[dict[str, Any]]]) -> None:
+    """Put a preferred class back with its ordinary when the NAMES disagree.
+
+    The join key is the legal name because it is the only field both classes
+    share — but the registry files the two classes of one issuer under names
+    that normalise apart often enough to matter: 17 of 32 pairs (UZTL/UZTLP,
+    HMKB/HMKBP, TRSB/TRSBP, ALKB/ALKBP…) landed in separate groups while 15
+    joined. A stranded preferred class is not a cosmetic grouping error: ТЗ §8
+    divides the WHOLE issuer's profit by the summed capitalisation of its
+    classes, so alone it divided the whole company's earnings into the
+    preferred float and printed P/E 0,12× for UZTLP, 0,005× for TRSBP.
+
+    The ticker convention (ordinary + «P») settles it, and only where the source
+    already calls the security preferred — BNGP ends in «P» and is ORDINARY, its
+    preferred is BNGPP, so the flag decides and never the shape of the ticker.
+    """
+    where = {}
+    for key, members in groups.items():
+        for sec in members:
+            where[str(sec.get("ticker") or "").upper()] = key
+    for key in list(groups):
+        for sec in list(groups.get(key, ())):
+            ticker = str(sec.get("ticker") or "").upper()
+            if not sec.get("is_preferred") or not ticker.endswith("P"):
+                continue
+            target = where.get(ticker[:-1])
+            if target is None or target == key:
+                continue
+            groups[target].append(sec)
+            groups[key].remove(sec)
+            where[ticker] = target
+        if not groups[key]:
+            del groups[key]
 
 
 def market_cap_issuer(classes: Sequence[dict[str, Any]]) -> dict[str, Any]:

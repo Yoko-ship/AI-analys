@@ -203,6 +203,28 @@ class TestIssuerGrouping:
         b = fundamentals.issuer_key({"ticker": "UPOSP", "name": "O'zbekiston Pochtasi"})
         assert a == b
 
+    def test_a_preferred_class_rejoins_its_ordinary_when_the_names_disagree(self):
+        """17 of 32 pairs were stranded: UZTLP alone divided the WHOLE company's
+        profit into the preferred float and printed P/E 0,12×."""
+        rows = [cls("UZTL", name="O'zbektelekom AK"),
+                cls("UZTLP", name="Uzbektelecom privileged", preferred=True)]
+        groups = fundamentals.group_by_issuer(rows)
+        assert len(groups) == 1
+        assert sorted(c["ticker"] for c in next(iter(groups.values()))) == ["UZTL", "UZTLP"]
+
+    def test_a_ticker_ending_in_p_is_not_a_preferred_class(self):
+        """The BNGP trap: BNGP is ORDINARY and its preferred is BNGPP. Only the
+        source's own flag may join two classes — never the shape of a ticker."""
+        rows = [cls("BNG", name="Something else"),
+                cls("BNGP", name="Buxoroneftgazparmalash")]
+        groups = fundamentals.group_by_issuer(rows)
+        assert len(groups) == 2
+
+    def test_an_orphan_preferred_keeps_its_own_group(self):
+        rows = [cls("UZINP", name="Uzbekinvest", preferred=True)]
+        groups = fundamentals.group_by_issuer(rows)
+        assert [c["ticker"] for c in next(iter(groups.values()))] == ["UZINP"]
+
     def test_bonds_never_enter_an_issuer_group(self):
         rows = [cls("X", name="Acme"), {**cls("XB1", name="Acme"), "type": "bond"}]
         groups = fundamentals.group_by_issuer(rows)
