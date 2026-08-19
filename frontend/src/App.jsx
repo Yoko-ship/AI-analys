@@ -5285,6 +5285,10 @@ function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
 // once per business day — the date in the label is CBU's own, never "live". The day
 // change reads as a percent of the previous fix — shorter than сумы in a
 // one-line strip; the exact сум difference stays in the item's tooltip.
+//
+// The dollar is NOT among the items here: it moved into the topbar
+// (TopbarUsdRate, customer request 2026-08-19) so it stands on every page
+// instead of on the board alone. Same feed, same fix — printed once.
 function FxRatesBar({ language, onOpenBanks }) {
   const lang = normalizeLanguage(language);
   const [fx, setFx] = useState(null);
@@ -5297,11 +5301,13 @@ function FxRatesBar({ language, onOpenBanks }) {
     return () => { alive = false; };
   }, []);
   if (!fx) return null;
+  const rates = fx.rates.filter((r) => r.ccy !== TOPBAR_FX_CCY);
+  if (!rates.length) return null;
   const src = lang === "uz" ? "O‘zR MB" : lang === "en" ? "CBU" : "ЦБ РУз";
   return (
     <div className="fx-bar" role="note" aria-label={src}>
       <span className="fx-bar-label">{src}{fx.date ? ` · ${fx.date.slice(0, 5)}` : ""}</span>
-      {fx.rates.map((r) => {
+      {rates.map((r) => {
         const name = lang === "uz" ? r.name_uz : lang === "en" ? r.name_en : r.name_ru;
         const prev = Number.isFinite(r.diff) ? r.rate - r.diff : null;
         const pct = prev > 0 && r.diff !== 0 ? (r.diff / prev) * 100 : 0;
@@ -5333,6 +5339,83 @@ function FxRatesBar({ language, onOpenBanks }) {
         </button>
       )}
     </div>
+  );
+}
+
+// The one rate that belongs on every page rather than on the market board:
+// the dollar. Which currency is hoisted is stated once, here, because the CBU
+// strip has to skip exactly the same one.
+const TOPBAR_FX_CCY = "USD";
+
+// A flat 3:2 US flag, drawn rather than fetched — an emoji flag renders as the
+// letters "US" on Windows, and a remote image would put a third-party request
+// in the header of every page. Seven stripes instead of thirteen: at 20px the
+// real count is a grey smear.
+function UsFlagIcon() {
+  return (
+    <svg className="topbar-fx-flag" viewBox="0 0 30 20" width="21" height="14" aria-hidden="true" focusable="false">
+      <rect width="30" height="20" fill="#fff" />
+      {[0, 2, 4, 6].map((i) => (
+        <rect key={i} y={i * (20 / 7)} width="30" height={20 / 7} fill="#b22234" />
+      ))}
+      <rect width="13" height={20 * (4 / 7)} fill="#3c3b6e" />
+    </svg>
+  );
+}
+
+// The dollar rate in the topbar (customer request 2026-08-19, after finko.uz):
+// the number most readers open the site for, kept in the sticky header so it
+// survives the scroll and every page, not just /market. It is CBU's official
+// daily fix — the same row the strip used to carry — and it leads to the bank
+// rates page, which is the question a reader asks next: where to change it.
+function TopbarUsdRate({ language, onOpen }) {
+  const lang = normalizeLanguage(language);
+  const [fx, setFx] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/currency/rates")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !d || !d.ok) return;
+        const row = (d.rates || []).find((r) => r.ccy === TOPBAR_FX_CCY);
+        if (row) setFx({ ...row, date: d.date || "" });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!fx) return null;
+
+  const name = (lang === "uz" ? fx.name_uz : lang === "en" ? fx.name_en : fx.name_ru)
+    || (lang === "uz" ? "AQSH dollari" : lang === "en" ? "US dollar" : "Доллар США");
+  const diff = Number.isFinite(fx.diff) ? fx.diff : 0;
+  const prev = diff ? fx.rate - diff : null;
+  const pct = prev > 0 ? (diff / prev) * 100 : 0;
+  // The header shows the сум difference, as the reference site does; the
+  // percent and the source stay in the tooltip, where there is room to be
+  // explicit about whose rate this is and for which day.
+  const src = lang === "uz" ? "O‘zR MB" : lang === "en" ? "CBU" : "ЦБ РУз";
+  const title = [
+    `${name} · ${src}${fx.date ? ` · ${fx.date}` : ""}`,
+    pct ? `${pct > 0 ? "+" : "−"}${formatRatio(Math.abs(pct), 2, lang)}%` : null,
+    lang === "en" ? "Bank exchange rates →" : lang === "uz" ? "Bank kurslari →" : "Курсы банков →",
+  ].filter(Boolean).join("\n");
+
+  return (
+    <button type="button" className="topbar-fx" onClick={onOpen} title={title}>
+      <UsFlagIcon />
+      <span className="topbar-fx-body">
+        <span className="topbar-fx-name">{name}</span>
+        <span className="topbar-fx-nums">
+          <span className="topbar-fx-rate">{formatRatio(fx.rate, 2, lang)}</span>
+          {diff !== 0 && (
+            <span className={`topbar-fx-diff ${diff > 0 ? "is-up" : "is-down"}`}>
+              <span aria-hidden="true">{diff > 0 ? "▲" : "▼"}</span>
+              {formatRatio(Math.abs(diff), 2, lang)}
+            </span>
+          )}
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -17090,6 +17173,14 @@ function App() {
 
           <div className="topbar-meta">
             <div className="topbar-controls">
+              {/* The dollar rate, left of the language control — the place the
+                  customer pointed at (finko.uz). It used to sit in the CBU
+                  strip on /market only. */}
+              <TopbarUsdRate
+                language={language}
+                onOpen={() => { setActiveView("bankfx"); setMobileNavOpen(false); }}
+              />
+
               {/* The panel is not a product section, so it stays out of the main
                   nav — but an administrator should not have to type the URL. The
                   label collapses to the icon on narrow widths, where the topbar

@@ -3283,6 +3283,79 @@ body[data-theme="light"] .fx-bar {
   display: none;
 }
 
+/* ── Курс доллара в шапке ─────────────────────────────────────────────────
+   CBU's daily dollar fix, hoisted out of the market page's strip into the
+   sticky header (customer, 2026-08-19). It is a button, not a badge: it opens
+   «Где выгоднее обменять». Quiet until hovered — the header already carries
+   the brand, the nav and three controls, and this must not shout over them. */
+.topbar-fx {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--duration-fast, 120ms) var(--ease-out, ease),
+    border-color var(--duration-fast, 120ms) var(--ease-out, ease);
+}
+
+.topbar-fx:hover {
+  border-color: var(--border);
+  background: var(--panel);
+}
+
+.topbar-fx-flag {
+  flex: none;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.topbar-fx-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.topbar-fx-name {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.topbar-fx-nums {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.topbar-fx-rate {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.topbar-fx-diff {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+}
+
+.topbar-fx-diff.is-up {
+  color: var(--success);
+}
+
+.topbar-fx-diff.is-down {
+  color: var(--danger);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    HERO PANEL - Main Feature Section
    ═══════════════════════════════════════════════════════════════════════════ */
