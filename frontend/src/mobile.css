@@ -19,7 +19,9 @@
 
    Breakpoints: 1460px and 1180px are the two the topbar measured out to (§2);
    900px and 760px are the tablet/phone values styles.css already uses, and 380px
-   is the small-phone tail. No other values are introduced.
+   is the small-phone tail. 460px joined them on 2026-08-19, measured: it is the
+   width below which the topbar's dollar readout leaves the wordmark too little
+   room to be a word. No other values are introduced.
    ========================================================================== */
 
 /* ── 1. Structural guards (all viewports) ────────────────────────────────── */
@@ -121,6 +123,13 @@ iframe {
     font-size: 0.86rem;
     white-space: nowrap;
   }
+
+  /* The dollar readout gives up its padding first — the nav beside it is the
+     part that scrolls, and every pixel here is a nav label kept on screen. */
+  .topbar-fx {
+    gap: 6px;
+    padding: 4px 6px;
+  }
 }
 
 /* Drawer band. styles.css also had pre-drawer rules that stretched
@@ -219,6 +228,32 @@ iframe {
     height: 40px;
   }
 
+  /* The rate stays on the phone — it is the reason a good part of the traffic
+     opens the site at all, and the market strip no longer carries it. What
+     goes is the wording around it: «Доллар США» is what the flag already
+     says, so the row collapses to flag + number + day change. */
+  .topbar-fx {
+    flex: 0 0 auto;
+    padding: 4px 4px;
+    gap: 6px;
+  }
+
+  .topbar-fx-name {
+    display: none;
+  }
+
+  .topbar-fx-body {
+    gap: 0;
+  }
+
+  /* The rate is a fixed-width block now, and the brand is the flexible one —
+     without this the icon itself was squeezed out of existence at 390px and
+     the header lost its only mark of whose site this is. The wordmark still
+     truncates; the icon no longer can. */
+  .brand-icon {
+    flex: none;
+  }
+
   /* Drawer items are the primary navigation on a phone — give them a real touch
      target and room for the notch. The band above turned the nav into a
      horizontal scroller; as a drawer it scrolls vertically instead. */
@@ -245,6 +280,44 @@ iframe {
      site and the space buys the language + theme controls their full size. */
   .brand-title {
     font-size: 0.94rem;
+  }
+
+  /* Measured at 360px: burger + icon + rate + language + A−/A+ + theme came to
+     366px in a 336px row, and the one item that can give — the brand — was
+     squeezing the icon down to 14px. Tightening the row's own gaps and dropping
+     the flag pays the 30px back. The flag is the redundant part: the button's
+     title still names the currency, and it opens the rates page. */
+  .topbar {
+    gap: 6px;
+  }
+
+  .topbar-fx {
+    padding: 4px 2px;
+    gap: 4px;
+  }
+
+  .topbar-fx-flag {
+    display: none;
+  }
+}
+
+/* Phone width: the last thing to go before the rate itself is the day change.
+   The number is the answer a reader came for; the delta is context, and it is
+   still one tap away on /currency. Measured at 390px — with the change in, the
+   header ran 17px over and took the brand with it. */
+@media (max-width: 900px) {
+  .topbar-fx-diff {
+    display: none;
+  }
+}
+
+/* Under ~460px the wordmark is the flexible item in a row that no longer has
+   slack, so it renders as a 2-4px sliver of a letter — worse than absent.
+   Dropping it outright gives the icon its full 34px back; the icon is what
+   identifies the site at this width, and the tab title still spells it. */
+@media (max-width: 460px) {
+  .brand-copy {
+    display: none;
   }
 }
 
