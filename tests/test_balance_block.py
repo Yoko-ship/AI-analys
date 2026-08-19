@@ -185,3 +185,67 @@ class TestQ4StandsInForAMissingAnnual:
         ])
         served = rc.get_all_financials()["Y"]
         assert served["annual"] is None
+
+
+class TestThePriorInterimCompanion:
+    """The TTM subtrahend when the form prints no comparative.
+
+    ``TTM = annual(Y−1) + YTD(Y) − YTD(Y−1)``. The jsc form prints YTD(Y−1)
+    beside every P&L line, so the subtrahend rides on the filing. The BANK form
+    has a single value column and prints none — every bank sat with
+    ``prior = None``, the TTM branch could not close, and fourteen issuers were
+    priced off a profit that ended seven months before the balance beside it.
+    The issuer's own filing of that quarter is already in this cache.
+    """
+
+    def test_a_bank_gets_its_subtrahend_from_the_stored_quarter(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
+        monkeypatch.setenv("FINANCIALS_ENRICH_ON_READ", "0")
+        rc.bulk_upsert_financials([
+            {"ticker": "ALKB", "year": 2025, "quarter": 2, "net_income": 40.0,
+             "revenue": 300.0, "org_type": "bank"},
+            {"ticker": "ALKB", "year": 2025, "quarter": 0, "net_income": 100.0,
+             "revenue": 700.0, "org_type": "bank"},
+            {"ticker": "ALKB", "year": 2026, "quarter": 2, "net_income": 60.0,
+             "revenue": 400.0, "org_type": "bank"},
+        ])
+        served = rc.get_all_financials()["ALKB"]
+        assert served["prior"]["year"] == 2025 and served["prior"]["quarter"] == 2
+        assert served["prior"]["net_income"] == pytest.approx(40.0)
+        assert served["prior"]["source"] == "catalog"
+        # …and the TTM the fundamentals layer builds from it closes:
+        # 100 + 60 − 40 = 120, not the bare 100 of the annual.
+        import fundamentals
+        flows = fundamentals.twelve_month_flows(served)
+        assert flows["values"]["net_income"] == pytest.approx(120.0)
+        assert flows["methods"]["net_income"] == "ttm"
+
+    def test_the_comparative_printed_in_the_filing_wins(self, tmp_path, monkeypatch):
+        """A separately filed report cannot net a restatement; the form's own
+        comparative can, so it is never overwritten."""
+        monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
+        rc.bulk_upsert_financials([
+            {"ticker": "UZTL", "year": 2025, "quarter": 2, "net_income": 40.0},
+            {"ticker": "UZTL", "year": 2026, "quarter": 2, "net_income": 60.0,
+             "prior": {"year": 2025, "quarter": 2, "net_income": 45.0}},
+        ])
+        served = rc.get_all_financials()["UZTL"]
+        assert served["prior"]["net_income"] == pytest.approx(45.0)
+        assert served["prior"].get("source") is None
+
+    def test_no_stored_quarter_leaves_the_comparative_absent(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
+        rc.bulk_upsert_financials([
+            {"ticker": "NEW", "year": 2026, "quarter": 2, "net_income": 60.0},
+        ])
+        assert rc.get_all_financials()["NEW"]["prior"] is None
+
+    def test_an_annual_latest_row_asks_for_no_subtrahend(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
+        rc.bulk_upsert_financials([
+            {"ticker": "Z", "year": 2024, "quarter": 2, "net_income": 10.0},
+            {"ticker": "Z", "year": 2025, "quarter": 0, "net_income": 90.0},
+        ])
+        served = rc.get_all_financials()["Z"]
+        assert served["quarter"] == 0
+        assert served["prior"] is None
