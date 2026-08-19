@@ -254,19 +254,66 @@ def _aggregate(isin: str, lst: list[dict], trade_date: str) -> dict[str, Any]:
     }
 
 
-def aggregate_day(trades: list[dict], trade_date: str) -> list[dict[str, Any]]:
-    """Per-security day statistics for one session's executions.
+def archive_executions(isin: str, start: str, end: str,
+                       session: Any = None, page_size: int = 1000) -> list[dict]:
+    """Every execution of ONE security between two dates, from openinfo's archive.
 
-    The public form of ``_aggregate``, grouping by security first — what a
-    backfill over past sessions needs, and the same computation the live pass
-    runs, so a banked session and a live one can never disagree.
+    ``/iuzse/trade-results/`` filtered by ISIN answers for any past date, in
+    pages of up to a thousand — a year of even the busiest line is four requests.
+    The exchange's OWN feed can be date-filtered too, but only across the whole
+    market: a single past session is 217 pages of fifty records there, ~18
+    minutes, which is a year of walking for a year of history. This is the same
+    execution record, per security, and it is the only one that carries
+    ``board_id`` for certain — which is what keeps negotiated deals out.
+
+    openinfo duplicates records; identical (datetime, price, quantity) triples
+    are the same trade and are folded together, exactly as the last-trading-day
+    backfill does.
+    """
+    from openinfo_collector import _json_get, _make_session
+
+    client = session or _make_session()
+    rows: list[dict] = []
+    page = 1
+    while True:
+        try:
+            payload = _json_get(client, "/iuzse/trade-results/",
+                                {"isu_cd": isin, "start_date": start, "end_date": end,
+                                 "page_size": page_size, "page": page})
+        except Exception:  # noqa: BLE001 — a page that will not read ends the walk
+            logger.exception("archive executions %s page %d unreadable", isin, page)
+            break
+        if not isinstance(payload, dict):
+            break
+        rows.extend(payload.get("results") or [])
+        if not payload.get("has_next"):
+            break
+        page += 1
+    seen: set = set()
+    out: list[dict] = []
+    for x in rows:
+        key = (x.get("trade_datetime"), x.get("trade_price"), x.get("trade_quantity"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(x)
+    return out
+
+
+def aggregate_by_day(isin: str, trades: list[dict]) -> list[dict[str, Any]]:
+    """One security's executions rolled up into per-SESSION statistics.
+
+    The same ``_aggregate`` the live pass runs, once per day the security traded
+    — so a session banked from the archive and one banked this evening are the
+    same numbers computed the same way, negotiated deals excluded from both.
     """
     by: dict[str, list[dict]] = defaultdict(list)
     for x in trades or []:
-        code = x.get("issue_code")
-        if code:
-            by[str(code)].append(x)
-    return [_aggregate(isin, lst, trade_date) for isin, lst in by.items()]
+        stamp = str(x.get("trade_datetime") or x.get("trade_date") or "")
+        day = stamp[:10].replace("-", "")
+        if len(day) == 8 and day.isdigit():
+            by[day].append(x)
+    return [_aggregate(isin, lst, day) for day, lst in sorted(by.items())]
 
 
 def backfill_last_day_stats(targets: list[tuple[str, str]]) -> list[dict[str, Any]]:
