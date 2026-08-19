@@ -693,13 +693,28 @@ def _flag_range(value: float | None, low: float, high: float, **extra: Any) -> d
 def _regression_checks(pe: dict[str, Any], pb: dict[str, Any], ps: dict[str, Any],
                        roe: dict[str, Any], roa: dict[str, Any],
                        net_margin: dict[str, Any],
-                       equity_assets: dict[str, Any]) -> dict[str, Any]:
+                       equity_assets: dict[str, Any],
+                       snap: dict[str, Any] | None = None) -> dict[str, Any]:
     """V11–V14 — the identities that bind the published figures to each other.
 
     P/E × ROE / 100 = P/B; P/S = P/E × маржа / 100; ROE / ROA = Активы /
     Капитал; ROE × К/А / 100 = ROA. A miss flags the row for review — it never
     hides a cell, because each identity mixes a price-side and a statement-side
     figure and cannot say which of the two is the wrong one.
+
+    Three of the four bind a balance-side figure, and the ТЗ deliberately builds
+    the two sides on DIFFERENT denominators: P/B and Капитал/Активы on capital
+    at the period END (лист 09), ROE and ROA on the period AVERAGE. Compared
+    literally the identities then fail for every issuer whose balance moved more
+    than the tolerance during the period — which is nearly every issuer that
+    grows: 45 of 95 rows carried a flag that meant nothing, and all 111 of those
+    flags cleared the moment the same denominator was used on both sides. That
+    artefact IS the external audit's «97% арифметики / 72% точь-в-точь».
+
+    So the identities are evaluated against the AVERAGED base while the
+    published cells keep their end-of-period denominators. Where the filing
+    states no opening balance the average IS the closing figure and this changes
+    nothing. The check measures the arithmetic, not the ТЗ's choice of base.
 
     None = the identity could not be evaluated (an input is absent), which is
     not a failure.
@@ -721,6 +736,15 @@ def _regression_checks(pe: dict[str, Any], pb: dict[str, Any], ps: dict[str, Any
 
     pe_v, pb_v, ps_v = val(pe), val(pb), val(ps)
     roe_v, roa_v, nm_v, ea_v = val(roe), val(roa), val(net_margin), val(equity_assets)
+
+    # Restate the two balance-side cells on the base ROE and ROA divide by.
+    snap = snap or {}
+    eq_end, eq_avg = _num(snap.get("equity")), _num(snap.get("equity_avg"))
+    as_avg = _num(snap.get("assets_avg"))
+    if pb_v is not None and eq_end and eq_avg:
+        pb_v = pb_v * eq_end / eq_avg
+    if eq_avg is not None and as_avg:
+        ea_v = eq_avg / as_avg * 100.0
 
     results = {
         "v11_pe_roe_pb": (close(pe_v * roe_v / 100.0, pb_v, tight)
@@ -947,7 +971,8 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     # suppressions, not before — or they would flag cells the reader never saw.
     result["checks"] = _regression_checks(result["pe"], result["pb"], result["ps"],
                                           result["roe"], result["roa"],
-                                          result["net_margin"], result["equity_assets"])
+                                          result["net_margin"], result["equity_assets"],
+                                          snap)
     return result
 
 
