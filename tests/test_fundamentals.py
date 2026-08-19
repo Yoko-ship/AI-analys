@@ -505,6 +505,19 @@ class TestMultiples:
         # The P&L side stands: P/E is untouched by a broken balance.
         assert got["pe"]["value"] == pytest.approx(5.0)
 
+    def test_a_balance_that_moved_is_not_an_arithmetic_error(self):
+        """The ТЗ builds P/B on END capital and ROE on the period AVERAGE, so
+        читая тождества буквально they fail for every issuer that grew. 45 of 95
+        rows carried such a flag; all of them cleared on one denominator."""
+        got = self._issuer(fin={"total_liabilities": 600.0,
+                                "balance": {"equity_start": 300.0, "equity_end": 500.0,
+                                            "assets_start": 900.0, "assets_end": 1100.0}})
+        # P/B = 1000/500 = 2,0 on the close; ROE = 200/400 = 50 % on the mean.
+        # 2,0 × 50/100 = 1,0 ≠ 2,0 read literally — and yet nothing is wrong.
+        assert got["pb"]["value"] == pytest.approx(2.0)
+        assert got["roe"]["value"] == pytest.approx(50.0)
+        assert got["checks"]["flags"] == []
+
     def test_the_regression_identities_flag_but_never_hide(self):
         got = self._issuer(fin={"total_liabilities": 1000.0,
                                 "balance": {"equity_start": 1000.0, "equity_end": 1000.0,
