@@ -2848,7 +2848,6 @@ body[data-theme="light"] .fx-bar {
   margin: 8px 0 0;
   max-width: 62ch;
   color: var(--muted);
-  font-size: 0.92rem;
   line-height: 1.5;
 }
 
@@ -2884,8 +2883,6 @@ body[data-theme="light"] .fx-bar {
   border: none;
   background: none;
   color: var(--text);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 1.25rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -2893,15 +2890,12 @@ body[data-theme="light"] .fx-bar {
 }
 
 .bankfx-amount-ccy {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
   font-weight: 700;
   color: var(--muted);
 }
 
 .bankfx-calc-note {
   margin: 0 0 0 auto;
-  font-size: 12.5px;
   color: var(--muted);
   max-width: 36ch;
   line-height: 1.45;
@@ -2937,8 +2931,6 @@ body[data-theme="light"] .fx-bar {
 }
 
 .bankfx-rank-pos {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -2950,8 +2942,6 @@ body[data-theme="light"] .fx-bar {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
   font-weight: 700;
   color: #fff;
 }
@@ -2970,7 +2960,6 @@ body[data-theme="light"] .fx-bar {
 
 .bankfx-rank-name {
   font-weight: 600;
-  font-size: 13.5px;
   color: var(--text);
   line-height: 1.3;
   white-space: nowrap;
@@ -2981,10 +2970,14 @@ body[data-theme="light"] .fx-bar {
 .bankfx-rank-sub {
   display: block;
   font-weight: 400;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 10.5px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  /* The parent clips with an ellipsis, but a nested block does its own
+     clipping — at the page's single 14px size this line is long enough on a
+     phone to be cut mid-word without one. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bankfx-rank-bar {
@@ -3008,8 +3001,6 @@ body[data-theme="light"] .fx-bar {
 }
 
 .bankfx-rank-sum {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 14px;
   font-weight: 700;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -3018,8 +3009,6 @@ body[data-theme="light"] .fx-bar {
 }
 
 .bankfx-rank-diff {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 11.5px;
   color: var(--danger);
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -3041,7 +3030,6 @@ body[data-theme="light"] .fx-bar {
   border: none;
   color: var(--accent);
   font: inherit;
-  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   padding: 2px 10px;
@@ -3060,6 +3048,22 @@ body[data-theme="light"] .fx-bar {
   padding: 36px 20px;
   color: var(--muted);
   text-align: center;
+}
+
+/* Единая типографика страницы (заказчик, 2026-08-19). /currency mixed three
+   families — Inter, Space Grotesk, IBM Plex Mono — across nine sizes from
+   10.5px to 1.25rem, and the customer asked for one font and one size for
+   every text on it. Written as a single scoped `*` rule rather than by editing
+   thirty declarations: a new element on this page then cannot bring its own
+   type in, and nothing has to be kept in sync. Hierarchy now rides on weight
+   and colour alone. rem, not px, so the topbar's A−/A+ still scales it.
+   The class is doubled to raise specificity to (0,2,0): `.segmented-control
+   button` and half a dozen others are declared LATER in this file and in
+   theme.css, and at equal specificity the last one wins. */
+.bankfx-page.bankfx-page,
+.bankfx-page.bankfx-page * {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.875rem;
 }
 
 @media (max-width: 760px) {
@@ -3086,6 +3090,7 @@ body[data-theme="light"] .fx-bar {
   .bankfx-rank-diff {
     display: none;
   }
+
 }
 
 .topbar-brand {
