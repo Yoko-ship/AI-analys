@@ -5714,13 +5714,9 @@ function BankFxPage({ language }) {
           </button>
         )}
 
-        <p className="bankfx-page-note">
-          {lang === "en"
-            ? "The sum is the published rate times your amount — cash-desk fees, if any, are the bank's own. Each bank's time is what it stated on its card (Tashkent). ⚠ marks an unusually wide spread: shown as published, kept out of the ranking's top."
-            : lang === "uz"
-              ? "Summa — e'lon qilingan kurs × summangiz; kassa yig'imlari bo'lsa, ular bankning o'ziniki. Vaqt — bank o'z kartasida ko'rsatgani (Toshkent). ⚠ — g'ayrioddiy keng spred: e'lon qilinganidek ko'rsatiladi, reyting yuqorisiga kirmaydi."
-              : "Сумма — опубликованный курс × ваша сумма; кассовые сборы, если есть, — на стороне банка. Время у каждого банка — то, которое он указал на своей карточке (ташкентское). ⚠ — аномально широкий спред: показывается как опубликован, но не попадает в верхушку рейтинга."}
-        </p>
+        {/* The footnote that stood here (how the sum is computed, whose clock
+            the times are, what ⚠ means) was removed at the customer's request
+            2026-08-19. The ⚠ badge keeps its own tooltip. */}
       </article>
     </section>
   );

@@ -3062,14 +3062,6 @@ body[data-theme="light"] .fx-bar {
   text-align: center;
 }
 
-.bankfx-page-note {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.5;
-  max-width: 78ch;
-}
-
 @media (max-width: 760px) {
   .bankfx-calc-note {
     margin-left: 0;
