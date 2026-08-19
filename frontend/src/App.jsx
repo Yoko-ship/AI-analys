@@ -5287,7 +5287,7 @@ function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
 // one-line strip; the exact сум difference stays in the item's tooltip.
 //
 // The dollar is NOT among the items here: it moved into the topbar
-// (TopbarUsdRate, customer request 2026-08-19) so it stands on every page
+// (TopbarFxTicker, customer request 2026-08-19) so it stands on every page
 // instead of on the board alone. Same feed, same fix — printed once.
 function FxRatesBar({ language, onOpenBanks }) {
   const lang = normalizeLanguage(language);
@@ -5342,79 +5342,150 @@ function FxRatesBar({ language, onOpenBanks }) {
   );
 }
 
-// The one rate that belongs on every page rather than on the market board:
-// the dollar. Which currency is hoisted is stated once, here, because the CBU
-// strip has to skip exactly the same one.
+// The currency the topbar's ticker OPENS on, and the one the market strip
+// leaves out — stated once because the two have to agree. The ticker cycles
+// through everything the feed returns; this only fixes where it starts.
 const TOPBAR_FX_CCY = "USD";
 
-// A flat 3:2 US flag, drawn rather than fetched — an emoji flag renders as the
-// letters "US" on Windows, and a remote image would put a third-party request
-// in the header of every page. Seven stripes instead of thirteen: at 20px the
-// real count is a grey smear.
-function UsFlagIcon() {
-  return (
-    <svg className="topbar-fx-flag" viewBox="0 0 30 20" width="21" height="14" aria-hidden="true" focusable="false">
-      <rect width="30" height="20" fill="#fff" />
-      {[0, 2, 4, 6].map((i) => (
-        <rect key={i} y={i * (20 / 7)} width="30" height={20 / 7} fill="#b22234" />
-      ))}
-      <rect width="13" height={20 * (4 / 7)} fill="#3c3b6e" />
-    </svg>
-  );
+// How long one currency holds the header. Six seconds reads a number twice
+// over without making a reader who wants the euro feel stuck; the cycle also
+// stops while the pointer is on the widget.
+const TOPBAR_FX_ROTATE_MS = 6000;
+
+// Flags drawn rather than fetched — an emoji flag renders as bare letters on
+// Windows, and a remote image would put a third-party request in the header of
+// every page. Simplified on purpose: at 21px wide the US flag's thirteen
+// stripes and the EU's twelve stars are a smear, so seven stripes and eight
+// dots read better than the accurate count. A currency with no drawing falls
+// back to its code, which is never wrong.
+function FxFlagIcon({ ccy }) {
+  const box = { className: "topbar-fx-flag", viewBox: "0 0 30 20", width: 21, height: 14, "aria-hidden": "true", focusable: "false" };
+  if (ccy === "USD") {
+    return (
+      <svg {...box}>
+        <rect width="30" height="20" fill="#fff" />
+        {[0, 2, 4, 6].map((i) => (
+          <rect key={i} y={i * (20 / 7)} width="30" height={20 / 7} fill="#b22234" />
+        ))}
+        <rect width="13" height={20 * (4 / 7)} fill="#3c3b6e" />
+      </svg>
+    );
+  }
+  if (ccy === "EUR") {
+    return (
+      <svg {...box}>
+        <rect width="30" height="20" fill="#039" />
+        {Array.from({ length: 8 }, (_, i) => {
+          const a = (i / 8) * 2 * Math.PI;
+          return <circle key={i} cx={15 + 5.5 * Math.sin(a)} cy={10 - 5.5 * Math.cos(a)} r="1.1" fill="#fc0" />;
+        })}
+      </svg>
+    );
+  }
+  if (ccy === "RUB") {
+    return (
+      <svg {...box}>
+        <rect width="30" height="20" fill="#fff" />
+        <rect y="6.67" width="30" height="6.67" fill="#0039a6" />
+        <rect y="13.33" width="30" height="6.67" fill="#d52b1e" />
+      </svg>
+    );
+  }
+  return <span className="topbar-fx-code" aria-hidden="true">{ccy}</span>;
 }
 
-// The dollar rate in the topbar (customer request 2026-08-19, after finko.uz):
-// the number most readers open the site for, kept in the sticky header so it
-// survives the scroll and every page, not just /market. It is CBU's official
-// daily fix — the same row the strip used to carry — and it leads to the bank
-// rates page, which is the question a reader asks next: where to change it.
-function TopbarUsdRate({ language, onOpen }) {
+// The rate ticker in the topbar (customer request 2026-08-19, after finko.uz;
+// made to cycle the same day): the numbers most readers open the site for,
+// kept in the sticky header so they survive the scroll and every page, not
+// just /market. One currency at a time, rotating — the header has room for one
+// but the reader wants all three. CBU's official daily fix; a click leads to
+// the bank rates, which is the question a reader asks next: where to change it.
+function TopbarFxTicker({ language, onOpen }) {
   const lang = normalizeLanguage(language);
   const [fx, setFx] = useState(null);
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
   useEffect(() => {
     let alive = true;
     fetch("/api/currency/rates")
       .then((r) => r.json())
       .then((d) => {
-        if (!alive || !d || !d.ok) return;
-        const row = (d.rates || []).find((r) => r.ccy === TOPBAR_FX_CCY);
-        if (row) setFx({ ...row, date: d.date || "" });
+        if (!alive || !d || !d.ok || !(d.rates || []).length) return;
+        setFx(d);
+        // Open on the dollar wherever the feed happens to put it.
+        const start = d.rates.findIndex((r) => r.ccy === TOPBAR_FX_CCY);
+        if (start > 0) setIdx(start);
       })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
-  if (!fx) return null;
 
-  const name = (lang === "uz" ? fx.name_uz : lang === "en" ? fx.name_en : fx.name_ru)
-    || (lang === "uz" ? "AQSH dollari" : lang === "en" ? "US dollar" : "Доллар США");
-  const diff = Number.isFinite(fx.diff) ? fx.diff : 0;
-  const prev = diff ? fx.rate - diff : null;
+  const rates = fx?.rates || [];
+  useEffect(() => {
+    if (rates.length < 2 || paused) return;
+    const id = setInterval(() => setIdx((i) => (i + 1) % rates.length), TOPBAR_FX_ROTATE_MS);
+    return () => clearInterval(id);
+  }, [rates.length, paused]);
+
+  if (!rates.length) return null;
+  const row = rates[idx % rates.length];
+
+  const name = (lang === "uz" ? row.name_uz : lang === "en" ? row.name_en : row.name_ru) || row.ccy;
+  const diff = Number.isFinite(row.diff) ? row.diff : 0;
+  const prev = diff ? row.rate - diff : null;
   const pct = prev > 0 ? (diff / prev) * 100 : 0;
+  // A nominal above one is the whole point of the label: 1000 RUB and 1 RUB
+  // are different numbers, and the header would otherwise state the wrong one.
+  const unit = (row.nominal || 1) > 1 ? `${formatRatio(row.nominal, 0, lang)} ${row.ccy}` : row.ccy;
   // The header shows the сум difference, as the reference site does; the
   // percent and the source stay in the tooltip, where there is room to be
   // explicit about whose rate this is and for which day.
   const src = lang === "uz" ? "O‘zR MB" : lang === "en" ? "CBU" : "ЦБ РУз";
   const title = [
-    `${name} · ${src}${fx.date ? ` · ${fx.date}` : ""}`,
+    `${name} (${unit}) · ${src}${fx.date ? ` · ${fx.date}` : ""}`,
     pct ? `${pct > 0 ? "+" : "−"}${formatRatio(Math.abs(pct), 2, lang)}%` : null,
     lang === "en" ? "Bank exchange rates →" : lang === "uz" ? "Bank kurslari →" : "Курсы банков →",
   ].filter(Boolean).join("\n");
 
   return (
-    <button type="button" className="topbar-fx" onClick={onOpen} title={title}>
-      <UsFlagIcon />
-      <span className="topbar-fx-body">
-        <span className="topbar-fx-name">{name}</span>
-        <span className="topbar-fx-nums">
-          <span className="topbar-fx-rate">{formatRatio(fx.rate, 2, lang)}</span>
-          {diff !== 0 && (
-            <span className={`topbar-fx-diff ${diff > 0 ? "is-up" : "is-down"}`}>
-              <span aria-hidden="true">{diff > 0 ? "▲" : "▼"}</span>
-              {formatRatio(Math.abs(diff), 2, lang)}
-            </span>
-          )}
+    <button
+      type="button"
+      className="topbar-fx"
+      onClick={onOpen}
+      title={title}
+      // A reader who stops to read should not have the number taken away
+      // mid-glance; focus counts as reading too, for the keyboard.
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      {/* Keyed by currency so React replaces the node and the fade replays on
+          every turn of the cycle. */}
+      <span className="topbar-fx-slide" key={row.ccy}>
+        <FxFlagIcon ccy={row.ccy} />
+        <span className="topbar-fx-body">
+          <span className="topbar-fx-name">{(row.nominal || 1) > 1 ? `${name}, ${unit}` : name}</span>
+          <span className="topbar-fx-nums">
+            <span className="topbar-fx-rate">{formatRatio(row.rate, 2, lang)}</span>
+            {diff !== 0 && (
+              <span className={`topbar-fx-diff ${diff > 0 ? "is-up" : "is-down"}`}>
+                <span aria-hidden="true">{diff > 0 ? "▲" : "▼"}</span>
+                {formatRatio(Math.abs(diff), 2, lang)}
+              </span>
+            )}
+          </span>
         </span>
       </span>
+      {/* Which of the three is on screen, and how far the cycle has to go.
+          Three dots cost 14px and answer "is it going to change again?" */}
+      {rates.length > 1 && (
+        <span className="topbar-fx-dots" aria-hidden="true">
+          {rates.map((r, i) => (
+            <i key={r.ccy} className={i === idx % rates.length ? "is-on" : ""} />
+          ))}
+        </span>
+      )}
     </button>
   );
 }
@@ -17175,10 +17246,10 @@ function App() {
 
           <div className="topbar-meta">
             <div className="topbar-controls">
-              {/* The dollar rate, left of the language control — the place the
+              {/* The rate ticker, left of the language control — the place the
                   customer pointed at (finko.uz). It used to sit in the CBU
                   strip on /market only. */}
-              <TopbarUsdRate
+              <TopbarFxTicker
                 language={language}
                 onOpen={() => { setActiveView("bankfx"); setMobileNavOpen(false); }}
               />
