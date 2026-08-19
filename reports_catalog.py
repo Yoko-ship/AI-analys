@@ -220,6 +220,15 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         -- zero quantity when nothing traded, and a flat line IS what the security
         -- did that day. Dropping them would compress calendar time and make a
         -- quiet month look like an active week.
+        --
+        -- The session-DETAIL columns (open/high/low, the trade count and the
+        -- largest deal) exist so a period can be summarised the way a session
+        -- is: «за месяц» has an opening price, a high, a low, an average deal
+        -- and a biggest deal exactly as one day does, and none of it could be
+        -- answered while the table held closes alone. They are nullable and
+        -- filled by whichever source can: the day statistics for the sessions
+        -- the collector has seen, openinfo's conclusions archive for OHLC
+        -- before that, and the date-filtered trade feed for the rest.
         CREATE TABLE IF NOT EXISTS catalog_quote_history (
             isin         TEXT NOT NULL,
             trade_date   TEXT NOT NULL,
@@ -227,6 +236,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             change_value REAL,
             quantity     REAL,
             turnover     REAL,
+            open_price   REAL,
+            high_price   REAL,
+            low_price    REAL,
+            trade_count  REAL,
+            largest_value REAL,
+            largest_qty  REAL,
             updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
             PRIMARY KEY (isin, trade_date)
         );
@@ -381,6 +396,11 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     for col in ("open_price", "high_price", "low_price", "close_price"):
         if col not in have:
             conn.execute(f"ALTER TABLE catalog_trade_stats ADD COLUMN {col} REAL")
+    have_hist = set(dbx.columns(conn, "catalog_quote_history"))
+    for col in ("open_price", "high_price", "low_price", "trade_count",
+                "largest_value", "largest_qty"):
+        if col not in have_hist:
+            conn.execute(f"ALTER TABLE catalog_quote_history ADD COLUMN {col} REAL")
     have_news = set(dbx.columns(conn, "news"))
     if "image_url" not in have_news:
         conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")
@@ -2406,6 +2426,41 @@ def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> 
     return n
 
 
+def trade_stats_as_history(rows: list[dict], trade_date: str | None = None) -> list[dict]:
+    """The day statistics restated as quote-history rows.
+
+    ``catalog_trade_stats`` keeps ONE row per security — the latest session — so
+    everything that made a session readable (its open, its high and low, how many
+    deals made it up, the largest of them) was thrown away the moment the next
+    session arrived. That is why the board could summarise a day and not a month:
+    the month's sessions were stored as bare closes.
+
+    This is the same numbers, banked per session, so tomorrow's «за месяц» is
+    made of thirty real sessions rather than one. Session figures only —
+    negotiated (block) deals are already excluded upstream and must stay out.
+    """
+    out: list[dict] = []
+    for r in rows or []:
+        isin = str(r.get("isin") or "").strip().upper()
+        day = str(r.get("trade_date") or trade_date or "").strip()
+        if not isin or not day:
+            continue
+        out.append({
+            "isin": isin,
+            "trade_date": day,
+            "close_price": r.get("close_price"),
+            "quantity": r.get("total_qty"),
+            "turnover": r.get("total_value"),
+            "open_price": r.get("open_price"),
+            "high_price": r.get("high_price"),
+            "low_price": r.get("low_price"),
+            "trade_count": r.get("trade_count"),
+            "largest_value": r.get("largest_value"),
+            "largest_qty": r.get("largest_qty"),
+        })
+    return out
+
+
 def get_all_trade_stats() -> dict[str, dict[str, Any]]:
     """Return the cached latest-day trade statistics per ISIN: {isin: {...}}."""
     conn = get_catalog_conn()
@@ -2489,6 +2544,13 @@ def bulk_upsert_quotes(rows: list[dict]) -> int:
 
 
 _QUOTE_HISTORY_COLS = ("close_price", "change_value", "quantity", "turnover")
+# The session's detail, written by whichever source can see it. Kept apart from
+# the four above because they are upserted differently: a source that cannot see
+# a security's open must not ERASE the open another source already stored, so
+# these COALESCE onto what is there while the four money columns keep
+# last-write-wins (a later read of the same session is strictly more settled).
+_QUOTE_HISTORY_DETAIL_COLS = ("open_price", "high_price", "low_price",
+                              "trade_count", "largest_value", "largest_qty")
 
 
 def bulk_upsert_quote_history(rows: list[dict]) -> int:
@@ -2504,10 +2566,9 @@ def bulk_upsert_quote_history(rows: list[dict]) -> int:
     same session legitimately arrives twice in a run — a security read once for
     its live quote and again for a settled row lands both.
 
-    Last write wins on a repeated session, deliberately. A row read mid-session
-    is provisional and a later read of the same day is strictly more settled;
-    past sessions are immutable in the source, so for them the update is a
-    no-op writing identical values.
+    A real value wins over an older one on a repeated session, deliberately: a
+    row read mid-session is provisional and a later read of the same day is
+    strictly more settled. A NULL never wins — see the ON CONFLICT below.
     """
     def _num(v: Any) -> float | None:
         try:
@@ -2543,18 +2604,40 @@ def bulk_upsert_quote_history(rows: list[dict]) -> int:
                                             else r.get("close")),
                              _num(r.get("change_value") if r.get("change_value") is not None
                                   else r.get("change")),
-                             _num(r.get("quantity")), _num(r.get("turnover"))]
+                             _num(r.get("quantity") if r.get("quantity") is not None
+                                  else r.get("total_qty")),
+                             _num(r.get("turnover") if r.get("turnover") is not None
+                                  else r.get("total_value")),
+                             _num(r.get("open_price") if r.get("open_price") is not None
+                                  else r.get("open")),
+                             _num(r.get("high_price") if r.get("high_price") is not None
+                                  else r.get("high")),
+                             _num(r.get("low_price") if r.get("low_price") is not None
+                                  else r.get("low")),
+                             _num(r.get("trade_count")),
+                             _num(r.get("largest_value")), _num(r.get("largest_qty"))]
     if not seen:
         return 0
-    assignments = ", ".join(f"{c}=excluded.{c}" for c in _QUOTE_HISTORY_COLS)
+    # COALESCE on every column, not last-write-wins: three sources now feed this
+    # table and each sees a different part of a session — the exchange page has
+    # the close and the turnover but no trade count, the day statistics have the
+    # count and the largest deal, openinfo's archive has the OHLC. A source
+    # writing NULL is saying «I cannot see this», never «this is not there», and
+    # under plain last-write-wins the day statistics landing after the page push
+    # would have blanked every close on the board. A real value still always
+    # wins over an older one, which is what settling a provisional session needs.
+    assignments = ", ".join(
+        f"{c}=COALESCE(excluded.{c}, catalog_quote_history.{c})"
+        for c in _QUOTE_HISTORY_COLS + _QUOTE_HISTORY_DETAIL_COLS)
     conn = get_catalog_conn()
     try:
         with conn:
+            all_cols = _QUOTE_HISTORY_COLS + _QUOTE_HISTORY_DETAIL_COLS
             conn.executemany(
                 f"""
                 INSERT INTO catalog_quote_history
-                    (isin, trade_date, {', '.join(_QUOTE_HISTORY_COLS)}, updated_at)
-                VALUES ({','.join('?' * (len(_QUOTE_HISTORY_COLS) + 2))}, datetime('now'))
+                    (isin, trade_date, {', '.join(all_cols)}, updated_at)
+                VALUES ({','.join('?' * (len(all_cols) + 2))}, datetime('now'))
                 ON CONFLICT(isin, trade_date) DO UPDATE SET
                     {assignments}, updated_at=datetime('now')
                 """,
@@ -2580,7 +2663,9 @@ def get_quote_history(isins: Sequence[str], days: int = 30) -> dict[str, list[di
     try:
         rows = conn.execute(
             f"""
-            SELECT isin, trade_date, close_price, change_value, quantity, turnover
+            SELECT isin, trade_date, close_price, change_value, quantity, turnover,
+                   open_price, high_price, low_price, trade_count,
+                   largest_value, largest_qty
             FROM catalog_quote_history
             WHERE isin IN ({placeholders})
             ORDER BY isin, trade_date

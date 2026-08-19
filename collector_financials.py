@@ -639,6 +639,54 @@ def backfill_intraday(days: int = 30) -> int:
     return status
 
 
+def backfill_day_stats(days: int = 90) -> int:
+    """One-off: bank per-session day STATISTICS for the last ``days`` days.
+
+    The quote history has always carried closes; what it could not carry was the
+    rest of a session — its open, its high and low, how many deals it was made of
+    and the largest of them — because the statistics table keeps only the latest
+    session and nothing banked the others. Without them a period can report a
+    turnover and a percent and nothing else, which is exactly what the board did.
+
+    Sourced from the exchange's own executions, date-filtered (the two-day window
+    is only what the unfiltered view shows), and aggregated by the same
+    ``trade_stats._aggregate`` the live pass uses — so a banked session and a live
+    one are the same numbers computed the same way, negotiated deals excluded.
+
+    Idempotent: every session upserts on (isin, day) and NULLs never overwrite,
+    so re-running only fills gaps. A day that cannot be walked COMPLETELY is
+    skipped — a half-walked session would understate volumes over correct ones.
+    """
+    from datetime import date, timedelta
+
+    session = None
+    status = 0
+    total = 0
+    for offset in range(days, -1, -1):
+        day = (date.today() - timedelta(days=offset)).strftime("%Y%m%d")
+        trades = ts.fetch_day_trades(day, session=session)
+        if trades is None:
+            log.error("day-stats backfill: %s could not be walked completely — skipped", day)
+            status = 1
+            continue
+        if not trades:
+            continue  # a weekend or a holiday, not a failure
+        rows = ts.aggregate_day(trades, day)
+        log.info("day-stats backfill %s: %d executions -> %d securities",
+                 day, len(trades), len(rows))
+        if rows:
+            # Pushed as quote HISTORY, not as the statistics cache: the cache
+            # holds the latest session only and a past day must never replace it.
+            # bulk_upsert_quote_history reads total_value/total_qty as the
+            # session's turnover and quantity, so the aggregate goes over as it is.
+            for start in range(0, len(rows), 5000):
+                status = _post("/api/admin/quotes",
+                               {"rows": [], "history": rows[start:start + 5000]}) or status
+            total += len(rows)
+    log.info("day-stats backfill: %d sessions banked across %d days", total, days + 1)
+    return status
+
+
 def _history_universe() -> set[str]:
     """Every ISIN the DEPLOYMENT's board carries, plus the local catalog's.
 
@@ -710,7 +758,14 @@ def backfill_quote_history(months: int = 12) -> int:
                 rows.append({"isin": isin, "trade_date": p["date"], "close_price": p["close"],
                              "change_value": p.get("change"),
                              "quantity": p.get("trading_volume"),
-                             "turnover": p.get("trading_value")})
+                             "turnover": p.get("trading_value"),
+                             # The archive carries the session's OHLC too, and it
+                             # is the only source that has it for sessions older
+                             # than the collector. Split-restated with the close
+                             # by adjust_history (corporate_actions._PRICE_FIELDS).
+                             "open_price": p.get("open"),
+                             "high_price": p.get("high"),
+                             "low_price": p.get("low")})
         if index % 20 == 0:
             log.info("history backfill: %d/%d codes, %d sessions so far", index, len(codes), len(rows))
         time.sleep(0.25)
@@ -1284,6 +1339,11 @@ def main() -> int:
                     metavar="DAYS",
                     help="one-off: bank hourly bars for the last N calendar days from "
                          "the exchange's date-filtered trade feed (default 30)")
+    ap.add_argument("--backfill-day-stats", type=int, nargs="?", const=90, default=None,
+                    metavar="DAYS",
+                    help="one-off: bank per-session day statistics (open/high/low, trade "
+                         "count, largest deal) for the last N calendar days, so a PERIOD "
+                         "can be summarised the way a session is (default 90)")
     args = ap.parse_args()
 
     global SKIP_QUOTES
@@ -1334,6 +1394,13 @@ def main() -> int:
             return backfill_intraday(args.backfill_intraday)
         except Exception:
             log.exception("intraday backfill failed")
+            return 1
+
+    if args.backfill_day_stats is not None:
+        try:
+            return backfill_day_stats(args.backfill_day_stats)
+        except Exception:
+            log.exception("day-stats backfill failed")
             return 1
 
     if args.watch_filings:
