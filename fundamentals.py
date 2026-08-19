@@ -247,6 +247,29 @@ def report_age_days(fin: dict[str, Any] | None, today: date | None = None) -> in
     return ((today or date.today()) - end).days
 
 
+def _opening(value: Any, closing: float | None) -> float | None:
+    """The period-opening balance, or None when the form left the column empty.
+
+    An unfilled «на начало отчетного периода» cell comes back as a literal 0,
+    not as null — the bank form and the young-issuer filings both do it. Averaged
+    against a real closing figure that zero halves the denominator, and ROE/ROA
+    come out at exactly twice the truth (UZNF 9,40% for 4,70%, TRSB 43,5% for
+    23,6%, IPKY 37,9% for 19,0% — the multiplier was 2,00 in every case). A
+    balance sheet that ends the period with assets or capital did not start it at
+    nothing, so a zero opening beside a non-zero closing is a gap in the form and
+    the average degrades to the closing value alone.
+
+    A negative opening IS filed data — an issuer can carry a capital deficit into
+    the period — and still averages.
+    """
+    start = _num(value)
+    if start is None:
+        return None
+    if start == 0 and closing not in (None, 0):
+        return None
+    return start
+
+
 def balance_snapshot(fin: dict[str, Any] | None,
                      ratio: dict[str, Any] | None,
                      today: date | None = None) -> dict[str, Any]:
@@ -267,8 +290,8 @@ def balance_snapshot(fin: dict[str, Any] | None,
     eq_end = _num(bal.get("equity_end"))
     as_end = _num(bal.get("assets_end"))
     if eq_end is not None or as_end is not None:
-        eq_start = _num(bal.get("equity_start"))
-        as_start = _num(bal.get("assets_start"))
+        eq_start = _opening(bal.get("equity_start"), eq_end)
+        as_start = _opening(bal.get("assets_start"), as_end)
         age = report_age_days(fin, today)
         return {
             "equity": eq_end,

@@ -402,6 +402,26 @@ class TestMultiples:
         assert got["roa"]["value"] == pytest.approx(200.0 / 1000.0 * 100.0)
         assert got["equity_assets"]["value"] == pytest.approx(500.0 / 1100.0 * 100.0)
 
+    def test_a_zero_opening_balance_is_a_gap_not_a_period_mean(self):
+        """The UZNF/TRSB/IPKY case: ROE and ROA came out at exactly 2,00×.
+
+        The form leaves «на начало отчетного периода» as a literal 0 rather than
+        empty. Averaged against the closing figure that halves the denominator.
+        """
+        got = self._issuer(fin={"total_liabilities": 600.0,
+                                "balance": {"equity_start": 0.0, "equity_end": 500.0,
+                                            "assets_start": 0.0, "assets_end": 1100.0}})
+        # ROE = 200 / 500 = 40 %, not 200 / 250 = 80 %.
+        assert got["roe"]["value"] == pytest.approx(40.0)
+        assert got["roa"]["value"] == pytest.approx(200.0 / 1100.0 * 100.0)
+
+    def test_a_negative_opening_balance_still_averages(self):
+        """A capital deficit carried into the period IS filed data."""
+        got = self._issuer(fin={"total_liabilities": 600.0,
+                                "balance": {"equity_start": -100.0, "equity_end": 500.0,
+                                            "assets_start": 900.0, "assets_end": 1100.0}})
+        assert got["roe"]["value"] == pytest.approx(200.0 / 200.0 * 100.0)
+
     def test_a_statement_older_than_two_years_is_no_data(self):
         """V4 — the UZMT case: a 2019 balance must not price a 2026 P/B."""
         got = self._issuer(fin={"year": 2022, "quarter": 0})

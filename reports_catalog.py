@@ -3080,6 +3080,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "updated_at": r["updated_at"],
         }
     _attach_annual_companion(conn, out, form)
+    _attach_prior_interim_companion(conn, out, form)
     if _financials_enrich_enabled():
         _inherit_financials_by_org(conn, out)
         _enrich_financials_from_facts(conn, out)
@@ -3147,6 +3148,69 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
             row["annual"] = None
         else:
             row["annual"] = annual
+
+
+_TTM_COMPANION_KEYS = ("revenue", "gross_profit", "net_income", "operating_income",
+                       "noninterest_income")
+
+
+def _attach_prior_interim_companion(conn: sqlite3.Connection, out: dict[str, dict[str, Any]],
+                                    form: str) -> None:
+    """Fill ``prior`` from the stored filing of the same interim a year earlier.
+
+    The TTM base is ``annual(Y−1) + YTD(Y) − YTD(Y−1)`` and its subtrahend is
+    normally the comparative the SAME form prints beside each P&L line. The BANK
+    form prints no comparative — its P&L is a single column — so every bank sat
+    with ``prior = None``, the TTM branch could not close, and fourteen issuers
+    (ALKB, HMKB, SQBN, TRSB, IPKY, IPTB, AGBA, MCBA, BRBN, TNBN, UNVB, GRBK,
+    TGBK…) were valued off a twelve-month profit that ended seven months before
+    the balance it was divided by. The same-quarter filing of the year before is
+    already in this cache — it is the issuer's own published figure for exactly
+    the period the arithmetic subtracts.
+
+    It is the fallback and never the winner: a comparative printed inside the
+    filing is netted against the issuer's own restatement, which a separately
+    filed report cannot be. ``source`` says which one a row got.
+    """
+    targets = {
+        ticker: (int(row["year"]) - 1, int(row["quarter"]))
+        for ticker, row in out.items()
+        if row.get("quarter") and row.get("year")
+        and not _prior_matches(row.get("prior"), int(row["year"]) - 1, int(row["quarter"]))
+    }
+    if not targets:
+        return
+    years = {y for y, _ in targets.values()}
+    rows = conn.execute(
+        """
+        SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.net_income,
+               f.operating_income, f.noninterest_income
+        FROM catalog_financials f
+        WHERE f.form = :form AND f.quarter BETWEEN 1 AND 4
+          AND f.year BETWEEN :lo AND :hi
+        """,
+        {"form": form, "lo": min(years), "hi": max(years)},
+    ).fetchall()
+    stored = {(r["ticker"], r["year"], r["quarter"]): r for r in rows}
+    for ticker, (year, quarter) in targets.items():
+        r = stored.get((ticker, year, quarter))
+        if r is None:
+            continue
+        prior = {"year": year, "quarter": quarter, "is_ytd": True,
+                 "period_months": _period_months(year, quarter), "source": "catalog"}
+        for key in _TTM_COMPANION_KEYS:
+            prior[key] = _financials_num(r[key])
+        if any(prior[key] is not None for key in _TTM_COMPANION_KEYS):
+            out[ticker]["prior"] = prior
+
+
+def _prior_matches(prior: Any, year: int, quarter: int) -> bool:
+    """Whether a stored comparative already IS the interim the TTM subtracts."""
+    if not isinstance(prior, dict):
+        return False
+    if int(prior.get("year") or 0) != year or int(prior.get("quarter") or 0) != quarter:
+        return False
+    return any(prior.get(key) is not None for key in _TTM_COMPANION_KEYS)
 
 
 # Junk-report detector: when a parse goes wrong it reads the "Код стр" column
