@@ -3837,7 +3837,7 @@ function ScoreGauge({ score, language }) {
   const gradientColors = {
     good: ["#10b981", "#059669"],
     warning: ["#f59e0b", "#d97706"],
-    danger: ["#ef4444", "#dc2626"],
+    danger: ["#ee6a60", "#dc2626"],
     neutral: ["#ff9d00", "#e68a00"],
   };
   const [startColor, endColor] = gradientColors[tone] || gradientColors.neutral;
@@ -7804,7 +7804,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   }).join(" ");
   const areaD = `${lineD} L${xs(points.length - 1).toFixed(1)},${priceBot.toFixed(1)} L${xs(0).toFixed(1)},${priceBot.toFixed(1)} Z`;
   const isUp = baseVals[baseVals.length - 1] >= baseVals[0];
-  const color = isUp ? "#22c55e" : "#ef4444";
+  const color = isUp ? "#2fc584" : "#ee6a60";
   // A peer's line, on the same percent scale, skipping the sessions before its
   // own first stored one rather than drawing a flat lead-in that never happened.
   const cmpPath = (pct) => {
@@ -8155,7 +8155,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           )}
           {hp.change != null && (
             <div className="cpc-tt-row"><span>{t("Изм.", "O'zg.", "Chg")}</span>
-              <b style={{ color: hp.change >= 0 ? "#22c55e" : "#ef4444" }}>{hp.change >= 0 ? "+" : ""}{fmtFull(hp.change)}</b>
+              <b style={{ color: hp.change >= 0 ? "#2fc584" : "#ee6a60" }}>{hp.change >= 0 ? "+" : ""}{fmtFull(hp.change)}</b>
             </div>
           )}
           {/* While comparing, the readout states the same thing the lines do:
@@ -10985,7 +10985,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   const baseD = stepLine && !drawCandles ? stepPath(baseVals, ys) : linePath(baseVals, ys);
   const isUp = n >= 2 && baseVals[n - 1] >= baseVals[0];
-  const priceColor = cmpOn ? "#22c55e" : isUp ? "#22c55e" : "#ef4444";
+  const priceColor = cmpOn ? "#2fc584" : isUp ? "#2fc584" : "#ee6a60";
   const baseLevel = n ? baseVals[0] : 0;
 
   const maxVol = Math.max(1, ...points.map((p) => p.turnover || 0));
@@ -11193,12 +11193,12 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   </linearGradient>
                   <linearGradient id="acBase" x1="0" y1={priceTop} x2="0" y2={priceBot}
                     gradientUnits="userSpaceOnUse">
-                    <stop offset="0" stopColor="#22c55e" stopOpacity="0.34" />
+                    <stop offset="0" stopColor="#2fc584" stopOpacity="0.34" />
                     <stop offset={Math.max(0, Math.min(1, (ys(baseLevel) - priceTop) / (priceBot - priceTop)))}
-                      stopColor="#22c55e" stopOpacity="0.04" />
+                      stopColor="#2fc584" stopOpacity="0.04" />
                     <stop offset={Math.max(0, Math.min(1, (ys(baseLevel) - priceTop) / (priceBot - priceTop)))}
-                      stopColor="#ef4444" stopOpacity="0.04" />
-                    <stop offset="1" stopColor="#ef4444" stopOpacity="0.34" />
+                      stopColor="#ee6a60" stopOpacity="0.04" />
+                    <stop offset="1" stopColor="#ee6a60" stopOpacity="0.34" />
                   </linearGradient>
                 </defs>
 
@@ -11243,7 +11243,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 {drawCandles ? points.map((p, i) => {
                   const okp = ohlcOk(p);
                   const upDay = okp ? p.close >= p.open : (i > 0 ? p.close >= points[i - 1].close : true);
-                  const c = upDay ? "#22c55e" : "#ef4444";
+                  const c = upDay ? "#2fc584" : "#ee6a60";
                   const w = Math.max(1, Math.min(9, gapPx * 0.68));
                   const x = xs(i);
                   if (!okp) {
@@ -11285,7 +11285,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   const upDay = i > 0 ? p.close >= points[i - 1].close : true;
                   const w = Math.max(1, Math.min(9, gapPx * 0.68));
                   return <rect key={`v${i}`} x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
-                    fill={upDay ? "#22c55e" : "#ef4444"} fillOpacity="0.45" />;
+                    fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.45" />;
                 })}
                 <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot}
                   stroke="currentColor" strokeOpacity="0.18" />
@@ -11344,7 +11344,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                         {(ind.macd?.hist || []).map((v, i) => (v == null ? null : (
                           <rect key={`mh${i}`} x={xs(i) - Math.max(0.6, gapPx * 0.3)} y={Math.min(yv(0), yv(v))}
                             width={Math.max(1.2, gapPx * 0.6)} height={Math.max(0.6, Math.abs(yv(v) - yv(0)))}
-                            fill={v >= 0 ? "#22c55e" : "#ef4444"} fillOpacity="0.45" />
+                            fill={v >= 0 ? "#2fc584" : "#ee6a60"} fillOpacity="0.45" />
                         )))}
                         <path d={linePath(ind.macd?.line || [], yv)} fill="none" stroke="#f472b6" strokeWidth="1.4" />
                         <path d={linePath(ind.macd?.signal || [], yv)} fill="none" stroke="#facc15" strokeWidth="1.2" />

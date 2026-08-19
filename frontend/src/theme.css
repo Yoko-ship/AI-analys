@@ -15,52 +15,53 @@
 :root,
 html[data-theme="light"],
 html[data-theme="light"] body {
-  --bg: #f5f7fa;
-  --bg-2: #eceff4;
+  /* B2 light: белая бумага + глубокий зелёный вместо синего (заказчик, 2026-08-19) */
+  --bg: #f5f7f5;
+  --bg-2: #edf1ee;
   --bg-glass: rgba(255, 255, 255, 0.72);
-  --surface-2: #f1f4f9;
+  --surface-2: #f0f3f0;
 
   --panel: #ffffff;
   --panel-strong: #ffffff;
   --panel-elevated: #ffffff;
 
-  --border: rgba(15, 23, 42, 0.10);
-  --border-hover: rgba(15, 23, 42, 0.18);
-  --border-focus: rgba(31, 111, 235, 0.5);
+  --border: rgba(12, 24, 18, 0.09);
+  --border-hover: rgba(12, 24, 18, 0.17);
+  --border-focus: rgba(11, 158, 94, 0.5);
 
-  --text: #0f172a;
-  --text-secondary: #334155;
-  --muted: #566579;
-  --muted-light: #8a97a8;
+  --text: #101613;
+  --text-secondary: #39423d;
+  --muted: #65706a;
+  --muted-light: #98a29c;
 
-  --accent: #1f6feb;
-  --accent-hover: #195ac9;
-  --accent-light: rgba(31, 111, 235, 0.08);
-  --accent-glow: rgba(31, 111, 235, 0.16);
-  --accent-2: #12a150;
+  --accent: #0b9e5e;
+  --accent-hover: #098a51;
+  --accent-light: rgba(11, 158, 94, 0.08);
+  --accent-glow: rgba(11, 158, 94, 0.15);
+  --accent-2: #cf7a17;
 
-  --success: #12a150;
-  --success-light: rgba(18, 161, 80, 0.10);
-  --success-glow: rgba(18, 161, 80, 0.14);
-  --warning: #d97706;
-  --warning-light: rgba(217, 119, 6, 0.10);
-  --danger: #dc2626;
-  --danger-light: rgba(220, 38, 38, 0.09);
+  --success: #0b9e5e;
+  --success-light: rgba(11, 158, 94, 0.10);
+  --success-glow: rgba(11, 158, 94, 0.14);
+  --warning: #cf7a17;
+  --warning-light: rgba(207, 122, 23, 0.10);
+  --danger: #d8544b;
+  --danger-light: rgba(216, 84, 75, 0.09);
 
-  --chart-primary: #1f6feb;
-  --chart-secondary: #12a150;
-  --chart-tertiary: #7c3aed;
-  --chart-grid: rgba(148, 163, 184, 0.18);
+  --chart-primary: #0b9e5e;
+  --chart-secondary: #cf7a17;
+  --chart-tertiary: #6b4bb8;
+  --chart-grid: rgba(120, 140, 130, 0.18);
 
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 14px 40px rgba(15, 23, 42, 0.10);
-  --shadow-xl: 0 24px 60px rgba(15, 23, 42, 0.12);
-  --shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
-  --shadow-glow: 0 0 0 4px rgba(31, 111, 235, 0.14);
-  --shadow-success-glow: 0 8px 24px rgba(18, 161, 80, 0.18);
-  --shadow-accent-glow: 0 8px 24px rgba(31, 111, 235, 0.18);
+  --shadow-xs: 0 1px 2px rgba(15, 25, 20, 0.05);
+  --shadow-sm: 0 2px 8px rgba(15, 25, 20, 0.06);
+  --shadow-md: 0 6px 20px rgba(15, 25, 20, 0.08);
+  --shadow-lg: 0 14px 40px rgba(15, 25, 20, 0.10);
+  --shadow-xl: 0 24px 60px rgba(15, 25, 20, 0.12);
+  --shadow: 0 6px 20px rgba(15, 25, 20, 0.08);
+  --shadow-glow: 0 0 0 4px rgba(11, 158, 94, 0.14);
+  --shadow-success-glow: 0 8px 24px rgba(11, 158, 94, 0.18);
+  --shadow-accent-glow: 0 8px 24px rgba(11, 158, 94, 0.18);
 
   --radius-sm: 10px;
   --radius-md: 14px;
@@ -82,45 +83,45 @@ html[data-theme="light"] body {
 html[data-theme="dark"],
 html[data-theme="dark"] body,
 body[data-theme="dark"] {
-  /* Graphite, not navy — the whole dark theme follows the landing's neutral
-     near-black ground (customer's pick, 2026-08-09). Surfaces and inks lose
-     the blue cast; the blue stays only where it means something: the accent. */
-  --bg: #0e0f12;
-  --bg-2: #131417;
-  --bg-glass: rgba(19, 20, 23, 0.72);
-  --surface-2: #17181c;
+  /* B2 dark (заказчик, 2026-08-19): глубокий чёрно-зелёный «терминал» —
+     почти чёрная подложка с еле тёплым зелёным подтоном, неоново-зелёный
+     акцент (он же success) и янтарь вторым цветом. Синего больше нет. */
+  --bg: #0a0c0b;
+  --bg-2: #0f1210;
+  --bg-glass: rgba(14, 17, 15, 0.72);
+  --surface-2: #131614;
 
-  --panel: #17181d;
-  --panel-strong: #121317;
-  --panel-elevated: #1c1d23;
+  --panel: #101311;
+  --panel-strong: #0d100e;
+  --panel-elevated: #151816;
 
-  --border: rgba(255, 255, 255, 0.09);
-  --border-hover: rgba(255, 255, 255, 0.17);
-  --border-focus: rgba(96, 141, 239, 0.6);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  --border-focus: rgba(63, 224, 143, 0.55);
 
-  --text: #f0f1f3;
-  --text-secondary: #c6c9cf;
-  --muted: #a2a6ae;
-  --muted-light: #6b6f78;
+  --text: #f2f4f2;
+  --text-secondary: #c3c9c5;
+  --muted: #8b9490;
+  --muted-light: #5d6560;
 
-  --accent: #5b8cf0;
-  --accent-hover: #7aa3f5;
-  --accent-light: rgba(91, 140, 240, 0.14);
-  --accent-glow: rgba(91, 140, 240, 0.24);
-  --accent-2: #34d399;
+  --accent: #3fe08f;
+  --accent-hover: #63e8a6;
+  --accent-light: rgba(63, 224, 143, 0.12);
+  --accent-glow: rgba(63, 224, 143, 0.22);
+  --accent-2: #f0a24a;
 
-  --success: #34d399;
-  --success-light: rgba(52, 211, 153, 0.14);
-  --success-glow: rgba(52, 211, 153, 0.20);
-  --warning: #fbbf24;
-  --warning-light: rgba(251, 191, 36, 0.14);
-  --danger: #f87171;
-  --danger-light: rgba(248, 113, 113, 0.14);
+  --success: #3fe08f;
+  --success-light: rgba(63, 224, 143, 0.13);
+  --success-glow: rgba(63, 224, 143, 0.20);
+  --warning: #f0a24a;
+  --warning-light: rgba(240, 162, 74, 0.14);
+  --danger: #ff7a70;
+  --danger-light: rgba(255, 122, 112, 0.13);
 
-  --chart-primary: #5b8cf0;
-  --chart-secondary: #34d399;
-  --chart-tertiary: #a78bfa;
-  --chart-grid: rgba(255, 255, 255, 0.07);
+  --chart-primary: #3fe08f;
+  --chart-secondary: #f0a24a;
+  --chart-tertiary: #8d68e0;
+  --chart-grid: rgba(255, 255, 255, 0.06);
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
@@ -128,15 +129,15 @@ body[data-theme="dark"] {
   --shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.5);
   --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.6);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
-  --shadow-glow: 0 0 0 4px rgba(91, 140, 240, 0.22);
-  --shadow-success-glow: 0 8px 24px rgba(52, 211, 153, 0.22);
-  --shadow-accent-glow: 0 8px 24px rgba(91, 140, 240, 0.28);
+  --shadow-glow: 0 0 0 4px rgba(63, 224, 143, 0.20);
+  --shadow-success-glow: 0 8px 24px rgba(63, 224, 143, 0.22);
+  --shadow-accent-glow: 0 8px 24px rgba(63, 224, 143, 0.24);
 
   color-scheme: dark;
 }
 
 /* keep the legacy dark-only alias tokens coherent */
-html[data-theme="dark"] { --accent-2: #34d399; }
+html[data-theme="dark"] { --accent-2: #f0a24a; }
 
 /* ---- Base surface --------------------------------------------------------- */
 /* Replace the old radial-glow gradient body background with a calm flat wash. */
@@ -176,13 +177,14 @@ body[data-theme="dark"] {
 
 /* ── Placeholder logo tiles ────────────────────────────────────────────────
    The monogram fallback tiles hash the ticker into a raw 0–360 hue, which lands
-   on clashing golds/greens. Remap that hue into a narrow cool band (teal → blue
-   → indigo) so every placeholder stays on-theme while keeping issuers distinct. */
+   on clashing colors. Remap that hue into a narrow band around the B2 green
+   (teal → green → moss) so every placeholder stays on-theme while keeping
+   issuers distinct. */
 .chip-logo-fallback {
   background: linear-gradient(
     135deg,
-    hsl(calc(210 + (var(--mono-h, 210) - 180) * 0.16), 55%, 54%),
-    hsl(calc(230 + (var(--mono-h, 210) - 180) * 0.16), 52%, 43%)
+    hsl(calc(150 + (var(--mono-h, 210) - 180) * 0.14), 42%, 44%),
+    hsl(calc(168 + (var(--mono-h, 210) - 180) * 0.14), 45%, 33%)
   ) !important;
   color: #fff !important;
 }
@@ -258,12 +260,12 @@ body[data-theme="dark"] {
 .news-ticker { align-self: flex-start; margin-top: auto; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; }
 
 /* Functional category colours (report=blue, listing=green, delisting=amber) */
-.news-tag.cat-report { background: rgba(37,99,235,.14); color: #2563eb; }
-.news-tag.cat-listing { background: rgba(22,163,74,.15); color: #16a34a; }
-.news-tag.cat-delisting { background: rgba(217,119,6,.16); color: #d97706; }
-.cat-report::before { background: #2563eb; }
-.cat-listing::before { background: #16a34a; }
-.cat-delisting::before { background: #d97706; }
+.news-tag.cat-report { background: rgba(107,75,184,.14); color: #6b4bb8; }
+.news-tag.cat-listing { background: rgba(11,158,94,.13); color: #0b9e5e; }
+.news-tag.cat-delisting { background: rgba(207,122,23,.15); color: #cf7a17; }
+.cat-report::before { background: #6b4bb8; }
+.cat-listing::before { background: #0b9e5e; }
+.cat-delisting::before { background: #cf7a17; }
 
 /* Latest-events rail */
 .news-rail { position: sticky; top: 84px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 16px 6px 8px; }
@@ -272,12 +274,12 @@ body[data-theme="dark"] {
 .news-rail-item { display: flex; gap: 10px; padding: 11px 12px; cursor: pointer; border-radius: 8px; transition: background .12s ease; }
 .news-rail-item:hover { background: rgba(127,127,127,.09); }
 .news-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--muted); }
-.news-dot.cat-report { background: #2563eb; } .news-dot.cat-listing { background: #16a34a; } .news-dot.cat-delisting { background: #d97706; }
+.news-dot.cat-report { background: #6b4bb8; } .news-dot.cat-listing { background: #0b9e5e; } .news-dot.cat-delisting { background: #cf7a17; }
 .news-rail-body { min-width: 0; }
 .news-rail-title { font-size: 13.5px; font-weight: 600; line-height: 1.3; color: var(--text); }
 .news-rail-time { margin-top: 3px; font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .news-tag-mini { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-.news-tag-mini.cat-report { color: #2563eb; } .news-tag-mini.cat-listing { color: #16a34a; } .news-tag-mini.cat-delisting { color: #d97706; }
+.news-tag-mini.cat-report { color: #6b4bb8; } .news-tag-mini.cat-listing { color: #0b9e5e; } .news-tag-mini.cat-delisting { color: #cf7a17; }
 
 /* Empty / skeleton / footnote */
 .news-empty { padding: 60px 20px; text-align: center; color: var(--muted); font-size: 15px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 14px; }
@@ -287,9 +289,9 @@ body[data-theme="dark"] {
 .news-footnote { margin: 26px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; max-width: 82ch; }
 
 /* Brighter category text in dark mode */
-body[data-theme="dark"] .news-tag.cat-report, body[data-theme="dark"] .news-tag-mini.cat-report { color: #60a5fa; }
-body[data-theme="dark"] .news-tag.cat-listing, body[data-theme="dark"] .news-tag-mini.cat-listing { color: #4ade80; }
-body[data-theme="dark"] .news-tag.cat-delisting, body[data-theme="dark"] .news-tag-mini.cat-delisting { color: #fbbf24; }
+body[data-theme="dark"] .news-tag.cat-report, body[data-theme="dark"] .news-tag-mini.cat-report { color: #8d68e0; }
+body[data-theme="dark"] .news-tag.cat-listing, body[data-theme="dark"] .news-tag-mini.cat-listing { color: #3fe08f; }
+body[data-theme="dark"] .news-tag.cat-delisting, body[data-theme="dark"] .news-tag-mini.cat-delisting { color: #f0a24a; }
 
 /* Responsive: rail drops below, grid to one column */
 @media (max-width: 900px) {
