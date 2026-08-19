@@ -5678,7 +5678,13 @@ function BankFxPage({ language }) {
                   <span className="bankfx-rank-name">
                     {r.name}
                     {r.flag && <span className="bankfx-flag" title={flagTitle}> ⚠</span>}
-                    <span className="bankfx-rank-sub">
+                    {/* At the page's single type size this line outgrows a
+                        phone column and ellipsizes — the title keeps the
+                        stamp reachable there. */}
+                    <span
+                      className="bankfx-rank-sub"
+                      title={`${rateWord} ${formatRatio(r.value, 2, lang)} · ${updWord} ${bankFxStamp(r.updated)}`}
+                    >
                       {rateWord} {formatRatio(r.value, 2, lang)} · {updWord} {bankFxStamp(r.updated)}
                     </span>
                   </span>
