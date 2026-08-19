@@ -66,6 +66,7 @@ from reports_catalog import (
     get_all_quotes,
     bulk_upsert_quotes,
     bulk_upsert_quote_history,
+    trade_stats_as_history,
     get_quote_history,
     bulk_upsert_intraday_history,
     get_intraday_history,
@@ -1862,49 +1863,108 @@ def _window_change(points: list[dict[str, Any]], span_days: int | None,
             "from": base["date"], "base": base["close"]}
 
 
-def _window_turnover(points: list[dict[str, Any]], span_days: int | None,
-                     as_of: date) -> dict[str, Any] | None:
-    """What the security changed hands FOR over the window, in сумы.
+def _window_stats(points: list[dict[str, Any]], span_days: int | None,
+                  as_of: date) -> dict[str, Any] | None:
+    """What the security DID over the window, stated the way a session is stated.
 
-    The board's «Топ ликвидности» could only ever answer for the session, because
-    a windowed turnover was a sum nobody held. It is held now: every settled
-    session's `total_value` has been stored per security since 2025-08-13, so the
-    month's turnover is the month's sessions added up — not one day's figure
+    The board could summarise one day — open, high, low, turnover in сумы and in
+    bumagi, the average share price, the average deal, the biggest deal — and for
+    any longer period it could only offer a percent, because a period's figures
+    were a sum nobody held. They are held now: every settled session is banked
+    per security, with its own open/high/low, deal count and largest deal beside
+    the close, so «за месяц» is thirty sessions added up rather than one session
     reprinted under a heading that says a month.
 
-    Only sessions the security actually traded in are counted. A carried-forward
-    close is written with turnover 0 and it is not a small trade: adding it would
-    inflate nothing but it would make `sessions` claim activity that did not
-    happen, and `sessions` is what tells a reader whether the sum is a month of
-    trading or one busy Tuesday inside it.
+    Only sessions the security actually TRADED in are counted. The exchange
+    repeats a close at zero quantity when nothing traded, and a carried-forward
+    day is not a small session: adding it would change no sum but it would make
+    ``sessions`` claim activity that did not happen, and ``sessions`` is what
+    tells a reader whether «5,6 млрд за полгода» is eighty sessions or three.
 
     The window is the same half-open span the change over it uses — everything
     strictly after the cutoff, through the latest session — so a figure and the
-    percent beside it describe the same stretch of calendar. `from` is the first
-    session inside it that traded, which on this market is routinely weeks after
-    the cutoff, and that is the fact a reader needs before comparing two lines.
+    percent beside it describe the same stretch of calendar.
+
+    Every field answers or is absent; nothing is estimated to fill a column.
+    Where a banked session carries no high/low (openinfo's archive reaches
+    further back than the day statistics do) the session's close stands in for
+    it — a real traded price of that session, and a bound the true extreme can
+    only be wider than — and ``approx`` says so, so the interface can mark it.
     """
     if not points:
         return None
     cutoff = date(as_of.year, 1, 1) if span_days is None else as_of - timedelta(days=span_days)
     if cutoff >= as_of:
         return None
-    total = 0.0
-    sessions = 0
-    first: str | None = None
-    for p in points:
-        if p["d"] <= cutoff:
-            continue
-        value = p.get("turnover")
-        if value is None or value <= 0:
-            continue
-        total += value
-        sessions += 1
-        if first is None:
-            first = p["date"]
-    if not sessions:
+    inside = [p for p in points if p["d"] > cutoff]
+    traded = [p for p in inside if (p.get("turnover") or 0) > 0 or (p.get("quantity") or 0) > 0]
+    if not traded:
         return None
-    return {"value": round(total), "sessions": sessions, "from": first}
+    total = sum(p.get("turnover") or 0.0 for p in traded)
+    qty = sum(p.get("quantity") or 0.0 for p in traded)
+    # Sessions banked with the day statistics beside them — the ones that can say
+    # how many deals they were made of and which was the biggest. openinfo's
+    # archive reaches further back than those statistics do, so over a year this
+    # is routinely a SUBSET, and the average deal must be computed inside it:
+    # the whole window's сумы over part of the window's deals would overstate the
+    # average by exactly the sessions it could not see.
+    counted = [p for p in traded if p.get("trade_count") is not None]
+    trades = sum(int(p["trade_count"]) for p in counted) if counted else None
+    counted_value = sum(p.get("turnover") or 0.0 for p in counted)
+    highs = [p.get("high") if p.get("high") is not None else p.get("close") for p in traded]
+    lows = [p.get("low") if p.get("low") is not None else p.get("close") for p in traded]
+    highs = [h for h in highs if h is not None]
+    lows = [low for low in lows if low is not None]
+    first = traded[0]
+    last = traded[-1]
+    biggest = max((p for p in traded if p.get("largest_value") is not None),
+                  key=lambda p: p["largest_value"], default=None)
+    out: dict[str, Any] = {
+        "value": round(total),
+        "sessions": len(traded),
+        "from": first["date"],
+        "to": last["date"],
+        # The period's opening price is the first session INSIDE it that traded —
+        # its own open where the session was banked with one, its close where it
+        # was not. Not the base the percent is measured from: that close belongs
+        # to a session before the window, and a period's open is a price the
+        # period itself printed.
+        "open": first.get("open") if first.get("open") is not None else first.get("close"),
+        "close": last.get("close"),
+    }
+    if qty > 0:
+        out["qty"] = round(qty)
+        # Средневзвешенная по объёму цена периода: what the whole window's сумы
+        # bought, divided by the bumagi they bought. Over one session this is the
+        # session VWAP the column already shows, which is the point.
+        if total > 0:
+            out["vwap"] = round(total / qty, 2)
+    if highs:
+        out["high"] = round(max(highs), 2)
+    if lows:
+        out["low"] = round(min(lows), 2)
+    if trades:
+        out["trades"] = trades
+        if counted_value > 0:
+            out["avg_trade"] = round(counted_value / trades)
+    if biggest is not None:
+        out["largest_value"] = round(biggest["largest_value"])
+        if biggest.get("largest_qty") is not None:
+            out["largest_qty"] = round(biggest["largest_qty"])
+        if total > 0:
+            out["largest_pct"] = round(biggest["largest_value"] / total * 100, 2)
+        out["largest_from"] = biggest["date"]
+    # How much of the window those two figures actually saw. Only when it is less
+    # than the whole: the deal count and the largest deal are then a floor and the
+    # interface says so, rather than printing a partial answer as a complete one.
+    if counted and len(counted) < len(traded):
+        out["detail_sessions"] = len(counted)
+    # True session extremes are banked only for the sessions the day statistics
+    # or openinfo's archive could see. Where some session inside the window stood
+    # in with its close, the high and low are bounds and the interface says so.
+    if any(p.get("high") is None or p.get("low") is None for p in traded):
+        out["approx"] = True
+    return out
 
 
 @app.get("/api/market/changes")
@@ -1943,8 +2003,8 @@ async def api_market_changes(request: Request) -> Response:
         # report a 40 % collapse to a holder who had in fact gained. This is the
         # same restatement the price chart applies; the two must not disagree.
         rows, _applied = corporate_actions.adjust_history(
-            rows, ticker_of.get(isin), isin,
-            date_key="trade_date", price_fields=("close_price",))
+            rows, ticker_of.get(isin), isin, date_key="trade_date",
+            price_fields=("close_price", "open_price", "high_price", "low_price"))
         points = []
         for r in rows:
             close = formulas.to_number(r.get("close_price"))
@@ -1956,6 +2016,19 @@ async def api_market_changes(request: Request) -> Response:
             # whatever happened to the share count in between.
             points.append({"d": date(int(stamp[:4]), int(stamp[4:6]), int(stamp[6:8])),
                            "date": stamp, "close": close,
+                           # Prices, so the split restatement above applies to
+                           # them exactly as it does to the close: a window
+                           # spanning a recapitalisation must report one unit.
+                           "open": formulas.to_number(r.get("open_price")),
+                           "high": formulas.to_number(r.get("high_price")),
+                           "low": formulas.to_number(r.get("low_price")),
+                           "quantity": formulas.to_number(r.get("quantity")),
+                           "trade_count": formulas.to_number(r.get("trade_count")),
+                           # Money and share counts. The split restatement must
+                           # NOT touch these — a сум in April is a сум now,
+                           # whatever happened to the share count in between.
+                           "largest_value": formulas.to_number(r.get("largest_value")),
+                           "largest_qty": formulas.to_number(r.get("largest_qty")),
                            "turnover": formulas.to_number(r.get("turnover"))})
         if points:
             series[isin] = sorted(points, key=lambda p: p["d"])
@@ -1969,18 +2042,24 @@ async def api_market_changes(request: Request) -> Response:
         row = {code: _window_change(points, span, as_of)
                for code, span in MARKET_CHANGE_WINDOWS.items()}
         row = {k: v for k, v in row.items() if v}
-        # Turnover per window, under its own key rather than beside `pct` in each
-        # window's object: a security can have traded over a month without having
-        # a base close a month back (its history starts inside the window), and
-        # the liquidity panel must still rank it. Keeping the two independent is
-        # what lets each answer when the other cannot.
-        turnover = {code: _window_turnover(points, span, as_of)
-                    for code, span in MARKET_CHANGE_WINDOWS.items()}
-        turnover = {k: v for k, v in turnover.items() if v}
-        if row or turnover:
+        # The window's own session figures, under their own key rather than beside
+        # `pct` in each window's object: a security can have traded over a month
+        # without having a base close a month back (its history starts inside the
+        # window), and the volume columns must still answer. Keeping the two
+        # independent is what lets each answer when the other cannot.
+        stats = {code: _window_stats(points, span, as_of)
+                 for code, span in MARKET_CHANGE_WINDOWS.items()}
+        stats = {k: v for k, v in stats.items() if v}
+        if row or stats:
             row["as_of"] = points[-1]["date"]
-            if turnover:
-                row["turnover"] = turnover
+            if stats:
+                row["stats"] = stats
+                # `turnover` is the same sum under the key the liquidity panel
+                # has read since 2026-08-18. Kept so a client that has not been
+                # redeployed alongside this one keeps its panel.
+                row["turnover"] = {code: {"value": st["value"], "sessions": st["sessions"],
+                                          "from": st["from"]}
+                                   for code, st in stats.items()}
             changes[ticker] = row
     return _etag_json(request, {"ok": True, "windows": list(MARKET_CHANGE_WINDOWS),
                                "count": len(changes), "changes": changes}, max_age=300)
@@ -3630,7 +3709,16 @@ async def api_admin_trade_stats(
     payload: AdminTradeStatsRequest,
     _: None = Depends(_require_admin),
 ) -> dict[str, Any]:
-    """Overwrite the trade-statistics cache from an externally-computed batch."""
+    """Overwrite the trade-statistics cache from an externally-computed batch.
+
+    The same numbers are also BANKED per session into the quote history. The
+    statistics table holds one row per security, so every session's open, high,
+    low, deal count and largest deal used to be discarded when the next session
+    replaced it — which is why the board could summarise a day and not a month.
+    Banking them is what lets a period answer with the same figures a session
+    does. Its failure is logged, not raised: the cache the board reads is what
+    this endpoint exists to keep current.
+    """
     loop = asyncio.get_running_loop()
     try:
         n = await loop.run_in_executor(
@@ -3638,8 +3726,16 @@ async def api_admin_trade_stats(
     except Exception as exc:
         logger.exception("admin trade-stats upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    banked = 0
+    try:
+        sessions = trade_stats_as_history(payload.rows, payload.trade_date)
+        if sessions:
+            banked = await loop.run_in_executor(
+                None, partial(bulk_upsert_quote_history, sessions))
+    except Exception:  # noqa: BLE001 — the session's own numbers are already stored
+        logger.exception("banking day statistics into quote history failed")
     _schedule_audit("ingest:trade-stats")
-    return {"ok": True, "upserted": n}
+    return {"ok": True, "upserted": n, "history": banked}
 
 
 @app.post("/api/admin/quotes")

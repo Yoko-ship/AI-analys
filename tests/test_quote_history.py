@@ -77,6 +77,53 @@ class TestTheStore:
         series = rc.get_quote_history([ISIN_A])[ISIN_A]
         assert [r["quantity"] for r in series] == [12, 0, 79740]
 
+    def test_a_source_that_cannot_see_a_column_never_erases_it(self, store):
+        """Three sources feed this table and each sees a different part of a
+        session: the exchange page has the close and the turnover, the day
+        statistics have the deal count and the largest deal, openinfo's archive
+        has the OHLC. Under plain last-write-wins whichever landed last blanked
+        the rest — the day statistics arriving after the page push would have
+        wiped every close on the board."""
+        rc.bulk_upsert_quote_history([
+            {"isin": ISIN_A, "trade_date": "20260807", "close_price": 12000,
+             "quantity": 79740, "turnover": 956_880_000},
+        ])
+        rc.bulk_upsert_quote_history([
+            {"isin": ISIN_A, "trade_date": "20260807", "trade_count": 14,
+             "largest_value": 400_000_000, "largest_qty": 33_000,
+             "open_price": 11800, "high_price": 12100, "low_price": 11750},
+        ])
+
+        row = rc.get_quote_history([ISIN_A])[ISIN_A][-1]
+
+        assert row["close_price"] == 12000, "the second push could not see it"
+        assert row["turnover"] == 956_880_000
+        assert row["trade_count"] == 14
+        assert row["largest_value"] == 400_000_000
+        assert (row["open_price"], row["high_price"], row["low_price"]) == (11800, 12100, 11750)
+
+    def test_the_day_statistics_bank_a_session_as_it_is(self, store):
+        """`catalog_trade_stats` holds one row per security, so every session's
+        open, deal count and largest deal used to be discarded when the next
+        session replaced it. Banking them is what lets a PERIOD carry them."""
+        banked = rc.trade_stats_as_history([{
+            "isin": ISIN_B, "trade_date": "20260818", "close_price": 88500,
+            "total_value": 12_000_000, "total_qty": 136, "trade_count": 7,
+            "open_price": 88000, "high_price": 89000, "low_price": 87500,
+            "largest_value": 5_000_000, "largest_qty": 57,
+            # Negotiated deals ride beside the session and must not enter it.
+            "block_value": 900_000_000, "block_qty": 10_000,
+        }])
+        rc.bulk_upsert_quote_history(banked)
+
+        row = rc.get_quote_history([ISIN_B])[ISIN_B][-1]
+
+        assert row["turnover"] == 12_000_000, "the SESSION's turnover, not the blocks'"
+        assert row["quantity"] == 136
+        assert row["trade_count"] == 7
+        assert row["largest_value"] == 5_000_000
+        assert row["open_price"] == 88000
+
     def test_drops_a_row_with_no_isin_or_no_readable_day(self, store):
         n = rc.bulk_upsert_quote_history([
             {"isin": "", "trade_date": "20260807", "close_price": 1},

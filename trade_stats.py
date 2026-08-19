@@ -254,6 +254,21 @@ def _aggregate(isin: str, lst: list[dict], trade_date: str) -> dict[str, Any]:
     }
 
 
+def aggregate_day(trades: list[dict], trade_date: str) -> list[dict[str, Any]]:
+    """Per-security day statistics for one session's executions.
+
+    The public form of ``_aggregate``, grouping by security first — what a
+    backfill over past sessions needs, and the same computation the live pass
+    runs, so a banked session and a live one can never disagree.
+    """
+    by: dict[str, list[dict]] = defaultdict(list)
+    for x in trades or []:
+        code = x.get("issue_code")
+        if code:
+            by[str(code)].append(x)
+    return [_aggregate(isin, lst, trade_date) for isin, lst in by.items()]
+
+
 def backfill_last_day_stats(targets: list[tuple[str, str]]) -> list[dict[str, Any]]:
     """Day statistics for securities that did NOT trade today: their last
     trading day's executions from openinfo's ``/iuzse/trade-results/`` (the

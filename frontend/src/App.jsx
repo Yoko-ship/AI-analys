@@ -2686,6 +2686,8 @@ const MARKET_TEXTS = {
     csvTitle: "UZSE — рынок и отчётность эмитентов",
     csvGenerated: "Выгружено",
     csvSession: "Торговая сессия",
+    csvPeriod: "Период",
+    csvPeriodNote: "Открытие, макс., мин., объёмы, средние и крупнейшая сделка — за выбранный период (суммы сессий внутри него); капитализация и мультипликаторы — на сегодня.",
     csvFilter: "Фильтр",
     csvSort: "Сортировка",
     csvSortDefault: "по дате сделки, затем по модулю изменения",
@@ -2786,6 +2788,8 @@ const MARKET_TEXTS = {
     csvTitle: "UZSE — market and issuer reporting",
     csvGenerated: "Exported",
     csvSession: "Trading session",
+    csvPeriod: "Period",
+    csvPeriodNote: "Open, high, low, volumes, averages and the largest trade cover the selected period (its sessions summed); market cap and multiples are as of today.",
     csvFilter: "Filter",
     csvSort: "Sorted by",
     csvSortDefault: "trade date, then absolute change",
@@ -2886,6 +2890,8 @@ const MARKET_TEXTS = {
     csvTitle: "UZSE — bozor va emitentlar hisoboti",
     csvGenerated: "Yuklab olingan",
     csvSession: "Savdo sessiyasi",
+    csvPeriod: "Davr",
+    csvPeriodNote: "Ochilish, maks., min., hajmlar, o'rtachalar va eng katta bitim — tanlangan davr uchun (uning sessiyalari yig'indisi); kapitalizatsiya va multiplikatorlar — bugungi holatga.",
     csvFilter: "Filtr",
     csvSort: "Saralash",
     csvSortDefault: "bitim sanasi, soʻng oʻzgarish moduli",
@@ -3306,12 +3312,20 @@ function compareSortValues(av, bv, dir) {
   return sign * (av - bv);
 }
 
-function buildMarketStats(rows) {
+function buildMarketStats(rows, { windowed = false } = {}) {
   // Movers, counters and the day's turnover follow the exchange's daily
   // bulletin: only securities that traded on the LATEST session count.
   // Backfilled last-day stats (an untraded security showing its own last
   // trading day) must not surface as "today's" gainers/losers/volume.
-  const boardDay = rows.reduce((m, r) => { const d = marketRowDay(r); return d && (!m || d > m) ? d : m; }, null);
+  //
+  // Over a WINDOW there is no such session to filter to, and filtering to one
+  // would be the bug: a security that has not traded this morning still moved
+  // over the month, and ranking the month by who happened to trade today is
+  // the answer to a different question. The rows arrive already restated for
+  // the period (MarketView's `asPeriod`), so every sum below is the period's.
+  const boardDay = windowed
+    ? null
+    : rows.reduce((m, r) => { const d = marketRowDay(r); return d && (!m || d > m) ? d : m; }, null);
   const todays = boardDay ? rows.filter((r) => marketRowDay(r) === boardDay) : rows;
   // Everything on the latest session's date traded (the feed's null-price
   // quirk must not undercount securities whose executions we hold).
@@ -12506,6 +12520,22 @@ function MarketView({
     const hit = ((changes[String(ticker || "").toUpperCase()] || {}).turnover || {})[code];
     return hit && Number.isFinite(hit.value) ? hit : null;
   };
+  // Everything ELSE the window did, on the same footing as a session: its
+  // opening price, its high and low, the сумы and the bumagi that changed hands,
+  // the average share price, the average deal and the biggest one.
+  //
+  // Customer, 19.08.2026: «когда я выбираю период — например за год — должны
+  // МЕНЯТЬСЯ цифры: открытие, макс, мин, объём в сумах/шт, ср. цена акции,
+  // ср. сумма сделки, крупнейшая сделка, объёмы %, капитализация, объём торгов,
+  // рост, снижение — а не только показывать их изменение». Until now the board
+  // could restate two of them (the percent and the turnover) and reprinted the
+  // SESSION's figures under every other heading, so a row read «за год» beside
+  // this morning's high and low.
+  const statsOver = (ticker, code) => {
+    if (code === "1d") return null;
+    const hit = ((changes[String(ticker || "").toUpperCase()] || {}).stats || {})[code];
+    return hit || null;
+  };
 
   // «Номинальная стоимость» of the security, off the exchange's own card via the
   // listing registry (`parval`), joined onto the board row by the server. A zero
@@ -12940,9 +12970,65 @@ function MarketView({
   // market has none» when the market has four.
   const negotiatedAnywhere = Object.values(tmap).filter(
     (s) => Number.isFinite(s?.block_value) && s.block_value > 0).length;
-  const preparedAll = segment === "nego"
+  const preparedAllSession = segment === "nego"
     ? preparedEnriched.filter(negotiated).map(asNegotiated)
     : preparedEnriched;
+  // Over a WINDOW every row is restated once, here, rather than at each of the
+  // dozen places that read one. A window's «объём» is its sessions' turnover
+  // added up, its «макс» is the highest price inside it, its «ср. сумма сделки»
+  // is those сумы over those deals — so the columns, the summary cards, the
+  // movers strip, the sort keys, the CSV and the heat map all answer for the
+  // period the reader chose, and none of them has to know that a period was
+  // chosen. A figure the stored sessions cannot answer comes back null and the
+  // cell prints a dash: no column is filled with a session's number under a
+  // heading that says a year.
+  //
+  // NEGO is left alone: a negotiated deal is not a session, the boards are
+  // separate for that reason, and there is no windowed record of them to sum.
+  const windowed = changePeriod !== "1d" && segment !== "nego";
+  const orNull = (v) => (Number.isFinite(v) ? v : null);
+  const asPeriod = (r) => {
+    const hit = changeOver(r.ticker, changePeriod);
+    const st = statsOver(r.ticker, changePeriod);
+    return {
+      ...r,
+      changePercent: hit ? hit.pct : null,
+      // Dropped, not converted: a window has no single сум figure — it spans
+      // many sessions — and carrying the session's would put this morning's
+      // сумы beside half a year's percent.
+      changeValue: null,
+      periodPct: hit ? hit.pct : null,
+      stockVolume: orNull(st?.value),
+      periodVolume: orNull(st?.value),
+      stockQuantity: orNull(st?.qty),
+      stockTradeCount: orNull(st?.trades),
+      // The window's volume-weighted price. Cleared rather than left as the
+      // session's, so «Ср. цена акции» can never quote one morning under a year.
+      avgPrice: Number.isFinite(st?.vwap) ? st.vwap : undefined,
+      vwap: orNull(st?.vwap),
+      // `undefined`, not null: the session renderers fall back to the last price
+      // when these are exactly null, and a window with no stored open must show
+      // a dash rather than today's quote.
+      openPrice: Number.isFinite(st?.open) ? st.open : undefined,
+      highPrice: Number.isFinite(st?.high) ? st.high : undefined,
+      lowPrice: Number.isFinite(st?.low) ? st.low : undefined,
+      ts: st && Number.isFinite(st.largest_value)
+        ? { ...(r.ts || {}), largest_value: st.largest_value,
+            largest_qty: orNull(st.largest_qty),
+            largest_pct_value: orNull(st.largest_pct) }
+        : (r.ts ? { ...r.ts, largest_value: null, largest_qty: null,
+                    largest_pct_value: null } : r.ts),
+      periodFrom: st?.from || hit?.from || null,
+      periodTo: st?.to || null,
+      periodSessions: orNull(st?.sessions),
+      periodApprox: st?.approx === true,
+      // How many of the window's sessions could say how many deals they held.
+      // Absent when all of them could; a number here means the deal count and
+      // the largest deal are floors over that many sessions, not the whole.
+      periodDetailSessions: orNull(st?.detail_sessions),
+    };
+  };
+  const preparedAll = windowed ? preparedAllSession.map(asPeriod) : preparedAllSession;
   // "preferred" is a client-side subset of stocks (the feed was fetched as
   // type=stock); narrow to preferred shares so the table, sectors and heatmap
   // all reflect the filter.
@@ -12973,31 +13059,11 @@ function MarketView({
   // date and an issuer to read, which is a row worth having.
   const mapRows = byClass.filter((r) => !isDormant(r));
   // The map answers for the SELECTED period, like the «Изм.» column and the
-  // movers strip beside it — one question on the screen, one answer. Rather than
-  // thread the period through every place the treemap reads a row, the row is
-  // restated once here: over a window `changePercent` is the change over it and
-  // `stockVolume` is the turnover over it, so a tile's colour and its AREA both
-  // describe the window the reader chose. Both come from the same stored closes
-  // (/api/market/changes) the column already uses, so the two cannot disagree.
-  //
-  // `changeValue` is dropped, not converted: a window has no single сум figure —
-  // it spans many sessions — and carrying the session's would put this morning's
-  // сумы beside half a year's percent.
-  const periodMapRows = React.useMemo(() => {
-    if (changePeriod === "1d") return mapRows;
-    return mapRows.map((r) => {
-      const hit = changeOver(r.ticker, changePeriod);
-      const turn = turnoverOver(r.ticker, changePeriod);
-      return {
-        ...r,
-        changePercent: hit ? hit.pct : null,
-        changeValue: null,
-        stockVolume: turn ? turn.value : null,
-        periodFrom: turn?.from || hit?.from || null,
-        periodSessions: turn?.sessions ?? null,
-      };
-    });
-  }, [mapRows, changePeriod, changes]); // eslint-disable-line react-hooks/exhaustive-deps
+  // movers strip beside it — one question on the screen, one answer. It needs no
+  // restatement of its own: `mapRows` comes off rows already restated for the
+  // period, so a tile's colour and its AREA both describe the window the reader
+  // chose, from the same stored sessions the column reads.
+  const periodMapRows = mapRows;
   const search = String(query || "").trim().toLowerCase();
 
   // Gather sectors present in current data. Same resolver as the heat map, so a
@@ -13316,11 +13382,40 @@ function MarketView({
   // the session date and the «доля объёма» column all make a claim ABOUT THE
   // MARKET — a row's share of the day's turnover is not a share of its sector's
   // — while `cardStats` is what the four cards and the movers strip report.
-  const stats = buildMarketStats(byClass.filter((r) => !isDormant(r)));
+  const stats = buildMarketStats(byClass.filter((r) => !isDormant(r)), { windowed });
   const cardStats = cardSector
-    ? buildMarketStats(byClass.filter((r) => !isDormant(r) && rowSector(r) === cardSector))
+    ? buildMarketStats(byClass.filter((r) => !isDormant(r) && rowSector(r) === cardSector),
+                       { windowed })
     : stats;
   const moverStats = cardStats;
+  // Капитализация is a STOCK, not a flow: whatever period is on screen, the
+  // market is worth what it is worth today, and restating the card's value to
+  // the window's first session would put a year-old figure under a heading that
+  // says «Капитализация». What the period CAN say is how far that figure moved
+  // over it — so the card keeps today's sum and gains the period's change.
+  //
+  // Measured on the same rows the card sums, from the same window percents the
+  // «Изм.» column shows: each line's capitalisation is walked back through its
+  // own change to what it was at the window's start, and the two sums compared.
+  // Share counts are held constant — an issue inside the window would move the
+  // sum without the price moving — which is why this is stated as the change in
+  // the market's PRICE, and why a line whose window has no percent sits out of
+  // both sums rather than entering one of them.
+  const capPeriodChange = (() => {
+    if (!windowed) return null;
+    const pool = byClass.filter(
+      (r) => !isDormant(r) && (!cardSector || rowSector(r) === cardSector));
+    let now = 0;
+    let before = 0;
+    pool.forEach((r) => {
+      const cap = mktCapOf(r);
+      const pct = r.changePercent;
+      if (!(cap > 0) || !Number.isFinite(pct) || pct <= -100) return;
+      now += cap;
+      before += cap / (1 + pct / 100);
+    });
+    return before > 0 ? (now - before) / before * 100 : null;
+  })();
   // Dormant listings inside the selected sector — what the capitalisation card
   // below leaves out of its own sum, counted on the same basis the server's
   // whole-market answer counts them.
@@ -13330,7 +13425,7 @@ function MarketView({
   // Over a WINDOW all three panels are a different list, and they are not drawn
   // from the latest session's rows: a security that has not traded today still
   // moved over the month, and leaving it out would rank the month by who
-  // happened to trade this morning.
+  // happened to trade this morning (buildMarketStats, `windowed`).
   //
   // Ликвидность followed the same rule until 2026-08-18 only because the sum did
   // not exist — the strip could show the session's turnover or nothing. Every
@@ -13340,32 +13435,10 @@ function MarketView({
   // sum of what actually traded, and each line carries the session count and the
   // first session inside the window in its tooltip, because on this market «за
   // полгода» is routinely four sessions and a reader must be able to see that.
-  const periodMovers = React.useMemo(() => {
-    if (changePeriod === "1d") return moverStats;
-    const rows = byClass.filter(
-      (r) => !isDormant(r) && (!cardSector || rowSector(r) === cardSector));
-    const pool = rows
-      .map((r) => ({ row: r, pct: changeOver(r.ticker, changePeriod)?.pct }))
-      .filter((x) => Number.isFinite(x.pct));
-    const up = pool.filter((x) => x.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 5);
-    const down = pool.filter((x) => x.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 5);
-    const liquid = rows
-      .map((r) => ({ row: r, turn: turnoverOver(r.ticker, changePeriod) }))
-      .filter((x) => x.turn && x.turn.value > 0)
-      .sort((a, b) => b.turn.value - a.turn.value)
-      .slice(0, 5);
-    return {
-      ...moverStats,
-      topGainers: up.map((x) => ({ ...x.row, periodPct: x.pct })),
-      topLosers: down.map((x) => ({ ...x.row, periodPct: x.pct })),
-      topVolume: liquid.map((x) => ({
-        ...x.row,
-        periodVolume: x.turn.value,
-        periodSessions: x.turn.sessions,
-        periodFrom: x.turn.from,
-      })),
-    };
-  }, [changePeriod, changes, byClass, cardSector, moverStats]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Nothing to re-derive: `byClass` already IS the period's rows, so the three
+  // panels come out of the same buildMarketStats the cards use and can never
+  // describe a different set of securities from the table under them.
+  const periodMovers = moverStats;
 
   // §3.8: export the table the user is looking at as OUR report, client-side.
   //
@@ -13429,7 +13502,18 @@ function MarketView({
         const pad = (n) => String(n).padStart(2, "0");
         return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
       })()].map(cell).join(sep),
-      [mt(lang, "csvSession"), session].map(cell).join(sep),
+      // Over a window there is no ONE session to stamp — `stats.boardDay` is
+      // null by design — and a «Торговая сессия» row with nothing after it reads
+      // as a missing value rather than as a period export. The period line below
+      // takes its place.
+      ...(session ? [[mt(lang, "csvSession"), session].map(cell).join(sep)] : []),
+      // Which PERIOD the volume columns describe. Without it the file is a set
+      // of numbers that look like a session and are a year — the one thing a
+      // spreadsheet, unlike the screen, carries no control to reveal.
+      ...(windowed
+        ? [[mt(lang, "csvPeriod"), changePeriodLabel(changePeriod, lang, "label")].map(cell).join(sep),
+           [mt(lang, "csvPeriodNote"), ""].map(cell).join(sep)]
+        : []),
       [mt(lang, "csvFilter"), filters].map(cell).join(sep),
       // The file is the table as it stands on screen, so the row ORDER is part of
       // what is being exported — state it rather than let the reader guess.
@@ -13507,7 +13591,7 @@ function MarketView({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `uzse_${type || "all"}_${(stats.boardDay || "").slice(0, 8) || "latest"}.csv`;
+    a.download = `uzse_${type || "all"}_${windowed ? changePeriod : ((stats.boardDay || "").slice(0, 8) || "latest")}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -13676,8 +13760,53 @@ function MarketView({
   };
 
   // Label + cell registry so the movable columns can render in any order.
-  const LABEL_OF = Object.fromEntries([["last", mt(lang, "last")], ...MARKET_COLS]);
+  // The columns whose figures ARE the period once one is chosen. Their headers
+  // carry it: «Объём торгов» over a year and over this morning are different
+  // claims, the table is read without the period control in view, and a reader
+  // who cannot see which is on screen will read the year as today.
+  const PERIOD_COLS = new Set(["open", "high", "low", "volume", "volQty",
+                               "avgShare", "avgTrade", "bigTrade", "volShare"]);
+  const LABEL_OF = Object.fromEntries(
+    [["last", mt(lang, "last")], ...MARKET_COLS].map(([k, label]) => [
+      k,
+      windowed && PERIOD_COLS.has(k)
+        ? `${label} · ${changePeriodLabel(changePeriod, lang, "short")}`
+        : label,
+    ]));
   const NUM_COLS = new Set(MOVABLE_KEYS.filter((k) => k !== "date" && k !== "source"));
+  // What a period cell is a statement about. On this market «за полгода» is
+  // routinely four sessions, so the count and the first session inside the
+  // window are not decoration — they are what makes the figure readable.
+  const prettyDay = (d) => {
+    const v = String(d || "");
+    return v.length === 8 ? `${v.slice(6)}.${v.slice(4, 6)}.${v.slice(0, 4)}` : v;
+  };
+  const periodHint = (row, { extremes = false, detail = false } = {}) => {
+    if (!windowed || !row?.periodSessions) return undefined;
+    const label = changePeriodLabel(changePeriod, lang, "short");
+    const sessions = `${formatRatio(row.periodSessions, 0, lang)} ${sessionCountLabel(row.periodSessions, lang)}`;
+    const span = row.periodFrom
+      ? `${lang === "en" ? "from" : lang === "uz" ? "dan" : "с"} ${prettyDay(row.periodFrom)}${
+          row.periodTo ? ` ${lang === "en" ? "to" : lang === "uz" ? "gacha" : "по"} ${prettyDay(row.periodTo)}` : ""}`
+      : "";
+    // A session banked before the day statistics existed carries no high or low,
+    // and its close stands in for both. The extreme is then a bound, not a
+    // reading, and the cell that shows it says so rather than implying precision.
+    const bound = extremes && row.periodApprox
+      ? (lang === "en" ? "some sessions counted by their close"
+         : lang === "uz" ? "ba'zi sessiyalar yopilish narxi bo'yicha"
+         : "по закрытиям части сессий")
+      : "";
+    // The deal count and the largest deal exist only for the sessions banked
+    // with the day statistics beside them; over a year that is a subset, and a
+    // floor presented as a total is the one thing these cells must not be.
+    const partial = detail && row.periodDetailSessions
+      ? (lang === "en" ? `by ${formatRatio(row.periodDetailSessions, 0, lang)} of ${formatRatio(row.periodSessions, 0, lang)} sessions`
+         : lang === "uz" ? `${formatRatio(row.periodSessions, 0, lang)} sessiyadan ${formatRatio(row.periodDetailSessions, 0, lang)} tasi bo'yicha`
+         : `по ${formatRatio(row.periodDetailSessions, 0, lang)} из ${formatRatio(row.periodSessions, 0, lang)} сессий`)
+      : "";
+    return [label, sessions, span, bound, partial].filter(Boolean).join(" · ");
+  };
   const CELL_OF = {
     last: (row) => <td className="num">{(() => { const p = marketDisplayPrice(row); return p == null ? "—" : formatMarketNumber(p, lang); })()}</td>,
     // ТЗ §2.4/§9: "отсутствие данных показывается как нулевое изменение" was
@@ -13707,20 +13836,27 @@ function MarketView({
         </td>
       );
     },
-    open: (row) => <td className="num">{(() => { const v = row.openPrice !== null ? row.openPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
-    high: (row) => <td className="num">{(() => { const v = row.highPrice !== null ? row.highPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
-    low: (row) => <td className="num">{(() => { const v = row.lowPrice !== null ? row.lowPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
+    // Over a window `openPrice` is the period's own opening price and is
+    // `undefined` when no stored session can say — which is why the fallback
+    // below tests for `null` exactly: a window with no open must print a dash,
+    // never today's quote under a heading that says a year.
+    open: (row) => <td className="num" title={periodHint(row)}>{(() => { const v = row.openPrice !== null ? row.openPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
+    high: (row) => <td className="num" title={periodHint(row, { extremes: true })}>{(() => { const v = row.highPrice !== null ? row.highPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
+    low: (row) => <td className="num" title={periodHint(row, { extremes: true })}>{(() => { const v = row.lowPrice !== null ? row.lowPrice : marketDisplayPrice(row); return v == null ? "—" : formatMarketNumber(v, lang); })()}</td>,
     volume: (row) => (
-      <td className="num">
+      <td className="num" title={periodHint(row)}>
         {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
-        {row.stockTradeCount !== null && <span>{formatRatio(row.stockTradeCount, 0, lang)} {tradeCountLabel(row.stockTradeCount, lang)}</span>}
+        {row.stockTradeCount !== null && <span title={periodHint(row, { detail: true })}>{formatRatio(row.stockTradeCount, 0, lang)} {tradeCountLabel(row.stockTradeCount, lang)}</span>}
       </td>
     ),
-    volQty: (row) => <td className="num">{row.stockQuantity !== null ? formatRatio(row.stockQuantity, 0, lang) : "—"}</td>,
-    avgShare: (row) => { const v = Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row); return <td className="num">{v === null || v === undefined ? neverTraded(row) : formatMarketNumber(v, lang)}</td>; },
-    avgTrade: (row) => <td className="num">{avgTradeValue(row) !== null ? formatRatio(avgTradeValue(row), 0, lang) : neverTraded(row)}</td>,
+    volQty: (row) => <td className="num" title={periodHint(row)}>{row.stockQuantity !== null ? formatRatio(row.stockQuantity, 0, lang) : "—"}</td>,
+    avgShare: (row) => { const v = Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row); return <td className="num" title={periodHint(row)}>{v === null || v === undefined ? neverTraded(row) : formatMarketNumber(v, lang)}</td>; },
+    avgTrade: (row) => <td className="num" title={periodHint(row, { detail: true })}>{avgTradeValue(row) !== null ? formatRatio(avgTradeValue(row), 0, lang) : neverTraded(row)}</td>,
+    // Over a window this is the biggest deal of the whole period, and the
+    // tooltip names the session it was struck in — «крупнейшая сделка за год»
+    // is a fact about one day inside the year.
     bigTrade: (row) => (
-      <td className="num">
+      <td className="num" title={periodHint(row, { detail: true })}>
         {row.ts && Number.isFinite(row.ts.largest_value) ? (
           <>
             {formatRatio(row.ts.largest_value, 0, lang)}
@@ -13732,9 +13868,12 @@ function MarketView({
         ) : neverTraded(row)}
       </td>
     ),
-    volShare: (row) => <td className="num">{(() => {
+    volShare: (row) => <td className="num" title={periodHint(row)}>{(() => {
       // Share of the LATEST session's turnover: an untraded security's
       // backfilled old-day volume contributes 0% of today, by definition.
+      // Over a window there is no such session — `stats.boardDay` is null — and
+      // the share is of the window's own total, which is the same statement one
+      // period longer.
       if (stats.boardDay && marketRowDay(row) !== stats.boardDay) return `0%`;
       return Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—";
     })()}</td>,
@@ -13899,6 +14038,12 @@ function MarketView({
             // after «без», «без неактивные: 10» on its own does not.
             sub = `UZS · ${lang === "ru" ? "без неактивных" : lang === "uz" ? "faol emaslarsiz" : "excl. inactive"}: ${sectorDormant}`;
           }
+          if (Number.isFinite(capPeriodChange)) {
+            // The period the reader chose, spelled out beside its own number:
+            // the card is read without the period control in view.
+            sub = `${sub} · ${changePeriodLabel(changePeriod, lang, "short")}: ${
+              capPeriodChange > 0 ? "+" : ""}${formatRatio(capPeriodChange, 2, lang)}%`;
+          }
           return (
             <MarketStatCard
               label={mt(lang, "marketCap")}
@@ -13911,7 +14056,7 @@ function MarketView({
             44 securities and called 31.07 "120,7 млн over ~900 trades" while the
             board it sits above listed 1,56 млрд over 6 507 — and it cannot
             answer per tab, so the shares view was quoting bond turnover too. */}
-        {cardStats.totalVolume > 0 && <MarketStatCard label={mt(lang, "volume")} termId="volume" lang={lang} value={formatCompactVolume(cardStats.totalVolume, lang)} sub={cardStats.totalTrades ? `${formatRatio(cardStats.totalTrades, 0, lang)} ${tradeCountLabel(cardStats.totalTrades, lang)}` : null} />}
+        {cardStats.totalVolume > 0 && <MarketStatCard label={windowed ? `${mt(lang, "volume")} · ${changePeriodLabel(changePeriod, lang, "short")}` : mt(lang, "volume")} termId="volume" lang={lang} value={formatCompactVolume(cardStats.totalVolume, lang)} sub={cardStats.totalTrades ? `${formatRatio(cardStats.totalTrades, 0, lang)} ${tradeCountLabel(cardStats.totalTrades, lang)}` : null} />}
       </div>
 
       {/* Three readings of one session: who moved, and who was actually
@@ -14431,6 +14576,20 @@ function MarketView({
                 : lang === "uz"
                   ? "90 kundan ortiq bitimsiz qog'ozlar. Narx — ularning oxirgi yopilishi, oldinga ko'chirilgan; kunlik o'zgarish yo'q va yuqoridagi kapitalizatsiya ularni hisobga olmaydi."
                   : "Бумаги без сделок более 90 дней. Цена — их последнее закрытие, перенесённое вперёд: дневного изменения нет, и в капитализацию рынка выше они не входят."}
+            </p>
+          )}
+          {/* What the table's numbers ARE once a period is chosen. Every volume
+              column is that period's sessions added up, so a reader who takes a
+              figure off this screen knows whether it is a morning or a year —
+              and which two figures deliberately stay «today's», because a stock
+              measured over a period is still measured at its end. */}
+          {windowed && (
+            <p className="market-dormant-note">
+              {lang === "en"
+                ? `Open, high, low, volumes, the average share price, the average and the largest trade are the selected period (${changePeriodLabel(changePeriod, lang, "label")}) — its sessions summed, counting only the ones the security actually traded in. Sessions banked before the day statistics existed carry no trade count and no largest deal, and those cells show a dash rather than a nought. The quote, market cap and the multiples are as of today: they are what the security is worth now, not over a stretch of calendar.`
+                : lang === "uz"
+                  ? `Ochilish, maks., min., hajmlar, o'rtacha aksiya narxi, o'rtacha va eng katta bitim — tanlangan davr (${changePeriodLabel(changePeriod, lang, "label")}) uchun: uning sessiyalari yig'indisi, faqat qog'oz haqiqatan savdo qilingan sessiyalar. Kun statistikasi paydo bo'lishidan oldin saqlangan sessiyalarda bitimlar soni va eng katta bitim yo'q — u yerda chiziqcha turadi. Kotirovka, kapitalizatsiya va multiplikatorlar — bugungi holatga.`
+                  : `Открытие, макс., мин., объёмы, средняя цена акции, средняя и крупнейшая сделка — за выбранный период (${changePeriodLabel(changePeriod, lang, "label")}): это сумма сессий внутри него, и только тех, в которых бумага действительно торговалась. У сессий, сохранённых до появления дневной статистики, нет числа сделок и крупнейшей сделки — там прочерк, а не ноль. Котировка, капитализация и мультипликаторы — на сегодня: это то, сколько бумага стоит сейчас, а не за отрезок календаря.`}
             </p>
           )}
           {/* The NEGO board's own contract, stated where it is read: which
