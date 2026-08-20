@@ -577,6 +577,15 @@ def audience(days: int = 30) -> dict[str, Any]:
             (since,),
         ).fetchall()
 
+        # Materialise the closure-based breakdowns while the connection is
+        # still open — the return statement below runs after the `with` block
+        # has closed it.
+        devices = breakdown("device")
+        browsers = breakdown("browser")
+        oses = breakdown("os")
+        languages = breakdown("lang")
+        countries = breakdown("country", 12)
+
     total_visitors = int(totals["visitors"]) if totals and totals["visitors"] is not None else None
     sessions_total = int(session_stats["sessions"]) if session_stats and session_stats["sessions"] else 0
     bounced = int(session_stats["bounced"] or 0) if session_stats else 0
@@ -606,11 +615,11 @@ def audience(days: int = 30) -> dict[str, Any]:
             "bounce_rate": round(bounced / sessions_total, 4) if sessions_total else None,
         },
         "referrers": ref_rows,
-        "devices": breakdown("device"),
-        "browsers": breakdown("browser"),
-        "os": breakdown("os"),
-        "languages": breakdown("lang"),
-        "countries": breakdown("country", 12),
+        "devices": devices,
+        "browsers": browsers,
+        "os": oses,
+        "languages": languages,
+        "countries": countries,
         "screens": [{"name": r["bucket"], "visitors": int(r["visitors"])} for r in screens],
     }
 
