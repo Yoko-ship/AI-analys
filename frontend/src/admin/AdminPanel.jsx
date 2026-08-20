@@ -36,6 +36,14 @@ function fmtInt(value) {
   return Number(value).toLocaleString("ru-RU");
 }
 
+/** A multiple, printed to two places. Rounding happens on OUTPUT only — the
+ *  value itself is never touched. */
+function fmtNum(value, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return DASH;
+  return Number(value).toLocaleString("ru-RU",
+    { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
 function fmtStamp(value, { withTime = true } = {}) {
   if (!value) return DASH;
   const text = String(value).trim().replace(" ", "T");
@@ -67,10 +75,14 @@ const SECTIONS = [
     title: ["Сборщики", "Yig'uvchilar", "Collectors"] },
   { key: "findings", icon: "alert", ready: true,
     title: ["Аудит", "Audit", "Audit"] },
+  { key: "intake", icon: "file", ready: true,
+    title: ["Отчёты", "Hisobotlar", "Statements"] },
+  { key: "issuer", icon: "list", ready: true,
+    title: ["Эмитент", "Emitent", "Issuer"] },
+  { key: "rules", icon: "check", ready: true,
+    title: ["Правила", "Qoidalar", "Rules"] },
   { key: "catalog", icon: "list", ready: false,
     title: ["Каталог", "Katalog", "Securities"] },
-  { key: "financials", icon: "file", ready: false,
-    title: ["Отчётность", "Hisobot", "Statements"] },
   { key: "quotes", icon: "chart", ready: false,
     title: ["Котировки", "Kotirovkalar", "Quotes"] },
   { key: "dividends", icon: "percent", ready: false,
@@ -245,6 +257,11 @@ export default function AdminPanel({
   const [busy, setBusy] = useState(false);
   const [findings, setFindings] = useState([]);
   const [filters, setFilters] = useState({ severity: "blocking", status: "new" });
+  const [intake, setIntake] = useState(null);
+  const [intakeState, setIntakeState] = useState("ineligible");
+  const [ledger, setLedger] = useState(null);
+  const [ledgerTicker, setLedgerTicker] = useState("");
+  const [ruleBook, setRuleBook] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
   const alive = useRef(true);
 
@@ -268,6 +285,28 @@ export default function AdminPanel({
     if (alive.current) setOverview(data);
   }, [readJson]);
 
+  const loadIntake = useCallback(async () => {
+    const data = await readJson("/api/admin/reports");
+    if (!alive.current) return;
+    setIntake(data);
+    // A clean intake is the normal state, and opening on an empty «не допущена»
+    // reads as a broken screen rather than as good news. The filter still holds
+    // whatever the operator picks afterwards.
+    setIntakeState((s) => (s === "ineligible" && !data.ineligible ? "used" : s));
+  }, [readJson]);
+
+  const loadRuleBook = useCallback(async () => {
+    const data = await readJson("/api/admin/rules");
+    if (alive.current) setRuleBook(data);
+  }, [readJson]);
+
+  const loadLedger = useCallback(async (ticker) => {
+    const one = String(ticker || "").trim().toUpperCase();
+    if (!one) return;
+    const data = await readJson(`/api/admin/issuer/${encodeURIComponent(one)}`);
+    if (alive.current) setLedger(data);
+  }, [readJson]);
+
   const loadFindings = useCallback(async () => {
     const params = new URLSearchParams({ limit: "300" });
     if (filters.severity) params.set("severity", filters.severity);
@@ -288,11 +327,14 @@ export default function AdminPanel({
     let cancelled = false;
     setLoading(true);
     setError("");
-    (section === "findings" ? Promise.all([loadOverview(), loadFindings()]) : loadOverview())
+    (section === "findings" ? Promise.all([loadOverview(), loadFindings()])
+      : section === "intake" ? Promise.all([loadOverview(), loadIntake()])
+        : section === "rules" ? Promise.all([loadOverview(), loadRuleBook()])
+          : loadOverview())
       .catch((e) => { if (!cancelled) setError(String(e.message || e)); })
       .finally(() => { if (!cancelled && alive.current) setLoading(false); });
     return () => { cancelled = true; };
-  }, [section, loadOverview, loadFindings]);
+  }, [section, loadOverview, loadFindings, loadIntake, loadRuleBook]);
 
   const runAudit = async () => {
     setBusy(true);
@@ -363,6 +405,18 @@ export default function AdminPanel({
       "Показана последняя запись в таблице, которую пишет служба, а не её код возврата: сборщики работают отдельными сервисами и в этот процесс не отчитываются.",
       "Xizmat yozadigan jadvaldagi oxirgi yozuv ko'rsatilgan.",
       "The last write in the table each service fills, not its exit code: the collectors run as separate services and do not report here."),
+    intake: t(
+      "Что конвейер принял на вход. Пока статус записи не виден, любая правка расчёта делается наугад: половина найденных дефектов — не ошибка формулы, а то, какая запись до неё доехала.",
+      "Konveyer nimani qabul qilgani.",
+      "What the pipeline took in. While a record's status is invisible, every fix to the calculation is made blind."),
+    issuer: t(
+      "Расчёт разложен построчно: каждое слагаемое двенадцатимесячной базы со своим периодом и знаком, капитализация по классам, остатки, из которых берутся знаменатели, и все прошедшие проверки.",
+      "Hisob-kitob qatorma-qator yoyilgan.",
+      "The calculation laid out line by line: every component of the twelve-month base with its period and sign, the capitalisation by class, the balances the denominators come from."),
+    rules: t(
+      "Параметры расчёта и граница ответственности: панель задаёт пороги и исключения, код задаёт вычисления.",
+      "Hisob parametrlari va javobgarlik chegarasi.",
+      "The calculation's parameters and the boundary: the panel sets thresholds and exceptions, the code holds the computation."),
     findings: t(
       "Аудитор пересчитывает те же величины независимым путём и сравнивает их с опубликованным. Блокирующая находка снимает число с публикации.",
       "Auditor qiymatlarni mustaqil qayta hisoblab, e'lon qilingani bilan solishtiradi.",
@@ -583,6 +637,343 @@ export default function AdminPanel({
     </div>
   );
 
+  /* ── 01 · what the pipeline took in ─────────────────────────────────────── */
+  const intakeRows = useMemo(() => {
+    const items = (intake && intake.items) || [];
+    return intakeState === "all" ? items : items.filter((r) => r.state === intakeState);
+  }, [intake, intakeState]);
+
+  const STATE_TITLE = {
+    used: t("в расчёте", "hisobda", "in the calculation"),
+    superseded: t("вытеснена свежей", "yangisi bilan almashtirilgan", "superseded"),
+    ineligible: t("не допущена", "qabul qilinmagan", "ineligible"),
+  };
+
+  const intakeBody = (
+    <div className="admin-section">
+      <div className="admin-stats">
+        <Stat label={t("Записей отчётности", "Hisobot yozuvlari", "Statement records")}
+              value={fmtInt(intake && intake.count)}
+              line1={intake ? t(`${fmtInt(intake.issuers)} эмитентов`, `${fmtInt(intake.issuers)} emitent`, `${fmtInt(intake.issuers)} issuers`) : null} />
+        <Stat label={t("Легли в расчёт", "Hisobga kirdi", "Used")} value={fmtInt(intake && intake.used)}
+              line1={t("по одной на эмитента", "har emitentga bittadan", "one per issuer")} />
+        <Stat label={t("Вытеснены свежей", "Almashtirilgan", "Superseded")} value={fmtInt(intake && intake.superseded)}
+              line1={t("нормальное состояние, не дефект", "normal holat", "normal, not a defect")} />
+        <Stat label={t("Не допущены к расчёту", "Qabul qilinmagan", "Ineligible")}
+              value={fmtInt(intake && intake.ineligible)}
+              warn={!!(intake && intake.ineligible)}
+              line1={t("отбрасываются молча — здесь видно", "jimgina tashlab yuboriladi", "dropped silently — visible here")} />
+      </div>
+
+      {intake && intake.by_flag && intake.by_flag.length ? (
+        <div className="panel admin-flagbar">
+          {intake.by_flag.map((f) => (
+            <span key={f.flag} className="admin-pill"><span className="admin-dot warn" />{f.title}: {fmtInt(f.count)}</span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="panel">
+        <div className="admin-filters">
+          {["ineligible", "used", "superseded", "all"].map((key) => (
+            <button key={key} type="button"
+                    className={`admin-btn sm${intakeState === key ? " accent" : ""}`}
+                    onClick={() => setIntakeState(key)}>
+              {key === "all" ? t("Все записи", "Barchasi", "All") : STATE_TITLE[key]}
+            </button>
+          ))}
+          <span className="admin-sp" />
+          <span className="admin-muted">{t(`Показано ${intakeRows.length}`, `${intakeRows.length} ta`, `Showing ${intakeRows.length}`)}</span>
+        </div>
+        <div className="admin-table">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("Эмитент", "Emitent", "Issuer")}</th>
+                <th>{t("Форма", "Shakl", "Form")}</th>
+                <th>{t("Период", "Davr", "Period")}</th>
+                <th className="n">{t("Мес.", "Oy", "Mo")}</th>
+                <th className="n">{t("Выручка", "Tushum", "Revenue")}</th>
+                <th className="n">{t("Прибыль", "Foyda", "Profit")}</th>
+                <th className="n">{t("Активы", "Aktivlar", "Assets")}</th>
+                <th>{t("Состояние", "Holat", "State")}</th>
+                <th>{t("Отметки", "Belgilar", "Flags")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!intakeRows.length ? (
+                <tr>
+                  <td colSpan={9} className="admin-muted" style={{ padding: "24px 0", textAlign: "center" }}>
+                    {intakeState === "ineligible"
+                      ? t("Ни одна запись не отброшена — весь приём дошёл до расчёта.",
+                          "Hech bir yozuv tashlab yuborilmagan.",
+                          "No record was dropped — the whole intake reached the calculation.")
+                      : t("Записей нет.", "Yozuvlar yo'q.", "No records.")}
+                  </td>
+                </tr>
+              ) : null}
+              {intakeRows.slice(0, 400).map((r, i) => (
+                <tr key={`${r.ticker}-${r.year}-${r.quarter}-${i}`}>
+                  <td>
+                    <button type="button" className="admin-link"
+                            onClick={() => { setLedgerTicker(r.ticker); loadLedger(r.ticker); onSectionChange && onSectionChange("issuer"); }}>
+                      {r.ticker}
+                    </button>
+                  </td>
+                  <td className="admin-muted">{r.org_type || r.form || "—"}</td>
+                  <td>{r.period || "—"}</td>
+                  <td className="n">{r.months == null ? "—" : r.months}</td>
+                  <td className="n">{r.revenue == null ? "—" : fmtInt(r.revenue)}</td>
+                  <td className="n">{r.net_income == null ? "—" : fmtInt(r.net_income)}</td>
+                  <td className="n">{r.total_assets == null ? "—" : fmtInt(r.total_assets)}</td>
+                  <td>
+                    <span className="admin-pill">
+                      <span className={`admin-dot ${r.state === "ineligible" ? "err" : r.state === "used" ? "ok" : ""}`} />
+                      {STATE_TITLE[r.state]}
+                    </span>
+                  </td>
+                  <td className="admin-muted">
+                    {r.flags.length
+                      ? r.flags.map((f) => (intake.by_flag.find((x) => x.flag === f) || {}).title || f).join(" · ")
+                      : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {intakeRows.length > 400 ? (
+          <div className="admin-table-foot">
+            <span>{t(`Показаны первые 400 из ${intakeRows.length}`, `${intakeRows.length} tadan birinchi 400 tasi`, `First 400 of ${intakeRows.length}`)}</span>
+          </div>
+        ) : null}
+      </div>
+      <p className="admin-muted admin-note">
+        {t("Суммы — в тысячах сум, как они хранятся: экран печатает то, что лежит в базе, а не то, на что делит витрина. «Не допущена» означает, что путь чтения отбрасывает запись в SQL и до расчёта она не доходит.",
+           "Summalar ming so'mda, bazada saqlanganidek.",
+           "Sums are in thousands of UZS, as stored: the screen prints what is in the database, not what the market screen divides by.")}
+      </p>
+    </div>
+  );
+
+  /* ── 02 · the calculation, line by line ─────────────────────────────────── */
+  const money = (v) => (v == null ? "—" : fmtInt(v));
+  const ratio = (m) => (m && m.value != null
+    ? fmtNum(m.value, 2)
+    : <span className="admin-muted" title={(m && (m.note || m.status)) || ""}>—</span>);
+
+  const issuerBody = (
+    <div className="admin-section">
+      <div className="panel admin-filters">
+        <input
+          className="admin-input"
+          placeholder={t("Тикер, например UZTL", "Ticker, masalan UZTL", "Ticker, e.g. UZTL")}
+          value={ledgerTicker}
+          onChange={(e) => setLedgerTicker(e.target.value.toUpperCase())}
+          onKeyDown={(e) => { if (e.key === "Enter") loadLedger(ledgerTicker); }}
+        />
+        <button type="button" className="admin-btn accent" onClick={() => loadLedger(ledgerTicker)}>
+          {t("Разобрать", "Tahlil qilish", "Open")}
+        </button>
+      </div>
+
+      {!ledger ? (
+        <div className="panel">
+          <div className="admin-empty">
+            <b>{t("Выберите эмитента", "Emitentni tanlang", "Pick an issuer")}</b>
+            {t("Экран показывает расчёт того же пути, который публикует витрину, — не второй реализации: второй реализации свойственно расходиться с первой, и тогда панель сообщает о собственной ошибке.",
+               "Ekran vitrinani e'lon qiladigan yo'lning hisobini ko'rsatadi.",
+               "The screen shows the calculation of the same path that publishes the market screen — not a second implementation.")}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="panel">
+            <div className="admin-panel-head">
+              <h2>{ledger.issuer} · {ledger.ticker}</h2>
+              <span className="admin-muted">
+                {ledger.form && ledger.form.org_type ? `${ledger.form.org_type} · ` : ""}
+                {t("база", "baza", "base")}: {ledger.form && ledger.form.base_period ? ledger.form.base_period : "—"}
+              </span>
+            </div>
+
+            <div className="admin-ledger">
+              <div className="admin-ledger-head">
+                <span>{t("Числитель · двенадцать месяцев прибыли", "Numerator", "Numerator · twelve months of profit")}</span>
+                <span className="admin-muted">{ledger.ttm && ledger.ttm.method_note}</span>
+              </div>
+              {((ledger.ttm && ledger.ttm.components) || []).map((c, i) => (
+                <div key={i} className={`admin-ledger-row${c.dropped ? " dropped" : ""}`}>
+                  <span className="admin-ledger-sign">{c.sign}</span>
+                  <span className="admin-ledger-label">
+                    <b>{c.label}</b>
+                    <span className="admin-muted">
+                      {c.period || "—"}{c.months ? ` · ${c.months} ${t("мес.", "oy", "mo")}` : ""}
+                      {c.report_id ? ` · report ${c.report_id}` : ""}
+                      {c.dropped ? ` · ${t("не вошло в базу", "bazaga kirmadi", "not used")}` : ""}
+                    </span>
+                  </span>
+                  <span className="admin-ledger-val">{money(c.net_income)}</span>
+                </div>
+              ))}
+              <div className="admin-ledger-row total">
+                <span className="admin-ledger-sign">=</span>
+                <span className="admin-ledger-label">
+                  <b>{t("Принято к расчёту", "Hisobga qabul qilindi", "Taken into the calculation")}</b>
+                  <span className="admin-muted">{(ledger.ttm && ledger.ttm.period) || "—"}
+                    {ledger.ttm && ledger.ttm.estimate ? ` · ${t("ОЦЕНКА", "BAHO", "ESTIMATE")}` : ""}</span>
+                </span>
+                <span className="admin-ledger-val">
+                  {money(ledger.ttm && ledger.ttm.result && ledger.ttm.result.net_income)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-cols3">
+            <div className="panel">
+              <h3>{t("Капитализация", "Kapitalizatsiya", "Capitalisation")}</h3>
+              <table className="admin-kv">
+                <tbody>
+                  {(ledger.classes || []).map((c) => (
+                    <tr key={c.ticker}>
+                      <td>{c.ticker} · {c.share_class === "preferred" ? t("привилег.", "imtiyozli", "preferred") : t("обыкн.", "oddiy", "ordinary")}</td>
+                      <td className="n">{c.counted ? money(c.market_cap)
+                        : <span className="admin-muted" title={t("Класс ни разу не торговался: цена была бы номиналом из реестра, а капитализация на номинале — вымысел.", "Sinf hech qachon savdo bo'lmagan.", "The class has never traded: its price would be the registry's nominal.")}>{t("не учтён", "hisobga olinmagan", "not counted")}</span>}</td>
+                    </tr>
+                  ))}
+                  <tr className="total">
+                    <td><b>{t("По компании", "Kompaniya bo'yicha", "Whole company")}</b></td>
+                    <td className="n"><b>{money(ledger.market_cap && ledger.market_cap.value)}</b></td>
+                  </tr>
+                </tbody>
+              </table>
+              {ledger.market_cap && ledger.market_cap.note
+                ? <p className="admin-muted admin-note">{ledger.market_cap.note}</p> : null}
+            </div>
+
+            <div className="panel">
+              <h3>{t("Знаменатели · остатки", "Maxrajlar · qoldiqlar", "Denominators · balances")}</h3>
+              <table className="admin-kv">
+                <tbody>
+                  <tr><td>{t("Период баланса", "Balans davri", "Balance period")}</td><td className="n">{(ledger.balance && ledger.balance.period) || "—"}</td></tr>
+                  <tr><td>{t("Капитал на конец", "Oxiriga kapital", "Equity, close")}</td><td className="n">{money(ledger.balance && ledger.balance.equity)}</td></tr>
+                  <tr><td>{t("Капитал средний", "O'rtacha kapital", "Equity, average")}</td><td className="n">{money(ledger.balance && ledger.balance.equity_avg)}</td></tr>
+                  <tr><td>{t("Активы на конец", "Oxiriga aktivlar", "Assets, close")}</td><td className="n">{money(ledger.balance && ledger.balance.assets)}</td></tr>
+                  <tr><td>{t("Активы средние", "O'rtacha aktivlar", "Assets, average")}</td><td className="n">{money(ledger.balance && ledger.balance.assets_avg)}</td></tr>
+                </tbody>
+              </table>
+              <p className="admin-muted admin-note">{ledger.balance && ledger.balance.rule}</p>
+            </div>
+
+            <div className="panel">
+              <h3>{t("Проверки", "Tekshiruvlar", "Validations")}</h3>
+              <div className="admin-checklist">
+                {Object.entries((ledger.checks && ledger.checks.results) || {}).map(([code, ok]) => (
+                  <div key={code}>
+                    <span className="admin-pill"><span className={`admin-dot ${ok ? "ok" : "err"}`} />{code}</span>
+                  </div>
+                ))}
+                {!Object.keys((ledger.checks && ledger.checks.results) || {}).length
+                  ? <span className="admin-muted">{t("Тождества не проверялись: не хватает входов.", "Tekshirilmadi.", "Not checked: inputs missing.")}</span>
+                  : null}
+              </div>
+              {ledger.validation && ledger.validation.reason
+                ? <p className="admin-muted admin-note">{ledger.validation.reason}</p> : null}
+            </div>
+          </div>
+
+          <div className="panel">
+            <h3>{t("Показатели", "Ko'rsatkichlar", "Multiples")}</h3>
+            <div className="admin-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("Показатель", "Ko'rsatkich", "Metric")}</th>
+                    <th>{t("Формула", "Formula", "Formula")}</th>
+                    <th className="n">{t("Числитель", "Surat", "Numerator")}</th>
+                    <th className="n">{t("Знаменатель", "Maxraj", "Denominator")}</th>
+                    <th className="n">{t("Значение", "Qiymat", "Value")}</th>
+                    <th className="n">{t("На витрине", "Vitrinada", "Published")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(ledger.inputs || {}).map(([name, b]) => (
+                    <tr key={name}>
+                      <td><b>{name.toUpperCase().replace("_", " ")}</b></td>
+                      <td className="admin-muted">{b.formula}</td>
+                      <td className="n">{money(b.numerator)}</td>
+                      <td className="n">{money(b.denominator)}</td>
+                      <td className="n">{b.value == null
+                        ? <span className="admin-muted" title={b.note || b.status || ""}>—</span>
+                        : fmtNum(b.value, 2)}</td>
+                      <td className="n">{ratio(ledger.published && ledger.published[name])}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="admin-muted admin-note">
+              {t("Обе колонки приходят из одного вызова: расхождение здесь — ошибка этого экрана, а не рынка, и её тоже стоит видеть.",
+                 "Ikkala ustun bitta chaqiruvdan keladi.",
+                 "Both columns come from one call: a difference here is a bug in this screen, not in the market — and worth seeing too.")}
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  /* ── 05 · the parameters, and the line the panel must not cross ─────────── */
+  const rulesBody = (
+    <div className="admin-section">
+      <div className="panel">
+        <h3>{t("Граница ответственности", "Javobgarlik chegarasi", "The boundary")}</h3>
+        <div className="admin-cols2">
+          <div>
+            <div className="panel-label">{t("Через панель", "Panel orqali", "Through the panel")}</div>
+            <ul className="admin-list">
+              {((ruleBook && ruleBook.boundary && ruleBook.boundary.panel) || []).map((x) => <li key={x}>{x}</li>)}
+            </ul>
+          </div>
+          <div>
+            <div className="panel-label">{t("Через PR с прогоном валидаций", "PR orqali", "Through a pull request")}</div>
+            <ul className="admin-list">
+              {((ruleBook && ruleBook.boundary && ruleBook.boundary.code) || []).map((x) => <li key={x}>{x}</li>)}
+            </ul>
+          </div>
+        </div>
+        <p className="admin-muted admin-note">{ruleBook && ruleBook.boundary && ruleBook.boundary.why}</p>
+      </div>
+
+      <div className="panel">
+        <h3>{t("Пороги и диапазоны", "Chegara va oraliqlar", "Thresholds and ranges")}</h3>
+        <div className="admin-table">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("Параметр", "Parametr", "Parameter")}</th>
+                <th className="n">{t("Значение", "Qiymat", "Value")}</th>
+                <th>{t("Где задан", "Qayerda", "Owner")}</th>
+                <th>{t("Что делает", "Nima qiladi", "What it does")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {((ruleBook && ruleBook.thresholds) || []).map((r) => (
+                <tr key={r.name}>
+                  <td>{r.name}</td>
+                  <td className="n">{String(r.value)}</td>
+                  <td className="admin-muted">{r.owner}</td>
+                  <td className="admin-muted">{r.note || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
   const notBuiltBody = (
     <div className="panel">
       <div className="admin-empty">
@@ -598,6 +989,9 @@ export default function AdminPanel({
     overview: overviewBody,
     streams: streamsBody,
     findings: findingsBody,
+    intake: intakeBody,
+    issuer: issuerBody,
+    rules: rulesBody,
   };
 
   return (

@@ -2833,6 +2833,99 @@ async def api_admin_overview(history: int = 14, decide: int = 8,
                       history=max(1, min(history, 60)), decide=max(1, min(decide, 50)))))
 
 
+@app.get("/api/admin/reports")
+async def api_admin_reports(_: None = Depends(_admin_gate)) -> dict[str, Any]:
+    """Screen «Отчёты» — what the pipeline took in, record by record.
+
+    Deliberately the FIRST screen of the console. Half the defects found in the
+    multiples so far were not errors of formula but of which record reached it,
+    and while a record's status is invisible every fix to the calculation is
+    made blind.
+    """
+    import admin_data
+    import reports_catalog
+
+    def _stored() -> tuple[list[dict[str, Any]], int]:
+        # The RAW table, not the read path's per-ticker pick: the records the
+        # read path drops are exactly the ones nobody has been able to see.
+        conn = reports_catalog.get_catalog_conn()
+        try:
+            rows = [dict(r) for r in conn.execute(
+                "SELECT ticker, form, year, quarter, revenue, net_income, "
+                "total_assets, total_equity, total_liabilities, org_type, "
+                "balance_period, report_id, updated_at "
+                "FROM catalog_financials")]
+        finally:
+            conn.close()
+        return rows, reports_catalog._latest_complete_fiscal_year()
+
+    loop = asyncio.get_running_loop()
+    (stored, last_fy), inputs = await asyncio.gather(
+        loop.run_in_executor(None, _stored),
+        _market_inputs(),
+    )
+    # WHICH period each ticker's published multiple was computed from — so a
+    # stored row can say whether it is the one that counted. Taken from the
+    # inputs the market screen itself uses, never re-selected here.
+    used: dict[str, tuple[int, int] | None] = {}
+    for ticker, fin in (inputs["financials"] or {}).items():
+        if not fin or fin.get("year") is None:
+            continue
+        used[str(ticker).upper()] = (int(fin["year"]), int(fin.get("quarter") or 0))
+    return _json_safe({"ok": True, **admin_data.report_intake(stored, last_fy, used)})
+
+
+@app.get("/api/admin/rules")
+async def api_admin_rules(_: None = Depends(_admin_gate)) -> dict[str, Any]:
+    """Screen «Правила» — the parameters, and the line the panel must not cross."""
+    import admin_data
+
+    return _json_safe({"ok": True, **admin_data.rule_book()})
+
+
+@app.get("/api/admin/issuer/{ticker}")
+async def api_admin_issuer(ticker: str,
+                           _: None = Depends(_admin_gate)) -> dict[str, Any]:
+    """Screen «Эмитент» — one issuer's whole calculation, line by line.
+
+    Every block is the OUTPUT of the published path, not a re-derivation: the
+    same TTM assembly, the same balance snapshot, the same ``issuer_multiples``
+    the board calls. A second implementation would eventually disagree with the
+    first and the panel would be reporting its own bug.
+    """
+    import admin_data
+
+    ticker = ticker.upper()
+    inputs = await _market_inputs()
+    payload = _multiples_payload(inputs)
+    row = next((r for r in payload["items"] if r["ticker"] == ticker), None)
+    if not row:
+        raise HTTPException(status_code=404, detail="issuer not found")
+    key = row["issuer"]
+    tickers = row["issuer_classes"]
+    board_by_ticker = {str(r.get("ticker") or "").upper(): r for r in inputs["board"]}
+    classes = []
+    for one in tickers:
+        meta = (inputs["securities"] or {}).get(one) or {}
+        board_row = board_by_ticker.get(one) or {}
+        classes.append({
+            "ticker": one, **meta,
+            "market_cap": (board_row.get("market_cap")
+                           if str(board_row.get("last_trade_date") or "").strip() else None),
+            "shares_outstanding": (board_row.get("shares_outstanding")
+                                   or meta.get("shares_outstanding")),
+        })
+    fin = next((inputs["financials"].get(t) for t in tickers if inputs["financials"].get(t)), None)
+    rat = next((inputs["ratios"].get(t) for t in tickers if inputs["ratios"].get(t)), None)
+    ledger = admin_data.issuer_ledger(key, classes, fin, rat)
+    # What the SHOP WINDOW currently publishes for the same issuer, so the two
+    # sit side by side. They come from the same call, so a difference here is a
+    # bug in this screen and not in the market — which is itself worth seeing.
+    ledger["published"] = {k: row.get(k) for k in
+                           ("pe", "pb", "ps", "roe", "roa", "net_margin")}
+    return _json_safe({"ok": True, "ticker": ticker, **ledger})
+
+
 @app.get("/api/admin/invariants")
 async def api_admin_invariants(_: None = Depends(_admin_gate)) -> dict[str, Any]:
     """The same check the scheduler runs, on demand. Empty is the good outcome."""
