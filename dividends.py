@@ -545,9 +545,13 @@ def read_all(limit: int = 400) -> list[dict[str, Any]]:
 
     conn = get_catalog_conn()
     try:
+        # Publication order, not decision order — the same ordering openinfo's
+        # own table uses. Decision dates are issuer-typed free text: DORI filed
+        # its 2018 payout as decided «2108-10-02», and under decision order that
+        # typo owns the top row of the market table for the next 82 years.
         rows = conn.execute(
             f"SELECT {', '.join(_COLUMNS)}, updated_at FROM catalog_dividends "
-            "ORDER BY decision_date DESC, filing_id DESC, ticker",
+            "ORDER BY pub_date DESC, filing_id DESC, ticker",
         ).fetchall()
     finally:
         conn.close()
