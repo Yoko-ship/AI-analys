@@ -54,6 +54,9 @@ import { termFor } from "./lib/glossary.js";
 // The admin panel is a screen of its own, with its own token layer — see
 // admin/admin.css for why it deliberately does not inherit the site's theme.
 import AdminPanel from "./admin/AdminPanel.jsx";
+// The visit beacon: one fire-and-forget POST per page view, read back by the
+// admin panel's «Аудитория». Admin pages themselves are not counted.
+import { setTrackedUser, trackPageview } from "./lib/track.js";
 
 // --- Client-side routing: each view maps to a real URL path ------------------
 const VIEW_PATHS = {
@@ -17176,7 +17179,21 @@ function App() {
     if (window.location.pathname !== target) {
       window.history.pushState({ view: activeView }, "", target);
     }
+    // Count the view once the URL settles. The admin's own walks through the
+    // panel are not audience and would only pollute its numbers.
+    if (activeView !== "admin") {
+      trackPageview({
+        path: target,
+        view: activeView,
+        ticker: ["company", "chart", "bond"].includes(activeView) ? companyTicker : "",
+      });
+    }
   }, [activeView, companyTicker, newsId, adminSection]);
+
+  // Attach the signed-in user's id to subsequent beacons (analytics, not auth).
+  useEffect(() => {
+    setTrackedUser(user && user.id);
+  }, [user]);
 
   // React to browser back/forward by restoring the view from the URL.
   useEffect(() => {
