@@ -262,19 +262,24 @@ def refresh_in_background(*, force: bool = False) -> bool:
 # ---------------------------------------------------------------------------
 
 def meetings_for(year: int | None = None, month: int | None = None) -> dict[str, Any]:
-    """One month of the meetings calendar, warming the snapshot as needed.
+    """One month — or, with a year and no month, one year — of the calendar,
+    warming the snapshot as needed.
 
     A cold (empty) snapshot is filled synchronously — the crawl is a handful of
     paced pages, and an empty calendar teaches the first visitor the feature is
     broken; a merely stale one refreshes in the background.
     """
     today = datetime.now(timezone.utc)
+    whole_year = year is not None and month is None
     y = year or today.year
     m = month or today.month
     if not (1 <= m <= 12) or not (2000 <= y <= 2100):
         raise ValueError(f"not a calendar month: {y}-{m}")
-    start = f"{y:04d}-{m:02d}-01"
-    end = f"{y + 1:04d}-01-01" if m == 12 else f"{y:04d}-{m + 1:02d}-01"
+    if whole_year:
+        start, end = f"{y:04d}-01-01", f"{y + 1:04d}-01-01"
+    else:
+        start = f"{y:04d}-{m:02d}-01"
+        end = f"{y + 1:04d}-01-01" if m == 12 else f"{y:04d}-{m + 1:02d}-01"
 
     state = snapshot_state()
     if not state.get("announcements"):

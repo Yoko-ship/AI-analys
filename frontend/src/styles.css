@@ -11944,6 +11944,15 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .newscal-month { font-family: var(--led-serif); font-size: 19px; color: var(--text); min-width: 168px; text-align: center; text-transform: capitalize; }
 .led .newscal-arrow { appearance: none; border: 1px solid var(--border); background: none; color: var(--text); border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 15px; line-height: 1; transition: all .12s ease; }
 .led .newscal-arrow:hover { border-color: var(--accent); color: var(--accent); }
+.led .newscal-select { appearance: auto; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; text-transform: capitalize; }
+.led .newscal-select:hover { border-color: var(--accent); }
+.led .newscal-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.led .newscal-toggle-btn { appearance: none; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 14px; color: var(--muted); cursor: pointer; transition: all .12s ease; }
+.led .newscal-toggle-btn.active { background: var(--accent); color: #fff; }
+.led .newscal-search { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--text); min-width: 200px; }
+.led .newscal-search:focus { outline: none; border-color: var(--accent); }
+.led .newscal-search::placeholder { color: var(--muted); }
+.led .newscal-mh { font-family: var(--led-serif); font-size: 17px; color: var(--text); text-transform: capitalize; padding: 16px 4px 6px; border-bottom: 2px solid var(--text); }
 /* minmax(0,1fr), not 1fr: a bare 1fr track's min-size is the content, so one
    long nowrap issuer chip widened its column until the weekend fell out of the
    clipped container — seven equal tracks require the min to be 0. */
