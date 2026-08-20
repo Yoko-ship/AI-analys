@@ -12590,6 +12590,17 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 }
 .bondsec-cell-n { font-size: 0.72rem; font-style: normal; font-variant-numeric: tabular-nums; opacity: 0.85; }
 .bondsec-cell-v { font-size: 0.7rem; font-weight: 620; }
+/* Which issues pay that day — the tickers fit, the issuer names live in the
+   tooltip alongside each amount. */
+.bondsec-cell-tks {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* Four steps, not a continuous ramp: a reader compares "darker than that one",
    never "12% more saturated". */
 .bondsec-cell.level-0 { color: var(--muted); }
