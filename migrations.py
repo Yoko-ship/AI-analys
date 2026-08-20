@@ -221,6 +221,17 @@ MIGRATIONS: tuple[Migration, ...] = (
                      )""",
                   "CREATE INDEX IF NOT EXISTS ix_bank_fx_latest "
                   "ON bank_fx_rates (ccy, channel, bank_updated_at DESC)")),
+    # The exchange's register of circulating issues (uzse.uz /abouts/bonds/)
+    # states the coupon and the redemption date the issuer's own filings state
+    # only for the few issues already in redemption. Two sources for one field
+    # means the field has to name which one it came from — the section's first
+    # rule is that a reconstructed term is never displayed as a filed one.
+    Migration(14, "bonds: which source states the coupon and the maturity",
+              columns("bond_reference",
+                      ("coupon_source", "TEXT"),
+                      ("maturity_source", "TEXT"),
+                      ("placed_volume", "REAL"),
+                      ("issuer", "TEXT"))),
 )
 
 

@@ -29,12 +29,30 @@ and the price is shown as a percentage of it, which is how a bond is actually
 read: 100 301 in one issue and 10 062 465 in another are different pars, and
 comparing them in absolute sums is meaningless.
 
-What remains genuinely absent is the coupon rate, the maturity date and the
-payment schedule — nowhere on the exchange's pages, nowhere in the API. Accrued
-interest, yield, duration and spread therefore keep returning
-`no_bond_reference` until those arrive. Inventing a coupon "because the issue
-looks like the others" is the same class of error as interpolating a gap in a
-price series.
+**And the other half is published too — on a page nobody had read.** The
+exchange keeps a register of circulating issues at ``/abouts/bonds/``
+(«Облигации доступные на торгах фондовой биржи»), and it states, per issue, the
+coupon rate, the payment cycle, the placement date and the redemption date —
+all 65 of them. ``bond_registry`` reads it. What was left inert here is
+therefore live: accrued interest, yield to maturity, duration, convexity, BPV
+and the spread to the ГЦБ curve now compute for every issue whose terms the
+register carries.
+
+Two rules keep that from becoming an invention:
+
+* **The schedule is reconstructed, and says so.** The register gives the two
+  ends and the cycle, not the dates in between, so the payment dates are laid
+  evenly from placement to redemption. Every payload that rests on them carries
+  ``schedule_source: "reconstructed"``; where the issuer has actually filed the
+  payments, it says ``"filed"`` instead.
+* **A registered undertaking is not an executed fact.** The register states
+  what the issuer promised; openinfo's material fact #31 states what it did.
+  Where both exist the filing wins, and ``maturity_source``/``coupon_source``
+  name which one the number came from.
+
+Inventing a coupon "because the issue looks like the others" remains the same
+class of error as interpolating a gap in a price series — nothing here does it,
+and an issue the register does not carry keeps its dash and its reason.
 """
 from __future__ import annotations
 
@@ -121,7 +139,12 @@ def reference_state(reference: dict[str, Any] | None) -> dict[str, Any]:
             # The coupon is filed per payment; the maturity is filed only once
             # the issuer starts redeeming. So accrued interest and the running
             # yield are knowable long before a redemption date exists.
-            "has_coupon": bool(nominal and rate),
+            #
+            # A rate of ZERO is a rate. The register states «0,00%» for the five
+            # UMRC SPV series, whose whole return is the discount to par — and a
+            # truth test on the rate read that as "no coupon disclosed" and
+            # withheld their yields, which are the most computable on the board.
+            "has_coupon": nominal is not None and nominal > 0 and rate is not None,
             # The terms themselves, so a reader can see WHAT was found and not
             # only that something was: a 28% coupon is the answer to "why is
             # this trading at 120% of par", and it belongs on the screen.
@@ -131,10 +154,21 @@ def reference_state(reference: dict[str, Any] | None) -> dict[str, Any]:
             # the column shows «плав.» instead of a dash that reads as silence.
             "coupon_type": reference.get("coupon_type"),
             "coupon_freq": _num(reference.get("coupon_freq")),
+            "float_base": reference.get("float_base"),
             "maturity_date": reference.get("maturity_date"),
+            "issue_date": reference.get("issue_date"),
+            # Rule 1 of the section: a term carries the source that states it.
+            # «Раскрыто эмитентом» (a filed material fact) and «реестр биржи»
+            # (a registered undertaking) are different strengths of evidence and
+            # the interface is not allowed to blur them.
+            "coupon_source": reference.get("coupon_source"),
+            "maturity_source": reference.get("maturity_source"),
             # How many securities the issue IS, as registered — a different size
             # from what they are worth today, and the one the regulator states.
             "issue_volume": _num(reference.get("issue_volume")),
+            # And how many of them found a buyer: the register states both, and
+            # they differ wherever a placement is unfinished.
+            "placed_volume": _num(reference.get("placed_volume")),
             "source_url": reference.get("source_url"),
             "synced_at": reference.get("synced_at")}
 
@@ -336,31 +370,142 @@ def g_spread(ytm_pct: float | None, years: float | None,
     return _metric(ytm_pct - base, "ok", curve_rate=base, term_years=years)
 
 
+def coupon_schedule(reference: dict[str, Any],
+                    coupons: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Every payment date of the issue, from placement to redemption.
+
+    The exchange's register states the two ends and the cycle — «Har chorakda»,
+    «Har oyda» — never the dates in between. So the periods are laid evenly
+    across the issue's life: ``n = round(life_days / 365 * freq)`` payments, the
+    i-th falling ``round(life_days * i / n)`` days after placement. That is a
+    **reconstruction**, and the return says so.
+
+    Where the issuer has filed its payments on openinfo the filed dates are used
+    instead — they are the fact the reconstruction approximates. A filing set
+    that stops short of the redemption date is still only a partial schedule
+    (issuers file one payment at a time), so it is used as the schedule only
+    when it reaches the maturity; otherwise the reconstruction runs and the
+    filed dates correct it where the two line up.
+
+    Returns ``{"dates": [date], "source": "filed"|"reconstructed"|None,
+    "amount": float|None, "freq": int|None}`` — ``amount`` being one coupon per
+    security, ``nominal × rate / 100 / freq``.
+    """
+    nominal = _num(reference.get("nominal"))
+    rate = _num(reference.get("coupon_rate"))
+    freq = int(_num(reference.get("coupon_freq")) or 0)
+    issue = _as_date(reference.get("issue_date"))
+    maturity = _as_date(reference.get("maturity_date"))
+    amount = (nominal * rate / 100.0 / freq) if (nominal and rate and freq) else None
+
+    filed = sorted({d for d in (_as_date(c.get("pay_date")) for c in coupons or []) if d})
+    if filed and maturity and filed[-1] >= maturity - timedelta(days=5):
+        return {"dates": filed, "source": "filed", "amount": amount, "freq": freq or None}
+
+    if not (issue and maturity and freq > 0 and maturity > issue):
+        # No two ends, no schedule. The filed payments are still a list of
+        # payments — just not one that reaches redemption.
+        return {"dates": filed, "source": "filed" if filed else None,
+                "amount": amount, "freq": freq or None}
+
+    life = (maturity - issue).days
+    n = max(1, round(life / 365.0 * freq))
+    dates = [issue + timedelta(days=round(life * i / n)) for i in range(1, n + 1)]
+    # A filed payment lands within a few days of the reconstructed date it
+    # corresponds to; where it does, the filed date replaces the guess.
+    for one in filed:
+        for i, guess in enumerate(dates):
+            if abs((one - guess).days) <= 5:
+                dates[i] = one
+                break
+    return {"dates": sorted(dates), "source": "reconstructed",
+            "amount": amount, "freq": freq}
+
+
+def effective_yield_at_par(rate: Any, freq: Any) -> dict[str, Any]:
+    """What the coupon alone returns at a price of par, compounded.
+
+    A 27% coupon paid monthly is not 27% a year to a holder who reinvests: it is
+    ``(1 + 0.27/12)^12 − 1`` = 30,6%. Half the register's issues pay monthly, so
+    the difference between the headline rate and what the paper actually yields
+    at par is worth its own column — and it is the only yield figure that exists
+    for an issue nobody has traded yet.
+    """
+    r, f = _num(rate), _num(freq)
+    if r is None or not f or f <= 0:
+        return _unavailable("нет ставки или периодичности купона")
+    if r == 0:
+        return _metric(0.0, "ok", note="бескупонный выпуск")
+    return _metric((math.pow(1 + r / 100.0 / f, f) - 1) * 100.0, "ok")
+
+
+def realized_return(reference: dict[str, Any], schedule: dict[str, Any],
+                    today: date | None = None) -> dict[str, Any]:
+    """A redeemed issue's return over its life, at par in and par out.
+
+    Replaces the yield block on a matured issue rather than leaving it blank:
+    the question "what did this pay" has an answer once the paper is gone, and
+    it is not the same question as "what will it pay".
+
+    Two assumptions, both stated in the note the metric carries, because either
+    one silently changed turns this into a different number: the holder **bought
+    at par** (no purchase price is recorded per holder) and **did not reinvest**
+    the coupons (nothing records what they did with them). Compounding the
+    coupons at the coupon rate would print the effective-at-par figure back at
+    the reader and call it a realised result.
+    """
+    today = today or date.today()
+    nominal = _num(reference.get("nominal"))
+    issue = _as_date(reference.get("issue_date"))
+    maturity = _as_date(reference.get("maturity_date"))
+    amount = schedule.get("amount")
+    if not (nominal and issue and maturity and maturity > issue):
+        return _unavailable("нет дат размещения и погашения")
+    paid = [d for d in schedule.get("dates") or [] if d <= min(today, maturity)]
+    total = (amount or 0.0) * len(paid)
+    years = (maturity - issue).days / 365.0
+    if years <= 0 or nominal <= 0:
+        return _unavailable("срок обращения не определён")
+    return _metric((math.pow((nominal + total) / nominal, 1 / years) - 1) * 100.0, "ok",
+                   note=(f"{len(paid)} купонов на {total:.0f} сум плюс номинал; "
+                         "покупка по номиналу, купоны не реинвестируются"),
+                   coupons_paid=len(paid), coupons_total=total, years=years)
+
+
 def coupon_cashflows(reference: dict[str, Any], coupons: Iterable[dict[str, Any]],
-                     today: date | None = None) -> list[tuple[float, float]]:
-    """Remaining coupons plus redemption, as (years_from_today, amount)."""
+                     today: date | None = None,
+                     schedule: dict[str, Any] | None = None) -> list[tuple[float, float]]:
+    """Remaining coupons plus redemption, as (years_from_today, amount).
+
+    Built from the issue's schedule when there is one. Before the register was
+    read, this discounted only the coupons an issuer had already ANNOUNCED —
+    typically the next one alone — against the full redemption of principal,
+    which understates the stream and overstates nothing honestly: a three-year
+    bond was priced as if it paid one coupon and then the par. With the whole
+    schedule the yield is the yield.
+    """
     today = today or date.today()
     basis = day_count_basis()
     year_days = _days_in_year(basis, today)
     nominal = _num(reference.get("nominal")) or 0.0
-    maturity = reference.get("maturity_date")
-    if isinstance(maturity, str):
-        try:
-            maturity = date.fromisoformat(maturity[:10])
-        except ValueError:
-            maturity = None
-    flows: list[tuple[float, float]] = []
+    maturity = _as_date(reference.get("maturity_date"))
+    schedule = schedule if schedule is not None else coupon_schedule(reference, list(coupons or []))
+    amount = schedule.get("amount")
+
+    filed_amounts = {}
     for coupon in coupons or []:
-        pay = coupon.get("pay_date")
-        if isinstance(pay, str):
-            try:
-                pay = date.fromisoformat(pay[:10])
-            except ValueError:
-                continue
-        amount = _num(coupon.get("amount"))
-        if not pay or amount is None or pay <= today:
+        pay, value = _as_date(coupon.get("pay_date")), _num(coupon.get("amount"))
+        if pay and value is not None:
+            filed_amounts[pay] = value
+
+    flows: list[tuple[float, float]] = []
+    for pay in schedule.get("dates") or []:
+        if pay <= today:
             continue
-        flows.append(((pay - today).days / year_days, amount))
+        value = filed_amounts.get(pay, amount)
+        if value is None:
+            continue
+        flows.append(((pay - today).days / year_days, value))
     if maturity and maturity > today and nominal > 0:
         flows.append(((maturity - today).days / year_days, nominal))
     return sorted(flows)
@@ -457,25 +602,36 @@ def apply_day_stats(row: dict[str, Any], stats: dict[str, Any] | None) -> dict[s
 
 
 def _days_since_coupon(reference: dict[str, Any], coupons: Sequence[dict[str, Any]] | None,
-                       freq: int, today: date) -> float | None:
+                       freq: int, today: date,
+                       schedule: dict[str, Any] | None = None) -> float | None:
     """Days of coupon earned and not yet paid.
 
-    Counted from the last coupon the issuer has actually filed. Filings arrive
-    per payment, so the newest one can be older than a full period — the issuer
-    simply has not filed the next yet. Since the coupon is periodic by the
-    formula in the decision itself, the elapsed time is folded back into the
-    current period rather than reported as months of accrual, which would put
-    the accrued interest above a whole coupon.
+    Counted from the most recent evidence that a period closed: the last
+    payment the issuer filed, or the last date of the issue's schedule, or the
+    placement itself for an issue whose first coupon has not come due. The
+    latest of those is the one that counts — a filing that has gone quiet must
+    not hold the accrual open for months.
+
+    Where nothing but stale filings exist the elapsed time is still folded back
+    into one period, because the coupon is periodic by the formula in the
+    decision itself and months of accrual would put the accrued interest above
+    a whole coupon.
     """
     explicit = _num(reference.get("days_from_coupon"))
     if explicit is not None:
         return explicit
-    paid = sorted(d for d in (_as_date(c.get("pay_date")) for c in coupons or []) if d and d <= today)
-    if not paid:
+    marks = [d for d in (_as_date(c.get("pay_date")) for c in coupons or []) if d and d <= today]
+    if schedule:
+        marks += [d for d in schedule.get("dates") or [] if d <= today]
+        issue = _as_date(reference.get("issue_date"))
+        # Between placement and the first coupon the accrual runs from placement.
+        if issue and issue <= today:
+            marks.append(issue)
+    if not marks:
         return None
     period = 365.0 / max(freq, 1)
-    elapsed = (today - paid[-1]).days
-    return float(elapsed % period) if period else float(elapsed)
+    elapsed = (today - max(marks)).days
+    return float(elapsed) if elapsed < period else float(elapsed % period)
 
 
 # ---------------------------------------------------------------------------
@@ -551,7 +707,34 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
     rate = _num(reference.get("coupon_rate"))
     freq = int(_num(reference.get("coupon_freq")) or 1) or 1
     maturity = _as_date(reference.get("maturity_date"))
+    issue_day = _as_date(reference.get("issue_date"))
     today = today or date.today()
+    schedule = coupon_schedule(reference, list(coupons or []))
+    dates = schedule.get("dates") or []
+    paid_dates = [d for d in dates if d <= today]
+    future_dates = [d for d in dates if d > today]
+
+    # What the coupon returns at par, compounded at the issue's own frequency.
+    # It needs no price, so it is the one yield figure an untraded issue has —
+    # and forty-odd of the sixty-five have never printed a trade.
+    out["effective_at_par"] = effective_yield_at_par(rate, reference.get("coupon_freq"))
+    out["schedule"] = {
+        "source": schedule.get("source"),
+        "freq": schedule.get("freq"),
+        "amount": schedule.get("amount"),
+        "total": len(dates) or None,
+        "paid": len(paid_dates) if dates else None,
+        "left": len(future_dates) if dates else None,
+        "issue_date": issue_day.isoformat() if issue_day else None,
+        "next_date": future_dates[0].isoformat() if future_dates else None,
+        "last_paid_date": paid_dates[-1].isoformat() if paid_dates else None,
+    }
+    # Five states, and each one changes which blocks are worth drawing:
+    # a redeemed issue has no yield to show but does have a result.
+    out["state"] = ("matured" if (maturity and maturity <= today)
+                    else "placing" if (issue_day and issue_day > today)
+                    else "last" if len(future_dates) == 1
+                    else "live")
 
     # Stage one — the par, which the exchange publishes. Price as a percentage
     # of par depends on it and on nothing else: 105 310 in one issue and
@@ -580,7 +763,8 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
     # a coupon on this page — 19 days of it — for an issue whose principal had
     # already been paid back. There is no accrual to state after that date, and
     # a number there is worse than a dash.
-    days_from_coupon = None if matured else _days_since_coupon(reference, coupons, freq, today)
+    days_from_coupon = (None if matured
+                        else _days_since_coupon(reference, coupons, freq, today, schedule))
     accrued = (accrued_interest(nominal, rate, days_from_coupon, when=today)
                if days_from_coupon is not None
                else (_matured(maturity) if matured
@@ -612,9 +796,12 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
         for field in ("ytm", "duration", "modified_duration", "spread",
                       "convexity", "bpv", "g_spread"):
             out[field] = _matured(maturity)
+        # What it DID return, in place of what it will: the issue's own result
+        # over its life, rather than an empty block where a yield used to be.
+        out["realized"] = realized_return(reference, schedule, today)
         return out
 
-    flows = coupon_cashflows(reference, coupons or [], today)
+    flows = coupon_cashflows(reference, coupons or [], today, schedule)
     ytm = yield_to_maturity(flows, dirty) if dirty else _unavailable()
     duration = macaulay_duration(flows, dirty, ytm.get("value")) if dirty else _unavailable()
     mod = modified_duration(duration.get("value"), ytm.get("value"), freq)
