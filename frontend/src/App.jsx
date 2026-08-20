@@ -7468,9 +7468,10 @@ function BondPaymentCalendar({ lang, onOpenBond }) {
   flows.forEach((f) => {
     if (Number(f.date.slice(0, 4)) !== gridYear || Number(f.date.slice(5, 7)) - 1 !== gridIdx) return;
     const day = Number(f.date.slice(8, 10));
-    byDay[day] = byDay[day] || { total: 0, count: 0 };
+    byDay[day] = byDay[day] || { total: 0, count: 0, items: [] };
     byDay[day].total += (f.coupon || 0) + (f.principal || 0);
     byDay[day].count += 1;
+    byDay[day].items.push(f);
   });
   const dayPeak = Math.max(...Object.values(byDay).map((d) => d.total), 1);
 
@@ -7599,10 +7600,24 @@ function BondPaymentCalendar({ lang, onOpenBond }) {
               const day = i + 1; const cell = byDay[day];
               const share = cell ? cell.total / dayPeak : 0;
               const level = !cell ? 0 : share > 0.66 ? 4 : share > 0.33 ? 3 : share > 0.1 ? 2 : 1;
+              const tip = !cell ? "" : [
+                `${day} ${full[gridIdx]} · ${money(cell.total)} · ${cell.count} ${t("выпусков", "chiqarilish", "issues")}`,
+                ...cell.items.map((f) => {
+                  const parts = [];
+                  if (f.coupon) parts.push(`${t("купон", "kupon", "coupon")} ${money(f.coupon)}`);
+                  if (f.principal) parts.push(`${t("погашение", "so'ndirish", "redemption")} ${money(f.principal)}`);
+                  return `${f.ticker}${f.issuer ? ` — ${f.issuer}` : ""}: ${parts.join(" + ")}`;
+                }),
+              ].join("\n");
               return (
-                <span key={day} className={`bondsec-cell level-${level}`}
-                      title={cell ? `${day} · ${money(cell.total)} · ${cell.count} ${t("выпусков", "chiqarilish", "issues")}` : ""}>
+                <span key={day} className={`bondsec-cell level-${level}`} title={tip}>
                   <i className="bondsec-cell-n">{day}</i>
+                  {cell && (
+                    <span className="bondsec-cell-tks">
+                      {cell.items.slice(0, 2).map((f) => f.ticker).join(" ")}
+                      {cell.items.length > 2 ? ` +${cell.items.length - 2}` : ""}
+                    </span>
+                  )}
                   {cell && <b className="bondsec-cell-v">{money(cell.total)}</b>}
                 </span>
               );
@@ -14516,13 +14531,24 @@ function MarketView({
   // securities catalog has not reached lands under Прочее instead of answering
   // to no chip at all.
   const rowSector = (r) => sectorOf(r.ticker, smap, companyMap);
-  const presentSectors = [...new Set(prepared.map(rowSector))].sort();
+  // Display order, not alphabetical-by-english-key: sorted on the key, the list
+  // read «Добыча, Логистика, Прочее, Производство…» — an order that exists only
+  // in a language the reader is not being shown, with «Прочее» in the middle of
+  // it. orderSectors is the same sequence the heat map's blocks follow.
+  const presentSectors = orderSectors([...new Set(prepared.map(rowSector))]);
+  const sectorWord = lang === "en" ? "Sector" : lang === "uz" ? "Soha" : "Отрасль";
   // A sector the current segment holds none of cannot filter it. Облигации are
   // «Прочее» to a security and nothing else, so a «Финансы» picked under Акции
   // would empty that table — and, since a chip row with one option is not drawn
   // (see below), leave no control to undo it. The choice is only suspended, not
   // thrown away: switching back to Акции applies it again.
   const activeSector = presentSectors.includes(marketSector) ? marketSector : null;
+  // The map draws exactly what the sector control says, like the table beside
+  // it. `periodMapRows` is declared before `activeSector` (it is built off the
+  // period-restated rows), so the filter is applied here rather than there.
+  const sectorMapRows = activeSector
+    ? periodMapRows.filter((r) => rowSector(r) === activeSector)
+    : periodMapRows;
 
   // §3.8 multipliers. Inputs are gathered here; the arithmetic lives in the one
   // shared valuationRatios() so this table and the company page cannot disagree.
@@ -14822,7 +14848,10 @@ function MarketView({
   // (its tiles are the whole board) and a card silently answering for one sector
   // beside a picture of all of them would be unreadable — with nothing to click
   // to find out why.
-  const cardSector = viewMode === "table" ? activeSector : null;
+  // The cards state what the reader is looking at — and since the sector control
+  // now stands over the map as well, «Финансы» there has to restate them for the
+  // same eight issuers it restates under the table.
+  const cardSector = activeSector;
   // Two readings, deliberately: `stats` stays the whole board because the CSV,
   // the session date and the «доля объёма» column all make a claim ABOUT THE
   // MARKET — a row's share of the day's turnover is not a share of its sector's
@@ -15671,6 +15700,28 @@ function MarketView({
               </div>
             )}
           </div>
+          {/* Отрасль. A dropdown rather than the row of chips this used to be:
+              eleven chips took a band of the pinned bar to themselves, wrapped
+              onto two lines on a laptop, and — because the band was drawn for
+              the table only — the map had no sector control at all. One list,
+              one answer, both views. */}
+          {presentSectors.length > 1 && (
+            <label className="market-sector-select">
+              <select
+                value={activeSector || ""}
+                onChange={(event) => setMarketSector(event.target.value || null)}
+                aria-label={sectorWord}
+                title={lang === "en" ? "Show one sector only"
+                  : lang === "uz" ? "Faqat bitta sohani ko'rsatish"
+                  : "Показать только одну отрасль"}
+              >
+                <option value="">{`${sectorWord}: ${sectorLabel(lang, "all").toLowerCase()}`}</option>
+                {presentSectors.map((s) => (
+                  <option key={s} value={s}>{sectorLabel(lang, s)}</option>
+                ))}
+              </select>
+            </label>
+          )}
           {viewMode === "table" && (
             <button
               type="button"
@@ -15910,35 +15961,6 @@ function MarketView({
         </div>
         </div>
 
-        {/* More than one sector, not merely one: a row of «Все» + a single chip
-            offers no choice — both buttons select the same securities. That is
-            exactly the bonds segment, where every issue resolves to «Прочее»
-            (the catalog carries no sector for a bond), and the customer had that
-            chip off. Under Акции «Прочее» is a real bucket of 12 issuers the
-            catalog has not classified, so it stays: dropping the chip there
-            would leave those rows answering to none. */}
-        {presentSectors.length > 1 && viewMode === "table" && (
-          <div className="sector-filter market-sector-filter">
-            <button
-              type="button"
-              className={`sector-chip${!activeSector ? " active" : ""}`}
-              onClick={() => setMarketSector(null)}
-            >
-              {sectorLabel(lang, "all")}
-            </button>
-            {presentSectors.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`sector-chip${activeSector === s ? " active" : ""}`}
-                onClick={() => setMarketSector(activeSector === s ? null : s)}
-              >
-                {sectorLabel(lang, s)}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* A sort built from two headers is invisible once you scroll — the carets
             are off in the columns that made it. Spell the chain out, in order, with
             one control back to the board's default order.
@@ -16004,7 +16026,7 @@ function MarketView({
           loading ? (
             <p className="market-empty-cell">{mt(lang, "loading")}</p>
           ) : (
-            <MarketHeatmap rows={periodMapRows} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} onOpenCompany={onOpenCompany} type={type} mapData={mapData} period={changePeriod} />
+            <MarketHeatmap rows={sectorMapRows} companies={companies} securitiesMap={smap} language={lang} onAnalyze={onAnalyze} onOpenCompany={onOpenCompany} type={type} mapData={mapData} period={changePeriod} />
           )
         ) : (
           <>
