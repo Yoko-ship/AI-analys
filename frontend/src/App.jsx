@@ -6536,6 +6536,9 @@ function BondsView({ language, onOpenBond, embedded = false }) {
           <button type="button" className={mode === "calendar" ? "active" : ""} onClick={() => setMode("calendar")}>
             {t("Календарь выплат", "To'lovlar taqvimi", "Payment calendar")}
           </button>
+          <button type="button" className={mode === "coverage" ? "active" : ""} onClick={() => setMode("coverage")}>
+            {t("Покрытие данных", "Ma'lumot qamrovi", "Data coverage")}
+          </button>
         </div>
       </div>
 
@@ -6674,10 +6677,151 @@ function BondsView({ language, onOpenBond, embedded = false }) {
         </>
       ) : mode === "calendar" ? (
         <BondPaymentCalendar lang={lang} onOpenBond={onOpenBond} />
+      ) : mode === "coverage" ? (
+        <BondCoveragePanel items={data.items || []} lang={lang} />
       ) : (
         <BondYieldMap rows={rows} govPoints={govPoints} keyRate={keyRate} lang={lang} onOpenBond={onOpenBond} />
       )}
     </Wrap>
+  );
+}
+
+/** How much of each issue's reference the sources actually publish, and which
+ * source each field comes from.
+ *
+ * The screen is a statement about the SOURCES, not about the issues: a field
+ * nobody publishes is not a gap in the collection, and one that is published
+ * but unread is. Both are named, so «прочерк» never has to be guessed at. */
+function BondCoveragePanel({ items, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const total = items.length;
+  const FIELDS = [
+    { key: "isin", get: (b) => b.isin,
+      title: t("ISIN", "ISIN", "ISIN"),
+      src: t("Реестр РФБ, колонка «QQ kodi»", "RFB reestri, «QQ kodi»", "RFB register, «QQ kodi» column") },
+    { key: "nominal", get: (b) => b.reference?.nominal,
+      title: t("Номинал", "Nominal", "Par value"),
+      src: t("Карточка бумаги на бирже, поле parval", "Birja kartochkasi, parval", "The exchange's security card, parval") },
+    { key: "coupon_rate", get: (b) => b.reference?.coupon_rate,
+      title: t("Ставка купона", "Kupon stavkasi", "Coupon rate"),
+      src: t("Реестр РФБ «Foiz stavkasi»; где эмитент подал начисления — существенный факт № 32",
+             "RFB reestri «Foiz stavkasi»; 32-son muhim fakt",
+             "RFB register «Foiz stavkasi»; where filed, material fact #32") },
+    { key: "coupon_freq", get: (b) => b.reference?.coupon_freq,
+      title: t("Периодичность купона", "Kupon davriyligi", "Coupon frequency"),
+      src: t("Реестр РФБ, «Kupon to'lovi davri (sikli)» — календарный месяц и «каждые 30 дней» различаются",
+             "RFB reestri, «Kupon to'lovi davri (sikli)»",
+             "RFB register, «Kupon to'lovi davri (sikli)» — a calendar month and «every 30 days» are kept apart") },
+    { key: "issue_date", get: (b) => b.reference?.issue_date,
+      title: t("Дата размещения", "Joylashtirish sanasi", "Placement date"),
+      src: t("Реестр РФБ", "RFB reestri", "RFB register") },
+    { key: "maturity_date", get: (b) => b.reference?.maturity_date,
+      title: t("Дата погашения", "So'ndirish sanasi", "Redemption date"),
+      src: t("Реестр РФБ; исполненный выкуп — существенный факт № 31",
+             "RFB reestri; 31-son muhim fakt", "RFB register; an executed redemption is material fact #31") },
+    { key: "issue_volume", get: (b) => b.reference?.issue_volume,
+      title: t("Количество бумаг", "Qog'ozlar soni", "Securities issued"),
+      src: t("Реестр РФБ, «QQ soni»", "RFB reestri, «QQ soni»", "RFB register, «QQ soni»") },
+    { key: "placed_volume", get: (b) => b.reference?.placed_volume,
+      title: t("Размещено бумаг", "Joylashtirilgan", "Securities placed"),
+      src: t("Реестр РФБ, «Joylashtirilgan QQ soni»", "RFB reestri", "RFB register, «Joylashtirilgan QQ soni»") },
+    { key: "schedule", get: (b) => b.schedule?.total,
+      title: t("График выплат", "To'lov jadvali", "Payment schedule"),
+      src: t("Восстанавливается из цикла и двух дат; поданные факты № 32 задают число месяца",
+             "Sikl va ikkala sanadan tiklanadi",
+             "Reconstructed from the cycle and the two dates; filed facts #32 set the day of the month") },
+    { key: "price", get: (b) => b.price,
+      title: t("Цена сделки", "Bitim narxi", "Traded price"),
+      src: t("Торговая лента биржи — только у выпусков, которые печатались",
+             "Birja savdo lentasi", "The exchange's trade feed — only for issues that have printed") },
+    { key: "ytm", get: (b) => (b.ytm || {}).value,
+      title: t("Доходность к погашению", "So'ndirishgacha daromadlilik", "Yield to maturity"),
+      src: t("Расчётное: нужны цена, купон и дата погашения одновременно",
+             "Hisoblanadi: narx, kupon va sana kerak",
+             "Computed: needs a price, a coupon and a redemption date at once") },
+    { key: "listing", get: () => null,
+      title: t("Уровень листинга", "Listing darajasi", "Listing tier"),
+      src: t("Есть в разделе листинга биржи, в реестр выпусков не выносится — не собирается",
+             "Birjaning listing bo'limida bor, reestrga chiqarilmaydi",
+             "Exists in the exchange's listing section, not in the issue register — not collected") },
+    { key: "rating", get: () => null,
+      title: t("Рейтинг выпуска", "Chiqarilish reytingi", "Issue rating"),
+      src: t("Локальных рейтингов выпусков в стране не присваивают — закрыть сбором данных нельзя",
+             "Mahalliy chiqarilish reytinglari berilmaydi",
+             "No local issue ratings are assigned in the country — no collection can close this") },
+  ];
+  const rows = FIELDS.map((f) => {
+    const n = items.filter((b) => {
+      const v = f.get(b);
+      return v !== null && v !== undefined && v !== "";
+    }).length;
+    return { ...f, n, share: total ? n / total : 0 };
+  }).sort((a, b) => b.n - a.n);
+
+  const W = 1060; const H = Math.max(260, rows.length * 34 + 60);
+  const L = 250; const R = 130; const T = 10; const B = 34;
+  const pw = W - L - R; const ph = H - T - B;
+  const band = ph / Math.max(rows.length, 1);
+  const bh = Math.min(20, band * 0.6);
+
+  return (
+    <div className="bondsec-coverage">
+      <svg className="bondsec-chart" viewBox={`0 0 ${W} ${H}`} role="img"
+           aria-label={t("Покрытие полей", "Maydonlar qamrovi", "Field coverage")}>
+        {Array.from({ length: 6 }, (_, i) => {
+          const v = (total * i) / 5; const x = L + (pw * i) / 5;
+          return (
+            <g key={i}>
+              <line x1={x} x2={x} y1={T} y2={T + ph} className="bondsec-grid" />
+              <text x={x} y={T + ph + 18} textAnchor="middle" className="bondsec-tick">{Math.round(v)}</text>
+            </g>
+          );
+        })}
+        <line x1={L} x2={L} y1={T} y2={T + ph} className="bondsec-axis" />
+        {rows.map((f, i) => {
+          const cy = T + band * (i + 0.5);
+          const w = total ? (pw * f.n) / total : 0;
+          const tone = f.share >= 0.7 ? "pos" : f.share >= 0.4 ? "warn" : "neg";
+          return (
+            <g key={f.key}>
+              <rect x={L} y={cy - bh / 2} width={Math.max(w, 1)} height={bh} rx="3"
+                    className={`bondsec-covbar tone-${tone}`} />
+              <text x={L - 12} y={cy + 4} textAnchor="end" className="bondsec-label">{f.title}</text>
+              <text x={L + Math.max(w, 1) + 8} y={cy + 4} className="bondsec-label bondsec-label-strong">
+                {f.n} {t("из", "dan", "of")} {total} · {fmtNumber(f.share * 100, lang, 0)}%
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      <h3 className="bondsec-h3">{t("Матрица источников", "Manbalar matritsasi", "The source matrix")}</h3>
+      <div className="market-table-scroll">
+        <table className="market-table bondsec-spread-table">
+          <thead>
+            <tr>
+              <th>{t("Поле", "Maydon", "Field")}</th>
+              <th>{t("Откуда берётся", "Manba", "Where it comes from")}</th>
+              <th className="num">{t("Заполнено", "To'ldirilgan", "Filled")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((f) => (
+              <tr key={f.key}>
+                <td><strong>{f.title}</strong></td>
+                <td className="muted">{f.src}</td>
+                <td className="num">{f.n} / {total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted bondsec-note">
+        {t("Экран говорит про ИСТОЧНИКИ, а не про выпуски. Поле, которого нет ни у одного источника, — не пробел в сборе: рейтингов выпусков в Узбекистане не присваивают, и никакой сбор этого не закроет. Поле, которое публикуется, но не читается, — как раз пробел, и его видно здесь же.",
+           "Ekran manbalar haqida, chiqarilishlar haqida emas.",
+           "The screen is a statement about the SOURCES, not about the issues. A field no source publishes is not a gap in collection — no local issue ratings are assigned in Uzbekistan, and no collector can close that. A field that IS published but goes unread is a gap, and it shows up here too.")}
+      </p>
+    </div>
   );
 }
 
