@@ -206,11 +206,12 @@ const NEWS_TX = {
     subtitle: "Главные новости экономики, рынка и эмитентов Узбекистана — собраны из узбекских источников и отсортированы ИИ по возможному влиянию на котировки.",
     latest: "Свежее", empty: "Пока нет свежих новостей. Загляните позже.",
     loadingText: "Загружаем ленту…", error: "Не удалось загрузить новости.",
-    tabs: { all: "Все", economy: "Экономика", corporate: "Корпоративные" },
+    tabs: { all: "Все", economy: "Экономика", corporate: "Корпоративные", calendar: "Календарь" },
     tabHint: {
       all: "Экономика и эмитенты в одной ленте",
       economy: "Макроэкономика, ставки и регулирование — то, что двигает рынок целиком",
       corporate: "Официальные раскрытия эмитентов — сообщения и отчётность с openinfo.uz",
+      calendar: "Что впереди: заявленные собрания акционеров и объявленные дивиденды — по данным openinfo.uz",
     },
     emptyTab: "В этом разделе пока пусто — посмотрите «Все».",
     instruments: { all: "Все бумаги", stock: "Акции", bond: "Облигации" },
@@ -228,11 +229,12 @@ const NEWS_TX = {
     subtitle: "The economy, market and issuer news that matters in Uzbekistan — gathered from Uzbek sources and AI-sorted by likely price impact.",
     latest: "Latest", empty: "No recent news yet. Check back soon.",
     loadingText: "Loading the feed…", error: "Could not load the news feed.",
-    tabs: { all: "All", economy: "Economy", corporate: "Corporate" },
+    tabs: { all: "All", economy: "Economy", corporate: "Corporate", calendar: "Calendar" },
     tabHint: {
       all: "The economy and the issuers in one feed",
       economy: "Macro, rates and regulation — what moves the market as a whole",
       corporate: "Issuers' official disclosures — filings and reporting from openinfo.uz",
+      calendar: "What lies ahead: announced shareholder meetings and declared dividends — from openinfo.uz",
     },
     emptyTab: "Nothing here yet — try “All”.",
     instruments: { all: "All securities", stock: "Shares", bond: "Bonds" },
@@ -250,11 +252,12 @@ const NEWS_TX = {
     subtitle: "O'zbekiston iqtisodiyoti, bozori va emitentlari bo'yicha muhim yangiliklar — o'zbek manbalaridan yig'iladi va sun'iy intellekt tomonidan ta'sir bo'yicha saralanadi.",
     latest: "So'nggi", empty: "Hozircha yangi yangiliklar yo'q. Keyinroq qayting.",
     loadingText: "Lenta yuklanmoqda…", error: "Yangiliklarni yuklab bo'lmadi.",
-    tabs: { all: "Barchasi", economy: "Iqtisodiyot", corporate: "Korporativ" },
+    tabs: { all: "Barchasi", economy: "Iqtisodiyot", corporate: "Korporativ", calendar: "Taqvim" },
     tabHint: {
       all: "Iqtisodiyot va emitentlar bitta lentada",
       economy: "Makroiqtisodiyot, stavkalar va tartibga solish — bozorni butunlay harakatga keltiradigan narsalar",
       corporate: "Emitentlarning rasmiy oshkor qilishlari — openinfo.uz'dagi xabar va hisobotlar",
+      calendar: "Oldinda nima bor: e'lon qilingan aksiyadorlar yig'ilishlari va dividendlar — openinfo.uz ma'lumotlari",
     },
     emptyTab: "Bu bo'limda hozircha bo'sh — «Barchasi»ni ko'ring.",
     instruments: { all: "Barcha qog'ozlar", stock: "Aksiyalar", bond: "Obligatsiyalar" },
@@ -671,6 +674,7 @@ const NEWS_TABS = [
   { key: "all", type: null },
   { key: "economy", type: "economy" },       // market + regulatory
   { key: "corporate", type: "corporate" },   // corporate_event + financial_report
+  { key: "calendar", type: null },           // forward-looking: meetings + dividends
 ];
 // «Корпоративные» is a disclosure feed, not a press review: the server serves that
 // request from openinfo — the issuers' own filings — and only that request, so «Все»
@@ -694,6 +698,288 @@ function newsTabFromLocation() {
   if (typeof window === "undefined") return "all";
   const wanted = new URLSearchParams(window.location.search).get("tab");
   return NEWS_TABS.some((t) => t.key === wanted) ? wanted : "all";
+}
+
+// ── News «Календарь»: what lies ahead ────────────────────────────────────────
+// Two forward-looking views over openinfo's own calendars — announced general
+// meetings on a month grid (the shape openinfo's «Календарь событий» readers
+// already know) and the market-wide dividend table. Both read snapshots the API
+// keeps warm; the client only groups by day and filters by share class.
+const NEWSCAL_TX = {
+  ru: {
+    views: { events: "Собрания", dividends: "Дивиденды" },
+    viewHint: {
+      events: "Объявленные общие собрания акционеров — по дате проведения",
+      dividends: "Объявленные дивиденды всего рынка — суммы, проценты и окна выплат",
+    },
+    weekdays: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
+    loading: "Загружаем календарь…", error: "Не удалось загрузить календарь.",
+    emptyMonth: "На этот месяц собраний не заявлено.",
+    wholeMonth: "Весь месяц",
+    divTypes: { all: "Все выплаты", common: "Обыкновенные", preferred: "Привилегированные" },
+    th: { issuer: "Эмитент", decision: "Дата решения", common: "Обыкн., сум", pref: "Прив., сум", window: "Реестр / выплата" },
+    divEmpty: "Данных по дивидендам пока нет.",
+    divNote: "Суммы — на одну бумагу по решению собрания; период — окно закрытия реестра и выплаты.",
+    source: "Источник: openinfo.uz",
+  },
+  en: {
+    views: { events: "Meetings", dividends: "Dividends" },
+    viewHint: {
+      events: "Announced general shareholder meetings, by meeting date",
+      dividends: "Declared dividends across the market — amounts, percents and payout windows",
+    },
+    weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    loading: "Loading the calendar…", error: "Could not load the calendar.",
+    emptyMonth: "No meetings announced for this month.",
+    wholeMonth: "Whole month",
+    divTypes: { all: "All payouts", common: "Ordinary", preferred: "Preferred" },
+    th: { issuer: "Issuer", decision: "Decision date", common: "Ordinary, UZS", pref: "Preferred, UZS", window: "Record / payment" },
+    divEmpty: "No dividend data yet.",
+    divNote: "Amounts are per security, as resolved by the meeting; the window runs from the record date to the end of payment.",
+    source: "Source: openinfo.uz",
+  },
+  uz: {
+    views: { events: "Yig'ilishlar", dividends: "Dividendlar" },
+    viewHint: {
+      events: "E'lon qilingan umumiy yig'ilishlar — o'tkazish sanasi bo'yicha",
+      dividends: "Butun bozor bo'yicha e'lon qilingan dividendlar — summalar, foizlar va to'lov oynalari",
+    },
+    weekdays: ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"],
+    loading: "Taqvim yuklanmoqda…", error: "Taqvimni yuklab bo'lmadi.",
+    emptyMonth: "Bu oyga yig'ilishlar e'lon qilinmagan.",
+    wholeMonth: "Butun oy",
+    divTypes: { all: "Barcha to'lovlar", common: "Oddiy", preferred: "Imtiyozli" },
+    th: { issuer: "Emitent", decision: "Qaror sanasi", common: "Oddiy, so'm", pref: "Imtiyozli, so'm", window: "Reyestr / to'lov" },
+    divEmpty: "Dividendlar bo'yicha ma'lumot hozircha yo'q.",
+    divNote: "Summalar — yig'ilish qarori bo'yicha bitta qog'ozga; davr — reyestr yopilishidan to'lov oxirigacha.",
+    source: "Manba: openinfo.uz",
+  },
+};
+
+function NewsCalendarView({ language, onOpenCompany }) {
+  const lang = normalizeLanguage(language);
+  const tx = NEWSCAL_TX[lang] || NEWSCAL_TX.ru;
+  const locale = lang === "en" ? "en-US" : lang === "uz" ? "uz" : "ru-RU";
+  const today = new Date();
+  const [view, setView] = React.useState("events");
+  const [cursor, setCursor] = React.useState({ y: today.getFullYear(), m: today.getMonth() + 1 });
+  const [day, setDay] = React.useState(null);
+  const [events, setEvents] = React.useState({ loading: true, error: false, items: [] });
+  const [divs, setDivs] = React.useState(null); // null = not asked for yet
+  const [divType, setDivType] = React.useState("all");
+
+  React.useEffect(() => {
+    let alive = true;
+    setEvents({ loading: true, error: false, items: [] });
+    setDay(null);
+    fetch(`/api/news/calendar/meetings?year=${cursor.y}&month=${cursor.m}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setEvents({ loading: false, error: !d || !d.ok, items: (d && d.items) || [] }); })
+      .catch(() => { if (alive) setEvents({ loading: false, error: true, items: [] }); });
+    return () => { alive = false; };
+  }, [cursor.y, cursor.m]);
+
+  React.useEffect(() => {
+    if (view !== "dividends" || divs) return undefined;
+    let alive = true;
+    fetch("/api/news/calendar/dividends?limit=300")
+      .then((r) => r.json())
+      .then((d) => { if (alive) setDivs({ error: !d || !d.ok, items: (d && d.items) || [] }); })
+      .catch(() => { if (alive) setDivs({ error: true, items: [] }); });
+    return () => { alive = false; };
+  }, [view, divs]);
+
+  const byDay = React.useMemo(() => {
+    const map = new Map();
+    for (const it of events.items) {
+      const n = parseInt(String(it.meeting_date || "").slice(8, 10), 10);
+      if (!n) continue;
+      if (!map.has(n)) map.set(n, []);
+      map.get(n).push(it);
+    }
+    return map;
+  }, [events.items]);
+
+  const monthLabel = new Date(cursor.y, cursor.m - 1, 1).toLocaleDateString(locale, { month: "long", year: "numeric" });
+  const daysInMonth = new Date(cursor.y, cursor.m, 0).getDate();
+  const lead = (new Date(cursor.y, cursor.m - 1, 1).getDay() + 6) % 7; // Monday-first
+  const isThisMonth = today.getFullYear() === cursor.y && today.getMonth() + 1 === cursor.m;
+  const move = (delta) => setCursor(({ y, m }) => {
+    const next = m + delta;
+    return next < 1 ? { y: y - 1, m: 12 } : next > 12 ? { y: y + 1, m: 1 } : { y, m: next };
+  });
+
+  const fmtDay = (iso) => (iso ? new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short" }) : "");
+  const fmtTime = (iso) => {
+    // The meeting hour is only trustworthy when the issuer filed one: a real
+    // agenda starts on a round minute, while a date copied from the filing
+    // timestamp carries its seconds (16:21:48). Those render date-only.
+    const m = /T(\d\d):(\d\d):(\d\d)/.exec(String(iso || ""));
+    if (!m || m[3] !== "00" || (m[1] === "00" && m[2] === "00")) return "";
+    return `${m[1]}:${m[2]}`;
+  };
+  const listItems = day == null ? events.items : byDay.get(day) || [];
+
+  const fmtNum = (v) => (v == null ? "—" : Number(v).toLocaleString(locale, { maximumFractionDigits: 2 }));
+  const fmtDate = (d) => (d ? new Date(d).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" }) : "—");
+  const divItems = React.useMemo(() => {
+    // The market table answers "who pays what" — decisions that declared
+    // nothing stay on the company pages, where they are the issuer's record.
+    const paying = ((divs && divs.items) || []).filter(
+      (r) => (r.ordinary_amount || 0) > 0 || (r.preferred_amount || 0) > 0);
+    if (divType === "common") return paying.filter((r) => (r.ordinary_amount || 0) > 0);
+    if (divType === "preferred") return paying.filter((r) => (r.preferred_amount || 0) > 0);
+    return paying;
+  }, [divs, divType]);
+
+  const orgCell = (it) => (it.ticker && onOpenCompany
+    ? (
+      <button type="button" className="newscal-org-btn" onClick={() => onOpenCompany(it.ticker)}>
+        {it.organization} <span className="newscal-tk">{it.ticker}</span>
+      </button>
+    )
+    : <span className="newscal-row-org">{it.organization}</span>);
+
+  return (
+    <div className="newscal">
+      <div className="news-subtabs" role="group" aria-label={tx.views.events}>
+        {["events", "dividends"].map((key) => (
+          <button key={key} type="button"
+            className={`news-subtab ${view === key ? "active" : ""}`}
+            aria-pressed={view === key}
+            onClick={() => setView(key)}>
+            {tx.views[key]}
+          </button>
+        ))}
+      </div>
+      <p className="muted newscal-hint">{tx.viewHint[view]}</p>
+
+      {view === "events" ? (
+        <>
+          <div className="newscal-bar">
+            <div className="newscal-nav">
+              <button type="button" className="newscal-arrow" aria-label="prev" onClick={() => move(-1)}>‹</button>
+              <span className="newscal-month">{monthLabel}</span>
+              <button type="button" className="newscal-arrow" aria-label="next" onClick={() => move(1)}>›</button>
+            </div>
+            {day != null && (
+              <button type="button" className="ghost-btn" style={{ fontSize: 12 }} onClick={() => setDay(null)}>
+                {tx.wholeMonth}
+              </button>
+            )}
+          </div>
+
+          {events.loading ? (
+            <div className="led-empty">{tx.loading}</div>
+          ) : events.error ? (
+            <div className="led-empty">{tx.error}</div>
+          ) : (
+            <>
+              <div className="newscal-grid">
+                {tx.weekdays.map((w) => <div key={w} className="newscal-dow">{w}</div>)}
+                {Array.from({ length: lead }).map((_, i) => <div key={`b${i}`} className="newscal-cell blank" />)}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const n = i + 1;
+                  const evs = byDay.get(n) || [];
+                  const isToday = isThisMonth && today.getDate() === n;
+                  return (
+                    <button key={n} type="button"
+                      className={`newscal-cell${evs.length ? " has-events" : ""}${day === n ? " selected" : ""}${isToday ? " today" : ""}`}
+                      disabled={!evs.length}
+                      onClick={() => setDay(day === n ? null : n)}>
+                      <span className="newscal-daynum">{n}</span>
+                      {evs.length > 0 && <span className="newscal-count">{evs.length}</span>}
+                      {evs.slice(0, 2).map((e, j) => <span key={j} className="newscal-chip">{e.organization}</span>)}
+                      {evs.length > 2 && <span className="newscal-more">+{evs.length - 2}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {listItems.length === 0 ? (
+                <div className="led-empty">{tx.emptyMonth}</div>
+              ) : (
+                <div className="newscal-list">
+                  {listItems.map((it, i) => (
+                    <div key={it.announcement_id || i} className="newscal-row">
+                      <span className="newscal-row-date">
+                        {fmtDay(it.meeting_date)}{fmtTime(it.meeting_date) ? ` · ${fmtTime(it.meeting_date)}` : ""}
+                      </span>
+                      <div className="newscal-row-body">
+                        {orgCell(it)}
+                        {it.title && <div className="newscal-row-title">{it.title}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="news-subtabs" role="group" aria-label={tx.views.dividends}>
+            {["all", "common", "preferred"].map((key) => (
+              <button key={key} type="button"
+                className={`news-subtab ${divType === key ? "active" : ""}`}
+                aria-pressed={divType === key}
+                onClick={() => setDivType(key)}>
+                {tx.divTypes[key]}
+              </button>
+            ))}
+          </div>
+          {!divs ? (
+            <div className="led-empty">{tx.loading}</div>
+          ) : divs.error ? (
+            <div className="led-empty">{tx.error}</div>
+          ) : divItems.length === 0 ? (
+            <div className="led-empty">{tx.divEmpty}</div>
+          ) : (
+            <>
+              <div className="dividend-table-wrap panel">
+                <table className="dividend-table">
+                  <thead>
+                    <tr>
+                      <th>{tx.th.issuer}</th>
+                      <th>{tx.th.decision}</th>
+                      <th className="dividend-num">{tx.th.common}</th>
+                      <th className="dividend-num">%</th>
+                      <th className="dividend-num">{tx.th.pref}</th>
+                      <th className="dividend-num">%</th>
+                      <th>{tx.th.window}</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {divItems.map((r, i) => {
+                      const start = divType === "preferred" ? (r.preferred_start || r.ordinary_start) : (r.ordinary_start || r.preferred_start);
+                      const end = divType === "preferred" ? (r.preferred_end || r.ordinary_end) : (r.ordinary_end || r.preferred_end);
+                      return (
+                        <tr key={r.filing_id || i}>
+                          <td>{orgCell(r)}</td>
+                          <td style={{ whiteSpace: "nowrap" }}>{fmtDate(r.decision_date)}</td>
+                          <td className="dividend-num">{r.ordinary_amount ? fmtNum(r.ordinary_amount) : "—"}</td>
+                          <td className="dividend-num muted">{r.ordinary_percent ? `${fmtNum(r.ordinary_percent)}%` : "—"}</td>
+                          <td className="dividend-num">{r.preferred_amount ? fmtNum(r.preferred_amount) : "—"}</td>
+                          <td className="dividend-num muted">{r.preferred_percent ? `${fmtNum(r.preferred_percent)}%` : "—"}</td>
+                          <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                            {(start || end) ? `${fmtDate(start)} – ${fmtDate(end)}` : "—"}
+                          </td>
+                          <td>{r.link && <a href={r.link} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>→</a>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>{tx.divNote}</p>
+            </>
+          )}
+        </>
+      )}
+      <p className="muted" style={{ fontSize: 11, marginTop: 14 }}>{tx.source}</p>
+    </div>
+  );
 }
 
 function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
@@ -739,6 +1025,10 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
 
   React.useEffect(() => {
     let alive = true;
+    // «Календарь» is not a reading mode over the feed — it renders its own
+    // component below and fetches its own endpoints; asking the feed for it
+    // would flash a skeleton over a page that never uses the answer.
+    if (tab === "calendar") { setState({ loading: false, error: false, items: [] }); return undefined; }
     setState({ loading: true, error: false, items: [] });
     const group = (NEWS_TABS.find((t) => t.key === tab) || {}).type;
     const inst = tab === "corporate" && instrument !== "all" ? `&instrument=${instrument}` : "";
@@ -816,7 +1106,9 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
         <NewsAdminPanel language={language} apiFetch={apiFetch} onStored={() => setReloadKey((k) => k + 1)} />
       )}
 
-      {loading ? (
+      {tab === "calendar" ? (
+        <NewsCalendarView language={language} onOpenCompany={onOpenCompany} />
+      ) : loading ? (
         <div className="led-cols">
           <div className="led-main"><div className="led-skel-lead" /><div className="led-skel-row" /><div className="led-skel-row" /></div>
           <aside className="led-rail"><div className="led-skel-panel" /></aside>
