@@ -335,6 +335,11 @@ export const TERMS = {
     en: { term: "Running yield", def: "The annual coupon over the market price. It shows the coupon return on today's purchase but ignores the repayment of par at maturity." },
     uz: { term: "Joriy daromadlilik", def: "Yillik kuponning bozor narxiga nisbati. Bugun sotib olganda kupondan qaytimni ko‘rsatadi, lekin muddat oxirida nominal qaytishini hisobga olmaydi." },
   },
+  effectiveAtPar: {
+    ru: { term: "Эффективная доходность при цене номинала", def: "Что даёт один купон, если купить бумагу ровно по номиналу и вкладывать полученные купоны обратно под ту же ставку. Купон 27% с ежемесячной выплатой — это 30,6% годовых. Цена сделки для расчёта не нужна, поэтому это единственная доходность у выпуска, который ещё ни разу не торговался." },
+    en: { term: "Effective yield at par", def: "What the coupon alone returns if the bond is bought exactly at par and every coupon is reinvested at the same rate. A 27% coupon paid monthly is 30,6% a year. It needs no traded price, so it is the only yield an issue that has never traded has." },
+    uz: { term: "Nominal narxdagi samarali daromadlilik", def: "Qog‘oz aynan nominal bo‘yicha sotib olinsa va kuponlar o‘sha stavkada qayta qo‘yilsa, kuponning o‘zi qancha beradi. Oyiga to‘lanadigan 27% kupon — yiliga 30,6%. Bitim narxi kerak emas, shuning uchun bu hech qachon savdo bo‘lmagan chiqarilishning yagona daromadliligi." },
+  },
   ytm: {
     ru: { term: "Доходность к погашению (YTM)", def: "Полная годовая доходность, если держать бумагу до погашения: купоны плюс разница между ценой покупки и номиналом. Считается только там, где известен срок погашения." },
     en: { term: "Yield to maturity (YTM)", def: "The full annual return from holding to maturity: coupons plus the gap between purchase price and par. Computed only where the maturity date is known." },

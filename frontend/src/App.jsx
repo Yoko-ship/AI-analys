@@ -6334,6 +6334,15 @@ function bondYearsLeft(b, asOf) {
   return days > 0 ? days / 365 : 0;
 }
 
+/** Days since this issue last printed — null when it never has.
+ * Sorted as a very large number so «нет сделок» lands at the illiquid end
+ * rather than at the top of an ascending sort. */
+function bondStaleDays(b, asOf) {
+  if (!b.last_trade_date) return null;
+  const days = Math.round(((asOf ? new Date(asOf) : new Date()) - new Date(b.last_trade_date)) / 864e5);
+  return days >= 0 ? days : 0;
+}
+
 /** Clamped linear interpolation on the auctioned tenors — mirrors the server's
  * rule: no market evidence beyond the last tenor, so no extrapolation. */
 function govCurveAt(years, points) {
@@ -6395,6 +6404,7 @@ function BondsView({ language, onOpenBond, embedded = false }) {
   const [mode, setMode] = React.useState("screener");
   const [q, setQ] = React.useState("");
   const [term, setTerm] = React.useState("");
+  const [freqFilter, setFreqFilter] = React.useState("");
   const [coverFilter, setCoverFilter] = React.useState("");
   // Ordered by the RUNNING yield, not by YTM. A yield to maturity needs a
   // redemption date, and only the issuer's material fact #31 publishes one —
@@ -6450,6 +6460,15 @@ function BondsView({ language, onOpenBond, embedded = false }) {
     trades: b.trades,
     years: bondYearsLeft(b, data.board_day),
     coupon: b.reference?.coupon_rate ?? null,
+    // What the coupon returns at par, compounded at the issue's own frequency:
+    // the only yield an issue that has never traded has, and forty-odd of the
+    // sixty-five have never traded. A 27% coupon paid monthly is 30,6%.
+    effPar: val(b.effective_at_par),
+    freq: b.reference?.coupon_freq ?? null,
+    next: b.schedule?.next_date || null,
+    // Days since this issue last printed. A price four months old is not a
+    // wrong number, but it is not this morning's either.
+    liq: bondStaleDays(b, data.board_day),
     running: val(b.simple_yield),
     ytm: val(b.ytm),
     gspread: val(b.g_spread),
@@ -6472,8 +6491,13 @@ function BondsView({ language, onOpenBond, embedded = false }) {
       return r.years > 3;
     });
   }
+  if (freqFilter !== "") filtered = filtered.filter((r) => String(r.freq) === freqFilter);
   if (coverFilter === "ytm") filtered = filtered.filter((r) => r.ytm != null);
   if (coverFilter === "full") filtered = filtered.filter((r) => r.cov >= 0.7);
+  // A redeemed issue is history, not an offer. It stays reachable — the filter
+  // shows it — but it does not sit in the list of what one can buy today.
+  if (coverFilter === "matured") filtered = filtered.filter((r) => r.b.state === "matured");
+  else filtered = filtered.filter((r) => r.b.state !== "matured");
 
   const sorted = filtered.slice().sort((a, b) => bondSortCompare(a[sort.key], b[sort.key], sort.dir));
   const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: key === "ticker" || key === "issuer" || key === "session" ? 1 : -1 }));
@@ -6487,11 +6511,15 @@ function BondsView({ language, onOpenBond, embedded = false }) {
     { key: "turnover", label: t("Оборот", "Aylanma", "Turnover"), termId: "volume" },
     { key: "years", label: t("Лет до погаш.", "Yil qoldi", "Yrs to mat.") },
     { key: "coupon", label: t("Купон", "Kupon", "Coupon"), termId: "coupon" },
+    { key: "effPar", label: t("Эфф. при 100%", "100%da samarali", "Eff. at par"), termId: "effectiveAtPar" },
+    { key: "freq", label: t("Частота", "Chastota", "Freq") },
     { key: "running", label: t("Тек. дох.", "Joriy dar.", "Running"), termId: "runningYield" },
     { key: "ytm", label: t("Доходность", "Daromadlilik", "YTM"), termId: "ytm" },
     { key: "gspread", label: t("G-спред", "G-spred", "G-spread"), termId: "gSpread" },
     { key: "dur", label: t("Дюрация", "Dyuratsiya", "Duration"), termId: "duration" },
     { key: "accrued", label: t("НКД", "TKD", "Accrued"), termId: "accrued" },
+    { key: "next", label: t("След. купон", "Keyingi kupon", "Next coupon") },
+    { key: "liq", label: t("Ликвидность", "Likvidlik", "Liquidity") },
     { key: "cov", label: t("Данные", "Ma'lumot", "Data") },
   ];
 
@@ -6504,6 +6532,9 @@ function BondsView({ language, onOpenBond, embedded = false }) {
           </button>
           <button type="button" className={mode === "map" ? "active" : ""} onClick={() => setMode("map")}>
             {t("Карта доходности", "Daromadlilik xaritasi", "Yield map")}
+          </button>
+          <button type="button" className={mode === "calendar" ? "active" : ""} onClick={() => setMode("calendar")}>
+            {t("Календарь выплат", "To'lovlar taqvimi", "Payment calendar")}
           </button>
         </div>
       </div>
@@ -6524,13 +6555,21 @@ function BondsView({ language, onOpenBond, embedded = false }) {
               <option value="3">{t("1–3 года", "1–3 yil", "1–3y")}</option>
               <option value="99">{t("более 3 лет", "3 yildan ortiq", "over 3y")}</option>
             </select>
+            <select value={freqFilter} onChange={(e) => setFreqFilter(e.target.value)} aria-label={t("Периодичность купона", "Kupon chastotasi", "Coupon frequency")}>
+              <option value="">{t("Купон: любой", "Kupon: istalgan", "Coupon: any")}</option>
+              <option value="12">{t("ежемесячно", "har oyda", "monthly")}</option>
+              <option value="4">{t("ежеквартально", "har chorakda", "quarterly")}</option>
+              <option value="2">{t("раз в полгода", "yarim yillik", "semi-annual")}</option>
+              <option value="1">{t("раз в год", "yillik", "annual")}</option>
+            </select>
             <select value={coverFilter} onChange={(e) => setCoverFilter(e.target.value)} aria-label={t("Полнота данных", "Ma'lumot to'liqligi", "Data completeness")}>
               <option value="">{t("Все выпуски", "Barcha chiqarilishlar", "All issues")}</option>
               <option value="ytm">{t("Только с доходностью", "Faqat daromadlilik bilan", "With yield only")}</option>
               <option value="full">{t("Покрытие ≥ 70%", "Qamrov ≥ 70%", "Coverage ≥ 70%")}</option>
+              <option value="matured">{t("Погашенные", "So'ndirilgan", "Redeemed")}</option>
             </select>
-            {(q || term || coverFilter) && (
-              <button type="button" className="ghost-btn" onClick={() => { setQ(""); setTerm(""); setCoverFilter(""); }}>
+            {(q || term || freqFilter || coverFilter) && (
+              <button type="button" className="ghost-btn" onClick={() => { setQ(""); setTerm(""); setFreqFilter(""); setCoverFilter(""); }}>
                 {t("Сбросить", "Tiklash", "Reset")}
               </button>
             )}
@@ -6598,11 +6637,29 @@ function BondsView({ language, onOpenBond, embedded = false }) {
                           ? <span className="cell-status" title={t("ставка не фиксированная", "stavka qat'iy emas", "the rate is not fixed")}>{t("плав.", "suzuv.", "float")}</span>
                           : <span className="cell-status" title={t("эмитент не подавал начислений", "hisoblash topshirilmagan", "no accrual filed")}>—</span>}
                     </td>
+                    <td className="num">{metricCell(r.b.effective_at_par, (v) => `${fmtNumber(v, lang, 2)}%`)}</td>
+                    <td className="num">{r.freq != null ? fmtNumber(r.freq, lang, 0)
+                      : <span className="cell-status" title={t("цикл купона не раскрыт", "kupon sikli e'lon qilinmagan", "the coupon cycle is not disclosed")}>—</span>}</td>
                     <td className="num">{metricCell(r.b.simple_yield, (v) => `${fmtNumber(v, lang, 2)}%`)}</td>
                     <td className="num bondsec-strong">{metricCell(r.b.ytm, (v) => `${fmtNumber(v, lang, 2)}%`)}</td>
                     <td className="num">{metricCell(r.b.g_spread, (v) => fmtBp(v, lang))}</td>
                     <td className="num">{metricCell(r.b.duration, (v) => fmtNumber(v, lang, 2))}</td>
                     <td className="num">{metricCell(r.b.accrued, (v) => fmtNumber(v, lang, 0))}</td>
+                    <td className="num" title={r.b.schedule?.source === "reconstructed"
+                      ? t("Дата рассчитана из цикла купона и дат размещения и погашения — эмитент подаёт каждую выплату отдельно и заранее их не публикует.",
+                          "Sana kupon sikli va sanalardan hisoblangan.",
+                          "Reconstructed from the coupon cycle and the placement and redemption dates — the issuer files each payment separately and does not publish them in advance.")
+                      : ""}>
+                      {r.next ? <>{fmtBondDay(r.next)}{r.b.schedule?.source === "reconstructed" && <span className="bondsec-recon">*</span>}</>
+                        : <span className="cell-status" title={t("график выплат не восстановим", "to'lov jadvali tiklanmaydi", "no schedule can be built")}>—</span>}
+                    </td>
+                    <td className="num">
+                      {r.liq == null
+                        ? <span className="cell-status" title={t("выпуск ни разу не печатался на бирже", "hech qachon savdo bo'lmagan", "the issue has never printed a trade")}>{t("нет сделок", "bitim yo'q", "no trades")}</span>
+                        : <span className={`bondsec-liq tone-${r.liq <= 3 ? "pos" : r.liq <= 14 ? "warn" : "neg"}`}>
+                            {r.liq} {t("дн.", "kun", "d")}
+                          </span>}
+                    </td>
                     <td className="num"><BondCoverageCell share={r.cov} lang={lang} /></td>
                   </tr>
                 ))}
@@ -6615,10 +6672,238 @@ function BondsView({ language, onOpenBond, embedded = false }) {
                "Clicking a row opens the issue card. A dash means no public source discloses the field — hover to see the reason.")}
           </p>
         </>
+      ) : mode === "calendar" ? (
+        <BondPaymentCalendar lang={lang} onOpenBond={onOpenBond} />
       ) : (
         <BondYieldMap rows={rows} govPoints={govPoints} keyRate={keyRate} lang={lang} onOpenBond={onOpenBond} />
       )}
     </Wrap>
+  );
+}
+
+const MONTH_SHORT = {
+  ru: ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"],
+  uz: ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avg", "sen", "okt", "noy", "dek"],
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+};
+const MONTH_FULL = {
+  ru: ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"],
+  uz: ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"],
+  en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+};
+
+/** What the bond market owes, and when. Reads /api/bonds/calendar.
+ *
+ * The screen exists because the exchange's register does: before it, the only
+ * future payment anyone could name was the one an issuer had already announced,
+ * so a calendar would have held one coupon of one issue. The dates between
+ * placement and redemption are reconstructed from the coupon cycle, and the
+ * screen says so rather than letting a plan read as a diary. */
+function BondPaymentCalendar({ lang, onOpenBond }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [data, setData] = React.useState(null);
+  const [error, setError] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/bonds/calendar")
+      .then((r) => r.json())
+      .then((d) => { if (alive) { if (d && d.ok) setData(d); else setError(true); } })
+      .catch(() => { if (alive) setError(true); });
+    return () => { alive = false; };
+  }, []);
+
+  if (error) return <p className="muted">{t("Календарь недоступен", "Taqvim mavjud emas", "Calendar unavailable")}</p>;
+  if (!data) return <p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p>;
+
+  const months = data.months || [];
+  const flows = data.flows || [];
+  if (!flows.length) {
+    return (
+      <div className="bondsec-empty">
+        <b>{t("Будущих выплат не видно", "Kelgusi to'lovlar ko'rinmaydi", "No future payments visible")}</b>
+        {t("Ни у одного выпуска нет одновременно ставки купона, цикла и обеих дат — без них график выплат не восстановить.",
+           "Hech bir chiqarilishda kupon stavkasi, sikli va ikkala sana birga yo'q.",
+           "No issue has a coupon rate, a cycle and both dates at once — without them no schedule can be built.")}
+      </div>
+    );
+  }
+
+  const short = MONTH_SHORT[lang] || MONTH_SHORT.ru;
+  const full = MONTH_FULL[lang] || MONTH_FULL.ru;
+  const today = data.today ? new Date(data.today) : new Date();
+  const horizon = new Date(today.getTime() + 30 * 864e5).toISOString().slice(0, 10);
+  const soon = flows.filter((f) => f.date <= horizon);
+
+  // ---- the monthly bar chart -----------------------------------------------
+  const W = 1060; const H = 300; const L = 74; const R = 18; const T = 22; const B = 46;
+  const pw = W - L - R; const ph = H - T - B;
+  const peak = Math.max(...months.map((m) => (m.coupon || 0) + (m.principal || 0)), 1);
+  const step = Math.pow(10, Math.floor(Math.log10(peak)));
+  const top = Math.ceil((peak * 1.1) / step) * step;
+  const ticks = 4;
+  const band = pw / Math.max(months.length, 1);
+  const bw = Math.min(26, band * 0.55);
+
+  // ---- the day grid of the next month --------------------------------------
+  const gridMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1));
+  const gridYear = gridMonth.getUTCFullYear(); const gridIdx = gridMonth.getUTCMonth();
+  const daysInMonth = new Date(Date.UTC(gridYear, gridIdx + 1, 0)).getUTCDate();
+  const leading = (gridMonth.getUTCDay() + 6) % 7; // Monday-first
+  const byDay = {};
+  flows.forEach((f) => {
+    if (Number(f.date.slice(0, 4)) !== gridYear || Number(f.date.slice(5, 7)) - 1 !== gridIdx) return;
+    const day = Number(f.date.slice(8, 10));
+    byDay[day] = byDay[day] || { total: 0, count: 0 };
+    byDay[day].total += (f.coupon || 0) + (f.principal || 0);
+    byDay[day].count += 1;
+  });
+  const dayPeak = Math.max(...Object.values(byDay).map((d) => d.total), 1);
+
+  // ---- the 30-day feed, grouped by day -------------------------------------
+  const feedDays = [];
+  soon.forEach((f) => {
+    const last = feedDays[feedDays.length - 1];
+    if (last && last.date === f.date) last.items.push(f);
+    else feedDays.push({ date: f.date, items: [f] });
+  });
+
+  const money = (v) => fmtCompact(v, lang);
+  const tile = (label, value, note) => (
+    <div className="bondsec-tile" key={label}>
+      <div className="bondsec-tile-k">{label}</div>
+      <div className="bondsec-tile-v">{value}</div>
+      <div className="bondsec-tile-d muted">{note}</div>
+    </div>
+  );
+
+  return (
+    <div className="bondsec-calendar">
+      <div className="bondsec-tiles">
+        {tile(t("Ближайшая выплата", "Eng yaqin to'lov", "Next payment"),
+              fmtBondDay(data.next?.date),
+              `${data.next?.ticker || ""} · ${money((data.next?.coupon || 0) + (data.next?.principal || 0))}`)}
+        {tile(t("Выплат за 30 дней", "30 kunda to'lovlar", "Payments in 30 days"),
+              data.payments_30d,
+              `${money(data.coupon_30d)} ${t("купонами", "kupon bilan", "in coupons")}`)}
+        {tile(t("Погашения за 30 дней", "30 kunda so'ndirish", "Redemptions in 30 days"),
+              money(data.principal_30d),
+              t("возврат номинала", "nominal qaytarish", "principal returned"))}
+        {tile(t("Купонный поток за год", "Yillik kupon oqimi", "Coupon flow in a year"),
+              money(data.coupon_365d),
+              `${data.payments_365d} ${t("выплат", "to'lov", "payments")} · ${data.issues} ${t("выпусков", "chiqarilish", "issues")}`)}
+      </div>
+
+      <h3 className="bondsec-h3">{t("Денежный поток рынка по месяцам", "Bozorning oylik pul oqimi", "The market's monthly cash flow")}</h3>
+      <div className="bondsec-legend muted">
+        <span><i className="bondsec-sq bondsec-sq-coupon" />{t("Купоны", "Kuponlar", "Coupons")}</span>
+        <span><i className="bondsec-sq bondsec-sq-principal" />{t("Погашение номинала", "Nominalni so'ndirish", "Principal")}</span>
+      </div>
+      <svg className="bondsec-chart" viewBox={`0 0 ${W} ${H}`} role="img"
+           aria-label={t("Выплаты по месяцам", "Oylar bo'yicha to'lovlar", "Payments by month")}>
+        {Array.from({ length: ticks + 1 }, (_, i) => {
+          const v = (top * i) / ticks; const y = T + ph - (ph * i) / ticks;
+          return (
+            <g key={i}>
+              <line x1={L} x2={W - R} y1={y} y2={y} className="bondsec-grid" />
+              <text x={L - 8} y={y + 4} textAnchor="end" className="bondsec-tick">{fmtCompact(v, lang)}</text>
+            </g>
+          );
+        })}
+        <line x1={L} x2={W - R} y1={T + ph} y2={T + ph} className="bondsec-axis" />
+        {months.map((m, i) => {
+          const cx = L + band * (i + 0.5);
+          const hC = (ph * (m.coupon || 0)) / top;
+          const hP = (ph * (m.principal || 0)) / top;
+          return (
+            <g key={`${m.year}-${m.month}`}>
+              {hP > 0 && <rect x={cx - bw / 2} y={T + ph - hC - hP} width={bw} height={Math.max(hP - 1, 0)} className="bondsec-bar-principal" rx="2" />}
+              <rect x={cx - bw / 2} y={T + ph - hC} width={bw} height={hC} className="bondsec-bar-coupon" rx={hP > 0 ? 0 : 2} />
+              <text x={cx} y={T + ph + 17} textAnchor="middle" className="bondsec-tick">
+                {short[m.month - 1]}{(m.month === 1 || i === 0) ? ` ${String(m.year).slice(2)}` : ""}
+              </text>
+              <rect x={cx - band / 2} y={T} width={band} height={ph} fill="transparent">
+                <title>
+                  {`${full[m.month - 1]} ${m.year}\n`}
+                  {`${t("Купоны", "Kuponlar", "Coupons")}: ${money(m.coupon)}\n`}
+                  {`${t("Погашения", "So'ndirish", "Redemptions")}: ${money(m.principal)}\n`}
+                  {`${t("Выпусков платит", "Chiqarilish to'laydi", "Issues paying")}: ${m.issues}`}
+                </title>
+              </rect>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="bondsec-calendar-cols">
+        <div className="bondsec-calendar-feed">
+          <h3 className="bondsec-h3">{t("Ближайшие 30 дней", "Yaqin 30 kun", "The next 30 days")}</h3>
+          <p className="muted bondsec-sub">
+            {soon.length} {t("выплат", "to'lov", "payments")} · {money(data.coupon_30d)} {t("купонами", "kupon bilan", "in coupons")}
+          </p>
+          <div className="bondsec-days">
+            {feedDays.map((day) => {
+              const total = day.items.reduce((s, f) => s + (f.coupon || 0) + (f.principal || 0), 0);
+              const inDays = Math.round((new Date(day.date) - today) / 864e5);
+              return (
+                <div className="bondsec-day" key={day.date}>
+                  <div className="bondsec-day-when">
+                    <b>{fmtBondDay(day.date)}</b>
+                    <span className="muted">{t("через", "keyin", "in")} {inDays} {t("дн.", "kun", "d")} · {money(total)}</span>
+                  </div>
+                  <div className="bondsec-day-items">
+                    {day.items.map((f, i) => (
+                      <button type="button" className="bondsec-pay" key={`${f.ticker}-${i}`}
+                              onClick={() => onOpenBond && onOpenBond(f.ticker)}>
+                        <span className="bondsec-pay-tk">{f.ticker}</span>
+                        {f.principal ? <span className="bondsec-pill-red">{t("погашение", "so'ndirish", "redemption")}</span> : null}
+                        <span className="bondsec-pay-amt">
+                          {f.coupon ? money(f.coupon) : "—"}
+                          {f.principal ? ` + ${money(f.principal)}` : ""}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {!feedDays.length && <p className="muted">{t("В ближайшие 30 дней выплат нет.", "Yaqin 30 kunda to'lov yo'q.", "No payments in the next 30 days.")}</p>}
+          </div>
+        </div>
+
+        <div className="bondsec-calendar-grid">
+          <h3 className="bondsec-h3">{full[gridIdx]} {gridYear}</h3>
+          <p className="muted bondsec-sub">{t("Насыщенность клетки — размер выплат дня", "Katak to'yinganligi — kun to'lovlari hajmi", "Cell intensity is the size of the day's payments")}</p>
+          <div className="bondsec-dow">
+            {(lang === "en" ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] : ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]).map((d) => (
+              <span key={d}>{d}</span>
+            ))}
+          </div>
+          <div className="bondsec-cells">
+            {Array.from({ length: leading }, (_, i) => <span key={`pad${i}`} />)}
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const day = i + 1; const cell = byDay[day];
+              const share = cell ? cell.total / dayPeak : 0;
+              const level = !cell ? 0 : share > 0.66 ? 4 : share > 0.33 ? 3 : share > 0.1 ? 2 : 1;
+              return (
+                <span key={day} className={`bondsec-cell level-${level}`}
+                      title={cell ? `${day} · ${money(cell.total)} · ${cell.count} ${t("выпусков", "chiqarilish", "issues")}` : ""}>
+                  <i className="bondsec-cell-n">{day}</i>
+                  {cell && <b className="bondsec-cell-v">{money(cell.total)}</b>}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <p className="muted bondsec-note">
+        {t("Источник условий — реестр обращающихся выпусков РФБ «Тошкент». Реестр публикует ставку, цикл купона и даты размещения и погашения; сами даты платежей между ними раскладываются равномерно по циклу, поэтому это план, а не подтверждённые выплаты. Купон считается по размещённому количеству бумаг.",
+           "Shartlar manbai — RFB «Toshkent» muomaladagi chiqarilishlar reestri. To'lov sanalari sikl bo'yicha teng taqsimlanadi.",
+           "The terms come from the RFB Tashkent register of circulating issues. The register publishes the rate, the coupon cycle and the placement and redemption dates; the payment dates between them are laid evenly across the cycle, so this is a plan and not confirmed payments. A coupon is computed on the number of securities placed.")}
+        {data.reconstructed ? ` ${t("Восстановлено", "Tiklandi", "Reconstructed")}: ${data.reconstructed} / ${flows.length}.` : ""}
+      </p>
+    </div>
   );
 }
 
