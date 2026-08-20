@@ -370,6 +370,20 @@ def g_spread(ytm_pct: float | None, years: float | None,
     return _metric(ytm_pct - base, "ok", curve_rate=base, term_years=years)
 
 
+def _add_months(when: date, months: int) -> date:
+    """Calendar-month arithmetic, clamped to the month's last day.
+
+    The 31st plus one month is the 30th, not the 1st of the month after: an
+    issue that pays on the 31st does not skip February.
+    """
+    total = when.year * 12 + (when.month - 1) + months
+    year, month = divmod(total, 12)
+    month += 1
+    last = [31, 29 if (year % 4 == 0 and (year % 100 or year % 400 == 0)) else 28,
+            31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]
+    return date(year, month, min(when.day, last))
+
+
 def coupon_schedule(reference: dict[str, Any],
                     coupons: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Every payment date of the issue, from placement to redemption.
@@ -410,15 +424,90 @@ def coupon_schedule(reference: dict[str, Any],
 
     life = (maturity - issue).days
     n = max(1, round(life / 365.0 * freq))
-    dates = [issue + timedelta(days=round(life * i / n)) for i in range(1, n + 1)]
-    # A filed payment lands within a few days of the reconstructed date it
-    # corresponds to; where it does, the filed date replaces the guess.
-    for one in filed:
-        for i, guess in enumerate(dates):
-            if abs((one - guess).days) <= 5:
-                dates[i] = one
+    step = life / n
+
+    # HOW a period is stepped is published, and it is not always 365/freq. The
+    # register writes «Har oyda» for a calendar month and «Har 30 kunda» for
+    # thirty days, and the issuers' own filings bear the difference out:
+    # ACMT1B3 has paid on the 11th–13th of every month for a year, while
+    # DMMT2B3's payments walk back a day a month exactly as "every 30 days"
+    # implies. Over three years the two are a fortnight apart.
+    basis = str(reference.get("coupon_basis") or "").lower()
+    period_days = _num(reference.get("coupon_period_days"))
+    months = (12 // freq) if (basis == "calendar" and 12 % freq == 0) else None
+
+    def advance(start: date, periods: int) -> date:
+        if months:
+            return _add_months(start, months * periods)
+        return start + timedelta(days=round((period_days or step) * periods))
+
+    # An even split from the placement date is only a first guess at WHERE in
+    # the month the payments fall. ACMT2B5 was placed on 6 May and pays on the
+    # 22nd — filed twice, seventeen days off the even split — so a schedule
+    # anchored on placement alone put every future coupon two weeks early and
+    # then reported that the issuer had filed none of them.
+    #
+    # Where the issuer HAS filed payments, the newest one anchors the run: the
+    # periods are stepped out from it in both directions. The redemption date
+    # stays pinned regardless, because the principal falls due on the date the
+    # register states and not on a multiple of a period.
+    # The run is grown from its anchor in both directions and stops where a
+    # period would be a stub — rather than a fixed count laid down in advance.
+    # A count assumed 365/freq periods evenly; a calendar month is not 30,42
+    # days and «every 30 days» is not a month, and either assumption left a
+    # short payment glued to one end of the schedule.
+    # Only a filing that falls inside the issue's own life may anchor it.
+    # ACMT2B4 carries a payment dated a year before its own placement — a
+    # mis-joined series — and anchoring on it walked the whole schedule back
+    # into the year before the bond existed.
+    inside = [d for d in filed if issue < d < maturity]
+    anchor = max(inside) if inside else advance(issue, 1)
+    half = step / 2
+    # A filing numbered 1 is the issuer saying "this was the first" — so the
+    # walk backwards stops AT it instead of inventing a short period in front
+    # of it. ACMT2B5's first coupon fell 46 days after placement; without this
+    # the reconstruction put a sixteen-day stub before it.
+    first = min((d for d in (_as_date(c.get("pay_date")) for c in coupons or []
+                             if _num(c.get("coupon_no")) == 1) if d), default=None)
+    floor = first if (first and issue < first < maturity) else None
+
+    dates: list[date] = []
+    for direction, start in ((-1, 0), (1, 1)):
+        i = start
+        while i <= 1000:
+            when = advance(anchor, direction * i)
+            if when <= issue or when > maturity:
                 break
-    return {"dates": sorted(dates), "source": "reconstructed",
+            if floor and when < floor:
+                break
+            if floor is None and (when - issue).days < half:
+                break
+            if when < maturity and (maturity - when).days < half:
+                if direction > 0:
+                    break
+                i += 1
+                continue
+            if when < maturity:
+                dates.append(when)
+            i += 1
+    dates = sorted(set(dates)) + [maturity]
+
+    # A filed payment is a fact and takes the slot nearest to it, however far
+    # the guess had drifted: BFMT3V2 paid on the 29th in its first winter and
+    # on the 13th two years later, and a fixed window declared its own filings
+    # unmatched. Each filing claims a distinct slot — never the redemption,
+    # which the register states outright — so two of them cannot collapse into
+    # one period.
+    claimed: set[int] = set()
+    for one in sorted(filed):
+        if not (issue <= one < maturity):
+            continue
+        order = sorted((i for i in range(len(dates) - 1) if i not in claimed),
+                       key=lambda i: abs((one - dates[i]).days))
+        if order:
+            dates[order[0]] = one
+            claimed.add(order[0])
+    return {"dates": sorted(set(dates)), "source": "reconstructed",
             "amount": amount, "freq": freq}
 
 
@@ -819,6 +908,43 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
         "bpv": bpv(mod.get("value"), dirty),
         "g_spread": g_spread(ytm.get("value"), horizon, gov_points or []),
     })
+    return out
+
+
+def issue_schedule(reference: dict[str, Any] | None,
+                   coupons: Sequence[dict[str, Any]] | None = None,
+                   today: date | None = None) -> list[dict[str, Any]]:
+    """One issue's payments, past and future, ready to draw.
+
+    The filed amount wins on any date the issuer has filed; every other date
+    carries the periodic amount the terms imply, and says which of the two it
+    is. ``paid`` is a statement about the calendar, not about the issuer: a date
+    in the past is a payment that fell due, and only a filing proves it was met.
+    """
+    today = today or date.today()
+    reference = reference or {}
+    schedule = coupon_schedule(reference, list(coupons or []))
+    amount = schedule.get("amount")
+    nominal = _num(reference.get("nominal"))
+    maturity = _as_date(reference.get("maturity_date"))
+    filed: dict[date, dict[str, Any]] = {}
+    for coupon in coupons or []:
+        when = _as_date(coupon.get("pay_date"))
+        if when:
+            filed[when] = coupon
+    out: list[dict[str, Any]] = []
+    for n, when in enumerate(schedule.get("dates") or [], start=1):
+        record = filed.get(when)
+        value = _num((record or {}).get("amount"))
+        out.append({
+            "no": (record or {}).get("coupon_no", n),
+            "date": when.isoformat(),
+            "coupon": value if value is not None else amount,
+            "principal": (nominal if (maturity and when == maturity and nominal) else None),
+            "due": when <= today,
+            "filed": record is not None,
+            "source": "filed" if record is not None else schedule.get("source"),
+        })
     return out
 
 

@@ -232,6 +232,14 @@ MIGRATIONS: tuple[Migration, ...] = (
                       ("maturity_source", "TEXT"),
                       ("placed_volume", "REAL"),
                       ("issuer", "TEXT"))),
+    # «Har oyda» is monthly on the calendar; «Har 30 kunda» is literally every
+    # thirty days, and the register writes both. Folding them into "12 times a
+    # year" and stepping by 365/12 walks a three-year monthly schedule a
+    # fortnight away from where the issuer actually pays.
+    Migration(15, "bonds: the coupon cycle's basis, calendar or fixed days",
+              columns("bond_reference",
+                      ("coupon_basis", "TEXT"),
+                      ("coupon_period_days", "INTEGER"))),
 )
 
 

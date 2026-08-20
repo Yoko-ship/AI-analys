@@ -112,6 +112,9 @@ def _create_schema(conn: sqlite3.Connection) -> None:
               coupon_freq INTEGER,
               coupon_type TEXT,
               float_base  TEXT,
+              -- «Har oyda» steps a calendar month, «Har 30 kunda» thirty days.
+              coupon_basis TEXT,
+              coupon_period_days INTEGER,
               issue_date  TEXT,
               maturity_date TEXT,
               issue_volume REAL,
@@ -502,7 +505,8 @@ def upsert_bond_reference(rows: Sequence[dict[str, Any]]) -> int:
     init()
     conn = _conn()
     fields = ("ticker", "isin", "nominal", "currency", "coupon_rate", "coupon_freq",
-              "coupon_type", "float_base", "issue_date", "maturity_date", "issue_volume",
+              "coupon_type", "float_base", "coupon_basis", "coupon_period_days",
+              "issue_date", "maturity_date", "issue_volume",
               "placed_volume", "issuer", "coupon_source", "maturity_source",
               "amortization", "has_put", "has_call", "source_url")
     written = 0
