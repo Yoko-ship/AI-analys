@@ -204,3 +204,53 @@ class TestTheVerdictIsPinnedToTheReadPath:
             assert rejected == (ticker not in served), (
                 f"{ticker} {year}Q{quarter}: panel rejected={rejected}, "
                 f"read path served={ticker in served}")
+
+
+class TestWhoWasDueToFile:
+    """Being late is a fact about the ISSUER, and the screen states it as one.
+    The distinction that matters is between «has not filed yet» and «stopped
+    filing»: adding them together hides the second behind the first."""
+
+    from datetime import date as _date
+    TODAY = _date(2026, 8, 20)
+
+    def test_the_expected_period_is_the_last_quarter_whose_window_has_opened(self):
+        from datetime import date
+
+        # 20 August: Q2 closed on 30 June, disclosure opened on 25 July.
+        assert admin_data.expected_period(date(2026, 8, 20)) == (2026, 2)
+        # 10 July: Q2 closed but the window has not opened yet, so Q1 is still
+        # the newest period anyone was due to file.
+        assert admin_data.expected_period(date(2026, 7, 10)) == (2026, 1)
+
+    def test_an_issuer_that_filed_the_expected_period_is_simply_done(self):
+        cal = admin_data.disclosure_calendar({"HMKB": (2026, 2)}, self.TODAY)
+        one = cal["items"][0]
+        assert one["filed"] is True and one["state"] == "сдан"
+        assert one["quarters_behind"] == 0
+
+    def test_inside_an_open_window_a_missing_report_is_expected_not_late(self):
+        cal = admin_data.disclosure_calendar({"QZSM": (2026, 1)}, self.TODAY)
+        assert cal["items"][0]["state"] == "ожидается"
+        assert cal["overdue_days"] == 0
+
+    def test_after_the_window_closes_the_same_gap_becomes_a_delay(self):
+        from datetime import date
+
+        cal = admin_data.disclosure_calendar({"QZSM": (2026, 1)}, date(2026, 9, 20))
+        assert cal["items"][0]["state"] == "просрочен"
+        assert cal["items"][0]["overdue_days"] == 12
+
+    def test_a_year_of_silence_is_its_own_state(self):
+        """UZMT has filed nothing since 2019. Calling that «late» puts it beside
+        an issuer that is three weeks behind, and the two are not alike."""
+        cal = admin_data.disclosure_calendar({"UZMT": (2019, 0)}, self.TODAY)
+        one = cal["items"][0]
+        assert one["state"] == "молчит"
+        assert one["latest"] == "2019A"
+        assert one["quarters_behind"] > 20
+
+    def test_the_quietest_issuers_come_first(self):
+        cal = admin_data.disclosure_calendar(
+            {"HMKB": (2026, 2), "QZSM": (2026, 1), "UZMT": (2019, 0)}, self.TODAY)
+        assert [r["ticker"] for r in cal["items"]] == ["UZMT", "QZSM", "HMKB"]

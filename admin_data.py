@@ -1,11 +1,11 @@
-"""admin_data.py — the two screens that make a wrong multiple debuggable.
+"""admin_data.py — the screens that make a wrong multiple debuggable.
 
 The panel could say *«аудит нашёл 11 расхождений»* and nothing else: which
 filing went into the number, which line of which form, what the numerator
 actually was. So every disagreement between a published multiple and a
 recomputation was investigated by hand, in the database, from scratch.
 
-Two screens close that, and they are deliberately in this order:
+Four screens close that, and the first two are deliberately in this order:
 
 **«Отчёты» — what the pipeline took in.** One row per stored statement, with
 the period it describes, how many months of activity that is, whether another
@@ -21,6 +21,14 @@ the capitalisation by share class, the balance the denominators come from, and
 every validation that ran. Where the panel and the shop window disagree, the
 disagreement is visible without a query.
 
+Two more sit beside them. **«Правила»** states the parameters the calculation
+reads and the line the panel must not cross — the panel holds thresholds and
+exceptions, the code holds the computation, because a formula edited in a panel
+is a change with no test and no history. **«Источник»** answers the other half
+of "why is this number missing": who was due to file, who did, and who has gone
+quiet — a fact about the ISSUER, not about our collector, and the basis of a
+public disclosure index.
+
 Nothing here recomputes anything of its own. It reads the SAME functions the
 market screen publishes from — ``fundamentals.twelve_month_flows``,
 ``balance_snapshot``, ``issuer_multiples`` — because a second implementation
@@ -31,7 +39,7 @@ own bug. The auditor is the independent recomputation, and it lives in
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Sequence
 
 import fundamentals
@@ -350,6 +358,88 @@ def issuer_ledger(key: str, classes: Sequence[dict[str, Any]],
         "multiples": {k: multiples.get(k) for k in
                       ("pe", "pb", "ps", "roe", "roa", "net_margin",
                        "equity_assets", "bvps")},
+    }
+
+
+# ---------------------------------------------------------------------------
+# Screen 06 — the source, and who has not filed
+# ---------------------------------------------------------------------------
+
+# The filing window as the regulation sets it: the quarter closes, disclosure
+# opens on the 25th of the following month and runs for 45 days. Anything after
+# that is late — and «late» is a fact about the ISSUER, not about the collector,
+# which is why the screen states it rather than treating the gap as a data
+# problem of ours.
+DISCLOSURE_OPENS_DAYS = 25
+DISCLOSURE_WINDOW_DAYS = 45
+
+_QUARTER_END = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}
+
+
+def _quarter_end(year: int, quarter: int) -> date:
+    month, day = _QUARTER_END[quarter]
+    return date(year, month, day)
+
+
+def expected_period(today: date) -> tuple[int, int]:
+    """The newest interim period whose disclosure window has opened."""
+    year, quarter = today.year, (today.month - 1) // 3 + 1
+    for _ in range(8):
+        quarter -= 1
+        if quarter < 1:
+            year, quarter = year - 1, 4
+        if (today - _quarter_end(year, quarter)).days >= DISCLOSURE_OPENS_DAYS:
+            return year, quarter
+    return today.year - 1, 4
+
+
+def disclosure_calendar(latest_by_ticker: dict[str, tuple[int, int]],
+                        today: date | None = None) -> dict[str, Any]:
+    """Who was due to file, who did, and who has gone quiet.
+
+    ``latest_by_ticker`` is the newest period each issuer has on file. The same
+    list is the basis of a public disclosure index: an issuer that has filed
+    nothing since 2019 is a fact about that issuer, and one worth publishing.
+    """
+    today = today or date.today()
+    year, quarter = expected_period(today)
+    due = _quarter_end(year, quarter) + timedelta(
+        days=DISCLOSURE_OPENS_DAYS + DISCLOSURE_WINDOW_DAYS)
+    overdue_days = max(0, (today - due).days)
+
+    rows: list[dict[str, Any]] = []
+    for ticker, period in sorted((latest_by_ticker or {}).items()):
+        got_year, got_quarter = period
+        filed = (got_year, got_quarter if got_quarter else 4) >= (year, quarter)
+        latest = f"{got_year}A" if not got_quarter else f"{got_year}Q{got_quarter}"
+        # How many whole quarters behind: an issuer one period late in an open
+        # window is not the same thing as one that stopped filing in 2019, and
+        # sorting them together hides the second behind the first.
+        behind = (year - got_year) * 4 + (quarter - (got_quarter or 4))
+        rows.append({
+            "ticker": ticker,
+            "expected": f"{year}Q{quarter}",
+            "filed": filed,
+            "latest": latest,
+            "quarters_behind": 0 if filed else max(behind, 0),
+            "overdue_days": 0 if filed else overdue_days,
+            "state": ("сдан" if filed
+                      else "молчит" if behind >= 4
+                      else "просрочен" if overdue_days > 0
+                      else "ожидается"),
+        })
+    rows.sort(key=lambda r: (r["filed"], -r["quarters_behind"], r["ticker"]))
+    return {
+        "expected": f"{year}Q{quarter}",
+        "window_opens": (_quarter_end(year, quarter)
+                         + timedelta(days=DISCLOSURE_OPENS_DAYS)).isoformat(),
+        "window_closes": due.isoformat(),
+        "overdue_days": overdue_days,
+        "issuers": len(rows),
+        "filed": sum(1 for r in rows if r["filed"]),
+        "late": sum(1 for r in rows if r["state"] == "просрочен"),
+        "silent": sum(1 for r in rows if r["state"] == "молчит"),
+        "items": rows,
     }
 
 

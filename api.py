@@ -2883,6 +2883,24 @@ async def api_admin_rules(_: None = Depends(_admin_gate)) -> dict[str, Any]:
     return _json_safe({"ok": True, **admin_data.rule_book()})
 
 
+@app.get("/api/admin/source")
+async def api_admin_source(_: None = Depends(_admin_gate)) -> dict[str, Any]:
+    """Screen «Источник» — who was due to file, who did, and who has gone quiet.
+
+    Being late is a fact about the ISSUER, not about our collector, and the
+    screen states it as one. The same list is the basis of a public disclosure
+    index: an issuer that has filed nothing since 2019 is worth publishing.
+    """
+    import admin_data
+
+    loop = asyncio.get_running_loop()
+    financials = await loop.run_in_executor(None, get_all_financials)
+    latest = {str(t).upper(): (int(r["year"]), int(r.get("quarter") or 0))
+              for t, r in (financials or {}).items()
+              if isinstance(r, dict) and r.get("year") is not None}
+    return _json_safe({"ok": True, "calendar": admin_data.disclosure_calendar(latest)})
+
+
 @app.get("/api/admin/issuer/{ticker}")
 async def api_admin_issuer(ticker: str,
                            _: None = Depends(_admin_gate)) -> dict[str, Any]:
