@@ -3,17 +3,23 @@
  *
  * A page of the site, not an application beside it. The topbar, brand, language
  * and theme controls stay where they always are; this renders inside the same
- * content column as Рынок or Новости, with the sections as tabs. Everything is
- * painted with the site's tokens, so it follows both themes without owning them.
+ * content column as Рынок or Новости, with the sections as tabs.
+ *
+ * The panel has two halves. The PRODUCT half — Обзор, Аудитория, Вовлечённость,
+ * AI-анализ, Пользователи — reads the visit record (web_events, filled by the
+ * /api/track beacon) and answers "how many people opened the site and what did
+ * they do". The OPERATIONS half — the collectors, the audit queue, the intake
+ * and the TTM ledger — is the old console, collapsed into one «Система» tab:
+ * one place to look when a cron card goes red, not seven top-level tabs.
  *
  * Authentication is the signed-in admin's own Bearer token — the machine
  * X-Admin-Secret never reaches the browser. The server side is `_admin_gate`
  * in api.py, which accepts either credential.
  *
  * Nothing here invents a number. Where the backend cannot measure something the
- * cell renders «—», and the collectors section says «последняя запись» rather
- * than «прогон», because from this process a collector that died and one that
- * had nothing to write look identical.
+ * cell renders «—» — zero and unknown are different facts — and the collectors
+ * section says «последняя запись» rather than «прогон», because from this
+ * process a collector that died and one that had nothing to write look identical.
  */
 import React from "react";
 import { Icon, IconSprite } from "./icons.jsx";
@@ -44,6 +50,30 @@ function fmtNum(value, digits = 2) {
     { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
+/** A 0..1 share as a percentage. */
+function fmtShare(value, digits = 0) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return DASH;
+  return `${(Number(value) * 100).toLocaleString("ru-RU",
+    { minimumFractionDigits: digits, maximumFractionDigits: Math.max(digits, 1) })}%`;
+}
+
+/** LLM spend is billed in dollars; printing it in anything else would repeat
+ *  the 8.9× mistake this screen exists to prevent. */
+function fmtUsd(value, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return DASH;
+  return `$${Number(value).toLocaleString("en-US",
+    { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+}
+
+function fmtDuration(seconds, t) {
+  if (seconds === null || seconds === undefined || Number.isNaN(Number(seconds))) return DASH;
+  const total = Math.round(Number(seconds));
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  if (!minutes) return t(`${rest} с`, `${rest} s`, `${rest}s`);
+  return t(`${minutes} мин ${rest} с`, `${minutes} min ${rest} s`, `${minutes}m ${rest}s`);
+}
+
 function fmtStamp(value, { withTime = true } = {}) {
   if (!value) return DASH;
   const text = String(value).trim().replace(" ", "T");
@@ -63,39 +93,50 @@ function fmtAge(hours, t) {
   return t(`${days} дн. назад`, `${days} kun oldin`, `${days} d ago`);
 }
 
+/** Day label for daily charts: "12.08". */
+function fmtDay(iso) {
+  const parts = String(iso || "").split("-");
+  return parts.length === 3 ? `${parts[2]}.${parts[1]}` : String(iso || "");
+}
+
 const SEVERITY_TONE = { blocking: "err", warning: "warn", info: "ok" };
 
 /* ── sections ─────────────────────────────────────────────────────────────── */
-/** `ready: false` renders the tab disabled — an honest "not built yet" beats a
- *  screen that looks finished and answers nothing. */
+/** The product half is the tab bar; the operations console lives entire under
+ *  «Система». Old deep links (/admin/streams, /admin/findings…) keep working —
+ *  those keys simply select the Система tab with the right sub-section. */
 const SECTIONS = [
-  { key: "overview", icon: "dashboard", ready: true,
+  { key: "overview", icon: "dashboard",
     title: ["Обзор", "Umumiy", "Overview"] },
-  { key: "streams", icon: "refresh", ready: true,
-    title: ["Сборщики", "Yig'uvchilar", "Collectors"] },
-  { key: "findings", icon: "alert", ready: true,
-    title: ["Аудит", "Audit", "Audit"] },
-  { key: "intake", icon: "file", ready: true,
-    title: ["Отчёты", "Hisobotlar", "Statements"] },
-  { key: "issuer", icon: "list", ready: true,
-    title: ["Эмитент", "Emitent", "Issuer"] },
-  { key: "rules", icon: "check", ready: true,
-    title: ["Правила", "Qoidalar", "Rules"] },
-  { key: "source", icon: "refresh", ready: true,
-    title: ["Источник", "Manba", "Source"] },
-  { key: "catalog", icon: "list", ready: false,
-    title: ["Каталог", "Katalog", "Securities"] },
-  { key: "quotes", icon: "chart", ready: false,
-    title: ["Котировки", "Kotirovkalar", "Quotes"] },
-  { key: "dividends", icon: "percent", ready: false,
-    title: ["Дивиденды", "Dividendlar", "Dividends"] },
-  { key: "news", icon: "news", ready: false,
-    title: ["Новости", "Yangiliklar", "News"] },
-  { key: "users", icon: "users", ready: false,
+  { key: "audience", icon: "up",
+    title: ["Аудитория", "Auditoriya", "Audience"] },
+  { key: "engagement", icon: "chart",
+    title: ["Вовлечённость", "Faollik", "Engagement"] },
+  { key: "analysis", icon: "search",
+    title: ["AI-анализ", "AI-tahlil", "AI analysis"] },
+  { key: "users", icon: "users",
     title: ["Пользователи", "Foydalanuvchilar", "Users"] },
+  { key: "system", icon: "sliders",
+    title: ["Система", "Tizim", "System"] },
 ];
 
-export const ADMIN_SECTION_KEYS = SECTIONS.map((s) => s.key);
+/** Sub-tabs of «Система». The key "system" itself is the data overview. */
+const SYSTEM_SECTIONS = [
+  { key: "system", title: ["Данные", "Ma'lumotlar", "Data"] },
+  { key: "streams", title: ["Сборщики", "Yig'uvchilar", "Collectors"] },
+  { key: "findings", title: ["Аудит", "Audit", "Audit"] },
+  { key: "intake", title: ["Отчёты", "Hisobotlar", "Statements"] },
+  { key: "issuer", title: ["Эмитент", "Emitent", "Issuer"] },
+  { key: "rules", title: ["Правила", "Qoidalar", "Rules"] },
+  { key: "source", title: ["Источник", "Manba", "Source"] },
+];
+
+const SYSTEM_KEYS = SYSTEM_SECTIONS.map((s) => s.key);
+
+export const ADMIN_SECTION_KEYS = [
+  ...SECTIONS.map((s) => s.key),
+  ...SYSTEM_KEYS.filter((k) => k !== "system"),
+];
 
 /* ── small pieces ─────────────────────────────────────────────────────────── */
 
@@ -115,6 +156,15 @@ function Stat({ label, value, warn, badge, badgeIcon, line1, line2 }) {
       {line2 ? <div className="admin-stat-l2">{line2}</div> : null}
     </div>
   );
+}
+
+/** «+12% к прошлой неделе» — or nothing, when the previous period is unknown
+ *  or empty. A change against zero is not a percentage. */
+function deltaBadge(now, prev) {
+  if (now === null || now === undefined || !prev) return null;
+  const change = (now - prev) / prev;
+  const text = `${change >= 0 ? "+" : ""}${(change * 100).toFixed(Math.abs(change) < 0.1 ? 1 : 0)}%`;
+  return { text, icon: change >= 0 ? "up" : "down" };
 }
 
 function Severity({ value, t }) {
@@ -157,6 +207,103 @@ function RunHistory({ runs, t }) {
   );
 }
 
+/** A daily series as bars, oldest left. Same bare-div school as RunHistory. */
+function DailyBars({ data, valueKey, titleFn }) {
+  const rows = data || [];
+  if (!rows.length) return null;
+  const peak = Math.max(1, ...rows.map((r) => Number(r[valueKey]) || 0));
+  const step = Math.max(1, Math.ceil(rows.length / 7));
+  return (
+    <div className="admin-bars">
+      {rows.map((row, index) => {
+        const value = Number(row[valueKey]) || 0;
+        const last = index === rows.length - 1;
+        return (
+          <div
+            key={row.day || index}
+            className={`bar${last ? " now" : ""}`}
+            style={{ height: `${Math.max(3, Math.round((value / peak) * 100))}%` }}
+            title={titleFn ? titleFn(row) : `${fmtDay(row.day)} · ${fmtInt(value)}`}
+          >
+            {(last || index % step === 0) ? <span>{fmtDay(row.day)}</span> : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A ranked breakdown as horizontal bars: the panel's workhorse for "top N of
+ *  something". The bar is proportion; the number is the fact. */
+function HBarList({ rows, nameFn, valueFn, detailFn, onClickRow }) {
+  const items = rows || [];
+  if (!items.length) return null;
+  const peak = Math.max(1, ...items.map((r) => Number(valueFn(r)) || 0));
+  return (
+    <div className="admin-hbars">
+      {items.map((row, index) => {
+        const value = Number(valueFn(row)) || 0;
+        const name = nameFn(row);
+        return (
+          <div key={`${name}-${index}`} className="admin-hbar">
+            <span className="admin-hbar-name">
+              {onClickRow
+                ? <button type="button" className="admin-link" onClick={() => onClickRow(row)}>{name}</button>
+                : name}
+              {detailFn ? <span className="admin-hbar-detail">{detailFn(row)}</span> : null}
+            </span>
+            <span className="admin-hbar-track">
+              <span className="admin-hbar-fill" style={{ width: `${Math.max(2, (value / peak) * 100)}%` }} />
+            </span>
+            <span className="admin-hbar-val">{fmtInt(value)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The activation funnel: absolute counts with the drop between steps. */
+function Funnel({ steps, labels }) {
+  const rows = steps || [];
+  const first = rows.length ? Number(rows[0].count) : 0;
+  return (
+    <div className="admin-funnel">
+      {rows.map((step, index) => {
+        const value = step.count === null || step.count === undefined ? null : Number(step.count);
+        const width = first && value !== null ? Math.max(2, (value / first) * 100) : 2;
+        const prev = index > 0 ? rows[index - 1].count : null;
+        const share = prev && value !== null && Number(prev) > 0 ? value / Number(prev) : null;
+        return (
+          <div key={step.key} className="admin-funnel-step">
+            <span className="admin-funnel-label">{labels[step.key] || step.key}</span>
+            <span className="admin-funnel-track">
+              <span className="admin-funnel-fill" style={{ width: `${width}%` }} />
+            </span>
+            <span className="admin-funnel-val">
+              {fmtInt(value)}
+              {share !== null && index > 0 ? <em>{fmtShare(share)}</em> : null}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RangePicker({ value, onChange, t }) {
+  return (
+    <div className="admin-seg">
+      {[7, 30, 90].map((days) => (
+        <button key={days} type="button" aria-selected={value === days}
+                onClick={() => onChange(days)}>
+          {t(`${days} дней`, `${days} kun`, `${days} days`)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Skeleton({ rows = 3 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -167,7 +314,20 @@ function Skeleton({ rows = 3 }) {
   );
 }
 
-/* ── findings table (shared by Обзор and Аудит) ───────────────────────────── */
+/** The one empty state the product half shares: the beacon has not filled the
+ *  record yet. Distinct from an error — the plumbing works, the data is young. */
+function NoTraffic({ t }) {
+  return (
+    <div className="admin-empty">
+      <b>{t("Записей о посещениях пока нет", "Tashriflar yozuvi hali yo'q", "No visit records yet")}</b>
+      {t("Счётчик начал писать с этого развёртывания; цифры появятся, как только на сайт кто-то зайдёт.",
+         "Hisoblagich shu joylashuvdan boshlab yozadi.",
+         "The counter started writing with this deployment; numbers appear as soon as someone visits.")}
+    </div>
+  );
+}
+
+/* ── findings table (shared by Система → Данные and Аудит) ────────────────── */
 
 function FindingsTable({ items, rules, t, selected, onToggle, onAccept, busy }) {
   const ruleTitle = useCallback((code) => {
@@ -252,11 +412,24 @@ export default function AdminPanel({
   apiFetch, language = "ru", section = "overview", onSectionChange,
 }) {
   const t = useT(language);
+  const isSystem = SYSTEM_KEYS.includes(section);
+
+  /* product half */
+  const [metrics, setMetrics] = useState(null);
+  const [audienceData, setAudienceData] = useState(null);
+  const [engagementData, setEngagementData] = useState(null);
+  const [analysisData, setAnalysisData] = useState(null);
+  const [rangeDays, setRangeDays] = useState(30);
+  const [usersData, setUsersData] = useState(null);
+  const [funnel, setFunnel] = useState(null);
+  const [usersQuery, setUsersQuery] = useState("");
+  const [usersOnly, setUsersOnly] = useState("");
+  const [userDetail, setUserDetail] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null); // {id, action}
+
+  /* operations half */
   const [overview, setOverview] = useState(null);
   const [rules, setRules] = useState([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [findings, setFindings] = useState([]);
   const [filters, setFilters] = useState({ severity: "blocking", status: "new" });
   const [intake, setIntake] = useState(null);
@@ -266,6 +439,10 @@ export default function AdminPanel({
   const [ruleBook, setRuleBook] = useState(null);
   const [source, setSource] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
+
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const alive = useRef(true);
 
   useEffect(() => () => { alive.current = false; }, []);
@@ -283,6 +460,63 @@ export default function AdminPanel({
     return data || {};
   }, [apiFetch, t]);
 
+  /* ── loads: product ─────────────────────────────────────────────────────── */
+  const loadMetrics = useCallback(async () => {
+    const data = await readJson("/api/admin/metrics/overview");
+    if (alive.current) setMetrics(data);
+  }, [readJson]);
+
+  const loadAudience = useCallback(async (days) => {
+    const data = await readJson(`/api/admin/metrics/audience?days=${days}`);
+    if (alive.current) setAudienceData(data);
+  }, [readJson]);
+
+  const loadEngagement = useCallback(async (days) => {
+    const data = await readJson(`/api/admin/metrics/engagement?days=${days}`);
+    if (alive.current) setEngagementData(data);
+  }, [readJson]);
+
+  const loadAnalysis = useCallback(async (days) => {
+    const data = await readJson(`/api/admin/metrics/analysis?days=${days}`);
+    if (alive.current) setAnalysisData(data);
+  }, [readJson]);
+
+  const loadUsers = useCallback(async (query, only) => {
+    const params = new URLSearchParams({ limit: "100" });
+    if (query) params.set("query", query);
+    if (only) params.set("only", only);
+    const [list, fun] = await Promise.all([
+      readJson(`/api/admin/users?${params}`),
+      readJson("/api/admin/users/funnel?days=30"),
+    ]);
+    if (alive.current) { setUsersData(list); setFunnel(fun); }
+  }, [readJson]);
+
+  const openUser = useCallback(async (id) => {
+    const data = await readJson(`/api/admin/users/${id}`);
+    if (alive.current) setUserDetail(data);
+  }, [readJson]);
+
+  const runUserAction = useCallback(async (id, action) => {
+    setBusy(true);
+    setError("");
+    try {
+      await readJson(`/api/admin/users/${id}/action`, {
+        method: "POST",
+        body: JSON.stringify(action === "delete" ? { action, confirm: true } : { action }),
+      });
+      setConfirmAction(null);
+      if (action === "delete") setUserDetail(null);
+      else if (userDetail && userDetail.user && userDetail.user.id === id) await openUser(id);
+      await loadUsers(usersQuery, usersOnly);
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  }, [readJson, loadUsers, openUser, usersQuery, usersOnly, userDetail]);
+
+  /* ── loads: operations ──────────────────────────────────────────────────── */
   const loadOverview = useCallback(async () => {
     const data = await readJson("/api/admin/overview");
     if (alive.current) setOverview(data);
@@ -335,15 +569,33 @@ export default function AdminPanel({
     let cancelled = false;
     setLoading(true);
     setError("");
-    (section === "findings" ? Promise.all([loadOverview(), loadFindings()])
-      : section === "intake" ? Promise.all([loadOverview(), loadIntake()])
-        : section === "rules" ? Promise.all([loadOverview(), loadRuleBook()])
-          : section === "source" ? Promise.all([loadOverview(), loadSource()])
-            : loadOverview())
+    const jobs = [];
+    if (isSystem) {
+      jobs.push(loadOverview());
+      if (section === "findings") jobs.push(loadFindings());
+      else if (section === "intake") jobs.push(loadIntake());
+      else if (section === "rules") jobs.push(loadRuleBook());
+      else if (section === "source") jobs.push(loadSource());
+    } else if (section === "overview") {
+      jobs.push(loadMetrics());
+    } else if (section === "audience") {
+      jobs.push(loadAudience(rangeDays));
+    } else if (section === "engagement") {
+      jobs.push(loadEngagement(rangeDays));
+    } else if (section === "analysis") {
+      jobs.push(loadAnalysis(rangeDays));
+    } else if (section === "users") {
+      jobs.push(loadUsers(usersQuery, usersOnly));
+    }
+    Promise.all(jobs)
       .catch((e) => { if (!cancelled) setError(String(e.message || e)); })
       .finally(() => { if (!cancelled && alive.current) setLoading(false); });
     return () => { cancelled = true; };
-  }, [section, loadOverview, loadFindings, loadIntake, loadRuleBook, loadSource]);
+    // usersQuery deliberately not a dependency: the list reloads on Enter or a
+    // filter click, not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, rangeDays, usersOnly, isSystem, loadOverview, loadFindings, loadIntake,
+      loadRuleBook, loadSource, loadMetrics, loadAudience, loadEngagement, loadAnalysis]);
 
   const runAudit = async () => {
     setBusy(true);
@@ -403,13 +655,33 @@ export default function AdminPanel({
   const staleStreams = useMemo(
     () => streams.filter((s) => s.state === "stale").length, [streams]);
 
-  const current = SECTIONS.find((s) => s.key === section) || SECTIONS[0];
+  const activeTab = isSystem ? "system" : section;
 
   const SECTION_LEDE = {
     overview: t(
-      "Состояние данных на сегодня: что собрано, что требует решения и сколько это стоит.",
-      "Bugungi ma'lumot holati.",
-      "Today's state of the data: what was collected, what needs a decision, what it costs."),
+      "Сколько людей открыло сайт сегодня, живёт ли аудитория и работает ли продукт — прежде чем смотреть на таблицы.",
+      "Bugun saytni nechta odam ochgani va mahsulot ishlayotgani.",
+      "How many people opened the site today, whether the audience is alive and the product is used — before the plumbing."),
+    audience: t(
+      "Кто приходит: сколько, откуда, на чём и на каком языке. Ответ на буквальный вопрос «сколько человек открыло сайт».",
+      "Kim kelmoqda: qancha, qayerdan va qaysi tilda.",
+      "Who comes: how many, from where, on what device and in which language."),
+    engagement: t(
+      "Что они на самом деле смотрят: страницы, бумаги, новости. Топ бумаг — самая коммерчески интересная таблица панели.",
+      "Ular aslida nimani ko'rmoqda: sahifalar, qog'ozlar, yangiliklar.",
+      "What they actually look at: pages, tickers, stories. The ticker ranking is the most commercially interesting table here."),
+    analysis: t(
+      "Кто запускает AI-анализ, что анализируют и во сколько это обходится. Доля кэша — это напрямую счёт за LLM.",
+      "Kim AI-tahlil ishga tushiradi va bu qancha turadi.",
+      "Who runs the AI analysis, what they analyse and what it costs. The cache share is directly the LLM bill."),
+    users: t(
+      "Зарегистрированные: список, воронка от визита до возврата и действия поддержки. Каждое действие записывается в журнал сервера.",
+      "Ro'yxatdan o'tganlar: ro'yxat, voronka va amallar.",
+      "Registered users: the list, the visit-to-return funnel and support actions. Every action is written to the server log."),
+    system: t(
+      "Состояние данных: что собрано, что требует решения. Служебная половина панели — один взгляд, когда карточка крона красная.",
+      "Ma'lumotlar holati: nima yig'ilgan, nima qaror kutmoqda.",
+      "The state of the data: what was collected, what needs a decision. The operations half, one look when a cron card goes red."),
     streams: t(
       "Показана последняя запись в таблице, которую пишет служба, а не её код возврата: сборщики работают отдельными сервисами и в этот процесс не отчитываются.",
       "Xizmat yozadigan jadvaldagi oxirgi yozuv ko'rsatilgan.",
@@ -436,9 +708,658 @@ export default function AdminPanel({
       "The auditor recomputes the same quantities by an independent route and compares them with what was published."),
   };
 
-  /* ── section bodies ─────────────────────────────────────────────────────── */
+  /* labels shared by the product bodies */
+  const VIEW_LABELS = {
+    main: t("Главная", "Bosh sahifa", "Home"),
+    market: t("Рынок", "Bozor", "Market"),
+    company: t("Карточка компании", "Kompaniya sahifasi", "Company page"),
+    chart: t("График", "Grafik", "Chart"),
+    bond: t("Облигация", "Obligatsiya", "Bond"),
+    news: t("Новости", "Yangiliklar", "News"),
+    newsArticle: t("Новость", "Yangilik", "Story"),
+    heatmap: t("Карта рынка", "Bozor xaritasi", "Heat map"),
+    catalog: t("Каталог отчётов", "Hisobotlar katalogi", "Reports catalog"),
+    bankfx: t("Курсы банков", "Bank kurslari", "Bank FX"),
+    analysis: t("AI-анализ", "AI-tahlil", "AI analysis"),
+    compare: t("Сравнение", "Taqqoslash", "Compare"),
+    profile: t("Профиль", "Profil", "Profile"),
+    auth: t("Вход", "Kirish", "Sign in"),
+    "(other)": t("Прочее", "Boshqa", "Other"),
+  };
+  const DEVICE_LABELS = {
+    mobile: t("Телефон", "Telefon", "Mobile"),
+    tablet: t("Планшет", "Planshet", "Tablet"),
+    desktop: t("Компьютер", "Kompyuter", "Desktop"),
+    "(unknown)": t("Неизвестно", "Noma'lum", "Unknown"),
+  };
+  const KIND_LABELS = {
+    direct: t("прямые", "to'g'ridan-to'g'ri", "direct"),
+    search: t("поиск", "qidiruv", "search"),
+    social: t("соцсети", "ijtimoiy", "social"),
+    referral: t("переход", "havola", "referral"),
+    internal: t("внутренний", "ichki", "internal"),
+  };
+  const LANG_LABELS = {
+    ru: "Русский", uz: "O'zbekcha", en: "English",
+    "(unknown)": t("Не выбран", "Tanlanmagan", "Not chosen"),
+  };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     PRODUCT · Обзор
+     ════════════════════════════════════════════════════════════════════════ */
+  const mVisitors = (metrics && metrics.visitors) || {};
+  const mReg = (metrics && metrics.registrations) || {};
+  const mAn = (metrics && metrics.analyses) || {};
+  const todayDelta = deltaBadge(mVisitors.today, mVisitors.yesterday);
+  const weekDelta = deltaBadge(mVisitors.d7, mVisitors.prev7);
 
   const overviewBody = (
+    <div className="admin-section">
+      <div className="admin-stats">
+        <Stat
+          label={t("Посетителей сегодня", "Bugungi tashrifchilar", "Visitors today")}
+          value={fmtInt(mVisitors.today)}
+          badge={todayDelta ? todayDelta.text : null}
+          badgeIcon={todayDelta ? todayDelta.icon : null}
+          line1={t(`Вчера — ${fmtInt(mVisitors.yesterday)}`, `Kecha — ${fmtInt(mVisitors.yesterday)}`,
+                   `Yesterday — ${fmtInt(mVisitors.yesterday)}`)}
+          line2={t(`Просмотров сегодня — ${fmtInt(metrics && metrics.pageviews_today)}`,
+                   `Bugungi ko'rishlar — ${fmtInt(metrics && metrics.pageviews_today)}`,
+                   `Page views today — ${fmtInt(metrics && metrics.pageviews_today)}`)}
+        />
+        <Stat
+          label={t("За 7 дней", "7 kun ichida", "Last 7 days")}
+          value={fmtInt(mVisitors.d7)}
+          badge={weekDelta ? weekDelta.text : null}
+          badgeIcon={weekDelta ? weekDelta.icon : null}
+          line1={t(`За 30 дней — ${fmtInt(mVisitors.d30)}`, `30 kun — ${fmtInt(mVisitors.d30)}`,
+                   `30 days — ${fmtInt(mVisitors.d30)}`)}
+          line2={t("Уникальные посетители", "Noyob tashrifchilar", "Unique visitors")}
+        />
+        <Stat
+          label={t("Прилипчивость DAU/MAU", "DAU/MAU", "Stickiness DAU/MAU")}
+          value={fmtShare(metrics && metrics.stickiness, 1)}
+          line1={t(`средний DAU за неделю — ${fmtNum(metrics && metrics.avg_dau_7d, 1)}`,
+                   `haftalik o'rtacha DAU — ${fmtNum(metrics && metrics.avg_dau_7d, 1)}`,
+                   `avg DAU last week — ${fmtNum(metrics && metrics.avg_dau_7d, 1)}`)}
+          line2={t("≈20% — здоровый продукт; <10% — разовые визиты",
+                   "≈20% — sog'lom mahsulot",
+                   "≈20% is healthy; below 10% means one-off visits")}
+        />
+        <Stat
+          label={t("Сейчас на сайте", "Hozir saytda", "Live now")}
+          value={fmtInt(metrics && metrics.live_now)}
+          line1={t("за последние 5 минут", "so'nggi 5 daqiqada", "in the last 5 minutes")}
+          line2={t(`Вошедших сегодня — ${fmtInt(metrics && metrics.signed_in && metrics.signed_in.today)}`,
+                   `Bugun kirganlar — ${fmtInt(metrics && metrics.signed_in && metrics.signed_in.today)}`,
+                   `Signed-in today — ${fmtInt(metrics && metrics.signed_in && metrics.signed_in.today)}`)}
+        />
+      </div>
+
+      <div className="panel">
+        <div className="admin-chart-head">
+          <div>
+            <h2>{t("Посетители по дням", "Kunlik tashrifchilar", "Visitors by day")}</h2>
+            <p>{t("Последние 14 дней, граница суток — Ташкент",
+                  "So'nggi 14 kun, Toshkent vaqti",
+                  "Last 14 days, Tashkent day boundary")}</p>
+          </div>
+        </div>
+        {metrics && metrics.daily && metrics.daily.length
+          ? <DailyBars data={metrics.daily} valueKey="visitors"
+                       titleFn={(r) => `${fmtDay(r.day)} · ${fmtInt(r.visitors)} ${t("чел.", "kishi", "visitors")} · ${fmtInt(r.pageviews)} ${t("просмотров", "ko'rish", "views")}`} />
+          : <NoTraffic t={t} />}
+      </div>
+
+      <div className="admin-stats">
+        <Stat
+          label={t("Регистраций сегодня", "Bugungi ro'yxatdan o'tish", "Registrations today")}
+          value={fmtInt(mReg.today)}
+          line1={t(`за 7 дней — ${fmtInt(mReg.d7)}`, `7 kun — ${fmtInt(mReg.d7)}`, `7 days — ${fmtInt(mReg.d7)}`)}
+          line2={t(`всего аккаунтов — ${fmtInt(mReg.total)}`, `jami — ${fmtInt(mReg.total)}`,
+                   `total accounts — ${fmtInt(mReg.total)}`)}
+        />
+        <Stat
+          label={t("Анализов сегодня", "Bugungi tahlillar", "Analyses today")}
+          value={fmtInt(mAn.today)}
+          line1={t(`за 7 дней — ${fmtInt(mAn.d7)}`, `7 kun — ${fmtInt(mAn.d7)}`, `7 days — ${fmtInt(mAn.d7)}`)}
+          line2={t("Запуски AI-анализа", "AI-tahlil ishga tushirishlari", "AI analysis runs")}
+        />
+        <Stat
+          label={t("Потоки данных", "Ma'lumot oqimlari", "Data streams")}
+          value={overview ? `${streams.length - staleStreams}/${streams.length}` : DASH}
+          warn={Boolean(staleStreams)}
+          line1={staleStreams
+            ? t(`${staleStreams} устарел(и)`, `${staleStreams} eskirgan`, `${staleStreams} stale`)
+            : t("Все потоки писали недавно", "Barcha oqimlar yaqinda yozgan", "Every stream wrote recently")}
+          line2={t("Подробности — в «Системе»", "Tafsilotlar — «Tizim»da", "Details under System")}
+        />
+        <Stat
+          label={t("Блокирующих находок", "Bloklovchi topilmalar", "Blocking findings")}
+          value={overview ? fmtInt(openCounts.blocking) : DASH}
+          warn={Boolean(openCounts.blocking)}
+          line1={overview
+            ? t(`Предупреждений — ${fmtInt(openCounts.warning)}`, `Ogohlantirish — ${fmtInt(openCounts.warning)}`,
+                `Warnings — ${fmtInt(openCounts.warning)}`)
+            : null}
+          line2={t("Аудит данных — в «Системе»", "Ma'lumot auditi — «Tizim»da", "Data audit under System")}
+        />
+      </div>
+    </div>
+  );
+
+  // The product overview also wants the two operations numbers above; load them
+  // lazily once the section is open so the screen never blocks on them.
+  useEffect(() => {
+    if (section === "overview" && !overview) {
+      loadOverview().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     PRODUCT · Аудитория
+     ════════════════════════════════════════════════════════════════════════ */
+  const aud = audienceData && audienceData.ok ? audienceData : null;
+  const audTotals = (aud && aud.totals) || {};
+  const audienceBody = (
+    <div className="admin-section">
+      <div className="admin-panel-bar">
+        <RangePicker value={rangeDays} onChange={setRangeDays} t={t} />
+      </div>
+
+      <div className="admin-stats">
+        <Stat
+          label={t("Уникальных посетителей", "Noyob tashrifchilar", "Unique visitors")}
+          value={fmtInt(audTotals.visitors)}
+          line1={t(`новых — ${fmtInt(audTotals.new_visitors)} · вернувшихся — ${fmtInt(audTotals.returning_visitors)}`,
+                   `yangi — ${fmtInt(audTotals.new_visitors)}`,
+                   `new — ${fmtInt(audTotals.new_visitors)} · returning — ${fmtInt(audTotals.returning_visitors)}`)}
+          line2={t(`за ${rangeDays} дней`, `${rangeDays} kun ichida`, `over ${rangeDays} days`)}
+        />
+        <Stat
+          label={t("Визитов", "Tashriflar", "Sessions")}
+          value={fmtInt(audTotals.sessions)}
+          line1={t(`просмотров — ${fmtInt(audTotals.pageviews)}`, `ko'rishlar — ${fmtInt(audTotals.pageviews)}`,
+                   `page views — ${fmtInt(audTotals.pageviews)}`)}
+          line2={t("новый визит после 30 минут тишины", "30 daqiqadan keyin yangi tashrif",
+                   "a new session after 30 idle minutes")}
+        />
+        <Stat
+          label={t("Глубина визита", "Tashrif chuqurligi", "Session depth")}
+          value={audTotals.pages_per_session != null ? fmtNum(audTotals.pages_per_session, 1) : DASH}
+          line1={t(`длительность — ${fmtDuration(audTotals.avg_session_seconds, t)}`,
+                   `davomiyligi — ${fmtDuration(audTotals.avg_session_seconds, t)}`,
+                   `duration — ${fmtDuration(audTotals.avg_session_seconds, t)}`)}
+          line2={t("страниц за визит, в среднем", "har tashrifda sahifalar", "pages per session, average")}
+        />
+        <Stat
+          label={t("Отказы", "Rad etishlar", "Bounce rate")}
+          value={fmtShare(audTotals.bounce_rate)}
+          line1={t("визиты из одной страницы", "bir sahifalik tashriflar", "single-page sessions")}
+          line2={t("для терминала с одной доской это не приговор",
+                   "bitta doskali terminal uchun bu hukm emas",
+                   "for a one-board terminal this is not a verdict")}
+        />
+      </div>
+
+      <div className="panel">
+        <div className="admin-chart-head">
+          <div>
+            <h2>{t("Посетители по дням", "Kunlik tashrifchilar", "Visitors by day")}</h2>
+            <p>{t(`${rangeDays} дней · граница суток — Ташкент`, `${rangeDays} kun`, `${rangeDays} days · Tashkent day boundary`)}</p>
+          </div>
+        </div>
+        {aud && aud.daily && aud.daily.length
+          ? <DailyBars data={aud.daily} valueKey="visitors"
+                       titleFn={(r) => `${fmtDay(r.day)} · ${fmtInt(r.visitors)} ${t("чел.", "kishi", "visitors")} · ${fmtInt(r.sessions)} ${t("визитов", "tashrif", "sessions")}`} />
+          : <NoTraffic t={t} />}
+      </div>
+
+      <div className="admin-cols2">
+        <div className="panel">
+          <h3>{t("Откуда приходят", "Qayerdan kelishadi", "Where they come from")}</h3>
+          <HBarList
+            rows={(aud && aud.referrers) || []}
+            nameFn={(r) => r.host === "(direct)" ? t("Прямые заходы", "To'g'ridan-to'g'ri", "Direct") : r.host}
+            valueFn={(r) => r.sessions}
+            detailFn={(r) => KIND_LABELS[r.kind] || ""}
+          />
+          {aud && !(aud.referrers || []).length ? <NoTraffic t={t} /> : null}
+          <p className="admin-muted admin-note">
+            {t("Источник берётся только с первой страницы визита — дальше он повторял бы наши же адреса.",
+               "Manba faqat tashrifning birinchi sahifasidan olinadi.",
+               "The source is taken from the first page of the visit only.")}
+          </p>
+        </div>
+        <div className="panel">
+          <h3>{t("Устройства и экраны", "Qurilmalar va ekranlar", "Devices and screens")}</h3>
+          <HBarList
+            rows={(aud && aud.devices) || []}
+            nameFn={(r) => DEVICE_LABELS[r.name] || r.name}
+            valueFn={(r) => r.visitors}
+          />
+          <div style={{ height: 14 }} />
+          <HBarList
+            rows={(aud && aud.screens) || []}
+            nameFn={(r) => r.name === "(unknown)" ? t("ширина неизвестна", "kengligi noma'lum", "unknown width") : `${r.name} px`}
+            valueFn={(r) => r.visitors}
+          />
+        </div>
+      </div>
+
+      <div className="admin-cols3">
+        <div className="panel">
+          <h3>{t("Язык интерфейса", "Interfeys tili", "UI language")}</h3>
+          <HBarList
+            rows={(aud && aud.languages) || []}
+            nameFn={(r) => LANG_LABELS[r.name] || r.name}
+            valueFn={(r) => r.visitors}
+          />
+          <p className="admin-muted admin-note">
+            {t("Сайт держит три языка — здесь видно, читает ли кто-то узбекскую версию.",
+               "Sayt uch tilni saqlaydi — o'zbekchani kim o'qiyotgani shu yerda.",
+               "The site carries three languages — this shows whether anyone reads the Uzbek one.")}
+          </p>
+        </div>
+        <div className="panel">
+          <h3>{t("Браузеры", "Brauzerlar", "Browsers")}</h3>
+          <HBarList rows={(aud && aud.browsers) || []} nameFn={(r) => r.name} valueFn={(r) => r.visitors} />
+        </div>
+        <div className="panel">
+          <h3>{t("Страны", "Mamlakatlar", "Countries")}</h3>
+          <HBarList
+            rows={(aud && aud.countries) || []}
+            nameFn={(r) => r.name === "(unknown)" ? t("не определена", "aniqlanmagan", "not detected") : r.name}
+            valueFn={(r) => r.visitors}
+          />
+          <p className="admin-muted admin-note">
+            {t("Страна видна, только когда её сообщает прокси; IP не хранится и не геокодируется.",
+               "Mamlakat faqat proksi aytganda ko'rinadi; IP saqlanmaydi.",
+               "The country shows only when the proxy reports it; the IP is neither stored nor geocoded.")}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     PRODUCT · Вовлечённость
+     ════════════════════════════════════════════════════════════════════════ */
+  const eng = engagementData && engagementData.ok ? engagementData : null;
+  const engagementBody = (
+    <div className="admin-section">
+      <div className="admin-panel-bar">
+        <RangePicker value={rangeDays} onChange={setRangeDays} t={t} />
+      </div>
+
+      <div className="admin-cols2">
+        <div className="panel">
+          <h3>{t("Разделы сайта", "Sayt bo'limlari", "Site sections")}</h3>
+          <HBarList
+            rows={(eng && eng.views) || []}
+            nameFn={(r) => VIEW_LABELS[r.view] || r.view}
+            valueFn={(r) => r.pageviews}
+            detailFn={(r) => t(`${fmtInt(r.visitors)} чел.`, `${fmtInt(r.visitors)} kishi`, `${fmtInt(r.visitors)} visitors`)}
+          />
+          {eng && !(eng.views || []).length ? <NoTraffic t={t} /> : null}
+        </div>
+        <div className="panel">
+          <h3>{t("Топ бумаг по просмотрам", "Ko'rishlar bo'yicha top qog'ozlar", "Top tickers by views")}</h3>
+          <HBarList
+            rows={(eng && eng.tickers) || []}
+            nameFn={(r) => r.ticker}
+            valueFn={(r) => r.pageviews}
+            detailFn={(r) => t(`${fmtInt(r.visitors)} чел.`, `${fmtInt(r.visitors)} kishi`, `${fmtInt(r.visitors)} visitors`)}
+          />
+          {eng && !(eng.tickers || []).length
+            ? <div className="admin-empty">{t("Карточки компаний ещё не открывали", "Kompaniya sahifalari hali ochilmagan", "No company pages opened yet")}</div>
+            : null}
+          <p className="admin-muted admin-note">
+            {t("Считаются карточки компаний, продвинутые графики и страницы облигаций. Этот список — готовый приоритет для бэклога данных.",
+               "Kompaniya sahifalari, grafiklar va obligatsiya sahifalari hisoblanadi.",
+               "Company pages, advanced charts and bond pages count. This ranking is a ready-made priority for the data backlog.")}
+          </p>
+        </div>
+      </div>
+
+      <div className="admin-cols2">
+        <div className="panel">
+          <h3>{t("Читаемые новости", "O'qilgan yangiliklar", "Stories read")}</h3>
+          <HBarList
+            rows={(eng && eng.news) || []}
+            nameFn={(r) => r.path.replace("/news/", "№")}
+            valueFn={(r) => r.pageviews}
+          />
+          {eng && !(eng.news || []).length
+            ? <div className="admin-empty">{t("Отдельные новости ещё не открывали", "Alohida yangiliklar hali ochilmagan", "No individual stories opened yet")}</div>
+            : null}
+        </div>
+        <div className="panel">
+          <h3>{t("Действия на сайте", "Saytdagi amallar", "On-site events")}</h3>
+          <HBarList
+            rows={(eng && eng.events) || []}
+            nameFn={(r) => r.event}
+            valueFn={(r) => r.count}
+          />
+          {eng && !(eng.events || []).length ? (
+            <div className="admin-empty">
+              {t("Пока считаются только просмотры страниц; события (поиск, фильтры, вкладки) добавляются по одному в lib/track.js.",
+                 "Hozircha faqat sahifa ko'rishlari hisoblanadi.",
+                 "Only page views are counted so far; custom events (search, filters, tabs) are added one by one in lib/track.js.")}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     PRODUCT · AI-анализ
+     ════════════════════════════════════════════════════════════════════════ */
+  const ana = analysisData && analysisData.ok ? analysisData : null;
+  const anaTotals = (ana && ana.totals) || {};
+  const anaMtd = (ana && ana.month_to_date) || {};
+  const analysisBody = (
+    <div className="admin-section">
+      <div className="admin-panel-bar">
+        <RangePicker value={rangeDays} onChange={setRangeDays} t={t} />
+      </div>
+
+      <div className="admin-stats">
+        <Stat
+          label={t("Анализов", "Tahlillar", "Analyses")}
+          value={fmtInt(anaTotals.analyses)}
+          line1={t(`пользователей — ${fmtInt(anaTotals.users)}`, `foydalanuvchilar — ${fmtInt(anaTotals.users)}`,
+                   `users — ${fmtInt(anaTotals.users)}`)}
+          line2={t(`за ${rangeDays} дней`, `${rangeDays} kun ichida`, `over ${rangeDays} days`)}
+        />
+        <Stat
+          label={t("Доля кэша", "Kesh ulushi", "Cache hit rate")}
+          value={fmtShare(anaTotals.cache_rate)}
+          line1={t(`из кэша — ${fmtInt(anaTotals.cached)}`, `keshdan — ${fmtInt(anaTotals.cached)}`,
+                   `from cache — ${fmtInt(anaTotals.cached)}`)}
+          line2={t("каждый кэш-хит — несписанные деньги", "har bir kesh-xit — sarflanmagan pul",
+                   "every cache hit is money not spent")}
+        />
+        <Stat
+          label={t("Расход на LLM", "LLM xarajati", "LLM spend")}
+          value={fmtUsd(anaTotals.cost)}
+          line1={t(`на один анализ — ${fmtUsd(anaTotals.cost_per_analysis, 4)}`,
+                   `bitta tahlilga — ${fmtUsd(anaTotals.cost_per_analysis, 4)}`,
+                   `per analysis — ${fmtUsd(anaTotals.cost_per_analysis, 4)}`)}
+          line2={t(`за ${rangeDays} дней, без кэш-хитов`, `${rangeDays} kun, keshsiz`, `over ${rangeDays} days, cache hits excluded`)}
+        />
+        <Stat
+          label={t("Прогноз на месяц", "Oylik prognoz", "Month projection")}
+          value={fmtUsd(anaMtd.projected_cost)}
+          line1={t(`с начала месяца — ${fmtUsd(anaMtd.cost)}`, `oy boshidan — ${fmtUsd(anaMtd.cost)}`,
+                   `month to date — ${fmtUsd(anaMtd.cost)}`)}
+          line2={t("линейная экстраполяция текущего темпа", "joriy sur'atning chiziqli davomi",
+                   "linear extrapolation of the current rate")}
+        />
+      </div>
+
+      <div className="panel">
+        <div className="admin-chart-head">
+          <div>
+            <h2>{t("Анализы по дням", "Kunlik tahlillar", "Analyses by day")}</h2>
+            <p>{t(`${rangeDays} дней`, `${rangeDays} kun`, `${rangeDays} days`)}</p>
+          </div>
+        </div>
+        {ana && ana.daily && ana.daily.length
+          ? <DailyBars data={ana.daily} valueKey="analyses"
+                       titleFn={(r) => `${fmtDay(r.day)} · ${fmtInt(r.analyses)} ${t("анализов", "tahlil", "analyses")} · ${fmtUsd(r.cost)}`} />
+          : (
+            <div className="admin-empty">
+              {t("За выбранный период анализов не было", "Tanlangan davrda tahlillar bo'lmagan", "No analyses in this period")}
+            </div>
+          )}
+      </div>
+
+      <div className="admin-cols3">
+        <div className="panel">
+          <h3>{t("Что анализируют", "Nimani tahlil qilishadi", "What gets analysed")}</h3>
+          <HBarList
+            rows={(ana && ana.top_companies) || []}
+            nameFn={(r) => r.name}
+            valueFn={(r) => r.analyses}
+            detailFn={(r) => t(`${fmtInt(r.users)} чел.`, `${fmtInt(r.users)} kishi`, `${fmtInt(r.users)} users`)}
+          />
+        </div>
+        <div className="panel">
+          <h3>{t("Модели и их счёт", "Modellar va hisob", "Models and their bill")}</h3>
+          <HBarList
+            rows={(ana && ana.models) || []}
+            nameFn={(r) => r.model}
+            valueFn={(r) => r.analyses}
+            detailFn={(r) => fmtUsd(r.cost)}
+          />
+        </div>
+        <div className="panel">
+          <h3>{t("Раздача оценок", "Baholar taqsimoti", "Grade distribution")}</h3>
+          <HBarList
+            rows={(ana && ana.grades) || []}
+            nameFn={(r) => r.grade}
+            valueFn={(r) => r.analyses}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     PRODUCT · Пользователи
+     ════════════════════════════════════════════════════════════════════════ */
+  const FUNNEL_LABELS = {
+    visited: t("Зашли на сайт", "Saytga kirdi", "Visited"),
+    registered: t("Зарегистрировались", "Ro'yxatdan o'tdi", "Registered"),
+    activated: t("Запустили анализ", "Tahlil ishga tushirdi", "Ran an analysis"),
+    returned: t("Вернулись позже", "Keyinroq qaytdi", "Came back later"),
+  };
+
+  const userRows = (usersData && usersData.items) || [];
+  const detailUser = userDetail && userDetail.ok ? userDetail : null;
+
+  const actionButton = (id, action, label, danger) => {
+    const armed = confirmAction && confirmAction.id === id && confirmAction.action === action;
+    return (
+      <button
+        type="button"
+        className={`admin-btn sm${armed ? " danger" : ""}`}
+        disabled={busy}
+        onClick={() => {
+          if (danger && !armed) { setConfirmAction({ id, action }); return; }
+          runUserAction(id, action);
+        }}
+      >
+        {armed ? t("Точно?", "Aniqmi?", "Sure?") : label}
+      </button>
+    );
+  };
+
+  const usersBody = (
+    <div className="admin-section">
+      <div className="panel">
+        <h3>{t("Воронка за 30 дней", "30 kunlik voronka", "30-day funnel")}</h3>
+        {funnel && funnel.ok
+          ? <Funnel steps={funnel.steps} labels={FUNNEL_LABELS} />
+          : <div className="admin-empty">{DASH}</div>}
+        <p className="admin-muted admin-note">
+          {t("«Вернулись» — вход спустя сутки и больше после регистрации. Процент у шага — доля от предыдущего.",
+             "«Qaytdi» — ro'yxatdan keyin bir kundan so'ng kirish.",
+             "\u201cCame back\u201d means a sign-in a day or more after registering. The percentage is of the previous step.")}
+        </p>
+      </div>
+
+      <div className="panel">
+        <div className="admin-filters" style={{ padding: 0, marginBottom: 14 }}>
+          <input
+            className="admin-input"
+            placeholder={t("Почта или имя…", "Pochta yoki ism…", "Email or name…")}
+            value={usersQuery}
+            onChange={(e) => setUsersQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") loadUsers(usersQuery, usersOnly); }}
+          />
+          <button type="button" className="admin-btn sm" onClick={() => loadUsers(usersQuery, usersOnly)}>
+            <Icon name="search" />{t("Найти", "Qidirish", "Search")}
+          </button>
+          <span className="admin-sp" />
+          <div className="admin-seg">
+            {[["", t("Все", "Barchasi", "All")],
+              ["active", t("Активные", "Faol", "Active")],
+              ["inactive", t("Отключённые", "O'chirilgan", "Deactivated")],
+              ["analysed", t("С анализами", "Tahlili borlar", "With analyses")]].map(([key, label]) => (
+              <button key={key || "all"} type="button" aria-selected={usersOnly === key}
+                      onClick={() => setUsersOnly(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="admin-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("Пользователь", "Foydalanuvchi", "User")}</th>
+                <th style={{ width: 140 }}>{t("Регистрация", "Ro'yxatdan o'tgan", "Registered")}</th>
+                <th style={{ width: 140 }}>{t("Последний вход", "Oxirgi kirish", "Last sign-in")}</th>
+                <th className="r" style={{ width: 90 }}>{t("Анализов", "Tahlillar", "Analyses")}</th>
+                <th className="r" style={{ width: 96 }}>{t("Избранных", "Sevimlilar", "Favourites")}</th>
+                <th style={{ width: 120 }}>{t("Статус", "Holat", "State")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!userRows.length ? (
+                <tr>
+                  <td colSpan={6} className="admin-muted" style={{ padding: "24px 0", textAlign: "center" }}>
+                    {t("Никого не найдено.", "Hech kim topilmadi.", "Nobody found.")}
+                  </td>
+                </tr>
+              ) : null}
+              {userRows.map((u) => (
+                <tr key={u.id}>
+                  <td>
+                    <button type="button" className="admin-link" onClick={() => openUser(u.id)}>
+                      {u.email}
+                    </button>
+                    {u.full_name ? <div className="admin-sub">{u.full_name}{u.oauth_providers ? ` · ${u.oauth_providers}` : ""}</div>
+                      : (u.oauth_providers ? <div className="admin-sub">{u.oauth_providers}</div> : null)}
+                  </td>
+                  <td className="admin-num">{fmtStamp(u.created_at, { withTime: false })}</td>
+                  <td className="admin-num">{fmtStamp(u.last_login_at, { withTime: false })}</td>
+                  <td className="r admin-num">{fmtInt(u.analyses)}</td>
+                  <td className="r admin-num">{fmtInt(u.favorites)}</td>
+                  <td>
+                    <span className="admin-pill">
+                      <span className={`admin-dot ${u.is_active ? "ok" : "err"}`} />
+                      {u.is_active ? t("активен", "faol", "active") : t("отключён", "o'chirilgan", "off")}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="admin-table-foot">
+          <span>
+            {t(`Показано ${userRows.length} из ${fmtInt(usersData && usersData.total)}`,
+               `${fmtInt(usersData && usersData.total)} tadan ${userRows.length} ta`,
+               `Showing ${userRows.length} of ${fmtInt(usersData && usersData.total)}`)}
+          </span>
+        </div>
+      </div>
+
+      {detailUser ? (
+        <div className="panel">
+          <div className="admin-panel-head">
+            <h2>{detailUser.user.email}</h2>
+            <span className="admin-muted">
+              {detailUser.user.full_name || DASH} · {t("зарегистрирован", "ro'yxatdan o'tgan", "registered")} {fmtStamp(detailUser.user.created_at, { withTime: false })}
+            </span>
+          </div>
+
+          <div className="admin-filters" style={{ padding: 0 }}>
+            {detailUser.user.is_active
+              ? actionButton(detailUser.user.id, "deactivate", t("Отключить", "O'chirish", "Deactivate"), true)
+              : actionButton(detailUser.user.id, "reactivate", t("Включить", "Yoqish", "Reactivate"), false)}
+            {actionButton(detailUser.user.id, "revoke_sessions",
+                          t("Разлогинить везде", "Hamma joydan chiqarish", "Revoke sessions"), false)}
+            {actionButton(detailUser.user.id, "delete",
+                          t("Удалить аккаунт", "Hisobni o'chirish", "Delete account"), true)}
+            <span className="admin-sp" />
+            <button type="button" className="admin-btn sm" onClick={() => { setUserDetail(null); setConfirmAction(null); }}>
+              {t("Свернуть", "Yopish", "Close")}
+            </button>
+          </div>
+          <p className="admin-muted admin-note">
+            {t("Удаление уносит и историю анализов, и избранное — это право пользователя на удаление данных, а не уборка. Отключение мгновенно разрывает все сессии.",
+               "O'chirish tahlil tarixini ham olib ketadi.",
+               "Deletion takes the analysis history and favourites with it — the user's right to erasure, not housekeeping. Deactivation severs every session immediately.")}
+          </p>
+
+          <div className="admin-cols3" style={{ marginTop: 14 }}>
+            <div>
+              <div className="panel-label">{t("Сессии", "Sessiyalar", "Sessions")}</div>
+              <table className="admin-kv">
+                <tbody>
+                  {detailUser.sessions.slice(0, 6).map((s, i) => (
+                    <tr key={i}>
+                      <td>{fmtStamp(s.created_at)}</td>
+                      <td className="n">{s.revoked
+                        ? t("отозвана", "bekor qilingan", "revoked")
+                        : t("живая", "faol", "live")}</td>
+                    </tr>
+                  ))}
+                  {!detailUser.sessions.length
+                    ? <tr><td className="admin-muted">{t("Сессий не было", "Sessiyalar bo'lmagan", "No sessions")}</td><td /></tr>
+                    : null}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div className="panel-label">{t("Анализы", "Tahlillar", "Analyses")}</div>
+              <table className="admin-kv">
+                <tbody>
+                  {detailUser.analyses.slice(0, 6).map((a, i) => (
+                    <tr key={i}>
+                      <td>{a.ticker || a.company}</td>
+                      <td className="n">{a.grade || DASH} · {fmtStamp(a.created_at, { withTime: false })}</td>
+                    </tr>
+                  ))}
+                  {!detailUser.analyses.length
+                    ? <tr><td className="admin-muted">{t("Анализов не было", "Tahlillar bo'lmagan", "No analyses")}</td><td /></tr>
+                    : null}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div className="panel-label">{t("Избранное", "Sevimlilar", "Favourites")}</div>
+              <table className="admin-kv">
+                <tbody>
+                  {detailUser.favorites.slice(0, 6).map((f, i) => (
+                    <tr key={i}>
+                      <td>{f.ticker}</td>
+                      <td className="n">{fmtStamp(f.created_at, { withTime: false })}</td>
+                    </tr>
+                  ))}
+                  {!detailUser.favorites.length
+                    ? <tr><td className="admin-muted">{t("Пусто", "Bo'sh", "Empty")}</td><td /></tr>
+                    : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     СИСТЕМА · Данные (the old data overview)
+     ════════════════════════════════════════════════════════════════════════ */
+  const dataBody = (
     <div className="admin-section">
       <div className="admin-stats">
         <Stat
@@ -650,7 +1571,7 @@ export default function AdminPanel({
     </div>
   );
 
-  /* ── 01 · what the pipeline took in ─────────────────────────────────────── */
+  /* ── Система · Отчёты (intake) ──────────────────────────────────────────── */
   const intakeRows = useMemo(() => {
     const items = (intake && intake.items) || [];
     return intakeState === "all" ? items : items.filter((r) => r.state === intakeState);
@@ -769,7 +1690,7 @@ export default function AdminPanel({
     </div>
   );
 
-  /* ── 02 · the calculation, line by line ─────────────────────────────────── */
+  /* ── Система · Эмитент (the TTM ledger) ─────────────────────────────────── */
   const money = (v) => (v == null ? "—" : fmtInt(v));
   const ratio = (m) => (m && m.value != null
     ? fmtNum(m.value, 2)
@@ -937,7 +1858,7 @@ export default function AdminPanel({
     </div>
   );
 
-  /* ── 05 · the parameters, and the line the panel must not cross ─────────── */
+  /* ── Система · Правила ──────────────────────────────────────────────────── */
   const rulesBody = (
     <div className="admin-section">
       <div className="panel">
@@ -987,7 +1908,7 @@ export default function AdminPanel({
     </div>
   );
 
-  /* ── 06 · the source, and who has not filed ─────────────────────────────── */
+  /* ── Система · Источник ─────────────────────────────────────────────────── */
   const cal = (source && source.calendar) || null;
   const probe = (source && source.probe) || null;
   const sourceBody = (
@@ -1098,19 +2019,13 @@ export default function AdminPanel({
     </div>
   );
 
-  const notBuiltBody = (
-    <div className="panel">
-      <div className="admin-empty">
-        <b>{t("Этот раздел ещё не построен", "Bu bo'lim hali qurilmagan", "This section is not built yet")}</b>
-        {t("Данные для него уже есть в API — не хватает только экрана.",
-           "API'da ma'lumot bor, faqat ekran yetishmaydi.",
-           "The API already carries its data — only the screen is missing.")}
-      </div>
-    </div>
-  );
-
   const bodyBySection = {
     overview: overviewBody,
+    audience: audienceBody,
+    engagement: engagementBody,
+    analysis: analysisBody,
+    users: usersBody,
+    system: dataBody,
     streams: streamsBody,
     findings: findingsBody,
     intake: intakeBody,
@@ -1129,50 +2044,66 @@ export default function AdminPanel({
           <h1>{t("Администрирование", "Administratsiya", "Administration")}</h1>
           <p>{SECTION_LEDE[section] || SECTION_LEDE.overview}</p>
         </div>
-        <div className="admin-head-actions">
-          {latest && latest.finished_at ? (
-            <span className="admin-btn" style={{ pointerEvents: "none" }}>
-              <Icon name="clock" />
-              {fmtStamp(latest.finished_at)}
-            </span>
-          ) : null}
-          <button type="button" className="admin-btn accent" disabled={busy} onClick={runAudit}>
-            <Icon name={busy ? "clock" : "play"} />
-            {busy
-              ? t("Идёт прогон…", "Ishlamoqda…", "Running…")
-              : t("Прогнать аудит", "Auditni ishga tushirish", "Run the audit")}
-          </button>
-        </div>
+        {isSystem ? (
+          <div className="admin-head-actions">
+            {latest && latest.finished_at ? (
+              <span className="admin-btn" style={{ pointerEvents: "none" }}>
+                <Icon name="clock" />
+                {fmtStamp(latest.finished_at)}
+              </span>
+            ) : null}
+            <button type="button" className="admin-btn accent" disabled={busy} onClick={runAudit}>
+              <Icon name={busy ? "clock" : "play"} />
+              {busy
+                ? t("Идёт прогон…", "Ishlamoqda…", "Running…")
+                : t("Прогнать аудит", "Auditni ishga tushirish", "Run the audit")}
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <nav className="admin-tabs">
         {SECTIONS.map((item) => {
-          const badge = item.key === "findings" ? openCounts.blocking
-            : item.key === "catalog" ? (catalog && catalog.securities)
-              : item.key === "streams" ? (streams.length || null) : null;
+          const active = activeTab === item.key;
+          const badge = item.key === "system" && openCounts.blocking ? openCounts.blocking : null;
           return (
             <button
               key={item.key}
               type="button"
-              className={`admin-tab${section === item.key ? " active" : ""}`}
-              disabled={!item.ready}
-              aria-current={section === item.key ? "page" : undefined}
-              onClick={() => item.ready && onSectionChange && onSectionChange(item.key)}
+              className={`admin-tab${active ? " active" : ""}`}
+              aria-current={active ? "page" : undefined}
+              onClick={() => onSectionChange && onSectionChange(item.key)}
             >
               <Icon name={item.icon} />
               {item.title[lang3(language)]}
-              {!item.ready ? (
-                <span className="n soon">{t("скоро", "tez orada", "soon")}</span>
-              ) : badge !== null && badge !== undefined ? (
-                <span className={`n${item.key === "findings" && badge ? " hot" : ""}`}>{fmtInt(badge)}</span>
-              ) : null}
+              {badge ? <span className="n hot">{fmtInt(badge)}</span> : null}
             </button>
           );
         })}
       </nav>
 
+      {isSystem ? (
+        <div className="admin-subtabs">
+          <div className="admin-seg">
+            {SYSTEM_SECTIONS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                aria-selected={section === item.key}
+                onClick={() => onSectionChange && onSectionChange(item.key)}
+              >
+                {item.title[lang3(language)]}
+                {item.key === "findings" && openCounts.blocking
+                  ? <span className="n">{fmtInt(openCounts.blocking)}</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {error ? <div className="admin-error" style={{ marginBottom: 16 }}>{error}</div> : null}
-      {loading && !overview ? <Skeleton rows={4} /> : (bodyBySection[section] || notBuiltBody)}
+      {loading && !(isSystem && overview) ? <Skeleton rows={4} />
+        : (bodyBySection[section] || overviewBody)}
     </div>
   );
 }

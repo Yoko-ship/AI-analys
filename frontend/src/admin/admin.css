@@ -458,3 +458,87 @@
 .admin-checklist { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
 .admin-list { margin: 6px 0 0; padding-left: 18px; font-size: 0.85rem; line-height: 1.7; }
 .admin-view td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; }
+
+/* ── the product half: sub-tabs, ranked bars, the funnel ──────────────────── */
+
+/* Second navigation row shown only inside «Система» — the seven old console
+   screens as one segmented control rather than seven top-level tabs. */
+.admin-subtabs { margin: -8px 0 20px; overflow-x: auto; scrollbar-width: thin; }
+.admin-subtabs .admin-seg { width: max-content; }
+
+/* Ranked breakdowns (referrers, devices, top tickers…): the bar is proportion,
+   the number on the right is the fact. */
+.admin-hbars { display: flex; flex-direction: column; gap: 9px; }
+.admin-hbar {
+  display: grid;
+  grid-template-columns: minmax(110px, 38%) 1fr 64px;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.85rem;
+}
+.admin-hbar-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-hbar-detail { color: var(--muted); font-size: 0.76rem; white-space: nowrap; }
+.admin-hbar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.admin-hbar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0.65;
+}
+.admin-hbar:hover .admin-hbar-fill { opacity: 0.95; }
+.admin-hbar-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* The activation funnel: each step a full-width bar against the first step. */
+.admin-funnel { display: flex; flex-direction: column; gap: 10px; }
+.admin-funnel-step {
+  display: grid;
+  grid-template-columns: minmax(140px, 26%) 1fr 120px;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.87rem;
+}
+.admin-funnel-track { height: 20px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.admin-funnel-fill {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  background: var(--accent);
+  opacity: 0.6;
+}
+.admin-funnel-step:first-child .admin-funnel-fill { opacity: 0.85; }
+.admin-funnel-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.admin-funnel-val em {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.78rem;
+  margin-left: 6px;
+}
+
+/* A destructive action armed for its second, confirming click. */
+.admin-btn.danger { border-color: var(--danger); color: var(--danger); }
+.admin-btn.danger:hover:not(:disabled) { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
+
+@media (max-width: 620px) {
+  .admin-hbar { grid-template-columns: minmax(90px, 44%) 1fr 56px; }
+  .admin-funnel-step { grid-template-columns: minmax(110px, 38%) 1fr 96px; }
+}
