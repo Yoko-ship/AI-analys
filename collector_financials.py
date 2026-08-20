@@ -1185,6 +1185,16 @@ def refresh_dividends() -> int:
     return _post("/api/admin/dividends/refresh?force=1", {})
 
 
+def refresh_meetings() -> int:
+    """Ask prod to re-read openinfo's meeting-announcement calendar.
+
+    Same reasoning as refresh_dividends: the news «Календарь» warms itself on
+    read, but the daily run means the first visitor already sees a meeting
+    announced overnight."""
+    log.info("refreshing the meetings calendar snapshot ...")
+    return _post("/api/admin/meetings/refresh?force=1", {})
+
+
 def push_financials_aliases() -> int:
     """Copy each issuer's financials onto its sibling tickers, then push to prod.
 
@@ -1578,6 +1588,11 @@ def main() -> int:
             rc_status = refresh_dividends() or rc_status
         except Exception:
             log.exception("dividend refresh step failed")
+            rc_status = rc_status or 1
+        try:
+            rc_status = refresh_meetings() or rc_status
+        except Exception:
+            log.exception("meetings refresh step failed")
             rc_status = rc_status or 1
 
     if not args.no_push:

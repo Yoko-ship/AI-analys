@@ -323,6 +323,24 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_cat_div_ticker ON catalog_dividends(ticker);
 
+        -- openinfo's shareholder-meeting announcement calendar (see meetings.py).
+        -- A rolling window of notices, keyed by the MEETING date — the one feed
+        -- that announces a corporate event before it happens. One row per
+        -- announcement; ticker is filled where the issuer is a security we list
+        -- and stays NULL otherwise, because the market calendar shows every
+        -- issuer that filed a notice.
+        CREATE TABLE IF NOT EXISTS catalog_meetings (
+            announcement_id TEXT PRIMARY KEY,
+            org_id          TEXT,
+            organization    TEXT,
+            ticker          TEXT,
+            title           TEXT,
+            meeting_date    TEXT,
+            pub_date        TEXT,
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_cat_meet_date ON catalog_meetings(meeting_date);
+
         -- Generic, forward-compatible fact store (scalable-pipeline design).
         -- Any source (adapter) can land any (entity, dataset, field, period) value
         -- without a schema change, so new datasets/fields published in the future

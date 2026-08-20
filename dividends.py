@@ -532,6 +532,46 @@ def read_snapshot(ticker: str) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def read_all(limit: int = 400) -> list[dict[str, Any]]:
+    """The market-wide calendar, one row per FILING, newest decision first.
+
+    The store keeps a copy per (security, filing) so a company page reads its
+    own ticker; a market table read that way would print AKFA twice — once for
+    the ordinary line, once for the preferred. Rows are folded back to the
+    filing here, keeping every ticker the filing landed on (the ordinary line
+    first, so the issuer link points at the primary listing).
+    """
+    from reports_catalog import get_catalog_conn
+
+    conn = get_catalog_conn()
+    try:
+        rows = conn.execute(
+            f"SELECT {', '.join(_COLUMNS)}, updated_at FROM catalog_dividends "
+            "ORDER BY decision_date DESC, filing_id DESC, ticker",
+        ).fetchall()
+    finally:
+        conn.close()
+
+    by_filing: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        record = dict(row)
+        filing_id = str(record.get("filing_id") or "")
+        kept = by_filing.get(filing_id)
+        if kept is None:
+            record["tickers"] = [record["ticker"]] if record.get("ticker") else []
+            by_filing[filing_id] = record
+            if len(by_filing) > max(1, limit):
+                break
+        elif record.get("ticker") and record["ticker"] not in kept["tickers"]:
+            kept["tickers"].append(record["ticker"])
+
+    out = list(by_filing.values())[: max(1, limit)]
+    for record in out:
+        record["tickers"].sort(key=lambda t: (len(t), t))
+        record["ticker"] = record["tickers"][0] if record["tickers"] else None
+    return out
+
+
 def snapshot_state() -> dict[str, Any]:
     """How many filings and tickers the store holds, and when it was written."""
     from reports_catalog import get_catalog_conn
