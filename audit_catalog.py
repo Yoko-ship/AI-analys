@@ -36,6 +36,7 @@ KNOWN_SECTORS: dict[str, str] = {
     "TNGB": "finance",
     "URTS": "finance",
     "UZINP": "finance",
+    "OCBK": "finance",   # Octobank — commercial bank (ex Ravnaq-bank)
     "ALSM": "finance", "ALSMP": "finance",
     "KASUP": "finance", "KASU": "finance",
     "TMYS": "finance",   # Temiryo'l-sug'urta (railway insurance)

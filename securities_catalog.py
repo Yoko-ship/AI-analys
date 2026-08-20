@@ -76,6 +76,7 @@ _TICKER_SECTORS: dict[str, str] = {
     "UZINP": "finance",  # O'zbekinvest — national export-import insurer
     "UZAL": "finance",   # O'zagrolizing — leasing
     "UZML": "finance",   # UzMED-lizing — medical-equipment leasing
+    "OCBK": "finance",   # Octobank — commercial bank (ex Ravnaq-bank)
     # Chemicals (manufacturing)
     "FRAZP": "manufacturing",  # Farg'onaazot — nitrogen fertilizers / chemicals
     "KSCM": "manufacturing", "KSCMP": "manufacturing",

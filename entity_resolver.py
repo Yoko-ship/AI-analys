@@ -59,6 +59,21 @@ ORG_OVERRIDES: dict[str, str] = {
     # the ONLY real financials — pin the org so the enrichment takes the
     # authoritative branch and fills net_income/revenue/liabilities from facts.
     "UZNGP": "735",
+    # Octobank (org 27, INN 203644820, ISIN UZ7048610008): un-delisted
+    # 2026-08-20. The org's info_rfb.isin_codes is empty, so the listings walk
+    # takes the screener-fallback branch — the pin is what puts the issuer in
+    # the walk at all, and what keeps name matching away from the org-1001
+    # payment processor that once contaminated its net profit.
+    "OCBK": "27",
+}
+
+# Explicit ticker -> ISIN pins for securities that neither openinfo's info_rfb
+# (empty isin_codes) nor its stock-screener proxy (73 rows total) can name.
+# Without the ISIN the listings walk's fallback row carries no security at all
+# — no share count, no last trade, a "нет бумаг" label — while uzse.uz itself
+# serves a full quote page for the code. Consulted before the screener join.
+ISIN_OVERRIDES: dict[str, str] = {
+    "OCBK": "UZ7048610008",   # Octobank ordinary; uzse quote page is live
 }
 
 # Tickers with no correct openinfo entity — the only match is a *different* company,

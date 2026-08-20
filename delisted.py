@@ -13,9 +13,12 @@ This set is the part of that list that is genuinely dead:
   * issuer bond series that never had a board presence — priced at par (or not at
     all), no trade in years, and already hidden from the market view by
     ``BOARD_DENYLIST``; they survived only in the registry feed behind this tab;
-  * three issuers whose openinfo record carries no tradable RFB security and no
-    price anywhere (MNGM, NGQT, OCBK) — see also the market-gaps audit, which
-    confirmed there is no source for them rather than a gap to fill.
+  * issuers whose openinfo record carries no tradable RFB security and no
+    price anywhere (MNGM, NGQT) — see also the market-gaps audit, which
+    confirmed there is no source for them rather than a gap to fill. OCBK sat
+    here until 2026-08-20: uzse.uz now serves a real quote page for
+    UZ7048610008 (last trade 03.06.2026 at 47 000), so Octobank is back on the
+    site as a live issuer.
 
 One issuer is here for a different reason — Kapitalbank was removed because the
 customer asked for it, not because the data called it dead. It is kept separate
@@ -64,7 +67,6 @@ _DEAD_ISSUER_PAPER = {
 _NO_SECURITY = {
     "MNGM",   # "Muborakneftgazmontaj" AJ
     "NGQT",   # "Neftgazqurilishta'mir" AJ
-    "OCBK",   # "Octobank" AJ
 }
 
 # Removed at the customer's request. Not a data verdict: KPBA is a live registry

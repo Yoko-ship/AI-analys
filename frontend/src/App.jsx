@@ -14609,7 +14609,7 @@ function MarketView({
     return <td className="num"><span className="cell-status" title={(reasons + period).trim() || undefined}>{label}</span></td>;
   };
   // Issuers openinfo records as having no tradable securities at all
-  // (is_listing=false, empty RFB/OTC share registries — e.g. MNGM, OCBK):
+  // (is_listing=false, empty RFB/OTC share registries — e.g. MNGM):
   // market-value cells state that fact instead of an ambiguous dash.
   const noSecLabel = (r) => (r.isin ? "—"
     : lang === "ru" ? "нет бумаг" : lang === "uz" ? "qog'oz yo'q" : "no securities");
