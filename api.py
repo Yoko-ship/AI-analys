@@ -1028,6 +1028,71 @@ def _issuer_names() -> dict[str, str]:
     return names
 
 
+_BOND_ISINS: dict[str, Any] = {"at": 0.0, "set": frozenset()}
+_BOND_ISINS_TTL = 600.0
+
+
+def _registered_bond_isins() -> frozenset[str]:
+    """Every ISIN in the exchange's register of circulating bonds.
+
+    Cached for ten minutes, like the issuer names above and for the same reason:
+    the board is the hottest endpoint, and an issue joins the register when it is
+    admitted, not within a session. An unreadable register answers with whatever
+    was last read (empty on the first failure) — fail-soft, never an empty board.
+    """
+    now = time.monotonic()
+    if _BOND_ISINS["set"] and now - _BOND_ISINS["at"] < _BOND_ISINS_TTL:
+        return _BOND_ISINS["set"]
+    try:
+        isins = frozenset(
+            str(ref.get("isin") or "").upper()
+            for ref in provenance.bond_references().values() if ref.get("isin"))
+    except Exception:
+        logger.exception("bond register read failed; the equities board stays unfiltered")
+        return _BOND_ISINS["set"]
+    _BOND_ISINS.update(at=now, set=isins)
+    return isins
+
+
+def _retype_registered_bonds(rows: list[dict[str, Any]]) -> int:
+    """Say `bond` about every row the exchange's bond register claims. In place.
+
+    A REGISTERED BOND is never a share. IPYB2B6 — «Ipak Yo'li» AITB's 20% issue,
+    admitted on 04.08.2026 — reached the equities board through the live mirror,
+    which types every row it carries as a share, and its placement (100 000 bonds
+    at par on 06.08) entered the board as a 104,8 млрд turnover AND the same
+    figure as a capitalisation. It led «Топ ликвидности» over the whole equity
+    market, and an issue has no shares to capitalise at all.
+
+    Matched on the ISIN and never on the ticker: the RFB register files an issue
+    under the ISSUER's ticker when it has none of its own, so a ticker match
+    would take Aloqabank's SHARE (ALKB, UZ7044760005) off the board along with
+    its bond (UZ60447611B9).
+
+    The class is corrected rather than the row merely filtered, so it is right
+    wherever the row travels — the securities catalog is synced from these rows,
+    and a filter is something every future consumer has to remember to apply.
+    """
+    bond_isins = _registered_bond_isins()
+    if not bond_isins:
+        return 0
+    fixed = 0
+    for row in rows:
+        if str(row.get("isin") or "").upper() not in bond_isins:
+            continue
+        if row.get("type") == "bond" and row.get("market_cap") is None:
+            continue
+        row["type"] = "bond"
+        row["share_type"] = "bond"
+        # An issue has no shares to capitalise: the figure the mirror carried
+        # here was the placement's own turnover, entered a second time.
+        row["shares_outstanding"] = None
+        row["market_cap"] = None
+        row["url"] = _exchange_url(row.get("isin"), True)
+        fixed += 1
+    return fixed
+
+
 def _fill_names(rows: list[dict[str, Any]], names: dict[str, str]) -> int:
     """Name every row the feed left unnamed, in place. Returns rows filled.
 
@@ -1199,8 +1264,16 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     # Name the rows the feed leaves unnamed BEFORE the catalog sync below, so the
     # securities table (and everything reading it — company pages, search, logos)
     # stores the name too instead of the feed's null.
-    issuer_names = await loop.run_in_executor(None, _issuer_names)
+    # Both reads are memoised; warming them off-thread is what keeps the single
+    # worker's event loop free — the two callers below then hit the cache.
+    issuer_names, _ = await asyncio.gather(
+        loop.run_in_executor(None, _issuer_names),
+        loop.run_in_executor(None, _registered_bond_isins),
+    )
     _fill_names(stocks_list, issuer_names)
+    # Before the sync below: the securities catalog is written from these rows,
+    # so a bond the mirror called a share would be catalogued as one.
+    _retype_registered_bonds(stocks_list)
     _fill_source_urls(stocks_list)
 
     # Background sync into securities DB (fire-and-forget). Copy the list so the
@@ -1344,6 +1417,18 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
                   if str(r.get("ticker") or "").upper() not in BOARD_DENYLIST
                   and not is_delisted_isin(r.get("isin"))]
         added_inactive = sum(1 for r in merged if r.get("inactive"))
+
+    # Again on the merged list: the registry and the quote cache append rows of
+    # their own after the sync above, and the market-cap join runs over all of
+    # them. The equities view then loses them; the «all» view keeps them, because
+    # it is the everything board and they now say on it what they are.
+    _retype_registered_bonds(merged)
+    if security_type == "stock":
+        bond_isins = _registered_bond_isins()
+        if bond_isins:
+            merged = [r for r in merged
+                      if str(r.get("isin") or "").upper() not in bond_isins]
+            added_inactive = sum(1 for r in merged if r.get("inactive"))
 
     # Registry and quote-cache rows joined the board after the first pass; name
     # them too, so no row reaches the company column as a bare ISIN.

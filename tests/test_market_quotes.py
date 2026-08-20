@@ -301,6 +301,79 @@ class TestTheBoardIsCompleted:
         assert body["stocks"] == []
 
 
+class TestABondIsNotAShare:
+    """IPYB2B6 is «Ipak Yo'li» AITB's 20% issue, admitted on 04.08.2026.
+
+    The live mirror types every row it carries as a share, so the placement —
+    100 000 bonds at par on 06.08 — reached the equities board as a 104,8 млрд
+    turnover AND the same figure as a capitalisation. It led «Топ ликвидности»
+    over the whole equity market, and an issue has no shares to capitalise.
+    """
+
+    def _board(self, monkeypatch, mirror, register, kind="stock"):
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"stocks": list(mirror), "updated_at": "2026-08-20T14:00:00"}
+
+        monkeypatch.setattr(api.requests, "get", lambda *a, **kw: _Resp())
+        monkeypatch.setattr(api, "get_all_quotes", lambda: {})
+        monkeypatch.setattr(api, "get_all_listings", lambda: {})
+        monkeypatch.setattr(api, "get_securities_map", lambda: {})
+        monkeypatch.setattr(api, "sync_securities", lambda rows, logos: len(rows))
+        monkeypatch.setattr(api, "record_volume", lambda *a, **kw: 0)
+        monkeypatch.setattr(api, "_load_logos", lambda: {})
+        monkeypatch.setattr(api, "_registered_bond_isins", lambda: frozenset(register))
+        with TestClient(api.app) as client:
+            url = "/api/market/stocks" + (f"?type={kind}" if kind else "")
+            return client.get(url).json()
+
+    _BOND = {"isin": "UZ6039927AA7", "ticker": "IPYB2B6", "type": "stock",
+             "share_type": "ordinary", "last_price": 1047901.88,
+             "last_trade_date": "2026-08-06", "volume": 104790188000.0,
+             "quantity": 100000.0, "shares_outstanding": 100000.0,
+             "market_cap": 104790188000.0}
+    # Aloqabank's SHARE. Its bond is registered under the ISSUER's ticker,
+    # because the issue has no ticker of its own.
+    _SHARE = {"isin": "UZ7044760005", "ticker": "ALKB", "type": "stock",
+              "share_type": "ordinary", "last_price": 1440.0,
+              "last_trade_date": "2026-08-20", "volume": 17263321.6}
+
+    def test_the_issue_is_off_the_equities_board(self, monkeypatch) -> None:
+        body = self._board(monkeypatch, [self._BOND, self._SHARE],
+                           {"UZ6039927AA7"})
+
+        assert [r["ticker"] for r in body["stocks"]] == ["ALKB"]
+
+    def test_a_bond_registered_under_its_issuers_ticker_keeps_the_share(self, monkeypatch) -> None:
+        """Matching on the TICKER would take Aloqabank's share off with its bond."""
+        body = self._board(monkeypatch, [self._BOND, self._SHARE],
+                           {"UZ6039927AA7", "UZ60447611B9"})
+
+        assert [r["ticker"] for r in body["stocks"]] == ["ALKB"]
+
+    def test_the_all_view_keeps_it_and_says_what_it_is(self, monkeypatch) -> None:
+        """The everything board keeps the row — re-typed, and with the placement
+        turnover no longer standing in for a capitalisation."""
+        body = self._board(monkeypatch, [self._BOND, self._SHARE],
+                           {"UZ6039927AA7"}, kind="")
+
+        row = next(r for r in body["stocks"] if r["ticker"] == "IPYB2B6")
+        assert row["type"] == "bond"
+        assert row["share_type"] == "bond"
+        assert row["market_cap"] is None
+        assert row["shares_outstanding"] is None
+        assert row["url"] == "https://uzse.uz/isu_infos/BND?isu_cd=UZ6039927AA7"
+
+    def test_an_unreadable_register_leaves_the_board_alone(self, monkeypatch) -> None:
+        """Fail-soft: no register is a board with an extra row, never an empty one."""
+        body = self._board(monkeypatch, [self._BOND, self._SHARE], set())
+
+        assert {r["ticker"] for r in body["stocks"]} == {"IPYB2B6", "ALKB"}
+
+
 class TestEveryRowIsNamed:
     """The exchange mirror names 9 of its 78 securities. The other 69 read "—"
     in the company column — every preferred share, every bond, UZTL included.
