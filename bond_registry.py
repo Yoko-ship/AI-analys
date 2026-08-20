@@ -119,23 +119,38 @@ def _day(value: Any) -> str | None:
         return None
 
 
-def coupon_frequency(cycle: Any) -> int | None:
-    """Payments a year, from the register's wording of the cycle."""
+def coupon_cycle(cycle: Any) -> tuple[int | None, str | None, int | None]:
+    """``(payments_a_year, basis, period_days)`` from the register's wording.
+
+    The sheet distinguishes two things a single "12 times a year" would lose:
+    **«Har oyda»** is monthly on the calendar — ACMT1B3 has paid on the 11th to
+    the 13th of every month for a year — while **«Har 30 kunda»** is literally
+    every thirty days, and DMMT2B3's filings walk backwards a day a month
+    exactly as that implies. Stepping the second by calendar months, or the
+    first by 30-day intervals, drifts a schedule by a fortnight over its life.
+    """
     text = _clean(cycle).lower()
     if not text:
-        return None
+        return None, None, None
     days = re.search(r"(\d+)\s*kun", text)
     if days:
         n = int(days.group(1))
+        if not n:
+            return None, None, None
         for span, freq in _CYCLE_DAYS:
             if abs(n - span) <= 3:
-                return freq
-        return max(1, round(365 / n)) if n else None
+                return freq, "days", n
+        return max(1, round(365 / n)), "days", n
     for word, freq in _CYCLE_WORDS:
         if word in text:
-            return freq
+            return freq, "calendar", None
     log.info("bond registry: unreadable coupon cycle %r", text)
-    return None
+    return None, None, None
+
+
+def coupon_frequency(cycle: Any) -> int | None:
+    """Payments a year, from the register's wording of the cycle."""
+    return coupon_cycle(cycle)[0]
 
 
 def coupon_rate(cell: Any) -> tuple[float | None, str | None, str | None]:
@@ -195,6 +210,7 @@ def parse_registry(text: str) -> list[dict[str, Any]]:
             continue
         rate, coupon_type, float_base = coupon_rate(cell(row, "rate"))
         nominal = _num(cell(row, "nominal"))
+        freq, basis, period_days = coupon_cycle(cell(row, "cycle"))
         out.append({
             "ticker": ticker,
             "isin": isin,
@@ -204,7 +220,12 @@ def parse_registry(text: str) -> list[dict[str, Any]]:
             "coupon_rate": rate,
             "coupon_type": coupon_type,
             "float_base": float_base,
-            "coupon_freq": coupon_frequency(cell(row, "cycle")),
+            "coupon_freq": freq,
+            # «Har oyda» steps a calendar month; «Har 30 kunda» steps thirty
+            # days. Over three years of monthly coupons the two are a fortnight
+            # apart, so which one it is has to survive into the schedule.
+            "coupon_basis": basis,
+            "coupon_period_days": period_days,
             "issue_date": _day(cell(row, "issue_date")),
             "maturity_date": _day(cell(row, "maturity_date")),
             # The registered count is the size of the issue; the placed count is

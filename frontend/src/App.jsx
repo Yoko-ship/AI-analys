@@ -7043,6 +7043,82 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond }) {
   );
 }
 
+/** Four states, and each one changes which blocks are worth drawing.
+ * A redeemed issue has no yield to show but does have a result; an issue still
+ * in placement has terms and no history. */
+function BondStateBadge({ state, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const map = {
+    placing: ["pos", t("размещается", "joylashtirilmoqda", "placing")],
+    live: ["pos", t("в обращении", "muomalada", "circulating")],
+    last: ["warn", t("последний купон", "oxirgi kupon", "last coupon")],
+    matured: ["muted", t("погашена", "so'ndirilgan", "redeemed")],
+  };
+  const one = map[state];
+  if (!one) return null;
+  return <span className={`bondsec-state tone-${one[0]}`}>{one[1]}</span>;
+}
+
+/** The issue's life on one line: placement, every coupon period, today, and
+ * redemption. Ticks behind today are periods that fell due, ahead of it are
+ * periods still owed — which is the one picture that says at a glance whether
+ * a bond is a year old or nearly over. */
+function BondLifeLine({ bond, flows, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const issue = bond.schedule?.issue_date || bond.reference?.issue_date;
+  const maturity = bond.reference?.maturity_date;
+  if (!issue || !maturity || !flows.length) return null;
+  const t0 = new Date(issue).getTime();
+  const t1 = new Date(maturity).getTime();
+  const span = Math.max(t1 - t0, 1);
+  const now = Date.now();
+  const W = 1060; const H = 96; const L = 40; const R = 40; const Y = 58;
+  const pw = W - L - R;
+  const X = (ms) => L + pw * Math.min(Math.max((ms - t0) / span, 0), 1);
+  const nowX = X(Math.min(now, t1));
+  // Sixty-odd monthly ticks on a five-year issue collide into a smear; thinning
+  // keeps the shape and the count is printed underneath either way.
+  const stride = Math.max(1, Math.ceil(flows.length / 44));
+
+  return (
+    <>
+      <h3 className="bondsec-h3">{t("Линия жизни выпуска", "Chiqarilish hayot chizig'i", "The issue's life line")}</h3>
+      <svg className="bondsec-chart bondsec-lifeline" viewBox={`0 0 ${W} ${H}`} role="img"
+           aria-label={t("Линия жизни выпуска", "Hayot chizig'i", "Life line")}>
+        <line x1={L} x2={L + pw} y1={Y} y2={Y} className="bondsec-axis" strokeWidth="2" strokeLinecap="round" />
+        <line x1={L} x2={nowX} y1={Y} y2={Y} className="bondsec-life-done" strokeWidth="2" strokeLinecap="round" />
+        {flows.map((f, i) => {
+          const last = i === flows.length - 1;
+          if (!last && i % stride !== 0) return null;
+          const x = X(new Date(f.date).getTime());
+          const h = last ? 22 : 11;
+          return (
+            <g key={f.date} className={f.paid ? "bondsec-life-tick done" : "bondsec-life-tick"}>
+              <line x1={x} x2={x} y1={Y - h} y2={Y} strokeWidth={last ? 3 : 2} strokeLinecap="round" />
+              <circle cx={x} cy={Y - h} r={last ? 4.5 : 2.8} />
+              <title>{`${fmtBondDay(f.date)}${f.principal > 0 ? ` · ${t("погашение номинала", "nominal so'ndirish", "principal")}` : ""}`}</title>
+            </g>
+          );
+        })}
+        <text x={L} y={Y + 22} className="bondsec-tick">{t("размещение", "joylashtirish", "placed")} · {fmtBondDay(issue)}</text>
+        <text x={L + pw} y={Y + 22} textAnchor="end" className="bondsec-tick">{t("погашение", "so'ndirish", "redemption")} · {fmtBondDay(maturity)}</text>
+        {now <= t1 && (
+          <>
+            <line x1={nowX} x2={nowX} y1={Y - 40} y2={Y + 6} className="bondsec-life-now" />
+            <text x={nowX} y={Y - 46} textAnchor="middle" className="bondsec-tick bondsec-tick-strong">{t("сегодня", "bugun", "today")}</text>
+          </>
+        )}
+      </svg>
+      <p className="muted bondsec-note" style={{ marginTop: 0 }}>
+        {stride > 1 ? `${t("Засечки прорежены.", "Chiziqchalar siyraklashtirilgan.", "Ticks are thinned.")} ` : ""}
+        {t("Всего", "Jami", "In all")} {flows.length} {t("купонных периодов", "kupon davri", "coupon periods")}
+        {bond.schedule?.paid != null ? `, ${t("срок наступил у", "muddati kelgan", "fallen due")} ${bond.schedule.paid}` : ""}
+        {"; "}{t("высокая засечка — возврат номинала.", "baland chiziqcha — nominal qaytishi.", "the tall tick is the return of principal.")}
+      </p>
+    </>
+  );
+}
+
 function BondCard({ ticker, language, onBack, onOpenChart }) {
   const lang = normalizeLanguage(language);
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
@@ -7096,7 +7172,7 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
           <p className="muted bondsec-sub">
             {bond.ticker}
             {bond.isin ? ` · ${bond.isin}` : ""} · UZS
-            {bond.status === "matured" && ` · ${t("выпуск погашается", "chiqarilish so'ndirilmoqda", "redeeming")}`}
+            {bond.state && <> · <BondStateBadge state={bond.state} lang={lang} /></>}
           </p>
         </div>
         <div className="bondsec-card-actions">
@@ -7187,11 +7263,33 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
               <tr><td>{t("«Грязная» цена", "«Iflos» narx", "Dirty price")}</td><td>{m(bond.dirty, (v) => fmtPrice(v, lang))}</td></tr>
               <tr>
                 <td>{t("Следующий купон", "Keyingi kupon", "Next coupon")}</td>
-                <td>{nextCoupon
-                  ? `${fmtBondDay(nextCoupon.pay_date)}${nextCoupon.amount != null ? ` · ${num2(nextCoupon.amount, 0)} ${t("сум", "so'm", "UZS")}` : ""}`
-                  : dash(t("будущих купонов в раскрытии нет", "kelgusi kuponlar e'lon qilinmagan", "no future coupons filed"))}</td>
+                <td title={!nextCoupon && bond.schedule?.next_date
+                  ? t("Дата рассчитана из цикла купона и дат размещения и погашения — эмитент подаёт каждую выплату отдельно и заранее их не публикует.",
+                      "Sana kupon sikli va sanalardan hisoblangan.",
+                      "Computed from the coupon cycle and the placement and redemption dates — the issuer files each payment separately.")
+                  : ""}>
+                  {nextCoupon
+                    ? `${fmtBondDay(nextCoupon.pay_date)}${nextCoupon.amount != null ? ` · ${num2(nextCoupon.amount, 0)} ${t("сум", "so'm", "UZS")}` : ""}`
+                    : bond.schedule?.next_date
+                      ? <>{fmtBondDay(bond.schedule.next_date)}
+                          {bond.schedule.amount != null && ` · ${num2(bond.schedule.amount, 0)} ${t("сум", "so'm", "UZS")}`}
+                          <span className="bondsec-recon">*</span></>
+                      : dash(t("будущих выплат нет — выпуск погашен либо график не восстановим",
+                               "kelgusi to'lovlar yo'q", "no future payments — redeemed, or no schedule can be built"))}
+                </td>
               </tr>
-              <tr><td>{t("Купонов подано", "Kupon topshirilgan", "Coupons filed")}</td><td>{coupons.length || dash()}</td></tr>
+              <tr>
+                <td>{t("Купонов всего / прошло срок", "Kuponlar jami / muddati o'tgan", "Coupons in all / fallen due")}</td>
+                <td>{bond.schedule?.total != null
+                  ? `${bond.schedule.total} / ${bond.schedule.paid ?? 0}`
+                  : dash(t("график не восстановим", "jadval tiklanmaydi", "no schedule"))}</td>
+              </tr>
+              <tr>
+                <td>{t("Из них подано эмитентом", "Emitent topshirgan", "Filed by the issuer")}</td>
+                <td title={t("Существенные факты № 32 «Начисление доходов по ценным бумагам» — единственное подтверждение состоявшейся выплаты.", "32-son muhim fakt.", "Material fact #32 is the only confirmation a payment was made.")}>
+                  {coupons.length || <span className="cell-status">0</span>}
+                </td>
+              </tr>
               <tr><td>{t("Текущая доходность", "Joriy daromadlilik", "Running yield")}<TermInfo termId="runningYield" lang={lang} /></td><td>{m(bond.simple_yield, (v) => `${num2(v)}%`)}</td></tr>
               <tr><td>{t("Базис дней", "Kun bazisi", "Day count")}</td><td>{bond.day_count_basis || "—"}</td></tr>
             </tbody>
@@ -7200,7 +7298,19 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
         <div className="bondsec-kv-card">
           <table className="bondsec-kv">
             <tbody>
+              {bond.state === "matured" && bond.realized && (
+                <tr>
+                  <td>{t("Реализованная доходность", "Amalga oshgan daromadlilik", "Realised return")}</td>
+                  <td className="bondsec-strong" title={bond.realized.note || ""}>
+                    {bond.realized.value != null ? `${num2(bond.realized.value)}%` : dash(bond.realized.note)}
+                  </td>
+                </tr>
+              )}
               <tr><td>{t("Доходность к погашению", "So'ndirishgacha daromadlilik", "YTM")}<TermInfo termId="ytm" lang={lang} /></td><td className="bondsec-strong">{m(bond.ytm, (v) => `${num2(v)}%`)}</td></tr>
+              <tr>
+                <td>{t("Доходность при цене номинала", "Nominal narxdagi daromadlilik", "Yield at par")}<TermInfo termId="effectiveAtPar" lang={lang} /></td>
+                <td>{m(bond.effective_at_par, (v) => `${num2(v)}%`)}</td>
+              </tr>
               <tr><td>{t("G-спред", "G-spred", "G-spread")}<TermInfo termId="gSpread" lang={lang} /></td><td>{m(bond.g_spread, (v) => fmtBp(v, lang))}</td></tr>
               <tr><td>{t("Премия к ставке ЦБ", "MB stavkasiga mukofot", "Premium to key rate")}<TermInfo termId="keyRatePremium" lang={lang} /></td><td>{m(bond.spread, (v) => fmtBp(v, lang))}</td></tr>
               <tr><td>{t("Дюрация Маколея, лет", "Makoley dyuratsiyasi", "Macaulay duration")}<TermInfo termId="duration" lang={lang} /></td><td>{m(bond.duration)}</td></tr>
@@ -7213,6 +7323,10 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
           </table>
         </div>
       </div>
+
+      <BondLifeLine bond={bond} flows={(bond.schedule_flows || []).map((f) => ({
+        date: f.date, paid: f.due, principal: f.principal || 0,
+      }))} lang={lang} />
 
       <div className="bondsec-tabs" role="tablist">
         <button type="button" role="tab" aria-selected={tab === "overview"} onClick={() => setTab("overview")}>
@@ -7343,32 +7457,44 @@ function BondGovCurvePanel({ curveData, keyRate, lang }) {
 
 function BondCouponsPanel({ bond, coupons, lang }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
-  if (!coupons.length) {
-    return (
-      <div className="bondsec-empty">
-        <b>{t("Календарь купонов недоступен", "Kupon kalendari mavjud emas", "No coupon calendar")}</b>
-        {t("Эмитент не подавал начислений по этому выпуску: купоны появляются в разделе существенных фактов openinfo.uz по мере выплат.",
-           "Emitent bu chiqarilish bo'yicha hisoblash topshirmagan.",
-           "The issuer has filed no accruals for this issue: coupons appear among openinfo.uz material facts as they are paid.")}
-      </div>
-    );
-  }
   const today = new Date().toISOString().slice(0, 10);
   const nominal = bond.reference?.nominal;
   const maturity = bond.reference?.maturity_date;
-  const flows = coupons
-    .filter((c) => c.pay_date)
-    .map((c) => ({
-      date: c.pay_date.slice(0, 10),
-      coupon: c.amount,
-      principal: maturity && c.pay_date.slice(0, 10) === maturity.slice(0, 10) && nominal != null ? nominal : 0,
-      paid: c.is_paid || c.pay_date.slice(0, 10) <= today,
-      no: c.coupon_no,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  if (maturity && nominal != null && !flows.some((f) => f.principal)) {
-    flows.push({ date: maturity.slice(0, 10), coupon: null, principal: nominal, paid: maturity.slice(0, 10) <= today, no: null });
+  // The schedule the server built: filed payments where the issuer filed them,
+  // and the register's cycle everywhere else. Before the register existed this
+  // panel could only draw the two or three coupons an issuer had announced, so
+  // a five-year bond's «календарь выплат» was three bars.
+  const served = bond.schedule_flows || [];
+  const flows = served.length
+    ? served.map((f) => ({
+        date: f.date, coupon: f.coupon, principal: f.principal || 0,
+        paid: f.due, no: f.no, filed: f.filed,
+      }))
+    : coupons
+        .filter((c) => c.pay_date)
+        .map((c) => ({
+          date: c.pay_date.slice(0, 10),
+          coupon: c.amount,
+          principal: maturity && c.pay_date.slice(0, 10) === maturity.slice(0, 10) && nominal != null ? nominal : 0,
+          paid: c.is_paid || c.pay_date.slice(0, 10) <= today,
+          no: c.coupon_no,
+          filed: true,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+  if (!served.length && maturity && nominal != null && !flows.some((f) => f.principal)) {
+    flows.push({ date: maturity.slice(0, 10), coupon: null, principal: nominal, paid: maturity.slice(0, 10) <= today, no: null, filed: false });
   }
+  if (!flows.length) {
+    return (
+      <div className="bondsec-empty">
+        <b>{t("График выплат не восстановим", "To'lov jadvali tiklanmaydi", "No payment schedule can be built")}</b>
+        {t("Для графика нужны ставка купона, цикл выплат и обе даты — размещения и погашения. Реестр обращающихся выпусков биржи не даёт по этому выпуску всех четырёх, а эмитент не подавал начислений на openinfo.uz.",
+           "Jadval uchun kupon stavkasi, sikl va ikkala sana kerak.",
+           "A schedule needs the coupon rate, the payment cycle and both dates — placement and redemption. The exchange's register does not carry all four for this issue, and the issuer has filed no accruals on openinfo.uz.")}
+      </div>
+    );
+  }
+  const reconstructed = flows.filter((f) => f.filed === false).length;
 
   const known = flows.filter((f) => (f.coupon || 0) + (f.principal || 0) > 0);
   const maxV = Math.max(...known.map((f) => (f.coupon || 0) + (f.principal || 0)), 1);
@@ -7430,16 +7556,24 @@ function BondCouponsPanel({ bond, coupons, lang }) {
                 <td>{fmtBondDay(f.date)}</td>
                 <td className="num">{f.coupon != null ? fmtNumber(f.coupon, lang, 2) : "—"}</td>
                 <td className="num">{f.principal > 0 ? fmtNumber(f.principal, lang, 0) : "—"}</td>
-                <td className="muted">{f.paid ? t("выплачено", "to'langan", "paid") : t("предстоит", "kutilmoqda", "upcoming")}</td>
+                <td className="muted">
+                  {f.paid ? t("срок прошёл", "muddat o'tdi", "fell due") : t("предстоит", "kutilmoqda", "upcoming")}
+                  {f.filed === false && <span className="bondsec-recon" title={t("Дата и сумма рассчитаны из условий выпуска, эмитент этот платёж не подавал.", "Sana va summa chiqarilish shartlaridan hisoblangan.", "Date and amount computed from the issue's terms; the issuer has not filed this payment.")}> *</span>}
+                  {f.filed === true && <span className="tone-pos" title={t("Эмитент подал этот платёж существенным фактом.", "Emitent bu to'lovni muhim fakt sifatida topshirgan.", "The issuer filed this payment as a material fact.")}> ✓</span>}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       <p className="muted bondsec-note">
-        {t("Календарь — это поданные эмитентом существенные факты, а не сгенерированный график: показываются только выплаты, которые эмитент раскрыл.",
-           "Kalendar — emitent topshirgan muhim faktlar, yaratilgan jadval emas.",
-           "The calendar is the issuer's filed material facts, not a generated schedule: only disclosed payments appear.")}
+        {reconstructed
+          ? t(`График собран из условий выпуска: реестр обращающихся выпусков биржи публикует ставку, цикл купона и даты размещения и погашения, а сами даты платежей между ними раскладываются равномерно. Из ${flows.length} выплат эмитент подал ${flows.length - reconstructed} — они отмечены галочкой; остальные ${reconstructed} рассчитаны и отмечены звёздочкой. «Срок прошёл» означает, что платёж наступил по календарю, а не что он подтверждён исполненным.`,
+             `Jadval chiqarilish shartlaridan yig'ilgan. ${flows.length} to'lovdan ${flows.length - reconstructed} tasini emitent topshirgan, qolgan ${reconstructed} tasi hisoblangan.`,
+             `The schedule is assembled from the issue's terms: the exchange's register of circulating issues publishes the rate, the coupon cycle and the placement and redemption dates, and the payment dates between them are laid evenly. Of ${flows.length} payments the issuer has filed ${flows.length - reconstructed} — marked with a tick; the other ${reconstructed} are computed and marked with a star. "Fell due" means the date has passed, not that the payment is confirmed met.`)
+          : t("Каждая выплата в этом графике подана эмитентом существенным фактом на openinfo.uz.",
+             "Bu jadvaldagi har bir to'lov emitent tomonidan muhim fakt sifatida topshirilgan.",
+             "Every payment in this schedule was filed by the issuer as a material fact on openinfo.uz.")}
       </p>
     </div>
   );

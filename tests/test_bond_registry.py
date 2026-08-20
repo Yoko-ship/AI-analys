@@ -335,3 +335,72 @@ class TestPaymentCalendar:
         cal = bonds.market_cashflows(self.REFS, {}, TODAY)
         assert cal["reconstructed"] == len(cal["flows"])
         assert all(f["source"] == "reconstructed" for f in cal["flows"])
+
+
+class TestTheFilingAnchorsTheReconstruction:
+    """The register states WHEN the issue was placed and when it falls due, not
+    which day of the month it pays on. ACMT2B5 was placed on 6 May and pays on
+    the 22nd — an even split from placement put every future coupon seventeen
+    days early and then reported that the issuer had filed none of its own
+    payments."""
+
+    REF = {"nominal": 100_000.0, "coupon_rate": 25.0, "coupon_freq": 12,
+           "coupon_basis": "calendar",
+           "issue_date": "2026-05-06", "maturity_date": "2028-05-21"}
+    FILED = [{"pay_date": "2026-06-22", "amount": 2054.79, "coupon_no": 1},
+             {"pay_date": "2026-07-22", "amount": 2123.29, "coupon_no": 2}]
+
+    def test_the_newest_filed_payment_sets_where_in_the_month_the_run_falls(self):
+        schedule = bonds.coupon_schedule(self.REF, self.FILED)
+        days = {d.day for d in schedule["dates"][:-1]}
+        # Around the 21st–23rd, not around the 5th.
+        assert days <= {20, 21, 22, 23}, sorted(days)
+
+    def test_a_filing_numbered_one_stops_the_walk_backwards(self):
+        """ACMT2B5's first coupon fell 46 days after placement. Without the
+        issuer's own numbering the reconstruction put a sixteen-day stub in
+        front of it — a payment that never happened."""
+        schedule = bonds.coupon_schedule(self.REF, self.FILED)
+        assert schedule["dates"][0] == date(2026, 6, 22)
+        assert len(schedule["dates"]) == 24
+
+    def test_the_redemption_date_is_never_moved_by_an_anchor(self):
+        """The principal falls due on the date the register states, not on a
+        multiple of a coupon period."""
+        schedule = bonds.coupon_schedule(self.REF, self.FILED)
+        assert schedule["dates"][-1] == date(2028, 5, 21)
+        # And no thirteen-day stub is left in front of it.
+        assert (schedule["dates"][-1] - schedule["dates"][-2]).days > 20
+
+    def test_every_filed_payment_lands_in_the_schedule(self):
+        flows = bonds.issue_schedule(self.REF, self.FILED, TODAY)
+        filed = [f for f in flows if f["filed"]]
+        assert {f["date"] for f in filed} == {"2026-06-22", "2026-07-22"}
+        # And each keeps its own filed amount, which is not the periodic one.
+        assert {f["coupon"] for f in filed} == {2054.79, 2123.29}
+
+    def test_a_payment_day_that_drifted_over_the_years_is_still_matched(self):
+        """BFMT3V2 paid on the 29th in its first winter and on the 13th two
+        years later. A fixed tolerance declared the issuer's own filings
+        unmatched; the filing is a fact and takes the nearest free period."""
+        ref = {"nominal": 100_000.0, "coupon_rate": 27.0, "coupon_freq": 12,
+               "issue_date": "2023-10-09", "maturity_date": "2026-09-13"}
+        filed = [{"pay_date": "2024-01-29", "amount": 2219.18},
+                 {"pay_date": "2024-02-28", "amount": 2219.18},
+                 {"pay_date": "2026-07-13", "amount": 2219.18}]
+        flows = bonds.issue_schedule(ref, filed, TODAY)
+        assert sum(1 for f in flows if f["filed"]) == 3
+
+    def test_a_filing_from_outside_the_issue_s_life_is_not_forced_in(self):
+        """ACMT2B4 carries a payment dated a year before its own placement —
+        a mis-joined series. It is left out rather than bent into the run."""
+        ref = {"nominal": 100_000.0, "coupon_rate": 26.0, "coupon_freq": 12,
+               "issue_date": "2026-01-16", "maturity_date": "2028-01-16"}
+        flows = bonds.issue_schedule(ref, [{"pay_date": "2025-02-16", "amount": 2219.18}], TODAY)
+        assert not any(f["filed"] for f in flows)
+        assert all(f["date"] > "2026-01-16" for f in flows)
+
+    def test_the_schedule_is_monotonic_with_no_repeated_date(self):
+        dates = [f["date"] for f in bonds.issue_schedule(self.REF, self.FILED, TODAY)]
+        assert dates == sorted(dates)
+        assert len(set(dates)) == len(dates)

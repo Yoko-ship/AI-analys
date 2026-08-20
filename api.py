@@ -2370,6 +2370,12 @@ async def api_bond_detail(ticker: str) -> dict[str, Any]:
     if not row:
         raise HTTPException(status_code=404, detail="bond not found")
     return _json_safe({"ok": True, **row, "coupons": coupons.get(ticker, []),
+                       # The whole payment schedule of THIS issue — filed where
+                       # the issuer filed it, reconstructed from the register's
+                       # cycle everywhere else. Served on the card only: the
+                       # board would carry sixty-five of these for nothing.
+                       "schedule_flows": bonds.issue_schedule(references.get(ticker),
+                                                              coupons.get(ticker, [])),
                        "gov_curve": gov_points, "key_rate": key_rate,
                        "board_day": payload.get("board_day")})
 

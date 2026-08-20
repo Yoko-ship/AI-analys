@@ -12384,3 +12384,20 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 /* A reconstructed date wears a mark. The plan is not the diary. */
 .bondsec-recon { color: var(--muted); margin-left: 2px; }
 .bondsec-liq { font-variant-numeric: tabular-nums; }
+
+/* The issue's life line: placement → coupon periods → today → redemption. */
+.bondsec-lifeline { max-height: 130px; }
+.bondsec-life-done { stroke: var(--chart-primary); }
+.bondsec-life-now { stroke: var(--text); stroke-width: 1.5; }
+.bondsec-life-tick line { stroke: var(--border-hover); }
+.bondsec-life-tick circle { fill: var(--border-hover); stroke: var(--surface-1); stroke-width: 2; }
+.bondsec-life-tick.done line { stroke: var(--chart-primary); }
+.bondsec-life-tick.done circle { fill: var(--chart-primary); }
+.bondsec-tick-strong { fill: var(--text); font-weight: 620; }
+.bondsec-state {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
