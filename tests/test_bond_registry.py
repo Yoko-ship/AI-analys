@@ -136,7 +136,6 @@ class TestSchedule:
         schedule = bonds.coupon_schedule(REF)
         assert schedule["source"] == "reconstructed"
         # Five years, quarterly.
-        assert schedule["total"] if "total" in schedule else len(schedule["dates"]) == 20
         assert len(schedule["dates"]) == 20
         assert schedule["dates"][-1] == date(2029, 9, 18)
         assert schedule["amount"] == pytest.approx(45_000.0)
@@ -262,3 +261,77 @@ class TestProvenanceOfTerms:
     def test_a_reference_with_no_source_recorded_says_nothing_rather_than_guessing(self):
         state = bonds.reference_state(REF)
         assert state["coupon_source"] is None and state["maturity_source"] is None
+
+
+class TestTheBoardIsNotTheUniverse:
+    def test_a_registered_issue_that_never_traded_still_appears(self):
+        """Sixty-five issues are registered and about a sixth print on any given
+        day. A section built from the trade feed alone told the reader the other
+        fifty do not exist, rather than that nobody bought one lately."""
+        board = bonds.build_bond_board(
+            [{"ticker": "IQMK5E", "type": "bond", "last_price": 1_000_000.0}],
+            references={"IQMK5E": REF,
+                        "ONLJ4": {"ticker": "ONLJ4", "nominal": 1_000_000.0,
+                                  "coupon_rate": 15.0, "coupon_freq": 1,
+                                  "issue_date": "2022-12-15",
+                                  "maturity_date": "2027-12-10",
+                                  "issuer": "«NATURAL JUICE» MChJ"}})
+        tickers = {r["ticker"] for r in board["items"]}
+        assert tickers == {"IQMK5E", "ONLJ4"}
+        untraded = next(r for r in board["items"] if r["ticker"] == "ONLJ4")
+        assert untraded["price"] is None
+        assert untraded["status"] == "not_traded"
+        # And it is not empty: its terms are real and its yield at par is
+        # computable without anyone ever having bought one.
+        assert untraded["effective_at_par"]["value"] == pytest.approx(15.0)
+        assert untraded["reference"]["is_complete"] is True
+
+
+class TestPaymentCalendar:
+    REFS = {
+        "IQMK5E": {**REF, "placed_volume": 50_000.0, "issue_volume": 50_000.0,
+                   "issuer": "«O`IQMK» AJ"},
+        "ONLJ4": {"ticker": "ONLJ4", "nominal": 1_000_000.0, "coupon_rate": 15.0,
+                  "coupon_freq": 1, "issue_date": "2022-12-15",
+                  "maturity_date": "2027-12-10", "issue_volume": 15_000.0,
+                  "issuer": "«NATURAL JUICE» MChJ"},
+    }
+
+    def test_every_scheduled_payment_of_every_issue_is_in_it(self):
+        cal = bonds.market_cashflows(self.REFS, {}, TODAY, horizon_months=24)
+        assert cal["issues"] == 2
+        # Quarterly to Sep 2029 and annual to Dec 2027, inside a 24-month window.
+        assert len(cal["flows"]) >= 8
+        assert cal["flows"] == sorted(cal["flows"], key=lambda f: f["date"])
+
+    def test_a_coupon_is_per_security_times_the_securities_placed(self):
+        cal = bonds.market_cashflows(self.REFS, {}, TODAY)
+        one = next(f for f in cal["flows"] if f["ticker"] == "IQMK5E")
+        assert one["per_security"] == pytest.approx(45_000.0)
+        assert one["coupon"] == pytest.approx(45_000.0 * 50_000)
+
+    def test_the_placed_count_is_preferred_to_the_registered_one(self):
+        """«QQ soni» is what was registered, «Joylashtirilgan QQ soni» what
+        found a buyer. The money that leaves the issuer follows the second."""
+        refs = {"X": {**REF, "issue_volume": 10_000.0, "placed_volume": 8_207.0}}
+        cal = bonds.market_cashflows(refs, {}, TODAY)
+        assert cal["flows"][0]["securities"] == 8_207.0
+
+    def test_principal_lands_only_on_the_redemption_date(self):
+        cal = bonds.market_cashflows(self.REFS, {}, TODAY, horizon_months=24)
+        principal = [f for f in cal["flows"] if f["principal"]]
+        assert [f["date"] for f in principal] == ["2027-12-10"]
+        assert principal[0]["principal"] == pytest.approx(1_000_000.0 * 15_000)
+
+    def test_the_months_are_a_contiguous_run_starting_this_month(self):
+        cal = bonds.market_cashflows(self.REFS, {}, TODAY, horizon_months=14)
+        assert len(cal["months"]) == 14
+        assert (cal["months"][0]["year"], cal["months"][0]["month"]) == (2026, 8)
+        assert (cal["months"][-1]["year"], cal["months"][-1]["month"]) == (2027, 9)
+        # A month with no payment is still a month, and prints as an empty bar.
+        assert all("coupon" in m and "principal" in m for m in cal["months"])
+
+    def test_the_calendar_says_how_much_of_it_is_reconstructed(self):
+        cal = bonds.market_cashflows(self.REFS, {}, TODAY)
+        assert cal["reconstructed"] == len(cal["flows"])
+        assert all(f["source"] == "reconstructed" for f in cal["flows"])
