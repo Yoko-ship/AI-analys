@@ -3565,6 +3565,22 @@ async def api_news_calendar_meetings(year: int | None = None, month: int | None 
         return {"ok": False, "error": str(exc), "items": []}
 
 
+@app.get("/api/news/calendar/announcements")
+async def api_news_calendar_announcements(limit: int = 1000) -> dict[str, Any]:
+    """The meeting-notice feed, newest publication first — the list shape of the
+    same ``catalog_meetings`` window the month grid reads."""
+    import meetings as meetings_store
+
+    loop = asyncio.get_running_loop()
+    try:
+        payload = await loop.run_in_executor(
+            None, partial(meetings_store.announcements, max(1, min(limit, 2000))))
+        return _json_safe(payload)
+    except Exception as exc:
+        logger.exception("announcements feed failed")
+        return {"ok": False, "error": str(exc), "items": []}
+
+
 @app.get("/api/news/calendar/dividends")
 async def api_news_calendar_dividends(limit: int = 300) -> dict[str, Any]:
     """The market-wide dividend calendar, one row per filing, newest first.

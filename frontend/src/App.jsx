@@ -707,9 +707,10 @@ function newsTabFromLocation() {
 // keeps warm; the client only groups by day and filters by share class.
 const NEWSCAL_TX = {
   ru: {
-    views: { events: "Собрания", dividends: "Дивиденды" },
+    views: { events: "Собрания", announcements: "Объявления", dividends: "Дивиденды" },
     viewHint: {
       events: "Объявленные общие собрания акционеров — по дате проведения",
+      announcements: "Сообщения о созыве собраний — по дате публикации",
       dividends: "Объявленные дивиденды всего рынка — суммы, проценты и окна выплат",
     },
     weekdays: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
@@ -720,15 +721,19 @@ const NEWSCAL_TX = {
     searchPh: "Эмитент или тикер…",
     download: "Скачать CSV",
     divTypes: { common: "Простые акции", preferred: "Привилегированные", bond: "Облигации" },
-    th: { issuer: "Эмитент", decision: "Дата решения", amount: "Сумма, сум", window: "Реестр / выплата" },
+    th: { issuer: "Эмитент", decision: "Дата решения", amount: "Сумма, сум", window: "Реестр / выплата",
+      org: "Организация", title: "Название", pub: "Дата публикации", meeting: "Дата собрания" },
+    pager: { perPage: "Показывать по", shown: "Показаны", of: "из" },
+    annEmpty: "Объявлений не найдено.",
     divEmpty: "Данных по дивидендам пока нет.",
     divNote: "Суммы — на одну бумагу по решению собрания; период — окно закрытия реестра и выплаты.",
     source: "Источник: openinfo.uz",
   },
   en: {
-    views: { events: "Meetings", dividends: "Dividends" },
+    views: { events: "Meetings", announcements: "Announcements", dividends: "Dividends" },
     viewHint: {
       events: "Announced general shareholder meetings, by meeting date",
+      announcements: "Meeting convocation notices, by publication date",
       dividends: "Declared dividends across the market — amounts, percents and payout windows",
     },
     weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
@@ -739,15 +744,19 @@ const NEWSCAL_TX = {
     searchPh: "Issuer or ticker…",
     download: "Download CSV",
     divTypes: { common: "Ordinary shares", preferred: "Preferred", bond: "Bonds" },
-    th: { issuer: "Issuer", decision: "Decision date", amount: "Amount, UZS", window: "Record / payment" },
+    th: { issuer: "Issuer", decision: "Decision date", amount: "Amount, UZS", window: "Record / payment",
+      org: "Organization", title: "Title", pub: "Published", meeting: "Meeting date" },
+    pager: { perPage: "Per page", shown: "Showing", of: "of" },
+    annEmpty: "No announcements found.",
     divEmpty: "No dividend data yet.",
     divNote: "Amounts are per security, as resolved by the meeting; the window runs from the record date to the end of payment.",
     source: "Source: openinfo.uz",
   },
   uz: {
-    views: { events: "Yig'ilishlar", dividends: "Dividendlar" },
+    views: { events: "Yig'ilishlar", announcements: "E'lonlar", dividends: "Dividendlar" },
     viewHint: {
       events: "E'lon qilingan umumiy yig'ilishlar — o'tkazish sanasi bo'yicha",
+      announcements: "Yig'ilish chaqiruvi haqidagi xabarlar — e'lon sanasi bo'yicha",
       dividends: "Butun bozor bo'yicha e'lon qilingan dividendlar — summalar, foizlar va to'lov oynalari",
     },
     weekdays: ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"],
@@ -758,12 +767,50 @@ const NEWSCAL_TX = {
     searchPh: "Emitent yoki tiker…",
     download: "CSV yuklab olish",
     divTypes: { common: "Oddiy aksiyalar", preferred: "Imtiyozli", bond: "Obligatsiyalar" },
-    th: { issuer: "Emitent", decision: "Qaror sanasi", amount: "Summa, so'm", window: "Reyestr / to'lov" },
+    th: { issuer: "Emitent", decision: "Qaror sanasi", amount: "Summa, so'm", window: "Reyestr / to'lov",
+      org: "Tashkilot", title: "Nomi", pub: "E'lon sanasi", meeting: "Yig'ilish sanasi" },
+    pager: { perPage: "Sahifada", shown: "Ko'rsatildi", of: "/" },
+    annEmpty: "E'lonlar topilmadi.",
     divEmpty: "Dividendlar bo'yicha ma'lumot hozircha yo'q.",
     divNote: "Summalar — yig'ilish qarori bo'yicha bitta qog'ozga; davr — reyestr yopilishidan to'lov oxirigacha.",
     source: "Manba: openinfo.uz",
   },
 };
+
+// Pagination the way the source's tables do it: a shown-range line, a
+// «Показывать по N» selector and a numbered strip with ellipses.
+function NewsCalPager({ p, pages, total, from, to, size, onPage, onSize, tx }) {
+  if (!total) return null;
+  const nums = [];
+  for (const n of [1, p - 1, p, p + 1, pages]) {
+    if (n >= 1 && n <= pages && !nums.includes(n)) nums.push(n);
+  }
+  nums.sort((a, b) => a - b);
+  return (
+    <div className="newscal-pager">
+      <span className="muted">{tx.pager.shown} {from}–{to} {tx.pager.of} {total}</span>
+      <label className="newscal-psize muted">
+        {tx.pager.perPage}
+        <select className="newscal-select" value={size} onChange={(e) => onSize(Number(e.target.value))}>
+          {[10, 25, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </label>
+      <div className="newscal-pnums">
+        <button type="button" className="newscal-arrow" disabled={p <= 1} aria-label="prev"
+          onClick={() => onPage(p - 1)}>‹</button>
+        {nums.map((n, i) => (
+          <React.Fragment key={n}>
+            {i > 0 && nums[i - 1] < n - 1 && <span className="muted">…</span>}
+            <button type="button" className={`newscal-pnum ${n === p ? "active" : ""}`}
+              onClick={() => onPage(n)}>{n}</button>
+          </React.Fragment>
+        ))}
+        <button type="button" className="newscal-arrow" disabled={p >= pages} aria-label="next"
+          onClick={() => onPage(p + 1)}>›</button>
+      </div>
+    </div>
+  );
+}
 
 function NewsCalendarView({ language, onOpenCompany }) {
   const lang = normalizeLanguage(language);
@@ -776,8 +823,13 @@ function NewsCalendarView({ language, onOpenCompany }) {
   const [day, setDay] = React.useState(null);
   const [search, setSearch] = React.useState("");
   const [events, setEvents] = React.useState({ loading: true, error: false, items: [] });
+  const [anns, setAnns] = React.useState(null); // null = not asked for yet
   const [divs, setDivs] = React.useState(null); // null = not asked for yet
   const [divType, setDivType] = React.useState("common");
+  const [divSort, setDivSort] = React.useState({ key: "pub", dir: -1 });
+  const [pageSize, setPageSize] = React.useState(10);
+  const [page, setPage] = React.useState(1);
+  React.useEffect(() => { setPage(1); }, [view, divType, search, pageSize, divSort]);
 
   React.useEffect(() => {
     let alive = true;
@@ -801,6 +853,16 @@ function NewsCalendarView({ language, onOpenCompany }) {
       .catch(() => { if (alive) setDivs({ error: true, items: [] }); });
     return () => { alive = false; };
   }, [view, divs]);
+
+  React.useEffect(() => {
+    if (view !== "announcements" || anns) return undefined;
+    let alive = true;
+    fetch("/api/news/calendar/announcements?limit=2000")
+      .then((r) => r.json())
+      .then((d) => { if (alive) setAnns({ error: !d || !d.ok, items: (d && d.items) || [] }); })
+      .catch(() => { if (alive) setAnns({ error: true, items: [] }); });
+    return () => { alive = false; };
+  }, [view, anns]);
 
   const q = search.trim().toLowerCase();
   const filteredEvents = React.useMemo(
@@ -889,6 +951,44 @@ function NewsCalendarView({ language, onOpenCompany }) {
     URL.revokeObjectURL(a.href);
   };
 
+  const annItems = React.useMemo(() => {
+    const rows = (anns && anns.items) || [];
+    if (!q) return rows;
+    return rows.filter((it) => String(it.organization || "").toLowerCase().includes(q)
+      || String(it.ticker || "").toLowerCase().includes(q)
+      || String(it.title || "").toLowerCase().includes(q));
+  }, [anns, q]);
+
+  const sortedDivs = React.useMemo(() => {
+    const val = (r) => (divSort.key === "amount" ? (amountOf(r) || 0)
+      : divSort.key === "percent" ? (pctOf(r) || 0)
+        : divSort.key === "decision" ? String(r.decision_date || "")
+          : String(r.pub_date || ""));
+    return [...divItems].sort((a, b) => {
+      const x = val(a); const y = val(b);
+      return (x < y ? -1 : x > y ? 1 : 0) * divSort.dir;
+    });
+  }, [divItems, divSort, divType]);
+
+  const paginate = (rows) => {
+    const total = rows.length;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    const p = Math.min(page, pages);
+    const from = total === 0 ? 0 : (p - 1) * pageSize + 1;
+    const slice = rows.slice((p - 1) * pageSize, (p - 1) * pageSize + pageSize);
+    return { slice, total, pages, p, from, to: total === 0 ? 0 : from + slice.length - 1 };
+  };
+  const annPage = paginate(annItems);
+  const divPage = paginate(sortedDivs);
+
+  const sortTh = (key, label, num) => (
+    <th className={`newscal-sortth${num ? " dividend-num" : ""}`}
+      aria-sort={divSort.key === key ? (divSort.dir < 0 ? "descending" : "ascending") : undefined}
+      onClick={() => setDivSort((s) => ({ key, dir: s.key === key ? -s.dir : -1 }))}>
+      {label}{divSort.key === key ? (divSort.dir < 0 ? " ↓" : " ↑") : ""}
+    </th>
+  );
+
   const orgCell = (it) => (it.ticker && onOpenCompany
     ? (
       <button type="button" className="newscal-org-btn" onClick={() => onOpenCompany(it.ticker)}>
@@ -912,7 +1012,7 @@ function NewsCalendarView({ language, onOpenCompany }) {
   return (
     <div className="newscal">
       <div className="news-subtabs" role="group" aria-label={tx.views.events}>
-        {["events", "dividends"].map((key) => (
+        {["events", "announcements", "dividends"].map((key) => (
           <button key={key} type="button"
             className={`news-subtab ${view === key ? "active" : ""}`}
             aria-pressed={view === key}
@@ -1020,6 +1120,48 @@ function NewsCalendarView({ language, onOpenCompany }) {
             </>
           )}
         </>
+      ) : view === "announcements" ? (
+        <>
+          <div className="newscal-bar">
+            <input className="newscal-search" type="search" value={search}
+              placeholder={tx.searchPh} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          {!anns ? (
+            <div className="led-empty">{tx.loading}</div>
+          ) : anns.error ? (
+            <div className="led-empty">{tx.error}</div>
+          ) : annPage.total === 0 ? (
+            <div className="led-empty">{tx.annEmpty}</div>
+          ) : (
+            <>
+              <div className="dividend-table-wrap panel">
+                <table className="dividend-table">
+                  <thead>
+                    <tr>
+                      <th>{tx.th.org}</th>
+                      <th>{tx.th.title}</th>
+                      <th>{tx.th.pub}</th>
+                      <th>{tx.th.meeting}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {annPage.slice.map((it, i) => (
+                      <tr key={it.announcement_id || i}>
+                        <td>{orgCell(it)}</td>
+                        <td className="newscal-anntitle">{it.title || "—"}</td>
+                        <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmtDate(it.pub_date)}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          {fmtDate(it.meeting_date)}{fmtTime(it.meeting_date) ? ` · ${fmtTime(it.meeting_date)}` : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <NewsCalPager {...annPage} size={pageSize} onPage={setPage} onSize={setPageSize} tx={tx} />
+            </>
+          )}
+        </>
       ) : (
         <>
           <div className="newscal-bar">
@@ -1054,15 +1196,15 @@ function NewsCalendarView({ language, onOpenCompany }) {
                   <thead>
                     <tr>
                       <th>{tx.th.issuer}</th>
-                      <th>{tx.th.decision}</th>
-                      <th className="dividend-num">{tx.th.amount}</th>
-                      <th className="dividend-num">%</th>
+                      {sortTh("decision", tx.th.decision, false)}
+                      {sortTh("amount", tx.th.amount, true)}
+                      {sortTh("percent", "%", true)}
                       <th>{tx.th.window}</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {divItems.map((r, i) => {
+                    {divPage.slice.map((r, i) => {
                       const start = startOf(r);
                       const end = endOf(r);
                       return (
@@ -1081,6 +1223,7 @@ function NewsCalendarView({ language, onOpenCompany }) {
                   </tbody>
                 </table>
               </div>
+              <NewsCalPager {...divPage} size={pageSize} onPage={setPage} onSize={setPageSize} tx={tx} />
               <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>{tx.divNote}</p>
             </>
           )}

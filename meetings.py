@@ -187,6 +187,42 @@ def read_window(start: str, end: str) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def read_recent(limit: int = 1000) -> list[dict[str, Any]]:
+    """The stored window as a publication feed, newest notice first — the shape
+    of the source's «Объявления» table, where the pub date is the row's identity
+    and the meeting date is what the reader came for."""
+    from reports_catalog import get_catalog_conn
+
+    conn = get_catalog_conn()
+    try:
+        rows = conn.execute(
+            f"SELECT {', '.join(_COLUMNS)}, updated_at FROM catalog_meetings "
+            "ORDER BY pub_date DESC, announcement_id DESC LIMIT ?",
+            (max(1, limit),),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows]
+
+
+def announcements(limit: int = 1000) -> dict[str, Any]:
+    """The announcement feed, warming the snapshot the same way a month read does."""
+    state = snapshot_state()
+    if not state.get("announcements"):
+        try:
+            refresh(force=True)
+            state = snapshot_state()
+        except Exception:  # noqa: BLE001 — openinfo down must not 500 the page
+            logger.exception("meetings cold refresh failed")
+    else:
+        age = state.get("age_hours")
+        if age is None or age >= REFRESH_TTL_HOURS:
+            refresh_in_background()
+
+    items = read_recent(limit)
+    return {"ok": True, "count": len(items), "items": items, "as_of": state.get("updated_at")}
+
+
 def snapshot_state() -> dict[str, Any]:
     from reports_catalog import get_catalog_conn
 
