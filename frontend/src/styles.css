@@ -12401,3 +12401,9 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
   border: 1px solid currentColor;
   white-space: nowrap;
 }
+
+/* Coverage: how much of each field the sources publish. */
+.bondsec-covbar.tone-pos { fill: var(--chart-primary); opacity: 0.85; }
+.bondsec-covbar.tone-warn { fill: var(--chart-secondary); opacity: 0.85; }
+.bondsec-covbar.tone-neg { fill: var(--danger, #d03b3b); opacity: 0.8; }
+.bondsec-coverage .bondsec-chart { margin-top: 8px; }
