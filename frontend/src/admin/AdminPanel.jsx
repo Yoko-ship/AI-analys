@@ -81,6 +81,8 @@ const SECTIONS = [
     title: ["Эмитент", "Emitent", "Issuer"] },
   { key: "rules", icon: "check", ready: true,
     title: ["Правила", "Qoidalar", "Rules"] },
+  { key: "source", icon: "refresh", ready: true,
+    title: ["Источник", "Manba", "Source"] },
   { key: "catalog", icon: "list", ready: false,
     title: ["Каталог", "Katalog", "Securities"] },
   { key: "quotes", icon: "chart", ready: false,
@@ -262,6 +264,7 @@ export default function AdminPanel({
   const [ledger, setLedger] = useState(null);
   const [ledgerTicker, setLedgerTicker] = useState("");
   const [ruleBook, setRuleBook] = useState(null);
+  const [source, setSource] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
   const alive = useRef(true);
 
@@ -300,6 +303,11 @@ export default function AdminPanel({
     if (alive.current) setRuleBook(data);
   }, [readJson]);
 
+  const loadSource = useCallback(async () => {
+    const data = await readJson("/api/admin/source");
+    if (alive.current) setSource(data);
+  }, [readJson]);
+
   const loadLedger = useCallback(async (ticker) => {
     const one = String(ticker || "").trim().toUpperCase();
     if (!one) return;
@@ -330,11 +338,12 @@ export default function AdminPanel({
     (section === "findings" ? Promise.all([loadOverview(), loadFindings()])
       : section === "intake" ? Promise.all([loadOverview(), loadIntake()])
         : section === "rules" ? Promise.all([loadOverview(), loadRuleBook()])
-          : loadOverview())
+          : section === "source" ? Promise.all([loadOverview(), loadSource()])
+            : loadOverview())
       .catch((e) => { if (!cancelled) setError(String(e.message || e)); })
       .finally(() => { if (!cancelled && alive.current) setLoading(false); });
     return () => { cancelled = true; };
-  }, [section, loadOverview, loadFindings, loadIntake, loadRuleBook]);
+  }, [section, loadOverview, loadFindings, loadIntake, loadRuleBook, loadSource]);
 
   const runAudit = async () => {
     setBusy(true);
@@ -413,6 +422,10 @@ export default function AdminPanel({
       "Расчёт разложен построчно: каждое слагаемое двенадцатимесячной базы со своим периодом и знаком, капитализация по классам, остатки, из которых берутся знаменатели, и все прошедшие проверки.",
       "Hisob-kitob qatorma-qator yoyilgan.",
       "The calculation laid out line by line: every component of the twelve-month base with its period and sign, the capitalisation by class, the balances the denominators come from."),
+    source: t(
+      "Кто должен был отчитаться, кто отчитался и кто молчит. Просрочка — это факт об эмитенте, а не о нашем сборщике, и тот же список — основа публичного индекса раскрытия.",
+      "Kim hisobot berishi kerak edi, kim berdi va kim jim.",
+      "Who was due to file, who did, and who has gone quiet. Being late is a fact about the issuer, not about our collector."),
     rules: t(
       "Параметры расчёта и граница ответственности: панель задаёт пороги и исключения, код задаёт вычисления.",
       "Hisob parametrlari va javobgarlik chegarasi.",
@@ -974,6 +987,75 @@ export default function AdminPanel({
     </div>
   );
 
+  /* ── 06 · the source, and who has not filed ─────────────────────────────── */
+  const cal = (source && source.calendar) || null;
+  const sourceBody = (
+    <div className="admin-section">
+      <div className="admin-stats">
+        <Stat label={t("Ожидаемый период", "Kutilayotgan davr", "Expected period")}
+              value={(cal && cal.expected) || DASH}
+              line1={cal ? t(`окно ${cal.window_opens} — ${cal.window_closes}`,
+                             `oyna ${cal.window_opens} — ${cal.window_closes}`,
+                             `window ${cal.window_opens} — ${cal.window_closes}`) : null} />
+        <Stat label={t("Сдали", "Topshirdi", "Filed")} value={fmtInt(cal && cal.filed)}
+              line1={cal ? t(`из ${fmtInt(cal.issuers)} эмитентов`, `${fmtInt(cal.issuers)} tadan`, `of ${fmtInt(cal.issuers)} issuers`) : null} />
+        <Stat label={t("Просрочили", "Kechikdi", "Late")} value={fmtInt(cal && cal.late)}
+              warn={!!(cal && cal.late)}
+              line1={cal && cal.overdue_days
+                ? t(`окно закрылось ${cal.overdue_days} дн. назад`, `${cal.overdue_days} kun oldin`, `window closed ${cal.overdue_days} d ago`)
+                : t("окно ещё открыто", "oyna ochiq", "the window is still open")} />
+        <Stat label={t("Молчат больше года", "Bir yildan ortiq jim", "Quiet over a year")}
+              value={fmtInt(cal && cal.silent)} warn={!!(cal && cal.silent)}
+              line1={t("это факт об эмитенте", "bu emitent haqidagi fakt", "a fact about the issuer")} />
+      </div>
+
+      <div className="panel">
+        <h3>{t("Календарь отчётности", "Hisobot taqvimi", "The reporting calendar")}</h3>
+        <div className="admin-table">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("Эмитент", "Emitent", "Issuer")}</th>
+                <th>{t("Ожидается", "Kutilmoqda", "Expected")}</th>
+                <th>{t("Последний поданный", "Oxirgi topshirilgan", "Latest filed")}</th>
+                <th className="n">{t("Кварталов позади", "Chorak orqada", "Quarters behind")}</th>
+                <th className="n">{t("Просрочка, дн.", "Kechikish, kun", "Overdue, d")}</th>
+                <th>{t("Статус", "Holat", "State")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {((cal && cal.items) || []).map((r) => (
+                <tr key={r.ticker}>
+                  <td>
+                    <button type="button" className="admin-link"
+                            onClick={() => { setLedgerTicker(r.ticker); loadLedger(r.ticker); onSectionChange && onSectionChange("issuer"); }}>
+                      {r.ticker}
+                    </button>
+                  </td>
+                  <td>{r.expected}</td>
+                  <td>{r.latest}</td>
+                  <td className="n">{r.quarters_behind || DASH}</td>
+                  <td className="n">{r.overdue_days || DASH}</td>
+                  <td>
+                    <span className="admin-pill">
+                      <span className={`admin-dot ${r.state === "сдан" ? "ok" : r.state === "молчит" ? "err" : r.state === "просрочен" ? "warn" : ""}`} />
+                      {r.state}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="admin-muted admin-note">
+          {t("Окно раскрытия открывается на 25-й день после закрытия квартала и держится 45 дней. Пока оно открыто, отсутствие отчёта — «ожидается», а не «просрочен»: между «ещё не подал» и «перестал подавать» разница принципиальная, и складывать их в одну кучу значит прятать второе за первым.",
+             "Oshkoralik oynasi chorak yopilgandan 25 kun keyin ochiladi va 45 kun turadi.",
+             "The disclosure window opens on the 25th day after the quarter closes and runs 45 days. While it is open, a missing report is «expected», not «late».")}
+        </p>
+      </div>
+    </div>
+  );
+
   const notBuiltBody = (
     <div className="panel">
       <div className="admin-empty">
@@ -992,6 +1074,7 @@ export default function AdminPanel({
     intake: intakeBody,
     issuer: issuerBody,
     rules: rulesBody,
+    source: sourceBody,
   };
 
   return (
