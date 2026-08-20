@@ -7727,6 +7727,15 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 .market-events-row:last-child { border-bottom: none; }
 .market-events-row:hover { background: var(--accent-light); }
 
+/* The whole row is the target — it opens the filing (or the company, when the
+   event has no paper). The inner ticker button and the PDF/XLS links keep their
+   own destinations and stop the row's click. */
+.market-events-row.is-openable { cursor: pointer; }
+.market-events-row.is-openable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 /* The event's KIND is carried by a rule down the left edge, so the three types
    separate at a glance without a badge on every row. */
 .market-events-row { border-left: 3px solid transparent; }
