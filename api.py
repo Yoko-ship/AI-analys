@@ -4714,6 +4714,33 @@ async def api_quotes_series(request: Request, tickers: str = "", days: int = 30)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.get("/api/company/{ticker}/splits")
+async def api_company_splits(ticker: str) -> dict[str, Any]:
+    """Share-count events for one security — the «Сплиты» view of the Финансы tab.
+
+    Served from the curated register in corporate_actions.py: the same entries
+    every price series on the site is already back-adjusted by, so the table a
+    reader sees and the chart above it can never disagree. uzse.uz keeps the
+    equivalent behind «Посмотреть сплиты» on its quote page, but lists only the
+    redenominations — ALKB shows the 121× split and not the free issue that
+    took it to 205× — while this register carries both, verified against the
+    share count uzse reports today. An empty list is an answer, not a miss: no
+    event ever multiplied this security's share count.
+    """
+    ticker = ticker.strip().upper()
+    items = [
+        {
+            "ex_date": action.ex_date,
+            "ratio": round(action.ratio, 6),
+            "kind": action.kind,
+            "factor": round(1.0 / action.ratio, 8),
+            "source": action.source,
+        }
+        for action in corporate_actions.actions_for(ticker)
+    ]
+    return {"ok": True, "ticker": ticker, "items": items}
+
+
 @app.get("/api/securities/{ticker}/info")
 async def api_securities_info(ticker: str, language: str = "ru") -> dict[str, Any]:
     """Return company info including Wikipedia extract for a ticker."""
