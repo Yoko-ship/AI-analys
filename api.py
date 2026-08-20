@@ -360,6 +360,15 @@ async def _on_startup() -> None:
             logger.info("startup purge of delisted securities: %s", removed)
     except Exception:
         logger.exception("startup purge of delisted securities failed")
+    # The visit record's table lives in the same Postgres as web auth; creating
+    # it is additive and idempotent. A missing DATABASE_URL only disables
+    # tracking — the site itself must never depend on it.
+    try:
+        import web_analytics
+
+        await asyncio.get_running_loop().run_in_executor(None, web_analytics.init_db)
+    except Exception:
+        logger.exception("web analytics init failed; tracking is off")
     # Fire-and-forget: seed the catalog without blocking the server from accepting
     # requests. The Market endpoint still refreshes it on demand afterwards.
     asyncio.create_task(_populate_securities_on_startup())
@@ -594,6 +603,14 @@ def _admin_gate(x_admin_secret: str | None = Header(default=None),
     user = _require_user(authorization)          # raises 401 when not signed in
     if not is_admin_email(user.email):
         raise HTTPException(status_code=403, detail="Admin access required")
+
+
+# The visit beacon and the panel's product metrics live in their own module;
+# the admin router is gated here so every credential rule stays in one place.
+import analytics_api  # noqa: E402 - needs the app and the gate above
+
+app.include_router(analytics_api.public_router)
+app.include_router(analytics_api.admin_router, dependencies=[Depends(_admin_gate)])
 
 
 # ---------------------------------------------------------------------------
@@ -3513,6 +3530,54 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
     return _json_safe(body)
 
 
+@app.get("/api/news/calendar/meetings")
+async def api_news_calendar_meetings(year: int | None = None, month: int | None = None) -> dict[str, Any]:
+    """One month of upcoming shareholder-meeting announcements (news «Календарь»).
+
+    Served from ``catalog_meetings`` (see meetings.py) — openinfo's announcement
+    calendar, the one disclosure feed that names a corporate event BEFORE it
+    happens. The filings feed the rest of the news section reads shows a meeting
+    only once its minutes are filed.
+    """
+    import meetings as meetings_store
+
+    loop = asyncio.get_running_loop()
+    try:
+        payload = await loop.run_in_executor(
+            None, partial(meetings_store.meetings_for, year, month))
+        return _json_safe(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("meetings calendar failed for %s-%s", year, month)
+        return {"ok": False, "error": str(exc), "items": []}
+
+
+@app.get("/api/news/calendar/dividends")
+async def api_news_calendar_dividends(limit: int = 300) -> dict[str, Any]:
+    """The market-wide dividend calendar, one row per filing, newest first.
+
+    The same ``catalog_dividends`` snapshot the company pages read, folded back
+    from per-security copies to one row per filing so the market table does not
+    list an issuer once per share class (see dividends.read_all).
+    """
+    import dividends as dividends_store
+
+    loop = asyncio.get_running_loop()
+    try:
+        state = await loop.run_in_executor(None, dividends_store.snapshot_state)
+        age = state.get("age_hours")
+        if (not state.get("filings")) or age is None or age >= dividends_store.REFRESH_TTL_HOURS:
+            dividends_store.refresh_in_background()
+        items = await loop.run_in_executor(
+            None, partial(dividends_store.read_all, max(1, min(limit, 1000))))
+        return _json_safe({"ok": True, "count": len(items), "items": items,
+                           "as_of": state.get("updated_at")})
+    except Exception as exc:
+        logger.exception("dividend calendar read failed")
+        return {"ok": False, "error": str(exc), "items": []}
+
+
 @app.get("/api/news/item/{news_id}")
 async def api_news_item(news_id: int, related: int = 6) -> dict[str, Any]:
     """One news item + its neighbours — the read path behind the /news/{id} page (§3.11).
@@ -5755,6 +5820,22 @@ async def api_admin_dividends_refresh(
 
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, partial(dividends_store.refresh, force=force))
+    return _json_safe(result)
+
+
+@app.post("/api/admin/meetings/refresh")
+async def api_admin_meetings_refresh(
+    force: bool = False,
+    _: None = Depends(_require_admin),
+) -> dict[str, Any]:
+    """Re-read openinfo's meeting-announcement window and rewrite the snapshot.
+
+    The read path warms and refreshes itself; this is the collector's handle so
+    the calendar is current before the first visitor of the day."""
+    import meetings as meetings_store
+
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, partial(meetings_store.refresh, force=force))
     return _json_safe(result)
 
 
