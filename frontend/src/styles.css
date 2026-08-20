@@ -7175,12 +7175,17 @@ html body[data-theme="dark"] select {
   color: #fff;
 }
 
-body[data-theme="dark"] .sector-chip {
+/* :not(.active) is load-bearing. Unscoped, this rule outranks
+   `.sector-chip.active` on specificity AND comes after it, so it repainted the
+   SELECTED chip near-black — and the rule below then wrote near-black text onto
+   it. The chosen sector rendered as an empty green ring. */
+body[data-theme="dark"] .sector-chip:not(.active) {
   background: rgba(16, 19, 17, 0.8);
 }
 
 body[data-theme="dark"] .sector-chip.active {
   /* на неоново-зелёном акценте B2 читается тёмный текст, не белый */
+  background: var(--accent);
   color: #071410;
 }
 
@@ -12379,7 +12384,13 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .bondsec-cell.level-1 { background: color-mix(in srgb, var(--chart-primary) 14%, transparent); }
 .bondsec-cell.level-2 { background: color-mix(in srgb, var(--chart-primary) 34%, transparent); }
 .bondsec-cell.level-3 { background: color-mix(in srgb, var(--chart-primary) 60%, transparent); }
-.bondsec-cell.level-4 { background: var(--chart-primary); color: var(--on-accent, #fff); }
+/* `--on-accent` was never defined, so this fell back to white on the accent —
+   fine on the light theme's DEEP green (#0b9e5e) and 1,71:1 on the dark theme's
+   BRIGHT one (#3fe08f). The ink therefore follows the theme rather than the
+   token: the palette is inverted between them, so one fixed colour is wrong in
+   one of the two by construction. */
+.bondsec-cell.level-4 { background: var(--chart-primary); color: #fff; }
+html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
 
 /* A reconstructed date wears a mark. The plan is not the diary. */
 .bondsec-recon { color: var(--muted); margin-left: 2px; }
