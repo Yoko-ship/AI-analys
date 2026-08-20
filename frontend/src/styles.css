@@ -11802,7 +11802,10 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .led .newscal-month { font-family: var(--led-serif); font-size: 19px; color: var(--text); min-width: 168px; text-align: center; text-transform: capitalize; }
 .led .newscal-arrow { appearance: none; border: 1px solid var(--border); background: none; color: var(--text); border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 15px; line-height: 1; transition: all .12s ease; }
 .led .newscal-arrow:hover { border-color: var(--accent); color: var(--accent); }
-.led .newscal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+/* minmax(0,1fr), not 1fr: a bare 1fr track's min-size is the content, so one
+   long nowrap issuer chip widened its column until the weekend fell out of the
+   clipped container — seven equal tracks require the min to be 0. */
+.led .newscal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .led .newscal-dow { background: var(--surface-2, var(--panel)); padding: 7px 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
 .led .newscal-cell { appearance: none; border: 0; font: inherit; text-align: left; background: var(--panel); min-height: 84px; padding: 6px 8px; color: var(--text); position: relative; display: block; width: 100%; }
 .led .newscal-cell.has-events { cursor: pointer; }
