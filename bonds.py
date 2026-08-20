@@ -822,6 +822,101 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
     return out
 
 
+def market_cashflows(references: dict[str, dict[str, Any]] | None = None,
+                     coupons: dict[str, list[dict[str, Any]]] | None = None,
+                     today: date | None = None,
+                     horizon_months: int = 14) -> dict[str, Any]:
+    """Every future payment the market owes, issue by issue and month by month.
+
+    One coupon per security times the number of securities placed, on every date
+    of every issue's schedule, plus the redemption of principal on the last one.
+    The register is what makes this possible at all: before it, the only future
+    payment known was the one an issuer had already announced.
+
+    Two sizes are published and they are not the same number — «QQ soni» is what
+    was registered and «Joylashtirilgan QQ soni» is what found a buyer. The
+    money that actually leaves the issuer follows the placed count, so that is
+    the one used, falling back to the registered count where the register
+    leaves the placed cell empty.
+    """
+    today = today or date.today()
+    horizon_end = date(today.year + (today.month - 1 + horizon_months) // 12,
+                       (today.month - 1 + horizon_months) % 12 + 1, 1)
+    flows: list[dict[str, Any]] = []
+    for ticker, reference in sorted((references or {}).items()):
+        reference = reference or {}
+        schedule = coupon_schedule(reference, (coupons or {}).get(ticker) or [])
+        dates = schedule.get("dates") or []
+        if not dates:
+            continue
+        per_security = schedule.get("amount")
+        count = _num(reference.get("placed_volume")) or _num(reference.get("issue_volume"))
+        nominal = _num(reference.get("nominal"))
+        maturity = _as_date(reference.get("maturity_date"))
+        for when in dates:
+            if when <= today or when >= horizon_end:
+                continue
+            coupon_sum = (per_security or 0.0) * (count or 0.0)
+            principal = ((nominal or 0.0) * (count or 0.0)
+                         if (maturity and when == maturity) else 0.0)
+            if coupon_sum <= 0 and principal <= 0:
+                continue
+            flows.append({
+                "date": when.isoformat(),
+                "ticker": str(ticker).upper(),
+                "issuer": reference.get("issuer"),
+                "coupon": coupon_sum or None,
+                "principal": principal or None,
+                "per_security": per_security,
+                "securities": count,
+                # A reconstructed date is a plan, not a diary entry, and the
+                # calendar has to be readable as one.
+                "source": schedule.get("source"),
+            })
+    flows.sort(key=lambda f: (f["date"], -(f["coupon"] or 0) - (f["principal"] or 0)))
+
+    months: list[dict[str, Any]] = []
+    index: dict[tuple[int, int], dict[str, Any]] = {}
+    for i in range(horizon_months):
+        year, month = divmod(today.month - 1 + i, 12)
+        bucket = {"year": today.year + year, "month": month + 1,
+                  "coupon": 0.0, "principal": 0.0, "issues": 0}
+        index[(bucket["year"], bucket["month"])] = bucket
+        months.append(bucket)
+    tickers_by_month: dict[tuple[int, int], set[str]] = {}
+    for flow in flows:
+        key = (int(flow["date"][:4]), int(flow["date"][5:7]))
+        bucket = index.get(key)
+        if not bucket:
+            continue
+        bucket["coupon"] += flow["coupon"] or 0.0
+        bucket["principal"] += flow["principal"] or 0.0
+        tickers_by_month.setdefault(key, set()).add(flow["ticker"])
+    for key, bucket in index.items():
+        bucket["issues"] = len(tickers_by_month.get(key, ()))
+
+    def total(days: int, field: str) -> float:
+        limit = (today + timedelta(days=days)).isoformat()
+        return sum(f[field] or 0.0 for f in flows if f["date"] <= limit)
+
+    return {
+        "today": today.isoformat(),
+        "flows": flows,
+        "months": months,
+        "next": flows[0] if flows else None,
+        "coupon_30d": total(30, "coupon"),
+        "principal_30d": total(30, "principal"),
+        "coupon_365d": total(365, "coupon"),
+        "principal_365d": total(365, "principal"),
+        "payments_30d": sum(1 for f in flows
+                            if f["date"] <= (today + timedelta(days=30)).isoformat()),
+        "payments_365d": sum(1 for f in flows
+                             if f["date"] <= (today + timedelta(days=365)).isoformat()),
+        "issues": len({f["ticker"] for f in flows}),
+        "reconstructed": sum(1 for f in flows if f["source"] == "reconstructed"),
+    }
+
+
 def build_bond_board(board: Iterable[dict[str, Any]],
                      securities: dict[str, dict[str, Any]] | None = None,
                      references: dict[str, dict[str, Any]] | None = None,
@@ -855,6 +950,25 @@ def build_bond_board(board: Iterable[dict[str, Any]],
         rows.append(bond_row(row, meta, (quality or {}).get(ticker),
                              references.get(ticker), (coupons or {}).get(ticker), key_rate,
                              stats=day_stats, board_day=board_day, gov_points=gov_points))
+
+    # The board is the list of issues that TRADED; the exchange's register is
+    # the list that EXISTS. Sixty-five are registered and about a sixth of them
+    # print on any given day, so a section built from the board alone told a
+    # reader that the other fifty do not exist rather than that nobody has
+    # bought one lately. They come in with no price — every term they have is
+    # real, and the yield at par is computable without a trade.
+    seen = {r["ticker"] for r in rows}
+    for ticker, reference in sorted((references or {}).items()):
+        ticker = str(ticker or "").upper()
+        if ticker in seen or not reference:
+            continue
+        meta = securities.get(ticker) or {}
+        rows.append(bond_row({"ticker": ticker, "type": "bond",
+                              "isin": reference.get("isin") or meta.get("isin"),
+                              "name": reference.get("issuer") or meta.get("name")},
+                             meta, (quality or {}).get(ticker), reference,
+                             (coupons or {}).get(ticker), key_rate,
+                             board_day=board_day, gov_points=gov_points))
     rows.sort(key=lambda r: r["ticker"])
     # The board's own day, as the ROWS report it — so «за сессию» on this
     # section means the same session the rows do, even when the caller passes

@@ -98,6 +98,7 @@ import obs  # noqa: E402
 import cache_layer  # noqa: E402
 import logo_store  # noqa: E402
 import migrations  # noqa: E402
+import bond_registry  # noqa: E402
 import bonds  # noqa: E402
 import provenance  # noqa: E402
 
@@ -2328,6 +2329,29 @@ async def api_bonds_curve(request: Request) -> Response:
     except Exception as exc:
         logger.exception("bonds curve failed")
         raise HTTPException(status_code=502, detail="bonds curve unavailable") from exc
+
+
+@app.get("/api/bonds/calendar")
+async def api_bonds_calendar(request: Request, months: int = 14) -> Response:
+    """Every future payment the bond market owes, by issue and by month.
+
+    Declared before /api/bonds/{ticker} so "calendar" cannot be read as a
+    ticker. The exchange's register is what makes the screen possible: before
+    it, the only future payment known was the one an issuer had already
+    announced, so a "calendar" would have held the next coupon of one issue.
+    """
+    try:
+        payload = bonds.market_cashflows(provenance.bond_references(),
+                                         provenance.bond_coupons(),
+                                         horizon_months=max(1, min(int(months), 60)))
+        payload["ok"] = True
+        payload["source_url"] = bond_registry.REGISTRY_PAGE
+        return _etag_json(request, payload, max_age=600)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("bonds calendar failed")
+        raise HTTPException(status_code=502, detail="bonds calendar unavailable") from exc
 
 
 @app.get("/api/bonds/{ticker}")
