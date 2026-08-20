@@ -419,6 +419,15 @@ def _init_schema(conn: sqlite3.Connection) -> None:
                 "largest_value", "largest_qty"):
         if col not in have_hist:
             conn.execute(f"ALTER TABLE catalog_quote_history ADD COLUMN {col} REAL")
+    # The dividend calendar's bond line (coupon payouts). Shipped after the
+    # table: the market «Календарь» offers the same Простые/Привилегированные/
+    # Облигации split openinfo's own table has, and the bond columns were the
+    # one line normalize_row used to drop.
+    have_div = set(dbx.columns(conn, "catalog_dividends"))
+    for col, typ in (("bond_amount", "REAL"), ("bond_percent", "REAL"),
+                     ("bond_start", "TEXT"), ("bond_end", "TEXT")):
+        if col not in have_div:
+            conn.execute(f"ALTER TABLE catalog_dividends ADD COLUMN {col} {typ}")
     have_news = set(dbx.columns(conn, "news"))
     if "image_url" not in have_news:
         conn.execute("ALTER TABLE news ADD COLUMN image_url TEXT")

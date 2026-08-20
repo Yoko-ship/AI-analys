@@ -716,8 +716,11 @@ const NEWSCAL_TX = {
     loading: "Загружаем календарь…", error: "Не удалось загрузить календарь.",
     emptyMonth: "На этот месяц собраний не заявлено.",
     wholeMonth: "Весь месяц",
-    divTypes: { all: "Все выплаты", common: "Обыкновенные", preferred: "Привилегированные" },
-    th: { issuer: "Эмитент", decision: "Дата решения", common: "Обыкн., сум", pref: "Прив., сум", window: "Реестр / выплата" },
+    mode: { month: "Месяц", year: "Год" },
+    searchPh: "Эмитент или тикер…",
+    download: "Скачать CSV",
+    divTypes: { common: "Простые акции", preferred: "Привилегированные", bond: "Облигации" },
+    th: { issuer: "Эмитент", decision: "Дата решения", amount: "Сумма, сум", window: "Реестр / выплата" },
     divEmpty: "Данных по дивидендам пока нет.",
     divNote: "Суммы — на одну бумагу по решению собрания; период — окно закрытия реестра и выплаты.",
     source: "Источник: openinfo.uz",
@@ -732,8 +735,11 @@ const NEWSCAL_TX = {
     loading: "Loading the calendar…", error: "Could not load the calendar.",
     emptyMonth: "No meetings announced for this month.",
     wholeMonth: "Whole month",
-    divTypes: { all: "All payouts", common: "Ordinary", preferred: "Preferred" },
-    th: { issuer: "Issuer", decision: "Decision date", common: "Ordinary, UZS", pref: "Preferred, UZS", window: "Record / payment" },
+    mode: { month: "Month", year: "Year" },
+    searchPh: "Issuer or ticker…",
+    download: "Download CSV",
+    divTypes: { common: "Ordinary shares", preferred: "Preferred", bond: "Bonds" },
+    th: { issuer: "Issuer", decision: "Decision date", amount: "Amount, UZS", window: "Record / payment" },
     divEmpty: "No dividend data yet.",
     divNote: "Amounts are per security, as resolved by the meeting; the window runs from the record date to the end of payment.",
     source: "Source: openinfo.uz",
@@ -748,8 +754,11 @@ const NEWSCAL_TX = {
     loading: "Taqvim yuklanmoqda…", error: "Taqvimni yuklab bo'lmadi.",
     emptyMonth: "Bu oyga yig'ilishlar e'lon qilinmagan.",
     wholeMonth: "Butun oy",
-    divTypes: { all: "Barcha to'lovlar", common: "Oddiy", preferred: "Imtiyozli" },
-    th: { issuer: "Emitent", decision: "Qaror sanasi", common: "Oddiy, so'm", pref: "Imtiyozli, so'm", window: "Reyestr / to'lov" },
+    mode: { month: "Oy", year: "Yil" },
+    searchPh: "Emitent yoki tiker…",
+    download: "CSV yuklab olish",
+    divTypes: { common: "Oddiy aksiyalar", preferred: "Imtiyozli", bond: "Obligatsiyalar" },
+    th: { issuer: "Emitent", decision: "Qaror sanasi", amount: "Summa, so'm", window: "Reyestr / to'lov" },
     divEmpty: "Dividendlar bo'yicha ma'lumot hozircha yo'q.",
     divNote: "Summalar — yig'ilish qarori bo'yicha bitta qog'ozga; davr — reyestr yopilishidan to'lov oxirigacha.",
     source: "Manba: openinfo.uz",
@@ -762,43 +771,69 @@ function NewsCalendarView({ language, onOpenCompany }) {
   const locale = lang === "en" ? "en-US" : lang === "uz" ? "uz" : "ru-RU";
   const today = new Date();
   const [view, setView] = React.useState("events");
+  const [mode, setMode] = React.useState("month"); // «Месяц» | «Год» — the source's own toggle
   const [cursor, setCursor] = React.useState({ y: today.getFullYear(), m: today.getMonth() + 1 });
   const [day, setDay] = React.useState(null);
+  const [search, setSearch] = React.useState("");
   const [events, setEvents] = React.useState({ loading: true, error: false, items: [] });
   const [divs, setDivs] = React.useState(null); // null = not asked for yet
-  const [divType, setDivType] = React.useState("all");
+  const [divType, setDivType] = React.useState("common");
 
   React.useEffect(() => {
     let alive = true;
     setEvents({ loading: true, error: false, items: [] });
     setDay(null);
-    fetch(`/api/news/calendar/meetings?year=${cursor.y}&month=${cursor.m}`)
+    fetch(mode === "year"
+      ? `/api/news/calendar/meetings?year=${cursor.y}`
+      : `/api/news/calendar/meetings?year=${cursor.y}&month=${cursor.m}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setEvents({ loading: false, error: !d || !d.ok, items: (d && d.items) || [] }); })
       .catch(() => { if (alive) setEvents({ loading: false, error: true, items: [] }); });
     return () => { alive = false; };
-  }, [cursor.y, cursor.m]);
+  }, [cursor.y, cursor.m, mode]);
 
   React.useEffect(() => {
     if (view !== "dividends" || divs) return undefined;
     let alive = true;
-    fetch("/api/news/calendar/dividends?limit=300")
+    fetch("/api/news/calendar/dividends?limit=1000")
       .then((r) => r.json())
       .then((d) => { if (alive) setDivs({ error: !d || !d.ok, items: (d && d.items) || [] }); })
       .catch(() => { if (alive) setDivs({ error: true, items: [] }); });
     return () => { alive = false; };
   }, [view, divs]);
 
+  const q = search.trim().toLowerCase();
+  const filteredEvents = React.useMemo(
+    () => (q
+      ? events.items.filter((it) => String(it.organization || "").toLowerCase().includes(q)
+        || String(it.ticker || "").toLowerCase().includes(q))
+      : events.items),
+    [events.items, q],
+  );
+
   const byDay = React.useMemo(() => {
     const map = new Map();
-    for (const it of events.items) {
+    for (const it of filteredEvents) {
       const n = parseInt(String(it.meeting_date || "").slice(8, 10), 10);
       if (!n) continue;
       if (!map.has(n)) map.set(n, []);
       map.get(n).push(it);
     }
     return map;
-  }, [events.items]);
+  }, [filteredEvents]);
+
+  // Year view: the same rows grouped by month, because a 12-month grid answers
+  // no question a dated list does not.
+  const byMonth = React.useMemo(() => {
+    const map = new Map();
+    for (const it of filteredEvents) {
+      const key = String(it.meeting_date || "").slice(0, 7);
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(it);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredEvents]);
 
   const monthLabel = new Date(cursor.y, cursor.m - 1, 1).toLocaleDateString(locale, { month: "long", year: "numeric" });
   const daysInMonth = new Date(cursor.y, cursor.m, 0).getDate();
@@ -818,19 +853,41 @@ function NewsCalendarView({ language, onOpenCompany }) {
     if (!m || m[3] !== "00" || (m[1] === "00" && m[2] === "00")) return "";
     return `${m[1]}:${m[2]}`;
   };
-  const listItems = day == null ? events.items : byDay.get(day) || [];
+  const listItems = day == null ? filteredEvents : byDay.get(day) || [];
 
   const fmtNum = (v) => (v == null ? "—" : Number(v).toLocaleString(locale, { maximumFractionDigits: 2 }));
   const fmtDate = (d) => (d ? new Date(d).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" }) : "—");
+  // The chip picks the share class, the columns follow it — the same three-way
+  // split the source's table offers. Decisions that declared nothing for the
+  // chosen class stay on the company pages, where they are the issuer's record.
+  const amountOf = (r) => (divType === "preferred" ? r.preferred_amount : divType === "bond" ? r.bond_amount : r.ordinary_amount);
+  const pctOf = (r) => (divType === "preferred" ? r.preferred_percent : divType === "bond" ? r.bond_percent : r.ordinary_percent);
+  const startOf = (r) => (divType === "preferred" ? r.preferred_start : divType === "bond" ? r.bond_start : r.ordinary_start);
+  const endOf = (r) => (divType === "preferred" ? r.preferred_end : divType === "bond" ? r.bond_end : r.ordinary_end);
   const divItems = React.useMemo(() => {
-    // The market table answers "who pays what" — decisions that declared
-    // nothing stay on the company pages, where they are the issuer's record.
-    const paying = ((divs && divs.items) || []).filter(
-      (r) => (r.ordinary_amount || 0) > 0 || (r.preferred_amount || 0) > 0);
-    if (divType === "common") return paying.filter((r) => (r.ordinary_amount || 0) > 0);
-    if (divType === "preferred") return paying.filter((r) => (r.preferred_amount || 0) > 0);
-    return paying;
-  }, [divs, divType]);
+    const rows = ((divs && divs.items) || []).filter((r) => (amountOf(r) || 0) > 0);
+    if (!q) return rows;
+    return rows.filter((r) => String(r.organization || "").toLowerCase().includes(q)
+      || (r.tickers || []).some((t) => String(t).toLowerCase().includes(q)));
+  }, [divs, divType, q]);
+
+  const downloadCsv = () => {
+    const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+    const lines = [[tx.th.issuer, "Ticker", tx.th.decision, tx.th.amount, "%",
+      tx.th.window, "Link"].map(esc).join(";")];
+    for (const r of divItems) {
+      lines.push([r.organization, (r.tickers || []).join(", "), r.decision_date,
+        amountOf(r), pctOf(r), [startOf(r), endOf(r)].filter(Boolean).join(" – "),
+        r.link].map(esc).join(";"));
+    }
+    // BOM so Excel reads the Cyrillic as UTF-8; semicolons for the RU locale.
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `dividends_${divType}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
   const orgCell = (it) => (it.ticker && onOpenCompany
     ? (
@@ -839,6 +896,18 @@ function NewsCalendarView({ language, onOpenCompany }) {
       </button>
     )
     : <span className="newscal-row-org">{it.organization}</span>);
+
+  const renderRow = (it, i) => (
+    <div key={it.announcement_id || i} className="newscal-row">
+      <span className="newscal-row-date">
+        {fmtDay(it.meeting_date)}{fmtTime(it.meeting_date) ? ` · ${fmtTime(it.meeting_date)}` : ""}
+      </span>
+      <div className="newscal-row-body">
+        {orgCell(it)}
+        {it.title && <div className="newscal-row-title">{it.title}</div>}
+      </div>
+    </div>
+  );
 
   return (
     <div className="newscal">
@@ -858,10 +927,39 @@ function NewsCalendarView({ language, onOpenCompany }) {
         <>
           <div className="newscal-bar">
             <div className="newscal-nav">
-              <button type="button" className="newscal-arrow" aria-label="prev" onClick={() => move(-1)}>‹</button>
-              <span className="newscal-month">{monthLabel}</span>
-              <button type="button" className="newscal-arrow" aria-label="next" onClick={() => move(1)}>›</button>
+              <button type="button" className="newscal-arrow" aria-label="prev"
+                onClick={() => (mode === "year" ? setCursor((c) => ({ ...c, y: c.y - 1 })) : move(-1))}>‹</button>
+              <select className="newscal-select" value={cursor.y} aria-label="year"
+                onChange={(e) => setCursor((c) => ({ ...c, y: Number(e.target.value) }))}>
+                {[today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1].map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+              {mode === "month" && (
+                <select className="newscal-select" value={cursor.m} aria-label="month"
+                  onChange={(e) => setCursor((c) => ({ ...c, m: Number(e.target.value) }))}>
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {new Date(2000, i, 1).toLocaleDateString(locale, { month: "long" })}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button type="button" className="newscal-arrow" aria-label="next"
+                onClick={() => (mode === "year" ? setCursor((c) => ({ ...c, y: c.y + 1 })) : move(1))}>›</button>
             </div>
+            <div className="newscal-toggle" role="group">
+              {["month", "year"].map((k) => (
+                <button key={k} type="button"
+                  className={`newscal-toggle-btn ${mode === k ? "active" : ""}`}
+                  aria-pressed={mode === k}
+                  onClick={() => { setMode(k); setDay(null); }}>
+                  {tx.mode[k]}
+                </button>
+              ))}
+            </div>
+            <input className="newscal-search" type="search" value={search}
+              placeholder={tx.searchPh} onChange={(e) => setSearch(e.target.value)} />
             {day != null && (
               <button type="button" className="ghost-btn" style={{ fontSize: 12 }} onClick={() => setDay(null)}>
                 {tx.wholeMonth}
@@ -875,6 +973,7 @@ function NewsCalendarView({ language, onOpenCompany }) {
             <div className="led-empty">{tx.error}</div>
           ) : (
             <>
+              {mode === "month" && (
               <div className="newscal-grid">
                 {tx.weekdays.map((w) => <div key={w} className="newscal-dow">{w}</div>)}
                 {Array.from({ length: lead }).map((_, i) => <div key={`b${i}`} className="newscal-cell blank" />)}
@@ -900,38 +999,47 @@ function NewsCalendarView({ language, onOpenCompany }) {
                   <div key={`t${i}`} className="newscal-cell blank" />
                 ))}
               </div>
+              )}
 
               {listItems.length === 0 ? (
                 <div className="led-empty">{tx.emptyMonth}</div>
-              ) : (
+              ) : mode === "year" ? (
                 <div className="newscal-list">
-                  {listItems.map((it, i) => (
-                    <div key={it.announcement_id || i} className="newscal-row">
-                      <span className="newscal-row-date">
-                        {fmtDay(it.meeting_date)}{fmtTime(it.meeting_date) ? ` · ${fmtTime(it.meeting_date)}` : ""}
-                      </span>
-                      <div className="newscal-row-body">
-                        {orgCell(it)}
-                        {it.title && <div className="newscal-row-title">{it.title}</div>}
+                  {byMonth.map(([key, items]) => (
+                    <React.Fragment key={key}>
+                      <div className="newscal-mh">
+                        {new Date(`${key}-01T00:00:00`).toLocaleDateString(locale, { month: "long", year: "numeric" })}
                       </div>
-                    </div>
+                      {items.map(renderRow)}
+                    </React.Fragment>
                   ))}
                 </div>
+              ) : (
+                <div className="newscal-list">{listItems.map(renderRow)}</div>
               )}
             </>
           )}
         </>
       ) : (
         <>
-          <div className="news-subtabs" role="group" aria-label={tx.views.dividends}>
-            {["all", "common", "preferred"].map((key) => (
-              <button key={key} type="button"
-                className={`news-subtab ${divType === key ? "active" : ""}`}
-                aria-pressed={divType === key}
-                onClick={() => setDivType(key)}>
-                {tx.divTypes[key]}
+          <div className="newscal-bar">
+            <div className="news-subtabs" role="group" aria-label={tx.views.dividends} style={{ margin: 0 }}>
+              {["common", "preferred", "bond"].map((key) => (
+                <button key={key} type="button"
+                  className={`news-subtab ${divType === key ? "active" : ""}`}
+                  aria-pressed={divType === key}
+                  onClick={() => setDivType(key)}>
+                  {tx.divTypes[key]}
+                </button>
+              ))}
+            </div>
+            <input className="newscal-search" type="search" value={search}
+              placeholder={tx.searchPh} onChange={(e) => setSearch(e.target.value)} />
+            {divItems.length > 0 && (
+              <button type="button" className="ghost-btn" style={{ fontSize: 12 }} onClick={downloadCsv}>
+                {tx.download}
               </button>
-            ))}
+            )}
           </div>
           {!divs ? (
             <div className="led-empty">{tx.loading}</div>
@@ -947,9 +1055,7 @@ function NewsCalendarView({ language, onOpenCompany }) {
                     <tr>
                       <th>{tx.th.issuer}</th>
                       <th>{tx.th.decision}</th>
-                      <th className="dividend-num">{tx.th.common}</th>
-                      <th className="dividend-num">%</th>
-                      <th className="dividend-num">{tx.th.pref}</th>
+                      <th className="dividend-num">{tx.th.amount}</th>
                       <th className="dividend-num">%</th>
                       <th>{tx.th.window}</th>
                       <th></th>
@@ -957,16 +1063,14 @@ function NewsCalendarView({ language, onOpenCompany }) {
                   </thead>
                   <tbody>
                     {divItems.map((r, i) => {
-                      const start = divType === "preferred" ? (r.preferred_start || r.ordinary_start) : (r.ordinary_start || r.preferred_start);
-                      const end = divType === "preferred" ? (r.preferred_end || r.ordinary_end) : (r.ordinary_end || r.preferred_end);
+                      const start = startOf(r);
+                      const end = endOf(r);
                       return (
                         <tr key={r.filing_id || i}>
                           <td>{orgCell(r)}</td>
                           <td style={{ whiteSpace: "nowrap" }}>{fmtDate(r.decision_date)}</td>
-                          <td className="dividend-num">{r.ordinary_amount ? fmtNum(r.ordinary_amount) : "—"}</td>
-                          <td className="dividend-num muted">{r.ordinary_percent ? `${fmtNum(r.ordinary_percent)}%` : "—"}</td>
-                          <td className="dividend-num">{r.preferred_amount ? fmtNum(r.preferred_amount) : "—"}</td>
-                          <td className="dividend-num muted">{r.preferred_percent ? `${fmtNum(r.preferred_percent)}%` : "—"}</td>
+                          <td className="dividend-num">{amountOf(r) ? fmtNum(amountOf(r)) : "—"}</td>
+                          <td className="dividend-num muted">{pctOf(r) ? `${fmtNum(pctOf(r))}%` : "—"}</td>
                           <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
                             {(start || end) ? `${fmtDate(start)} – ${fmtDate(end)}` : "—"}
                           </td>

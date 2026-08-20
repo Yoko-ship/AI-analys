@@ -350,6 +350,10 @@ def normalize_row(row: dict[str, Any]) -> dict[str, Any]:
         "preferred_percent": _num(row.get("priviliged_share_percent")),
         "preferred_start": row.get("priviliged_share_start_date"),
         "preferred_end": row.get("priviliged_share_end_date"),
+        "bond_amount": _num(row.get("bond_amount")),
+        "bond_percent": _num(row.get("bond_percent")),
+        "bond_start": row.get("bond_start_date"),
+        "bond_end": row.get("bond_end_date"),
         "link": row.get("link"),
     }
 
@@ -478,6 +482,7 @@ _COLUMNS = (
     "ticker", "filing_id", "org_id", "organization", "decision_date", "pub_date",
     "ordinary_amount", "ordinary_percent", "ordinary_start", "ordinary_end",
     "preferred_amount", "preferred_percent", "preferred_start", "preferred_end",
+    "bond_amount", "bond_percent", "bond_start", "bond_end",
     "link", "matched_by",
 )
 
@@ -635,7 +640,10 @@ def refresh(*, force: bool = False, use_index: bool = True) -> dict[str, Any]:
 
         rows = fetch_calendar()
         universe = attach_org_ids(build_universe(), use_index=use_index)
-        records = map_rows(rows, universe)
+        # Bonds included: a coupon decision maps to the issuer's bond line so the
+        # market table's «Облигации» filter has rows. Equity pages are unaffected
+        # (they read their own ticker, and the bond tab never shows dividends).
+        records = map_rows(rows, universe, include_bonds=True)
         stored = replace_snapshot(records)
         covered = len({r["ticker"] for r in records})
         logger.info(
