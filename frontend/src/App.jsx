@@ -6465,6 +6465,12 @@ function BondsView({ language, onOpenBond, embedded = false }) {
     // sixty-five have never traded. A 27% coupon paid monthly is 30,6%.
     effPar: val(b.effective_at_par),
     freq: b.reference?.coupon_freq ?? null,
+    // One coupon in money, and what the whole issue is worth at par. Both are
+    // register figures and neither needs a trade, so they are the two columns
+    // an issue that has never printed can still fill.
+    couponSum: b.schedule?.amount ?? null,
+    issueValue: b.issue_value
+      ?? (((b.reference?.nominal ?? 0) * (b.reference?.placed_volume ?? b.reference?.issue_volume ?? 0)) || null),
     next: b.schedule?.next_date || null,
     // Days since this issue last printed. A price four months old is not a
     // wrong number, but it is not this morning's either.
@@ -6511,6 +6517,8 @@ function BondsView({ language, onOpenBond, embedded = false }) {
     { key: "turnover", label: t("Оборот", "Aylanma", "Turnover"), termId: "volume" },
     { key: "years", label: t("Лет до погаш.", "Yil qoldi", "Yrs to mat.") },
     { key: "coupon", label: t("Купон", "Kupon", "Coupon"), termId: "coupon" },
+    { key: "couponSum", label: t("Купон, сум", "Kupon, so'm", "Coupon, UZS") },
+    { key: "issueValue", label: t("Объём выпуска", "Chiqarilish hajmi", "Issue size") },
     { key: "effPar", label: t("Эфф. при 100%", "100%da samarali", "Eff. at par"), termId: "effectiveAtPar" },
     { key: "freq", label: t("Частота", "Chastota", "Freq") },
     { key: "running", label: t("Тек. дох.", "Joriy dar.", "Running"), termId: "runningYield" },
@@ -6640,6 +6648,12 @@ function BondsView({ language, onOpenBond, embedded = false }) {
                           ? <span className="cell-status" title={t("ставка не фиксированная", "stavka qat'iy emas", "the rate is not fixed")}>{t("плав.", "suzuv.", "float")}</span>
                           : <span className="cell-status" title={t("эмитент не подавал начислений", "hisoblash topshirilmagan", "no accrual filed")}>—</span>}
                     </td>
+                    <td className="num">{r.couponSum == null
+                      ? <span className="cell-status" title={t("нужны номинал, ставка и цикл купона", "nominal, stavka va sikl kerak", "needs par, rate and cycle")}>—</span>
+                      : fmtNumber(r.couponSum, lang, 0)}</td>
+                    <td className="num">{r.issueValue == null
+                      ? <span className="cell-status" title={t("количество размещённых бумаг не раскрыто", "joylashtirilgan soni e'lon qilinmagan", "the placed count is not disclosed")}>—</span>
+                      : money(r.issueValue)}</td>
                     <td className="num">{metricCell(r.b.effective_at_par, (v) => `${fmtNumber(v, lang, 2)}%`)}</td>
                     <td className="num">{r.freq != null ? fmtNumber(r.freq, lang, 0)
                       : <span className="cell-status" title={t("цикл купона не раскрыт", "kupon sikli e'lon qilinmagan", "the coupon cycle is not disclosed")}>—</span>}</td>
@@ -7255,8 +7269,10 @@ function BondLifeLine({ bond, flows, lang }) {
       </svg>
       <p className="muted bondsec-note" style={{ marginTop: 0 }}>
         {stride > 1 ? `${t("Засечки прорежены.", "Chiziqchalar siyraklashtirilgan.", "Ticks are thinned.")} ` : ""}
-        {t("Всего", "Jami", "In all")} {flows.length} {t("купонных периодов", "kupon davri", "coupon periods")}
-        {bond.schedule?.paid != null ? `, ${t("срок наступил у", "muddati kelgan", "fallen due")} ${bond.schedule.paid}` : ""}
+        {bond.schedule?.partial
+          ? `${t("Дата размещения не раскрыта, поэтому периоды отсчитаны назад от погашения:", "Joylashtirish sanasi ochilmagan, davrlar so'ndirishdan orqaga sanalgan:", "No placement date is published, so the periods are counted back from redemption:")} ${flows.length} ${t("предстоящих", "kelgusi", "upcoming")}`
+          : `${t("Всего", "Jami", "In all")} ${flows.length} ${t("купонных периодов", "kupon davri", "coupon periods")}`}
+        {(!bond.schedule?.partial && bond.schedule?.paid != null) ? `, ${t("срок наступил у", "muddati kelgan", "fallen due")} ${bond.schedule.paid}` : ""}
         {"; "}{t("высокая засечка — возврат номинала.", "baland chiziqcha — nominal qaytishi.", "the tall tick is the return of principal.")}
       </p>
     </>

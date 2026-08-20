@@ -457,3 +457,4 @@
 
 .admin-checklist { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
 .admin-list { margin: 6px 0 0; padding-left: 18px; font-size: 0.85rem; line-height: 1.7; }
+.admin-view td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; }

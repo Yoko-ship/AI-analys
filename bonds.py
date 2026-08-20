@@ -411,10 +411,42 @@ def coupon_schedule(reference: dict[str, Any],
     issue = _as_date(reference.get("issue_date"))
     maturity = _as_date(reference.get("maturity_date"))
     amount = (nominal * rate / 100.0 / freq) if (nominal and rate and freq) else None
+    today = date.today()
+    # HOW a period is stepped is published, and it is not always 365/freq. The
+    # register writes «Har oyda» for a calendar month and «Har 30 kunda» for
+    # thirty days, and the issuers' own filings bear the difference out:
+    # ACMT1B3 has paid on the 11th–13th of every month for a year, while
+    # DMMT2B3's payments walk back a day a month exactly as "every 30 days"
+    # implies. Over three years the two are a fortnight apart.
+    basis = str(reference.get("coupon_basis") or "").lower()
+    period_days = _num(reference.get("coupon_period_days"))
+    months = (12 // freq) if (basis == "calendar" and freq and 12 % freq == 0) else None
 
     filed = sorted({d for d in (_as_date(c.get("pay_date")) for c in coupons or []) if d})
     if filed and maturity and filed[-1] >= maturity - timedelta(days=5):
         return {"dates": filed, "source": "filed", "amount": amount, "freq": freq or None}
+
+    if maturity and freq > 0 and not issue and maturity > today:
+        # No placement date, but a redemption date and a cycle: the periods are
+        # counted BACKWARDS from redemption, one step of 365/freq at a time, as
+        # far back as the period the issue is in now. That is every payment a
+        # yield needs plus the boundary the accrual runs from — and not one date
+        # further, because how long the paper has existed is genuinely unknown
+        # and a count reaching back to an invented placement would be fiction.
+        step_days = period_days or (365.0 / freq)
+        dates: list[date] = []
+        i = 0
+        while i <= 1000:
+            when = (_add_months(maturity, -(12 // freq) * i)
+                    if (basis == "calendar" and 12 % freq == 0)
+                    else maturity - timedelta(days=round(step_days * i)))
+            dates.append(when)
+            if when <= today:
+                break
+            i += 1
+        return {"dates": sorted(d for d in dates if d > min(dates)) or [maturity],
+                "source": "reconstructed", "partial": True,
+                "amount": amount, "freq": freq}
 
     if not (issue and maturity and freq > 0 and maturity > issue):
         # No two ends, no schedule. The filed payments are still a list of
@@ -425,16 +457,6 @@ def coupon_schedule(reference: dict[str, Any],
     life = (maturity - issue).days
     n = max(1, round(life / 365.0 * freq))
     step = life / n
-
-    # HOW a period is stepped is published, and it is not always 365/freq. The
-    # register writes «Har oyda» for a calendar month and «Har 30 kunda» for
-    # thirty days, and the issuers' own filings bear the difference out:
-    # ACMT1B3 has paid on the 11th–13th of every month for a year, while
-    # DMMT2B3's payments walk back a day a month exactly as "every 30 days"
-    # implies. Over three years the two are a fortnight apart.
-    basis = str(reference.get("coupon_basis") or "").lower()
-    period_days = _num(reference.get("coupon_period_days"))
-    months = (12 // freq) if (basis == "calendar" and 12 % freq == 0) else None
 
     def advance(start: date, periods: int) -> date:
         if months:
@@ -809,6 +831,10 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
     out["effective_at_par"] = effective_yield_at_par(rate, reference.get("coupon_freq"))
     out["schedule"] = {
         "source": schedule.get("source"),
+        # Counted backwards from redemption because no placement date is
+        # published: these are every payment a yield needs, but NOT the issue's
+        # whole life, and a screen must not print them as «всего N периодов».
+        "partial": bool(schedule.get("partial")) or None,
         "freq": schedule.get("freq"),
         "amount": schedule.get("amount"),
         "total": len(dates) or None,

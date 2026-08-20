@@ -404,3 +404,75 @@ class TestTheFilingAnchorsTheReconstruction:
         dates = [f["date"] for f in bonds.issue_schedule(self.REF, self.FILED, TODAY)]
         assert dates == sorted(dates)
         assert len(set(dates)) == len(dates)
+
+
+class TestDegradationRulesOfTheSpec:
+    """The seven rules the ТЗ sets for what to do when an input is missing.
+    Their order is the point: compute, then reconstruct, then honestly dash."""
+
+    FULL = {"nominal": 1_000_000.0, "coupon_rate": 18.0, "coupon_freq": 4,
+            "coupon_basis": "calendar", "issue_date": "2024-09-16",
+            "maturity_date": "2029-09-18"}
+
+    def _row(self, price=1_000_000.0, **ref):
+        return bonds.bond_row({"ticker": "X", "type": "bond", "last_price": price},
+                              reference={**self.FULL, **ref}, today=TODAY)
+
+    def test_1_all_inputs_disclosed_computes(self):
+        assert self._row()["ytm"]["status"] == "ok"
+
+    def test_2_an_unreadable_coupon_cycle_is_not_replaced_by_an_assumption(self):
+        """The ТЗ would assume «2 раза в год» and mark it. This codebase does
+        not: `coupon_frequency` returns None and the dash carries its reason.
+        A DELIBERATE divergence — the register publishes the cycle for every
+        issue, so the branch is dead, and a marked guess is still a guess."""
+        row = self._row(coupon_freq=None)
+        assert row["schedule"]["source"] is None
+        assert row["effective_at_par"]["value"] is None
+        assert row["effective_at_par"]["note"]
+
+    def test_3_without_a_placement_date_the_periods_count_back_from_redemption(self):
+        """Rule 3. Every payment a yield needs, and not one date further: how
+        long the paper has existed is unknown, and a count reaching back to an
+        invented placement would be fiction."""
+        row = self._row(issue_date=None)
+        assert row["schedule"]["source"] == "reconstructed"
+        assert row["schedule"]["partial"] is True
+        assert row["ytm"]["value"] is not None
+        assert row["duration"]["value"] is not None
+
+    def test_3_the_partial_schedule_still_lands_exactly_on_the_redemption(self):
+        schedule = bonds.coupon_schedule({**self.FULL, "issue_date": None})
+        assert schedule["dates"][-1] == date(2029, 9, 18)
+        assert all(d > TODAY for d in schedule["dates"])
+
+    def test_4_without_a_par_nothing_denominated_in_money_is_shown(self):
+        row = self._row(nominal=None)
+        assert row["price_pct"]["value"] is None
+        assert row["ytm"]["value"] is None
+        assert "nominal" in (row["reference"]["missing"] or [])
+
+    def test_5_no_maturity_withholds_the_yield_but_keeps_the_row(self):
+        """«Строку из скринера не убираем: иначе пользователь не узнает о
+        существовании выпуска.»"""
+        row = self._row(maturity_date=None)
+        assert row["ytm"]["value"] is None
+        assert row["ticker"] == "X" and row["state"] == "live"
+
+    def test_6_a_redeemed_issue_gets_results_instead_of_an_empty_yield_block(self):
+        row = self._row(issue_date="2021-09-16", maturity_date="2026-03-18")
+        assert row["ytm"]["status"] == "matured"
+        assert row["realized"]["value"] is not None
+
+    def test_every_dash_carries_its_reason(self):
+        """Rule 3 of the three governing rules: «прочерк обязан объяснять
+        себя». A None with no note or status is the one thing forbidden."""
+        row = self._row(price=None, nominal=None)
+        for field in ("price_pct", "ytm", "duration", "accrued"):
+            metric = row.get(field) or {}
+            assert metric.get("value") is None
+            assert metric.get("note") or metric.get("status") or metric.get("missing"), field
+        # And the one figure that survives: the yield at par needs neither a par
+        # in money nor a trade — only the rate and the cycle. That is why it is
+        # the column an issue nobody has bought can still fill.
+        assert row["effective_at_par"]["value"] == pytest.approx(19.25, abs=0.01)

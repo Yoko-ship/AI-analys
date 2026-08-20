@@ -989,6 +989,7 @@ export default function AdminPanel({
 
   /* ── 06 · the source, and who has not filed ─────────────────────────────── */
   const cal = (source && source.calendar) || null;
+  const probe = (source && source.probe) || null;
   const sourceBody = (
     <div className="admin-section">
       <div className="admin-stats">
@@ -1007,6 +1008,47 @@ export default function AdminPanel({
         <Stat label={t("Молчат больше года", "Bir yildan ortiq jim", "Quiet over a year")}
               value={fmtInt(cal && cal.silent)} warn={!!(cal && cal.silent)}
               line1={t("это факт об эмитенте", "bu emitent haqidagi fakt", "a fact about the issuer")} />
+      </div>
+
+      <div className="panel">
+        <h3>{t("Доступность источника", "Manba mavjudligi", "Source availability")}</h3>
+        <p className="admin-muted admin-note" style={{ marginTop: 0 }}>
+          {probe
+            ? `${probe.verdict} · ${t("доступно", "mavjud", "reachable")} ${probe.reachable}, ${t("недоступно", "mavjud emas", "failed")} ${probe.failed}`
+            : t("Проба не выполнялась.", "Sinov bajarilmadi.", "The probe did not run.")}
+        </p>
+        <div className="admin-table">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("Класс запроса", "So'rov sinfi", "Endpoint class")}</th>
+                <th className="n">{t("Ответ, мс", "Javob, ms", "Response, ms")}</th>
+                <th className="n">{t("Код", "Kod", "Code")}</th>
+                <th>{t("Состояние", "Holat", "State")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {((probe && probe.steps) || []).map((sres) => (
+                <tr key={sres.name}>
+                  <td className="mono">{sres.name}</td>
+                  <td className="n">{fmtInt(sres.elapsed_ms)}</td>
+                  <td className="n">{sres.status_code || DASH}</td>
+                  <td>
+                    <span className="admin-pill" title={sres.error || ""}>
+                      <span className={`admin-dot ${sres.ok ? "ok" : "err"}`} />
+                      {sres.ok ? t("ок", "ok", "ok") : (sres.error ? String(sres.error).slice(0, 48) : t("сбой", "xato", "failed"))}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="admin-muted admin-note">
+          {t("Проба идёт с этого же хоста и тем же клиентом, что и сборщик, — иначе она отвечала бы на другой вопрос. Недоступность одного класса при доступности остальных означает не «openinfo лежит», а что отвалился конкретный эндпоинт.",
+             "Sinov kollektor bilan bir xil xost va mijozdan boradi.",
+             "The probe runs from the same host and with the same client as the collector — otherwise it would be answering a different question.")}
+        </p>
       </div>
 
       <div className="panel">
