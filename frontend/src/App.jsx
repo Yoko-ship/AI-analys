@@ -800,6 +800,15 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
         </div>
       )}
 
+      {/* The filings timeline. It used to sit under the board, where a reader
+          looking for corporate news would not go; «Корпоративные» is that
+          reader's page, and the tab is already a disclosure feed. It keeps its
+          own kind chips and does NOT follow the Акции/Облигации pills above:
+          those narrow the stories, this is the raw record of what was filed. */}
+      {tab === "corporate" && (
+        <MarketEventsFeed lang={normalizeLanguage(language)} onOpenCompany={onOpenCompany} />
+      )}
+
       {user && user.is_admin && apiFetch && (
         <NewsAdminPanel language={language} apiFetch={apiFetch} onStored={() => setReloadKey((k) => k + 1)} />
       )}
@@ -12860,9 +12869,13 @@ function MarketColMenu({ colKey, fromSticky, lang, state, actions, onClose }) {
 // ЛЕНТА СОБЫТИЙ ПО БУМАГАМ. /api/news has served a dated timeline of real market
 // events — filings, listings, delistings — since the §3.2 work, and no page ever
 // read it: it was built and left invisible while the News section grew out of the
-// separate editorial module. This is that timeline, on the board it describes.
+// separate editorial module. This is that timeline.
 //
-// Every row is dated by the ISSUER's own publication date and links to the
+// It lives on the «Корпоративные» tab of the news section (it stood under the
+// board until 2026-08-20): a filing IS corporate news, and that is the page a
+// reader looking for one opens.
+//
+// Every row is dated by the ISSUER's own publication date and OPENS the
 // document, so it is a way INTO the filing rather than a note that one exists.
 function MarketEventsFeed({ lang, onOpenCompany }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
@@ -12908,6 +12921,21 @@ function MarketEventsFeed({ lang, onOpenCompany }) {
     }
     return `${i.year} · ${t("год", "yil", "FY")}`;
   };
+  // The row itself opens the event: the document where the source published one
+  // (an NSBU quarterly carries both forms in one workbook, so the PDF IS the
+  // filing), and otherwise the company — a listing or a delisting has no paper.
+  const openEvent = (i) => {
+    const url = i.pdf_url || i.excel_url;
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (onOpenCompany) onOpenCompany(i.ticker);
+  };
+  const openHint = (i) => (i.pdf_url || i.excel_url
+    ? t("Открыть документ", "Hujjatni ochish", "Open the document")
+    : t("Открыть страницу компании", "Kompaniya sahifasini ochish", "Open the company page"));
+
   const headline = (i) => {
     if (i.type === "report") {
       const form = i.report_form === "NSBU" ? t("НСБУ", "NSBU", "NAS")
@@ -12941,10 +12969,17 @@ function MarketEventsFeed({ lang, onOpenCompany }) {
       <ul className="market-events-list">
         {visible.map((i, index) => (
           <li key={`${i.type}-${i.ticker}-${i.date}-${i.year || ""}-${i.quarter || ""}-${index}`}
-            className={`market-events-row ev-${i.type}`}>
+            className={`market-events-row ev-${i.type} is-openable`}
+            role="link"
+            tabIndex={0}
+            title={openHint(i)}
+            onClick={() => openEvent(i)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEvent(i); }
+            }}>
             <time className="ev-date">{day(i.date)}</time>
             <button type="button" className="ev-ticker"
-              onClick={() => onOpenCompany && onOpenCompany(i.ticker)}>{i.ticker}</button>
+              onClick={(e) => { e.stopPropagation(); if (onOpenCompany) onOpenCompany(i.ticker); }}>{i.ticker}</button>
             <span className="ev-what">
               <span className="ev-headline">{headline(i)}</span>
               {period(i) ? <span className="ev-period">{period(i)}</span> : null}
@@ -12952,7 +12987,7 @@ function MarketEventsFeed({ lang, onOpenCompany }) {
             </span>
             {/* The document, where the source published one. NSBU quarterlies carry
                 both forms in one workbook, so one link is the whole filing. */}
-            <span className="ev-links">
+            <span className="ev-links" onClick={(e) => e.stopPropagation()}>
               {i.pdf_url && (
                 <a href={i.pdf_url} target="_blank" rel="noopener noreferrer">PDF</a>
               )}
@@ -15317,10 +15352,6 @@ function MarketView({
           </>
         )}
       </article>
-
-      {viewMode === "table" && (
-        <MarketEventsFeed lang={lang} onOpenCompany={onOpenCompany || onAnalyze} />
-      )}
 
       {panelTicker && (
         <CompanyInfoPanel
