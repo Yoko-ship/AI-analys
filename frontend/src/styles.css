@@ -7816,6 +7816,132 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 
 .market-events .fin-note { padding: 12px 22px 16px; margin: 0; }
 
+/* ── Одно событие, на нашей стороне ────────────────────────────────────────
+   A centred dialog: the row's own detail, read without leaving the timeline. */
+.ev-detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.ev-detail {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(86vh, 780px);
+  overflow-y: auto;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 24px 20px;
+}
+.ev-detail.ev-report { border-left-color: var(--accent); }
+.ev-detail.ev-listing { border-left-color: var(--success); }
+.ev-detail.ev-delisting { border-left-color: var(--danger); }
+
+.ev-detail-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ev-detail-close:hover { color: var(--text); }
+
+.ev-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+
+.ev-detail-kind {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.ev-detail-kind.ev-report { color: var(--accent); }
+.ev-detail-kind.ev-listing { color: var(--success); }
+.ev-detail-kind.ev-delisting { color: var(--danger); }
+
+.ev-detail-title { margin: 6px 0 12px; font-size: 1.18rem; }
+
+.ev-detail-issuer {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.ev-detail-issuer span { color: var(--muted); font-size: 0.86rem; min-width: 0; }
+.ev-detail-issuer:hover b { color: var(--accent); }
+
+.ev-detail-facts { padding: 12px 0; display: grid; gap: 7px; }
+.ev-detail-line { display: flex; justify-content: space-between; gap: 16px; font-size: 0.88rem; }
+.ev-detail-k { color: var(--muted); }
+.ev-detail-v { font-variant-numeric: tabular-nums; text-align: right; }
+
+.ev-detail-fin { border-top: 1px solid var(--border); padding-top: 14px; }
+.ev-detail-fin h4 { margin: 0 0 10px; font-size: 0.9rem; }
+
+.ev-detail-table { width: 100%; border-collapse: collapse; }
+.ev-detail-table th {
+  font-weight: 400;
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.86rem;
+  padding: 5px 0;
+}
+.ev-detail-table td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  padding: 5px 0;
+}
+
+.ev-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.ev-detail-primary {
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.ev-detail-primary:hover { background: var(--accent-light); }
+
+.ev-detail-src { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
+.ev-detail-src a { color: var(--muted); text-decoration: none; border-bottom: 1px solid transparent; }
+.ev-detail-src a:hover { color: var(--accent); border-bottom-color: currentColor; }
+
 @media (max-width: 760px) {
   /* On a phone the date and the ticker share the first line and the event drops
      under them: four columns in 360px would truncate the one thing worth reading. */
@@ -11473,6 +11599,22 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .fin-table tr.fin-growth td.neg { color: #f87171; }
 .fin-table tr.fin-section-row th { padding-top: 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700; }
 .fin-note { font-size: 12px; margin: 14px 0 0; line-height: 1.55; }
+
+/* ── «Сплиты»: four short facts and a sentence per row. Without berths the
+   width:100% table scatters the columns across the panel and the tab reads
+   as unfinished; the sentence column takes the leftover width and is the
+   only one allowed to wrap. ── */
+.splits-table { min-width: 640px; }
+.splits-table .splits-col-date { width: 130px; }
+.splits-table .splits-col-kind { width: 175px; }
+.splits-table .splits-col-ratio { width: 120px; }
+.splits-table .splits-col-src { width: 110px; }
+.splits-table td.splits-effect { white-space: normal; line-height: 1.5; color: var(--text-muted); }
+.splits-kind { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
+.splits-kind--split { color: var(--accent); background: var(--accent-light); }
+.splits-kind--bonus { color: var(--accent-2); background: color-mix(in srgb, currentColor 9%, transparent); }
+.splits-src a { color: var(--accent); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.splits-src a:hover { text-decoration: underline; }
 
 /* Nine chips now (1Н…Макс), so it wraps on the desktop rule too and not only in
    mobile.css — the narrow end of the three-column layout leaves the chart about

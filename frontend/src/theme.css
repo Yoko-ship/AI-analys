@@ -220,7 +220,25 @@ body[data-theme="dark"] {
 .compare-export-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ── News section (ТЗ §3.2) — professional financial-news layout ────────────── */
-.news-view { max-width: 1160px; margin: 0 auto; padding: 4px 2px 28px; }
+/* The 1160px measure lives in a TRACK now, not on the element itself. Editorial
+   copy wants a newspaper column; the securities-events feed is a table of rows
+   and wants the page. Both fit in one grid: everything sits in the centre track,
+   the feed spans the full one. Nothing else on the page moves — the centre track
+   is the same 1160px, centred by the two 1fr gutters. */
+.news-view {
+  display: grid;
+  grid-template-columns:
+    [full-start] minmax(0, 1fr)
+    [text-start] minmax(0, 1160px) [text-end]
+    minmax(0, 1fr) [full-end];
+  /* No `margin: 0 auto` — an auto margin on a grid item overrides the stretch
+     and shrinks it back to its content, which is exactly the 1160px column we
+     are trying to escape. The gutters do the centring now. */
+  margin: 0;
+  padding: 4px 2px 28px;
+}
+.news-view > * { grid-column: text; }
+.news-view > .market-events { grid-column: full; }
 
 /* Masthead — newspaper-style rule under the title */
 .news-masthead { border-bottom: 2px solid var(--text); padding-bottom: 16px; margin-bottom: 22px; }
