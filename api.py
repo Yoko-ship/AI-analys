@@ -2892,13 +2892,35 @@ async def api_admin_source(_: None = Depends(_admin_gate)) -> dict[str, Any]:
     index: an issuer that has filed nothing since 2019 is worth publishing.
     """
     import admin_data
+    import openinfo_probe
 
     loop = asyncio.get_running_loop()
-    financials = await loop.run_in_executor(None, get_all_financials)
+    # Two halves of one question. The calendar answers "did the issuer file";
+    # the probe answers "could we have read it if they had". Run together so a
+    # screen never blames one for the other.
+    financials, probe = await asyncio.gather(
+        loop.run_in_executor(None, get_all_financials),
+        loop.run_in_executor(None, openinfo_probe.run_probe),
+    )
     latest = {str(t).upper(): (int(r["year"]), int(r.get("quarter") or 0))
               for t, r in (financials or {}).items()
               if isinstance(r, dict) and r.get("year") is not None}
-    return _json_safe({"ok": True, "calendar": admin_data.disclosure_calendar(latest)})
+    steps = [r for r in (probe.get("results") or []) if r.get("name") != "egress_ip"]
+    return _json_safe({
+        "ok": True,
+        "calendar": admin_data.disclosure_calendar(latest),
+        "probe": {
+            "verdict": probe.get("verdict"),
+            "reachable": probe.get("reachable"),
+            "failed": probe.get("failed"),
+            # Response time is per endpoint class and they differ by an order of
+            # magnitude; one averaged number would hide the slow one.
+            "steps": [{"name": s.get("name"), "ok": s.get("ok"),
+                       "elapsed_ms": s.get("elapsed_ms"),
+                       "status_code": s.get("status_code"),
+                       "error": s.get("error")} for s in steps],
+        },
+    })
 
 
 @app.get("/api/admin/issuer/{ticker}")
