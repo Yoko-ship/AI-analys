@@ -115,9 +115,17 @@ def _create_schema(conn: sqlite3.Connection) -> None:
               issue_date  TEXT,
               maturity_date TEXT,
               issue_volume REAL,
+              placed_volume REAL,
+              issuer       TEXT,
               amortization INTEGER NOT NULL DEFAULT 0,
               has_put      INTEGER NOT NULL DEFAULT 0,
               has_call     INTEGER NOT NULL DEFAULT 0,
+              -- Which source states the term: 'openinfo_facts' (the issuer
+              -- filed it) or 'exchange_registry' (the register of circulating
+              -- issues states the undertaking). A term never shows as filed
+              -- when it is only registered.
+              coupon_source   TEXT,
+              maturity_source TEXT,
               source_url   TEXT,
               synced_at    TEXT
             );
@@ -495,6 +503,7 @@ def upsert_bond_reference(rows: Sequence[dict[str, Any]]) -> int:
     conn = _conn()
     fields = ("ticker", "isin", "nominal", "currency", "coupon_rate", "coupon_freq",
               "coupon_type", "float_base", "issue_date", "maturity_date", "issue_volume",
+              "placed_volume", "issuer", "coupon_source", "maturity_source",
               "amortization", "has_put", "has_call", "source_url")
     written = 0
     try:

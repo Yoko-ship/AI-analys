@@ -1047,11 +1047,26 @@ def _board_bonds() -> list[dict]:
 def push_bond_reference(listing_rows: list[dict]) -> int:
     """Push the bond issue reference (ТЗ Дополнение 1 §А.4).
 
-    Only the par value and the issue size — the exchange publishes those. The
-    coupon and the maturity stay NULL, so ``is_complete`` stays false and every
-    yield metric keeps showing a dash with its reason. What changes is that the
-    price becomes readable as a percentage of par.
+    Three sources, in the order a field is allowed to overwrite:
+
+    1. **The exchange's register of circulating issues** (``bond_registry``) —
+       the coupon rate, the payment cycle, the placement date and the
+       redemption date, for every issue on the board. This is the source that
+       turns the yield half of the section on: before it, ``is_complete`` was
+       false for all but the one issue already in redemption.
+    2. **The exchange's security card** (``/isu_infos/{isin}/detail``) — the par
+       and the issue size, per security. It wins over the register where both
+       speak: it is the per-line record the price is quoted against.
+    3. **The issuer's own filings on openinfo** (``bond_terms``) — a coupon
+       inverted from the payments actually made, and a redemption date from
+       material fact #31. An executed fact outranks a registered undertaking,
+       so this wins last.
+
+    Every term that lands also records WHICH of the three stated it, because
+    the section's first rule is that a registered undertaking is never shown as
+    a filed fact.
     """
+    import bond_registry
     import listings_collector as lc
 
     walk = list(listing_rows or [])
@@ -1060,27 +1075,51 @@ def push_bond_reference(listing_rows: list[dict]) -> int:
     if extra:
         log.info("bond reference: %d board bonds absent from the listing registry: %s",
                  len(extra), ", ".join(b["ticker"] for b in extra))
-    rows = lc.collect_bond_reference_rows(walk + extra)
+    card_rows = lc.collect_bond_reference_rows(walk + extra)
+
+    # The board's own ticker→ISIN mapping settles the register's one collision
+    # (two ISINs written under a single ticker); without it both are dropped.
+    isin_by_ticker = {str(r.get("ticker") or "").upper(): str(r.get("isin") or "").upper()
+                      for r in walk + extra + card_rows if r.get("ticker") and r.get("isin")}
+    registry_rows = bond_registry.collect_registry_rows(isin_by_ticker=isin_by_ticker)
+    for row in registry_rows:
+        if row.get("coupon_rate") is not None or row.get("coupon_type"):
+            row["coupon_source"] = "exchange_registry"
+        if row.get("maturity_date"):
+            row["maturity_source"] = "exchange_registry"
+
+    rows = bond_registry.merge_reference(card_rows, registry_rows)
     if not rows:
         log.info("bond reference: nothing to push")
         return 0
 
-    # The coupon and the redemption date come from the issuer's material facts
-    # on openinfo — there is no prospectus document to read, and the rate is
-    # inverted from the filed payments rather than parsed out of prose.
+    # The coupon and the redemption date as the ISSUER states them: there is no
+    # prospectus document to read, and the rate is inverted from the filed
+    # payments rather than parsed out of prose.
     coupons: list[dict] = []
     try:
         import bond_terms
 
         terms = bond_terms.collect_bond_terms(rows)
         by_ticker = {t["ticker"]: t for t in terms["reference"]}
-        rows = [{**r, **by_ticker.get(r["ticker"], {})} for r in rows]
+        merged: list[dict] = []
+        for row in rows:
+            filed = {k: v for k, v in by_ticker.get(row["ticker"], {}).items() if v is not None}
+            if filed.get("coupon_rate") is not None:
+                filed["coupon_source"] = "openinfo_facts"
+            if filed.get("maturity_date"):
+                filed["maturity_source"] = "openinfo_facts"
+            merged.append({**row, **filed})
+        rows = merged
         coupons = terms["coupons"]
-        log.info("bond terms: %d issues with a coupon, %d coupons filed",
+        log.info("bond terms: %d issues with a filed coupon, %d coupons filed",
                  sum(1 for t in by_ticker.values() if t.get("coupon_rate")), len(coupons))
     except Exception:  # noqa: BLE001 — the par must land even if openinfo is down
         log.exception("bond terms step failed — pushing the exchange half only")
 
+    complete = sum(1 for r in rows if r.get("nominal") and r.get("coupon_rate") is not None
+                   and r.get("maturity_date"))
+    log.info("bond reference: %d issues, %d complete enough to discount", len(rows), complete)
     return _post("/api/admin/bonds/reference", {"rows": rows, "coupons": coupons})
 
 
