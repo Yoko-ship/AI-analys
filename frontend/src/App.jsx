@@ -9900,7 +9900,75 @@ const FIN_DASHBOARDS = [
 ];
 const FIN_DASHBOARD_KEY = "uz_fin_dashboard";
 
-function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "annual", onFreqChange }) {
+// The «Сплиты» sub-tab: the corporate-actions register every price series on
+// the site is back-adjusted by, shown as its own record. uzse.uz keeps the
+// same thing behind «Посмотреть сплиты» on the quote page, but lists only the
+// redenominations — this table also carries the free issues out of own funds,
+// because a holder's 3× on ALSM is the two together. For most securities the
+// honest content is «не зафиксировано», and that renders as a sentence, not
+// as an empty table.
+function CompanySplitsTable({ items, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const locale = lang === "en" ? "en-US" : "ru-RU";
+  if (items === null) return <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>;
+  const rows = items || [];
+  if (rows.length === 0) return (
+    <div className="panel" style={{ padding: 32, textAlign: "center" }}>
+      <p className="muted">{t("Сплитов и бонусных эмиссий по этой бумаге не зафиксировано",
+                              "Bu qog'oz bo'yicha splitlar va bonus emissiyalar qayd etilmagan",
+                              "No splits or bonus issues on record for this security")}</p>
+    </div>
+  );
+  const fmtDate = (d) => (d ? new Date(d).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" }) : "—");
+  const fmtN = (v) => Number(v).toLocaleString(locale, { maximumFractionDigits: 2 });
+  const kindLabel = (k) => (k === "bonus"
+    ? t("Бонусная эмиссия", "Bonus emissiya", "Bonus issue")
+    : t("Сплит", "Split", "Split"));
+  // The events compound: one pre-2024 ALKB share is 121 × 205/121 = 205 of
+  // today's, and that product — not either row alone — is what explains the
+  // step a reader remembers seeing in an unadjusted price.
+  const total = rows.reduce((acc, r) => acc * (Number(r.ratio) || 1), 1);
+  return (
+    <div className="panel fin-panel">
+      <div className="fin-table-wrap">
+        <table className="fin-table">
+          <thead>
+            <tr>
+              <th scope="col">{t("Дата", "Sana", "Date")}</th>
+              <th scope="col">{t("Событие", "Hodisa", "Event")}</th>
+              <th scope="col" className="num">{t("Коэффициент", "Koeffitsiyent", "Ratio")}</th>
+              <th scope="col">{t("Раскрытие", "Oshkor qilish", "Disclosure")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i}>
+                <td>{fmtDate(r.ex_date)}</td>
+                <td>{kindLabel(r.kind)}</td>
+                <td className="num">{`1 → ${fmtN(r.ratio)}`}</td>
+                <td>{r.source
+                  ? <a href={r.source} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>openinfo →</a>
+                  : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="fin-note muted">
+        {rows.length > 1 && (
+          <>{t(`Итого одна акция до всех событий — это ${fmtN(total)} сегодняшних. `,
+               `Jami: barcha hodisalargacha bitta aksiya — bugungi ${fmtN(total)} ta aksiya. `,
+               `In total one pre-event share is ${fmtN(total)} of today's. `)}</>
+        )}
+        {t("Дата — первая торговая сессия на новом количестве акций. Цены на графиках и в истории до этой даты уже пересчитаны на сегодняшнюю акцию; объёмы торгов не пересчитываются.",
+           "Sana — yangi aksiyalar sonidagi birinchi savdo sessiyasi. Grafiklardagi narxlar bugungi aksiyaga qayta hisoblangan; savdo hajmlari qayta hisoblanmaydi.",
+           "The date is the first session traded on the new share count. Prices on the charts and in the history before it are already restated onto today's share; traded volumes are not restated.")}
+      </p>
+    </div>
+  );
+}
+
+function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "annual", onFreqChange, splits }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [section, setSection] = React.useState("income");
   // Which lines the chart draws, per section (annual and quarterly sections
@@ -10162,28 +10230,45 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
       <div className="fin-subtabs">
         {available.map((sec) => (
           <button key={sec.key} type="button"
-            className={`fin-subtab ${active.key === sec.key ? "active" : ""}`}
+            className={`fin-subtab ${section !== "splits" && active.key === sec.key ? "active" : ""}`}
             onClick={() => setSection(sec.key)}>
             {sec.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
           </button>
         ))}
-        {freqToggle}
-        {/* Line | Bars | Table. Sits with the period switch because it answers
-            the same kind of question — how to READ this section, not which
-            section — and the two are the only controls this tab has. */}
-        <div className="fin-freq fin-dash" role="group"
-          aria-label={t("Вид", "Ko'rinish", "View")}>
-          {FIN_DASHBOARDS.map((d) => (
-            <button key={d.key} type="button"
-              className={`fin-freq-btn ${dashboard === d.key ? "active" : ""}`}
-              aria-pressed={dashboard === d.key}
-              onClick={() => setDashboard(d.key)}>
-              {d.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
-            </button>
-          ))}
-        </div>
+        {/* «Сплиты» is always on the bar, as uzse.uz always shows the link:
+            for most securities its content is honestly «не зафиксировано»,
+            and hiding the tab would make the seven that DID split look like
+            the only ones anyone checked. */}
+        <button type="button"
+          className={`fin-subtab ${section === "splits" ? "active" : ""}`}
+          onClick={() => setSection("splits")}>
+          {t("Сплиты", "Splitlar", "Splits")}
+        </button>
+        {section !== "splits" && (
+          <>
+            {freqToggle}
+            {/* Line | Bars | Table. Sits with the period switch because it answers
+                the same kind of question — how to READ this section, not which
+                section — and the two are the only controls this tab has. Neither
+                applies to the splits register, so both leave the bar with it. */}
+            <div className="fin-freq fin-dash" role="group"
+              aria-label={t("Вид", "Ko'rinish", "View")}>
+              {FIN_DASHBOARDS.map((d) => (
+                <button key={d.key} type="button"
+                  className={`fin-freq-btn ${dashboard === d.key ? "active" : ""}`}
+                  aria-pressed={dashboard === d.key}
+                  onClick={() => setDashboard(d.key)}>
+                  {d.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
+      {section === "splits" ? (
+        <CompanySplitsTable items={splits === undefined ? null : splits} lang={lang} />
+      ) : (
       <div className="panel fin-panel">
         {dashboard !== "table" && (
           <>
@@ -10262,6 +10347,7 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
           )}
         </p>
       </div>
+      )}
     </div>
   );
 }
@@ -10412,6 +10498,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   const [finFreq, setFinFreq] = React.useState("annual");
   const [finQSeries, setFinQSeries] = React.useState(null);
   const [finQLoading, setFinQLoading] = React.useState(false);
+  // The splits register for the «Сплиты» sub-tab. Lazy with the rest of the
+  // Финансы data; null = not asked yet, [] = asked and the record is empty.
+  const [splits, setSplits] = React.useState(null);
   const [divLoading, setDivLoading] = React.useState(false);
 
   // Failed requests must be visible and retryable: every fetch below reports
@@ -10548,7 +10637,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
     return () => { alive = false; };
   }, [ticker]);
 
-  React.useEffect(() => { setFinSeries(null); setFinQSeries(null); setFinFreq("annual"); }, [ticker]);
+  React.useEffect(() => { setFinSeries(null); setFinQSeries(null); setFinFreq("annual"); setSplits(null); }, [ticker]);
   React.useEffect(() => {
     if (!ticker || tab !== "financials" || finSeries !== null) return undefined;
     let alive = true;
@@ -10571,6 +10660,18 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
       .finally(() => { if (alive) setFinQLoading(false); });
     return () => { alive = false; };
   }, [ticker, tab, finFreq, finQSeries]);
+  // The splits register, once per ticker and only when the Финансы tab is
+  // open — the same laziness as the series above. An error resolves to [],
+  // which the table renders as the honest «не зафиксировано».
+  React.useEffect(() => {
+    if (!ticker || tab !== "financials" || splits !== null) return undefined;
+    let alive = true;
+    fetch(`/api/company/${encodeURIComponent(ticker)}/splits`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setSplits(d.ok ? (d.items || []) : []); })
+      .catch(() => { if (alive) setSplits([]); });
+    return () => { alive = false; };
+  }, [ticker, tab, splits]);
 
   // ТЗ §8: the server owns this arithmetic, per ISSUER, with the auditor's
   // blocking findings already applied. A failure leaves `mult` null and the rail
@@ -10827,7 +10928,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
             loading={finFreq === "quarterly"
               ? (finQLoading && finQSeries === null)
               : (finLoading && finSeries === null)}
-            freq={finFreq} onFreqChange={setFinFreq} />
+            freq={finFreq} onFreqChange={setFinFreq} splits={splits} />
         )}
       </div>
     </div>
