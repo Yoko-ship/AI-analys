@@ -894,6 +894,11 @@ function NewsCalendarView({ language, onOpenCompany }) {
                     </button>
                   );
                 })}
+                {/* Fill the last row: an unrendered remainder exposes the grid's
+                    border-colored background as a grey slab in the light theme. */}
+                {Array.from({ length: (7 - (lead + daysInMonth) % 7) % 7 }).map((_, i) => (
+                  <div key={`t${i}`} className="newscal-cell blank" />
+                ))}
               </div>
 
               {listItems.length === 0 ? (
