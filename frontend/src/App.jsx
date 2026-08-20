@@ -10224,6 +10224,19 @@ function CompanySplitsTable({ items, lang }) {
   const kindLabel = (k) => (k === "bonus"
     ? t("Бонусная эмиссия", "Bonus emissiya", "Bonus issue")
     : t("Сплит", "Split", "Split"));
+  // «1 → 1,69» on its own is a riddle; the sentence beside it is the row.
+  const effectLabel = (r) => {
+    const n = Number(r.ratio) || 1;
+    if (r.kind === "bonus") {
+      const per100 = Math.round((n - 1) * 100);
+      return t(`держателю начислено ${fmtN(per100)} новых акций на каждые 100`,
+               `har 100 aksiyaga ${fmtN(per100)} ta yangi aksiya qo'shildi`,
+               `${fmtN(per100)} new shares credited for every 100 held`);
+    }
+    return t(`каждая акция раздроблена на ${fmtN(n)}`,
+             `har bir aksiya ${fmtN(n)} taga bo'lindi`,
+             `each share was split into ${fmtN(n)}`);
+  };
   // The events compound: one pre-2024 ALKB share is 121 × 205/121 = 205 of
   // today's, and that product — not either row alone — is what explains the
   // step a reader remembers seeing in an unadjusted price.
@@ -10231,23 +10244,25 @@ function CompanySplitsTable({ items, lang }) {
   return (
     <div className="panel fin-panel">
       <div className="fin-table-wrap">
-        <table className="fin-table">
+        <table className="fin-table splits-table">
           <thead>
             <tr>
-              <th scope="col">{t("Дата", "Sana", "Date")}</th>
-              <th scope="col">{t("Событие", "Hodisa", "Event")}</th>
-              <th scope="col" className="num">{t("Коэффициент", "Koeffitsiyent", "Ratio")}</th>
-              <th scope="col">{t("Раскрытие", "Oshkor qilish", "Disclosure")}</th>
+              <th scope="col" className="splits-col-date">{t("Дата", "Sana", "Date")}</th>
+              <th scope="col" className="splits-col-kind">{t("Событие", "Hodisa", "Event")}</th>
+              <th scope="col" className="num splits-col-ratio">{t("Коэффициент", "Koeffitsiyent", "Ratio")}</th>
+              <th scope="col">{t("Что произошло", "Nima bo'ldi", "What happened")}</th>
+              <th scope="col" className="splits-col-src">{t("Раскрытие", "Oshkor qilish", "Disclosure")}</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={i}>
                 <td>{fmtDate(r.ex_date)}</td>
-                <td>{kindLabel(r.kind)}</td>
+                <td><span className={`splits-kind splits-kind--${r.kind === "bonus" ? "bonus" : "split"}`}>{kindLabel(r.kind)}</span></td>
                 <td className="num">{`1 → ${fmtN(r.ratio)}`}</td>
-                <td>{r.source
-                  ? <a href={r.source} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>openinfo →</a>
+                <td className="splits-effect">{effectLabel(r)}</td>
+                <td className="splits-src">{r.source
+                  ? <a href={r.source} target="_blank" rel="noreferrer">openinfo ↗</a>
                   : "—"}</td>
               </tr>
             ))}
@@ -10256,9 +10271,9 @@ function CompanySplitsTable({ items, lang }) {
       </div>
       <p className="fin-note muted">
         {rows.length > 1 && (
-          <>{t(`Итого одна акция до всех событий — это ${fmtN(total)} сегодняшних. `,
-               `Jami: barcha hodisalargacha bitta aksiya — bugungi ${fmtN(total)} ta aksiya. `,
-               `In total one pre-event share is ${fmtN(total)} of today's. `)}</>
+          <>{t("Итого одна акция до всех событий — это ", "Jami: barcha hodisalargacha bitta aksiya — bugungi ", "In total one pre-event share is ")}
+            <strong>{fmtN(total)}</strong>
+            {t(" сегодняшних. ", " ta aksiya. ", " of today's. ")}</>
         )}
         {t("Дата — первая торговая сессия на новом количестве акций. Цены на графиках и в истории до этой даты уже пересчитаны на сегодняшнюю акцию; объёмы торгов не пересчитываются.",
            "Sana — yangi aksiyalar sonidagi birinchi savdo sessiyasi. Grafiklardagi narxlar bugungi aksiyaga qayta hisoblangan; savdo hajmlari qayta hisoblanmaydi.",
@@ -13283,6 +13298,7 @@ function MarketEventsFeed({ lang, onOpenCompany }) {
   const [items, setItems] = React.useState(null);
   const [kind, setKind] = React.useState("all");
   const [expanded, setExpanded] = React.useState(false);
+  const [detail, setDetail] = React.useState(null);
 
   React.useEffect(() => {
     let alive = true;
@@ -13322,27 +13338,21 @@ function MarketEventsFeed({ lang, onOpenCompany }) {
     }
     return `${i.year} · ${t("год", "yil", "FY")}`;
   };
-  // The row itself opens the event: the document where the source published one
-  // (an NSBU quarterly carries both forms in one workbook, so the PDF IS the
-  // filing), and otherwise the company — a listing or a delisting has no paper.
-  const openEvent = (i) => {
-    const url = i.pdf_url || i.excel_url;
-    if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
-      return;
-    }
-    if (onOpenCompany) onOpenCompany(i.ticker);
-  };
-  const openHint = (i) => (i.pdf_url || i.excel_url
-    ? t("Открыть документ", "Hujjatni ochish", "Open the document")
-    : t("Открыть страницу компании", "Kompaniya sahifasini ochish", "Open the company page"));
+  // The row opens the event ON THIS SITE. It used to hand the reader straight to
+  // openinfo's PDF — the source is the source, but a click on a row in OUR
+  // timeline should first say what the event is in our own terms: who filed it,
+  // for which period, and what that filing put into our database. The document
+  // stays one click away, from the row and from the detail alike.
+  const openHint = () => t("Подробнее о событии", "Hodisa haqida batafsil", "Event details");
 
+  // The filing's form, in the reader's language — the headline and the event's
+  // own detail must not disagree over whether it is «НСБУ» or «NSBU».
+  const formLabel = (raw) => (raw === "NSBU" ? t("НСБУ", "NSBU", "NAS")
+    : raw === "MSFO" ? t("МСФО", "MSFO", "IFRS")
+    : raw === "Audition" ? t("Аудит", "Audit", "Audit") : raw);
   const headline = (i) => {
     if (i.type === "report") {
-      const form = i.report_form === "NSBU" ? t("НСБУ", "NSBU", "NAS")
-        : i.report_form === "MSFO" ? t("МСФО", "MSFO", "IFRS")
-        : i.report_form === "Audition" ? t("Аудит", "Audit", "Audit") : i.report_form;
-      return `${t("Опубликована отчётность", "Hisobot e'lon qilindi", "Filing published")} · ${form}`;
+      return `${t("Опубликована отчётность", "Hisobot e'lon qilindi", "Filing published")} · ${formLabel(i.report_form)}`;
     }
     if (i.type === "listing") return t("Допуск к торгам", "Savdoga qo'yildi", "Admitted to trading");
     return t("Нет сделок более 60 дней", "60 kundan ortiq bitimsiz", "No trades for over 60 days");
@@ -13373,10 +13383,10 @@ function MarketEventsFeed({ lang, onOpenCompany }) {
             className={`market-events-row ev-${i.type} is-openable`}
             role="link"
             tabIndex={0}
-            title={openHint(i)}
-            onClick={() => openEvent(i)}
+            title={openHint()}
+            onClick={() => setDetail(i)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEvent(i); }
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetail(i); }
             }}>
             <time className="ev-date">{day(i.date)}</time>
             <button type="button" className="ev-ticker"
@@ -13410,7 +13420,180 @@ function MarketEventsFeed({ lang, onOpenCompany }) {
            "Hodisalar birja va openinfo.uz ma'lumotlari bo'yicha. Sana — emitent e'lon qilgan sana.",
            "Events from the exchange and openinfo.uz. The date is the issuer's publication date, not the date we ingested it.")}
       </p>
+      {detail && (
+        <MarketEventDetail
+          item={detail}
+          lang={lang}
+          headline={headline(detail)}
+          period={period(detail)}
+          day={day(detail.date)}
+          form={formLabel(detail.report_form)}
+          onClose={() => setDetail(null)}
+          onOpenCompany={onOpenCompany}
+        />
+      )}
     </article>
+  );
+}
+
+
+// The lines a filing puts on the page, in the order the Финансы tab reads them:
+// what came in, what was left of it, and what the balance says at the period's end.
+const EVENT_DETAIL_ROWS = [
+  "net_revenue", "gross_profit", "operating_income", "net_profit",
+  "total_assets", "total_liabilities", "total_equity",
+];
+
+// ОДНО СОБЫТИЕ, НА НАШЕЙ СТОРОНЕ. A dialog rather than a route: an event has no
+// id of its own — it is identified by issuer, kind and period together — so
+// there is no honest URL to give it, and the reader keeps their place in the
+// timeline.
+//
+// For a filing it answers the question the row raises: the period stated in
+// full, and the figures THIS period holds in our database, read from the same
+// series the Финансы tab draws. The source documents are offered at the bottom,
+// named as sources — which is what they are.
+function MarketEventDetail({ item, lang, headline, period, day, form, onClose, onOpenCompany }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const isReport = item.type === "report";
+  const quarterly = !!item.quarter;
+  const periodKey = item.year ? (quarterly ? `${item.year}Q${item.quarter}` : String(item.year)) : "";
+  const [fin, setFin] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!isReport || !item.ticker || !periodKey) { setFin({}); return undefined; }
+    let alive = true;
+    setFin(null);
+    fetch(`/api/company/${encodeURIComponent(item.ticker)}/financials`
+          + `?freq=${quarterly ? "quarterly" : "annual"}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setFin(d && d.ok ? d : {}); })
+      .catch(() => { if (alive) setFin({}); });
+    return () => { alive = false; };
+  }, [isReport, item.ticker, periodKey, quarterly]);
+
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const series = (fin && fin.series) || {};
+  const figures = EVENT_DETAIL_ROWS
+    .map((field) => {
+      const s = series[field];
+      const v = s && s.values ? s.values[periodKey] : undefined;
+      return Number.isFinite(Number(v)) ? { field, value: Number(v), money: !!s.money } : null;
+    })
+    .filter(Boolean);
+
+  const classLabel = (raw) => {
+    const key = String(raw || "").toLowerCase();
+    if (!key) return null;
+    if (key === "bond") return t("Облигация", "Obligatsiya", "Bond");
+    if (key.startsWith("prefer") || key.startsWith("imtiyoz")) {
+      return t("Привилегированная акция", "Imtiyozli aksiya", "Preferred share");
+    }
+    if (key === "ordinary") return t("Обыкновенная акция", "Oddiy aksiya", "Ordinary share");
+    return raw;
+  };
+
+  const kindLabel = item.type === "report"
+    ? t("Отчётность", "Hisobot", "Filing")
+    : item.type === "listing"
+      ? t("Листинг", "Listing", "Listing")
+      : t("Делистинг", "Delisting", "Delisting");
+
+  const line = (label, value) => (value == null || value === "" ? null : (
+    <div className="ev-detail-line">
+      <span className="ev-detail-k">{label}</span>
+      <span className="ev-detail-v">{value}</span>
+    </div>
+  ));
+
+  return createPortal(
+    <div className="ev-detail-backdrop" role="presentation" onClick={onClose}>
+      <article className={`ev-detail ev-${item.type}`} role="dialog" aria-modal="true"
+        aria-label={`${item.ticker} — ${headline}`}
+        onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="ev-detail-close" onClick={onClose}
+          aria-label={t("Закрыть", "Yopish", "Close")}>×</button>
+
+        <div className="ev-detail-head">
+          {/* The kind alone: the date is stated below, under the label that says
+              WHOSE date it is — the issuer's, not our ingestion clock. */}
+          <span className={`ev-detail-kind ev-${item.type}`}>{kindLabel}</span>
+        </div>
+        <h3 className="ev-detail-title">{headline}</h3>
+        <button type="button" className="ev-detail-issuer"
+          onClick={() => { if (onOpenCompany) onOpenCompany(item.ticker); onClose(); }}>
+          <b>{item.ticker}</b>
+          <span>{item.company}</span>
+        </button>
+
+        <div className="ev-detail-facts">
+          {line(t("Период", "Davr", "Period"), period || null)}
+          {line(t("Форма", "Shakl", "Form"), isReport ? (form || item.report_form) : null)}
+          {line(item.type === "delisting"
+                  ? t("Последняя сделка", "Oxirgi bitim", "Last trade")
+                  : item.type === "listing"
+                    ? t("Допуск к торгам", "Savdoga qo'yilgan", "Admitted to trading")
+                    : t("Опубликовано эмитентом", "Emitent e'lon qilgan", "Published by the issuer"),
+                day)}
+          {line(t("Класс бумаги", "Qog'oz sinfi", "Share class"), classLabel(item.share_type))}
+          {line(t("Капитализация при допуске", "Listingdagi kapitallashuv", "Cap at admission"),
+                Number.isFinite(Number(item.market_cap))
+                  ? formatCompactVolume(item.market_cap, lang) : null)}
+        </div>
+
+        {isReport && (
+          <div className="ev-detail-fin">
+            <h4>{t("Что этот отчёт даёт по периоду", "Bu hisobot davr bo'yicha nima beradi",
+                   "What this filing holds for the period")}</h4>
+            {fin === null ? (
+              <p className="muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p>
+            ) : figures.length ? (
+              <table className="ev-detail-table">
+                <tbody>
+                  {figures.map((f) => (
+                    <tr key={f.field}>
+                      <th scope="row">{finLabel(f.field, lang)}</th>
+                      <td title={formatMarketNumber(f.value, lang, 0)}>
+                        {f.money ? formatCompactVolume(f.value, lang)
+                                 : formatRatio(f.value, 2, lang)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              // Said plainly rather than shown as an empty table: the filing is
+              // real, the parse of THIS period simply has not reached us yet.
+              <p className="muted">
+                {t("Показатели за этот период у нас пока не разобраны — откройте документ или страницу компании.",
+                   "Bu davr ko'rsatkichlari hali tahlil qilinmagan — hujjatni yoki kompaniya sahifasini oching.",
+                   "The figures for this period are not parsed on our side yet — open the document or the company page.")}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="ev-detail-actions">
+          <button type="button" className="ev-detail-primary"
+            onClick={() => { if (onOpenCompany) onOpenCompany(item.ticker); onClose(); }}>
+            {t("Страница компании", "Kompaniya sahifasi", "Company page")}
+          </button>
+          {(item.pdf_url || item.excel_url) && (
+            <span className="ev-detail-src">
+              <span className="muted">{t("Источник — openinfo.uz:", "Manba — openinfo.uz:", "Source — openinfo.uz:")}</span>
+              {item.pdf_url && <a href={item.pdf_url} target="_blank" rel="noopener noreferrer">PDF</a>}
+              {item.excel_url && <a href={item.excel_url} target="_blank" rel="noopener noreferrer">XLS</a>}
+            </span>
+          )}
+        </div>
+      </article>
+    </div>,
+    document.body
   );
 }
 

@@ -3437,12 +3437,24 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
         ((tk, l) for tk, l in listing_map.items() if l.get("listing_date")),
         key=lambda kv: kv[1]["listing_date"], reverse=True,
     )[:20]
+    # The RFB registry has no security-kind field, so every line in it reads
+    # «ordinary» — including a bond's. IPYB2B6, admitted 04.08.2026, is «Ipak
+    # Yo'li» AITB's 20% issue: calling it an ordinary share and printing the
+    # placement's own size as a CAPITALISATION is the same defect that put it on
+    # the equities board. The bond register is what knows, and it knows by ISIN.
+    bond_isins = await loop.run_in_executor(None, _registered_bond_isins)
     for tk, l in listed:
-        items.append({
+        is_bond = str(l.get("isin") or "").upper() in bond_isins
+        item = {
             "type": "listing", "ticker": tk, "company": l.get("name") or tk,
-            "share_type": l.get("share_type"), "market_cap": l.get("market_cap"),
+            "share_type": "bond" if is_bond else l.get("share_type"),
             "date": l.get("listing_date"),
-        })
+        }
+        # An issue has no capitalisation. The field is omitted rather than
+        # zeroed: absent means «we do not report this», zero would be a claim.
+        if not is_bond:
+            item["market_cap"] = l.get("market_cap")
+        items.append(item)
 
     cutoff = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
     delisted = sorted(
