@@ -17773,8 +17773,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "heatmap", "catalog", "news", "profile", "analysis", "compare"]
-    : ["main", "market", "heatmap", "catalog", "news", "auth", "analysis", "compare"];
+    ? ["main", "market", "catalog", "news", "profile", "analysis", "compare"]
+    : ["main", "market", "catalog", "news", "auth", "analysis", "compare"];
 
   // The «Рынок» item carries a Finam-style drop-down (sections with their own
   // headers). Hover-driven on desktop; the drawer shows the extra destinations
@@ -17881,7 +17881,7 @@ function App() {
                 onMouseLeave={closeMarketMenuSoon}
               >
                 <button
-                  className={`topbar-nav-btn ${activeView === key || activeView === "bankfx" ? "active" : ""}`}
+                  className={`topbar-nav-btn ${activeView === key || activeView === "bankfx" || activeView === "heatmap" ? "active" : ""}`}
                   type="button"
                   aria-haspopup="menu"
                   aria-expanded={marketMenuOpen}
@@ -17912,6 +17912,10 @@ function App() {
                         onClick={() => { setActiveView("market"); closeMarketMenu(); }}>
                         {navDdLabel("Биржевые инструменты", "Birja instrumentlari", "Exchange instruments")}
                       </button>
+                      <button type="button" className="nav-dd-item" role="menuitem"
+                        onClick={() => { setActiveView("heatmap"); closeMarketMenu(); }}>
+                        {navDdLabel("Карта рынка", "Bozor xaritasi", "Market map")}
+                      </button>
                     </div>
                     <div className="nav-dd-col">
                       <div className="nav-dd-head">{navDdLabel("Валюта", "Valyuta", "Currency")}</div>
@@ -17923,9 +17927,16 @@ function App() {
                   </div>,
                   document.body
                 )}
-                {/* Drawer counterpart of the drop-down: one indented row. The
-                    board and the map already sit in the drawer as their own
-                    top-level items, so only the bank rates need a way in. */}
+                {/* Drawer counterpart of the drop-down: indented rows. The
+                    board itself is the parent item, so only the destinations
+                    that live inside the panel need a way in. */}
+                <button
+                  className="topbar-nav-btn nav-dd-mobile-item"
+                  type="button"
+                  onClick={() => { setActiveView("heatmap"); setMobileNavOpen(false); }}
+                >
+                  {navDdLabel("Карта рынка", "Bozor xaritasi", "Market map")}
+                </button>
                 <button
                   className="topbar-nav-btn nav-dd-mobile-item"
                   type="button"
@@ -17945,7 +17956,7 @@ function App() {
                       return ageH > 24 ? <span className="nav-stale-dot" title={language === "ru" ? "Каталог устарел" : "Catalog stale"} /> : null;
                     })()}
                   </span>
-                ) : key === "heatmap" ? (language === "ru" ? "Карта рынка" : language === "uz" ? "Bozor xaritasi" : "Market Map") : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
+                ) : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
