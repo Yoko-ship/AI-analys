@@ -94,6 +94,7 @@ COMPANY_CATALOG = {
     '"Farg\'onaazot" aksiyadorlik jamiyati': "FRAZP",  # openinfo org 460; only the preferred (FRAZP) is UZSE-listed
     '"O\'zbekinvest" eksport-import sug\'urta kompaniyasi': "UZINP",  # openinfo org 835; only the preferred (UZINP) is UZSE-listed
     '“O’z-Tong Hong Kompani” O’zbekiston-Koreya QK AJ': "UTHK",  # openinfo org 80 (pinned in ORG_OVERRIDES; the screener TIN join misses it)
+    '«Octobank» aksiyadorlik jamiyati': "OCBK",  # openinfo org 27 (ex Ravnaq-bank); un-delisted 2026-08-20 — uzse serves a live quote page again
 }
 
 # Sector classification for each ticker.
@@ -166,4 +167,5 @@ COMPANY_SECTORS: dict[str, str] = {
     # Chemicals (manufacturing)
     "FRAZP": "manufacturing",  # Farg'onaazot — nitrogen fertilizers / chemicals
     "UTHK": "manufacturing",  # O'z-Tong Hong Kompani — UZ-Korea textile JV
+    "OCBK": "finance",  # Octobank — commercial bank (ex Ravnaq-bank)
 }

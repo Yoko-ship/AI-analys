@@ -20,7 +20,7 @@ import requests
 
 import reports_catalog as rc
 from delisted import DELISTED_TICKERS
-from entity_resolver import ORG_OVERRIDES
+from entity_resolver import ISIN_OVERRIDES, ORG_OVERRIDES
 from openinfo_collector import OPENINFO_API_BASE, _json_get, _make_session
 
 log = logging.getLogger("listings")
@@ -422,7 +422,9 @@ def collect_listing_rows() -> list[dict[str, Any]]:
             # openinfo lists no RFB security for this issuer, but UZSE may still
             # publish its ISIN and share count — recover them so the market-cap
             # join has shares to multiply by the live price (e.g. BIOK, DORI).
-            uz_isin = _uzse_screener_isins(session).get(ticker)
+            # The pinned ISINs come first: the screener proxy answers 73 rows
+            # and misses issuers (OCBK) whose uzse quote page is alive and well.
+            uz_isin = ISIN_OVERRIDES.get(ticker) or _uzse_screener_isins(session).get(ticker)
             uz_shares = _uzse_share_count(session, uz_isin) if uz_isin else None
             last = _last_conclusion(session, uz_isin) if uz_isin else None
             last_price = _num(last.get("close")) if last else None

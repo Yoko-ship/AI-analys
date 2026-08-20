@@ -331,6 +331,34 @@ MANUAL_INFO: dict[str, dict[str, Any]] = {
             "Bank aksiyalari «Toshkent» Respublika fond birjasida sotiladi."
         ),
     },
+    "OCBK": {
+        "title": "Octobank",
+        "url": "https://octobank.uz",
+        "ru": (
+            "«Octobank» (до 2023 года — «Равнак-банк») — частный коммерческий банк Узбекистана "
+            "со штаб-квартирой в Ташкенте, основанный в 2001 году. Банк специализируется на "
+            "дистанционном банковском обслуживании, онлайн-кассах, эквайринге и денежных "
+            "переводах, обслуживая физических и юридических лиц. Является участником Фонда "
+            "гарантирования вкладов граждан в банках Республики Узбекистан. Акции банка "
+            "торгуются на Республиканской фондовой бирже «Тошкент» под тикером OCBK."
+        ),
+        "en": (
+            "Octobank (known as Ravnaq-bank until 2023) is a private commercial bank in "
+            "Uzbekistan, headquartered in Tashkent and founded in 2001. The bank focuses on "
+            "remote banking services, online cash registers, acquiring and money transfers, "
+            "serving both individuals and companies. It is a member of Uzbekistan's deposit "
+            "guarantee fund. The bank's shares trade on the Republican Stock Exchange "
+            "\"Toshkent\" under the ticker OCBK."
+        ),
+        "uz": (
+            "«Octobank» (2023-yilgacha «Ravnaq-bank») — bosh ofisi Toshkentda joylashgan, "
+            "2001-yilda tashkil etilgan O'zbekistonning xususiy tijorat banki. Bank masofaviy "
+            "bank xizmatlari, onlayn-kassa, ekvayring va pul o'tkazmalariga ixtisoslashgan "
+            "bo'lib, jismoniy va yuridik shaxslarga xizmat ko'rsatadi. Fuqarolarning bankdagi "
+            "omonatlarini kafolatlash fondi a'zosi. Bank aksiyalari «Toshkent» Respublika fond "
+            "birjasida OCBK tikeri ostida sotiladi."
+        ),
+    },
     "BRBN": {
         "title": "Business Development Bank",
         "url": None,
