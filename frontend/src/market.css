@@ -1,0 +1,710 @@
+/* Market screener — B1 information-first direction.
+   Imported after the shared theme/mobile layers so this page can be dense and
+   rectangular without changing the softer component language elsewhere. */
+
+.market-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.market-layout > .market-hero-panel { order: 1; }
+.market-layout > .fx-bar { order: 2; }
+.market-layout > .market-stats-scope { order: 3; }
+.market-layout > .market-stats-grid { order: 4; }
+.market-layout > .market-board { order: 5; }
+.market-layout > .market-top-movers { order: 6; }
+
+/* Quiet page masthead: the data starts immediately instead of sitting below a
+   decorative hero card. */
+.market-layout .market-hero-panel {
+  min-height: 0;
+  padding: 4px 2px 7px;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.market-layout .market-hero-copy {
+  gap: 4px;
+  max-width: 880px;
+}
+
+.market-layout .market-hero-copy .panel-label,
+.market-layout .market-board-head .panel-label {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+}
+
+.market-layout .market-hero-copy h1 {
+  font-size: clamp(1.55rem, 2vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.market-layout .market-hero-copy p {
+  max-width: 760px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.market-layout .market-hero-actions .status-badge,
+.market-layout .market-hero-actions .ghost-btn {
+  min-height: 32px;
+}
+
+/* Rates and summary are two slim information strips. */
+.market-layout > .fx-bar {
+  min-height: 38px;
+  padding-inline: 6px;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.market-layout .fx-bar-label,
+.market-layout .fx-bar-item,
+.market-layout .fx-bar-banks {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.market-layout .market-stats-scope {
+  margin: 0;
+  padding: 0 2px;
+}
+
+.market-layout .market-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow-xs);
+}
+
+.market-layout .market-stat-card {
+  min-width: 0;
+  min-height: 86px;
+  gap: 4px;
+  padding: 13px 17px 12px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.market-layout .market-stat-card:last-child { border-right: 0; }
+.market-layout .market-stat-card::before { display: none; }
+
+.market-layout .market-stat-card > span {
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+}
+
+.market-layout .market-stat-card strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: clamp(1.15rem, 1.55vw, 1.45rem);
+  font-weight: 720;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-layout .market-stat-card.tone-good strong { color: var(--success); }
+.market-layout .market-stat-card.tone-danger strong { color: var(--danger); }
+
+.market-layout .market-stat-card em {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The screener is the primary object: one restrained frame, compact bands and
+   no gradients or floating-card effects in either theme. */
+.market-layout .market-board {
+  overflow: hidden;
+  overflow: clip;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel) !important;
+  box-shadow: var(--shadow-xs);
+  backdrop-filter: none;
+}
+
+.market-layout .market-board-head {
+  min-height: 61px;
+  padding: 12px 16px;
+  gap: 16px;
+}
+
+.market-layout .market-board-head > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.market-layout .market-board-head h2 {
+  font-size: 1.08rem;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.market-layout .market-board-head-right {
+  gap: 9px;
+}
+
+.market-session-date {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.market-layout .market-view-toggle {
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.market-layout .market-view-toggle button {
+  width: auto;
+  height: 30px;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.market-layout .market-view-toggle button svg { width: 13px; height: 13px; }
+.market-layout .market-view-toggle button span { display: inline; }
+
+.market-layout .market-view-toggle button.active {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
+
+html[data-theme="dark"] .market-layout .market-view-toggle button.active {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.market-layout .market-board-head .status-badge {
+  min-height: 30px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 10.5px;
+}
+
+/* Filter bar: clear rectangular selections instead of a pile of large pills. */
+.market-layout .market-controls {
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 9px 12px;
+  background: var(--surface-2);
+}
+
+.market-layout .market-type-levels {
+  flex: 1 1 620px;
+  gap: 6px;
+}
+
+.market-layout .market-controls .segmented-control,
+.market-layout .market-period-control {
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.market-layout .market-controls .segmented-control button,
+.market-layout .market-period-control button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 620;
+  box-shadow: none;
+}
+
+.market-layout .market-controls .segmented-control button:hover,
+.market-layout .market-period-control button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.market-layout .market-controls .segmented-control button.active,
+.market-layout .market-period-control button.active {
+  background: var(--accent-light);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.market-layout .market-type-control button.active {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .market-layout .market-type-control button.active {
+  color: #071410 !important;
+}
+
+.market-layout .market-sector-select select,
+.market-layout .market-fav-filter,
+.market-layout .market-cols-btn,
+.market-layout .market-search input {
+  height: 34px;
+  min-height: 34px;
+  border-radius: 7px;
+  background: var(--panel);
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.market-layout .market-sector-select select {
+  padding: 0 30px 0 11px;
+  line-height: 34px;
+}
+
+.market-layout .market-sector-select::after {
+  right: 11px;
+  width: 6px;
+  height: 6px;
+}
+
+html[data-theme="dark"] .market-layout .market-sector-select select {
+  background: var(--panel) !important;
+  background-color: var(--panel) !important;
+}
+
+.market-layout .market-fav-filter {
+  gap: 6px;
+  padding: 0 11px;
+  border-radius: 7px;
+}
+
+.market-layout .market-cols-btn {
+  min-width: 34px;
+  padding: 0 10px;
+  border-radius: 7px;
+}
+
+.market-layout .market-cols-count {
+  min-width: 18px;
+  padding: 1px 4px;
+  border-radius: 5px;
+  font-size: 10px;
+}
+
+.market-layout .market-search {
+  flex: 1 1 180px;
+  min-width: 160px;
+  max-width: 280px;
+}
+
+.market-layout .market-search input {
+  padding-inline: 11px;
+  background: var(--panel);
+}
+
+html[data-theme="dark"] .market-layout .market-search input {
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+html[data-theme="light"] .market-layout .market-controls,
+html[data-theme="dark"] .market-layout .market-controls {
+  background: var(--surface-2);
+}
+
+.market-layout .market-search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+.market-layout .market-fav-filter.active,
+.market-layout .market-cols-btn.active,
+.market-layout .market-sector-select select:not([data-all="1"]) {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.market-layout .market-period-row {
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--panel);
+}
+
+.market-layout .market-period-label {
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+
+.market-layout .market-period-control {
+  border: 0;
+  background: var(--surface-2);
+}
+
+.market-layout .market-period-control button {
+  min-height: 28px;
+  padding: 4px 9px;
+  font-size: 10.5px;
+}
+
+.market-layout .market-sort-chain {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.market-layout .market-sort-chain-chip,
+.market-layout .market-sort-teach {
+  border-radius: 6px;
+}
+
+/* Dense, highly scannable rows. Identity remains clear without turning every
+   ticker into a large decorative tile. */
+.market-layout .market-table {
+  min-width: 1040px;
+  background: var(--panel);
+}
+
+.market-layout .market-table th,
+.market-layout .market-table td {
+  height: 46px;
+  padding: 8px 12px;
+  border-bottom-color: var(--border);
+}
+
+.market-layout .market-table th {
+  height: 36px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+}
+
+/* The turnover header carries a drag grip, definition, sort caret and menu.
+   Below this width its geometric centre lands on the definition button, so a
+   normal click opens ℹ instead of sorting. Keep one compact but unambiguous
+   click lane for the header itself. */
+.market-layout .market-table th[data-sort-key="volume"] {
+  min-width: 140px;
+}
+
+html[data-theme="dark"] .market-layout .market-table th {
+  background: var(--surface-2);
+}
+
+.market-layout .market-table td {
+  font-size: 12.5px;
+}
+
+.market-layout .market-table tbody tr {
+  transition: background 0.12s ease;
+}
+
+.market-layout .market-table tbody tr:hover,
+.market-layout .market-table tbody tr:hover > td.market-col-pinned {
+  background: color-mix(in srgb, var(--accent) 5%, var(--panel));
+}
+
+.market-layout .market-table-wrap > .market-table td.market-col-pinned {
+  background: var(--panel);
+}
+
+.market-layout .market-table-wrap > .market-table th.market-col-pinned,
+.market-layout .market-sticky-head .market-sticky-head__table th.market-col-pinned {
+  background: var(--surface-2);
+}
+
+.market-layout .market-table td span {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.market-layout .market-ticker-cell {
+  gap: 6px;
+}
+
+.market-layout .market-ticker-cell .chip-logo,
+.market-layout .market-ticker-cell .chip-logo-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  padding: 2px;
+  box-shadow: none;
+}
+
+.market-layout .market-ticker-cell .chip-logo-fallback {
+  padding: 0;
+  font-size: 0.78rem;
+}
+
+.market-layout .market-fav-btn {
+  padding: 1px;
+  font-size: 1rem;
+}
+
+.market-layout .market-ticker-btn {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.market-layout .market-ticker-btn:hover {
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.market-layout .market-info-btn {
+  margin-left: 2px;
+  font-size: 0.85rem;
+}
+
+.market-layout .market-change-badge {
+  min-width: 94px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.market-layout .market-change-badge.tone-good {
+  border: 1px solid color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.market-layout .market-change-badge.tone-danger {
+  border: 1px solid color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.market-layout .market-dormant-note {
+  margin: 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--surface-2);
+  font-size: 11.5px;
+}
+
+/* Movers become supporting evidence below the screener, not three competing
+   dashboard cards above it. */
+.market-layout .market-top-movers {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.market-layout .market-movers-col {
+  padding: 12px 14px;
+  border-radius: 9px;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.market-layout .market-movers-head {
+  margin-bottom: 6px;
+}
+
+.market-layout .market-movers-item {
+  padding: 5px 6px;
+  border-radius: 5px;
+}
+
+.market-layout .market-movers-tk .chip-logo,
+.market-layout .market-movers-tk .chip-logo-fallback {
+  width: 20px;
+  height: 20px;
+}
+
+.market-layout .market-movers-name,
+.market-layout .market-movers-chg {
+  font-size: 0.78rem;
+}
+
+/* The map shares the same restrained frame and semantic B2 colours. */
+.market-layout .heatmap-wrap {
+  gap: 10px;
+  padding: 12px;
+}
+
+.market-layout .heatmap-legend {
+  padding-bottom: 9px;
+}
+
+.market-layout .heatmap-tree {
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+
+html[data-theme="dark"] .market-layout .heatmap-tree {
+  background: #090b0a;
+}
+
+html[data-theme="light"] .market-layout .heatmap-tree {
+  background: var(--surface-2);
+}
+
+html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
+  background: #1a1f1c;
+  color: var(--muted);
+}
+
+@media (max-width: 1100px) {
+  .market-layout .market-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .market-layout .market-stat-card:nth-child(2) { border-right: 0; }
+  .market-layout .market-stat-card:nth-child(-n + 2) { border-bottom: 1px solid var(--border); }
+
+  .market-layout .market-board-head {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .market-layout .market-type-levels {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .market-layout { gap: 9px; }
+
+  .market-layout .market-hero-panel {
+    padding: 2px 0 5px;
+  }
+
+  .market-layout .market-hero-copy h1 { font-size: 1.38rem; }
+  .market-layout .market-hero-copy p { font-size: 0.82rem; }
+
+  .market-layout .market-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 8px;
+  }
+
+  .market-layout .market-stat-card {
+    min-height: 76px;
+    padding: 11px;
+  }
+
+  .market-layout .market-stat-card strong { font-size: 1.08rem; }
+  .market-layout .market-stat-card em { font-size: 9.5px; }
+
+  .market-layout .market-board { border-radius: 8px; }
+
+  .market-layout .market-board-head {
+    min-height: 0;
+    padding: 11px 12px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .market-layout .market-board-head-right {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .market-layout .market-session-date { order: 2; }
+  .market-layout .market-view-toggle { order: 1; }
+  .market-layout .market-board-head .status-badge { order: 3; }
+
+  .market-layout .market-controls {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .market-layout .market-controls .market-type-levels {
+    gap: 5px;
+  }
+
+  .market-layout .market-controls .segmented-control button {
+    min-height: 30px;
+    padding: 5px 9px;
+    font-size: 10.5px;
+  }
+
+  .market-layout .market-sector-select select,
+  .market-layout .market-fav-filter,
+  .market-layout .market-cols-btn,
+  .market-layout .market-search input {
+    height: 34px;
+  }
+
+  .market-layout .market-controls .market-fav-filter,
+  .market-layout .market-controls .market-cols-btn {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+  }
+
+  .market-layout .market-search {
+    flex: 1 1 120px;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .market-layout .market-period-row {
+    padding: 7px 8px;
+  }
+
+  .market-layout .market-table-wrap > .market-table th,
+  .market-layout .market-table-wrap > .market-table td,
+  .market-layout .market-sticky-head__table th {
+    height: 42px;
+    padding: 7px 8px;
+  }
+
+  .market-layout .market-table-wrap > .market-table th { height: 34px; }
+
+  .market-layout .market-top-movers {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .market-layout .market-view-toggle button span { display: none; }
+  .market-layout .market-view-toggle button { width: 30px; padding: 0; }
+  .market-layout .market-session-date { font-size: 9.5px; }
+}
