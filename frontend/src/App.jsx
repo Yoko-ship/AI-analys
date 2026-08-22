@@ -5856,9 +5856,10 @@ function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
 // change reads as a percent of the previous fix — shorter than сумы in a
 // one-line strip; the exact сум difference stays in the item's tooltip.
 //
-// The dollar is NOT among the items here: it moved into the topbar
-// (TopbarFxTicker, customer request 2026-08-19) so it stands on every page
-// instead of on the board alone. Same feed, same fix — printed once.
+// The topbar still opens on USD, but the market desk deliberately repeats it:
+// a rotating header quote is easy to miss and this module must be complete on
+// its own. The feed contains USD/EUR/RUB in that order; the explicit priority
+// also keeps the desk stable if an environment widens the currency set later.
 function FxRatesBar({ language, onOpenBanks }) {
   const lang = normalizeLanguage(language);
   const [fx, setFx] = useState(null);
@@ -5871,30 +5872,48 @@ function FxRatesBar({ language, onOpenBanks }) {
     return () => { alive = false; };
   }, []);
   if (!fx) return null;
-  const rates = fx.rates.filter((r) => r.ccy !== TOPBAR_FX_CCY);
+  const priority = { USD: 0, EUR: 1, RUB: 2 };
+  const rates = [...fx.rates].sort((a, b) => (priority[a.ccy] ?? 99) - (priority[b.ccy] ?? 99));
   if (!rates.length) return null;
   const src = lang === "uz" ? "O‘zR MB" : lang === "en" ? "CBU" : "ЦБ РУз";
+  const official = lang === "uz" ? "Rasmiy kurs" : lang === "en" ? "Official FX" : "Официальный курс";
   return (
-    <div className="fx-bar" role="note" aria-label={src}>
-      <span className="fx-bar-label">{src}{fx.date ? ` · ${fx.date.slice(0, 5)}` : ""}</span>
-      {rates.map((r) => {
-        const name = lang === "uz" ? r.name_uz : lang === "en" ? r.name_en : r.name_ru;
-        const prev = Number.isFinite(r.diff) ? r.rate - r.diff : null;
-        const pct = prev > 0 && r.diff !== 0 ? (r.diff / prev) * 100 : 0;
-        const code = (r.nominal || 1) > 1 ? `${formatRatio(r.nominal, 0, lang)} ${r.ccy}` : r.ccy;
-        const title = pct !== 0
-          ? `${name || r.ccy} · ${r.diff > 0 ? "+" : "−"}${formatRatio(Math.abs(r.diff), 2, lang)} UZS`
-          : name || r.ccy;
-        return (
-          <span key={r.ccy} className="fx-bar-item" title={title}>
-            <span className="fx-bar-ccy">{code}</span>
-            <span className="fx-bar-rate">{formatRatio(r.rate, 2, lang)}</span>
-            <span className={`fx-bar-pct ${pct > 0 ? "is-up" : pct < 0 ? "is-down" : "is-flat"}`}>
-              {pct > 0 ? "+" : pct < 0 ? "−" : ""}{formatRatio(Math.abs(pct), 2, lang)}%
-            </span>
-          </span>
-        );
-      })}
+    <section className="fx-bar" aria-label={`${official} · ${src}`}>
+      <div className="fx-bar-label">
+        <span className="fx-bar-label-mark" aria-hidden="true">FX</span>
+        <span className="fx-bar-label-copy">
+          <strong>{official}</strong>
+          <span>{src}{fx.date ? ` · ${fx.date.slice(0, 5)}` : ""}</span>
+        </span>
+      </div>
+      <div className="fx-bar-quotes">
+        {rates.map((r) => {
+          const name = lang === "uz" ? r.name_uz : lang === "en" ? r.name_en : r.name_ru;
+          const prev = Number.isFinite(r.diff) ? r.rate - r.diff : null;
+          const pct = prev > 0 && r.diff !== 0 ? (r.diff / prev) * 100 : 0;
+          const code = (r.nominal || 1) > 1 ? `${formatRatio(r.nominal, 0, lang)} ${r.ccy}` : r.ccy;
+          const title = pct !== 0
+            ? `${name || r.ccy} · ${r.diff > 0 ? "+" : "−"}${formatRatio(Math.abs(r.diff), 2, lang)} UZS`
+            : name || r.ccy;
+          return (
+            <div key={r.ccy} className="fx-bar-item" title={title}>
+              <span className="fx-bar-flag"><FxFlagIcon ccy={r.ccy} /></span>
+              <span className="fx-bar-quote">
+                <span className="fx-bar-quote-head">
+                  <span className="fx-bar-ccy">{code}</span>
+                  <span className={`fx-bar-pct ${pct > 0 ? "is-up" : pct < 0 ? "is-down" : "is-flat"}`}>
+                    <span aria-hidden="true">{pct > 0 ? "↗" : pct < 0 ? "↘" : "→"}</span>
+                    {formatRatio(Math.abs(pct), 2, lang)}%
+                  </span>
+                </span>
+                <span className="fx-bar-rate">
+                  {formatRatio(r.rate, 2, lang)} <small>UZS</small>
+                </span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
       {onOpenBanks && (
         <button
           type="button"
@@ -5904,17 +5923,19 @@ function FxRatesBar({ language, onOpenBanks }) {
             : lang === "uz" ? "Tijorat banklarining kurslari"
             : "Курсы коммерческих банков"}
         >
-          {lang === "en" ? "Bank rates" : lang === "uz" ? "Bank kurslari" : "Курсы банков"}
-          <span aria-hidden="true">→</span>
+          <span>
+            <small>{lang === "en" ? "Cash exchange" : lang === "uz" ? "Naqd ayirboshlash" : "Наличный обмен"}</small>
+            <strong>{lang === "en" ? "Bank rates" : lang === "uz" ? "Bank kurslari" : "Курсы банков"}</strong>
+          </span>
+          <span className="fx-bar-banks-arrow" aria-hidden="true">↗</span>
         </button>
       )}
-    </div>
+    </section>
   );
 }
 
-// The currency the topbar's ticker OPENS on, and the one the market strip
-// leaves out — stated once because the two have to agree. The ticker cycles
-// through everything the feed returns; this only fixes where it starts.
+// The currency the topbar ticker opens on. It cycles through everything the
+// feed returns; this only fixes where it starts.
 const TOPBAR_FX_CCY = "USD";
 
 // How long one currency holds the header. Six seconds reads a number twice
