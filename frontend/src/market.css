@@ -140,19 +140,211 @@ html[data-theme="dark"] body:has(.market-layout) .market-layout .panel:hover {
   min-height: 32px;
 }
 
-/* Rates and summary are two slim information strips. */
+/* FX desk: a complete three-quote watchlist rather than a thin text ribbon.
+   The hierarchy follows real market products: source/date, instrument, price,
+   direction, then the next action. No fake chart is drawn from a single fix. */
 .market-layout > .fx-bar {
-  min-height: 38px;
-  padding-inline: 6px;
-  border-radius: 9px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: stretch;
+  min-height: 82px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--panel);
   box-shadow: none;
 }
 
-.market-layout .fx-bar-label,
-.market-layout .fx-bar-item,
+.market-layout .fx-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 184px;
+  padding: 14px 17px;
+  border-right: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.market-layout .fx-bar-label-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 9px;
+  background: var(--accent-light);
+  color: var(--accent);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.market-layout .fx-bar-label-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.market-layout .fx-bar-label-copy strong {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.market-layout .fx-bar-label-copy > span {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.market-layout .fx-bar-quotes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.market-layout .fx-bar-quotes::-webkit-scrollbar { display: none; }
+
+.market-layout .fx-bar-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px 16px;
+  border-right: 1px solid var(--border);
+  white-space: normal;
+}
+
+.market-layout .fx-bar-flag {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+}
+
+.market-layout .fx-bar .topbar-fx-flag {
+  display: block;
+  width: 22px;
+  height: auto;
+  border-radius: 2px;
+}
+
+.market-layout .fx-bar .topbar-fx-code {
+  display: inline-flex;
+  width: auto;
+  font-size: 10px;
+}
+
+.market-layout .fx-bar-quote {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.market-layout .fx-bar-quote-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.market-layout .fx-bar-ccy {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.market-layout .fx-bar-rate {
+  overflow: hidden;
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 17px;
+  font-weight: 720;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-layout .fx-bar-rate small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+.market-layout .fx-bar-pct {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
 .market-layout .fx-bar-banks {
-  padding-top: 8px;
-  padding-bottom: 8px;
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 174px;
+  padding: 13px 15px;
+  border-left: 0;
+  background: color-mix(in srgb, var(--accent) 3%, var(--panel));
+  color: var(--text);
+}
+
+.market-layout .fx-bar-banks > span:first-child {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+
+.market-layout .fx-bar-banks small {
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.market-layout .fx-bar-banks strong {
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.market-layout .fx-bar-banks-arrow {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: 50%;
+  color: var(--accent);
+  transition: transform 150ms ease;
+}
+
+.market-layout .fx-bar-banks:hover {
+  background: var(--accent-light);
+  color: var(--text);
+}
+
+.market-layout .fx-bar-banks:hover .fx-bar-banks-arrow {
+  transform: translate(2px, -2px);
 }
 
 .market-layout .market-stats-scope {
@@ -789,6 +981,58 @@ html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
 
 @media (max-width: 760px) {
   .market-layout { gap: 9px; }
+
+  .market-layout > .fx-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 0;
+  }
+
+  .market-layout .fx-bar-label {
+    grid-column: 1;
+    min-width: 0;
+    padding: 11px 13px;
+    border-right: 0;
+  }
+
+  .market-layout .fx-bar-label-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+
+  .market-layout .fx-bar-quotes {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(175px, 62vw);
+    border-top: 1px solid var(--border);
+    scroll-snap-type: x proximity;
+  }
+
+  .market-layout .fx-bar-item {
+    padding: 12px 13px;
+    scroll-snap-align: start;
+  }
+
+  .market-layout .fx-bar-banks {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border-left: 1px solid var(--border);
+  }
+
+  .market-layout .fx-bar-banks small { display: none; }
+
+  .market-layout .fx-bar-banks strong {
+    font-size: 11.5px;
+  }
+
+  .market-layout .fx-bar-banks-arrow {
+    width: 27px;
+    height: 27px;
+  }
 
   .market-layout .market-hero-panel {
     padding: 2px 0 5px;
