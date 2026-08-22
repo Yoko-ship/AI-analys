@@ -15464,10 +15464,10 @@ function MarketView({
           title panel and the market's own counters. */}
       <FxRatesBar language={lang} onOpenBanks={onOpenBankFx} />
 
-      {/* The chips that scope these four cards are further down the page, past
-          the filter bar — so the row has to say for itself which sector it is
-          answering for, and offer the way back. Without this the numbers change
-          under a control the reader cannot see from here. */}
+      {/* The sector control that scopes these four cards is further down the
+          page, in the filter bar — so the row has to say for itself which
+          sector it is answering for, and offer the way back. Without this the
+          numbers change under a control the reader cannot see from here. */}
       {cardSector && (
         <div className="market-stats-scope">
           <span className="market-stats-scope-label">
@@ -15605,6 +15605,13 @@ function MarketView({
             <h2>{viewMode === "heatmap" ? (lang === "en" ? "Market Map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка") : mt(lang, "tableTitle")}</h2>
           </div>
           <div className="market-board-head-right">
+            {(windowed || stats.boardDay) && (
+              <span className="market-session-date">
+                {windowed
+                  ? changePeriodLabel(changePeriod, lang, "label")
+                  : `${stats.boardDay.slice(6, 8)}.${stats.boardDay.slice(4, 6)}.${stats.boardDay.slice(0, 4)}`}
+              </span>
+            )}
             <div className="market-view-toggle">
               <button
                 type="button"
@@ -15617,6 +15624,7 @@ function MarketView({
                   <rect x="1" y="6.6" width="13" height="1.8" rx="0.9"/>
                   <rect x="1" y="11.2" width="13" height="1.8" rx="0.9"/>
                 </svg>
+                <span>{lang === "en" ? "Table" : lang === "uz" ? "Jadval" : "Таблица"}</span>
               </button>
               <button
                 type="button"
@@ -15630,6 +15638,7 @@ function MarketView({
                   <rect x="1" y="8.2" width="5.8" height="5.8" rx="1.2"/>
                   <rect x="8.2" y="8.2" width="5.8" height="5.8" rx="1.2"/>
                 </svg>
+                <span>{lang === "en" ? "Map" : lang === "uz" ? "Xarita" : "Карта"}</span>
               </button>
             </div>
             {viewMode === "table" && (
@@ -15709,6 +15718,7 @@ function MarketView({
             <label className="market-sector-select">
               <select
                 value={activeSector || ""}
+                data-all={activeSector ? undefined : "1"}
                 onChange={(event) => setMarketSector(event.target.value || null)}
                 aria-label={sectorWord}
                 title={lang === "en" ? "Show one sector only"

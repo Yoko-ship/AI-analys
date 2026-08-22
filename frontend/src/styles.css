@@ -8692,17 +8692,72 @@ body:has(.topbar.is-nav-open) .market-float-scroll {
 }
 
 /* ── Market sector filter ─────────────────────────────────────── */
-.market-sector-filter {
-  padding: 12px 24px 0;
+/* One dropdown in the control row, where the eleven chips used to take a band
+   of the filter bar to themselves. It sits with «Избранное» and «Экспорт CSV»
+   and is sized like them, because it is the same kind of control: which slice
+   of the board is on screen. */
+.market-sector-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
 }
-
-/* Inside the pinned bar the chips carry their own bottom padding — the 20px
-   margin `.sector-filter` uses to clear the table would sit outside the
-   opaque background and let rows show through the gap. */
-.market-filterbar .market-sector-filter {
-  margin-bottom: 0;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--border);
+.market-sector-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 42px;
+  padding: 0 34px 0 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 42px;
+  cursor: pointer;
+  outline: none;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.market-sector-select select:hover {
+  border-color: var(--accent);
+}
+.market-sector-select select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* The caret. `appearance: none` takes the native one away, and the dark theme
+   strips it globally anyway (see the `body[data-theme="dark"] select` block),
+   so the control has to draw its own or read as an unclickable pill. */
+.market-sector-select::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -5px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+/* A chosen sector is a filter that hides rows — it says so, the way the
+   «Неактивные» chip does. */
+.market-sector-select select:not([data-all="1"]) {
+  border-color: var(--accent);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+/* The global dark-theme input rule paints every select a near-black input with
+   `!important`; inside the toolbar this one is a pill among pills. */
+body[data-theme="dark"] .market-sector-select select {
+  background: var(--bg-2) !important;
+  background-color: var(--bg-2) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+body[data-theme="dark"] .market-sector-select select:not([data-all="1"]) {
+  border-color: var(--accent) !important;
 }
 
 /* ── Market table: logo + ticker cell ────────────────────────── */
