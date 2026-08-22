@@ -15570,13 +15570,13 @@ function MarketView({
                   : sessions;
               } },
           ].map((col) => (
-            <article className={`panel market-movers-col ${col.key}`} key={col.key}>
+            <article className={`market-movers-col ${col.key}`} key={col.key}>
               <div className="market-movers-head">
                 <span className={`market-movers-dot ${col.key}`} />
                 <h3>{col.title}</h3>
               </div>
               <ul className="market-movers-list">
-                {col.rows.length ? col.rows.map((r) => (
+                {col.rows.length ? col.rows.map((r, index) => (
                   <li key={r.ticker}>
                     <button
                       type="button"
@@ -15584,6 +15584,9 @@ function MarketView({
                       title={col.hint ? col.hint(r) : undefined}
                       onClick={() => onOpenCompany ? onOpenCompany(r.ticker) : onAnalyze(r.ticker)}
                     >
+                      <span className="market-movers-rank" aria-hidden="true">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
                       <span className="market-movers-tk">
                         <CompanyLogo logo={smap[r.ticker]?.logo_url} name={r.name || r.ticker} ticker={r.ticker} />
                         <span className="market-movers-name">{r.ticker}</span>

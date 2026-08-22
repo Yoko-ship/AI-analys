@@ -9,11 +9,11 @@
 }
 
 .market-layout > .market-hero-panel { order: 1; }
-.market-layout > .fx-bar { order: 2; }
-.market-layout > .market-stats-scope { order: 3; }
-.market-layout > .market-stats-grid { order: 4; }
-.market-layout > .market-board { order: 5; }
-.market-layout > .market-top-movers { order: 6; }
+.market-layout > .market-top-movers { order: 2; }
+.market-layout > .fx-bar { order: 3; }
+.market-layout > .market-stats-scope { order: 4; }
+.market-layout > .market-stats-grid { order: 5; }
+.market-layout > .market-board { order: 6; }
 
 /* Quiet page masthead: the data starts immediately instead of sitting below a
    decorative hero card. */
@@ -527,38 +527,111 @@ html[data-theme="dark"] .market-layout .market-table th {
   font-size: 11.5px;
 }
 
-/* Movers become supporting evidence below the screener, not three competing
-   dashboard cards above it. */
+/* A market-leaders rail at the top of the page. It deliberately has no card
+   shells: column rules and row rhythm provide the structure without making
+   three more panels compete with the screener. */
 .market-layout .market-top-movers {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 0;
+  padding: 4px 2px 10px;
 }
 
 .market-layout .market-movers-col {
-  padding: 12px 14px;
-  border-radius: 9px;
+  min-width: 0;
+  padding: 2px 24px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
   backdrop-filter: none;
 }
 
+.market-layout .market-movers-col + .market-movers-col {
+  padding-left: 24px;
+  border-left: 1px solid var(--border);
+}
+
 .market-layout .market-movers-head {
-  margin-bottom: 6px;
+  gap: 9px;
+  margin-bottom: 5px;
+  padding: 0 1px 7px;
+}
+
+.market-layout .market-movers-head h3 {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.market-layout .market-movers-dot {
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
 }
 
 .market-layout .market-movers-item {
-  padding: 5px 6px;
-  border-radius: 5px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 37px;
+  padding: 6px 1px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 0;
+  transition: color 150ms ease, transform 150ms ease;
+}
+
+.market-layout .market-movers-list li:last-child .market-movers-item {
+  border-bottom-color: transparent;
+}
+
+.market-layout .market-movers-item:hover {
+  background: transparent;
+  transform: translateX(3px);
+}
+
+.market-layout .market-movers-rank {
+  color: var(--muted-2, var(--muted));
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  opacity: 0.7;
+}
+
+.market-layout .market-movers-col.up .market-movers-item:hover .market-movers-name {
+  color: var(--success);
+}
+
+.market-layout .market-movers-col.down .market-movers-item:hover .market-movers-name {
+  color: var(--danger);
+}
+
+.market-layout .market-movers-col.vol .market-movers-item:hover .market-movers-name {
+  color: var(--accent);
 }
 
 .market-layout .market-movers-tk .chip-logo,
 .market-layout .market-movers-tk .chip-logo-fallback {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 
-.market-layout .market-movers-name,
+.market-layout .market-movers-name {
+  font-size: 0.8rem;
+  font-weight: 650;
+  transition: color 150ms ease;
+}
+
 .market-layout .market-movers-chg {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-layout .market-movers-col.vol .market-movers-chg {
+  color: var(--muted);
 }
 
 /* The map shares the same restrained frame and semantic B2 colours. */
@@ -604,6 +677,25 @@ html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
 
   .market-layout .market-type-levels {
     flex-basis: 100%;
+  }
+}
+
+@media (max-width: 1000px) {
+  .market-layout .market-top-movers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .market-layout .market-movers-col.vol {
+    grid-column: 1 / -1;
+    margin-top: 7px;
+    padding: 17px 0 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .market-layout .market-movers-col.vol .market-movers-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
   }
 }
 
@@ -699,7 +791,46 @@ html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
   .market-layout .market-table-wrap > .market-table th { height: 34px; }
 
   .market-layout .market-top-movers {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 2px;
+  }
+
+  .market-layout .market-movers-col {
+    padding-right: 10px;
+  }
+
+  .market-layout .market-movers-col + .market-movers-col {
+    padding-left: 10px;
+  }
+
+  .market-layout .market-movers-col.vol {
+    padding: 13px 0 0;
+  }
+
+  .market-layout .market-movers-head {
+    gap: 6px;
+    padding-bottom: 5px;
+  }
+
+  .market-layout .market-movers-head h3 {
+    font-size: 0.68rem;
+    letter-spacing: 0.025em;
+  }
+
+  .market-layout .market-movers-item {
+    grid-template-columns: 17px minmax(0, 1fr) auto;
+    gap: 5px;
+    min-height: 34px;
+    padding: 5px 1px;
+  }
+
+  .market-layout .market-movers-rank {
+    font-size: 0.58rem;
+  }
+
+  .market-layout .market-movers-name,
+  .market-layout .market-movers-chg {
+    font-size: 0.72rem;
   }
 }
 
