@@ -9411,342 +9411,414 @@ body[data-theme="dark"] .market-view-toggle button.active {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Radial market heatmap ──────────────────────────────────────
-   The inner ring is sector direction. The outer ring is the market itself:
-   every security receives an arc whose length follows compressed turnover. */
-.heatmap-radial-layout {
+/* ── Sector heat board ──────────────────────────────────────────
+   Price movement owns the colour. Turnover has a labelled bottom meter, so
+   users never have to infer two unrelated values from one shape. */
+.heatmap-focus-strip {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 270px);
-  gap: clamp(22px, 3vw, 42px);
+  grid-template-columns: 7px minmax(210px, 1fr) auto auto;
+  gap: 18px;
   align-items: center;
-  min-width: 0;
-  padding: 4px 2px 8px;
-}
-
-.heatmap-wheel-shell {
-  position: relative;
-  min-width: 0;
-}
-
-.heatmap-wheel {
-  display: block;
-  width: min(100%, 780px);
-  height: auto;
-  margin: 0 auto;
-  overflow: visible;
-}
-
-.heatmap-wheel-grid {
-  fill: none;
-  stroke: color-mix(in srgb, var(--border) 72%, transparent);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.heatmap-wheel-grid.is-inner {
-  stroke-dasharray: 3 8;
-  opacity: 0.68;
-}
-
-.heatmap-neutral-base { fill: #343c47; }
-.heatmap-neutral-stripe { fill: rgba(255, 255, 255, 0.07); }
-
-.heatmap-sector-arc {
-  stroke: var(--bg);
-  stroke-width: 5;
-  opacity: 0.88;
-  vector-effect: non-scaling-stroke;
-}
-
-.heatmap-sector-arc-label {
-  fill: rgba(240, 244, 248, 0.78);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.07em;
-  text-anchor: middle;
-  dominant-baseline: middle;
-  text-transform: uppercase;
-  pointer-events: none;
-}
-
-.heatmap-security-arc {
-  stroke: rgba(7, 12, 17, 0.8);
-  stroke-width: 1.5;
+  width: 100%;
+  margin: 0;
+  padding: 14px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
   cursor: pointer;
-  outline: none;
-  transition: opacity 150ms ease, filter 150ms ease, stroke-width 150ms ease;
-  vector-effect: non-scaling-stroke;
 }
 
-.heatmap-security-arc.is-preferred {
-  stroke: #e6a64a;
-  stroke-width: 3;
+.heatmap-focus-strip:hover {
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 5%, transparent), transparent);
 }
 
-.heatmap-security-arc.is-low-confidence {
-  stroke-dasharray: 5 4;
+.heatmap-focus-strip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
-.heatmap-security-arc.is-unavailable {
-  opacity: 0.72;
+.heatmap-focus-signal {
+  width: 7px;
+  height: 48px;
+  border-radius: 999px;
+  background: var(--muted);
+  box-shadow: 0 0 16px color-mix(in srgb, currentColor 18%, transparent);
 }
 
-.heatmap-radial-layout.has-selection .heatmap-security-arc:not(.is-active) {
-  opacity: 0.38;
+.heatmap-focus-identity {
+  display: block;
+  min-width: 0;
 }
 
-.heatmap-security-arc:hover,
-.heatmap-security-arc.is-active,
-.heatmap-security-arc:focus-visible {
-  opacity: 1;
-  filter: brightness(1.2) saturate(1.08) drop-shadow(0 0 8px rgba(119, 138, 165, 0.28));
-  stroke: rgba(255, 255, 255, 0.92);
-  stroke-width: 4;
-}
-
-.heatmap-security-arc.is-preferred:hover,
-.heatmap-security-arc.is-preferred.is-active,
-.heatmap-security-arc.is-preferred:focus-visible {
-  stroke: #ffd27b;
-}
-
-.heatmap-arc-ticker {
-  fill: rgba(255, 255, 255, 0.92);
-  stroke: rgba(8, 13, 18, 0.72);
-  stroke-width: 3px;
-  paint-order: stroke fill;
+.heatmap-focus-identity > small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  text-anchor: middle;
-  dominant-baseline: middle;
-  pointer-events: none;
-}
-
-.heatmap-radial-layout.has-selection .heatmap-radial-security:not(:has(.is-active)) .heatmap-arc-ticker {
-  opacity: 0.5;
-}
-
-.heatmap-wheel-center-glow {
-  fill: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.heatmap-wheel-center {
-  fill: var(--panel-strong);
-  stroke: color-mix(in srgb, var(--border) 82%, transparent);
-  stroke-width: 1.5;
-  filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.24));
-  vector-effect: non-scaling-stroke;
-}
-
-.heatmap-center-copy text {
-  text-anchor: middle;
-  pointer-events: none;
-}
-
-.heatmap-center-kicker {
-  fill: var(--muted);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
 }
 
-.heatmap-center-market,
-.heatmap-center-ticker {
-  fill: var(--text);
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 54px;
-  font-weight: 760;
-  letter-spacing: -0.055em;
+.heatmap-focus-identity > span {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
-.heatmap-center-ticker { font-size: 42px; }
+.heatmap-focus-identity strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 22px;
+  font-weight: 760;
+  letter-spacing: -0.035em;
+}
 
-.heatmap-center-change {
+.heatmap-focus-identity b {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 29px;
-  font-weight: 750;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 
-.heatmap-center-change.tone-good { fill: #30c39a; }
-.heatmap-center-change.tone-danger { fill: #f16c74; }
-.heatmap-center-change.tone-neutral { fill: var(--muted); }
-
-.heatmap-center-name,
-.heatmap-center-caption,
-.heatmap-center-stat {
-  fill: var(--muted);
-  font-size: 13px;
-}
-
-.heatmap-center-name {
-  fill: var(--text);
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.heatmap-center-stat {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
-}
-
-.heatmap-center-stat tspan {
-  fill: var(--text);
-  font-weight: 700;
-}
-
-.heatmap-wheel-key {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  margin-top: -2px;
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.heatmap-wheel-key span {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.heatmap-wheel-key i {
-  display: inline-block;
-  width: 21px;
-  height: 8px;
-  border-top: 2px solid #e6a64a;
-}
-
-.heatmap-wheel-key .is-thin i {
-  border-top-color: var(--muted);
-  border-top-style: dashed;
-}
-
-.heatmap-sector-index {
-  min-width: 0;
-  padding-left: 22px;
-  border-left: 1px solid var(--border);
-}
-
-.heatmap-sector-index-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 2px 11px;
-  color: var(--muted);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.heatmap-sector-index-head small {
-  font-size: 10px;
-}
-
-.heatmap-sector-index-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.heatmap-sector-index-row {
-  display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  min-height: 52px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-}
-
-.heatmap-sector-index-row > i {
-  width: 7px;
-  height: 26px;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.heatmap-sector-index-row > span {
-  min-width: 0;
+.heatmap-focus-identity em {
+  display: block;
+  max-width: 420px;
+  margin-top: 2px;
   overflow: hidden;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 650;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.heatmap-sector-index-row small {
-  display: block;
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 500;
+.heatmap-focus-facts {
+  display: flex;
+  gap: clamp(16px, 2.4vw, 32px);
 }
 
-.heatmap-sector-index-row strong {
+.heatmap-focus-facts > span {
+  display: block;
+  min-width: 82px;
+}
+
+.heatmap-focus-facts small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.heatmap-focus-facts strong {
+  display: block;
+  max-width: 150px;
+  overflow: hidden;
+  color: var(--text);
   font-family: "IBM Plex Mono", monospace;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-body[data-theme="light"] .heatmap-sector-arc {
-  stroke: var(--bg);
+.heatmap-focus-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
 }
 
-body[data-theme="light"] .heatmap-sector-arc-label {
-  fill: rgba(255, 255, 255, 0.94);
+.heatmap-focus-open b {
+  color: var(--accent);
+  font-size: 16px;
 }
 
-body[data-theme="light"] .heatmap-security-arc {
-  stroke: rgba(255, 255, 255, 0.78);
+.heatmap-sector-board {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-body[data-theme="light"] .heatmap-security-arc.is-preferred {
-  stroke: #bb7419;
+.heatmap-sector-row {
+  display: grid;
+  grid-template-columns: 158px minmax(0, 1fr);
+  gap: 20px;
+  padding: 18px 2px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
 }
 
-body[data-theme="light"] .heatmap-arc-ticker {
-  fill: #fff;
-  stroke: rgba(20, 28, 36, 0.66);
+.heatmap-sector-summary {
+  align-self: start;
+  min-width: 0;
+  padding: 3px 0 0;
 }
 
-body[data-theme="light"] .heatmap-neutral-base { fill: #c8d0da; }
-body[data-theme="light"] .heatmap-neutral-stripe { fill: rgba(255, 255, 255, 0.34); }
+.heatmap-sector-summary > span {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: 0.045em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.heatmap-sector-summary > strong {
+  display: block;
+  margin-top: 7px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 21px;
+  font-weight: 740;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-sector-summary > small {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.heatmap-sector-summary > small b {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+}
+
+.heatmap-sector-mini-breadth {
+  display: flex;
+  width: 100%;
+  height: 4px;
+  gap: 1px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.heatmap-sector-mini-breadth span { height: 100%; }
+.heatmap-sector-mini-breadth .is-up { background: #30bd94; }
+.heatmap-sector-mini-breadth .is-flat { background: #687383; }
+.heatmap-sector-mini-breadth .is-down { background: #ed6870; }
+
+.heatmap-sector-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.heatmap-security-cell {
+  --cell-fill: #46505d;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 76px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  margin: 0;
+  padding: 10px 10px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
+  background: var(--cell-fill);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  isolation: isolate;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.07);
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.heatmap-security-cell::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  z-index: -1;
+  height: 4px;
+  background: rgba(4, 8, 12, 0.25);
+}
+
+.heatmap-security-cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.055), transparent 46%, rgba(0, 0, 0, 0.08));
+}
+
+.heatmap-security-cell:hover,
+.heatmap-security-cell.is-active {
+  z-index: 2;
+  border-color: rgba(255, 255, 255, 0.62);
+  filter: brightness(1.12) saturate(1.05);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2), inset 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.heatmap-security-cell:focus-visible {
+  z-index: 3;
+  outline: 3px solid color-mix(in srgb, var(--accent) 74%, #fff);
+  outline-offset: 2px;
+}
+
+.heatmap-security-cell.is-preferred {
+  border-top-color: #e6a64a;
+  border-top-width: 2px;
+}
+
+.heatmap-security-cell.is-low-confidence {
+  border-bottom-style: dashed;
+}
+
+.heatmap-security-cell.is-unavailable {
+  --cell-fill: #343c47;
+  color: rgba(236, 241, 247, 0.72);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 4px, transparent 4px 10px),
+    var(--cell-fill);
+}
+
+.heatmap-cell-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+}
+
+.heatmap-cell-top strong,
+.heatmap-cell-top b {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-cell-top strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heatmap-cell-top strong em {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  border: 1px solid rgba(255, 215, 137, 0.7);
+  border-radius: 50%;
+  color: #ffd789;
+  font-size: 8px;
+  font-style: normal;
+  vertical-align: 1px;
+}
+
+.heatmap-cell-top b {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.heatmap-cell-name {
+  margin-top: 5px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heatmap-cell-turnover {
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.58);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.heatmap-cell-volume {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  max-width: 100%;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 0 7px rgba(255, 255, 255, 0.18);
+}
+
+body[data-theme="light"] .heatmap-security-cell {
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.16), 0 3px 9px rgba(15, 28, 48, 0.08);
+}
+
+body[data-theme="light"] .heatmap-security-cell.is-unavailable {
+  --cell-fill: #c8d0da;
+  color: #566273;
+  border-color: rgba(15, 28, 48, 0.09);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0 4px, transparent 4px 10px),
+    var(--cell-fill);
+}
+
+body[data-theme="light"] .heatmap-security-cell.is-unavailable .heatmap-cell-name,
+body[data-theme="light"] .heatmap-security-cell.is-unavailable .heatmap-cell-turnover {
+  color: #667384;
+}
 
 @media (max-width: 1040px) {
-  .heatmap-radial-layout {
-    grid-template-columns: 1fr;
+  .heatmap-focus-strip {
+    grid-template-columns: 7px minmax(190px, 1fr) auto;
   }
 
-  .heatmap-sector-index {
-    padding: 8px 0 0;
-    border-top: 1px solid var(--border);
-    border-left: 0;
+  .heatmap-focus-open { display: none; }
+  .heatmap-sector-row { grid-template-columns: 140px minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .heatmap-focus-strip {
+    grid-template-columns: 6px minmax(0, 1fr);
+    gap: 12px;
   }
 
-  .heatmap-sector-index-list {
+  .heatmap-focus-facts {
+    grid-column: 2;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 28px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
   }
+
+  .heatmap-focus-facts > span { min-width: 0; }
+  .heatmap-sector-row { grid-template-columns: 1fr; gap: 11px; }
+  .heatmap-sector-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; }
+  .heatmap-sector-summary > strong { margin-top: 0; }
+  .heatmap-sector-summary > small,
+  .heatmap-sector-mini-breadth { grid-column: 1 / -1; }
 }
 
-@media (max-width: 640px) {
-  .heatmap-radial-layout { gap: 18px; }
-  .heatmap-arc-ticker { font-size: 10px; }
-  .heatmap-sector-arc-label { font-size: 9px; }
-  .heatmap-wheel-key { margin-top: 6px; }
-  .heatmap-sector-index-list { grid-template-columns: 1fr; }
+@media (max-width: 520px) {
+  .heatmap-sector-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .heatmap-focus-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .heatmap-focus-facts > span:last-child { display: none; }
 }
-
 /* ── Treemap: sectors → tiles, area ∝ turnover ───────────────── */
 .heatmap-tree {
   position: relative;

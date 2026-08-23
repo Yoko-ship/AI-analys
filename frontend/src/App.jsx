@@ -6512,26 +6512,6 @@ function heatmapColor(changePercent, full = 5, muted = false) {
   return muted ? "#323a45" : "#46505d";
 }
 
-function heatmapPoint(cx, cy, radius, angle) {
-  const radians = (angle * Math.PI) / 180;
-  return { x: cx + radius * Math.cos(radians), y: cy + radius * Math.sin(radians) };
-}
-
-function heatmapArcPath(cx, cy, innerRadius, outerRadius, startAngle, endAngle) {
-  const startOuter = heatmapPoint(cx, cy, outerRadius, startAngle);
-  const endOuter = heatmapPoint(cx, cy, outerRadius, endAngle);
-  const endInner = heatmapPoint(cx, cy, innerRadius, endAngle);
-  const startInner = heatmapPoint(cx, cy, innerRadius, startAngle);
-  const large = endAngle - startAngle > 180 ? 1 : 0;
-  return [
-    `M ${startOuter.x} ${startOuter.y}`,
-    `A ${outerRadius} ${outerRadius} 0 ${large} 1 ${endOuter.x} ${endOuter.y}`,
-    `L ${endInner.x} ${endInner.y}`,
-    `A ${innerRadius} ${innerRadius} 0 ${large} 0 ${startInner.x} ${startInner.y}`,
-    "Z",
-  ].join(" ");
-}
-
 function heatmapShortName(name) {
   if (!name) return "";
   // Extract content inside quotes: "Hamkorbank" ATB → Hamkorbank
@@ -6541,9 +6521,9 @@ function heatmapShortName(name) {
 }
 
 function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, period = "1d" }) {
-  // Which question the map is drawing. Over a window every arc's colour is the
-  // change over it and every arc's LENGTH is the turnover over it — the caller
-  // has already restated the rows (see `mapRows`), so the wheel arithmetic
+  // Which question the map is drawing. Over a window every cell's colour is the
+  // change over it and its bottom meter is the turnover over it — the caller
+  // has already restated the rows (see `mapRows`), so the board arithmetic
   // below needs no special case. What does need one is everything the SERVER
   // said about today; see `tileStatus`.
   const windowed = period !== "1d";
@@ -6574,7 +6554,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   // of sessions is not low-confidence because this morning was thin.
   const lowConfidence = (r) => !windowed && metaOf(r)?.confidence === "low";
   const lang = normalizeLanguage(language);
-  const [hover, setHover] = useState(null); // { ticker, row } — reflected in the wheel's centre
+  const [hover, setHover] = useState(null); // { ticker, row } — reflected in the focus strip
 
   const companyMap = {};
   (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
@@ -6596,13 +6576,13 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const isNeutralRow = (row) => row.inactive === true || !Number.isFinite(row.changePercent);
   const tradedRows = rows.filter((row) => allowBonds || !isBond(row));
 
-  // Arc width carries compressed turnover. A global floor keeps thin names
-  // selectable while preserving one consistent scale across every sector.
-  const activeRows = tradedRows.filter((r) => !isNeutralRow(r));
-  const rawArcWeight = (r) => Math.sqrt(Math.max(Number(r.stockVolume) || 0, 1));
-  const maxArcWeight = Math.max(1, ...(activeRows.length ? activeRows : tradedRows).map(rawArcWeight));
-  const arcFloor = maxArcWeight * 0.04;
-  const arcWeight = (r) => isNeutralRow(r) ? arcFloor * 0.55 : Math.max(rawArcWeight(r), arcFloor);
+  // Turnover gets its own explicit meter instead of distorting the geometry.
+  // A logarithmic scale keeps both the most liquid and thin securities legible.
+  const maxTurnover = Math.max(1, ...tradedRows.map((r) => Math.max(Number(r.stockVolume) || 0, 0)));
+  const turnoverLevel = (r) => {
+    const value = Math.max(Number(r.stockVolume) || 0, 0);
+    return value > 0 ? (Math.log1p(value) / Math.log1p(maxTurnover)) * 100 : 0;
+  };
 
   const formatPct = (pct) => {
     if (pct === null || !Number.isFinite(pct)) return "—";
@@ -6631,40 +6611,22 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
 
   const rowsBySector = {};
   tradedRows.forEach((row) => { (rowsBySector[sectorKeyOf(row.ticker)] ||= []).push(row); });
-  const radialBase = orderSectors(Object.keys(rowsBySector)).map((sector) => {
+  const heatSectors = orderSectors(Object.keys(rowsBySector)).map((sector) => {
     const sectorRows = rowsBySector[sector].slice().sort((a, b) => {
-      const classOrder = Number(isPreferredRow(a)) - Number(isPreferredRow(b));
-      return classOrder || arcWeight(b) - arcWeight(a);
+      const statusOrder = Number(tileStatus(a) !== "ok") - Number(tileStatus(b) !== "ok");
+      return statusOrder || (Number(b.stockVolume) || 0) - (Number(a.stockVolume) || 0);
     });
+    const sectorFlatBand = fullScale / 50;
+    const counted = sectorRows.filter((row) => tileStatus(row) === "ok" && Number.isFinite(row.changePercent));
     return {
       sector,
       rows: sectorRows,
       avg: avgOf(sectorRows),
       tally: countedOf(sectorRows),
-      weight: sectorRows.reduce((sum, row) => sum + arcWeight(row), 0),
+      rising: counted.filter((row) => row.changePercent > sectorFlatBand).length,
+      falling: counted.filter((row) => row.changePercent < -sectorFlatBand).length,
+      flat: counted.filter((row) => Math.abs(row.changePercent) <= sectorFlatBand).length,
     };
-  });
-  const sectorGap = radialBase.length > 1 ? 2.2 : 0.8;
-  const usableDegrees = Math.max(1, 360 - sectorGap * radialBase.length);
-  const radialTotal = radialBase.reduce((sum, sector) => sum + sector.weight, 0) || 1;
-  let radialCursor = -90;
-  const radialSectors = radialBase.map((sector) => {
-    const span = usableDegrees * (sector.weight / radialTotal);
-    const start = radialCursor + sectorGap / 2;
-    const end = start + span;
-    radialCursor = end + sectorGap / 2;
-    const rowGap = Math.min(0.72, span / Math.max(sector.rows.length * 4.5, 1));
-    const rowUsable = Math.max(0.1, span - rowGap * sector.rows.length);
-    const rowTotal = sector.rows.reduce((sum, row) => sum + arcWeight(row), 0) || 1;
-    let rowCursor = start;
-    const arcs = sector.rows.map((row) => {
-      const rowSpan = rowUsable * (arcWeight(row) / rowTotal);
-      const rowStart = rowCursor + rowGap / 2;
-      const rowEnd = rowStart + rowSpan;
-      rowCursor = rowEnd + rowGap / 2;
-      return { row, start: rowStart, end: rowEnd, mid: (rowStart + rowEnd) / 2, span: rowSpan };
-    });
-    return { ...sector, start, end, mid: (start + end) / 2, span, arcs };
   });
 
   // Drawn from the period's own scale, never from a fixed ±5 %: a legend that
@@ -6689,15 +6651,18 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const unavailable = Math.max(0, tradedRows.length - signalRows.length);
   const breadthTotal = Math.max(1, rising + falling + flat + unavailable);
   const mapCopy = lang === "ru"
-    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Длина дуги = оборот", securities: "бумаг", wheel: "Радиальная карта рынка", sectors: "Сектора", price: "Цена", turnover: "Оборот", preferred: "золотой контур — привилегированная", thin: "пунктир — низкая ликвидность" }
+    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Полоса = оборот", securities: "бумаг", board: "Тепловая карта рынка", sectors: "Сектора", price: "Цена", turnover: "Оборот", focus: "В фокусе", mainMove: "Главное движение", open: "Нажмите, чтобы открыть компанию", preferred: "Привилегированная акция" }
     : lang === "uz"
-      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Yoy uzunligi = aylanma", securities: "qog'oz", wheel: "Bozorning radial xaritasi", sectors: "Sektorlar", price: "Narx", turnover: "Aylanma", preferred: "oltin kontur — imtiyozli", thin: "punktir — past likvidlik" }
-      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Arc length = turnover", securities: "securities", wheel: "Radial market map", sectors: "Sectors", price: "Price", turnover: "Turnover", preferred: "gold outline — preferred", thin: "dashed — low liquidity" };
-  const centerRow = hover?.row || null;
-  const centerStatus = centerRow ? tileStatus(centerRow) : null;
-  const centerPrice = centerRow ? marketDisplayPrice(centerRow) : null;
-  const centerName = centerRow
-    ? centerRow.name || companyMap[centerRow.ticker]?.company_name || centerRow.ticker
+      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Pastki chiziq = aylanma", securities: "qog'oz", board: "Bozor issiqlik xaritasi", sectors: "Sektorlar", price: "Narx", turnover: "Aylanma", focus: "Tanlangan", mainMove: "Asosiy harakat", open: "Kompaniyani ochish uchun bosing", preferred: "Imtiyozli aksiya" }
+      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Bottom bar = turnover", securities: "securities", board: "Market heatmap", sectors: "Sectors", price: "Price", turnover: "Turnover", focus: "In focus", mainMove: "Largest move", open: "Click to open company", preferred: "Preferred share" };
+  const mainMover = signalRows.reduce((best, row) => (
+    !best || Math.abs(row.changePercent) > Math.abs(best.changePercent) ? row : best
+  ), null);
+  const focusRow = hover?.row || mainMover || tradedRows[0] || null;
+  const focusStatus = focusRow ? tileStatus(focusRow) : null;
+  const focusPrice = focusRow ? marketDisplayPrice(focusRow) : null;
+  const focusName = focusRow
+    ? focusRow.name || companyMap[focusRow.ticker]?.company_name || focusRow.ticker
     : null;
 
   return (
@@ -6740,142 +6705,93 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         </div>
       </div>
 
-      <div className={`heatmap-radial-layout${hover ? " has-selection" : ""}`}>
-        <div className="heatmap-wheel-shell">
-          <svg className="heatmap-wheel" viewBox="0 0 1000 1000" role="img" aria-label={mapCopy.wheel}>
-            <defs>
-              <pattern id="heatmap-neutral-pattern" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
-                <rect width="12" height="12" className="heatmap-neutral-base" />
-                <rect width="3" height="12" className="heatmap-neutral-stripe" />
-              </pattern>
-            </defs>
-            <circle className="heatmap-wheel-grid is-outer" cx="500" cy="500" r="470" />
-            <circle className="heatmap-wheel-grid is-inner" cx="500" cy="500" r="308" />
+      {focusRow && (
+        <button
+          className="heatmap-focus-strip"
+          type="button"
+          onClick={() => (onOpenCompany ? onOpenCompany(focusRow.ticker) : onAnalyze(focusRow.ticker))}
+          aria-live="polite"
+        >
+          <span className="heatmap-focus-signal" style={{ background: focusStatus === "ok" ? heatmapColor(focusRow.changePercent, fullScale) : undefined }} />
+          <span className="heatmap-focus-identity">
+            <small>{hover ? mapCopy.focus : mapCopy.mainMove}</small>
+            <span>
+              <strong>{focusRow.ticker}</strong>
+              <b className={`tone-${focusRow.changePercent > flatBand ? "good" : focusRow.changePercent < -flatBand ? "danger" : "neutral"}`}>
+                {focusStatus === "ok" ? formatPct(focusRow.changePercent) : "—"}
+              </b>
+            </span>
+            <em>{focusName}</em>
+          </span>
+          <span className="heatmap-focus-facts">
+            <span><small>{mapCopy.price}</small><strong>{focusPrice != null ? `${formatMarketNumber(focusPrice, lang)} UZS` : "—"}</strong></span>
+            <span><small>{mapCopy.turnover}</small><strong>{Number.isFinite(focusRow.stockVolume) && focusRow.stockVolume > 0 ? `${formatCompactVolume(focusRow.stockVolume, lang)} UZS` : "—"}</strong></span>
+            <span><small>{mapCopy.sectors}</small><strong>{sectorLabel(lang, sectorKeyOf(focusRow.ticker))}</strong></span>
+          </span>
+          <span className="heatmap-focus-open">{mapCopy.open}<b>↗</b></span>
+        </button>
+      )}
 
-            {radialSectors.map((sector) => {
-              const labelPoint = heatmapPoint(500, 500, 261, sector.mid);
-              return (
-                <g className="heatmap-radial-sector" key={sector.sector}>
-                  <path
-                    className="heatmap-sector-arc"
-                    d={heatmapArcPath(500, 500, 218, 300, sector.start, sector.end)}
-                    fill={heatmapColor(sector.avg, fullScale, true)}
-                  >
-                    <title>{`${sectorLabel(lang, sector.sector)} · ${formatPct(sector.avg)} · ${sector.tally.counted}/${sector.tally.total}`}</title>
-                  </path>
-                  {sector.span >= 12 && (
-                    <text className="heatmap-sector-arc-label" x={labelPoint.x} y={labelPoint.y}>
-                      {sectorLabel(lang, sector.sector).slice(0, 12)}
-                    </text>
-                  )}
-
-                  {sector.arcs.map(({ row, start, end, mid: arcMid, span }) => {
-                    const status = tileStatus(row);
-                    const active = hover?.ticker === row.ticker;
-                    const preferred = isPreferredRow(row);
-                    const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
-                    const label = heatmapPoint(500, 500, 386, arcMid);
-                    const normalized = ((arcMid % 360) + 360) % 360;
-                    const rotation = arcMid + 90 + (normalized > 90 && normalized < 270 ? 180 : 0);
-                    const tone = row.changePercent > flatBand ? "up" : row.changePercent < -flatBand ? "down" : "flat";
-                    const openSecurity = () => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker));
-                    return (
-                      <g className="heatmap-radial-security" key={row.ticker}>
-                        <path
-                          className={`heatmap-security-arc is-${tone}${active ? " is-active" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
-                          d={heatmapArcPath(500, 500, 316, 460, start, end)}
-                          fill={status === "ok" ? heatmapColor(row.changePercent, fullScale) : "url(#heatmap-neutral-pattern)"}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`${row.ticker}, ${companyName}, ${sectorLabel(lang, sector.sector)}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
-                          onClick={openSecurity}
-                          onMouseEnter={() => setHover({ ticker: row.ticker, row })}
-                          onMouseLeave={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
-                          onFocus={() => setHover({ ticker: row.ticker, row })}
-                          onBlur={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              openSecurity();
-                            }
-                          }}
-                        >
-                          <title>{`${row.ticker} · ${companyName} · ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}</title>
-                        </path>
-                        {span >= 7 && (
-                          <text
-                            className="heatmap-arc-ticker"
-                            x={label.x}
-                            y={label.y}
-                            transform={`rotate(${rotation} ${label.x} ${label.y})`}
-                          >
-                            {row.ticker}
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
-                </g>
-              );
-            })}
-
-            <circle className="heatmap-wheel-center-glow" cx="500" cy="500" r="204" />
-            <circle className="heatmap-wheel-center" cx="500" cy="500" r="190" />
-            {centerRow ? (
-              <g className="heatmap-center-copy" aria-live="polite">
-                <text className="heatmap-center-kicker" x="500" y="422">{sectorLabel(lang, sectorKeyOf(centerRow.ticker))}</text>
-                <text className="heatmap-center-ticker" x="500" y="474">{centerRow.ticker}</text>
-                <text className={`heatmap-center-change tone-${centerRow.changePercent > flatBand ? "good" : centerRow.changePercent < -flatBand ? "danger" : "neutral"}`} x="500" y="522">
-                  {centerStatus === "ok" ? formatPct(centerRow.changePercent) : "—"}
-                </text>
-                <text className="heatmap-center-name" x="500" y="558">{heatmapShortName(centerName)}</text>
-                <text className="heatmap-center-stat" x="500" y="602">
-                  {mapCopy.price}  <tspan>{centerPrice != null ? `${formatMarketNumber(centerPrice, lang)} UZS` : "—"}</tspan>
-                </text>
-                <text className="heatmap-center-stat" x="500" y="630">
-                  {mapCopy.turnover}  <tspan>{Number.isFinite(centerRow.stockVolume) && centerRow.stockVolume > 0 ? `${formatCompactVolume(centerRow.stockVolume, lang)} UZS` : "—"}</tspan>
-                </text>
-              </g>
-            ) : (
-              <g className="heatmap-center-copy">
-                <text className="heatmap-center-kicker" x="500" y="438">{mapCopy.pulse}</text>
-                <text className="heatmap-center-market" x="500" y="503">UZSE</text>
-                <text className={`heatmap-center-change tone-${marketAverage > flatBand ? "good" : marketAverage < -flatBand ? "danger" : "neutral"}`} x="500" y="552">
-                  {formatPct(marketAverage)}
-                </text>
-                <text className="heatmap-center-caption" x="500" y="588">{signalRows.length} {mapCopy.securities} · {mapCopy.weighted}</text>
-              </g>
-            )}
-          </svg>
-          <div className="heatmap-wheel-key" aria-hidden="true">
-            <span className="is-preferred"><i />{mapCopy.preferred}</span>
-            <span className="is-thin"><i />{mapCopy.thin}</span>
-          </div>
-        </div>
-
-        <aside className="heatmap-sector-index" aria-label={mapCopy.sectors}>
-          <div className="heatmap-sector-index-head">
-            <span>{mapCopy.sectors}</span>
-            <small>{radialSectors.length}</small>
-          </div>
-          <div className="heatmap-sector-index-list">
-            {radialSectors.map((sector) => (
-              <div className="heatmap-sector-index-row" key={sector.sector}>
-                <i style={{ background: heatmapColor(sector.avg, fullScale) }} />
-                <span>
-                  {sectorLabel(lang, sector.sector)}
-                  <small>{sector.tally.total} {mapCopy.securities}</small>
-                </span>
+      <div className="heatmap-sector-board" aria-label={mapCopy.board}>
+        {heatSectors.map((sector) => {
+          const breadth = Math.max(1, sector.rising + sector.falling + sector.flat);
+          return (
+            <section className="heatmap-sector-row" key={sector.sector}>
+              <header className="heatmap-sector-summary">
+                <span>{sectorLabel(lang, sector.sector)}</span>
                 <strong className={`tone-${sector.avg > flatBand ? "good" : sector.avg < -flatBand ? "danger" : "neutral"}`}>
                   {formatPct(sector.avg)}
                 </strong>
+                <small>
+                  <b className="tone-good">↑ {sector.rising}</b>
+                  <b className="tone-danger">↓ {sector.falling}</b>
+                  <span>{sector.tally.total} {mapCopy.securities}</span>
+                </small>
+                <i className="heatmap-sector-mini-breadth" aria-hidden="true">
+                  <span className="is-up" style={{ width: `${(sector.rising / breadth) * 100}%` }} />
+                  <span className="is-flat" style={{ width: `${(sector.flat / breadth) * 100}%` }} />
+                  <span className="is-down" style={{ width: `${(sector.falling / breadth) * 100}%` }} />
+                </i>
+              </header>
+
+              <div className="heatmap-sector-cells">
+                {sector.rows.map((row) => {
+                  const status = tileStatus(row);
+                  const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
+                  const active = hover?.ticker === row.ticker;
+                  const preferred = isPreferredRow(row);
+                  return (
+                    <button
+                      key={row.ticker}
+                      className={`heatmap-security-cell${active ? " is-active" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
+                      type="button"
+                      style={{ "--cell-fill": status === "ok" ? heatmapColor(row.changePercent, fullScale) : undefined }}
+                      aria-label={`${row.ticker}, ${companyName}, ${sectorLabel(lang, sector.sector)}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
+                      onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
+                      onMouseEnter={() => setHover({ ticker: row.ticker, row })}
+                      onMouseLeave={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
+                      onFocus={() => setHover({ ticker: row.ticker, row })}
+                      onBlur={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
+                    >
+                      <span className="heatmap-cell-top">
+                        <strong>{row.ticker}{preferred && <em title={mapCopy.preferred}>P</em>}</strong>
+                        <b>{status === "ok" ? formatPct(row.changePercent) : "—"}</b>
+                      </span>
+                      <span className="heatmap-cell-name">{heatmapShortName(companyName)}</span>
+                      <span className="heatmap-cell-turnover">
+                        {Number.isFinite(row.stockVolume) && row.stockVolume > 0 ? `${formatCompactVolume(row.stockVolume, lang)} UZS` : mapCopy.noData}
+                      </span>
+                      <i className="heatmap-cell-volume" style={{ width: `${turnoverLevel(row)}%` }} aria-hidden="true" />
+                    </button>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </aside>
+            </section>
+          );
+        })}
       </div>
 
-      {radialSectors.length === 0 && (
+      {heatSectors.length === 0 && (
         <p className="market-empty-cell">
           {lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}
         </p>
