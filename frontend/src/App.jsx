@@ -6617,7 +6617,6 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const [hover, setHover] = useState(null); // { ticker, row } — reflected in the focus strip
   const treeRef = React.useRef(null);
   const [treeSize, setTreeSize] = useState({ w: 0, h: 0 });
-  const [sizeMetric, setSizeMetric] = useState("marketCap");
 
   useEffect(() => {
     const element = treeRef.current;
@@ -6655,14 +6654,22 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const isNeutralRow = (row) => row.inactive === true || !Number.isFinite(row.changePercent);
   const tradedRows = rows.filter((row) => allowBonds || !isBond(row));
 
-  // A real finance heatmap lets the reader choose what area means. Market cap
-  // is the familiar default; turnover exposes where today's activity happened.
-  // A very small floor keeps missing/thin names clickable without materially
-  // changing the visual hierarchy.
-  const areaValue = (row) => Math.max(Number(sizeMetric === "marketCap" ? row.marketCap : row.stockVolume) || 0, 0);
-  const maxAreaValue = Math.max(1, ...tradedRows.map(areaValue));
-  const weightFloor = maxAreaValue * (sizeMetric === "marketCap" ? 0.0015 : 0.003);
-  const tileWeight = (row) => Math.max(areaValue(row), weightFloor * (isNeutralRow(row) ? 0.65 : 1));
+  // Area answers the same question as colour: how strongly did this security
+  // move over the selected period? Direction belongs to colour; magnitude
+  // (absolute percentage change) belongs to area. A 0% or unavailable name gets
+  // only a tiny floor so it remains discoverable without competing visually
+  // with securities that actually moved.
+  const movementValue = (row) => (
+    tileStatus(row) === "ok" && Number.isFinite(row.changePercent)
+      ? Math.abs(row.changePercent)
+      : 0
+  );
+  const maxMovementValue = Math.max(0, ...tradedRows.map(movementValue));
+  const movementFloor = maxMovementValue > 0 ? maxMovementValue * 0.002 : 1;
+  const tileWeight = (row) => Math.max(
+    movementValue(row),
+    movementFloor * (isNeutralRow(row) ? 0.65 : 1)
+  );
 
   const formatPct = (pct) => {
     if (pct === null || !Number.isFinite(pct)) return "—";
@@ -6736,10 +6743,10 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const unavailable = Math.max(0, tradedRows.length - signalRows.length);
   const breadthTotal = Math.max(1, rising + falling + flat + unavailable);
   const mapCopy = lang === "ru"
-    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Площадь", capitalization: "Капитализация", securities: "бумаг", board: "Тепловая карта рынка", sectors: "Сектора", price: "Цена", turnover: "Оборот", focus: "В фокусе", mainMove: "Главное движение", open: "Нажмите, чтобы открыть компанию", preferred: "Привилегированная акция" }
+    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Площадь", movement: "Сила движения", securities: "бумаг", board: "Тепловая карта рынка", sectors: "Сектора", price: "Цена", turnover: "Оборот", focus: "В фокусе", mainMove: "Главное движение", open: "Нажмите, чтобы открыть компанию", preferred: "Привилегированная акция" }
     : lang === "uz"
-      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Maydon", capitalization: "Kapitalizatsiya", securities: "qog'oz", board: "Bozor issiqlik xaritasi", sectors: "Sektorlar", price: "Narx", turnover: "Aylanma", focus: "Tanlangan", mainMove: "Asosiy harakat", open: "Kompaniyani ochish uchun bosing", preferred: "Imtiyozli aksiya" }
-      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Area", capitalization: "Market cap", securities: "securities", board: "Market heatmap", sectors: "Sectors", price: "Price", turnover: "Turnover", focus: "In focus", mainMove: "Largest move", open: "Click to open company", preferred: "Preferred share" };
+      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Maydon", movement: "Harakat kuchi", securities: "qog'oz", board: "Bozor issiqlik xaritasi", sectors: "Sektorlar", price: "Narx", turnover: "Aylanma", focus: "Tanlangan", mainMove: "Asosiy harakat", open: "Kompaniyani ochish uchun bosing", preferred: "Imtiyozli aksiya" }
+      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Area", movement: "Move magnitude", securities: "securities", board: "Market heatmap", sectors: "Sectors", price: "Price", turnover: "Turnover", focus: "In focus", mainMove: "Largest move", open: "Click to open company", preferred: "Preferred share" };
   const mainMover = signalRows.reduce((best, row) => (
     !best || Math.abs(row.changePercent) > Math.abs(best.changePercent) ? row : best
   ), null);
@@ -6781,11 +6788,11 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         <div className="heatmap-legend">
           <div className="heatmap-legend-head">
             <span>{mapCopy.scale}</span>
-            <div className="heatmap-area-toggle" role="group" aria-label={mapCopy.area}>
+            <span className="heatmap-area-note" aria-label={`${mapCopy.area}: ${mapCopy.movement}`}>
               <small>{mapCopy.area}</small>
-              <button type="button" className={sizeMetric === "marketCap" ? "active" : ""} onClick={() => setSizeMetric("marketCap")}>{mapCopy.capitalization}</button>
-              <button type="button" className={sizeMetric === "turnover" ? "active" : ""} onClick={() => setSizeMetric("turnover")}>{mapCopy.turnover}</button>
-            </div>
+              <b>|%|</b>
+              <span>{mapCopy.movement}</span>
+            </span>
           </div>
           <div className="heatmap-legend-gradient" aria-hidden="true" />
           <div className="heatmap-legend-labels">
@@ -14562,9 +14569,9 @@ function MarketView({
   };
   const dormantCount = byClass.filter(isDormant).length;
   const prepared = byClass.filter((r) => isDormant(r) === inactiveOnly);
-  // The MAP never shows a dormant listing. A treemap is a picture of a session —
-  // every tile's area is the day's turnover — and a security that had no session
-  // has no area to draw, so it can only be rendered as a placeholder square that
+  // The MAP never shows a dormant listing. A treemap is a picture of movement —
+  // every tile's area is the absolute change over the selected period — and a
+  // security without a measured move can only be a tiny neutral placeholder that
   // says «—». Eleven of those told the reader nothing the «неактивные: 10» line
   // on the capitalisation card does not already say, in words. Computed from the
   // rows rather than from `inactiveOnly` on purpose: switching the table's filter
