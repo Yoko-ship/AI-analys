@@ -6856,16 +6856,22 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                 const height = stock.h - tileGap;
                 if (width <= 0 || height <= 0) return null;
                 const tickerSize = Math.max(8, Math.min(Math.min(width, height) / 3.1, width / 4.7, 21));
-                const showTicker = width > 25 && height > 18;
-                const showPercent = width > 42 && height > 34;
+                // A ticker or status badge clipped into a movement-floor cell
+                // becomes a meaningless dot. Micro tiles keep only their fill;
+                // the full accessible label and the focus strip still expose
+                // every security on hover, focus and click.
+                const showTicker = width >= 54 && height >= 30;
+                const showPercent = width >= 70 && height >= 48;
                 const showName = width > 105 && height > 62;
                 const showVolume = width > 118 && height > 86 && Number.isFinite(row.stockVolume);
                 const preferred = isPreferredRow(row);
+                const showPreferredBadge = preferred && width >= 84 && height >= 44;
+                const microTile = !showTicker;
                 const active = hover?.ticker === row.ticker;
                 return (
                   <button
                     key={row.ticker}
-                    className={`heatmap-tree-tile${active ? " is-active" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
+                    className={`heatmap-tree-tile${microTile ? " is-micro" : ""}${active ? " is-active" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
                     type="button"
                     style={{
                       left: stock.x + tileGap / 2,
@@ -6883,7 +6889,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                   >
                     {showTicker && (
                       <span className="htt-ticker" style={{ fontSize: tickerSize }}>
-                        {row.ticker}{preferred && <em title={mapCopy.preferred}>P</em>}
+                        {row.ticker}{showPreferredBadge && <em title={mapCopy.preferred}>P</em>}
                       </span>
                     )}
                     {showPercent && <span className="htt-pct" style={{ fontSize: tickerSize * 0.78 }}>{status === "ok" ? formatPct(row.changePercent) : "—"}</span>}
