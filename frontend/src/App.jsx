@@ -6502,10 +6502,28 @@ function heatmapTileStyle(changePercent, full = 5) {
   // session, ±1,5 % over a year, where a tenth of a percent is noise.
   const dead = span / 50;
   const abs = Math.abs(changePercent);
-  // dead band → L 20%; `span`+ → L 42% (TradingView-style vivid HSL)
-  const lightness = Math.min(20 + (abs / span) * 22, 44).toFixed(0);
-  if (changePercent > dead) return { background: `hsl(160 65% ${lightness}%)` };
-  if (changePercent < -dead) return { background: `hsl(0 70% ${lightness}%)` };
+  const intensity = Math.min(abs / span, 1);
+  // Deep teal and warm coral keep the market meaning of green/red without the
+  // flat traffic-light blocks the old map used. The two-stop colour gives each
+  // tile depth while intensity still carries the actual magnitude.
+  if (changePercent > dead) {
+    const from = (21 + intensity * 9).toFixed(0);
+    const to = (28 + intensity * 11).toFixed(0);
+    return {
+      background: `linear-gradient(145deg, hsl(171 54% ${from}%) 0%, hsl(158 68% ${to}%) 100%)`,
+      "--heat-glow": `hsla(158, 76%, 62%, ${0.08 + intensity * 0.18})`,
+      "--heat-edge": `hsla(158, 72%, 72%, ${0.16 + intensity * 0.24})`,
+    };
+  }
+  if (changePercent < -dead) {
+    const from = (23 + intensity * 9).toFixed(0);
+    const to = (29 + intensity * 10).toFixed(0);
+    return {
+      background: `linear-gradient(145deg, hsl(350 54% ${from}%) 0%, hsl(7 72% ${to}%) 100%)`,
+      "--heat-glow": `hsla(7, 86%, 68%, ${0.08 + intensity * 0.18})`,
+      "--heat-edge": `hsla(7, 86%, 78%, ${0.16 + intensity * 0.24})`,
+    };
+  }
   return {};
 }
 
@@ -6677,8 +6695,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     .map((key) => ({ key, rows: rowsByGroup[key] }))
     .filter((g) => g.rows.length);
 
-  const HEADER = 17;   // sector header strip
-  const GHEADER = 22;  // share-class block header strip
+  const HEADER = 24;   // sector header strip
+  const GHEADER = 32;  // share-class block header strip
   const buildSectors = (groupRows, bodyY, bodyH) => {
     const sectorGroups = {};
     groupRows.forEach((row) => { (sectorGroups[sectorKeyOf(row.ticker)] ||= []).push(row); });
@@ -6721,7 +6739,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
       const bodyH = fracs[gi] * bodyTotal;
       const sectors = buildSectors(g.rows, bodyY, bodyH);
       y = bodyY + bodyH;
-      return { key: g.key, showHeader: showBlockHeaders, headerRect, avg: avgOf(g.rows), sectors };
+      return { key: g.key, showHeader: showBlockHeaders, headerRect, avg: avgOf(g.rows), count: g.rows.length, sectors };
     });
   }
 
@@ -6729,7 +6747,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     ? (lang === "ru" ? "Привилегированные" : lang === "uz" ? "Imtiyozli aksiyalar" : "Preferred")
     : (lang === "ru" ? "Обыкновенные" : lang === "uz" ? "Oddiy aksiyalar" : "Ordinary");
 
-  const GAP = 1.5;
+  const GAP = 4;
   // Drawn from the period's own scale, never from a fixed ±5 %: a legend that
   // says «≥ +5%» over a picture where the saturation point is 50 % is not a key,
   // it is a wrong caption. The stops sit just past saturation and at two fifths
@@ -6743,18 +6761,58 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     { pct: fullScale * 1.1,  label: `≥ +${formatRatio(fullScale, 0, lang)}%` },
   ];
 
+  const marketAverage = avgOf(tradedRows);
+  const flatBand = fullScale / 50;
+  const signalRows = tradedRows.filter((row) => Number.isFinite(row.changePercent) && tileStatus(row) === "ok");
+  const rising = signalRows.filter((row) => row.changePercent > flatBand).length;
+  const falling = signalRows.filter((row) => row.changePercent < -flatBand).length;
+  const flat = Math.max(0, signalRows.length - rising - falling);
+  const unavailable = Math.max(0, tradedRows.length - signalRows.length);
+  const breadthTotal = Math.max(1, rising + falling + flat + unavailable);
+  const mapCopy = lang === "ru"
+    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Площадь = оборот", securities: "бумаг" }
+    : lang === "uz"
+      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Maydon = aylanma", securities: "qog'oz" }
+      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Area = turnover", securities: "securities" };
+
   return (
     <div className="heatmap-wrap">
-      <div className="heatmap-legend">
-        {LEGEND_STOPS.map(({ pct, label }) => {
-          const s = heatmapTileStyle(pct, fullScale);
-          return (
-            <span key={label} className="heatmap-legend-item">
-              <span className="heatmap-legend-swatch" style={s.background ? { background: s.background } : undefined} />
-              <span>{label}</span>
-            </span>
-          );
-        })}
+      <div className="heatmap-overview">
+        <div className="heatmap-pulse">
+          <span className="heatmap-overview-kicker">{mapCopy.pulse}</span>
+          <div className="heatmap-pulse-main">
+            <strong className={`tone-${marketAverage > flatBand ? "good" : marketAverage < -flatBand ? "danger" : "neutral"}`}>
+              {formatPct(marketAverage)}
+            </strong>
+            <span>{mapCopy.weighted}</span>
+          </div>
+        </div>
+
+        <div className="heatmap-breadth" aria-label={`${mapCopy.up}: ${rising}; ${mapCopy.down}: ${falling}; ${mapCopy.flat}: ${flat}`}>
+          <div className="heatmap-breadth-track" aria-hidden="true">
+            <span className="is-up" style={{ width: `${(rising / breadthTotal) * 100}%` }} />
+            <span className="is-flat" style={{ width: `${(flat / breadthTotal) * 100}%` }} />
+            <span className="is-down" style={{ width: `${(falling / breadthTotal) * 100}%` }} />
+            <span className="is-missing" style={{ width: `${(unavailable / breadthTotal) * 100}%` }} />
+          </div>
+          <div className="heatmap-breadth-values">
+            <span className="is-up"><i />{mapCopy.up} <b>{rising}</b></span>
+            <span className="is-flat"><i />{mapCopy.flat} <b>{flat}</b></span>
+            <span className="is-down"><i />{mapCopy.down} <b>{falling}</b></span>
+            {unavailable > 0 && <span className="is-missing"><i />{mapCopy.noData} <b>{unavailable}</b></span>}
+          </div>
+        </div>
+
+        <div className="heatmap-legend">
+          <div className="heatmap-legend-head">
+            <span>{mapCopy.scale}</span>
+            <small>{mapCopy.area}</small>
+          </div>
+          <div className="heatmap-legend-gradient" aria-hidden="true" />
+          <div className="heatmap-legend-labels">
+            {LEGEND_STOPS.map(({ label }) => <span key={label}>{label}</span>)}
+          </div>
+        </div>
       </div>
 
       <div className="heatmap-tree" ref={wrapRef}>
@@ -6764,6 +6822,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
               <div className={`heatmap-group-label is-${group.key}`}
                 style={{ left: group.headerRect.x, top: group.headerRect.y, width: group.headerRect.w, height: group.headerRect.h }}>
                 <span className="hgl-name">{groupLabel(group.key)}</span>
+                <span className="hgl-count">{group.count} {mapCopy.securities}</span>
                 {group.avg !== null && (
                   <span className={`htl-avg tone-${group.avg > 0.1 ? "good" : group.avg < -0.1 ? "danger" : "neutral"}`}>{formatPct(group.avg)}</span>
                 )}
@@ -6810,22 +6869,34 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                       : status === "not_traded" ? " is-not-traded"
                       : status === "inactive" ? " is-inactive" : "";
                     const confClass = lowConfidence(row) ? " is-low-confidence" : "";
+                    const directionClass = row.changePercent > flatBand ? " is-up"
+                      : row.changePercent < -flatBand ? " is-down" : " is-flat";
                     const w = st.w - GAP, h = st.h - GAP;
                     if (w < 1 || h < 1) return null;
-                    const tickerSize = Math.max(8, Math.min(Math.min(w, h) / 2.9, w / 4.4, 19));
-                    const showTicker = w > 22 && h > 15;
-                    const showPct = w > 34 && h > 32;
+                    const tickerSize = Math.max(9, Math.min(Math.min(w, h) / 3.1, w / 4.5, 21));
+                    const showTicker = w > 24 && h > 17;
+                    const showPct = w > 36 && h > 34;
+                    const showName = w > 92 && h > 60;
+                    const showVolume = w > 112 && h > 92 && Number.isFinite(row.stockVolume);
+                    const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
                     return (
                       <button
                         key={row.ticker}
                         type="button"
-                        className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}${statusClass}${confClass}`}
+                        className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}${statusClass}${confClass}${directionClass}`}
                         style={{ left: st.x + GAP / 2, top: st.y + GAP / 2, width: w, height: h, ...tileStyle }}
+                        aria-label={`${row.ticker}, ${companyName}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
                         onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
                         onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
                         onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
+                        onFocus={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHover({ ticker: row.ticker, row, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                        }}
+                        onBlur={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
                       >
                         {showTicker && <span className="htt-ticker" style={{ fontSize: tickerSize }}>{row.ticker}</span>}
+                        {showName && <span className="htt-name">{heatmapShortName(companyName)}</span>}
                         {/* A tile with no session shows «—», not «0 %». The dormant
                             listings carry their last-known price in both fields, so the
                             percent is a price minus itself — see heatmap.classify_tile. */}
@@ -6834,6 +6905,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                             {status === "ok" ? formatPct(row.changePercent) : "—"}
                           </span>
                         )}
+                        {showVolume && <span className="htt-volume">{formatCompactVolume(row.stockVolume, lang)} UZS</span>}
                       </button>
                     );
                   })}
@@ -6881,7 +6953,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
               [mt(lang, "bigTrade"), num(largest)],
             ];
         // position: fixed at the cursor, clamped inside the viewport
-        const TT_W = 236, TT_H = 210;
+        const TT_W = 264, TT_H = 240;
         const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
         const vh = typeof window !== "undefined" ? window.innerHeight : 800;
         const left = Math.max(8, Math.min(hover.x + 16, vw - TT_W - 8));
@@ -6890,7 +6962,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         // Portal to <body> so an ancestor's backdrop-filter/transform doesn't turn
         // position:fixed into a clipped, mispositioned box.
         return createPortal(
-          <div className="heatmap-tt" style={{ left, top, width: TT_W }}>
+          <div className={`heatmap-tt tone-${tone}`} style={{ left, top, width: TT_W }}>
             <div className="heatmap-tt-head">
               <span className="heatmap-tt-ticker">{r.ticker}</span>
               <span className={`heatmap-tt-pct tone-${tone}`}>{formatPct(r.changePercent)}</span>

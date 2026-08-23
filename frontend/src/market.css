@@ -1085,32 +1085,27 @@ html[data-theme="dark"] .market-layout .market-movers-tk .chip-logo {
   color: var(--muted);
 }
 
-/* The map shares the same restrained frame and semantic B2 colours. */
+/* Market map: editorial controls around a denser, expressive treemap. */
 .market-layout .heatmap-wrap {
-  gap: 10px;
-  padding: 12px;
-}
-
-.market-layout .heatmap-legend {
-  padding-bottom: 9px;
+  gap: 16px;
+  padding: 18px 20px 22px;
 }
 
 .market-layout .heatmap-tree {
-  border-radius: 7px;
-  background: var(--surface-2);
+  border-radius: 13px;
 }
 
 html[data-theme="dark"] .market-layout .heatmap-tree {
-  background: #090b0a;
+  background: #0b0f13;
 }
 
 html[data-theme="light"] .market-layout .heatmap-tree {
-  background: var(--surface-2);
+  background: #e9edf2;
 }
 
 html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
-  background: #1a1f1c;
-  color: var(--muted);
+  background: linear-gradient(145deg, #252a31, #1b2026);
+  color: rgba(198, 207, 219, 0.76);
 }
 
 @media (max-width: 1100px) {
