@@ -7587,9 +7587,9 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 
 .market-movers-tk .chip-logo,
 .market-movers-tk .chip-logo-fallback {
-  width: 22px;
-  height: 22px;
-  font-size: 10px;
+  width: 36px;
+  height: 28px;
+  font-size: 11px;
   flex: none;
 }
 
