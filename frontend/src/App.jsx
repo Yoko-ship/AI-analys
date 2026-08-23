@@ -6860,8 +6860,9 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                 // becomes a meaningless dot. Micro tiles keep only their fill;
                 // the full accessible label and the focus strip still expose
                 // every security on hover, focus and click.
-                const showTicker = width >= 54 && height >= 30;
-                const showPercent = width >= 70 && height >= 48;
+                const tickerMinWidth = Math.max(34, row.ticker.length * 5 + 12);
+                const showTicker = width >= tickerMinWidth && height >= 24;
+                const showPercent = width >= 58 && height >= 40;
                 const showName = width > 105 && height > 62;
                 const showVolume = width > 118 && height > 86 && Number.isFinite(row.stockVolume);
                 const preferred = isPreferredRow(row);
