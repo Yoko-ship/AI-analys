@@ -6745,23 +6745,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
               )}
             </header>
 
-            <div className="heatmap-sector-lanes">
-              {group.sectors.map((sec) => (
-                <section className="heatmap-sector-lane" key={`${group.key}-${sec.sector}`}>
-                  <header className="heatmap-sector-head">
-                    <div>
-                      <h4>{sectorLabel(lang, sec.sector)}</h4>
-                      <span>{sec.tally.total} {mapCopy.securities}</span>
-                    </div>
-                    {sec.avg !== null && (
-                      <strong className={`tone-${sec.avg > flatBand ? "good" : sec.avg < -flatBand ? "danger" : "neutral"}`}>
-                        {formatPct(sec.avg)}
-                      </strong>
-                    )}
-                  </header>
-
-                  <div className="heatmap-bubble-field">
-                    {sec.rows.map((row) => {
+            <div className="heatmap-bubble-cloud">
+              {group.sectors.flatMap((sec) => sec.rows).map((row) => {
                       const status = tileStatus(row);
                       const bubbleStyle = heatmapTileStyle(row.changePercent, fullScale);
                       const isNeutral = !bubbleStyle.background;
@@ -6781,7 +6766,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                           type="button"
                           className={`heatmap-bubble${isNeutral ? " is-neutral" : ""}${statusClass}${confClass}${directionClass}`}
                           style={{ width: diameter, height: diameter, "--bubble-ticker": `${tickerFont}px`, ...bubbleStyle }}
-                          aria-label={`${row.ticker}, ${companyName}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
+                          aria-label={`${row.ticker}, ${companyName}, ${sectorLabel(lang, sectorKeyOf(row.ticker))}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
                           onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
                           onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
                           onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
@@ -6797,9 +6782,6 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                         </button>
                       );
                     })}
-                  </div>
-                </section>
-              ))}
             </div>
           </section>
         ))}

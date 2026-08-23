@@ -9537,6 +9537,16 @@ body[data-theme="dark"] .market-view-toggle button.active {
   min-width: 0;
 }
 
+.heatmap-bubble-cloud {
+  display: flex;
+  align-items: center;
+  align-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px 2px 2px;
+}
+
 .heatmap-bubble {
   position: relative;
   display: inline-flex;
