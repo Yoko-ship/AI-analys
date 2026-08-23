@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # mounted — so mounting a volume persists it across deploys with no extra config.
 # SECURITIES_DB_PATH still overrides the location explicitly if set.
 DB_PATH = Path(os.getenv("SECURITIES_DB_PATH") or (APP_DATA_DIR / "securities.db"))
+_COMPANY_LOGOS_PATH = Path(__file__).with_name("company_logos.json")
 
 # Sector mapping for tickers known from company_catalog
 _TICKER_SECTORS: dict[str, str] = {
@@ -368,6 +369,15 @@ def sync_securities(stocks: list[dict], logos: dict[str, str]) -> int:
 
 def get_securities_map() -> dict[str, dict]:
     """Return {ticker: info_dict} for all securities."""
+    # The persisted catalog can outlive a deploy while the logo registry changes.
+    # Overlay the current registry on read: rarely traded securities may be absent
+    # from the startup exchange feed, so waiting for the next sync would leave
+    # their old/null logo_url in the API indefinitely.
+    try:
+        logos = json.loads(_COMPANY_LOGOS_PATH.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — a bad optional registry must not break the catalog
+        logger.exception("company logo registry unreadable")
+        logos = {}
     conn = _get_conn()
     _init_db(conn)
     rows = conn.execute("SELECT * FROM securities ORDER BY ticker").fetchall()
@@ -385,6 +395,9 @@ def get_securities_map() -> dict[str, dict]:
         # shape guess that mislabelled BNGP, or the feed's own «ordinary» for
         # UZINP — answers correctly without waiting for the next sync.
         d["is_preferred"] = _preferred_flag(d.get("share_type"), d.get("name"), d.get("ticker"))
+        current_logo = resolve_logo(d.get("ticker", ""), logos)
+        if current_logo:
+            d["logo_url"] = current_logo
         vr = records.get(d["ticker"])
         if vr:
             d["max_volume"] = vr["max_volume"]
