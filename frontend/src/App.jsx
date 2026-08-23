@@ -4272,6 +4272,10 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, num));
 }
 
+const COMPACT_MARK_LOGO_TICKERS = new Set([
+  "KFSK", "KFSKP", "MIQE", "UTYK", "UZAL", "UZINP", "UZML", "YRFS",
+]);
+
 function CompanyLogo({ logo, name, ticker }) {
   const [failed, setFailed] = React.useState(false);
   if (!logo || failed) {
@@ -4288,9 +4292,10 @@ function CompanyLogo({ logo, name, ticker }) {
   // surface; remote and /logos/plate/* (wordmark/dark) logos keep a light plate.
   const isFloat = typeof logo === "string"
     && logo.startsWith("/logos/") && !logo.startsWith("/logos/plate/");
+  const useCompactMark = COMPACT_MARK_LOGO_TICKERS.has(String(ticker || "").toUpperCase());
   return (
     <img
-      className={`chip-logo${isFloat ? " chip-logo--float" : ""}`}
+      className={`chip-logo${isFloat ? " chip-logo--float" : ""}${useCompactMark ? " chip-logo--compact-mark" : ""}`}
       src={logo}
       alt={name}
       onError={() => setFailed(true)}
