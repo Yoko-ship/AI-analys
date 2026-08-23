@@ -884,9 +884,9 @@ html[data-theme="dark"] .market-layout .market-table th {
 
 .market-layout .market-ticker-cell .chip-logo,
 .market-layout .market-ticker-cell .chip-logo-fallback {
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
+  width: 52px;
+  height: 42px;
+  border-radius: 9px;
   padding: 3px;
   box-shadow: none;
 }
@@ -1037,8 +1037,8 @@ html[data-theme="dark"] .market-layout .market-table th {
 
 .market-layout .market-movers-tk .chip-logo,
 .market-layout .market-movers-tk .chip-logo-fallback {
-  width: 22px;
-  height: 22px;
+  width: 36px;
+  height: 28px;
 }
 
 .market-layout .market-movers-name {
