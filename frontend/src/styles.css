@@ -9387,36 +9387,34 @@ body[data-theme="dark"] .market-view-toggle button.active {
   white-space: nowrap;
 }
 
-.heatmap-area-toggle {
+.heatmap-area-note {
   display: flex;
   align-items: center;
-  gap: 4px;
-}
-
-.heatmap-area-toggle small {
-  margin-right: 3px;
-}
-
-.heatmap-area-toggle button {
-  min-height: 24px;
-  padding: 3px 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
+  gap: 6px;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.heatmap-area-note small {
+  margin-right: 1px;
+}
+
+.heatmap-area-note b {
+  display: inline-grid;
+  place-items: center;
+  min-width: 27px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--text);
+  font: 750 10px/1 var(--mono);
+}
+
+.heatmap-area-note > span {
   font-size: 9px;
   font-weight: 650;
-  cursor: pointer;
-}
-
-.heatmap-area-toggle button:hover {
-  color: var(--text);
-}
-
-.heatmap-area-toggle button.active {
-  border-color: var(--border);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  color: var(--text);
 }
 
 .heatmap-legend-gradient {
