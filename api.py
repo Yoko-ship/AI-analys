@@ -5433,6 +5433,7 @@ async def api_catalog_companies() -> dict[str, Any]:
         companies = list_companies_with_stats()
         for c in companies:
             c["logo"] = resolve_logo(c.get("ticker", ""), COMPANY_LOGOS) or ""
+            c["sector"] = COMPANY_SECTORS.get(c.get("ticker", ""), "other")
         return {"ok": True, "count": len(companies), "companies": companies}
     except Exception as exc:
         logger.exception("Catalog companies list failed")
