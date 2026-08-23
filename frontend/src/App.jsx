@@ -6495,36 +6495,41 @@ function MarketChangeBadge({ value, percent, language }) {
 const HEATMAP_FULL_SCALE = { "1d": 5, "1w": 10, "1m": 20, "3m": 35, "6m": 50, "1y": 75, ytd: 75 };
 const heatmapFullScale = (period) => HEATMAP_FULL_SCALE[period] || 5;
 
-function heatmapTileStyle(changePercent, full = 5) {
-  if (changePercent === null || !Number.isFinite(changePercent)) return {};
+function heatmapColor(changePercent, full = 5, muted = false) {
+  if (changePercent === null || !Number.isFinite(changePercent)) return muted ? "#313844" : "#3b4451";
   const span = Number.isFinite(full) && full > 0 ? full : 5;
-  // The dead band that reads as "unchanged" travels with the scale: ±0.1 % on a
-  // session, ±1,5 % over a year, where a tenth of a percent is noise.
   const dead = span / 50;
   const abs = Math.abs(changePercent);
   const intensity = Math.min(abs / span, 1);
-  // Deep teal and warm coral keep the market meaning of green/red without the
-  // flat traffic-light blocks the old map used. The two-stop colour gives each
-  // tile depth while intensity still carries the actual magnitude.
   if (changePercent > dead) {
-    const from = (21 + intensity * 9).toFixed(0);
-    const to = (28 + intensity * 11).toFixed(0);
-    return {
-      background: `linear-gradient(145deg, hsl(171 54% ${from}%) 0%, hsl(158 68% ${to}%) 100%)`,
-      "--heat-glow": `hsla(158, 76%, 62%, ${0.08 + intensity * 0.18})`,
-      "--heat-edge": `hsla(158, 72%, 72%, ${0.16 + intensity * 0.24})`,
-    };
+    const lightness = (muted ? 23 : 28) + intensity * (muted ? 11 : 15);
+    return `hsl(${164 - intensity * 6} ${muted ? 48 : 66}% ${lightness}%)`;
   }
   if (changePercent < -dead) {
-    const from = (23 + intensity * 9).toFixed(0);
-    const to = (29 + intensity * 10).toFixed(0);
-    return {
-      background: `linear-gradient(145deg, hsl(350 54% ${from}%) 0%, hsl(7 72% ${to}%) 100%)`,
-      "--heat-glow": `hsla(7, 86%, 68%, ${0.08 + intensity * 0.18})`,
-      "--heat-edge": `hsla(7, 86%, 78%, ${0.16 + intensity * 0.24})`,
-    };
+    const lightness = (muted ? 25 : 29) + intensity * (muted ? 10 : 14);
+    return `hsl(${352 + intensity * 14} ${muted ? 50 : 70}% ${lightness}%)`;
   }
-  return {};
+  return muted ? "#323a45" : "#46505d";
+}
+
+function heatmapPoint(cx, cy, radius, angle) {
+  const radians = (angle * Math.PI) / 180;
+  return { x: cx + radius * Math.cos(radians), y: cy + radius * Math.sin(radians) };
+}
+
+function heatmapArcPath(cx, cy, innerRadius, outerRadius, startAngle, endAngle) {
+  const startOuter = heatmapPoint(cx, cy, outerRadius, startAngle);
+  const endOuter = heatmapPoint(cx, cy, outerRadius, endAngle);
+  const endInner = heatmapPoint(cx, cy, innerRadius, endAngle);
+  const startInner = heatmapPoint(cx, cy, innerRadius, startAngle);
+  const large = endAngle - startAngle > 180 ? 1 : 0;
+  return [
+    `M ${startOuter.x} ${startOuter.y}`,
+    `A ${outerRadius} ${outerRadius} 0 ${large} 1 ${endOuter.x} ${endOuter.y}`,
+    `L ${endInner.x} ${endInner.y}`,
+    `A ${innerRadius} ${innerRadius} 0 ${large} 0 ${startInner.x} ${startInner.y}`,
+    "Z",
+  ].join(" ");
 }
 
 function heatmapShortName(name) {
@@ -6536,9 +6541,9 @@ function heatmapShortName(name) {
 }
 
 function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, period = "1d" }) {
-  // Which question the map is drawing. Over a window every tile's colour is the
-  // change over it and every tile's AREA is the turnover over it — the caller
-  // has already restated the rows (see `mapRows`), so the treemap arithmetic
+  // Which question the map is drawing. Over a window every arc's colour is the
+  // change over it and every arc's LENGTH is the turnover over it — the caller
+  // has already restated the rows (see `mapRows`), so the wheel arithmetic
   // below needs no special case. What does need one is everything the SERVER
   // said about today; see `tileStatus`.
   const windowed = period !== "1d";
@@ -6569,7 +6574,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   // of sessions is not low-confidence because this morning was thin.
   const lowConfidence = (r) => !windowed && metaOf(r)?.confidence === "low";
   const lang = normalizeLanguage(language);
-  const [hover, setHover] = useState(null); // { ticker, row, x, y } — rich hover tooltip
+  const [hover, setHover] = useState(null); // { ticker, row } — reflected in the wheel's centre
 
   const companyMap = {};
   (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
@@ -6591,22 +6596,13 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const isNeutralRow = (row) => row.inactive === true || !Number.isFinite(row.changePercent);
   const tradedRows = rows.filter((row) => allowBonds || !isBond(row));
 
-  // Bubble AREA carries turnover. The 90th-percentile cap stops one exceptional
-  // block trade from reducing the entire exchange to identical pinheads; a
-  // minimum diameter keeps thin names selectable and keyboard-focusable.
+  // Arc width carries compressed turnover. A global floor keeps thin names
+  // selectable while preserving one consistent scale across every sector.
   const activeRows = tradedRows.filter((r) => !isNeutralRow(r));
-  const activeVolumes = activeRows
-    .map((r) => Math.max(Number(r.stockVolume) || 0, 0))
-    .filter((v) => v > 0)
-    .sort((a, b) => a - b);
-  const volumeCap = activeVolumes.length
-    ? activeVolumes[Math.floor((activeVolumes.length - 1) * 0.9)]
-    : 1;
-  const bubbleSize = (r) => {
-    if (isNeutralRow(r)) return 50;
-    const turnover = Math.max(Number(r.stockVolume) || 0, 0);
-    return Math.min(118, Math.max(50, 118 * Math.sqrt(turnover / Math.max(volumeCap, 1))));
-  };
+  const rawArcWeight = (r) => Math.sqrt(Math.max(Number(r.stockVolume) || 0, 1));
+  const maxArcWeight = Math.max(1, ...(activeRows.length ? activeRows : tradedRows).map(rawArcWeight));
+  const arcFloor = maxArcWeight * 0.04;
+  const arcWeight = (r) => isNeutralRow(r) ? arcFloor * 0.55 : Math.max(rawArcWeight(r), arcFloor);
 
   const formatPct = (pct) => {
     if (pct === null || !Number.isFinite(pct)) return "—";
@@ -6633,34 +6629,43 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     total: rs.length,
   });
 
-  // Top level splits share class (ordinary vs preferred). Within each block,
-  // sector lanes keep related issuers together while circles remain free of the
-  // box-on-box geometry of a treemap.
-  const GROUP_ORDER = ["ordinary", "preferred"];
-  const rowsByGroup = { ordinary: [], preferred: [] };
-  tradedRows.forEach((row) => { rowsByGroup[isPreferredRow(row) ? "preferred" : "ordinary"].push(row); });
-  const groups = GROUP_ORDER
-    .map((key) => ({ key, rows: rowsByGroup[key] }))
-    .filter((g) => g.rows.length);
-
-  const bubbleGroups = groups.map((group) => {
-    const sectorRows = {};
-    group.rows.forEach((row) => { (sectorRows[sectorKeyOf(row.ticker)] ||= []).push(row); });
-    const sectors = orderSectors(Object.keys(sectorRows)).map((sector) => {
-      const sectorItems = sectorRows[sector].slice().sort((a, b) => bubbleSize(b) - bubbleSize(a));
-      return {
-        sector,
-        rows: sectorItems,
-        avg: avgOf(sectorItems),
-        tally: countedOf(sectorItems),
-      };
+  const rowsBySector = {};
+  tradedRows.forEach((row) => { (rowsBySector[sectorKeyOf(row.ticker)] ||= []).push(row); });
+  const radialBase = orderSectors(Object.keys(rowsBySector)).map((sector) => {
+    const sectorRows = rowsBySector[sector].slice().sort((a, b) => {
+      const classOrder = Number(isPreferredRow(a)) - Number(isPreferredRow(b));
+      return classOrder || arcWeight(b) - arcWeight(a);
     });
-    return { ...group, avg: avgOf(group.rows), sectors };
+    return {
+      sector,
+      rows: sectorRows,
+      avg: avgOf(sectorRows),
+      tally: countedOf(sectorRows),
+      weight: sectorRows.reduce((sum, row) => sum + arcWeight(row), 0),
+    };
   });
-
-  const groupLabel = (key) => key === "preferred"
-    ? (lang === "ru" ? "Привилегированные" : lang === "uz" ? "Imtiyozli aksiyalar" : "Preferred")
-    : (lang === "ru" ? "Обыкновенные" : lang === "uz" ? "Oddiy aksiyalar" : "Ordinary");
+  const sectorGap = radialBase.length > 1 ? 2.2 : 0.8;
+  const usableDegrees = Math.max(1, 360 - sectorGap * radialBase.length);
+  const radialTotal = radialBase.reduce((sum, sector) => sum + sector.weight, 0) || 1;
+  let radialCursor = -90;
+  const radialSectors = radialBase.map((sector) => {
+    const span = usableDegrees * (sector.weight / radialTotal);
+    const start = radialCursor + sectorGap / 2;
+    const end = start + span;
+    radialCursor = end + sectorGap / 2;
+    const rowGap = Math.min(0.72, span / Math.max(sector.rows.length * 4.5, 1));
+    const rowUsable = Math.max(0.1, span - rowGap * sector.rows.length);
+    const rowTotal = sector.rows.reduce((sum, row) => sum + arcWeight(row), 0) || 1;
+    let rowCursor = start;
+    const arcs = sector.rows.map((row) => {
+      const rowSpan = rowUsable * (arcWeight(row) / rowTotal);
+      const rowStart = rowCursor + rowGap / 2;
+      const rowEnd = rowStart + rowSpan;
+      rowCursor = rowEnd + rowGap / 2;
+      return { row, start: rowStart, end: rowEnd, mid: (rowStart + rowEnd) / 2, span: rowSpan };
+    });
+    return { ...sector, start, end, mid: (start + end) / 2, span, arcs };
+  });
 
   // Drawn from the period's own scale, never from a fixed ±5 %: a legend that
   // says «≥ +5%» over a picture where the saturation point is 50 % is not a key,
@@ -6684,10 +6689,16 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const unavailable = Math.max(0, tradedRows.length - signalRows.length);
   const breadthTotal = Math.max(1, rising + falling + flat + unavailable);
   const mapCopy = lang === "ru"
-    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Размер = оборот", securities: "бумаг" }
+    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Длина дуги = оборот", securities: "бумаг", wheel: "Радиальная карта рынка", sectors: "Сектора", price: "Цена", turnover: "Оборот", preferred: "золотой контур — привилегированная", thin: "пунктир — низкая ликвидность" }
     : lang === "uz"
-      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Hajm = aylanma", securities: "qog'oz" }
-      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Size = turnover", securities: "securities" };
+      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Yoy uzunligi = aylanma", securities: "qog'oz", wheel: "Bozorning radial xaritasi", sectors: "Sektorlar", price: "Narx", turnover: "Aylanma", preferred: "oltin kontur — imtiyozli", thin: "punktir — past likvidlik" }
+      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Arc length = turnover", securities: "securities", wheel: "Radial market map", sectors: "Sectors", price: "Price", turnover: "Turnover", preferred: "gold outline — preferred", thin: "dashed — low liquidity" };
+  const centerRow = hover?.row || null;
+  const centerStatus = centerRow ? tileStatus(centerRow) : null;
+  const centerPrice = centerRow ? marketDisplayPrice(centerRow) : null;
+  const centerName = centerRow
+    ? centerRow.name || companyMap[centerRow.ticker]?.company_name || centerRow.ticker
+    : null;
 
   return (
     <div className="heatmap-wrap">
@@ -6729,155 +6740,146 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         </div>
       </div>
 
-      <div className="heatmap-bubble-map">
-        {bubbleGroups.map((group) => (
-          <section className={`heatmap-bubble-group is-${group.key}`} key={group.key}>
-            <header className="heatmap-bubble-group-head">
-              <div>
-                <span className="heatmap-bubble-group-mark" />
-                <h3>{groupLabel(group.key)}</h3>
-                <span>{group.rows.length} {mapCopy.securities}</span>
-              </div>
-              {group.avg !== null && (
-                <strong className={`tone-${group.avg > flatBand ? "good" : group.avg < -flatBand ? "danger" : "neutral"}`}>
-                  {formatPct(group.avg)}
-                </strong>
-              )}
-            </header>
+      <div className={`heatmap-radial-layout${hover ? " has-selection" : ""}`}>
+        <div className="heatmap-wheel-shell">
+          <svg className="heatmap-wheel" viewBox="0 0 1000 1000" role="img" aria-label={mapCopy.wheel}>
+            <defs>
+              <pattern id="heatmap-neutral-pattern" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+                <rect width="12" height="12" className="heatmap-neutral-base" />
+                <rect width="3" height="12" className="heatmap-neutral-stripe" />
+              </pattern>
+            </defs>
+            <circle className="heatmap-wheel-grid is-outer" cx="500" cy="500" r="470" />
+            <circle className="heatmap-wheel-grid is-inner" cx="500" cy="500" r="308" />
 
-            <div className="heatmap-bubble-cloud">
-              {group.sectors.flatMap((sec) => sec.rows).map((row) => {
-                      const status = tileStatus(row);
-                      const bubbleStyle = heatmapTileStyle(row.changePercent, fullScale);
-                      const isNeutral = !bubbleStyle.background;
-                      const statusClass = status === "no_price" ? " is-no-price"
-                        : status === "not_traded" ? " is-not-traded"
-                        : status === "inactive" ? " is-inactive" : "";
-                      const confClass = lowConfidence(row) ? " is-low-confidence" : "";
-                      const directionClass = row.changePercent > flatBand ? " is-up"
-                        : row.changePercent < -flatBand ? " is-down" : " is-flat";
-                      const diameter = bubbleSize(row);
-                      const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
-                      const showName = diameter >= 92;
-                      const tickerFont = Math.max(8, Math.min(15, diameter / Math.max(String(row.ticker || "").length * 0.72, 4)));
-                      return (
-                        <button
-                          key={row.ticker}
-                          type="button"
-                          className={`heatmap-bubble${isNeutral ? " is-neutral" : ""}${statusClass}${confClass}${directionClass}`}
-                          style={{ width: diameter, height: diameter, "--bubble-ticker": `${tickerFont}px`, ...bubbleStyle }}
-                          aria-label={`${row.ticker}, ${companyName}, ${sectorLabel(lang, sectorKeyOf(row.ticker))}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
-                          onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
-                          onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
-                          onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
-                          onFocus={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setHover({ ticker: row.ticker, row, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+            {radialSectors.map((sector) => {
+              const labelPoint = heatmapPoint(500, 500, 261, sector.mid);
+              return (
+                <g className="heatmap-radial-sector" key={sector.sector}>
+                  <path
+                    className="heatmap-sector-arc"
+                    d={heatmapArcPath(500, 500, 218, 300, sector.start, sector.end)}
+                    fill={heatmapColor(sector.avg, fullScale, true)}
+                  >
+                    <title>{`${sectorLabel(lang, sector.sector)} · ${formatPct(sector.avg)} · ${sector.tally.counted}/${sector.tally.total}`}</title>
+                  </path>
+                  {sector.span >= 12 && (
+                    <text className="heatmap-sector-arc-label" x={labelPoint.x} y={labelPoint.y}>
+                      {sectorLabel(lang, sector.sector).slice(0, 12)}
+                    </text>
+                  )}
+
+                  {sector.arcs.map(({ row, start, end, mid: arcMid, span }) => {
+                    const status = tileStatus(row);
+                    const active = hover?.ticker === row.ticker;
+                    const preferred = isPreferredRow(row);
+                    const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
+                    const label = heatmapPoint(500, 500, 386, arcMid);
+                    const normalized = ((arcMid % 360) + 360) % 360;
+                    const rotation = arcMid + 90 + (normalized > 90 && normalized < 270 ? 180 : 0);
+                    const tone = row.changePercent > flatBand ? "up" : row.changePercent < -flatBand ? "down" : "flat";
+                    const openSecurity = () => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker));
+                    return (
+                      <g className="heatmap-radial-security" key={row.ticker}>
+                        <path
+                          className={`heatmap-security-arc is-${tone}${active ? " is-active" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
+                          d={heatmapArcPath(500, 500, 316, 460, start, end)}
+                          fill={status === "ok" ? heatmapColor(row.changePercent, fullScale) : "url(#heatmap-neutral-pattern)"}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${row.ticker}, ${companyName}, ${sectorLabel(lang, sector.sector)}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
+                          onClick={openSecurity}
+                          onMouseEnter={() => setHover({ ticker: row.ticker, row })}
+                          onMouseLeave={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
+                          onFocus={() => setHover({ ticker: row.ticker, row })}
+                          onBlur={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              openSecurity();
+                            }
                           }}
-                          onBlur={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
                         >
-                          <span className="hmb-ticker">{row.ticker}</span>
-                          <span className="hmb-pct">{status === "ok" ? formatPct(row.changePercent) : "—"}</span>
-                          {showName && <span className="hmb-name">{heatmapShortName(companyName)}</span>}
-                        </button>
-                      );
-                    })}
-            </div>
-          </section>
-        ))}
+                          <title>{`${row.ticker} · ${companyName} · ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}</title>
+                        </path>
+                        {span >= 7 && (
+                          <text
+                            className="heatmap-arc-ticker"
+                            x={label.x}
+                            y={label.y}
+                            transform={`rotate(${rotation} ${label.x} ${label.y})`}
+                          >
+                            {row.ticker}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            })}
+
+            <circle className="heatmap-wheel-center-glow" cx="500" cy="500" r="204" />
+            <circle className="heatmap-wheel-center" cx="500" cy="500" r="190" />
+            {centerRow ? (
+              <g className="heatmap-center-copy" aria-live="polite">
+                <text className="heatmap-center-kicker" x="500" y="422">{sectorLabel(lang, sectorKeyOf(centerRow.ticker))}</text>
+                <text className="heatmap-center-ticker" x="500" y="474">{centerRow.ticker}</text>
+                <text className={`heatmap-center-change tone-${centerRow.changePercent > flatBand ? "good" : centerRow.changePercent < -flatBand ? "danger" : "neutral"}`} x="500" y="522">
+                  {centerStatus === "ok" ? formatPct(centerRow.changePercent) : "—"}
+                </text>
+                <text className="heatmap-center-name" x="500" y="558">{heatmapShortName(centerName)}</text>
+                <text className="heatmap-center-stat" x="500" y="602">
+                  {mapCopy.price}  <tspan>{centerPrice != null ? `${formatMarketNumber(centerPrice, lang)} UZS` : "—"}</tspan>
+                </text>
+                <text className="heatmap-center-stat" x="500" y="630">
+                  {mapCopy.turnover}  <tspan>{Number.isFinite(centerRow.stockVolume) && centerRow.stockVolume > 0 ? `${formatCompactVolume(centerRow.stockVolume, lang)} UZS` : "—"}</tspan>
+                </text>
+              </g>
+            ) : (
+              <g className="heatmap-center-copy">
+                <text className="heatmap-center-kicker" x="500" y="438">{mapCopy.pulse}</text>
+                <text className="heatmap-center-market" x="500" y="503">UZSE</text>
+                <text className={`heatmap-center-change tone-${marketAverage > flatBand ? "good" : marketAverage < -flatBand ? "danger" : "neutral"}`} x="500" y="552">
+                  {formatPct(marketAverage)}
+                </text>
+                <text className="heatmap-center-caption" x="500" y="588">{signalRows.length} {mapCopy.securities} · {mapCopy.weighted}</text>
+              </g>
+            )}
+          </svg>
+          <div className="heatmap-wheel-key" aria-hidden="true">
+            <span className="is-preferred"><i />{mapCopy.preferred}</span>
+            <span className="is-thin"><i />{mapCopy.thin}</span>
+          </div>
+        </div>
+
+        <aside className="heatmap-sector-index" aria-label={mapCopy.sectors}>
+          <div className="heatmap-sector-index-head">
+            <span>{mapCopy.sectors}</span>
+            <small>{radialSectors.length}</small>
+          </div>
+          <div className="heatmap-sector-index-list">
+            {radialSectors.map((sector) => (
+              <div className="heatmap-sector-index-row" key={sector.sector}>
+                <i style={{ background: heatmapColor(sector.avg, fullScale) }} />
+                <span>
+                  {sectorLabel(lang, sector.sector)}
+                  <small>{sector.tally.total} {mapCopy.securities}</small>
+                </span>
+                <strong className={`tone-${sector.avg > flatBand ? "good" : sector.avg < -flatBand ? "danger" : "neutral"}`}>
+                  {formatPct(sector.avg)}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </aside>
       </div>
 
-      {groups.length === 0 && (
+      {radialSectors.length === 0 && (
         <p className="market-empty-cell">
           {lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}
         </p>
       )}
-
-      {hover && (() => {
-        const r = hover.row;
-        const name = r.name || companyMap[r.ticker]?.company_name || r.ticker;
-        const price = marketDisplayPrice(r);
-        const avgShare = Number.isFinite(r.avgPrice) ? r.avgPrice : avgSharePrice(r);
-        const avgTrade = avgTradeValue(r);
-        const largest = r.ts && Number.isFinite(r.ts.largest_value) ? r.ts.largest_value : null;
-        const num = (v, d = 0) => (Number.isFinite(v) && v > 0 ? formatRatio(v, d, lang) : "—");
-        const from = String(r.periodFrom || "");
-        const prettyFrom = from.length === 8 ? `${from.slice(6)}.${from.slice(4, 6)}.${from.slice(0, 4)}` : "";
-        // Under a window the session's own figures are dropped rather than
-        // relabelled: «средняя цена сделки» and «крупнейшая сделка» are facts
-        // about this morning, and printing them under a tile coloured by six
-        // months would attach today's trade to half a year's move. What the
-        // window CAN answer takes their place — how much changed hands over it,
-        // across how many sessions, from which one.
-        const stats = windowed
-          ? [
-              [mt(lang, "volumeCol"), num(r.stockVolume)],
-              [lang === "en" ? "Sessions" : lang === "uz" ? "Sessiyalar" : "Сессий",
-               Number.isFinite(r.periodSessions) ? formatRatio(r.periodSessions, 0, lang) : "—"],
-              [lang === "en" ? "Since" : lang === "uz" ? "Boshlab" : "С", prettyFrom || "—"],
-            ]
-          : [
-              [mt(lang, "volumeCol"), num(r.stockVolume)],
-              [mt(lang, "volQty"), num(r.stockQuantity)],
-              [mt(lang, "avgSharePrice"), Number.isFinite(avgShare) && avgShare > 0 ? formatMarketNumber(avgShare, lang) : "—"],
-              [mt(lang, "avgTradePrice"), num(avgTrade)],
-              [mt(lang, "bigTrade"), num(largest)],
-            ];
-        // position: fixed at the cursor, clamped inside the viewport
-        const TT_W = 264, TT_H = 240;
-        const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
-        const vh = typeof window !== "undefined" ? window.innerHeight : 800;
-        const left = Math.max(8, Math.min(hover.x + 16, vw - TT_W - 8));
-        const top = Math.max(8, Math.min(hover.y + 16, vh - TT_H - 8));
-        const tone = marketTone(r.changePercent);
-        // Portal to <body> so an ancestor's backdrop-filter/transform doesn't turn
-        // position:fixed into a clipped, mispositioned box.
-        return createPortal(
-          <div className={`heatmap-tt tone-${tone}`} style={{ left, top, width: TT_W }}>
-            <div className="heatmap-tt-head">
-              <span className="heatmap-tt-ticker">{r.ticker}</span>
-              <span className={`heatmap-tt-pct tone-${tone}`}>{formatPct(r.changePercent)}</span>
-            </div>
-            <div className="heatmap-tt-name">{name}</div>
-            {price != null && <div className="heatmap-tt-price">{formatMarketNumber(price, lang)}</div>}
-            {/* ТЗ §9: the tooltip carries the ACTUAL figures behind the colour,
-                so a move that rests on one lot cannot be read as a market. */}
-            {(() => {
-              if (windowed) {
-                // The server's `reason` strings are about today ("не торговалась
-                // в этой сессии") and would be a wrong explanation here. A
-                // window has exactly one reason to be blank, and it is this one.
-                if (Number.isFinite(r.changePercent)) return null;
-                return (
-                  <div className="heatmap-tt-note">
-                    {lang === "en" ? "no settled close that far back"
-                      : lang === "uz" ? "bu davr uchun yopilish narxi yo'q"
-                      : "нет закрытия за этот период"}
-                  </div>
-                );
-              }
-              const meta = metaOf(r);
-              if (!meta) return null;
-              if (meta.status !== "ok") {
-                return <div className="heatmap-tt-note">{meta.reason}</div>;
-              }
-              if (meta.confidence !== "low") return null;
-              const parts = [
-                meta.trades != null ? `${meta.trades} ${lang === "ru" ? "сдел." : lang === "uz" ? "bitim" : "trades"}` : null,
-                meta.quantity != null ? `${formatMarketNumber(meta.quantity, lang)} ${lang === "ru" ? "бум." : lang === "uz" ? "qog'oz" : "sec."}` : null,
-                meta.turnover != null ? `${formatMarketNumber(meta.turnover, lang)} ${lang === "ru" ? "сум" : lang === "uz" ? "so'm" : "UZS"}` : null,
-              ].filter(Boolean);
-              return <div className="heatmap-tt-note is-warn">{parts.join(", ")}</div>;
-            })()}
-            <div className="heatmap-tt-stats">
-              {stats.map(([k, v]) => (
-                <div className="heatmap-tt-row" key={k}><span>{k}</span><span>{v}</span></div>
-              ))}
-            </div>
-          </div>,
-          document.body
-        );
-      })()}
     </div>
   );
 }
