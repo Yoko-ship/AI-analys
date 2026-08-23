@@ -9411,300 +9411,340 @@ body[data-theme="dark"] .market-view-toggle button.active {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Bubble market map ──────────────────────────────────────────
-   Circles replace the rigid treemap. Their area follows turnover; sector lanes
-   provide the grouping that rectangles used to carry geometrically. */
-.heatmap-bubble-map {
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
+/* ── Radial market heatmap ──────────────────────────────────────
+   The inner ring is sector direction. The outer ring is the market itself:
+   every security receives an arc whose length follows compressed turnover. */
+.heatmap-radial-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 270px);
+  gap: clamp(22px, 3vw, 42px);
+  align-items: center;
+  min-width: 0;
+  padding: 4px 2px 8px;
 }
 
-.heatmap-bubble-group {
+.heatmap-wheel-shell {
+  position: relative;
   min-width: 0;
 }
 
-.heatmap-bubble-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 42px;
-  padding: 0 2px 10px;
-  border-bottom: 1px solid var(--border);
+.heatmap-wheel {
+  display: block;
+  width: min(100%, 780px);
+  height: auto;
+  margin: 0 auto;
+  overflow: visible;
 }
 
-.heatmap-bubble-group-head > div {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
+.heatmap-wheel-grid {
+  fill: none;
+  stroke: color-mix(in srgb, var(--border) 72%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
-.heatmap-bubble-group-mark {
-  width: 9px;
-  height: 9px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent);
+.heatmap-wheel-grid.is-inner {
+  stroke-dasharray: 3 8;
+  opacity: 0.68;
 }
 
-.heatmap-bubble-group.is-preferred .heatmap-bubble-group-mark {
-  background: #e5a33f;
-  box-shadow: 0 0 0 4px rgba(229, 163, 63, 0.14);
+.heatmap-neutral-base { fill: #343c47; }
+.heatmap-neutral-stripe { fill: rgba(255, 255, 255, 0.07); }
+
+.heatmap-sector-arc {
+  stroke: var(--bg);
+  stroke-width: 5;
+  opacity: 0.88;
+  vector-effect: non-scaling-stroke;
 }
 
-.heatmap-bubble-group-head h3 {
-  margin: 0;
-  color: var(--text);
-  font-size: 13px;
+.heatmap-sector-arc-label {
+  fill: rgba(240, 244, 248, 0.78);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
   font-weight: 750;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.07em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.heatmap-security-arc {
+  stroke: rgba(7, 12, 17, 0.8);
+  stroke-width: 1.5;
+  cursor: pointer;
+  outline: none;
+  transition: opacity 150ms ease, filter 150ms ease, stroke-width 150ms ease;
+  vector-effect: non-scaling-stroke;
+}
+
+.heatmap-security-arc.is-preferred {
+  stroke: #e6a64a;
+  stroke-width: 3;
+}
+
+.heatmap-security-arc.is-low-confidence {
+  stroke-dasharray: 5 4;
+}
+
+.heatmap-security-arc.is-unavailable {
+  opacity: 0.72;
+}
+
+.heatmap-radial-layout.has-selection .heatmap-security-arc:not(.is-active) {
+  opacity: 0.38;
+}
+
+.heatmap-security-arc:hover,
+.heatmap-security-arc.is-active,
+.heatmap-security-arc:focus-visible {
+  opacity: 1;
+  filter: brightness(1.2) saturate(1.08) drop-shadow(0 0 8px rgba(119, 138, 165, 0.28));
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 4;
+}
+
+.heatmap-security-arc.is-preferred:hover,
+.heatmap-security-arc.is-preferred.is-active,
+.heatmap-security-arc.is-preferred:focus-visible {
+  stroke: #ffd27b;
+}
+
+.heatmap-arc-ticker {
+  fill: rgba(255, 255, 255, 0.92);
+  stroke: rgba(8, 13, 18, 0.72);
+  stroke-width: 3px;
+  paint-order: stroke fill;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+.heatmap-radial-layout.has-selection .heatmap-radial-security:not(:has(.is-active)) .heatmap-arc-ticker {
+  opacity: 0.5;
+}
+
+.heatmap-wheel-center-glow {
+  fill: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.heatmap-wheel-center {
+  fill: var(--panel-strong);
+  stroke: color-mix(in srgb, var(--border) 82%, transparent);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.24));
+  vector-effect: non-scaling-stroke;
+}
+
+.heatmap-center-copy text {
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.heatmap-center-kicker {
+  fill: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
 }
 
-.heatmap-bubble-group-head span:not(.heatmap-bubble-group-mark) {
-  color: var(--muted);
-  font-size: 11px;
+.heatmap-center-market,
+.heatmap-center-ticker {
+  fill: var(--text);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 54px;
+  font-weight: 760;
+  letter-spacing: -0.055em;
 }
 
-.heatmap-bubble-group-head > strong {
+.heatmap-center-ticker { font-size: 42px; }
+
+.heatmap-center-change {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 13px;
+  font-size: 29px;
+  font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
 
-.heatmap-sector-lanes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 30px;
+.heatmap-center-change.tone-good { fill: #30c39a; }
+.heatmap-center-change.tone-danger { fill: #f16c74; }
+.heatmap-center-change.tone-neutral { fill: var(--muted); }
+
+.heatmap-center-name,
+.heatmap-center-caption,
+.heatmap-center-stat {
+  fill: var(--muted);
+  font-size: 13px;
 }
 
-.heatmap-sector-lane {
-  display: grid;
-  grid-template-columns: 118px minmax(0, 1fr);
-  gap: 16px;
-  align-items: center;
-  min-width: 0;
-  min-height: 94px;
-  padding: 15px 2px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+.heatmap-center-name {
+  fill: var(--text);
+  font-size: 15px;
+  font-weight: 650;
 }
 
-.heatmap-sector-head {
-  align-self: start;
-  padding-top: 6px;
-}
-
-.heatmap-sector-head > div {
-  min-width: 0;
-}
-
-.heatmap-sector-head h4 {
-  margin: 0;
-  overflow: hidden;
-  color: var(--text);
+.heatmap-center-stat {
+  font-family: "IBM Plex Mono", monospace;
   font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.07em;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
 }
 
-.heatmap-sector-head span {
-  display: block;
-  margin-top: 4px;
+.heatmap-center-stat tspan {
+  fill: var(--text);
+  font-weight: 700;
+}
+
+.heatmap-wheel-key {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: -2px;
   color: var(--muted);
   font-size: 10px;
 }
 
-.heatmap-sector-head strong {
-  display: block;
-  margin-top: 9px;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.heatmap-bubble-field {
-  display: flex;
-  align-items: center;
-  align-content: center;
-  flex-wrap: wrap;
-  gap: 9px;
-  min-width: 0;
-}
-
-.heatmap-bubble-cloud {
-  display: flex;
-  align-items: center;
-  align-content: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  min-width: 0;
-  padding: 18px 2px 2px;
-}
-
-.heatmap-bubble {
-  position: relative;
+.heatmap-wheel-key span {
   display: inline-flex;
-  flex: 0 0 auto;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 1px;
-  margin: 0;
-  padding: 6px;
+  gap: 7px;
+}
+
+.heatmap-wheel-key i {
+  display: inline-block;
+  width: 21px;
+  height: 8px;
+  border-top: 2px solid #e6a64a;
+}
+
+.heatmap-wheel-key .is-thin i {
+  border-top-color: var(--muted);
+  border-top-style: dashed;
+}
+
+.heatmap-sector-index {
+  min-width: 0;
+  padding-left: 22px;
+  border-left: 1px solid var(--border);
+}
+
+.heatmap-sector-index-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 11px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.heatmap-sector-index-head small {
+  font-size: 10px;
+}
+
+.heatmap-sector-index-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.heatmap-sector-index-row {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.heatmap-sector-index-row > i {
+  width: 7px;
+  height: 26px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.heatmap-sector-index-row > span {
+  min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--heat-edge, rgba(255, 255, 255, 0.12));
-  border-radius: 50%;
-  color: #fff;
-  cursor: pointer;
-  isolation: isolate;
-  line-height: 1.05;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.11),
-    inset 0 -10px 22px rgba(0, 0, 0, 0.12),
-    0 5px 14px rgba(0, 0, 0, 0.18);
-  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease;
-}
-
-.heatmap-bubble::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(circle at 30% 20%, var(--heat-glow, rgba(255, 255, 255, 0.07)), transparent 48%);
-}
-
-.heatmap-bubble:hover {
-  z-index: 3;
-  filter: brightness(1.08) saturate(1.04);
-  transform: translateY(-3px) scale(1.045);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -10px 22px rgba(0, 0, 0, 0.1),
-    0 10px 24px rgba(0, 0, 0, 0.28);
-}
-
-.heatmap-bubble:focus-visible {
-  z-index: 4;
-  outline: 3px solid color-mix(in srgb, var(--accent) 72%, #fff);
-  outline-offset: 3px;
-}
-
-.heatmap-bubble.is-neutral {
-  background: linear-gradient(145deg, #343b45, #222831);
-  color: rgba(226, 232, 240, 0.78);
-  --heat-edge: rgba(255, 255, 255, 0.08);
-  --heat-glow: rgba(255, 255, 255, 0.04);
-}
-
-.heatmap-bubble .hmb-ticker,
-.heatmap-bubble .hmb-pct,
-.heatmap-bubble .hmb-name {
-  display: block;
-  max-width: 88%;
-  overflow: hidden;
-  text-align: center;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.heatmap-bubble .hmb-ticker {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: var(--bubble-ticker, 11px);
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.34);
-}
-
-.heatmap-bubble .hmb-pct {
-  font-family: "IBM Plex Mono", monospace;
+.heatmap-sector-index-row small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 500;
+}
+
+.heatmap-sector-index-row strong {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
-  opacity: 0.95;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-.heatmap-bubble .hmb-name {
-  margin-top: 2px;
-  color: rgba(255, 255, 255, 0.66);
-  font-size: 8px;
-  line-height: 1.1;
+body[data-theme="light"] .heatmap-sector-arc {
+  stroke: var(--bg);
 }
 
-.heatmap-bubble.is-low-confidence {
-  border-color: rgba(251, 191, 36, 0.52);
+body[data-theme="light"] .heatmap-sector-arc-label {
+  fill: rgba(255, 255, 255, 0.94);
 }
 
-.heatmap-bubble.is-low-confidence::before {
-  content: "";
-  position: absolute;
-  top: 12%;
-  right: 14%;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #fbbf24;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.14);
+body[data-theme="light"] .heatmap-security-arc {
+  stroke: rgba(255, 255, 255, 0.78);
 }
 
-.heatmap-bubble.is-no-price,
-.heatmap-bubble.is-not-traded,
-.heatmap-bubble.is-inactive {
-  background: repeating-linear-gradient(135deg,
-      rgba(255, 255, 255, 0.055) 0 3px, transparent 3px 8px),
-    linear-gradient(145deg, #343b45, #222831);
+body[data-theme="light"] .heatmap-security-arc.is-preferred {
+  stroke: #bb7419;
 }
 
-.heatmap-bubble.is-no-price { border-color: rgba(251, 191, 36, 0.64); }
-.heatmap-bubble.is-inactive { opacity: 0.58; }
-
-body[data-theme="light"] .heatmap-bubble {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -10px 22px rgba(15, 28, 48, 0.08),
-    0 5px 14px rgba(15, 28, 48, 0.14);
+body[data-theme="light"] .heatmap-arc-ticker {
+  fill: #fff;
+  stroke: rgba(20, 28, 36, 0.66);
 }
 
-body[data-theme="light"] .heatmap-bubble.is-neutral,
-body[data-theme="light"] .heatmap-bubble.is-no-price,
-body[data-theme="light"] .heatmap-bubble.is-not-traded,
-body[data-theme="light"] .heatmap-bubble.is-inactive {
-  background: linear-gradient(145deg, #dce2e9, #c9d1da);
-  color: #566273;
-  --heat-edge: rgba(15, 28, 48, 0.11);
-}
+body[data-theme="light"] .heatmap-neutral-base { fill: #c8d0da; }
+body[data-theme="light"] .heatmap-neutral-stripe { fill: rgba(255, 255, 255, 0.34); }
 
 @media (max-width: 1040px) {
-  .heatmap-sector-lanes { grid-template-columns: 1fr; }
+  .heatmap-radial-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .heatmap-sector-index {
+    padding: 8px 0 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .heatmap-sector-index-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 28px;
+  }
 }
 
 @media (max-width: 640px) {
-  .heatmap-bubble-map { gap: 24px; }
-
-  .heatmap-sector-lane {
-    grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 14px 0;
-  }
-
-  .heatmap-sector-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    padding-top: 0;
-  }
-
-  .heatmap-sector-head strong { margin-top: 0; }
-  .heatmap-bubble-field { gap: 8px; }
+  .heatmap-radial-layout { gap: 18px; }
+  .heatmap-arc-ticker { font-size: 10px; }
+  .heatmap-sector-arc-label { font-size: 9px; }
+  .heatmap-wheel-key { margin-top: 6px; }
+  .heatmap-sector-index-list { grid-template-columns: 1fr; }
 }
 
 /* ── Treemap: sectors → tiles, area ∝ turnover ───────────────── */
@@ -9942,101 +9982,6 @@ body[data-theme="light"] .heatmap-legend-gradient {
   .heatmap-breadth-values { gap: 5px 10px; }
   .heatmap-group-label .hgl-count { display: none; }
 }
-
-/* Rich hover tooltip over a bubble — fixed to the viewport so it never changes
-   the sector lane's layout. */
-.heatmap-tt {
-  position: fixed;
-  z-index: 60;
-  pointer-events: none;
-  background: var(--panel-strong);
-  border: 1px solid var(--border);
-  border-top: 2px solid var(--muted);
-  border-radius: 12px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
-  padding: 13px 14px 14px;
-  backdrop-filter: blur(14px);
-  color: var(--text);
-  font-size: 12px;
-}
-
-.heatmap-tt.tone-good { border-top-color: #28b58d; }
-.heatmap-tt.tone-danger { border-top-color: #e05d65; }
-
-.heatmap-tt-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.heatmap-tt-ticker {
-  font-family: "IBM Plex Mono", monospace;
-  font-weight: 800;
-  font-size: 14px;
-  letter-spacing: 0.02em;
-  color: var(--text);
-}
-
-.heatmap-tt-pct { font-weight: 800; font-size: 13px; }
-.heatmap-tt-pct.tone-good   { color: var(--success); }
-.heatmap-tt-pct.tone-danger { color: var(--danger); }
-.heatmap-tt-pct.tone-neutral{ color: var(--muted); }
-
-.heatmap-tt-name {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.heatmap-tt-price {
-  margin-top: 7px;
-  font-family: "Space Grotesk", sans-serif;
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: -0.02em;
-  color: var(--text);
-}
-
-.heatmap-tt-stats {
-  margin-top: 10px;
-  padding-top: 9px;
-  border-top: 1px solid var(--border);
-  display: grid;
-  gap: 5px;
-}
-
-.heatmap-tt-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.heatmap-tt-row span:first-child {
-  color: var(--muted);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-
-.heatmap-tt-row span:last-child {
-  font-family: "IBM Plex Mono", monospace;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-
-body[data-theme="light"] .heatmap-tt {
-  background: rgba(255, 255, 255, 0.98);
-  color: #0f1c30;
-}
-body[data-theme="light"] .heatmap-tt-ticker,
-body[data-theme="light"] .heatmap-tt-price,
-body[data-theme="light"] .heatmap-tt-row span:last-child { color: #0f1c30; }
 
 body[data-theme="dark"] .market-search input {
   background: rgba(17, 17, 19, 0.95);
@@ -12486,9 +12431,6 @@ body[data-theme="light"] .heatmap-tree-tile.is-inactive {
       rgba(15, 28, 48, 0.055) 0 3px, transparent 3px 8px),
     linear-gradient(145deg, #d8dee5, #cbd3dc);
 }
-
-.heatmap-tt-note { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
-.heatmap-tt-note.is-warn { color: #fbbf24; }
 
 /* Why the candles are gone. A chart that silently changes shape is worse than
    one that explains itself. */
