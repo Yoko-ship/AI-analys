@@ -4273,7 +4273,7 @@ function clampPercent(value) {
 }
 
 const COMPACT_MARK_LOGO_TICKERS = new Set([
-  "KFSK", "KFSKP", "MIQE", "UTYK", "UZAL", "UZINP", "UZML", "YRFS",
+  "MIQE", "UTYK", "UZAL", "UZINP", "UZML", "YRFS",
 ]);
 
 function CompanyLogo({ logo, name, ticker }) {
