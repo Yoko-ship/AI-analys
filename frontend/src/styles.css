@@ -11707,6 +11707,355 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .catalog-sparkline-period { font-size: 11px; }
 .catalog-sparkline-svg { width: 100%; height: 64px; display: block; border-radius: 4px; }
 
+/* ── Catalog research terminal ─────────────────────────────────────────────
+   The catalog is a filing workflow: compact issuer navigation, one persistent
+   company context and a chronological document table. Its violet-blue accent
+   is intentionally independent of the app-wide green trading accent. */
+.catalog-layout {
+  --catalog-accent: #6257d9;
+  --catalog-accent-hover: #5147c4;
+  --catalog-accent-soft: rgba(98, 87, 217, 0.1);
+  --catalog-surface: rgba(255, 255, 255, 0.9);
+  --catalog-surface-2: #f5f7fb;
+  --catalog-border: rgba(15, 23, 42, 0.1);
+  --catalog-ink: #111827;
+  --catalog-muted: #667085;
+  gap: 14px;
+  padding: 20px;
+}
+
+body[data-theme="dark"] .catalog-layout {
+  --catalog-accent: #8b7cff;
+  --catalog-accent-hover: #9d91ff;
+  --catalog-accent-soft: rgba(139, 124, 255, 0.14);
+  --catalog-surface: #11141b;
+  --catalog-surface-2: #171b24;
+  --catalog-border: rgba(255, 255, 255, 0.08);
+  --catalog-ink: #f3f5fb;
+  --catalog-muted: #8f9aaf;
+}
+
+.catalog-layout .primary-btn {
+  border-color: var(--catalog-accent) !important;
+  background: var(--catalog-accent) !important;
+  color: #fff !important;
+  box-shadow: none;
+}
+
+.catalog-layout .primary-btn:hover { background: var(--catalog-accent-hover) !important; }
+
+.catalog-terminal-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 4px 4px 6px;
+}
+
+.catalog-terminal-head h1 {
+  margin: 5px 0 4px;
+  color: var(--catalog-ink);
+  font-size: clamp(1.45rem, 2.2vw, 2rem);
+  line-height: 1.15;
+}
+
+.catalog-terminal-head p {
+  margin: 0;
+  color: var(--catalog-muted);
+  font-size: 0.82rem;
+}
+
+.catalog-eyebrow {
+  color: var(--catalog-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.catalog-sync-all { flex: 0 0 auto; }
+
+.catalog-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) repeat(3, minmax(138px, auto)) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--catalog-border);
+  border-radius: 12px;
+  background: var(--catalog-surface);
+}
+
+.catalog-search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--catalog-border);
+  border-radius: 8px;
+  background: var(--catalog-surface-2);
+  color: var(--catalog-muted);
+}
+
+.catalog-search-field:focus-within { border-color: var(--catalog-accent); }
+.catalog-search-field svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.catalog-search-field input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--catalog-ink); }
+
+.catalog-filter-select {
+  min-height: 40px;
+  padding: 0 32px 0 11px;
+  border: 1px solid var(--catalog-border);
+  border-radius: 8px;
+  background: var(--catalog-surface-2);
+  color: var(--catalog-ink);
+}
+
+.catalog-toolbar-count {
+  padding: 0 6px;
+  color: var(--catalog-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.catalog-body {
+  grid-template-columns: minmax(245px, 270px) minmax(0, 1fr);
+  gap: 12px;
+  min-height: 650px;
+}
+
+.catalog-sidebar {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--catalog-border);
+  border-radius: 12px;
+  background: var(--catalog-surface);
+}
+
+.catalog-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 8px 9px;
+  color: var(--catalog-muted);
+  font-size: 0.75rem;
+}
+
+.catalog-sidebar-head span:last-child {
+  min-width: 26px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--catalog-surface-2);
+  text-align: center;
+}
+
+.catalog-company-list {
+  gap: 2px;
+  max-height: 760px;
+  padding-right: 2px;
+}
+
+.catalog-company-item {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 58px;
+  padding: 8px;
+  border-color: transparent;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.catalog-company-item:hover { border-color: transparent; background: var(--catalog-surface-2); }
+.catalog-layout .catalog-company-item.active { border-color: transparent !important; background: var(--catalog-accent-soft); box-shadow: inset 2px 0 0 var(--catalog-accent); }
+
+.catalog-company-item .chip-logo,
+.catalog-company-item .chip-logo-fallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.catalog-company-item .chip-logo { padding: 4px; }
+.catalog-company-item .chip-logo--float { padding: 1px; }
+
+.catalog-company-item-body { gap: 4px; }
+.catalog-company-title { display: block; color: var(--catalog-ink); font-size: 0.84rem; font-weight: 650; line-height: 1.15; white-space: nowrap; text-overflow: ellipsis; }
+.catalog-company-ticker { color: var(--catalog-muted); font-size: 0.67rem; letter-spacing: 0; }
+.catalog-company-count { min-width: 28px; padding: 3px 5px; border-radius: 5px; background: var(--catalog-surface-2); color: var(--catalog-muted); font-size: 0.7rem; text-align: center; }
+
+.catalog-main {
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-theme="light"] .catalog-main { border: 0; background: transparent; }
+
+.catalog-company-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
+  gap: 12px;
+}
+
+.catalog-company-summary,
+.catalog-price-card,
+.catalog-report-section,
+.catalog-selected-report {
+  min-width: 0;
+  border: 1px solid var(--catalog-border);
+  border-radius: 12px;
+  background: var(--catalog-surface);
+}
+
+.catalog-company-summary { padding: 16px; }
+.catalog-company-header { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; }
+.catalog-company-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.catalog-company-identity > div:last-child { min-width: 0; }
+.catalog-company-identity > .chip-logo,
+.catalog-company-identity > .chip-logo-fallback { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 12px; }
+.catalog-company-identity > .chip-logo { padding: 5px; background: #fff; object-fit: contain; }
+.catalog-company-identity > .chip-logo--float { padding: 1px; background: transparent; }
+.catalog-company-identity h2 { display: -webkit-box; overflow: hidden; margin: 3px 0; color: var(--catalog-ink); font-size: 1.12rem; line-height: 1.18; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.catalog-company-identity p { margin: 0; color: var(--catalog-muted); font-size: 0.75rem; }
+.catalog-company-actions { display: flex; gap: 7px; margin-top: 12px; flex: 0 0 auto; }
+
+.catalog-report-stats {
+  display: grid;
+  grid-template-columns: 1.35fr repeat(3, 0.65fr) 1fr;
+  margin-top: 16px;
+  border-top: 1px solid var(--catalog-border);
+}
+
+.catalog-report-stats > span { display: flex; min-width: 0; flex-direction: column; gap: 4px; padding: 12px 10px 0; border-right: 1px solid var(--catalog-border); }
+.catalog-report-stats > span:first-child { padding-left: 0; }
+.catalog-report-stats > span:last-child { padding-right: 0; border-right: 0; }
+.catalog-report-stats small { overflow: hidden; color: var(--catalog-muted); font-size: 0.62rem; letter-spacing: 0.07em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.catalog-report-stats strong { overflow: hidden; color: var(--catalog-ink); font-size: 0.82rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.catalog-price-card { display: flex; min-height: 176px; flex-direction: column; padding: 13px 14px 10px; }
+.catalog-price-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--catalog-muted); font-size: 0.72rem; }
+.catalog-range-switch { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: var(--catalog-surface-2); }
+.catalog-range-switch button { min-width: 30px; padding: 4px 6px; border: 0; border-radius: 4px; background: transparent; color: var(--catalog-muted); font-size: 0.66rem; }
+.catalog-range-switch button.active { background: var(--catalog-accent); color: #fff; }
+.catalog-price-card .catalog-sparkline { flex: 1; justify-content: space-between; padding-top: 8px; }
+.catalog-price-card .catalog-sparkline-price { color: var(--catalog-ink); font-size: 1rem; }
+.catalog-price-card .catalog-sparkline-svg { height: 86px; }
+.catalog-sparkline-change.pos { color: #10b981; }
+.catalog-sparkline-change.neg { color: #ef6b67; }
+.catalog-chart-loading,
+.catalog-chart-empty { display: grid; flex: 1; place-items: center; color: var(--catalog-muted); font-size: 0.75rem; text-align: center; }
+
+.catalog-report-section { overflow: hidden; }
+.catalog-report-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
+.catalog-report-head h3 { margin: 0 0 3px; color: var(--catalog-ink); font-size: 0.98rem; }
+.catalog-report-head span { color: var(--catalog-muted); font-size: 0.72rem; }
+.catalog-report-table-wrap { overflow-x: auto; }
+.catalog-report-table { width: 100%; min-width: 720px; border-collapse: collapse; color: var(--catalog-ink); font-size: 0.76rem; }
+.catalog-report-table th { padding: 9px 12px; border-block: 1px solid var(--catalog-border); color: var(--catalog-muted); font-size: 0.68rem; font-weight: 500; text-align: left; white-space: nowrap; }
+.catalog-report-table td { padding: 9px 12px; border-bottom: 1px solid var(--catalog-border); white-space: nowrap; }
+.catalog-report-table tbody tr:last-child td { border-bottom: 0; }
+.catalog-report-table tr.is-selected { background: var(--catalog-accent-soft); }
+.catalog-report-select { display: flex; min-width: 100px; flex-direction: column; align-items: flex-start; gap: 2px; padding: 0; border: 0; background: transparent; color: var(--catalog-ink); text-align: left; }
+.catalog-report-select strong { font-size: 0.79rem; }
+.catalog-report-select small { color: var(--catalog-muted); font-size: 0.65rem; }
+.catalog-report-type { display: inline-flex; min-width: 54px; justify-content: center; padding: 4px 7px; border-radius: 5px; background: var(--catalog-accent-soft); color: var(--catalog-accent); font-size: 0.68rem; font-weight: 650; }
+.catalog-report-type.type-msfo { background: rgba(43, 127, 255, 0.12); color: #4c8df6; }
+.catalog-report-type.type-audition { background: rgba(245, 158, 11, 0.13); color: #c98208; }
+.catalog-report-status { display: inline-flex; align-items: center; gap: 6px; color: #0b9f72; }
+.catalog-report-status i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.catalog-source-link { color: var(--catalog-muted); text-decoration: none; }
+.catalog-source-link:hover { color: var(--catalog-accent); }
+.catalog-file-actions { display: flex; gap: 5px; }
+.catalog-file-actions a { padding: 4px 7px; border: 1px solid var(--catalog-border); border-radius: 5px; color: var(--catalog-ink); text-decoration: none; }
+.catalog-file-actions a:hover { border-color: var(--catalog-accent); color: var(--catalog-accent); }
+.catalog-report-empty { padding: 36px 16px; color: var(--catalog-muted); font-size: 0.82rem; text-align: center; }
+.catalog-report-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--catalog-border); color: var(--catalog-muted); font-size: 0.72rem; }
+.catalog-report-pagination > div { display: flex; align-items: center; gap: 8px; }
+.catalog-report-pagination button { display: inline-grid; width: 30px; height: 28px; place-items: center; border: 1px solid var(--catalog-border); border-radius: 6px; background: var(--catalog-surface-2); color: var(--catalog-ink); }
+.catalog-report-pagination button:disabled { opacity: 0.35; cursor: default; }
+.catalog-report-pagination button:not(:disabled):hover { border-color: var(--catalog-accent); color: var(--catalog-accent); }
+
+.catalog-selected-report { padding: 15px 16px; }
+.catalog-selected-summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.catalog-selected-summary > div:first-child { display: flex; flex-direction: column; gap: 3px; }
+.catalog-selected-summary span,
+.catalog-analysis-heading { color: var(--catalog-accent); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; }
+.catalog-selected-summary strong { color: var(--catalog-ink); font-size: 0.9rem; }
+.catalog-selected-summary small { color: var(--catalog-muted); font-size: 0.7rem; }
+.catalog-selected-files { display: flex; gap: 7px; }
+.catalog-analysis-heading { margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--catalog-border); }
+.catalog-analysis-controls { display: grid; grid-template-columns: minmax(210px, 1fr) minmax(190px, 1fr) auto; align-items: end; gap: 10px; padding: 10px 0 0; border-top: 0; }
+.catalog-analysis-controls .catalog-field select { max-width: none; }
+.catalog-analysis-controls > .primary-btn { min-height: 39px; white-space: nowrap; }
+.catalog-field select,
+.catalog-compare-period-row select { border-color: var(--catalog-border); background: var(--catalog-surface-2); color: var(--catalog-ink); }
+.catalog-result-panel { border-color: var(--catalog-border); background: var(--catalog-surface); }
+
+@media (max-width: 1180px) {
+  .catalog-toolbar { grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(130px, auto)); }
+  .catalog-toolbar .catalog-filter-select:nth-of-type(3) { display: none; }
+  .catalog-company-overview { grid-template-columns: 1fr; }
+  .catalog-price-card { min-height: 160px; }
+}
+
+@media (max-width: 900px) {
+  .catalog-body { grid-template-columns: 1fr; }
+  .catalog-company-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 300px; }
+  .catalog-main { min-height: 0; }
+}
+
+@media (max-width: 680px) {
+  .catalog-layout { padding: 12px; }
+  .catalog-terminal-head { align-items: flex-start; flex-direction: column; }
+  .catalog-toolbar { grid-template-columns: 1fr 1fr; }
+  .catalog-toolbar .catalog-filter-select:nth-of-type(3) { display: block; }
+  .catalog-search-field { grid-column: 1 / -1; }
+  .catalog-toolbar-count { grid-column: 1 / -1; }
+  .catalog-company-list { grid-template-columns: 1fr; max-height: 270px; }
+  .catalog-company-header { align-items: flex-start; flex-direction: column; }
+  .catalog-company-actions { width: 100%; flex-wrap: wrap; }
+  .catalog-company-actions .ghost-btn,
+  .catalog-company-actions .primary-btn { flex: 1 1 150px; }
+  .catalog-report-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .catalog-report-stats > span { padding: 10px 8px; border-bottom: 1px solid var(--catalog-border); }
+  .catalog-report-stats > span:nth-child(even) { border-right: 0; }
+  .catalog-report-stats > span:last-child { grid-column: 1 / -1; border-bottom: 0; }
+  .catalog-selected-summary { align-items: flex-start; flex-direction: column; }
+  .catalog-selected-files { width: 100%; flex-wrap: wrap; }
+  .catalog-analysis-controls { grid-template-columns: 1fr; }
+  .catalog-analysis-controls > .primary-btn { width: 100%; }
+  .catalog-report-table { min-width: 0; table-layout: fixed; }
+  .catalog-report-table th,
+  .catalog-report-table td { padding-inline: 7px; }
+  .catalog-report-table th:nth-child(1) { width: 106px; }
+  .catalog-report-table th:nth-child(2) { width: 52px; }
+  .catalog-report-table th:nth-child(3) { width: 82px; }
+  .catalog-report-table th:nth-child(6) { width: 50px; }
+  .catalog-report-table th:nth-child(4),
+  .catalog-report-table td:nth-child(4),
+  .catalog-report-table th:nth-child(5),
+  .catalog-report-table td:nth-child(5) { display: none; }
+  .catalog-report-status { gap: 4px; font-size: 0.68rem; }
+  .catalog-file-actions { gap: 2px; }
+  .catalog-file-actions a { padding-inline: 5px; }
+}
+
+@media (max-width: 430px) {
+  .catalog-toolbar { grid-template-columns: 1fr; }
+  .catalog-search-field,
+  .catalog-toolbar-count { grid-column: auto; }
+  .catalog-company-summary { padding: 13px; }
+  .catalog-company-identity > .chip-logo,
+  .catalog-company-identity > .chip-logo-fallback { width: 46px; height: 46px; flex-basis: 46px; }
+  .catalog-report-stats { grid-template-columns: 1fr 1fr; }
+}
+
 /* Export PDF button */
 .catalog-export-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 

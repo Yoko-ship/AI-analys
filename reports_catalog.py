@@ -1820,7 +1820,8 @@ def get_company_index(ticker: str) -> dict[str, Any]:
     placeholders = ",".join("?" * len(siblings))
     rows = conn.execute(
         f"""
-        SELECT report_form, period_type, year, quarter, pdf_url, excel_url, excel_url_form1
+        SELECT report_form, period_type, year, quarter, title, published_at,
+               pdf_url, excel_url, excel_url_form1
         FROM catalog_reports
         WHERE ticker IN ({placeholders})
         ORDER BY year DESC, quarter DESC
@@ -1856,6 +1857,8 @@ def get_company_index(ticker: str) -> dict[str, Any]:
         entry = {
             "year": yr,
             "quarter": r["quarter"],
+            "title": r["title"],
+            "published_at": r["published_at"],
             "has_pdf": bool(r["pdf_url"]),
             "has_excel": bool(r["excel_url"]),
             "has_excel_form1": bool(r["excel_url_form1"]),

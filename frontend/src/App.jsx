@@ -16299,9 +16299,16 @@ function MarketView({
 
 function PriceSparkline({ points, language }) {
   if (!points || points.length < 2) return null;
-  const closes = points.map((p) => p.close).filter((v) => v != null && v > 0);
+  // The stored endpoint can contain rows in either query order. A chart must
+  // always read from the earlier session to the later one; otherwise both the
+  // line and its date caption tell the story backwards.
+  const ordered = points
+    .filter((p) => p?.close != null && p.close > 0)
+    .slice()
+    .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+  const closes = ordered.map((p) => Number(p.close));
   if (closes.length < 2) return null;
-  const W = 280, H = 64, PAD = 4;
+  const W = 360, H = 82, PAD = 5;
   const min = Math.min(...closes);
   const max = Math.max(...closes);
   const range = max - min || 1;
@@ -16312,9 +16319,8 @@ function PriceSparkline({ points, language }) {
   const first = closes[0], last = closes[closes.length - 1];
   const pct = ((last - first) / first * 100).toFixed(1);
   const tone = last >= first ? "pos" : "neg";
-  const color = tone === "pos" ? "#6ef0c1" : "#f87171";
-  const firstDate = points[0]?.date;
-  const lastDate = points[points.length - 1]?.date;
+  const firstDate = ordered[0]?.date;
+  const lastDate = ordered[ordered.length - 1]?.date;
   return (
     <div className="catalog-sparkline">
       <div className="catalog-sparkline-meta">
@@ -16324,16 +16330,139 @@ function PriceSparkline({ points, language }) {
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="catalog-sparkline-svg" preserveAspectRatio="none">
         <defs>
-          <linearGradient id="spk-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+          <linearGradient id="catalog-spk-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--catalog-accent)" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="var(--catalog-accent)" stopOpacity="0.01" />
           </linearGradient>
         </defs>
-        <path d={areaPath} fill="url(#spk-grad)" />
-        <polyline points={polyline} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={areaPath} fill="url(#catalog-spk-grad)" />
+        <polyline points={polyline} fill="none" stroke="var(--catalog-accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
       </svg>
     </div>
   );
+}
+
+const CATALOG_TERMINAL_TEXT = {
+  ru: {
+    eyebrow: "Раскрытие и финансовая отчётность",
+    heading: "Каталог эмитентов",
+    allSectors: "Все отрасли",
+    allForms: "Все типы отчётов",
+    allYears: "Все годы",
+    results: "результатов",
+    issuers: "Эмитенты",
+    reports: "Финансовые отчёты",
+    newest: "Сначала новые",
+    period: "Период",
+    type: "Тип",
+    status: "Статус",
+    published: "Опубликован",
+    source: "Источник",
+    file: "Файл",
+    available: "Доступен",
+    selected: "Выбранный отчёт",
+    analyze: "Анализировать отчёт",
+    latest: "Последний отчёт",
+    tickers: "Тикеры",
+    chart: "Динамика цены",
+    noChart: "Для этой бумаги пока нет истории торгов",
+    noFilteredReports: "По выбранным фильтрам отчётов нет",
+    annualDetail: "12 месяцев",
+    quarterDetail: (q) => `${q * 3} месяцев`,
+  },
+  en: {
+    eyebrow: "Disclosures and financial reporting",
+    heading: "Issuer catalog",
+    allSectors: "All sectors",
+    allForms: "All report types",
+    allYears: "All years",
+    results: "results",
+    issuers: "Issuers",
+    reports: "Financial reports",
+    newest: "Newest first",
+    period: "Period",
+    type: "Type",
+    status: "Status",
+    published: "Published",
+    source: "Source",
+    file: "File",
+    available: "Available",
+    selected: "Selected report",
+    analyze: "Analyze report",
+    latest: "Latest report",
+    tickers: "Tickers",
+    chart: "Price history",
+    noChart: "No trading history is available for this security yet",
+    noFilteredReports: "No reports match the selected filters",
+    annualDetail: "12 months",
+    quarterDetail: (q) => `${q * 3} months`,
+  },
+  uz: {
+    eyebrow: "Oshkorotlar va moliyaviy hisobotlar",
+    heading: "Emitentlar katalogi",
+    allSectors: "Barcha tarmoqlar",
+    allForms: "Barcha hisobot turlari",
+    allYears: "Barcha yillar",
+    results: "natija",
+    issuers: "Emitentlar",
+    reports: "Moliyaviy hisobotlar",
+    newest: "Yangilari avval",
+    period: "Davr",
+    type: "Turi",
+    status: "Holati",
+    published: "E'lon qilingan",
+    source: "Manba",
+    file: "Fayl",
+    available: "Mavjud",
+    selected: "Tanlangan hisobot",
+    analyze: "Hisobotni tahlil qilish",
+    latest: "So'nggi hisobot",
+    tickers: "Tikerlar",
+    chart: "Narx dinamikasi",
+    noChart: "Bu qimmatli qog'oz uchun savdo tarixi hali mavjud emas",
+    noFilteredReports: "Tanlangan filtrlarga mos hisobot yo'q",
+    annualDetail: "12 oy",
+    quarterDetail: (q) => `${q * 3} oy`,
+  },
+};
+
+function catalogTerminalText(language, key, ...args) {
+  const value = (CATALOG_TERMINAL_TEXT[language] || CATALOG_TERMINAL_TEXT.ru)[key];
+  return typeof value === "function" ? value(...args) : value;
+}
+
+function catalogReportRows(index) {
+  if (!index?.availability) return [];
+  const rows = [];
+  const formOrder = { NSBU: 0, MSFO: 1, Audition: 2 };
+  Object.entries(index.availability).forEach(([reportForm, buckets]) => {
+    ["annual", "quarter"].forEach((periodType) => {
+      (buckets?.[periodType] || []).forEach((report) => {
+        if (!report?.year) return;
+        rows.push({ ...report, form: reportForm, periodType });
+      });
+    });
+  });
+  return rows.sort((a, b) => {
+    if (b.year !== a.year) return b.year - a.year;
+    const aRank = a.periodType === "annual" ? 4 : Number(a.quarter || 0);
+    const bRank = b.periodType === "annual" ? 4 : Number(b.quarter || 0);
+    if (bRank !== aRank) return bRank - aRank;
+    return (formOrder[a.form] ?? 9) - (formOrder[b.form] ?? 9);
+  });
+}
+
+function catalogReportKey(report) {
+  return report ? `${report.form}:${report.year}:${report.quarter || 0}` : "";
+}
+
+function formatCatalogDate(value, language) {
+  if (!value) return "—";
+  const text = String(value).trim();
+  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T12:00:00` : text);
+  if (Number.isNaN(date.getTime())) return text;
+  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
+  return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
 
 // ---------------------------------------------------------------------------
@@ -16586,6 +16715,11 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
   const [syncing, setSyncing] = useState(false);
   const [sparkline, setSparkline] = useState(null);
   const [sparklineLoading, setSparklineLoading] = useState(false);
+  const [sectorFilter, setSectorFilter] = useState("all");
+  const [reportFilter, setReportFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
+  const [chartMonths, setChartMonths] = useState(3);
+  const [reportPage, setReportPage] = useState(0);
 
   const apiFetch = (path, options = {}) => {
     const stored = localStorage.getItem(STORAGE_KEY) || "";
@@ -16625,18 +16759,23 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
   };
 
   useEffect(() => { loadStatus(); loadCatalogComps(); }, []);
+  useEffect(() => {
+    if (ticker || !catalogComps.length) return;
+    // Open on a useful, data-rich issuer instead of an empty instruction panel.
+    const first = catalogComps.slice().sort((a, b) => (b.total_count || 0) - (a.total_count || 0))[0];
+    if (first?.ticker) setTicker(first.ticker);
+  }, [catalogComps, ticker]);
   useEffect(() => { if (ticker) loadIndex(ticker); else { setIndex(null); setYear(""); setQuarter(0); setResult(null); } }, [ticker]);
-  useEffect(() => { setYear(""); setQuarter(0); setResult(null); }, [form, ticker]);
   useEffect(() => {
     if (!ticker) { setSparkline(null); return; }
     setSparklineLoading(true);
     setSparkline(null);
-    apiFetch(`/api/price-history/${ticker}`)
+    apiFetch(`/api/price-history/${ticker}?months=${chartMonths}`)
       .then((r) => r.json())
       .then((d) => { if (d.ok && d.points?.length >= 2) setSparkline(d.points); })
       .catch(() => {})
       .finally(() => setSparklineLoading(false));
-  }, [ticker]);
+  }, [ticker, chartMonths]);
 
   const handleSync = async (specificTicker = null) => {
     if (!token) { addToast(lang === "ru" ? "Войдите для синхронизации" : "Sign in to sync", "error"); return; }
@@ -16674,6 +16813,16 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
   };
 
   // Derived availability helpers
+  const allReportRows = catalogReportRows(index);
+  const reportYears = [...new Set(allReportRows.map((r) => r.year))].sort((a, b) => b - a);
+  const visibleReportRows = allReportRows.filter((report) => (
+    (reportFilter === "all" || report.form === reportFilter)
+    && (yearFilter === "all" || report.year === Number(yearFilter))
+  ));
+  const reportsPerPage = 10;
+  const reportPageCount = Math.max(1, Math.ceil(visibleReportRows.length / reportsPerPage));
+  const safeReportPage = Math.min(reportPage, reportPageCount - 1);
+  const pagedReportRows = visibleReportRows.slice(safeReportPage * reportsPerPage, (safeReportPage + 1) * reportsPerPage);
   const avail = index?.availability || {};
   const formAvail = avail[form] || { annual: [], quarter: [] };
   const availYears = [...new Set([...(formAvail.annual || []), ...(formAvail.quarter || [])].map((r) => r.year))].filter(Boolean).sort((a, b) => b - a);
@@ -16685,16 +16834,53 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
     : (formAvail.quarter || []).find((r) => r.year === parseInt(year) && r.quarter === quarter)
   ) : null;
 
+  useEffect(() => {
+    if (!index) return;
+    const rows = catalogReportRows(index).filter((report) => (
+      (reportFilter === "all" || report.form === reportFilter)
+      && (yearFilter === "all" || report.year === Number(yearFilter))
+    ));
+    if (!rows.length) {
+      if (year) {
+        setYear("");
+        setQuarter(0);
+        setResult(null);
+      }
+      return;
+    }
+    const currentKey = `${form}:${year}:${quarter || 0}`;
+    if (!rows.some((report) => catalogReportKey(report) === currentKey)) {
+      const latest = rows[0];
+      setForm(latest.form);
+      setYear(String(latest.year));
+      setQuarter(Number(latest.quarter || 0));
+      setResult(null);
+    }
+  }, [index, reportFilter, yearFilter, form, year, quarter]);
+  useEffect(() => { setReportPage(0); }, [index, reportFilter, yearFilter]);
+
   const needsComparePeriod = ["quarter_compare", "annual_compare"].includes(analysisType);
   const needsCompareTicker = analysisType === "multi_company";
 
+  const catalogSectors = orderSectors(new Set(catalogComps.map((c) => c.sector || "other")))
+    .sort((a, b) => sectorLabel(lang, a).localeCompare(sectorLabel(lang, b), lang));
   const filteredComps = catalogComps.filter((c) => {
     const q = search.toLowerCase();
+    const matchesSector = sectorFilter === "all" || (c.sector || "other") === sectorFilter;
+    const matchesReport = reportFilter === "all"
+      || (reportFilter === "NSBU" && c.nsbu_count > 0)
+      || (reportFilter === "MSFO" && c.msfo_count > 0)
+      || (reportFilter === "Audition" && c.audit_count > 0);
     // An entry stands for every ticker of its issuer, so searching for a bond
     // series (ACMT2B4) has to reach the company it belongs to.
-    return !q || (c.company_name || "").toLowerCase().includes(q)
+    const matchesSearch = !q || (c.company_name || "").toLowerCase().includes(q)
       || (c.tickers?.length ? c.tickers : [c.ticker]).some((t) => t.toLowerCase().includes(q));
-  });
+    return matchesSearch && matchesSector && matchesReport;
+  }).sort((a, b) => (b.total_count || 0) - (a.total_count || 0)
+    || String(a.company_name || a.ticker).localeCompare(String(b.company_name || b.ticker), lang));
+
+  const selectedCompany = catalogComps.find((c) => c.ticker === ticker);
+  const latestReport = allReportRows[0] || null;
 
   const analysisTypesObj = (TEXTS[lang] || TEXTS.ru).catalog.analysisTypes;
   const formsObj = (TEXTS[lang] || TEXTS.ru).catalog.forms;
@@ -16761,40 +16947,55 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
 
   return (
     <section className="catalog-layout">
-      {/* Status bar */}
-      <article className="panel catalog-header">
-        <div className="catalog-header-copy">
-          <div className="panel-label">{clg(lang, "title")}</div>
-          <p className="muted">{clg(lang, "subtitle")}</p>
+      <header className="catalog-terminal-head">
+        <div>
+          <div className="catalog-eyebrow">{catalogTerminalText(lang, "eyebrow")}</div>
+          <h1>{catalogTerminalText(lang, "heading")}</h1>
+          <p>
+            {status
+              ? `${status.companies_synced} ${clg(lang, "companies")} · ${status.total_reports} ${clg(lang, "reports")}${status.last_sync ? ` · ${clg(lang, "lastSync")}: ${formatMarketTimestamp(status.last_sync, lang)}` : ""}`
+              : clg(lang, "loading")}
+          </p>
         </div>
-        <div className="catalog-header-stats">
-          {status ? (
-            <>
-              <span className="status-badge">{status.companies_synced} {clg(lang, "companies")} · {status.total_reports} {clg(lang, "totalReports")}</span>
-              {status.last_sync && <span className="status-badge muted">{clg(lang, "lastSync")}: {formatMarketTimestamp(status.last_sync, lang)}</span>}
-            </>
-          ) : <span className="status-badge muted">{clg(lang, "loading")}</span>}
-          {/* ТЗ Дополнение 1 §Б.6: «Синхронизировать всё» calls an administrative
-              route and belongs in the administrative section. It stood in the
-              public interface, where any visitor could start a full re-sync. */}
-          {user?.is_admin && (
-            <button className="ghost-btn" type="button" onClick={() => handleSync()} disabled={syncing}>
-              {syncing ? clg(lang, "syncing") : clg(lang, "syncAll")}
-            </button>
-          )}
-        </div>
-      </article>
+        {user?.is_admin && (
+          <button className="ghost-btn catalog-sync-all" type="button" onClick={() => handleSync()} disabled={syncing}>
+            {syncing ? clg(lang, "syncing") : clg(lang, "syncAll")}
+          </button>
+        )}
+      </header>
 
-      <div className="catalog-body">
-        {/* Sidebar: company list */}
-        <aside className="catalog-sidebar">
+      <div className="catalog-toolbar" aria-label={catalogTerminalText(lang, "heading")}>
+        <label className="catalog-search-field">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input
-            className="search-input"
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={clg(lang, "searchPlaceholder")}
+            aria-label={clg(lang, "searchPlaceholder")}
           />
+        </label>
+        <select className="catalog-filter-select" value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)} aria-label={catalogTerminalText(lang, "allSectors")}>
+          <option value="all">{catalogTerminalText(lang, "allSectors")}</option>
+          {catalogSectors.map((sector) => <option key={sector} value={sector}>{sectorLabel(lang, sector)}</option>)}
+        </select>
+        <select className="catalog-filter-select" value={reportFilter} onChange={(e) => setReportFilter(e.target.value)} aria-label={catalogTerminalText(lang, "allForms")}>
+          <option value="all">{catalogTerminalText(lang, "allForms")}</option>
+          {Object.entries(formsObj).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        </select>
+        <select className="catalog-filter-select" value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} aria-label={catalogTerminalText(lang, "allYears")}>
+          <option value="all">{catalogTerminalText(lang, "allYears")}</option>
+          {reportYears.map((reportYear) => <option key={reportYear} value={reportYear}>{reportYear}</option>)}
+        </select>
+        <span className="catalog-toolbar-count">{filteredComps.length} {catalogTerminalText(lang, "results")}</span>
+      </div>
+
+      <div className="catalog-body">
+        <aside className="catalog-sidebar">
+          <div className="catalog-sidebar-head">
+            <span>{catalogTerminalText(lang, "issuers")}</span>
+            <span>{filteredComps.length}</span>
+          </div>
           {compsLoading ? (
             <div className="catalog-list-loading">{clg(lang, "loading")}</div>
           ) : filteredComps.length === 0 ? (
@@ -16809,35 +17010,22 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                   type="button"
                   className={`catalog-company-item ${ticker === c.ticker ? "active" : ""}`}
                   onClick={() => setTicker(c.ticker)}
+                  aria-pressed={ticker === c.ticker}
                 >
                   <CompanyLogo logo={c.logo} name={c.company_name} ticker={c.ticker} />
                   <div className="catalog-company-item-body">
-                    {/* The list is a list of companies: the name leads and the
-                        ticker annotates it, not the other way round. The name
-                        gets the whole line — sharing it with the report count
-                        left room for twelve characters of a legal name. */}
                     <strong className="catalog-company-title">{c.company_name || c.ticker}</strong>
-                    <div className="catalog-company-meta">
-                      <span className="catalog-company-ticker">
-                        {(c.tickers?.length ? c.tickers : [c.ticker]).join(" · ")}
-                      </span>
-                      <em>{c.total_count || 0} {clg(lang, "reports")}</em>
-                    </div>
-                    {c.total_count > 0 && (
-                      <div className="catalog-company-badges">
-                        {c.nsbu_count > 0 && <span className="catalog-form-badge">{formsObj.NSBU} {c.nsbu_count}</span>}
-                        {c.msfo_count > 0 && <span className="catalog-form-badge">{formsObj.MSFO} {c.msfo_count}</span>}
-                        {c.audit_count > 0 && <span className="catalog-form-badge">{formsObj.Audition} {c.audit_count}</span>}
-                      </div>
-                    )}
+                    <span className="catalog-company-ticker">
+                      {(c.tickers?.length ? c.tickers : [c.ticker]).join(" · ")} · {sectorLabel(lang, c.sector || "other")}
+                    </span>
                   </div>
+                  <span className="catalog-company-count">{c.total_count || 0}</span>
                 </button>
               ))}
             </div>
           )}
         </aside>
 
-        {/* Main area */}
         <main className="catalog-main">
           {!ticker ? (
             <div className="empty-state"><p className="empty-copy">{clg(lang, "selectCompany")}</p></div>
@@ -16845,123 +17033,154 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
             <div className="catalog-loading">{clg(lang, "loading")}</div>
           ) : (
             <>
-              {/* Company header */}
-              <div className="catalog-company-header">
-                <div>
-                  <h2>{index?.company_name || ticker}</h2>
-                  <span className="status-badge muted">{ticker}</span>
-                  {/* One issuer, several tickers (a preferred class, or one per
-                      bond series). The entry covers all of them, so it names them. */}
-                  {(index?.tickers || []).filter((t) => t !== ticker).map((t) => (
-                    <span key={t} className="status-badge muted">{t}</span>
-                  ))}
-                  {index?.sector && <span className="status-badge">{sectorLabel(lang, index.sector)}</span>}
-                  {index?.last_synced_at && <span className="status-badge muted">{clg(lang, "lastSync")}: {formatMarketTimestamp(index.last_synced_at, lang)}</span>}
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <button className="ghost-btn" type="button" onClick={() => handleSync(ticker)} disabled={syncing}>
-                    {syncing ? clg(lang, "syncing") : clg(lang, "syncCompany")}
-                  </button>
-                  {onNavigateToAnalysis && (
-                    <button className="ghost-btn" type="button" onClick={() => onNavigateToAnalysis(ticker)}>
-                      {lang === "ru" ? "Открыть в Анализе" : lang === "uz" ? "Tahlilda ochish" : "Open in Analysis"}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Price sparkline */}
-              {(sparkline || sparklineLoading) && (
-                <div className="catalog-sparkline-wrap">
-                  {sparklineLoading
-                    ? <div className="catalog-list-loading">{lang === "ru" ? "Загрузка графика..." : "Loading chart..."}</div>
-                    : <PriceSparkline points={sparkline} language={lang} />}
-                </div>
-              )}
-
-              {/* Form tabs */}
-              <div className="catalog-form-tabs">
-                {["NSBU", "MSFO", "Audition"].map((f) => (
-                  <button key={f} type="button" className={`tab-btn ${form === f ? "active" : ""}`} onClick={() => setForm(f)}>
-                    {formsObj[f]}
-                  </button>
-                ))}
-              </div>
-
-              {/* Year selector */}
-              {availYears.length > 0 ? (
-                <div className="catalog-year-row">
-                  {availYears.map((y) => (
-                    <button key={y} type="button"
-                      className={`catalog-year-btn ${year === String(y) ? "active" : ""}`}
-                      onClick={() => { setYear(String(y)); setQuarter(0); setResult(null); }}>
-                      {y}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="muted catalog-no-form">{clg(lang, "notPublished")}</p>
-              )}
-
-              {/* Quarter selector for NSBU */}
-              {year && form === "NSBU" && (
-                <div className="catalog-quarter-row">
-                  <button type="button"
-                    className={`catalog-period-btn ${quarter === 0 ? "active" : ""} ${isAnnualAvail ? "" : "unavailable"}`}
-                    onClick={() => { setQuarter(0); setResult(null); }}>
-                    {periodsObj.annual}
-                  </button>
-                  {[1, 2, 3].map((q) => {
-                    const qAvail = availQuarters.includes(q);
-                    return (
-                      <button key={q} type="button"
-                        className={`catalog-period-btn ${quarter === q ? "active" : ""} ${qAvail ? "" : "unavailable"}`}
-                        onClick={() => { if (qAvail) { setQuarter(q); setResult(null); } }}>
-                        {periodsObj[`q${q}`]}
+              <section className="catalog-company-overview">
+                <div className="catalog-company-summary">
+                  <div className="catalog-company-header">
+                    <div className="catalog-company-identity">
+                      <CompanyLogo logo={selectedCompany?.logo} name={index?.company_name || ticker} ticker={ticker} />
+                      <div>
+                        <div className="catalog-eyebrow">{index?.sector ? sectorLabel(lang, index.sector) : sectorLabel(lang, selectedCompany?.sector || "other")}</div>
+                        <h2>{index?.company_name || ticker}</h2>
+                        <p>{(index?.tickers?.length ? index.tickers : [ticker]).join(" · ")}</p>
+                      </div>
+                    </div>
+                    <div className="catalog-company-actions">
+                      <button className="ghost-btn" type="button" onClick={() => handleSync(ticker)} disabled={syncing}>
+                        {syncing ? clg(lang, "syncing") : clg(lang, "syncCompany")}
                       </button>
-                    );
-                  })}
-                </div>
-              )}
+                      {onNavigateToAnalysis && (
+                        <button className="primary-btn" type="button" onClick={() => onNavigateToAnalysis(ticker)}>
+                          {lang === "ru" ? "Открыть в Анализе" : lang === "uz" ? "Tahlilda ochish" : "Open in Analysis"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-              {/* Availability indicator */}
-              {year && (
-                <div className={`catalog-avail ${isCurrentAvail ? "avail-yes" : "avail-no"}`}>
-                  {isCurrentAvail ? (
-                    <>
-                      <span>{clg(lang, "available")}</span>
-                      {/* openinfo's /reports/to_pdf{id} route is keyed on an id space
-                          that doesn't match the accounting-report id, so NSBU PDFs
-                          often resolve to the wrong company or 500. The export-excel
-                          API is correct (verified per company), so prefer Excel and
-                          only show a PDF when it's a real document URL (MSFO/Audit). */}
-                      {/* openinfo's export-excel returns the full NSBU report (balance +
-                          income) in one workbook, so form1/form2 ids are usually identical.
-                          Show the second link only if it's genuinely a different file. */}
-                      {currentReport?.excel_url && (
-                        <a className="ghost-btn catalog-pdf-btn" href={currentReport.excel_url} target="_blank" rel="noreferrer">
-                          {(currentReport?.excel_url_form1 && currentReport.excel_url_form1 !== currentReport.excel_url) ? clg(lang, "excelIncome") : clg(lang, "excelReport")}
-                        </a>
-                      )}
-                      {currentReport?.excel_url_form1 && currentReport.excel_url_form1 !== currentReport.excel_url && (
-                        <a className="ghost-btn catalog-pdf-btn" href={currentReport.excel_url_form1} target="_blank" rel="noreferrer">
-                          {clg(lang, "excelBalance")}
-                        </a>
-                      )}
-                      {currentReport?.pdf_url && !currentReport.pdf_url.includes("/reports/to_pdf") && (
-                        <a className="ghost-btn catalog-pdf-btn" href={currentReport.pdf_url} target="_blank" rel="noreferrer">
-                          {clg(lang, "pdfReport")}
-                        </a>
-                      )}
-                    </>
+                  <div className="catalog-report-stats">
+                    <span><small>{catalogTerminalText(lang, "tickers")}</small><strong>{(index?.tickers?.length ? index.tickers : [ticker]).join(" · ")}</strong></span>
+                    <span><small>{formsObj.NSBU}</small><strong>{selectedCompany?.nsbu_count || 0}</strong></span>
+                    <span><small>{formsObj.MSFO}</small><strong>{selectedCompany?.msfo_count || 0}</strong></span>
+                    <span><small>{formsObj.Audition}</small><strong>{selectedCompany?.audit_count || 0}</strong></span>
+                    <span>
+                      <small>{catalogTerminalText(lang, "latest")}</small>
+                      <strong>{latestReport ? `${latestReport.year} · ${latestReport.quarter ? `Q${latestReport.quarter}` : periodsObj.annual}` : "—"}</strong>
+                    </span>
+                  </div>
+                </div>
+                <div className="catalog-price-card">
+                  <div className="catalog-price-head">
+                    <span>{catalogTerminalText(lang, "chart")}</span>
+                    <div className="catalog-range-switch" aria-label={catalogTerminalText(lang, "chart")}>
+                      {[1, 3, 12].map((months) => (
+                        <button key={months} type="button" className={chartMonths === months ? "active" : ""} onClick={() => setChartMonths(months)}>
+                          {months === 12 ? (lang === "ru" ? "1Г" : "1Y") : `${months}${lang === "ru" ? "М" : "M"}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {sparklineLoading ? (
+                    <div className="catalog-chart-loading">{clg(lang, "loading")}</div>
+                  ) : sparkline ? (
+                    <PriceSparkline points={sparkline} language={lang} />
                   ) : (
-                    <span>{clg(lang, "notPublished")}</span>
+                    <div className="catalog-chart-empty">{catalogTerminalText(lang, "noChart")}</div>
                   )}
                 </div>
-              )}
+              </section>
 
-              {/* Analysis controls */}
-              {year && isCurrentAvail && (
+              <section className="catalog-report-section">
+                <div className="catalog-report-head">
+                  <div>
+                    <h3>{catalogTerminalText(lang, "reports")}</h3>
+                    <span>{visibleReportRows.length} {clg(lang, "reports")} · {catalogTerminalText(lang, "newest")}</span>
+                  </div>
+                </div>
+
+                {visibleReportRows.length ? (
+                  <>
+                    <div className="catalog-report-table-wrap">
+                      <table className="catalog-report-table">
+                      <thead>
+                        <tr>
+                          <th>{catalogTerminalText(lang, "period")}</th>
+                          <th>{catalogTerminalText(lang, "type")}</th>
+                          <th>{catalogTerminalText(lang, "status")}</th>
+                          <th>{catalogTerminalText(lang, "published")}</th>
+                          <th>{catalogTerminalText(lang, "source")}</th>
+                          <th>{catalogTerminalText(lang, "file")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedReportRows.map((report) => {
+                          const reportKey = catalogReportKey(report);
+                          const selected = reportKey === `${form}:${year}:${quarter || 0}`;
+                          const safePdf = report.pdf_url && !report.pdf_url.includes("/reports/to_pdf");
+                          return (
+                            <tr key={reportKey} className={selected ? "is-selected" : ""}>
+                              <td>
+                                <button
+                                  className="catalog-report-select"
+                                  type="button"
+                                  aria-pressed={selected}
+                                  onClick={() => {
+                                    setForm(report.form);
+                                    setYear(String(report.year));
+                                    setQuarter(Number(report.quarter || 0));
+                                    setResult(null);
+                                  }}
+                                >
+                                  <strong>{report.year} · {report.quarter ? `Q${report.quarter}` : periodsObj.annual}</strong>
+                                  <small>{report.quarter ? catalogTerminalText(lang, "quarterDetail", report.quarter) : catalogTerminalText(lang, "annualDetail")}</small>
+                                </button>
+                              </td>
+                              <td><span className={`catalog-report-type type-${report.form.toLowerCase()}`}>{formsObj[report.form] || report.form}</span></td>
+                              <td><span className="catalog-report-status"><i />{catalogTerminalText(lang, "available")}</span></td>
+                              <td>{formatCatalogDate(report.published_at, lang)}</td>
+                              <td><a className="catalog-source-link" href="https://openinfo.uz" target="_blank" rel="noreferrer">openinfo.uz</a></td>
+                              <td>
+                                <div className="catalog-file-actions">
+                                  {report.excel_url && <a href={report.excel_url} target="_blank" rel="noreferrer">XLSX</a>}
+                                  {safePdf && <a href={report.pdf_url} target="_blank" rel="noreferrer">PDF</a>}
+                                  {!report.excel_url && !safePdf && <span>—</span>}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      </table>
+                    </div>
+                    {reportPageCount > 1 && (
+                      <div className="catalog-report-pagination">
+                        <span>{safeReportPage * reportsPerPage + 1}–{Math.min((safeReportPage + 1) * reportsPerPage, visibleReportRows.length)} / {visibleReportRows.length}</span>
+                        <div>
+                          <button type="button" onClick={() => setReportPage((page) => Math.max(0, page - 1))} disabled={safeReportPage === 0} aria-label="Previous">←</button>
+                          <span>{safeReportPage + 1} / {reportPageCount}</span>
+                          <button type="button" onClick={() => setReportPage((page) => Math.min(reportPageCount - 1, page + 1))} disabled={safeReportPage >= reportPageCount - 1} aria-label="Next">→</button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="catalog-report-empty">{catalogTerminalText(lang, "noFilteredReports")}</div>
+                )}
+              </section>
+
+              {year && isCurrentAvail && currentReport && (
+                <section className="catalog-selected-report">
+                  <div className="catalog-selected-summary">
+                    <div>
+                      <span>{catalogTerminalText(lang, "selected")}</span>
+                      <strong>{formsObj[form]} · {year}{quarter > 0 ? ` Q${quarter}` : ` · ${periodsObj.annual}`}</strong>
+                      <small>{formatCatalogDate(currentReport.published_at, lang)} · openinfo.uz</small>
+                    </div>
+                    <div className="catalog-selected-files">
+                      {currentReport.excel_url && <a className="ghost-btn" href={currentReport.excel_url} target="_blank" rel="noreferrer">{clg(lang, "excelReport")}</a>}
+                      {currentReport.pdf_url && !currentReport.pdf_url.includes("/reports/to_pdf") && <a className="ghost-btn" href={currentReport.pdf_url} target="_blank" rel="noreferrer">{clg(lang, "pdfReport")}</a>}
+                    </div>
+                  </div>
+
+                  <div className="catalog-analysis-heading">{catalogTerminalText(lang, "analyze")}</div>
                 <div className="catalog-analysis-controls">
                   <label className="catalog-field">
                     <span>{clg(lang, "analysisLabel")}</span>
@@ -17006,9 +17225,9 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                     {resultLoading ? clg(lang, "analysisLoading") : clg(lang, "runAnalysis")}
                   </button>
                 </div>
+                </section>
               )}
 
-              {/* Result */}
               {result && (
                 <article className="panel catalog-result-panel" id="catalog-print-target">
                   <div className="panel-head">
