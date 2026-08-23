@@ -5839,12 +5839,79 @@ function CompareSummaryText({ summary, language }) {
   );
 }
 
-function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang }) {
+function MarketStatIcon({ kind }) {
+  if (kind === "turnover") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 7h11M13 4l3 3-3 3M19 17H8M11 14l-3 3 3 3" />
+      </svg>
+    );
+  }
   return (
-    <article className={`market-stat-card tone-${tone}`}>
-      <span>{label}{termId && <TermInfo termId={termId} lang={lang} label={label} />}</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 18V11M12 18V7M19 18V4M3 20h18" />
+    </svg>
+  );
+}
+
+function MarketStatCard({ label, value, sub, tone = "neutral", termId, lang, kind = "capitalization" }) {
+  return (
+    <article className={`market-stat-card tone-${tone} is-${kind}`}>
+      <div className="market-stat-card-head">
+        <span className="market-stat-icon"><MarketStatIcon kind={kind} /></span>
+        <span className="market-stat-label">{label}{termId && <TermInfo termId={termId} lang={lang} label={label} />}</span>
+      </div>
       <strong>{value}</strong>
       {sub ? <em>{sub}</em> : null}
+    </article>
+  );
+}
+
+function MarketBreadthCard({ language, advancers, decliners, topGrowth, topDrop }) {
+  const lang = normalizeLanguage(language);
+  const up = Math.max(0, Number(advancers) || 0);
+  const down = Math.max(0, Number(decliners) || 0);
+  const movers = up + down;
+  const upShare = movers > 0 ? (up / movers) * 100 : 50;
+  const downShare = 100 - upShare;
+  const title = lang === "en" ? "Market breadth" : lang === "uz" ? "Bozor yo‘nalishi" : "Движение рынка";
+  const shareLabel = lang === "en" ? "Share of moving securities" : lang === "uz" ? "O‘zgargan qimmatli qog‘ozlar ulushi" : "Доля среди изменившихся бумаг";
+  return (
+    <article className="market-breadth-card">
+      <div className="market-stat-card-head">
+        <span className="market-stat-icon is-breadth" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 15l5-5 4 3 7-8M16 5h4v4" /></svg>
+        </span>
+        <span className="market-stat-label">{title}</span>
+      </div>
+      <div className="market-breadth-metrics">
+        <div className="market-breadth-metric is-up">
+          <div className="market-breadth-value">
+            <span><i aria-hidden="true">↗</i>{mt(lang, "advancers")}</span>
+            <strong>{formatRatio(up, 0, lang)}</strong>
+          </div>
+          {topGrowth ? <em>{topGrowth}</em> : null}
+        </div>
+        <div className="market-breadth-metric is-down">
+          <div className="market-breadth-value">
+            <span><i aria-hidden="true">↘</i>{mt(lang, "decliners")}</span>
+            <strong>{formatRatio(down, 0, lang)}</strong>
+          </div>
+          {topDrop ? <em>{topDrop}</em> : null}
+        </div>
+      </div>
+      <div
+        className="market-breadth-track"
+        role="img"
+        aria-label={`${shareLabel}: ${formatRatio(upShare, 0, lang)}% / ${formatRatio(downShare, 0, lang)}%`}
+      >
+        <span className="is-up" style={{ width: `${upShare}%` }} />
+        <span className="is-down" style={{ width: `${downShare}%` }} />
+      </div>
+      <div className="market-breadth-legend" aria-hidden="true">
+        <span>{formatRatio(upShare, 0, lang)}%</span>
+        <span>{formatRatio(downShare, 0, lang)}%</span>
+      </div>
     </article>
   );
 }
@@ -15504,9 +15571,14 @@ function MarketView({
       <div className="market-stats-grid">
         {/* Инструментов / Сделки сегодня / Без изменений were removed at the
             customer's request (2026-08-12) — the row keeps only the counters
-            that name a mover or a sum of money. */}
-        <MarketStatCard label={mt(lang, "advancers")} value={formatRatio(cardStats.advancers, 0, lang)} sub={formatLeader(cardStats.topGrowth)} tone="good" />
-        <MarketStatCard label={mt(lang, "decliners")} value={formatRatio(cardStats.decliners, 0, lang)} sub={formatLeader(cardStats.topDrop)} tone="danger" />
+            that name a mover or a sum of money. Up and down belong to one market
+            breadth reading, so they share a card and a proportional rail. */}
+        <MarketBreadthCard
+          language={lang}
+          advancers={cardStats.advancers}
+          decliners={cardStats.decliners}
+          topGrowth={formatLeader(cardStats.topGrowth)}
+          topDrop={formatLeader(cardStats.topDrop)} />
         {/* ТЗ §8: the market's capitalisation is its ACTIVE SHARES. The client
             sum counted bonds, which carry no ownership, and dormant listings —
             23 of them, 29 088 bn — inside a figure labelled "the market". The
@@ -15523,10 +15595,10 @@ function MarketView({
           if (server) {
             const ex = server.excluded || {};
             const excludedNote = [
-              ex.bonds?.instruments ? `${lang === "ru" ? "облигации" : lang === "uz" ? "obligatsiyalar" : "bonds"}: ${ex.bonds.instruments}` : null,
-              ex.inactive_listings?.instruments ? `${lang === "ru" ? "неактивные" : lang === "uz" ? "faol emas" : "inactive"}: ${ex.inactive_listings.instruments}` : null,
+              ex.bonds?.instruments ? `${lang === "ru" ? "облигации" : lang === "uz" ? "obligatsiyalar" : "bonds"} — ${ex.bonds.instruments}` : null,
+              ex.inactive_listings?.instruments ? `${lang === "ru" ? "неактивные" : lang === "uz" ? "faol emas" : "inactive"} — ${ex.inactive_listings.instruments}` : null,
             ].filter(Boolean).join(", ");
-            if (excludedNote) sub = `UZS · ${lang === "ru" ? "без" : lang === "uz" ? "hisobsiz" : "excl."} ${excludedNote}`;
+            if (excludedNote) sub = `UZS · ${lang === "ru" ? "исключено" : lang === "uz" ? "hisobdan chiqarilgan" : "excluded"}: ${excludedNote}`;
           } else if (sectorDormant) {
             // Its own sentence, not the market note's list with one item left in
             // it: «без облигации: 17, неактивные: 10» works as an enumeration
@@ -15543,7 +15615,8 @@ function MarketView({
             <MarketStatCard
               label={mt(lang, "marketCap")}
               value={formatCompactVolume(value, lang)}
-              sub={sub} />
+              sub={sub}
+              kind="capitalization" />
           );
         })()}
         {/* The day's turnover is the sum of the rows below it, not a separate
@@ -15551,7 +15624,7 @@ function MarketView({
             44 securities and called 31.07 "120,7 млн over ~900 trades" while the
             board it sits above listed 1,56 млрд over 6 507 — and it cannot
             answer per tab, so the shares view was quoting bond turnover too. */}
-        {cardStats.totalVolume > 0 && <MarketStatCard label={windowed ? `${mt(lang, "volume")} · ${changePeriodLabel(changePeriod, lang, "short")}` : mt(lang, "volume")} termId="volume" lang={lang} value={formatCompactVolume(cardStats.totalVolume, lang)} sub={cardStats.totalTrades ? `${formatRatio(cardStats.totalTrades, 0, lang)} ${tradeCountLabel(cardStats.totalTrades, lang)}` : null} />}
+        {cardStats.totalVolume > 0 && <MarketStatCard label={windowed ? `${mt(lang, "volume")} · ${changePeriodLabel(changePeriod, lang, "short")}` : mt(lang, "volume")} termId="volume" lang={lang} value={formatCompactVolume(cardStats.totalVolume, lang)} sub={cardStats.totalTrades ? `${formatRatio(cardStats.totalTrades, 0, lang)} ${tradeCountLabel(cardStats.totalTrades, lang)}` : null} kind="turnover" />}
       </div>
 
       {/* Three readings of one session: who moved, and who was actually

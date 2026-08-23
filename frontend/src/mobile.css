@@ -442,8 +442,7 @@ iframe {
     align-items: flex-start;
   }
 
-  /* Six full-width cards meant six screenfuls of scrolling before the prices.
-     Two columns fits the whole summary above the fold. */
+  /* The compact market summary keeps its monetary metrics in two columns. */
   .market-stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -1053,8 +1052,7 @@ iframe {
     gap: 8px;
   }
 
-  /* 127px per stat card × 4 rows. The numbers stay the same size the eye needs;
-     the padding and the gaps around them do not. */
+  /* The numbers stay the same size the eye needs; the surrounding padding does not. */
   .market-stat-card {
     gap: 3px;
     min-height: 0;
