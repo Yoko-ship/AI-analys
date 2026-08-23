@@ -6535,51 +6535,6 @@ function heatmapShortName(name) {
   return base.length > 13 ? base.slice(0, 12) + "…" : base;
 }
 
-// Squarified treemap (Bruls/Huizing/van Wijk): pack items so each tile's AREA
-// is proportional to its value while keeping aspect ratios near-square.
-// Returns each input item with an absolute rect {x, y, w, h}.
-function heatmapWorst(row, length) {
-  const sum = row.reduce((s, r) => s + r.area, 0);
-  if (sum <= 0) return Infinity;
-  let max = -Infinity, min = Infinity;
-  for (const r of row) { if (r.area > max) max = r.area; if (r.area < min) min = r.area; }
-  const sum2 = sum * sum, l2 = length * length;
-  return Math.max((l2 * max) / sum2, sum2 / (l2 * min));
-}
-
-function squarifyTreemap(items, x, y, w, h) {
-  const out = [];
-  const total = items.reduce((s, d) => s + d.value, 0);
-  if (total <= 0 || w <= 0 || h <= 0) return out;
-  const scale = (w * h) / total;
-  const data = items.map((d) => ({ ...d, area: d.value * scale }));
-  let rect = { x, y, w, h };
-  let i = 0;
-  while (i < data.length) {
-    const length = Math.min(rect.w, rect.h);
-    let row = [data[i]];
-    let j = i + 1;
-    while (j < data.length) {
-      const cand = row.concat(data[j]);
-      if (heatmapWorst(cand, length) <= heatmapWorst(row, length)) { row = cand; j++; } else break;
-    }
-    const rowArea = row.reduce((s, r) => s + r.area, 0);
-    if (rect.w <= rect.h) {
-      const rowH = rowArea / rect.w;
-      let cx = rect.x;
-      for (const r of row) { const rw = r.area / rowH; out.push({ ...r, x: cx, y: rect.y, w: rw, h: rowH }); cx += rw; }
-      rect = { x: rect.x, y: rect.y + rowH, w: rect.w, h: rect.h - rowH };
-    } else {
-      const rowW = rowArea / rect.h;
-      let cy = rect.y;
-      for (const r of row) { const rh = r.area / rowW; out.push({ ...r, x: rect.x, y: cy, w: rowW, h: rh }); cy += rh; }
-      rect = { x: rect.x + rowW, y: rect.y, w: rect.w - rowW, h: rect.h };
-    }
-    i = j;
-  }
-  return out;
-}
-
 function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, period = "1d" }) {
   // Which question the map is drawing. Over a window every tile's colour is the
   // change over it and every tile's AREA is the turnover over it — the caller
@@ -6614,20 +6569,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   // of sessions is not low-confidence because this morning was thin.
   const lowConfidence = (r) => !windowed && metaOf(r)?.confidence === "low";
   const lang = normalizeLanguage(language);
-  const wrapRef = React.useRef(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState(null); // { ticker, row, x, y } — rich hover tooltip
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return undefined;
-    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
-    measure();
-    let ro;
-    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(measure); ro.observe(el); }
-    else window.addEventListener("resize", measure);
-    return () => { if (ro) ro.disconnect(); else window.removeEventListener("resize", measure); };
-  }, []);
 
   const companyMap = {};
   (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
@@ -6649,16 +6591,22 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const isNeutralRow = (row) => row.inactive === true || !Number.isFinite(row.changePercent);
   const tradedRows = rows.filter((row) => allowBonds || !isBond(row));
 
-  // Tile weight = compressed (sqrt) volume, floored so thin movers stay visible.
-  // The floor is global (over every row) so a tile's area means the same amount
-  // of traded value in the ordinary block and the preferred block alike.
-  // Neutral (non-traded) tiles get a third of the floor so the ~50 inactive
-  // listings stay visible without swamping the map with grey.
-  const rawWeight = (r) => Math.sqrt(Math.max(r.stockVolume || 0, 1));
+  // Bubble AREA carries turnover. The 90th-percentile cap stops one exceptional
+  // block trade from reducing the entire exchange to identical pinheads; a
+  // minimum diameter keeps thin names selectable and keyboard-focusable.
   const activeRows = tradedRows.filter((r) => !isNeutralRow(r));
-  const maxRaw = Math.max(1, ...(activeRows.length ? activeRows : tradedRows).map(rawWeight));
-  const floor = maxRaw * 0.05;
-  const weight = (r) => (isNeutralRow(r) ? floor / 3 : Math.max(rawWeight(r), floor));
+  const activeVolumes = activeRows
+    .map((r) => Math.max(Number(r.stockVolume) || 0, 0))
+    .filter((v) => v > 0)
+    .sort((a, b) => a - b);
+  const volumeCap = activeVolumes.length
+    ? activeVolumes[Math.floor((activeVolumes.length - 1) * 0.9)]
+    : 1;
+  const bubbleSize = (r) => {
+    if (isNeutralRow(r)) return 50;
+    const turnover = Math.max(Number(r.stockVolume) || 0, 0);
+    return Math.min(118, Math.max(50, 118 * Math.sqrt(turnover / Math.max(volumeCap, 1))));
+  };
 
   const formatPct = (pct) => {
     if (pct === null || !Number.isFinite(pct)) return "—";
@@ -6685,9 +6633,9 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     total: rs.length,
   });
 
-  // Top level splits share class (ordinary vs preferred); each block is then the
-  // usual sector→stock treemap. Blocks stack vertically; heights are ∝ traded
-  // weight but clamped so the (usually thinner) preferred block stays readable.
+  // Top level splits share class (ordinary vs preferred). Within each block,
+  // sector lanes keep related issuers together while circles remain free of the
+  // box-on-box geometry of a treemap.
   const GROUP_ORDER = ["ordinary", "preferred"];
   const rowsByGroup = { ordinary: [], preferred: [] };
   tradedRows.forEach((row) => { rowsByGroup[isPreferredRow(row) ? "preferred" : "ordinary"].push(row); });
@@ -6695,59 +6643,25 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     .map((key) => ({ key, rows: rowsByGroup[key] }))
     .filter((g) => g.rows.length);
 
-  const HEADER = 24;   // sector header strip
-  const GHEADER = 32;  // share-class block header strip
-  const buildSectors = (groupRows, bodyY, bodyH) => {
-    const sectorGroups = {};
-    groupRows.forEach((row) => { (sectorGroups[sectorKeyOf(row.ticker)] ||= []).push(row); });
-    Object.values(sectorGroups).forEach((g) => g.sort((a, b) => weight(b) - weight(a)));
-    const orderedSectors = orderSectors(Object.keys(sectorGroups));
-    const sectorItems = orderedSectors.map((s) => ({
-      sector: s,
-      rows: sectorGroups[s],
-      value: sectorGroups[s].reduce((sum, r) => sum + weight(r), 0),
-    }));
-    const sectorRects = squarifyTreemap(sectorItems, 0, bodyY, size.w, bodyH);
-    return sectorRects.map((sr) => {
-      const header = sr.h > 48 && sr.w > 64;
-      const hdr = header ? HEADER : 0;
-      const stocks = squarifyTreemap(
-        sr.rows.map((r) => ({ row: r, value: weight(r) })),
-        sr.x, sr.y + hdr, sr.w, Math.max(sr.h - hdr, 0)
-      );
-      return { sector: sr.sector, rect: sr, header, headerH: HEADER, stocks };
+  const bubbleGroups = groups.map((group) => {
+    const sectorRows = {};
+    group.rows.forEach((row) => { (sectorRows[sectorKeyOf(row.ticker)] ||= []).push(row); });
+    const sectors = orderSectors(Object.keys(sectorRows)).map((sector) => {
+      const sectorItems = sectorRows[sector].slice().sort((a, b) => bubbleSize(b) - bubbleSize(a));
+      return {
+        sector,
+        rows: sectorItems,
+        avg: avgOf(sectorItems),
+        tally: countedOf(sectorItems),
+      };
     });
-  };
-
-  let layout = [];
-  if (size.w > 12 && size.h > 12 && groups.length) {
-    const showBlockHeaders = groups.length > 1;
-    const bodyTotal = size.h - (showBlockHeaders ? GHEADER * groups.length : 0);
-    groups.forEach((g) => { g.weight = g.rows.reduce((s, r) => s + weight(r), 0); });
-    const totalW = groups.reduce((s, g) => s + g.weight, 0) || 1;
-    let fracs = groups.map((g) => g.weight / totalW);
-    if (groups.length > 1) {
-      fracs = fracs.map((f) => Math.min(0.72, Math.max(0.28, f)));
-      const fsum = fracs.reduce((a, b) => a + b, 0);
-      fracs = fracs.map((f) => f / fsum);
-    }
-    let y = 0;
-    layout = groups.map((g, gi) => {
-      const gh = showBlockHeaders ? GHEADER : 0;
-      const headerRect = { x: 0, y, w: size.w, h: gh };
-      const bodyY = y + gh;
-      const bodyH = fracs[gi] * bodyTotal;
-      const sectors = buildSectors(g.rows, bodyY, bodyH);
-      y = bodyY + bodyH;
-      return { key: g.key, showHeader: showBlockHeaders, headerRect, avg: avgOf(g.rows), count: g.rows.length, sectors };
-    });
-  }
+    return { ...group, avg: avgOf(group.rows), sectors };
+  });
 
   const groupLabel = (key) => key === "preferred"
     ? (lang === "ru" ? "Привилегированные" : lang === "uz" ? "Imtiyozli aksiyalar" : "Preferred")
     : (lang === "ru" ? "Обыкновенные" : lang === "uz" ? "Oddiy aksiyalar" : "Ordinary");
 
-  const GAP = 4;
   // Drawn from the period's own scale, never from a fixed ±5 %: a legend that
   // says «≥ +5%» over a picture where the saturation point is 50 % is not a key,
   // it is a wrong caption. The stops sit just past saturation and at two fifths
@@ -6770,10 +6684,10 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const unavailable = Math.max(0, tradedRows.length - signalRows.length);
   const breadthTotal = Math.max(1, rising + falling + flat + unavailable);
   const mapCopy = lang === "ru"
-    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Площадь = оборот", securities: "бумаг" }
+    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Размер = оборот", securities: "бумаг" }
     : lang === "uz"
-      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Maydon = aylanma", securities: "qog'oz" }
-      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Area = turnover", securities: "securities" };
+      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Hajm = aylanma", securities: "qog'oz" }
+      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Size = turnover", securities: "securities" };
 
   return (
     <div className="heatmap-wrap">
@@ -6815,104 +6729,79 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         </div>
       </div>
 
-      <div className="heatmap-tree" ref={wrapRef}>
-        {layout.map((group) => (
-          <React.Fragment key={group.key}>
-            {group.showHeader && (
-              <div className={`heatmap-group-label is-${group.key}`}
-                style={{ left: group.headerRect.x, top: group.headerRect.y, width: group.headerRect.w, height: group.headerRect.h }}>
-                <span className="hgl-name">{groupLabel(group.key)}</span>
-                <span className="hgl-count">{group.count} {mapCopy.securities}</span>
-                {group.avg !== null && (
-                  <span className={`htl-avg tone-${group.avg > 0.1 ? "good" : group.avg < -0.1 ? "danger" : "neutral"}`}>{formatPct(group.avg)}</span>
-                )}
+      <div className="heatmap-bubble-map">
+        {bubbleGroups.map((group) => (
+          <section className={`heatmap-bubble-group is-${group.key}`} key={group.key}>
+            <header className="heatmap-bubble-group-head">
+              <div>
+                <span className="heatmap-bubble-group-mark" />
+                <h3>{groupLabel(group.key)}</h3>
+                <span>{group.rows.length} {mapCopy.securities}</span>
               </div>
-            )}
-            {group.sectors.map((sec) => {
-              const label = sectorLabel(lang, sec.sector);
-              // Turnover-weighted, over priced tiles only — the same rule as the
-              // block header and the server's own aggregate (ТЗ §9).
-              const sectorRows = sec.stocks.map((s) => s.row);
-              const avg = avgOf(sectorRows);
-              const tally = countedOf(sectorRows);
-              return (
-                <React.Fragment key={`${group.key}-${sec.sector}`}>
-                  {sec.header && (
-                    <div className="heatmap-tree-label" style={{ left: sec.rect.x, top: sec.rect.y, width: sec.rect.w, height: sec.headerH }}>
-                      <span>{label}</span>
-                      {avg !== null && (
-                        <>
-                          <span className={`htl-avg tone-${avg > 0.1 ? "good" : avg < -0.1 ? "danger" : "neutral"}`}>{formatPct(avg)}</span>
-                          {/* "12 из 21" — how many tiles the number rests on. */}
-                          {tally.counted < tally.total && (
-                            <span className="htl-count" title={lang === "ru"
-                              ? "учтены только бумаги с ценой, вес по обороту"
-                              : lang === "uz" ? "faqat narxli qog'ozlar, aylanma bo'yicha vazn"
-                              : "priced securities only, weighted by turnover"}>
-                              {tally.counted} {lang === "ru" ? "из" : lang === "uz" ? "dan" : "of"} {tally.total}
-                            </span>
-                          )}
-                        </>
-                      )}
+              {group.avg !== null && (
+                <strong className={`tone-${group.avg > flatBand ? "good" : group.avg < -flatBand ? "danger" : "neutral"}`}>
+                  {formatPct(group.avg)}
+                </strong>
+              )}
+            </header>
+
+            <div className="heatmap-sector-lanes">
+              {group.sectors.map((sec) => (
+                <section className="heatmap-sector-lane" key={`${group.key}-${sec.sector}`}>
+                  <header className="heatmap-sector-head">
+                    <div>
+                      <h4>{sectorLabel(lang, sec.sector)}</h4>
+                      <span>{sec.tally.total} {mapCopy.securities}</span>
                     </div>
-                  )}
-                  {sec.stocks.map((st) => {
-                    const row = st.row;
-                    const status = tileStatus(row);
-                    const tileStyle = heatmapTileStyle(row.changePercent, fullScale);
-                    const isNeutral = !tileStyle.background;
-                    // ТЗ §9: a tile with no price gets its own look, not the
-                    // neutral grey that reads as "unchanged"; a tile resting on
-                    // fewer than five trades is framed so "+20 %" cannot be read
-                    // without also reading "1 trade, 1 share".
-                    const statusClass = status === "no_price" ? " is-no-price"
-                      : status === "not_traded" ? " is-not-traded"
-                      : status === "inactive" ? " is-inactive" : "";
-                    const confClass = lowConfidence(row) ? " is-low-confidence" : "";
-                    const directionClass = row.changePercent > flatBand ? " is-up"
-                      : row.changePercent < -flatBand ? " is-down" : " is-flat";
-                    const w = st.w - GAP, h = st.h - GAP;
-                    if (w < 1 || h < 1) return null;
-                    const tickerSize = Math.max(9, Math.min(Math.min(w, h) / 3.1, w / 4.5, 21));
-                    const showTicker = w > 30 && h > 17;
-                    const showPct = w > 36 && h > 34;
-                    const showName = w > 92 && h > 60;
-                    const showVolume = w > 112 && h > 92 && Number.isFinite(row.stockVolume);
-                    const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
-                    return (
-                      <button
-                        key={row.ticker}
-                        type="button"
-                        className={`heatmap-tree-tile${isNeutral ? " is-neutral" : ""}${statusClass}${confClass}${directionClass}`}
-                        style={{ left: st.x + GAP / 2, top: st.y + GAP / 2, width: w, height: h, ...tileStyle }}
-                        aria-label={`${row.ticker}, ${companyName}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
-                        onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
-                        onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
-                        onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
-                        onFocus={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHover({ ticker: row.ticker, row, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
-                        }}
-                        onBlur={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
-                      >
-                        {showTicker && <span className="htt-ticker" style={{ fontSize: tickerSize }}>{row.ticker}</span>}
-                        {showName && <span className="htt-name">{heatmapShortName(companyName)}</span>}
-                        {/* A tile with no session shows «—», not «0 %». The dormant
-                            listings carry their last-known price in both fields, so the
-                            percent is a price minus itself — see heatmap.classify_tile. */}
-                        {showPct && (
-                          <span className="htt-pct" style={{ fontSize: tickerSize * 0.76 }}>
-                            {status === "ok" ? formatPct(row.changePercent) : "—"}
-                          </span>
-                        )}
-                        {showVolume && <span className="htt-volume">{formatCompactVolume(row.stockVolume, lang)} UZS</span>}
-                      </button>
-                    );
-                  })}
-                </React.Fragment>
-              );
-            })}
-          </React.Fragment>
+                    {sec.avg !== null && (
+                      <strong className={`tone-${sec.avg > flatBand ? "good" : sec.avg < -flatBand ? "danger" : "neutral"}`}>
+                        {formatPct(sec.avg)}
+                      </strong>
+                    )}
+                  </header>
+
+                  <div className="heatmap-bubble-field">
+                    {sec.rows.map((row) => {
+                      const status = tileStatus(row);
+                      const bubbleStyle = heatmapTileStyle(row.changePercent, fullScale);
+                      const isNeutral = !bubbleStyle.background;
+                      const statusClass = status === "no_price" ? " is-no-price"
+                        : status === "not_traded" ? " is-not-traded"
+                        : status === "inactive" ? " is-inactive" : "";
+                      const confClass = lowConfidence(row) ? " is-low-confidence" : "";
+                      const directionClass = row.changePercent > flatBand ? " is-up"
+                        : row.changePercent < -flatBand ? " is-down" : " is-flat";
+                      const diameter = bubbleSize(row);
+                      const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
+                      const showName = diameter >= 92;
+                      const tickerFont = Math.max(8, Math.min(15, diameter / Math.max(String(row.ticker || "").length * 0.72, 4)));
+                      return (
+                        <button
+                          key={row.ticker}
+                          type="button"
+                          className={`heatmap-bubble${isNeutral ? " is-neutral" : ""}${statusClass}${confClass}${directionClass}`}
+                          style={{ width: diameter, height: diameter, "--bubble-ticker": `${tickerFont}px`, ...bubbleStyle }}
+                          aria-label={`${row.ticker}, ${companyName}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
+                          onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
+                          onMouseEnter={(e) => setHover({ ticker: row.ticker, row, x: e.clientX, y: e.clientY })}
+                          onMouseLeave={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
+                          onFocus={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setHover({ ticker: row.ticker, row, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                          }}
+                          onBlur={() => setHover((h) => (h && h.ticker === row.ticker ? null : h))}
+                        >
+                          <span className="hmb-ticker">{row.ticker}</span>
+                          <span className="hmb-pct">{status === "ok" ? formatPct(row.changePercent) : "—"}</span>
+                          {showName && <span className="hmb-name">{heatmapShortName(companyName)}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
 
