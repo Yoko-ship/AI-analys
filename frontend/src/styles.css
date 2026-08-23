@@ -9681,6 +9681,31 @@ body[data-theme="dark"] .market-view-toggle button.active {
     var(--tile-fill);
 }
 
+/* Movement-sized cells can legitimately collapse to a few pixels. At that
+   scale, labels and confidence/preferred markers turn into visual noise. Keep
+   the cell itself hoverable, but render it as an undecorated colour sample. */
+.heatmap-tree-tile.is-micro,
+.heatmap-tree-tile.is-micro.is-preferred,
+.heatmap-tree-tile.is-micro.is-low-confidence {
+  gap: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.heatmap-tree-tile.is-micro::before,
+.heatmap-tree-tile.is-micro.is-low-confidence::before {
+  content: none;
+  display: none;
+}
+
+.heatmap-tree-tile.is-micro:hover,
+.heatmap-tree-tile.is-micro.is-active {
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
 .htt-ticker,
 .htt-name,
 .htt-pct,
