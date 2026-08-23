@@ -905,6 +905,25 @@ html[data-theme="dark"] .market-layout .market-table th {
   object-position: left center;
 }
 
+/* A transparent logo is not necessarily a light logo: several official marks
+   use navy, charcoal, or forest green and disappear directly on the dark row.
+   Give every real Market logo the same restrained cool-neutral backing in dark
+   mode. This keeps brand colours intact and avoids ticker-specific filters. */
+html[data-theme="dark"] .market-layout .market-ticker-cell .chip-logo,
+html[data-theme="dark"] .market-layout .market-movers-tk .chip-logo {
+  background: linear-gradient(145deg, #ffffff 0%, #eef2f7 100%);
+  border: 1px solid rgba(218, 225, 238, 0.24);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
+}
+
+html[data-theme="dark"] .market-layout .market-ticker-cell .chip-logo {
+  padding: 3px;
+}
+
+html[data-theme="dark"] .market-layout .market-movers-tk .chip-logo {
+  padding: 2px;
+}
+
 .market-layout .market-fav-btn {
   padding: 1px;
   font-size: 1rem;
