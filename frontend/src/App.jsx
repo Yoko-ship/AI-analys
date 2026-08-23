@@ -6874,7 +6874,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                     const w = st.w - GAP, h = st.h - GAP;
                     if (w < 1 || h < 1) return null;
                     const tickerSize = Math.max(9, Math.min(Math.min(w, h) / 3.1, w / 4.5, 21));
-                    const showTicker = w > 24 && h > 17;
+                    const showTicker = w > 30 && h > 17;
                     const showPct = w > 36 && h > 34;
                     const showName = w > 92 && h > 60;
                     const showVolume = w > 112 && h > 92 && Number.isFinite(row.stockVolume);
