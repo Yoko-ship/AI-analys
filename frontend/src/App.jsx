@@ -6844,9 +6844,10 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                 const row = stock.row;
                 const status = tileStatus(row);
                 const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
-                const width = stock.w - TREEMAP_GAP;
-                const height = stock.h - TREEMAP_GAP;
-                if (width < 1 || height < 1) return null;
+                const tileGap = Math.min(TREEMAP_GAP, stock.w * 0.35, stock.h * 0.35);
+                const width = stock.w - tileGap;
+                const height = stock.h - tileGap;
+                if (width <= 0 || height <= 0) return null;
                 const tickerSize = Math.max(8, Math.min(Math.min(width, height) / 3.1, width / 4.7, 21));
                 const showTicker = width > 25 && height > 18;
                 const showPercent = width > 42 && height > 34;
@@ -6860,8 +6861,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                     className={`heatmap-tree-tile${active ? " is-active" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
                     type="button"
                     style={{
-                      left: stock.x + TREEMAP_GAP / 2,
-                      top: stock.y + TREEMAP_GAP / 2,
+                      left: stock.x + tileGap / 2,
+                      top: stock.y + tileGap / 2,
                       width,
                       height,
                       "--tile-fill": status === "ok" ? heatmapColor(row.changePercent, fullScale) : undefined,
