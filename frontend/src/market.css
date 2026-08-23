@@ -896,6 +896,15 @@ html[data-theme="dark"] .market-layout .market-table th {
   font-size: 0.9rem;
 }
 
+/* Some issuers only publish a long horizontal wordmark. In a compact Market
+   badge, show its leading emblem at native scale instead of shrinking the
+   entire wordmark to an unreadable strip. Other pages keep the full logo. */
+.market-layout .market-ticker-cell .chip-logo--compact-mark,
+.market-layout .market-movers-tk .chip-logo--compact-mark {
+  object-fit: cover;
+  object-position: left center;
+}
+
 .market-layout .market-fav-btn {
   padding: 1px;
   font-size: 1rem;

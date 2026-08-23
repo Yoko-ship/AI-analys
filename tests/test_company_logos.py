@@ -19,7 +19,7 @@ def test_catalog_overlays_current_logo_registry_on_read(tmp_path, monkeypatch) -
 
     security = securities_catalog.get_securities_map()["KFSK"]
 
-    assert security["logo_url"] == "/logos/KFSK.png"
+    assert security["logo_url"] == "/logos/KFSK_MARK.svg"
 
 
 def test_preferred_share_uses_the_same_issuer_logo() -> None:
