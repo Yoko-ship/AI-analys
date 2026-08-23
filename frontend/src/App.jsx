@@ -16152,20 +16152,6 @@ function MarketView({
                   : "Бумаги без сделок более 90 дней. Цена — их последнее закрытие, перенесённое вперёд: дневного изменения нет, и в капитализацию рынка выше они не входят."}
             </p>
           )}
-          {/* What the table's numbers ARE once a period is chosen. Every volume
-              column is that period's sessions added up, so a reader who takes a
-              figure off this screen knows whether it is a morning or a year —
-              and which two figures deliberately stay «today's», because a stock
-              measured over a period is still measured at its end. */}
-          {windowed && (
-            <p className="market-dormant-note">
-              {lang === "en"
-                ? `Open, high, low, volumes, the average share price, the average and the largest trade are the selected period (${changePeriodLabel(changePeriod, lang, "label")}) — its sessions summed, counting only the ones the security actually traded in. Sessions banked before the day statistics existed carry no trade count and no largest deal, and those cells show a dash rather than a nought. The quote, market cap and the multiples are as of today: they are what the security is worth now, not over a stretch of calendar.`
-                : lang === "uz"
-                  ? `Ochilish, maks., min., hajmlar, o'rtacha aksiya narxi, o'rtacha va eng katta bitim — tanlangan davr (${changePeriodLabel(changePeriod, lang, "label")}) uchun: uning sessiyalari yig'indisi, faqat qog'oz haqiqatan savdo qilingan sessiyalar. Kun statistikasi paydo bo'lishidan oldin saqlangan sessiyalarda bitimlar soni va eng katta bitim yo'q — u yerda chiziqcha turadi. Kotirovka, kapitalizatsiya va multiplikatorlar — bugungi holatga.`
-                  : `Открытие, макс., мин., объёмы, средняя цена акции, средняя и крупнейшая сделка — за выбранный период (${changePeriodLabel(changePeriod, lang, "label")}): это сумма сессий внутри него, и только тех, в которых бумага действительно торговалась. У сессий, сохранённых до появления дневной статистики, нет числа сделок и крупнейшей сделки — там прочерк, а не ноль. Котировка, капитализация и мультипликаторы — на сегодня: это то, сколько бумага стоит сейчас, а не за отрезок календаря.`}
-            </p>
-          )}
           {/* The NEGO board's own contract, stated where it is read: which
               columns are negotiated figures, which are still the session's, and
               why the two are never added together. */}
