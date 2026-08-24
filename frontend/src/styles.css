@@ -13526,7 +13526,7 @@ html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
   --newsdesk-line: color-mix(in srgb, var(--text) 15%, transparent);
   --newsdesk-line-strong: color-mix(in srgb, var(--text) 35%, transparent);
   --newsdesk-soft: color-mix(in srgb, var(--text) 4%, var(--panel));
-  --newsdesk-live: #e4515b;
+  --newsdesk-live: var(--accent);
 }
 .newsdesk-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; padding: 8px 0 22px; }
 .newsdesk-head h1 { margin: 0; color: var(--text); font-size: clamp(34px, 4.2vw, 52px); line-height: 1; letter-spacing: -.045em; font-weight: 700; }
