@@ -702,9 +702,18 @@ function NewsDeskPriorityStory({ item, language, variant, onOpen }) {
   const inApp = Boolean(item.id && onOpen);
   const tickers = newsDeskTickers(item);
   const TitleTag = isLead ? "h2" : "h3";
+  const [imgOk, setImgOk] = React.useState(true);
+  React.useEffect(() => setImgOk(true), [item.image_url]);
+  const art = Boolean(item.image_url) && imgOk;
   return (
-    <a className={`newsdesk-priority-story newsdesk-priority-story--${variant}`} href={newsArticlePath(item)}
+    <a className={`newsdesk-priority-story newsdesk-priority-story--${variant}${art ? " has-art" : ""}`} href={newsArticlePath(item)}
       {...(inApp ? { onClick: interceptNav(() => onOpen(item)) } : { target: "_blank", rel: "noopener noreferrer" })}>
+      {art && (
+        <figure className="newsdesk-priority-picture">
+          <img src={item.image_url} alt="" loading={isLead ? "eager" : "lazy"}
+            decoding="async" onError={() => setImgOk(false)} />
+        </figure>
+      )}
       <div className="newsdesk-meta">
         {isLead && <span>{dtx.main}</span>}
         <span className="newsdesk-category">{etx.cat[item.type] || item.type}</span>
@@ -734,10 +743,18 @@ function NewsDeskRow({ item, language, onOpen }) {
   const toneCls = _TONE_CLS[item.tone] || "neu";
   const tickers = newsDeskTickers(item);
   const inApp = Boolean(item.id && onOpen);
+  const [imgOk, setImgOk] = React.useState(true);
+  React.useEffect(() => setImgOk(true), [item.image_url]);
+  const art = Boolean(item.image_url) && imgOk;
   return (
-    <a className="newsdesk-row" href={newsArticlePath(item)}
+    <a className={`newsdesk-row${art ? " has-art" : ""}`} href={newsArticlePath(item)}
       {...(inApp ? { onClick: interceptNav(() => onOpen(item)) } : { target: "_blank", rel: "noopener noreferrer" })}>
       <time>{item.published_at ? newsRelTime(item.published_at, language) : "—"}</time>
+      {art && (
+        <span className="newsdesk-row-picture">
+          <img src={item.image_url} alt="" loading="lazy" decoding="async" onError={() => setImgOk(false)} />
+        </span>
+      )}
       <span className="newsdesk-row-copy">
         <span className="newsdesk-row-kicker">
           <span className="newsdesk-row-category">{etx.cat[item.type] || item.type}</span>

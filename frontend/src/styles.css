@@ -13548,6 +13548,9 @@ html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
 .newsdesk-priority { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(230px, .72fr) minmax(210px, .58fr); border-bottom: 1px solid var(--newsdesk-line-strong); padding-bottom: 26px; }
 .newsdesk-priority-story { display: block; min-width: 0; color: inherit; text-decoration: none; }
 .newsdesk-priority-story--lead { padding-right: 28px; }
+.newsdesk-priority-picture { width: 100%; height: 132px; margin: 0 0 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.newsdesk-priority-story--lead .newsdesk-priority-picture { height: clamp(220px, 23vw, 340px); margin-bottom: 18px; }
+.newsdesk-priority-picture img { width: 100%; height: 100%; object-fit: cover; }
 .newsdesk-priority-story h2, .newsdesk-priority-story h3 { color: var(--text); }
 .newsdesk-priority-story:hover h2, .newsdesk-priority-story:hover h3 { color: var(--accent); }
 .newsdesk-meta { display: flex; flex-wrap: wrap; gap: 7px 10px; align-items: center; color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
@@ -13588,11 +13591,15 @@ html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
 .newsdesk-feed-head h2 { margin: 0; color: var(--text); font-size: 18px; line-height: 1.2; font-weight: 800; }
 .newsdesk-feed-head > span:last-child { margin-left: auto; color: var(--muted); font-size: 12px; }
 .newsdesk-row { position: relative; display: grid; grid-template-columns: 90px minmax(0, 1fr) 124px; gap: 20px; align-items: start; padding: 20px; border-bottom: 1px solid var(--newsdesk-line); color: inherit; text-decoration: none; transition: background-color .14s ease; }
+.newsdesk-row.has-art { grid-template-columns: 90px 132px minmax(0, 1fr) 124px; }
 .newsdesk-row:last-child { border-bottom: 0; }
 .newsdesk-row:hover { background: var(--accent-light); }
 .newsdesk-row:hover .newsdesk-row-copy strong { color: var(--accent); }
 .newsdesk-row:hover .newsdesk-row-arrow { opacity: 1; transform: translateX(2px); }
 .newsdesk-row time { padding-top: 3px; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 11.5px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+.newsdesk-row-picture { display: block; width: 132px; height: 84px; overflow: hidden; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); }
+.newsdesk-row-picture img { width: 100%; height: 100%; object-fit: cover; transition: transform .22s ease; }
+.newsdesk-row:hover .newsdesk-row-picture img { transform: scale(1.025); }
 .newsdesk-row-copy { min-width: 0; }
 .newsdesk-row-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; margin-bottom: 7px; font-size: 11px; font-weight: 750; letter-spacing: .055em; text-transform: uppercase; }
 .newsdesk-row-category { color: var(--muted); }
@@ -13630,6 +13637,9 @@ html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
   .newsdesk-mood-score { gap: 12px; padding: 0; border: 0; }
   .newsdesk-mood-row { display: grid; gap: 3px; padding: 0; border: 0; }
   .newsdesk-mood > small { margin: 0; }
+  .newsdesk-feed-layout { grid-template-columns: 1fr; }
+  .newsdesk-side { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .newsdesk-side-section + .newsdesk-side-section { margin: 0; padding: 0; border-top: 0; }
 }
 @media (max-width: 860px) {
   .newsdesk-head { align-items: flex-start; }
@@ -13639,9 +13649,6 @@ html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
   .newsdesk-priority-story--secondary { margin: 0; padding: 0; border-bottom: 0; }
   .newsdesk-mood { grid-template-columns: 1fr repeat(3, auto); }
   .newsdesk-mood > small { display: none; }
-  .newsdesk-feed-layout { grid-template-columns: 1fr; }
-  .newsdesk-side { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
-  .newsdesk-side-section + .newsdesk-side-section { margin: 0; padding: 0; border-top: 0; }
 }
 @media (max-width: 620px) {
   .newsdesk-head { display: block; padding-top: 2px; }
@@ -13656,9 +13663,14 @@ html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
   .newsdesk-mood h2 { grid-column: 1 / -1; }
   .newsdesk-feed-head { min-height: 54px; padding: 14px 16px; }
   .newsdesk-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; padding: 17px 16px; }
+  .newsdesk-row.has-art { grid-template-columns: 104px minmax(0, 1fr) auto; }
   .newsdesk-row time { grid-column: 1; grid-row: 1; }
   .newsdesk-row-end { grid-column: 2; grid-row: 1; }
   .newsdesk-row-copy { grid-column: 1 / 3; grid-row: 2; }
+  .newsdesk-row.has-art time { grid-column: 1 / 3; }
+  .newsdesk-row.has-art .newsdesk-row-end { grid-column: 3; }
+  .newsdesk-row.has-art .newsdesk-row-picture { grid-column: 1; grid-row: 2; width: 104px; height: 76px; }
+  .newsdesk-row.has-art .newsdesk-row-copy { grid-column: 2 / 4; grid-row: 2; }
   .newsdesk-row-copy strong { font-size: 15.5px; }
   .newsdesk-row-arrow { display: none; }
   .newsdesk-side { grid-template-columns: 1fr; }
