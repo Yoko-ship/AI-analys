@@ -738,13 +738,18 @@ function NewsDeskRow({ item, language, onOpen }) {
     <a className="newsdesk-row" href={newsArticlePath(item)}
       {...(inApp ? { onClick: interceptNav(() => onOpen(item)) } : { target: "_blank", rel: "noopener noreferrer" })}>
       <time>{item.published_at ? newsRelTime(item.published_at, language) : "—"}</time>
-      <span className="newsdesk-row-category">{etx.cat[item.type] || item.type}</span>
       <span className="newsdesk-row-copy">
+        <span className="newsdesk-row-kicker">
+          <span className="newsdesk-row-category">{etx.cat[item.type] || item.type}</span>
+          {tickers.length > 0 && <span className="newsdesk-row-tickers">{tickers.slice(0, 2).join(" · ")}</span>}
+        </span>
         <strong>{head.text}</strong>
         {detail && <small>{detail}</small>}
       </span>
-      <span className="newsdesk-row-tickers">{tickers.length ? tickers.slice(0, 2).join(", ") : "—"}</span>
-      <span className={`newsdesk-row-tone ${toneCls}`}>{etx.tone[item.tone] || item.tone || "—"}</span>
+      <span className="newsdesk-row-end">
+        <span className={`newsdesk-row-tone ${toneCls}`}>{etx.tone[item.tone] || item.tone || "—"}</span>
+        <span className="newsdesk-row-arrow" aria-hidden="true">→</span>
+      </span>
     </a>
   );
 }
@@ -1491,9 +1496,6 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
                 <span className="newsdesk-live-dot" aria-hidden="true" />
                 <h2>{dtx.latest}</h2>
                 <span>{dtx.important}</span>
-              </div>
-              <div className="newsdesk-feed-columns" aria-hidden="true">
-                <span>{dtx.time}</span><span>{dtx.category}</span><span>{dtx.headline}</span><span>{dtx.instrument}</span><span>{dtx.signal}</span>
               </div>
               <div className="newsdesk-rows">
                 {feedItems.map((item, index) => (
