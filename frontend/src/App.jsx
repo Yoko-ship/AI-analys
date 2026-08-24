@@ -16298,6 +16298,7 @@ function MarketView({
 // ---------------------------------------------------------------------------
 
 function PriceSparkline({ points, language }) {
+  const [activeIndex, setActiveIndex] = useState(null);
   if (!points || points.length < 2) return null;
   // The stored endpoint can contain rows in either query order. A chart must
   // always read from the earlier session to the later one; otherwise both the
@@ -16321,6 +16322,48 @@ function PriceSparkline({ points, language }) {
   const tone = last >= first ? "pos" : "neg";
   const firstDate = ordered[0]?.date;
   const lastDate = ordered[ordered.length - 1]?.date;
+  const inspectedIndex = activeIndex == null
+    ? null
+    : Math.max(0, Math.min(activeIndex, ordered.length - 1));
+  const inspectedPoint = inspectedIndex == null ? null : ordered[inspectedIndex];
+  const inspectedClose = inspectedIndex == null ? null : closes[inspectedIndex];
+  const previousClose = inspectedIndex > 0 ? closes[inspectedIndex - 1] : null;
+  const sessionChange = previousClose
+    ? ((inspectedClose - previousClose) / previousClose) * 100
+    : null;
+  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-UZ" : "ru-RU";
+  const chartLabel = language === "en"
+    ? "Interactive price chart. Use the left and right arrow keys to inspect trading sessions."
+    : language === "uz"
+      ? "Interaktiv narx grafigi. Savdo sessiyalarini ko‘rish uchun chap va o‘ng tugmalardan foydalaning."
+      : "Интерактивный график цены. Используйте стрелки влево и вправо для просмотра торговых сессий.";
+  const sessionLabel = language === "en"
+    ? "vs previous session"
+    : language === "uz"
+      ? "oldingi sessiyaga nisbatan"
+      : "к предыдущей сессии";
+
+  const inspectAtPointer = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (!bounds.width) return;
+    const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    setActiveIndex(Math.floor((ratio * (ordered.length - 1)) + 0.5));
+  };
+
+  const inspectWithKeyboard = (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    setActiveIndex((current) => {
+      if (event.key === "Home") return 0;
+      if (event.key === "End") return ordered.length - 1;
+      const start = current == null ? ordered.length - 1 : current;
+      return Math.max(0, Math.min(
+        ordered.length - 1,
+        start + (event.key === "ArrowLeft" ? -1 : 1),
+      ));
+    });
+  };
+
   return (
     <div className="catalog-sparkline">
       <div className="catalog-sparkline-meta">
@@ -16328,16 +16371,62 @@ function PriceSparkline({ points, language }) {
         <span className={`catalog-sparkline-change ${tone}`}>{tone === "pos" ? "+" : ""}{pct}%</span>
         <span className="catalog-sparkline-period muted">{firstDate} – {lastDate}</span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="catalog-sparkline-svg" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="catalog-spk-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--catalog-accent)" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="var(--catalog-accent)" stopOpacity="0.01" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill="url(#catalog-spk-grad)" />
-        <polyline points={polyline} fill="none" stroke="var(--catalog-accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-      </svg>
+      <div
+        className="catalog-sparkline-chart"
+        role="group"
+        tabIndex={0}
+        aria-label={chartLabel}
+        onPointerMove={inspectAtPointer}
+        onPointerDown={inspectAtPointer}
+        onPointerLeave={() => setActiveIndex(null)}
+        onPointerCancel={() => setActiveIndex(null)}
+        onFocus={() => setActiveIndex((current) => current ?? ordered.length - 1)}
+        onBlur={() => setActiveIndex(null)}
+        onKeyDown={inspectWithKeyboard}
+      >
+        <svg viewBox={`0 0 ${W} ${H}`} className="catalog-sparkline-svg" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="catalog-spk-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--catalog-accent)" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="var(--catalog-accent)" stopOpacity="0.01" />
+            </linearGradient>
+          </defs>
+          <path d={areaPath} fill="url(#catalog-spk-grad)" />
+          <polyline points={polyline} fill="none" stroke="var(--catalog-accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          {inspectedIndex != null && (
+            <>
+              <line
+                className="catalog-sparkline-guide"
+                x1={xs[inspectedIndex]}
+                y1={PAD}
+                x2={xs[inspectedIndex]}
+                y2={H}
+              />
+              <circle
+                className="catalog-sparkline-active-dot"
+                cx={xs[inspectedIndex]}
+                cy={ys[inspectedIndex]}
+                r="4"
+              />
+            </>
+          )}
+        </svg>
+        {inspectedPoint && (
+          <div
+            className="catalog-sparkline-tooltip"
+            role="tooltip"
+            style={{ "--catalog-hover-x": `${(xs[inspectedIndex] / W) * 100}%` }}
+          >
+            <span>{formatCatalogDate(inspectedPoint.date, language)}</span>
+            <strong>{inspectedClose.toLocaleString(locale)} сум</strong>
+            {sessionChange != null && (
+              <em className={sessionChange >= 0 ? "pos" : "neg"}>
+                {sessionChange >= 0 ? "+" : ""}{sessionChange.toFixed(2)}% {sessionLabel}
+              </em>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
