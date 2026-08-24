@@ -16431,6 +16431,92 @@ function PriceSparkline({ points, language }) {
   );
 }
 
+function CatalogFilterSelect({ value, onChange, options, label, className = "" }) {
+  const [open, setOpen] = useState(false);
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
+  const [activeIndex, setActiveIndex] = useState(selectedIndex);
+  const listboxId = React.useId();
+  const selectedOption = options[selectedIndex] || options[0];
+
+  useEffect(() => {
+    setActiveIndex(selectedIndex);
+  }, [selectedIndex]);
+
+  const choose = (index) => {
+    const option = options[index];
+    if (!option) return;
+    onChange(option.value);
+    setActiveIndex(index);
+    setOpen(false);
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape") {
+      setOpen(false);
+      return;
+    }
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((current) => {
+        if (event.key === "Home") return 0;
+        if (event.key === "End") return options.length - 1;
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        return Math.max(0, Math.min(options.length - 1, current + direction));
+      });
+      return;
+    }
+    if ((event.key === "Enter" || event.key === " ") && open) {
+      event.preventDefault();
+      choose(activeIndex);
+    }
+  };
+
+  return (
+    <div
+      className={`catalog-filter-control ${open ? "is-open" : ""} ${className}`.trim()}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+    >
+      <button
+        className="catalog-filter-trigger"
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={handleKeyDown}
+      >
+        <span>{selectedOption?.label || label}</span>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+      </button>
+      {open && (
+        <div className="catalog-filter-menu" id={listboxId} role="listbox" aria-label={label}>
+          {options.map((option, index) => (
+            <button
+              key={option.value}
+              className={`${index === activeIndex ? "is-highlighted" : ""} ${option.value === value ? "is-selected" : ""}`.trim()}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              onMouseEnter={() => setActiveIndex(index)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => choose(index)}
+            >
+              <span>{option.label}</span>
+              {option.value === value && (
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7" /></svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CATALOG_TERMINAL_TEXT = {
   ru: {
     eyebrow: "Раскрытие и финансовая отчётность",
@@ -17064,18 +17150,34 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
             aria-label={clg(lang, "searchPlaceholder")}
           />
         </label>
-        <select className="catalog-filter-select" value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)} aria-label={catalogTerminalText(lang, "allSectors")}>
-          <option value="all">{catalogTerminalText(lang, "allSectors")}</option>
-          {catalogSectors.map((sector) => <option key={sector} value={sector}>{sectorLabel(lang, sector)}</option>)}
-        </select>
-        <select className="catalog-filter-select" value={reportFilter} onChange={(e) => setReportFilter(e.target.value)} aria-label={catalogTerminalText(lang, "allForms")}>
-          <option value="all">{catalogTerminalText(lang, "allForms")}</option>
-          {Object.entries(formsObj).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
-        <select className="catalog-filter-select" value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} aria-label={catalogTerminalText(lang, "allYears")}>
-          <option value="all">{catalogTerminalText(lang, "allYears")}</option>
-          {reportYears.map((reportYear) => <option key={reportYear} value={reportYear}>{reportYear}</option>)}
-        </select>
+        <CatalogFilterSelect
+          value={sectorFilter}
+          onChange={setSectorFilter}
+          label={catalogTerminalText(lang, "allSectors")}
+          options={[
+            { value: "all", label: catalogTerminalText(lang, "allSectors") },
+            ...catalogSectors.map((sector) => ({ value: sector, label: sectorLabel(lang, sector) })),
+          ]}
+        />
+        <CatalogFilterSelect
+          value={reportFilter}
+          onChange={setReportFilter}
+          label={catalogTerminalText(lang, "allForms")}
+          options={[
+            { value: "all", label: catalogTerminalText(lang, "allForms") },
+            ...Object.entries(formsObj).map(([key, optionLabel]) => ({ value: key, label: optionLabel })),
+          ]}
+        />
+        <CatalogFilterSelect
+          className="catalog-filter-control-year"
+          value={yearFilter}
+          onChange={setYearFilter}
+          label={catalogTerminalText(lang, "allYears")}
+          options={[
+            { value: "all", label: catalogTerminalText(lang, "allYears") },
+            ...reportYears.map((reportYear) => ({ value: reportYear, label: reportYear })),
+          ]}
+        />
         <span className="catalog-toolbar-count">{filteredComps.length} {catalogTerminalText(lang, "results")}</span>
       </div>
 
@@ -19126,7 +19228,7 @@ function App() {
   };
 
   return (
-    <div className="app-shell-wrap">
+    <div className={`app-shell-wrap view-${activeView}`}>
       <div className="bg-glow bg-glow-a" />
       <div className="bg-glow bg-glow-b" />
 
