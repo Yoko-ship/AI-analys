@@ -195,13 +195,14 @@ test("Новости renders the editorial feed (§3.11)", async ({ page }) => {
   await expect(page.locator(".newsdesk-feed-layout")).toBeVisible();
 });
 
-// The market newsroom is driven by editorial rank and data context. Even when the
-// source supplies a picture, it never becomes a decorative hero that pushes the feed down.
-test("the newsroom hierarchy does not depend on decorative images (§3.11)", async ({ page }) => {
+// Source imagery is part of the newsroom when it exists; filings without an image stay
+// honest and compact instead of receiving a generated placeholder.
+test("the newsroom uses source imagery without inventing placeholders (§3.11)", async ({ page }) => {
   await page.goto("/news");
   await expect(page.locator(".newsdesk-priority-story--lead")).toBeVisible();
   await expect(page.locator(".newsdesk-priority-story--secondary")).toHaveCount(2);
-  await expect(page.locator(".newsdesk-priority img")).toHaveCount(0);
+  await expect(page.locator(".newsdesk-priority-story--lead .newsdesk-priority-picture img")).toHaveCount(1);
+  await expect(page.locator(".newsdesk-priority-story--secondary .newsdesk-priority-picture img")).toHaveCount(0);
 });
 
 test("a story opens on its own /news/{id} page instead of the source site (§3.11)", async ({ page }) => {
