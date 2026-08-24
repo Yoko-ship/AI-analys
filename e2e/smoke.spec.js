@@ -189,32 +189,27 @@ test("navigating to Анализ shows the analysis form", async ({ page }) => {
 test("Новости renders the editorial feed (§3.11)", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Новости", exact: true }).click();
-  await expect(page.locator(".led-head")).toContainText("Новости рынка");
-  await expect(page.locator(".led-lead")).toContainText("Биржа расширяет листинг банков");
-  await expect(page.locator(".led-stack .led-story").first()).toContainText("ЦБ уточнил требования");
-  await expect(page.locator(".led-latest")).toBeVisible();
+  await expect(page.locator(".newsdesk-head")).toContainText("Новости рынка");
+  await expect(page.locator(".newsdesk-priority-story--lead")).toContainText("Биржа расширяет листинг банков");
+  await expect(page.locator(".newsdesk-priority-story--secondary").first()).toContainText("ЦБ уточнил требования");
+  await expect(page.locator(".newsdesk-feed-layout")).toBeVisible();
 });
 
-// Filings and central-bank notices never carry a picture. A card without one gets no
-// figure at all — a coloured block in the photo's place only announces the absence.
-test("a story with no picture renders no figure (§3.11)", async ({ page }) => {
+// The market newsroom is driven by editorial rank and data context. Even when the
+// source supplies a picture, it never becomes a decorative hero that pushes the feed down.
+test("the newsroom hierarchy does not depend on decorative images (§3.11)", async ({ page }) => {
   await page.goto("/news");
-  // The lead has an image, so it keeps its figure...
-  await expect(page.locator(".led-lead .led-figure img")).toBeVisible();
-  // ...while the two imageless stories carry neither a thumb nor the placeholder class.
-  const imageless = page.locator(".led-stack .led-story");
-  await expect(imageless).toHaveCount(2);
-  await expect(page.locator(".led-stack .led-thumb")).toHaveCount(0);
-  await expect(imageless.first()).toHaveClass(/led-noart/);
-  await expect(page.locator(".led-art-figure")).toHaveCount(0);
+  await expect(page.locator(".newsdesk-priority-story--lead")).toBeVisible();
+  await expect(page.locator(".newsdesk-priority-story--secondary")).toHaveCount(2);
+  await expect(page.locator(".newsdesk-priority img")).toHaveCount(0);
 });
 
 test("a story opens on its own /news/{id} page instead of the source site (§3.11)", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Новости", exact: true }).click();
   // The card is a real link to our own route, not to the outlet.
-  await expect(page.locator(".led-lead")).toHaveAttribute("href", "/news/11");
-  await page.locator(".led-lead").click();
+  await expect(page.locator(".newsdesk-priority-story--lead")).toHaveAttribute("href", "/news/11");
+  await page.locator(".newsdesk-priority-story--lead").click();
   await expect(page).toHaveURL(/\/news\/11$/);
   await expect(page.locator(".led-art-title")).toContainText("Биржа расширяет листинг банков");
   await expect(page.locator(".led-art-lead")).toContainText("Краткое изложение первой новости");
@@ -236,7 +231,7 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
   await expect(page.locator(".led-art-title")).toContainText("ЦБ уточнил требования");
   await page.locator(".led-back").click();
   await expect(page).toHaveURL(/\/news$/);
-  await expect(page.locator(".led-lead")).toBeVisible();
+  await expect(page.locator(".newsdesk-priority-story--lead")).toBeVisible();
 });
 
 test("the story page shows what the price did around it, and hedges it (§3.11)", async ({ page }) => {
@@ -403,14 +398,14 @@ for (const [lang, expected] of [
       try { localStorage.setItem("uz_stock_analyzer_language", l); } catch { /* ignore */ }
     }, lang);
     await page.goto("/news");
-    await expect(page.locator(".led-lead-title")).toHaveText(expected);
+    await expect(page.locator(".newsdesk-priority-story--lead h2")).toHaveText(expected);
     if (lang !== "ru") {
       // The summary is now the headline, so it must not also be printed as the dek…
-      await expect(page.locator(".led-dek:not(.led-orig)")).toHaveCount(0);
+      await expect(page.locator(".newsdesk-priority-story--lead > p:not(.newsdesk-original)")).toHaveCount(0);
       // …and the publisher's own Russian headline stays on the card as attribution,
       // badged with the language it is in.
-      await expect(page.locator(".led-orig")).toContainText("ЦБ сохранил ставку");
-      await expect(page.locator(".led-orig .led-lang")).toHaveText("ru");
+      await expect(page.locator(".newsdesk-original")).toContainText("ЦБ сохранил ставку");
+      await expect(page.locator(".newsdesk-original span")).toHaveText("ru");
     }
   });
 }
