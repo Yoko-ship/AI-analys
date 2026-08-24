@@ -11946,6 +11946,53 @@ body[data-theme="light"] .catalog-main { border: 0; background: transparent; }
 .catalog-price-card .catalog-sparkline { flex: 1; justify-content: space-between; padding-top: 8px; }
 .catalog-price-card .catalog-sparkline-price { color: var(--catalog-ink); font-size: 1rem; }
 .catalog-price-card .catalog-sparkline-svg { height: 86px; }
+.catalog-sparkline-chart {
+  position: relative;
+  min-height: 86px;
+  border-radius: 6px;
+  cursor: crosshair;
+  outline: none;
+  touch-action: pan-y;
+}
+.catalog-sparkline-chart:focus-visible { box-shadow: 0 0 0 2px var(--catalog-accent-soft), 0 0 0 3px var(--catalog-accent); }
+.catalog-sparkline-chart .catalog-sparkline-svg { height: 86px; }
+.catalog-sparkline-guide {
+  stroke: var(--catalog-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.72;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+.catalog-sparkline-active-dot {
+  fill: var(--catalog-surface);
+  stroke: var(--catalog-accent);
+  stroke-width: 2.5;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+.catalog-sparkline-tooltip {
+  position: absolute;
+  z-index: 2;
+  top: 2px;
+  left: clamp(76px, var(--catalog-hover-x), calc(100% - 76px));
+  display: grid;
+  min-width: 132px;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid var(--catalog-border);
+  border-radius: 7px;
+  background: var(--catalog-surface);
+  box-shadow: 0 9px 26px rgba(15, 23, 42, 0.18);
+  color: var(--catalog-ink);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.catalog-sparkline-tooltip span { color: var(--catalog-muted); font-size: 0.65rem; }
+.catalog-sparkline-tooltip strong { font-size: 0.78rem; line-height: 1.25; }
+.catalog-sparkline-tooltip em { font-size: 0.64rem; font-style: normal; white-space: nowrap; }
+.catalog-sparkline-tooltip em.pos { color: #10b981; }
+.catalog-sparkline-tooltip em.neg { color: #ef6b67; }
 .catalog-sparkline-change.pos { color: #10b981; }
 .catalog-sparkline-change.neg { color: #ef6b67; }
 .catalog-chart-loading,
