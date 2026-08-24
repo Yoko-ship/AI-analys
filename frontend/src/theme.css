@@ -231,6 +231,34 @@ html[data-theme="dark"] body .topbar-nav-btn:hover {
   color: var(--text);
 }
 
+/* The newsroom is deliberately monochrome. Its interactive accent is ink, not
+   brand green; positive/negative information remains distinguishable through
+   warm amber and red. The surface tokens still come directly from Landing. */
+html[data-theme="light"] body:has(.newsdesk) {
+  --accent: #202522;
+  --accent-hover: #0f1210;
+  --accent-light: rgba(16, 22, 19, 0.07);
+  --accent-glow: rgba(16, 22, 19, 0.14);
+  --border-focus: rgba(32, 37, 34, 0.45);
+  --success: #a66f19;
+  --success-light: rgba(166, 111, 25, 0.10);
+}
+
+html[data-theme="dark"] body:has(.newsdesk) {
+  --accent: #e5e9e6;
+  --accent-hover: #ffffff;
+  --accent-light: rgba(255, 255, 255, 0.08);
+  --accent-glow: rgba(255, 255, 255, 0.15);
+  --border-focus: rgba(229, 233, 230, 0.48);
+  --success: #e1ad58;
+  --success-light: rgba(225, 173, 88, 0.13);
+}
+
+html[data-theme="dark"] body:has(.newsdesk) .topbar-nav-btn.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2f4f2;
+}
+
 /* The 1160px measure lives in a TRACK now, not on the element itself. Editorial
    copy wants a newspaper column; the securities-events feed is a table of rows
    and wants the page. Both fit in one grid: everything sits in the centre track,
