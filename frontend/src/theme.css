@@ -220,66 +220,15 @@ body[data-theme="dark"] {
 .compare-export-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ── News section (ТЗ §3.2) — professional financial-news layout ────────────── */
-/* Keep News in the same cobalt/emerald product family as Market. Interaction
-   is cobalt; green and red remain reserved for positive/negative signals. */
-html[data-theme="light"] body:has(.newsdesk) {
-  --bg: #f6f7fb;
-  --bg-2: #eef1f7;
-  --bg-glass: rgba(255, 255, 255, 0.76);
-  --surface-2: #f0f2f8;
-  --panel: #ffffff;
-  --panel-strong: #ffffff;
-  --panel-elevated: #ffffff;
-  --border: rgba(31, 43, 75, 0.10);
-  --border-hover: rgba(31, 43, 75, 0.19);
-  --border-focus: rgba(74, 96, 210, 0.52);
-  --text: #111827;
-  --text-secondary: #3f4a60;
-  --muted: #687386;
-  --muted-light: #9ba4b4;
-  --accent: #4a60d2;
-  --accent-hover: #394fc2;
-  --accent-light: rgba(74, 96, 210, 0.09);
-  --accent-glow: rgba(74, 96, 210, 0.17);
-  --success: #0c976e;
-  --success-light: rgba(12, 151, 110, 0.10);
-  --danger: #d95462;
-  --danger-light: rgba(217, 84, 98, 0.10);
-}
+/* News intentionally inherits the same neutral paper / true-black palette as
+   the landing page. Data signals keep the product accent; page chrome does not
+   introduce a separate blue theme. */
 
-html[data-theme="dark"] body:has(.newsdesk) {
-  --bg: #090b10;
-  --bg-2: #0f121a;
-  --bg-glass: rgba(13, 16, 24, 0.78);
-  --surface-2: #141823;
-  --panel: #0f131c;
-  --panel-strong: #0c0f17;
-  --panel-elevated: #171c28;
-  --border: rgba(184, 196, 227, 0.11);
-  --border-hover: rgba(184, 196, 227, 0.20);
-  --border-focus: rgba(132, 153, 255, 0.58);
-  --text: #f2f5fb;
-  --text-secondary: #bdc6d8;
-  --muted: #8d97aa;
-  --muted-light: #596274;
-  --accent: #8499ff;
-  --accent-hover: #9eaeff;
-  --accent-light: rgba(132, 153, 255, 0.13);
-  --accent-glow: rgba(132, 153, 255, 0.22);
-  --success: #32d49a;
-  --success-light: rgba(50, 212, 154, 0.13);
-  --danger: #ff7481;
-  --danger-light: rgba(255, 116, 129, 0.13);
-}
-
-html[data-theme="dark"] body:has(.newsdesk) .topbar-nav-btn:hover {
-  background: var(--accent-light);
+/* Navigation hover is a neutral black surface in dark mode. Green is reserved
+   for live data and positive signals, not for the menu background. */
+html[data-theme="dark"] body .topbar-nav-btn:hover {
+  background: #151816;
   color: var(--text);
-}
-
-html[data-theme="dark"] body:has(.newsdesk) .topbar-nav-btn.active {
-  background: var(--accent-light);
-  color: var(--accent);
 }
 
 /* The 1160px measure lives in a TRACK now, not on the element itself. Editorial
