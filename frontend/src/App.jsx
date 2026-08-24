@@ -206,13 +206,19 @@ const NEWS_TX = {
     subtitle: "Главные новости экономики, рынка и эмитентов Узбекистана — собраны из узбекских источников и отсортированы ИИ по возможному влиянию на котировки.",
     latest: "Свежее", empty: "Пока нет свежих новостей. Загляните позже.",
     loadingText: "Загружаем ленту…", error: "Не удалось загрузить новости.",
-    tabs: { all: "Все", economy: "Экономика", corporate: "Корпоративные", calendar: "Календарь" },
+    tabs: { all: "Все", economy: "Экономика", corporate: "Корпоративные", reporting: "Отчётность", regulator: "Регулятор", calendar: "Календарь" },
     tabHint: {
       all: "Экономика и эмитенты в одной ленте",
       economy: "Макроэкономика, ставки и регулирование — то, что двигает рынок целиком",
       corporate: "Официальные раскрытия эмитентов — сообщения и отчётность с openinfo.uz",
+      reporting: "Финансовая отчётность и выплаты по ценным бумагам",
+      regulator: "Решения государства и регуляторов, влияющие на рынок",
       calendar: "Что впереди: заявленные собрания акционеров и объявленные дивиденды — по данным openinfo.uz",
     },
+    desk: { updated: "Обновлено", stories: "материалов", main: "Главная тема", marketNow: "Рынок сейчас", days30: "30 дней",
+      positive: "Позитивных", neutral: "Нейтральных", negative: "Негативных", latest: "Последние новости",
+      important: "важное и свежее", time: "Время", category: "Категория", headline: "Заголовок", instrument: "Инструмент",
+      signal: "Сигнал", focus: "В фокусе", events: "событий", calendar: "Календарь", calendarCopy: "Собрания акционеров и дивидендные даты", openCalendar: "Открыть календарь" },
     emptyTab: "В этом разделе пока пусто — посмотрите «Все».",
     instruments: { all: "Все бумаги", stock: "Акции", bond: "Облигации" },
     instrumentHint: {
@@ -229,13 +235,19 @@ const NEWS_TX = {
     subtitle: "The economy, market and issuer news that matters in Uzbekistan — gathered from Uzbek sources and AI-sorted by likely price impact.",
     latest: "Latest", empty: "No recent news yet. Check back soon.",
     loadingText: "Loading the feed…", error: "Could not load the news feed.",
-    tabs: { all: "All", economy: "Economy", corporate: "Corporate", calendar: "Calendar" },
+    tabs: { all: "All", economy: "Economy", corporate: "Corporate", reporting: "Reporting", regulator: "Regulatory", calendar: "Calendar" },
     tabHint: {
       all: "The economy and the issuers in one feed",
       economy: "Macro, rates and regulation — what moves the market as a whole",
       corporate: "Issuers' official disclosures — filings and reporting from openinfo.uz",
+      reporting: "Financial reporting and security payouts",
+      regulator: "Government and regulatory decisions that can move the market",
       calendar: "What lies ahead: announced shareholder meetings and declared dividends — from openinfo.uz",
     },
+    desk: { updated: "Updated", stories: "stories", main: "Lead story", marketNow: "Market now", days30: "30 days",
+      positive: "Positive", neutral: "Neutral", negative: "Negative", latest: "Latest news",
+      important: "important and recent", time: "Time", category: "Category", headline: "Headline", instrument: "Instrument",
+      signal: "Signal", focus: "In focus", events: "stories", calendar: "Calendar", calendarCopy: "Shareholder meetings and dividend dates", openCalendar: "Open calendar" },
     emptyTab: "Nothing here yet — try “All”.",
     instruments: { all: "All securities", stock: "Shares", bond: "Bonds" },
     instrumentHint: {
@@ -252,13 +264,19 @@ const NEWS_TX = {
     subtitle: "O'zbekiston iqtisodiyoti, bozori va emitentlari bo'yicha muhim yangiliklar — o'zbek manbalaridan yig'iladi va sun'iy intellekt tomonidan ta'sir bo'yicha saralanadi.",
     latest: "So'nggi", empty: "Hozircha yangi yangiliklar yo'q. Keyinroq qayting.",
     loadingText: "Lenta yuklanmoqda…", error: "Yangiliklarni yuklab bo'lmadi.",
-    tabs: { all: "Barchasi", economy: "Iqtisodiyot", corporate: "Korporativ", calendar: "Taqvim" },
+    tabs: { all: "Barchasi", economy: "Iqtisodiyot", corporate: "Korporativ", reporting: "Hisobot", regulator: "Regulyator", calendar: "Taqvim" },
     tabHint: {
       all: "Iqtisodiyot va emitentlar bitta lentada",
       economy: "Makroiqtisodiyot, stavkalar va tartibga solish — bozorni butunlay harakatga keltiradigan narsalar",
       corporate: "Emitentlarning rasmiy oshkor qilishlari — openinfo.uz'dagi xabar va hisobotlar",
+      reporting: "Moliyaviy hisobotlar va qimmatli qog'ozlar bo'yicha to'lovlar",
+      regulator: "Bozorga ta'sir qiluvchi davlat va regulyator qarorlari",
       calendar: "Oldinda nima bor: e'lon qilingan aksiyadorlar yig'ilishlari va dividendlar — openinfo.uz ma'lumotlari",
     },
+    desk: { updated: "Yangilandi", stories: "material", main: "Asosiy mavzu", marketNow: "Bozor hozir", days30: "30 kun",
+      positive: "Ijobiy", neutral: "Neytral", negative: "Salbiy", latest: "So'nggi yangiliklar",
+      important: "muhim va yangi", time: "Vaqt", category: "Tur", headline: "Sarlavha", instrument: "Instrument",
+      signal: "Signal", focus: "Diqqat markazida", events: "voqea", calendar: "Taqvim", calendarCopy: "Aksiyadorlar yig'ilishlari va dividend sanalari", openCalendar: "Taqvimni ochish" },
     emptyTab: "Bu bo'limda hozircha bo'sh — «Barchasi»ni ko'ring.",
     instruments: { all: "Barcha qog'ozlar", stock: "Aksiyalar", bond: "Obligatsiyalar" },
     instrumentHint: {
@@ -667,13 +685,86 @@ function EdNewsCard({ item, language, variant, onOpen }) {
   );
 }
 
-// The two reading modes, over the four classes the §3.11 classifier already
-// assigns — so this is a filter on data we hold, not a second pipeline. They
-// partition all four types, so every story is reachable from one of them.
+function newsDeskTickers(item) {
+  if (!item) return [];
+  const values = Array.isArray(item.tickers) ? item.tickers : (item.ticker ? [item.ticker] : []);
+  return [...new Set(values.map((v) => String(v || "").trim().toUpperCase()).filter(Boolean))];
+}
+
+function NewsDeskPriorityStory({ item, language, variant, onOpen }) {
+  const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
+  const dtx = (NEWS_TX[language] || NEWS_TX.ru).desk;
+  const isLead = variant === "lead";
+  const { machine } = useBrowserHeadline(item, language);
+  const head = edHeadline(item, language, machine);
+  const summary = head.original && !head.machine ? "" : edSummary(item, language);
+  const toneCls = _TONE_CLS[item.tone] || "neu";
+  const inApp = Boolean(item.id && onOpen);
+  const tickers = newsDeskTickers(item);
+  const TitleTag = isLead ? "h2" : "h3";
+  return (
+    <a className={`newsdesk-priority-story newsdesk-priority-story--${variant}`} href={newsArticlePath(item)}
+      {...(inApp ? { onClick: interceptNav(() => onOpen(item)) } : { target: "_blank", rel: "noopener noreferrer" })}>
+      <div className="newsdesk-meta">
+        {isLead && <span>{dtx.main}</span>}
+        <span className="newsdesk-category">{etx.cat[item.type] || item.type}</span>
+        {item.tone && <span className={`newsdesk-tone ${toneCls}`}>{etx.tone[item.tone] || item.tone}</span>}
+        {isLead && item.impact && item.impact !== "none" && <span>{etx.impact[item.impact] || item.impact}</span>}
+      </div>
+      <TitleTag>{head.text}</TitleTag>
+      {isLead && summary && <p>{summary}</p>}
+      {isLead && head.original && (
+        <p className="newsdesk-original"><span>{head.lang}</span>{head.original}</p>
+      )}
+      <div className="newsdesk-byline">
+        {item.source && <b>{item.source}</b>}
+        {item.published_at && <span>{newsRelTime(item.published_at, language)}</span>}
+        {tickers.length > 0 && <span className="newsdesk-related">{tickers.slice(0, 2).join(" · ")}</span>}
+      </div>
+    </a>
+  );
+}
+
+function NewsDeskRow({ item, language, onOpen }) {
+  const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
+  const { machine } = useBrowserHeadline(item, language);
+  const head = edHeadline(item, language, machine);
+  const summary = head.original && !head.machine ? "" : edSummary(item, language);
+  const detail = summary || head.original || item.source;
+  const toneCls = _TONE_CLS[item.tone] || "neu";
+  const tickers = newsDeskTickers(item);
+  const inApp = Boolean(item.id && onOpen);
+  return (
+    <a className="newsdesk-row" href={newsArticlePath(item)}
+      {...(inApp ? { onClick: interceptNav(() => onOpen(item)) } : { target: "_blank", rel: "noopener noreferrer" })}>
+      <time>{item.published_at ? newsRelTime(item.published_at, language) : "—"}</time>
+      <span className="newsdesk-row-category">{etx.cat[item.type] || item.type}</span>
+      <span className="newsdesk-row-copy">
+        <strong>{head.text}</strong>
+        {detail && <small>{detail}</small>}
+      </span>
+      <span className="newsdesk-row-tickers">{tickers.length ? tickers.slice(0, 2).join(", ") : "—"}</span>
+      <span className={`newsdesk-row-tone ${toneCls}`}>{etx.tone[item.tone] || item.tone || "—"}</span>
+    </a>
+  );
+}
+
+function newsDeskFocus(items) {
+  const counts = new Map();
+  for (const item of items || []) {
+    for (const ticker of newsDeskTickers(item)) counts.set(ticker, (counts.get(ticker) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 5);
+}
+
+// Reading modes over the four classes the §3.11 classifier already assigns —
+// this stays a filter on data we hold, not a second pipeline.
 const NEWS_TABS = [
   { key: "all", type: null },
   { key: "economy", type: "economy" },       // market + regulatory
   { key: "corporate", type: "corporate" },   // corporate_event + financial_report
+  { key: "reporting", type: "financial_report" },
+  { key: "regulator", type: "regulatory" },
   { key: "calendar", type: null },           // forward-looking: meetings + dividends
 ];
 // «Корпоративные» is a disclosure feed, not a press review: the server serves that
@@ -1306,23 +1397,33 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
   );
   const mood = feedSentiment(items);
   const moodLabel = mood.cls === "pos" ? etx.moodPos : mood.cls === "neg" ? etx.moodNeg : etx.moodNeu;
+  const secondary = stack.slice(0, 2);
+  const priorityItems = lead ? [lead, ...secondary] : secondary;
+  const feedItems = latest.filter((item) => !priorityItems.includes(item));
+  const focus = React.useMemo(() => newsDeskFocus(items), [items]);
+  const dtx = tx.desk || NEWS_TX.ru.desk;
+  const updated = latest[0] && latest[0].published_at ? newsRelTime(latest[0].published_at, language) : "";
 
   return (
-    <div className="news-view led">
-      <header className="led-head">
-        <div className="led-kicker">{tx.eyebrow}</div>
-        <h1 className="led-title">{tx.title}</h1>
-        <p className="led-sub">
-          {(tab === "corporate" && instrument !== "all"
-            && tx.instrumentHint && tx.instrumentHint[instrument])
-            || (tx.tabHint && tx.tabHint[tab]) || tx.subtitle}
-        </p>
+    <div className="news-view led newsdesk">
+      <header className="newsdesk-head">
+        <div>
+          <h1>{tx.title}</h1>
+          <p>{(tab === "corporate" && instrument !== "all" && tx.instrumentHint && tx.instrumentHint[instrument])
+            || (tx.tabHint && tx.tabHint[tab]) || tx.subtitle}</p>
+        </div>
+        {!loading && tab !== "calendar" && (
+          <div className="newsdesk-updated">
+            {updated && <span>{dtx.updated} {updated}</span>}
+            <span>{items.length} {dtx.stories}</span>
+          </div>
+        )}
       </header>
 
-      <nav className="news-tabs" aria-label={tx.title}>
+      <nav className="newsdesk-tabs" aria-label={tx.title}>
         {NEWS_TABS.map((t) => (
           <button key={t.key} type="button"
-            className={`news-tab ${tab === t.key ? "active" : ""}`}
+            className={`newsdesk-tab ${tab === t.key ? "active" : ""}`}
             aria-current={tab === t.key ? "page" : undefined}
             onClick={() => selectTab(t.key)}>
             {(tx.tabs && tx.tabs[t.key]) || t.key}
@@ -1333,25 +1434,16 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
       {/* A second row, not three more tabs beside the first: this narrows
           «Корпоративные», it is not a fourth peer of it. */}
       {tab === "corporate" && (
-        <div className="news-subtabs" role="group" aria-label={(tx.tabs && tx.tabs.corporate) || "corporate"}>
+        <div className="newsdesk-subtabs" role="group" aria-label={(tx.tabs && tx.tabs.corporate) || "corporate"}>
           {NEWS_INSTRUMENTS.map((key) => (
             <button key={key} type="button"
-              className={`news-subtab ${instrument === key ? "active" : ""}`}
+              className={`newsdesk-subtab ${instrument === key ? "active" : ""}`}
               aria-pressed={instrument === key}
               onClick={() => selectInstrument(key)}>
               {(tx.instruments && tx.instruments[key]) || key}
             </button>
           ))}
         </div>
-      )}
-
-      {/* The filings timeline. It used to sit under the board, where a reader
-          looking for corporate news would not go; «Корпоративные» is that
-          reader's page, and the tab is already a disclosure feed. It keeps its
-          own kind chips and does NOT follow the Акции/Облигации pills above:
-          those narrow the stories, this is the raw record of what was filed. */}
-      {tab === "corporate" && (
-        <MarketEventsFeed lang={normalizeLanguage(language)} onOpenCompany={onOpenCompany} />
       )}
 
       {user && user.is_admin && apiFetch && (
@@ -1361,9 +1453,10 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
       {tab === "calendar" ? (
         <NewsCalendarView language={language} onOpenCompany={onOpenCompany} />
       ) : loading ? (
-        <div className="led-cols">
-          <div className="led-main"><div className="led-skel-lead" /><div className="led-skel-row" /><div className="led-skel-row" /></div>
-          <aside className="led-rail"><div className="led-skel-panel" /></aside>
+        <div className="newsdesk-loading" aria-label={tx.loadingText}>
+          <div className="newsdesk-loading-lead" />
+          <div className="newsdesk-loading-side" />
+          <div className="newsdesk-loading-feed" />
         </div>
       ) : error ? (
         <div className="led-empty">{tx.error}</div>
@@ -1374,43 +1467,69 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
             : tab === "all" ? tx.empty : (tx.emptyTab || tx.empty)}
         </div>
       ) : (
-        <div className="led-cols">
-          <main className="led-main">
-            {lead && <EdNewsCard item={lead} language={language} variant="lead" onOpen={onOpenNews} />}
-            {stack.length > 0 && (
-              <>
-                <div className="led-rule" />
-                <div className="led-stack">
-                  {stack.map((it, i) => <EdNewsCard key={it.id || i} item={it} language={language} variant="story" onOpen={onOpenNews} />)}
-                </div>
-              </>
-            )}
-          </main>
-          <aside className="led-rail">
-            <div className="led-panel">
-              <h4 className="led-panel-h">{etx.mood}</h4>
-              <div className="led-gauge"><b className={mood.cls}>{(mood.avg >= 0 ? "+" : "") + mood.avg.toFixed(2)}</b><span>{moodLabel}</span></div>
-              <div className="led-bar"><i style={{ width: mood.pct + "%" }} /></div>
-              <div className="led-counts">
-                <span className="pos">▲ {mood.counts.positive}</span>
-                <span className="neu">● {mood.counts.neutral}</span>
-                <span className="neg">▼ {mood.counts.negative}</span>
-              </div>
-            </div>
-            <div className="led-panel led-latest">
-              <h4 className="led-panel-h">{tx.latest}</h4>
-              {latest.slice(0, 7).map((it, i) => (
-                <a key={it.id || i} className="led-lt" href={newsArticlePath(it)}
-                  {...(it.id && onOpenNews
-                    ? { onClick: interceptNav(() => onOpenNews(it)) }
-                    : { target: "_blank", rel: "noopener noreferrer" })}>
-                  <span className={`led-dot ${_TONE_CLS[it.tone] || "neu"}`} />
-                  <span className="led-lt-t">{edHeadlineCached(it, language).text}</span>
-                  <span className="led-lt-s">{it.source}{it.published_at ? ` · ${newsRelTime(it.published_at, language)}` : ""}</span>
-                </a>
+        <div className="newsdesk-board">
+          <section className="newsdesk-priority" aria-label={dtx.main}>
+            {lead && <NewsDeskPriorityStory item={lead} language={language} variant="lead" onOpen={onOpenNews} />}
+            <div className="newsdesk-secondary">
+              {secondary.map((item, index) => (
+                <NewsDeskPriorityStory key={item.id || item.url || index} item={item} language={language} variant="secondary" onOpen={onOpenNews} />
               ))}
             </div>
-          </aside>
+            <aside className="newsdesk-mood">
+              <h2>{dtx.marketNow}</h2>
+              <div className="newsdesk-mood-score"><strong className={mood.cls}>{(mood.avg >= 0 ? "+" : "") + mood.avg.toFixed(2)}</strong><span>{dtx.days30}</span></div>
+              <div className="newsdesk-mood-row"><span>{dtx.positive}</span><b>{mood.counts.positive}</b></div>
+              <div className="newsdesk-mood-row"><span>{dtx.neutral}</span><b>{mood.counts.neutral}</b></div>
+              <div className="newsdesk-mood-row"><span>{dtx.negative}</span><b>{mood.counts.negative}</b></div>
+              <small>{moodLabel}</small>
+            </aside>
+          </section>
+
+          <section className="newsdesk-feed-layout">
+            <main className="newsdesk-feed">
+              <div className="newsdesk-feed-head">
+                <span className="newsdesk-live-dot" aria-hidden="true" />
+                <h2>{dtx.latest}</h2>
+                <span>{dtx.important}</span>
+              </div>
+              <div className="newsdesk-feed-columns" aria-hidden="true">
+                <span>{dtx.time}</span><span>{dtx.category}</span><span>{dtx.headline}</span><span>{dtx.instrument}</span><span>{dtx.signal}</span>
+              </div>
+              <div className="newsdesk-rows">
+                {feedItems.map((item, index) => (
+                  <NewsDeskRow key={item.id || item.url || index} item={item} language={language} onOpen={onOpenNews} />
+                ))}
+                {!feedItems.length && <div className="newsdesk-feed-empty">{tx.emptyTab || tx.empty}</div>}
+              </div>
+            </main>
+            <aside className="newsdesk-side">
+              {focus.length > 0 && (
+                <section className="newsdesk-side-section">
+                  <h2>{dtx.focus}</h2>
+                  {focus.map(([ticker, count]) => (
+                    <button key={ticker} type="button" className="newsdesk-focus-row" onClick={() => onOpenCompany && onOpenCompany(ticker)}>
+                      <strong>{ticker}</strong><span>{count} {dtx.events}</span>
+                    </button>
+                  ))}
+                </section>
+              )}
+              <section className="newsdesk-side-section newsdesk-calendar-callout">
+                <h2>{dtx.calendar}</h2>
+                <p>{dtx.calendarCopy}</p>
+                <button type="button" onClick={() => selectTab("calendar")}>{dtx.openCalendar} →</button>
+              </section>
+            </aside>
+          </section>
+        </div>
+      )}
+
+      {/* The filings timeline is the raw disclosure record for the corporate
+          reading mode. It follows the edited board instead of interrupting its
+          priority hierarchy; the Акции/Облигации control still narrows only the
+          stories above, while this record keeps its own filing-kind controls. */}
+      {tab === "corporate" && (
+        <div className="newsdesk-disclosures">
+          <MarketEventsFeed lang={normalizeLanguage(language)} onOpenCompany={onOpenCompany} />
         </div>
       )}
     </div>

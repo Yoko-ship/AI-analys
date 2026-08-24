@@ -13520,3 +13520,148 @@ html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
 .bondsec-covbar.tone-warn { fill: var(--chart-secondary); opacity: 0.85; }
 .bondsec-covbar.tone-neg { fill: var(--danger, #d03b3b); opacity: 0.8; }
 .bondsec-coverage .bondsec-chart { margin-top: 8px; }
+
+/* Market newsroom: publication hierarchy with terminal-like scan speed. */
+.newsdesk {
+  --newsdesk-line: color-mix(in srgb, var(--text) 15%, transparent);
+  --newsdesk-line-strong: color-mix(in srgb, var(--text) 35%, transparent);
+  --newsdesk-soft: color-mix(in srgb, var(--text) 4%, var(--panel));
+  --newsdesk-live: #e4515b;
+}
+.newsdesk-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; padding: 8px 0 22px; }
+.newsdesk-head h1 { margin: 0; color: var(--text); font-size: clamp(34px, 4.2vw, 52px); line-height: 1; letter-spacing: -.045em; font-weight: 700; }
+.newsdesk-head p { max-width: 68ch; margin: 10px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+.newsdesk-updated { flex: none; display: grid; gap: 5px; text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.newsdesk-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 24px; border-bottom: 1px solid var(--newsdesk-line-strong); margin-bottom: 0; }
+.newsdesk-tab { appearance: none; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); padding: 0 0 11px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.newsdesk-tab:hover { color: var(--text); }
+.newsdesk-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.newsdesk-tab:focus-visible, .newsdesk-subtab:focus-visible, .newsdesk-focus-row:focus-visible, .newsdesk-calendar-callout button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.newsdesk-subtabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 0 0; }
+.newsdesk-subtab { appearance: none; border: 1px solid var(--newsdesk-line); border-radius: 6px; background: transparent; color: var(--muted); padding: 7px 12px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.newsdesk-subtab:hover { border-color: var(--newsdesk-line-strong); color: var(--text); }
+.newsdesk-subtab.active { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+.newsdesk-board { margin-top: 24px; }
+.newsdesk-priority { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(230px, .72fr) minmax(210px, .58fr); border-bottom: 1px solid var(--newsdesk-line-strong); padding-bottom: 26px; }
+.newsdesk-priority-story { display: block; min-width: 0; color: inherit; text-decoration: none; }
+.newsdesk-priority-story--lead { padding-right: 28px; }
+.newsdesk-priority-story h2, .newsdesk-priority-story h3 { color: var(--text); }
+.newsdesk-priority-story:hover h2, .newsdesk-priority-story:hover h3 { color: var(--accent); }
+.newsdesk-meta { display: flex; flex-wrap: wrap; gap: 7px 10px; align-items: center; color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
+.newsdesk-category { color: var(--accent); }
+.newsdesk-tone.pos { color: var(--success, var(--accent-2)); }
+.newsdesk-tone.neg { color: var(--danger); }
+.newsdesk-tone.neu { color: var(--muted); }
+.newsdesk-priority-story--lead h2 { max-width: 20ch; margin: 16px 0 12px; font-size: clamp(30px, 4vw, 48px); line-height: 1.06; letter-spacing: -.04em; font-weight: 700; text-wrap: balance; }
+.newsdesk-priority-story--lead > p { max-width: 66ch; margin: 0; color: var(--muted); font-size: 15px; line-height: 1.58; }
+.newsdesk-priority-story--lead > p.newsdesk-original { margin-top: 12px; font-size: 12.5px; font-style: italic; }
+.newsdesk-original span { display: inline-block; margin-right: 7px; padding: 1px 5px; border: 1px solid var(--newsdesk-line); border-radius: 3px; font-family: "IBM Plex Mono", monospace; font-size: 10px; font-style: normal; text-transform: uppercase; }
+.newsdesk-byline { display: flex; flex-wrap: wrap; gap: 7px 13px; align-items: baseline; margin-top: 18px; color: var(--muted); font-size: 12px; }
+.newsdesk-byline b { color: var(--text); font-weight: 700; }
+.newsdesk-related { color: var(--accent); font-weight: 700; letter-spacing: .03em; }
+
+.newsdesk-secondary { min-width: 0; padding: 0 24px; border-left: 1px solid var(--newsdesk-line); }
+.newsdesk-priority-story--secondary { padding-bottom: 22px; margin-bottom: 22px; border-bottom: 1px solid var(--newsdesk-line); }
+.newsdesk-priority-story--secondary:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.newsdesk-priority-story--secondary h3 { margin: 10px 0 0; font-size: 18px; line-height: 1.28; letter-spacing: -.015em; font-weight: 700; text-wrap: balance; }
+.newsdesk-priority-story--secondary .newsdesk-byline { margin-top: 10px; font-size: 11px; }
+
+.newsdesk-mood { min-width: 0; padding-left: 22px; border-left: 1px solid var(--newsdesk-line); }
+.newsdesk-mood h2, .newsdesk-side-section h2 { margin: 0 0 14px; color: var(--muted); font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.newsdesk-mood-score { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--newsdesk-line); }
+.newsdesk-mood-score strong { font-size: 28px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.newsdesk-mood-score strong.pos { color: var(--success, var(--accent-2)); }
+.newsdesk-mood-score strong.neg { color: var(--danger); }
+.newsdesk-mood-score strong.neu { color: var(--text); }
+.newsdesk-mood-score span { color: var(--muted); font-size: 11px; }
+.newsdesk-mood-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--newsdesk-line); color: var(--muted); font-size: 12px; }
+.newsdesk-mood-row b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.newsdesk-mood > small { display: block; margin-top: 10px; color: var(--muted); font-size: 11px; }
+
+.newsdesk-feed-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; background: var(--panel); }
+.newsdesk-feed { min-width: 0; padding: 24px 26px 30px 0; }
+.newsdesk-feed-head { display: flex; align-items: center; gap: 9px; padding-bottom: 13px; border-bottom: 2px solid var(--text); }
+.newsdesk-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--newsdesk-live); flex: none; }
+.newsdesk-feed-head h2 { margin: 0; color: var(--text); font-size: 16px; font-weight: 800; }
+.newsdesk-feed-head > span:last-child { margin-left: auto; color: var(--muted); font-size: 11px; }
+.newsdesk-feed-columns, .newsdesk-row { display: grid; grid-template-columns: 68px 112px minmax(0, 1fr) 94px 86px; gap: 14px; }
+.newsdesk-feed-columns { padding: 11px 0 9px; border-bottom: 1px solid var(--newsdesk-line); color: var(--muted); font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.newsdesk-row { align-items: start; padding: 16px 0; border-bottom: 1px solid var(--newsdesk-line); color: inherit; text-decoration: none; }
+.newsdesk-row:hover .newsdesk-row-copy strong { color: var(--accent); }
+.newsdesk-row time, .newsdesk-row-category, .newsdesk-row-tickers, .newsdesk-row-tone { padding-top: 2px; font-size: 11.5px; }
+.newsdesk-row time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.newsdesk-row-category { color: var(--muted); }
+.newsdesk-row-copy { min-width: 0; }
+.newsdesk-row-copy strong { display: block; color: var(--text); font-size: 14.5px; line-height: 1.35; font-weight: 700; }
+.newsdesk-row-copy small { display: -webkit-box; margin-top: 6px; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.45; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.newsdesk-row-tickers { color: var(--accent); font-weight: 700; letter-spacing: .03em; }
+.newsdesk-row-tone.pos { color: var(--success, var(--accent-2)); }
+.newsdesk-row-tone.neg { color: var(--danger); }
+.newsdesk-row-tone.neu { color: var(--muted); }
+.newsdesk-feed-empty { padding: 30px 0; color: var(--muted); font-size: 13px; }
+
+.newsdesk-side { padding: 24px 0 30px 22px; border-left: 1px solid var(--newsdesk-line); background: var(--newsdesk-soft); }
+.newsdesk-side-section + .newsdesk-side-section { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--newsdesk-line); }
+.newsdesk-focus-row { appearance: none; width: 100%; display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border: 0; border-bottom: 1px solid var(--newsdesk-line); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.newsdesk-focus-row strong { font-size: 13px; font-weight: 800; }
+.newsdesk-focus-row span { color: var(--muted); font-size: 11px; }
+.newsdesk-focus-row:hover strong { color: var(--accent); }
+.newsdesk-calendar-callout p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.newsdesk-calendar-callout button { appearance: none; border: 0; background: transparent; color: var(--accent); margin: 14px 0 0; padding: 0; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.newsdesk-disclosures { margin-top: 38px; padding-top: 30px; border-top: 1px solid var(--newsdesk-line-strong); }
+
+.newsdesk-loading { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(240px, .7fr); gap: 24px; margin-top: 24px; }
+.newsdesk-loading-lead, .newsdesk-loading-side, .newsdesk-loading-feed { background: linear-gradient(90deg, var(--panel), var(--surface-2), var(--panel)); background-size: 200% 100%; animation: led-shim 1.4s infinite; }
+.newsdesk-loading-lead, .newsdesk-loading-side { height: 300px; }
+.newsdesk-loading-feed { grid-column: 1 / -1; height: 280px; }
+
+@media (max-width: 1080px) {
+  .newsdesk-priority { grid-template-columns: minmax(0, 1.35fr) minmax(220px, .72fr); }
+  .newsdesk-mood { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(120px, 1fr) repeat(4, auto); align-items: center; gap: 24px; margin-top: 24px; padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--newsdesk-line); }
+  .newsdesk-mood h2 { margin: 0; }
+  .newsdesk-mood-score { gap: 12px; padding: 0; border: 0; }
+  .newsdesk-mood-row { display: grid; gap: 3px; padding: 0; border: 0; }
+  .newsdesk-mood > small { margin: 0; }
+}
+@media (max-width: 860px) {
+  .newsdesk-head { align-items: flex-start; }
+  .newsdesk-priority { grid-template-columns: 1fr; }
+  .newsdesk-priority-story--lead { padding: 0 0 24px; }
+  .newsdesk-secondary { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; padding: 22px 0 0; border-left: 0; border-top: 1px solid var(--newsdesk-line); }
+  .newsdesk-priority-story--secondary { margin: 0; padding: 0; border-bottom: 0; }
+  .newsdesk-mood { grid-template-columns: 1fr repeat(3, auto); }
+  .newsdesk-mood > small { display: none; }
+  .newsdesk-feed-layout { grid-template-columns: 1fr; }
+  .newsdesk-feed { padding-right: 0; }
+  .newsdesk-side { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; padding: 24px 0 0; border-left: 0; border-top: 1px solid var(--newsdesk-line); background: transparent; }
+  .newsdesk-side-section + .newsdesk-side-section { margin: 0; padding: 0; border-top: 0; }
+}
+@media (max-width: 620px) {
+  .newsdesk-head { display: block; padding-top: 2px; }
+  .newsdesk-head p { font-size: 13.5px; }
+  .newsdesk-updated { margin-top: 12px; display: flex; justify-content: space-between; text-align: left; }
+  .newsdesk-tabs { gap: 8px 18px; }
+  .newsdesk-tab { font-size: 13px; padding-bottom: 9px; }
+  .newsdesk-priority-story--lead h2 { max-width: none; font-size: clamp(28px, 9vw, 38px); }
+  .newsdesk-secondary { grid-template-columns: 1fr; }
+  .newsdesk-priority-story--secondary + .newsdesk-priority-story--secondary { padding-top: 20px; border-top: 1px solid var(--newsdesk-line); }
+  .newsdesk-mood { grid-template-columns: 1fr 1fr; gap: 16px 22px; }
+  .newsdesk-mood h2 { grid-column: 1 / -1; }
+  .newsdesk-feed-columns { display: none; }
+  .newsdesk-row { grid-template-columns: 56px minmax(0, 1fr) auto; gap: 8px 11px; }
+  .newsdesk-row time { grid-column: 1; grid-row: 1; }
+  .newsdesk-row-category { grid-column: 2; grid-row: 1; }
+  .newsdesk-row-tone { grid-column: 3; grid-row: 1; text-align: right; }
+  .newsdesk-row-copy { grid-column: 2 / 4; grid-row: 2; }
+  .newsdesk-row-tickers { grid-column: 2 / 4; grid-row: 3; }
+  .newsdesk-side { grid-template-columns: 1fr; }
+  .newsdesk-side-section + .newsdesk-side-section { padding-top: 22px; border-top: 1px solid var(--newsdesk-line); }
+  .newsdesk-loading { grid-template-columns: 1fr; }
+  .newsdesk-loading-feed { grid-column: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .newsdesk-loading-lead, .newsdesk-loading-side, .newsdesk-loading-feed { animation: none; }
+}
