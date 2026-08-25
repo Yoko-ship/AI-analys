@@ -47,6 +47,7 @@ import {
   translateHeadline,
 } from "./lib/translate.js";
 import { pickLeadIndex } from "./lib/newsfeed.js";
+import { localizedCalendarTitle } from "./lib/calendarTitle.js";
 // ТЗ §3.2: one glossary for the whole site. The /reference page and every ⓘ
 // marker in the interface read the same entries, so a term cannot be explained
 // two different ways depending on where the reader met it.
@@ -1117,7 +1118,11 @@ function NewsCalendarView({ language, onOpenCompany }) {
       </span>
       <div className="newscal-row-body">
         {orgCell(it)}
-        {it.title && <div className="newscal-row-title">{it.title}</div>}
+        {it.title && (
+          <div className="newscal-row-title" title={it.title}>
+            {localizedCalendarTitle(it, lang)}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1258,16 +1263,19 @@ function NewsCalendarView({ language, onOpenCompany }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {annPage.slice.map((it, i) => (
-                      <tr key={it.announcement_id || i}>
-                        <td>{orgCell(it)}</td>
-                        <td className="newscal-anntitle">{it.title || "—"}</td>
-                        <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmtDate(it.pub_date)}</td>
-                        <td style={{ whiteSpace: "nowrap" }}>
-                          {fmtDate(it.meeting_date)}{fmtTime(it.meeting_date) ? ` · ${fmtTime(it.meeting_date)}` : ""}
-                        </td>
-                      </tr>
-                    ))}
+                    {annPage.slice.map((it, i) => {
+                      const localizedTitle = localizedCalendarTitle(it, lang);
+                      return (
+                        <tr key={it.announcement_id || i}>
+                          <td>{orgCell(it)}</td>
+                          <td className="newscal-anntitle" title={it.title || undefined}>{localizedTitle || "—"}</td>
+                          <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmtDate(it.pub_date)}</td>
+                          <td style={{ whiteSpace: "nowrap" }}>
+                            {fmtDate(it.meeting_date)}{fmtTime(it.meeting_date) ? ` · ${fmtTime(it.meeting_date)}` : ""}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
