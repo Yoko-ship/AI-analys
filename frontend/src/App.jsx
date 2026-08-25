@@ -2329,6 +2329,24 @@ const TEXTS = {
     profile: {
       title: "Личный кабинет",
       subtitle: "Профиль, статистика, избранное и история",
+      workspaceLabel: "Личное пространство",
+      overviewTitle: "Обзор аккаунта",
+      memberSince: "На платформе с",
+      edit: "Редактировать профиль",
+      cancel: "Отмена",
+      saveChanges: "Сохранить изменения",
+      saving: "Сохраняем...",
+      noChanges: "Изменений нет",
+      avatarHint: "JPG, PNG или WebP, не более 512 КБ",
+      avatarInvalid: "Выберите изображение JPG, PNG или WebP",
+      avatarTooLarge: "Изображение должно быть не больше 512 КБ",
+      sectionNav: "Разделы профиля",
+      sections: { overview: "Обзор", activity: "Активность", favorites: "Избранное", history: "История" },
+      signedOutTitle: "Войдите, чтобы открыть профиль",
+      signedOutBody: "История анализов, избранные компании и личные настройки доступны после входа.",
+      signIn: "Войти в аккаунт",
+      clearSearch: "Очистить поиск",
+      resultsShown: "Показано",
       editTitle: "Редактирование профиля",
       name: "Отображаемое имя",
       avatar: "Аватар",
@@ -2358,6 +2376,20 @@ const TEXTS = {
     },
     analysis: {
       title: "Анализ компании",
+      subtitle: "Настройте период и источник — платформа соберёт отчёт, ключевые показатели и риски в одном месте.",
+      workspaceLabel: "Аналитическое пространство",
+      setupLabel: "Новый анализ",
+      setupTitle: "Параметры анализа",
+      setupDescription: "Сначала выберите компанию и период. Дополнительные параметры нужны только для принудительного обновления или глубокой обработки Excel.",
+      advancedTitle: "Дополнительные параметры",
+      advancedHint: "Обновление источника и глубокий Excel-анализ",
+      browseHint: "Выберите компанию из каталога или найдите её по названию либо тикеру.",
+      signInTitle: "Для запуска нужен аккаунт",
+      signInBody: "Каталог доступен для просмотра, а запуск и сохранение отчёта — после входа.",
+      signInAction: "Войти и запустить анализ",
+      clearCompany: "Очистить компанию",
+      sectionNav: "Разделы анализа",
+      sections: { setup: "Параметры", companies: "Компании", results: "Результаты" },
       company: "Компания",
       mode: "Режим",
       quick: "Быстрый",
@@ -2600,6 +2632,24 @@ const TEXTS = {
     profile: {
       title: "Profile",
       subtitle: "Profile, statistics, favorites, and history",
+      workspaceLabel: "Personal workspace",
+      overviewTitle: "Account overview",
+      memberSince: "Member since",
+      edit: "Edit profile",
+      cancel: "Cancel",
+      saveChanges: "Save changes",
+      saving: "Saving...",
+      noChanges: "No changes to save",
+      avatarHint: "JPG, PNG, or WebP, up to 512 KB",
+      avatarInvalid: "Choose a JPG, PNG, or WebP image",
+      avatarTooLarge: "Image must be 512 KB or smaller",
+      sectionNav: "Profile sections",
+      sections: { overview: "Overview", activity: "Activity", favorites: "Favorites", history: "History" },
+      signedOutTitle: "Sign in to open your profile",
+      signedOutBody: "Analysis history, saved companies, and personal settings are available after sign in.",
+      signIn: "Sign in to your account",
+      clearSearch: "Clear search",
+      resultsShown: "Shown",
       editTitle: "Edit profile",
       name: "Display name",
       avatar: "Avatar",
@@ -2629,6 +2679,20 @@ const TEXTS = {
     },
     analysis: {
       title: "Company analysis",
+      subtitle: "Choose the period and source, then get the report, key metrics, and risks in one focused workspace.",
+      workspaceLabel: "Analysis workspace",
+      setupLabel: "New analysis",
+      setupTitle: "Analysis setup",
+      setupDescription: "Start with a company and reporting period. Advanced options are only needed for a source refresh or deep Excel processing.",
+      advancedTitle: "Advanced options",
+      advancedHint: "Source refresh and deep Excel analysis",
+      browseHint: "Choose a company from the directory or search by name or ticker.",
+      signInTitle: "An account is required to run analysis",
+      signInBody: "You can browse the directory now; sign in to run and save a report.",
+      signInAction: "Sign in and run analysis",
+      clearCompany: "Clear company",
+      sectionNav: "Analysis sections",
+      sections: { setup: "Setup", companies: "Companies", results: "Results" },
       company: "Company",
       mode: "Mode",
       quick: "Quick",
@@ -2871,6 +2935,24 @@ const TEXTS = {
     profile: {
       title: "Profil",
       subtitle: "Profil, statistika, tanlanganlar va tarix",
+      workspaceLabel: "Shaxsiy maydon",
+      overviewTitle: "Hisob ko'rinishi",
+      memberSince: "Platformada",
+      edit: "Profilni tahrirlash",
+      cancel: "Bekor qilish",
+      saveChanges: "O'zgarishlarni saqlash",
+      saving: "Saqlanmoqda...",
+      noChanges: "Saqlash uchun o'zgarish yo'q",
+      avatarHint: "JPG, PNG yoki WebP, 512 KB gacha",
+      avatarInvalid: "JPG, PNG yoki WebP rasmni tanlang",
+      avatarTooLarge: "Rasm 512 KB dan oshmasligi kerak",
+      sectionNav: "Profil bo'limlari",
+      sections: { overview: "Ko'rinish", activity: "Faollik", favorites: "Tanlanganlar", history: "Tarix" },
+      signedOutTitle: "Profilni ochish uchun tizimga kiring",
+      signedOutBody: "Tahlil tarixi, tanlangan kompaniyalar va shaxsiy sozlamalar tizimga kirgandan keyin ochiladi.",
+      signIn: "Hisobga kirish",
+      clearSearch: "Qidiruvni tozalash",
+      resultsShown: "Ko'rsatildi",
       editTitle: "Profilni tahrirlash",
       name: "Ko'rinadigan ism",
       avatar: "Avatar",
@@ -2900,6 +2982,20 @@ const TEXTS = {
     },
     analysis: {
       title: "Kompaniya tahlili",
+      subtitle: "Davr va manbani tanlang — hisobot, asosiy ko'rsatkichlar va risklarni yagona ish maydonida oling.",
+      workspaceLabel: "Tahlil maydoni",
+      setupLabel: "Yangi tahlil",
+      setupTitle: "Tahlil parametrlari",
+      setupDescription: "Avval kompaniya va hisobot davrini tanlang. Qo'shimcha parametrlar faqat manbani yangilash yoki chuqur Excel ishlovi uchun kerak.",
+      advancedTitle: "Qo'shimcha parametrlar",
+      advancedHint: "Manbani yangilash va chuqur Excel tahlili",
+      browseHint: "Kompaniyani ro'yxatdan tanlang yoki nomi va tikeri bo'yicha qidiring.",
+      signInTitle: "Tahlilni ishga tushirish uchun hisob kerak",
+      signInBody: "Ro'yxatni hozir ko'rishingiz mumkin; hisobotni ishga tushirish va saqlash uchun tizimga kiring.",
+      signInAction: "Kirish va tahlilni boshlash",
+      clearCompany: "Kompaniyani tozalash",
+      sectionNav: "Tahlil bo'limlari",
+      sections: { setup: "Parametrlar", companies: "Kompaniyalar", results: "Natijalar" },
       company: "Kompaniya",
       mode: "Rejim",
       quick: "Tez",
@@ -4485,6 +4581,25 @@ function DisclosureCard({ label, title, intro, items, tone = "neutral" }) {
         ))}
       </ul>
     </article>
+  );
+}
+
+function WorkspacePageHeader({ id, eyebrow, title, description, icon, actions, children }) {
+  return (
+    <header className="workspace-page-header">
+      <div className="workspace-page-heading-row">
+        <div className="workspace-page-title-group">
+          {icon ? <span className="workspace-page-icon" aria-hidden="true">{icon}</span> : null}
+          <div>
+            <div className="workspace-page-eyebrow">{eyebrow}</div>
+            <h1 id={id}>{title}</h1>
+            {description ? <p>{description}</p> : null}
+          </div>
+        </div>
+        {actions ? <div className="workspace-page-actions">{actions}</div> : null}
+      </div>
+      {children}
+    </header>
   );
 }
 
@@ -18392,6 +18507,7 @@ function App() {
   const [profileAvatarFile, setProfileAvatarFile] = useState(null);
   const [profileAvatarPreview, setProfileAvatarPreview] = useState("");
   const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [profileAvatarCleared, setProfileAvatarCleared] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [historyMode, setHistoryMode] = useState("all");
@@ -19124,7 +19240,7 @@ function App() {
 
     const payload = {};
     const nextName = profileForm.full_name.trim();
-    const currentName = user?.full_name?.trim() || "";
+    const currentName = (profile?.user?.full_name ?? user?.full_name ?? "").trim();
 
     if (nextName !== currentName) {
       payload.full_name = nextName;
@@ -19137,10 +19253,11 @@ function App() {
     }
 
     if (!Object.keys(payload).length) {
-      addToast("No changes", "info");
+      addToast(t(language, "profile.noChanges"), "info");
       return;
     }
 
+    setProfileSaving(true);
     try {
       const res = await apiFetch("/api/profile", {
         method: "PATCH",
@@ -19153,10 +19270,13 @@ function App() {
       setProfileAvatarPreview("");
       setProfileAvatarCleared(false);
       setProfileForm({ full_name: data.user.full_name || "" });
+      setShowProfileEdit(false);
       addToast(t(language, "profile.save"), "success");
       await loadProfile();
     } catch (error) {
       addToast(error.message, "error");
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -19182,7 +19302,7 @@ function App() {
   const favoriteTickers = new Set((profile?.favorites || []).map((item) => String(item?.ticker || "").trim().toUpperCase()).filter(Boolean));
   const recentAnalyses = (profile?.recent_analyses || []).filter((item) => {
     const match = `${item?.company_name || ""} ${item?.company_input || ""} ${item?.ticker || ""}`.toLowerCase().includes(historySearch.trim().toLowerCase());
-    const fav = !favoriteTickers.size || favoriteTickers.has(String(item?.ticker || "").trim().toUpperCase());
+    const fav = favoriteTickers.has(String(item?.ticker || "").trim().toUpperCase());
     return match && (historyMode === "favorites" ? fav : true);
   });
 
@@ -19342,6 +19462,20 @@ function App() {
     if (!file) {
       setProfileAvatarFile(null);
       setProfileAvatarPreview("");
+      return;
+    }
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+      event.target.value = "";
+      setProfileAvatarFile(null);
+      setProfileAvatarPreview("");
+      addToast(t(language, "profile.avatarInvalid"), "error");
+      return;
+    }
+    if (file.size > 512 * 1024) {
+      event.target.value = "";
+      setProfileAvatarFile(null);
+      setProfileAvatarPreview("");
+      addToast(t(language, "profile.avatarTooLarge"), "error");
       return;
     }
     setProfileAvatarFile(file);
@@ -19883,50 +20017,92 @@ function App() {
           )}
 
           {activeView === "profile" && (
-            <>
-              {/* Profile Header Card */}
-              {profileUser && (
-                <section className="profile-header-card">
-                  <div className="profile-header-bg" />
-                  <div className="profile-header-content">
-                    <div className="profile-header-avatar" style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 70% 60%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 70% 50%))` }}>
+            <section className="workspace-page profile-page" aria-labelledby="profile-page-title">
+              <WorkspacePageHeader
+                id="profile-page-title"
+                eyebrow={t(language, "profile.workspaceLabel")}
+                title={t(language, "profile.title")}
+                description={t(language, "profile.subtitle")}
+                icon={Icons.users}
+                actions={profileUser ? (
+                  <>
+                    <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
+                      {t(language, "profile.analyze")}
+                    </button>
+                    <button
+                      className="ghost-btn"
+                      type="button"
+                      aria-expanded={showProfileEdit}
+                      aria-controls="profile-edit-panel"
+                      onClick={() => setShowProfileEdit((current) => !current)}
+                    >
+                      {showProfileEdit ? t(language, "profile.cancel") : t(language, "profile.edit")}
+                    </button>
+                  </>
+                ) : (
+                  <button className="primary-btn" type="button" onClick={() => setActiveView("auth")}>
+                    {t(language, "profile.signIn")}
+                  </button>
+                )}
+              >
+                {profileUser ? (
+                  <div className="profile-account-strip">
+                    <div
+                      className="profile-header-avatar"
+                      role={profileAvatarPreview || profileAvatar ? undefined : "img"}
+                      aria-label={profileAvatarPreview || profileAvatar ? undefined : profileUser.full_name || profileUser.email}
+                      style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 70% 60%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 70% 50%))` }}
+                    >
                       {profileAvatarPreview ? <img src={profileAvatarPreview} alt="" /> : profileAvatar ? <img src={profileAvatar} alt="" /> : getProfileInitials(profileUser)}
                     </div>
                     <div className="profile-header-info">
-                      <h1>{profileUser.full_name || profileUser.email.split('@')[0]}</h1>
-                      <p className="profile-header-email">{profileUser.email}</p>
-                      <div className="profile-header-meta">
-                        <span className="profile-header-badge">{t(language, "auth.signedIn")}</span>
-                      </div>
+                      <strong>{profileUser.full_name || profileUser.email.split("@")[0]}</strong>
+                      <span>{profileUser.email}</span>
                     </div>
-                    <div className="profile-header-actions">
-                      <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
-                        {t(language, "profile.analyze")}
-                      </button>
-                      <button className="ghost-btn" type="button" onClick={() => setShowProfileEdit(!showProfileEdit)}>
-                        {showProfileEdit ? (language === "en" ? "Cancel" : language === "uz" ? "Bekor qilish" : "Отмена") : (language === "en" ? "Edit Profile" : language === "uz" ? "Tahrirlash" : "Редактировать")}
-                      </button>
+                    <div className="profile-account-meta">
+                      <span className="profile-header-badge">{t(language, "auth.signedIn")}</span>
+                      {profileCreated ? <span>{t(language, "profile.memberSince")} {formatDateLabel(profileCreated, language)}</span> : null}
                     </div>
                   </div>
-                  {/* Inline Edit Form */}
+                ) : null}
+              </WorkspacePageHeader>
+
+              {profileUser ? (
+                <>
+                  <nav className="workspace-section-nav" aria-label={t(language, "profile.sectionNav")}>
+                    <a href="#profile-overview">{t(language, "profile.sections.overview")}</a>
+                    <a href="#profile-activity">{t(language, "profile.sections.activity")}</a>
+                    <a href="#profile-favorites">{t(language, "profile.sections.favorites")}</a>
+                    <a href="#profile-history">{t(language, "profile.sections.history")}</a>
+                  </nav>
+
                   {showProfileEdit && (
-                    <div className="profile-edit-inline">
+                    <section id="profile-edit-panel" className="panel profile-edit-panel" aria-labelledby="profile-edit-title">
+                      <div className="workspace-section-heading">
+                        <div>
+                          <div className="panel-label">{t(language, "profile.workspaceLabel")}</div>
+                          <h2 id="profile-edit-title">{t(language, "profile.editTitle")}</h2>
+                        </div>
+                      </div>
                       <form className="profile-settings-form" onSubmit={handleProfileSave}>
                         <div className="profile-form-group">
-                          <label>{t(language, "profile.name")}</label>
+                          <label htmlFor="profile-display-name">{t(language, "profile.name")}</label>
                           <input
+                            id="profile-display-name"
                             type="text"
+                            maxLength="120"
+                            autoComplete="name"
                             value={profileForm.full_name}
                             onChange={(event) => setProfileForm({ full_name: event.target.value })}
                             placeholder={t(language, "profile.name")}
                           />
                         </div>
                         <div className="profile-form-group">
-                          <label>{t(language, "profile.avatar")}</label>
+                          <span className="profile-field-label">{t(language, "profile.avatar")}</span>
                           <div className="profile-avatar-upload">
-                            <input type="file" accept="image/*" onChange={onAvatarChange} id="avatar-input" />
+                            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onAvatarChange} id="avatar-input" aria-describedby="avatar-input-hint" />
                             <label htmlFor="avatar-input" className="profile-avatar-btn">
-                              {language === "en" ? "Choose file" : language === "uz" ? "Fayl tanlash" : "Выбрать файл"}
+                              {language === "en" ? "Choose image" : language === "uz" ? "Rasm tanlash" : "Выбрать изображение"}
                             </label>
                             {(profileAvatarPreview || profileAvatar) && (
                               <button type="button" className="profile-avatar-remove" onClick={removeAvatar}>
@@ -19934,165 +20110,256 @@ function App() {
                               </button>
                             )}
                           </div>
+                          <span id="avatar-input-hint" className="profile-field-hint">{t(language, "profile.avatarHint")}</span>
                         </div>
                         <div className="profile-form-actions">
-                          <button className="primary-btn" type="submit">
-                            {t(language, "profile.save")}
+                          <button className="primary-btn" type="submit" disabled={profileSaving}>
+                            {profileSaving ? t(language, "profile.saving") : t(language, "profile.saveChanges")}
+                          </button>
+                          <button className="ghost-btn" type="button" onClick={() => setShowProfileEdit(false)}>
+                            {t(language, "profile.cancel")}
                           </button>
                         </div>
                       </form>
-                    </div>
+                    </section>
                   )}
-                </section>
-              )}
 
-              {/* Stats Overview */}
-              <section className="profile-stats-section">
-                <div className="profile-stats-grid">
-                  {dashboardCards.map((card) => (
-                    <DashboardMetricCard key={card.label} {...card} language={language} />
-                  ))}
-                </div>
-              </section>
-
-              {/* Activity Chart */}
-              <section className="profile-activity-section">
-                <article className="panel">
-                  <div className="panel-head">
-                    <div>
-                      <div className="panel-label">{t(language, "dashboard.activityTitle")}</div>
-                      <h2>{t(language, "dashboard.activityTitle")}</h2>
-                    </div>
-                    <span className="profile-activity-total">
-                      {activitySeries?.total ? `${activitySeries.total} ${language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}` : ""}
-                    </span>
-                  </div>
-                  <ActivityChart series={activitySeries} language={language} />
-                </article>
-              </section>
-
-              {/* Favorites */}
-              <section className="profile-favorites-section">
-                <article className="panel favorites-panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "profile.favoritesTitle")}</div>
-                    <h2>{t(language, "profile.favoritesTitle")}</h2>
-                  </div>
-                </div>
-                {profile?.favorites?.length ? (
-                  <div className="favorites-list">
-                    {profile.favorites.map((item) => (
-                      <div className="favorite-item favorite-item--clickable" key={`${item.ticker}-${item.created_at}`}
-                        role="button" tabIndex={0}
-                        title={language === "en" ? "Open company" : language === "uz" ? "Kompaniyani ochish" : "Открыть компанию"}
-                        onClick={() => openCompanyPage(item.ticker)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCompanyPage(item.ticker); } }}>
-                        <div className="favorite-main">
-                          <strong>{item.company_name || item.ticker}</strong>
-                          <span>{item.ticker} · {formatDateLabel(item.created_at, language)}</span>
-                        </div>
-                        <button className="ghost-btn" type="button" onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.ticker, item.company_name); }}>
-                          {t(language, "profile.remove")}
-                        </button>
+                  <section id="profile-overview" className="profile-stats-section" aria-labelledby="profile-overview-title">
+                    <div className="workspace-section-heading">
+                      <div>
+                        <div className="panel-label">{t(language, "profile.sections.overview")}</div>
+                        <h2 id="profile-overview-title">{t(language, "profile.overviewTitle")}</h2>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <p className="empty-copy">{t(language, "profile.favoritesEmpty")}</p>
-                  </div>
-                )}
-                </article>
-              </section>
-
-              {/* History */}
-              <section className="profile-history-section">
-                <article className="panel history-panel">
-                  <div className="panel-head">
-                    <div>
-                      <div className="panel-label">{t(language, "profile.historyTitle")}</div>
-                      <h2>{t(language, "profile.historyTitle")}</h2>
                     </div>
-                  </div>
-                  <div className="panel-toolbar history-filters">
-                    <input
-                      type="search"
-                      value={historySearch}
-                      onChange={(event) => setHistorySearch(event.target.value)}
-                      placeholder={t(language, "profile.filters.search")}
-                    />
-                    <select value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
-                      <option value="all">{t(language, "profile.filters.all")}</option>
-                      <option value="favorites">{t(language, "profile.filters.favorites")}</option>
-                    </select>
-                  </div>
-                  {recentAnalyses.length ? (
-                    <div className="history-list">
-                      {recentAnalyses.map((item) => (
-                        <article className="history-item" key={`${item.created_at}-${item.company_input}`}>
-                          <div className="history-main">
-                            <div>
-                              <div className="history-title">{item.company_name || item.company_input || t(language, "profile.empty")}</div>
-                              <div className="history-sub">
-                                {item.ticker || "—"} · {item.from_cache ? t(language, "analysis.resultCacheHit") : t(language, "analysis.resultFresh")}
-                              </div>
-                            </div>
-                            {/* Composite score removed for ТЗ compliance (2026-07-09). */}
-                          </div>
-                          <div className="history-meta">
-                            <span>{formatDateLabel(item.created_at, language)}</span>
-                            <button
-                              type="button"
-                              className="history-repeat-btn"
-                              onClick={() => handleRepeatAnalysis(item)}
-                              disabled={analysisLoading}
-                              title={t(language, "profile.repeat")}
-                            >
-                              ↻ {t(language, "profile.repeat")}
-                            </button>
-                          </div>
-                        </article>
+                    <div className="profile-stats-grid">
+                      {dashboardCards.map((card) => (
+                        <DashboardMetricCard key={card.label} {...card} language={language} />
                       ))}
                     </div>
-                  ) : (
-                    <div className="empty-state">
-                      <p className="empty-copy">{profile ? t(language, "profile.historyEmpty") : t(language, "profile.empty")}</p>
-                    </div>
-                  )}
+                  </section>
+
+                  <section id="profile-activity" className="profile-activity-section" aria-labelledby="profile-activity-title">
+                    <article className="panel">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-label">{t(language, "profile.sections.activity")}</div>
+                          <h2 id="profile-activity-title">{t(language, "dashboard.activityTitle")}</h2>
+                        </div>
+                        <span className="profile-activity-total">
+                          {activitySeries.total} {language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}
+                        </span>
+                      </div>
+                      <ActivityChart series={activitySeries} language={language} />
+                    </article>
+                  </section>
+
+                  <section id="profile-favorites" className="profile-favorites-section" aria-labelledby="profile-favorites-title">
+                    <article className="panel favorites-panel">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-label">{t(language, "profile.sections.favorites")}</div>
+                          <h2 id="profile-favorites-title">{t(language, "profile.favoritesTitle")}</h2>
+                        </div>
+                        <span className="workspace-count-badge">{profile?.favorites?.length || 0}</span>
+                      </div>
+                      {profile?.favorites?.length ? (
+                        <div className="favorites-list">
+                          {profile.favorites.map((item) => (
+                            <article className="favorite-item" key={`${item.ticker}-${item.created_at}`}>
+                              <button
+                                className="favorite-open-button"
+                                type="button"
+                                onClick={() => openCompanyPage(item.ticker)}
+                                title={language === "en" ? "Open company" : language === "uz" ? "Kompaniyani ochish" : "Открыть компанию"}
+                              >
+                                <span className="favorite-main">
+                                  <strong>{item.company_name || item.ticker}</strong>
+                                  <span>{item.ticker} · {formatDateLabel(item.created_at, language)}</span>
+                                </span>
+                                <span aria-hidden="true">→</span>
+                              </button>
+                              <button className="ghost-btn" type="button" onClick={() => handleToggleFavorite(item.ticker, item.company_name)}>
+                                {t(language, "profile.remove")}
+                              </button>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="empty-state profile-empty-state">
+                          <p className="empty-copy">{t(language, "profile.favoritesEmpty")}</p>
+                          <button className="ghost-btn" type="button" onClick={() => setActiveView("analysis")}>
+                            {t(language, "profile.analyze")}
+                          </button>
+                        </div>
+                      )}
+                    </article>
+                  </section>
+
+                  <section id="profile-history" className="profile-history-section" aria-labelledby="profile-history-title">
+                    <article className="panel history-panel">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-label">{t(language, "profile.sections.history")}</div>
+                          <h2 id="profile-history-title">{t(language, "profile.historyTitle")}</h2>
+                        </div>
+                      </div>
+                      <div className="panel-toolbar history-filters" role="search">
+                        <label className="sr-only" htmlFor="profile-history-search">{t(language, "profile.filters.search")}</label>
+                        <div className="history-search-control">
+                          <input
+                            id="profile-history-search"
+                            type="search"
+                            value={historySearch}
+                            onChange={(event) => setHistorySearch(event.target.value)}
+                            placeholder={t(language, "profile.filters.search")}
+                          />
+                          {historySearch ? (
+                            <button type="button" onClick={() => setHistorySearch("")} aria-label={t(language, "profile.clearSearch")}>×</button>
+                          ) : null}
+                        </div>
+                        <label className="sr-only" htmlFor="profile-history-mode">{t(language, "profile.filters.all")}</label>
+                        <select id="profile-history-mode" value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
+                          <option value="all">{t(language, "profile.filters.all")}</option>
+                          <option value="favorites">{t(language, "profile.filters.favorites")}</option>
+                        </select>
+                        <span className="history-filter-count" aria-live="polite">{t(language, "profile.resultsShown")}: {recentAnalyses.length}</span>
+                      </div>
+                      {recentAnalyses.length ? (
+                        <div className="history-list">
+                          {recentAnalyses.map((item) => (
+                            <article className="history-item" key={`${item.created_at}-${item.company_input}`}>
+                              <div className="history-main">
+                                <div>
+                                  <div className="history-title">{item.company_name || item.company_input || t(language, "profile.empty")}</div>
+                                  <div className="history-sub">
+                                    {item.ticker || "—"} · {item.from_cache ? t(language, "analysis.resultCacheHit") : t(language, "analysis.resultFresh")}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="history-meta">
+                                <span>{formatDateLabel(item.created_at, language)}</span>
+                                <button
+                                  type="button"
+                                  className="history-repeat-btn"
+                                  onClick={() => handleRepeatAnalysis(item)}
+                                  disabled={analysisLoading}
+                                  title={t(language, "profile.repeat")}
+                                >
+                                  <span aria-hidden="true">↻</span> {t(language, "profile.repeat")}
+                                </button>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="empty-state profile-empty-state">
+                          <p className="empty-copy">
+                            {historySearch || historyMode === "favorites" ? t(language, "analysis.resultEmpty") : t(language, "profile.historyEmpty")}
+                          </p>
+                          {(historySearch || historyMode === "favorites") ? (
+                            <button className="ghost-btn" type="button" onClick={() => { setHistorySearch(""); setHistoryMode("all"); }}>
+                              {t(language, "profile.clearSearch")}
+                            </button>
+                          ) : null}
+                        </div>
+                      )}
+                    </article>
+                  </section>
+                </>
+              ) : (
+                <article className="panel workspace-empty-state">
+                  <span className="workspace-empty-icon" aria-hidden="true">{Icons.lock}</span>
+                  <div>
+                    <h2>{t(language, "profile.signedOutTitle")}</h2>
+                    <p>{t(language, "profile.signedOutBody")}</p>
+                  </div>
+                  <button className="primary-btn" type="button" onClick={() => setActiveView("auth")}>
+                    {t(language, "profile.signIn")}
+                  </button>
                 </article>
-              </section>
-            </>
+              )}
+            </section>
           )}
 
           {activeView === "analysis" && (
-            <section className="analysis-layout">
-              <article className="panel analysis-panel analysis-hero">
-                <div className="analysis-hero-header">
-                  <div className="analysis-hero-icon">
-                    {Icons.chart}
-                  </div>
-                  <div className="analysis-hero-text">
-                    <h1>{t(language, "analysis.title")}</h1>
-                    <p>{language === "en" ? "Get comprehensive financial analysis powered by AI" : language === "uz" ? "AI yordamida moliyaviy tahlil oling" : "Получите комплексный финансовый анализ на основе ИИ"}</p>
-                  </div>
-                  {analysisLoading && <span className="status-badge analysis-loading-badge">{t(language, "analysis.loadingChart")}</span>}
+            <section className="workspace-page analysis-page" aria-labelledby="analysis-page-title">
+              <WorkspacePageHeader
+                id="analysis-page-title"
+                eyebrow={t(language, "analysis.workspaceLabel")}
+                title={t(language, "analysis.title")}
+                description={t(language, "analysis.subtitle")}
+                icon={Icons.chart}
+                actions={!token ? (
+                  <button className="ghost-btn" type="button" onClick={() => setActiveView("auth")}>
+                    {t(language, "profile.signIn")}
+                  </button>
+                ) : null}
+              >
+                <div className="workspace-page-meta" aria-label={t(language, "analysis.workspaceLabel")}>
+                  <span>{language === "en" ? "Structured reports" : language === "uz" ? "Tizimli hisobotlar" : "Структурированные отчёты"}</span>
+                  <span>RU · UZ · EN</span>
+                  <span>XLSX · PDF</span>
                 </div>
+              </WorkspacePageHeader>
+
+              <nav className="workspace-section-nav" aria-label={t(language, "analysis.sectionNav")}>
+                <a href="#analysis-setup">{t(language, "analysis.sections.setup")}</a>
+                <a href="#analysis-companies">{t(language, "analysis.sections.companies")}</a>
+                {(analysisResult || analysisLoading) ? <a href="#analysis-results">{t(language, "analysis.sections.results")}</a> : null}
+              </nav>
+
+              <div className="analysis-layout">
+              <article id="analysis-setup" className="panel analysis-panel analysis-hero" aria-labelledby="analysis-setup-title">
+                <div className="analysis-form-card-header">
+                  <span className="analysis-form-card-icon" aria-hidden="true">{Icons.target}</span>
+                  <div>
+                    <div className="panel-label">{t(language, "analysis.setupLabel")}</div>
+                    <h2 id="analysis-setup-title">{t(language, "analysis.setupTitle")}</h2>
+                    <p>{t(language, "analysis.setupDescription")}</p>
+                  </div>
+                  {analysisLoading && <span className="status-badge analysis-loading-badge" role="status">{t(language, "analysis.loadingChart")}</span>}
+                </div>
+
+                {!token ? (
+                  <div className="analysis-auth-callout" role="note">
+                    <span aria-hidden="true">{Icons.lock}</span>
+                    <div>
+                      <strong>{t(language, "analysis.signInTitle")}</strong>
+                      <p>{t(language, "analysis.signInBody")}</p>
+                    </div>
+                    <button className="ghost-btn" type="button" onClick={() => setActiveView("auth")}>
+                      {t(language, "profile.signIn")}
+                    </button>
+                  </div>
+                ) : null}
 
                 <form className="analysis-form-modern" onSubmit={handleAnalysisSubmit}>
                   <div className="analysis-input-group">
-                    <label>{t(language, "analysis.company")}</label>
+                    <label htmlFor="analysis-company-input">{t(language, "analysis.company")}</label>
                     <div className="analysis-input-wrapper">
                       <span className="analysis-input-icon">{Icons.target}</span>
                       <input
+                        id="analysis-company-input"
                         list="companiesList"
                         value={analysisCompany}
                         onChange={(event) => setAnalysisCompany(event.target.value)}
                         placeholder={language === "en" ? "Enter company name or ticker..." : language === "uz" ? "Kompaniya nomi yoki ticker kiriting..." : "Введите название компании или тикер..."}
                         autoComplete="off"
+                        aria-describedby="analysis-company-hint"
                         required
                       />
+                      {analysisCompany ? (
+                        <button
+                          type="button"
+                          className="analysis-input-clear"
+                          onClick={() => setAnalysisCompany("")}
+                          aria-label={t(language, "analysis.clearCompany")}
+                        >
+                          ×
+                        </button>
+                      ) : null}
                     </div>
+                    <span id="analysis-company-hint" className="analysis-field-hint">{t(language, "analysis.browseHint")}</span>
                     <datalist id="companiesList">
                       {companies.map((company) => (
                         <option key={company.ticker} value={company.ticker}>
@@ -20102,10 +20369,11 @@ function App() {
                     </datalist>
                   </div>
 
-                  <div className="analysis-period-picker">
+                  <fieldset className="analysis-period-picker">
+                    <legend className="sr-only">{t(language, "analysis.setupTitle")}</legend>
                     <div className="analysis-input-group">
-                      <label>{t(language, "analysis.reportType")}</label>
-                      <select value={reportAnalysisType} onChange={(event) => setReportAnalysisType(event.target.value)}>
+                      <label htmlFor="analysis-report-type">{t(language, "analysis.reportType")}</label>
+                      <select id="analysis-report-type" value={reportAnalysisType} onChange={(event) => setReportAnalysisType(event.target.value)}>
                         <option value="latest">{t(language, "analysis.fullAnalysis")}</option>
                         <option value="quarterly">{t(language, "analysis.quarterlyReport")}</option>
                         <option value="annual">{t(language, "analysis.annualReport")}</option>
@@ -20113,8 +20381,9 @@ function App() {
                     </div>
                     {reportAnalysisType !== "latest" ? (
                       <div className="analysis-input-group">
-                        <label>{t(language, "analysis.reportingForm")}</label>
+                        <label htmlFor="analysis-report-form">{t(language, "analysis.reportingForm")}</label>
                         <select
+                          id="analysis-report-form"
                           value={reportForm}
                           onChange={(event) => {
                             setReportForm(event.target.value);
@@ -20139,8 +20408,8 @@ function App() {
                     )}
                     {reportAnalysisType === "quarterly" ? (
                       <div className="analysis-input-group">
-                        <label>{t(language, "analysis.quarter")}</label>
-                        <select value={reportQuarter} onChange={(event) => setReportQuarter(event.target.value)} disabled={periodsLoading}>
+                        <label htmlFor="analysis-report-quarter">{t(language, "analysis.quarter")}</label>
+                        <select id="analysis-report-quarter" value={reportQuarter} onChange={(event) => setReportQuarter(event.target.value)} disabled={periodsLoading}>
                           {availableQuartersForYear.length > 0
                             ? availableQuartersForYear.map((q) => (
                                 <option key={q} value={String(q)}>
@@ -20159,8 +20428,8 @@ function App() {
                     {reportAnalysisType !== "latest" ? (
                       <>
                         <div className="analysis-input-group">
-                          <label>{t(language, "analysis.currentYear")}</label>
-                          <select value={reportCurrentYear} onChange={(event) => setReportCurrentYear(event.target.value)} disabled={periodsLoading}>
+                          <label htmlFor="analysis-current-year">{t(language, "analysis.currentYear")}</label>
+                          <select id="analysis-current-year" value={reportCurrentYear} onChange={(event) => setReportCurrentYear(event.target.value)} disabled={periodsLoading}>
                             {(reportAnalysisType === "quarterly" ? quarterlyYearOptions : annualYearOptions).map((year) => (
                               <option key={`current-${year}`} value={year}>{year}</option>
                             ))}
@@ -20168,8 +20437,8 @@ function App() {
                           {periodsLoading && <span className="analysis-periods-loading">{language === "en" ? "Loading periods…" : language === "uz" ? "Davrlar yuklanmoqda…" : "Загрузка периодов…"}</span>}
                         </div>
                         <div className="analysis-input-group">
-                          <label>{t(language, "analysis.previousYear")}</label>
-                          <select value={reportPreviousYear} onChange={(event) => setReportPreviousYear(event.target.value)} disabled={periodsLoading}>
+                          <label htmlFor="analysis-previous-year">{t(language, "analysis.previousYear")}</label>
+                          <select id="analysis-previous-year" value={reportPreviousYear} onChange={(event) => setReportPreviousYear(event.target.value)} disabled={periodsLoading}>
                             {annualYearOptions.map((year) => (
                               <option key={`previous-${year}`} value={year}>{year}</option>
                             ))}
@@ -20177,56 +20446,58 @@ function App() {
                         </div>
                       </>
                     ) : null}
-                  </div>
+                  </fieldset>
 
-                  <div className="analysis-options-row">
-                    <div className="analysis-input-group">
-                      <label>{t(language, "analysis.mode")}</label>
-                      <select defaultValue="full">
-                        <option value="quick">{t(language, "analysis.quick")}</option>
-                        <option value="full">{t(language, "analysis.full")}</option>
-                      </select>
-                    </div>
-                    <label className="analysis-checkbox">
-                      <input type="checkbox" checked={forceRefresh} onChange={(event) => setForceRefresh(event.target.checked)} />
-                      <span>{t(language, "analysis.forceRefresh")}</span>
-                    </label>
-                  </div>
+                  <details className="analysis-advanced">
+                    <summary>
+                      <span>
+                        <strong>{t(language, "analysis.advancedTitle")}</strong>
+                        <small>{t(language, "analysis.advancedHint")}</small>
+                      </span>
+                    </summary>
+                    <div className="analysis-advanced-body">
+                      <label className="analysis-checkbox" htmlFor="analysis-force-refresh">
+                        <input id="analysis-force-refresh" type="checkbox" checked={forceRefresh} onChange={(event) => setForceRefresh(event.target.checked)} />
+                        <span>{t(language, "analysis.forceRefresh")}</span>
+                      </label>
 
-                  <div className={`analysis-deep-excel ${includeAllExcelReports ? "is-active" : ""}`}>
-                    <label className="analysis-checkbox analysis-deep-checkbox">
-                      <input type="checkbox" checked={includeAllExcelReports} onChange={(event) => setIncludeAllExcelReports(event.target.checked)} />
-                      <span>{language === "en" ? "Deep Excel analysis: use all available XLSX reports" : language === "uz" ? "Deep Excel tahlil: barcha mavjud XLSX hisobotlardan foydalanish" : "Глубокий Excel-анализ: использовать все доступные XLSX-отчеты"}</span>
-                    </label>
-                    {includeAllExcelReports ? (
-                      <div className="analysis-input-group analysis-excel-limit">
-                        <label>{language === "en" ? "Optional XLSX cap" : language === "uz" ? "Ixtiyoriy XLSX chegarasi" : "Ограничение XLSX, необязательно"}</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={excelReportLimit}
-                          onChange={(event) => setExcelReportLimit(event.target.value)}
-                          placeholder={language === "en" ? "Leave empty = all found" : language === "uz" ? "Bo'sh qoldiring = hammasi" : "Пусто = все найденные"}
-                        />
+                      <div className={`analysis-deep-excel ${includeAllExcelReports ? "is-active" : ""}`}>
+                        <label className="analysis-checkbox analysis-deep-checkbox" htmlFor="analysis-deep-excel">
+                          <input id="analysis-deep-excel" type="checkbox" checked={includeAllExcelReports} onChange={(event) => setIncludeAllExcelReports(event.target.checked)} />
+                          <span>{language === "en" ? "Deep Excel analysis: use all available XLSX reports" : language === "uz" ? "Deep Excel tahlil: barcha mavjud XLSX hisobotlardan foydalanish" : "Глубокий Excel-анализ: использовать все доступные XLSX-отчеты"}</span>
+                        </label>
+                        {includeAllExcelReports ? (
+                          <div className="analysis-input-group analysis-excel-limit">
+                            <label htmlFor="analysis-excel-limit">{language === "en" ? "Optional XLSX cap" : language === "uz" ? "Ixtiyoriy XLSX chegarasi" : "Ограничение XLSX, необязательно"}</label>
+                            <input
+                              id="analysis-excel-limit"
+                              type="number"
+                              min="1"
+                              max="100"
+                              value={excelReportLimit}
+                              onChange={(event) => setExcelReportLimit(event.target.value)}
+                              placeholder={language === "en" ? "Leave empty = all found" : language === "uz" ? "Bo'sh qoldiring = hammasi" : "Пусто = все найденные"}
+                            />
+                          </div>
+                        ) : null}
+                        <p>
+                          {language === "en"
+                            ? "Leave the limit empty to parse every found XLSX report. This mode is slower on first run, then snapshots are cached."
+                            : language === "uz"
+                              ? "Barcha topilgan XLSX hisobotlarni olish uchun limitni bo'sh qoldiring. Bu rejim birinchi ishga tushishda sekinroq, keyin snapshot keshdan olinadi."
+                              : "Оставьте лимит пустым, чтобы разобрать все найденные XLSX-отчёты. Этот режим медленнее при первом запуске, после парсинга snapshot берется из кэша."}
+                        </p>
                       </div>
-                    ) : null}
-                    <p>
-                      {language === "en"
-                        ? "Leave the limit empty to parse every found XLSX report. This mode is slower on first run, then snapshots are cached."
-                        : language === "uz"
-                          ? "Barcha topilgan XLSX hisobotlarni olish uchun limitni bo'sh qoldiring. Bu rejim birinchi ishga tushishda sekinroq, keyin snapshot keshdan olinadi."
-                          : "Оставьте лимит пустым, чтобы разобрать все найденные XLSX-отчёты. Этот режим медленнее при первом запуске, после парсинга snapshot берется из кэша."}
-                    </p>
-                  </div>
+                    </div>
+                  </details>
 
-                  <button className="primary-btn analysis-submit-btn" type="submit" disabled={analysisLoading}>
+                  <button className="primary-btn analysis-submit-btn" type="submit" disabled={analysisLoading} aria-busy={analysisLoading}>
                     {Icons.zap}
-                    <span>{analysisLoading ? (language === "en" ? "Analyzing..." : language === "uz" ? "Tahlil qilinmoqda..." : "Анализируем...") : t(language, "analysis.submit")}</span>
+                    <span>{analysisLoading ? (language === "en" ? "Analyzing..." : language === "uz" ? "Tahlil qilinmoqda..." : "Анализируем...") : token ? t(language, "analysis.submit") : t(language, "analysis.signInAction")}</span>
                   </button>
                 </form>
 
-                <div className="analysis-companies-section">
+                <div id="analysis-companies" className="analysis-companies-section">
                   <div className="analysis-companies-header">
                     <h3>{t(language, "analysis.availableTitle")}</h3>
                     <span className="analysis-companies-count">{filteredCompanies.length} {language === "en" ? "companies" : language === "uz" ? "kompaniya" : "компаний"}</span>
@@ -20235,6 +20506,7 @@ function App() {
                     <button
                       className={`sector-chip${!selectedSector ? " active" : ""}`}
                       type="button"
+                      aria-pressed={!selectedSector}
                       onClick={() => setSelectedSector(null)}
                     >
                       {sectorLabel(language, "all")}
@@ -20244,6 +20516,7 @@ function App() {
                         key={sector}
                         className={`sector-chip${selectedSector === sector ? " active" : ""}`}
                         type="button"
+                        aria-pressed={selectedSector === sector}
                         onClick={() => setSelectedSector(selectedSector === sector ? null : sector)}
                       >
                         {sectorLabel(language, sector)}
@@ -20254,8 +20527,9 @@ function App() {
                     {filteredCompanies.map((company) => (
                       <button
                         key={company.ticker}
-                        className="analysis-company-chip"
+                        className={`analysis-company-chip${analysisCompany.trim().toUpperCase() === company.ticker.toUpperCase() ? " is-selected" : ""}`}
                         type="button"
+                        aria-pressed={analysisCompany.trim().toUpperCase() === company.ticker.toUpperCase()}
                         onClick={() => setAnalysisCompany(company.ticker)}
                       >
                         <CompanyLogo logo={company.logo} name={company.company_name} ticker={company.ticker} />
@@ -20268,7 +20542,7 @@ function App() {
               </article>
 
               {(analysisResult || analysisLoading) && (
-                <article className={`panel result-hero ${analysisLoading ? "is-loading" : ""}`}>
+                <article id="analysis-results" className={`panel result-hero ${analysisLoading ? "is-loading" : ""}`}>
                   <div className="panel-head">
                     <div>
                       <div className="panel-label">{t(language, "analysis.resultTitle")}</div>
@@ -20341,6 +20615,7 @@ function App() {
                 )}
                 </article>
               )}
+              </div>
             </section>
           )}
 
