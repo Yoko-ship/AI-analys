@@ -15780,28 +15780,30 @@ function MarketView({
         )}
       </article>
 
-      {/* The CBU strip sits under the page hero (moved from under the topbar
-          at the customer's request, 2026-08-16) — one thin line between the
-          title panel and the market's own counters. */}
-      <FxRatesBar language={lang} onOpenBanks={onOpenBankFx} />
+      {/* The FX strip and summary cards provide context for the visual map, but
+          duplicate information available in the market table. Keep this block
+          on the dedicated heatmap page only. */}
+      {viewMode === "heatmap" && (
+        <>
+          <FxRatesBar language={lang} onOpenBanks={onOpenBankFx} />
 
-      {/* The sector control that scopes these four cards is further down the
-          page, in the filter bar — so the row has to say for itself which
-          sector it is answering for, and offer the way back. Without this the
-          numbers change under a control the reader cannot see from here. */}
-      {cardSector && (
-        <div className="market-stats-scope">
-          <span className="market-stats-scope-label">
-            {lang === "en" ? "Sector" : lang === "uz" ? "Tarmoq" : "Категория"}:
-          </span>
-          <button type="button" className="market-stats-scope-chip" onClick={() => setMarketSector(null)}>
-            {sectorLabel(lang, cardSector)}
-            <span aria-hidden="true">×</span>
-          </button>
-        </div>
-      )}
+          {/* The sector control that scopes these four cards is further down the
+              page, in the filter bar — so the row has to say for itself which
+              sector it is answering for, and offer the way back. Without this the
+              numbers change under a control the reader cannot see from here. */}
+          {cardSector && (
+            <div className="market-stats-scope">
+              <span className="market-stats-scope-label">
+                {lang === "en" ? "Sector" : lang === "uz" ? "Tarmoq" : "Категория"}:
+              </span>
+              <button type="button" className="market-stats-scope-chip" onClick={() => setMarketSector(null)}>
+                {sectorLabel(lang, cardSector)}
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          )}
 
-      <div className="market-stats-grid">
+          <div className="market-stats-grid">
         {/* Инструментов / Сделки сегодня / Без изменений were removed at the
             customer's request (2026-08-12) — the row keeps only the counters
             that name a mover or a sum of money. Up and down belong to one market
@@ -15858,7 +15860,9 @@ function MarketView({
             board it sits above listed 1,56 млрд over 6 507 — and it cannot
             answer per tab, so the shares view was quoting bond turnover too. */}
         {cardStats.totalVolume > 0 && <MarketStatCard label={windowed ? `${mt(lang, "volume")} · ${changePeriodLabel(changePeriod, lang, "short")}` : mt(lang, "volume")} termId="volume" lang={lang} value={formatCompactVolume(cardStats.totalVolume, lang)} sub={cardStats.totalTrades ? `${formatRatio(cardStats.totalTrades, 0, lang)} ${tradeCountLabel(cardStats.totalTrades, lang)}` : null} kind="turnover" />}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Three readings of one session: who moved, and who was actually
           tradeable. Ликвидность answers the question the two percent lists
