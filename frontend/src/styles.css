@@ -9086,24 +9086,29 @@ body[data-theme="dark"] .market-sector-select select:not([data-all="1"]) {
 .company-panel-overlay {
   position: fixed;
   inset: 0;
+  min-height: 100dvh;
   background: rgba(0, 0, 0, 0.5);
   z-index: 200;
   display: flex;
   justify-content: flex-end;
   align-items: stretch;
+  isolation: isolate;
 }
 
 .company-info-panel {
   position: relative;
   width: min(420px, 96vw);
-  height: 100%;
+  height: 100dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   background: var(--bg-2);
   border-left: 1px solid var(--border);
   padding: 32px 28px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  box-shadow: -20px 0 52px rgba(0, 0, 0, 0.24);
   animation: panel-slide-in 0.22s ease;
 }
 
@@ -9114,22 +9119,33 @@ body[data-theme="dark"] .market-sector-select select:not([data-all="1"]) {
 
 .company-panel-close {
   position: absolute;
-  top: 16px;
-  right: 20px;
-  background: none;
-  border: none;
+  z-index: 2;
+  top: 12px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  background: color-mix(in srgb, var(--bg-2) 88%, transparent);
+  border: 1px solid transparent;
   font-size: 1.5rem;
   color: var(--muted);
   cursor: pointer;
   line-height: 1;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 0;
+  border-radius: 12px;
   transition: color 0.15s, background 0.15s;
 }
 
 .company-panel-close:hover {
   color: var(--text);
-  background: var(--border);
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+.company-panel-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .company-panel-header {

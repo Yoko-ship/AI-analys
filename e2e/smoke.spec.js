@@ -180,6 +180,55 @@ test("navigating to Рынок shows the market board", async ({ page }) => {
   await expect(page.getByText("AGBA Bank").first()).toBeVisible();
 });
 
+test("company details stay fixed to the viewport when opened from a scrolled market row", async ({ page }) => {
+  await page.goto("/market");
+  const opener = page.locator(".market-info-btn").last();
+  await opener.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await opener.click();
+
+  const overlay = page.locator(".company-panel-overlay");
+  const close = page.getByRole("button", { name: "Закрыть сведения о компании" });
+  await expect(overlay).toBeVisible();
+  await expect(close).toBeVisible();
+  await expect(close).toBeFocused();
+  await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
+
+  const box = await overlay.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(Math.abs(box.y)).toBeLessThan(1);
+  expect(Math.abs(box.height - viewport.height)).toBeLessThan(1);
+
+  await page.keyboard.press("Escape");
+  await expect(overlay).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
+
+test("company details use a viewport-bound bottom sheet on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/market");
+  await page.locator(".market-info-btn").last().click();
+
+  const overlay = page.locator(".company-panel-overlay");
+  const panel = page.getByRole("dialog");
+  const close = page.getByRole("button", { name: "Закрыть сведения о компании" });
+  await expect(close).toBeVisible();
+  await page.waitForTimeout(300); // Let the 220 ms drawer entrance animation settle.
+
+  const overlayBox = await overlay.boundingBox();
+  const panelBox = await panel.boundingBox();
+  expect(overlayBox).not.toBeNull();
+  expect(panelBox).not.toBeNull();
+  expect(Math.abs(overlayBox.y)).toBeLessThan(1);
+  expect(Math.abs(overlayBox.height - 844)).toBeLessThan(1);
+  expect(Math.abs(panelBox.x)).toBeLessThan(1);
+  expect(Math.abs(panelBox.width - 390)).toBeLessThan(1);
+  expect(Math.abs(panelBox.y + panelBox.height - 844)).toBeLessThan(1);
+  expect(panelBox.y).toBeGreaterThan(0);
+});
+
 test("navigating to Анализ shows the analysis form", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Анализ", exact: true }).click();
@@ -513,9 +562,18 @@ test("analysis renders the §3.4 risk profile", async ({ page }) => {
 test("mobile: hamburger opens the nav drawer (§3.12)", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await page.goto("/");
+  const logo = page.locator(".brand-icon");
+  await expect(logo).toBeVisible();
+  const logoBox = await logo.boundingBox();
+  expect(logoBox.width).toBeGreaterThanOrEqual(32);
   await expect(page.locator(".topbar-burger")).toBeVisible();
   await page.locator(".topbar-burger").click();
   await expect(page.locator(".topbar")).toHaveClass(/is-nav-open/);
+  const layers = await page.evaluate(() => ({
+    brand: Number.parseInt(getComputedStyle(document.querySelector(".topbar-brand")).zIndex, 10),
+    drawer: Number.parseInt(getComputedStyle(document.querySelector(".topbar-nav")).zIndex, 10),
+  }));
+  expect(layers.brand).toBeGreaterThan(layers.drawer);
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
   await expect(page.locator(".topbar")).not.toHaveClass(/is-nav-open/);
   await expect(page.getByText(/Цены акций/)).toBeVisible();
