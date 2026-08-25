@@ -153,8 +153,6 @@ iframe {
 
   .brand-icon {
     width: 34px;
-    min-width: 34px;
-    max-width: 34px;
     height: 34px;
     border-radius: 9px;
   }
@@ -309,55 +307,13 @@ iframe {
   }
 }
 
-/* A phone header cannot fit the full brand and every account/market control in
-   one row. Keep the actual wordmark visible and move the controls to a compact
-   second row instead of deleting the brand below 460px. */
+/* Under ~460px the wordmark is the flexible item in a row that no longer has
+   slack, so it renders as a 2-4px sliver of a letter — worse than absent.
+   Dropping it outright gives the icon its full 34px back; the icon is what
+   identifies the site at this width, and the tab title still spells it. */
 @media (max-width: 460px) {
-  .topbar {
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) auto;
-    grid-template-areas:
-      "burger brand notifications"
-      "meta meta meta";
-    gap: 6px 8px;
-    height: auto;
-    min-height: 104px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-
-  .topbar-burger {
-    grid-area: burger;
-  }
-
-  .topbar-brand {
-    grid-area: brand;
-    min-width: 0;
-  }
-
   .brand-copy {
-    display: flex;
-  }
-
-  .brand-title {
-    font-size: 0.98rem;
-  }
-
-  .topbar > .notif-wrap {
-    grid-area: notifications;
-    justify-self: end;
-  }
-
-  .topbar-meta {
-    grid-area: meta;
-    width: 100%;
-    min-width: 0;
-  }
-
-  .topbar-controls {
-    width: 100%;
-    justify-content: space-between;
-    gap: 4px;
+    display: none;
   }
 }
 
@@ -702,12 +658,6 @@ iframe {
 
   .market-ticker-cell {
     gap: 6px;
-  }
-
-  /* The logo tile is 70×44 — a quarter of the phone's width for decoration. */
-  .market-ticker-cell .chip-logo,
-  .market-ticker-cell .chip-logo-fallback {
-    display: none;
   }
 
   .market-ticker-cell .market-ticker-btn {

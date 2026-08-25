@@ -1307,6 +1307,31 @@ html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
 
   .market-layout .market-table-wrap .market-ticker-btn { font-size: 13.5px; }
 
+  /* The market stylesheet loads after mobile.css, so the phone-sized issuer
+     mark belongs here: keep the row logo visible without restoring the desktop
+     52×42 tile inside the pinned ticker column. */
+  .market-layout .market-table-wrap .market-ticker-cell .chip-logo,
+  .market-layout .market-table-wrap .market-ticker-cell .chip-logo-fallback {
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border-radius: 6px;
+    box-shadow: none;
+  }
+
+  .market-layout .market-table-wrap .market-ticker-cell .chip-logo {
+    display: block;
+    padding: 2px;
+  }
+
+  .market-layout .market-table-wrap .market-ticker-cell .chip-logo-fallback {
+    display: flex;
+    padding: 0;
+    font-size: 9px;
+  }
+
   .market-layout .market-table-wrap > .market-table td .market-change-badge {
     min-width: 0;
     padding: 5px 7px;
