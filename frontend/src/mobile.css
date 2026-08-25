@@ -153,6 +153,8 @@ iframe {
 
   .brand-icon {
     width: 34px;
+    min-width: 34px;
+    max-width: 34px;
     height: 34px;
     border-radius: 9px;
   }
@@ -312,6 +314,15 @@ iframe {
    Dropping it outright gives the icon its full 34px back; the icon is what
    identifies the site at this width, and the tab title still spells it. */
 @media (max-width: 460px) {
+  .topbar {
+    gap: 4px;
+  }
+
+  .topbar-brand {
+    flex: 0 0 34px;
+    min-width: 34px;
+  }
+
   .brand-copy {
     display: none;
   }
