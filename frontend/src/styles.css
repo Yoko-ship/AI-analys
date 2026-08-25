@@ -9462,12 +9462,12 @@ body[data-theme="dark"] .market-view-toggle button.active {
    The focus strip keeps exact values available without covering the map. */
 .heatmap-focus-strip {
   display: grid;
-  grid-template-columns: 7px minmax(210px, 1fr) auto auto;
-  gap: 18px;
+  grid-template-columns: 8px minmax(240px, 1fr) auto auto;
+  gap: clamp(20px, 2vw, 34px);
   align-items: center;
   width: 100%;
   margin: 0;
-  padding: 14px 2px;
+  padding: 18px 8px;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
@@ -9486,8 +9486,8 @@ body[data-theme="dark"] .market-view-toggle button.active {
 }
 
 .heatmap-focus-signal {
-  width: 7px;
-  height: 48px;
+  width: 8px;
+  height: 58px;
   border-radius: 999px;
   background: var(--muted);
 }
@@ -9499,10 +9499,10 @@ body[data-theme="dark"] .market-view-toggle button.active {
 
 .heatmap-focus-identity > small {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   color: var(--muted);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 750;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -9511,29 +9511,29 @@ body[data-theme="dark"] .market-view-toggle button.active {
 .heatmap-focus-identity > span {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 12px;
 }
 
 .heatmap-focus-identity strong {
   font-family: "Space Grotesk", sans-serif;
-  font-size: 22px;
+  font-size: clamp(24px, 1.45vw, 28px);
   font-weight: 760;
   letter-spacing: -0.035em;
 }
 
 .heatmap-focus-identity b {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 15px;
+  font-size: clamp(16px, 1vw, 18px);
   font-variant-numeric: tabular-nums;
 }
 
 .heatmap-focus-identity em {
   display: block;
   max-width: 420px;
-  margin-top: 2px;
+  margin-top: 4px;
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -9541,30 +9541,31 @@ body[data-theme="dark"] .market-view-toggle button.active {
 
 .heatmap-focus-facts {
   display: flex;
-  gap: clamp(16px, 2.4vw, 32px);
+  gap: clamp(22px, 2.8vw, 42px);
 }
 
 .heatmap-focus-facts > span {
   display: block;
-  min-width: 82px;
+  min-width: 104px;
 }
 
 .heatmap-focus-facts small {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
 .heatmap-focus-facts strong {
   display: block;
-  max-width: 150px;
+  max-width: 180px;
   overflow: hidden;
   color: var(--text);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -9573,15 +9574,16 @@ body[data-theme="dark"] .market-view-toggle button.active {
 .heatmap-focus-open {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .heatmap-focus-open b {
   color: var(--accent);
-  font-size: 16px;
+  font-size: 19px;
 }
 
 .heatmap-tree {
@@ -9815,7 +9817,7 @@ body[data-theme="light"] .heatmap-legend-gradient {
 
 @media (max-width: 1040px) {
   .heatmap-focus-strip {
-    grid-template-columns: 7px minmax(190px, 1fr) auto;
+    grid-template-columns: 8px minmax(210px, 1fr) auto;
   }
 
   .heatmap-focus-open { display: none; }
@@ -9833,8 +9835,8 @@ body[data-theme="light"] .heatmap-legend-gradient {
 
 @media (max-width: 760px) {
   .heatmap-focus-strip {
-    grid-template-columns: 6px minmax(0, 1fr);
-    gap: 12px;
+    grid-template-columns: 8px minmax(0, 1fr);
+    gap: 14px;
   }
 
   .heatmap-focus-facts {
