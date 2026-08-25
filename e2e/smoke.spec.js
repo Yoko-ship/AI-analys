@@ -84,6 +84,25 @@ const NEWS_ITEMS = [
     sectors: [], relevance_score: 0.9, coverage_weight: 0.95, tickers: [], rank: 0.6 },
 ];
 
+const CALENDAR_MEETINGS = [
+  {
+    announcement_id: "meeting-uz",
+    organization: '"Sinov kompaniyasi" AJ',
+    ticker: "AGBA",
+    title: "Акциядорларнинг навбатдан ташқари умумий йиғилишини ўтказиш тўғрисида",
+    meeting_date: "2026-08-26T10:00:00",
+    pub_date: "2026-08-20T09:00:00",
+  },
+  {
+    announcement_id: "meeting-ru",
+    organization: 'АО "Проверка"',
+    ticker: null,
+    title: "Сообщение о проведении годового общего собрания акционеров",
+    meeting_date: "2026-08-27T11:00:00",
+    pub_date: "2026-08-21T09:00:00",
+  },
+];
+
 // What the price did around story 11 — two dated closes, as `formulas.price_reaction`
 // returns them. Never a claim that the story moved the price.
 const REACTION = {
@@ -124,6 +143,9 @@ async function mockApi(page) {
       { type: "delisting", ticker: "OLDZ", company: "Eski Zavod", date: "2026-04-30" },
     ] });
     if (p === "/api/news/feed") return j({ ok: true, count: NEWS_ITEMS.length, items: NEWS_ITEMS, disclaimer: NEWS_DISCLAIMER });
+    if (p === "/api/news/calendar/meetings") return j({ ok: true, count: CALENDAR_MEETINGS.length, items: CALENDAR_MEETINGS });
+    if (p === "/api/news/calendar/announcements") return j({ ok: true, count: CALENDAR_MEETINGS.length, items: CALENDAR_MEETINGS });
+    if (p === "/api/news/calendar/dividends") return j({ ok: true, count: 0, items: [] });
     if (p.startsWith("/api/news/ticker/")) {
       const tk = p.slice("/api/news/ticker/".length);
       const items = NEWS_ITEMS.filter((n) => (n.tickers || []).includes(tk));
@@ -171,6 +193,27 @@ test("language switch re-renders the hero copy", async ({ page }) => {
   await expect(page.locator(".hero-copy-block h1")).toContainText(/\S/);
   await page.locator("#languageSelect").selectOption("en");
   await expect(page.locator(".hero-copy-block h1")).not.toContainText("Современный");
+});
+
+test("calendar meeting headlines follow the selected interface language", async ({ page }) => {
+  await page.goto("/news?tab=calendar");
+  const titles = page.locator(".newscal-row-title");
+
+  await expect(titles.nth(0)).toHaveText("Внеочередное общее собрание акционеров");
+  await expect(titles.nth(0)).toHaveAttribute("title", CALENDAR_MEETINGS[0].title);
+  await expect(titles.nth(1)).toHaveText(CALENDAR_MEETINGS[1].title);
+
+  await page.locator("#languageSelect").selectOption("en");
+  await expect(titles.nth(0)).toHaveText("Extraordinary general meeting of shareholders");
+  await expect(titles.nth(1)).toHaveText("Annual general meeting of shareholders");
+
+  await page.locator("#languageSelect").selectOption("uz");
+  await expect(titles.nth(0)).toHaveText(CALENDAR_MEETINGS[0].title);
+  await expect(titles.nth(1)).toHaveText("Aksiyadorlarning yillik umumiy yig‘ilishi");
+
+  await page.locator("#languageSelect").selectOption("ru");
+  await page.getByRole("button", { name: "Объявления", exact: true }).click();
+  await expect(page.locator(".newscal-anntitle").first()).toHaveText("Внеочередное общее собрание акционеров");
 });
 
 test("navigating to Рынок shows the market board", async ({ page }) => {
