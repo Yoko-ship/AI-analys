@@ -186,6 +186,77 @@ test("navigating to Анализ shows the analysis form", async ({ page }) => {
   await expect(page.locator(".analysis-form-modern").first()).toBeVisible();
 });
 
+test("analysis setup uses labeled controls and honest progressive disclosure", async ({ page }) => {
+  await page.goto("/analysis");
+  await expect(page.getByRole("heading", { name: "Анализ компании", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Компания", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Тип анализа", { exact: true })).toBeVisible();
+  await expect(page.getByText("Дополнительные параметры", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Обновить из источника (обойти кэш)")).not.toBeVisible();
+  await expect(page.getByText("Режим", { exact: true })).toHaveCount(0);
+
+  await page.getByText("Дополнительные параметры", { exact: true }).click();
+  await expect(page.getByLabel("Обновить из источника (обойти кэш)")).toBeVisible();
+
+  const companyButton = page.getByRole("button", { name: /AGBA.*AGBA Bank/ });
+  await companyButton.click();
+  await expect(companyButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Компания", { exact: true })).toHaveValue("AGBA");
+});
+
+test("profile workspace exposes account state, accessible editing, and exact history filters", async ({ page }) => {
+  const signedInUser = {
+    full_name: "E2E Investor",
+    email: "e2e@test.uz",
+    created_at: "2026-07-01T10:00:00Z",
+    avatar_data_url: null,
+  };
+  const profile = {
+    ok: true,
+    user: signedInUser,
+    stats: { total_analyses: 2, avg_score: 61, cached_analyses: 1 },
+    favorites: [],
+    recent_analyses: [
+      { company_name: "AGBA Bank", company_input: "AGBA", ticker: "AGBA", created_at: "2026-08-22T10:00:00Z", from_cache: false },
+      { company_name: "Kvarts", company_input: "KVTS", ticker: "KVTS", created_at: "2026-08-21T10:00:00Z", from_cache: true },
+    ],
+  };
+
+  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "e2e-token"));
+  await page.route("**/api/auth/me", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: signedInUser }) }));
+  await page.route("**/api/profile", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(profile) }));
+  await page.goto("/profile");
+
+  await expect(page.getByRole("heading", { name: "Личный кабинет", level: 1 })).toBeVisible();
+  await expect(page.getByText("E2E Investor", { exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Разделы профиля" })).toBeVisible();
+
+  const editButton = page.getByRole("button", { name: "Редактировать профиль" });
+  await expect(editButton).toHaveAttribute("aria-expanded", "false");
+  await editButton.click();
+  await expect(page.getByRole("button", { name: "Отмена" }).first()).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByLabel("Отображаемое имя")).toHaveValue("E2E Investor");
+  await expect(page.getByText("JPG, PNG или WebP, не более 512 КБ")).toBeVisible();
+
+  await expect(page.locator(".history-item")).toHaveCount(2);
+  await page.getByLabel("Все анализы").selectOption("favorites");
+  await expect(page.locator(".history-item")).toHaveCount(0);
+  await expect(page.getByText("Показано: 0")).toBeVisible();
+  await page.getByLabel("Все анализы").selectOption("all");
+  await page.getByLabel("Поиск по компании или тикеру").fill("KVTS");
+  await expect(page.locator(".history-item")).toHaveCount(1);
+  await expect(page.locator(".history-item")).toContainText("Kvarts");
+});
+
+test("profile and analysis workspaces do not overflow a phone viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const path of ["/profile", "/analysis"]) {
+    await page.goto(path);
+    const widths = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+    expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+  }
+});
+
 test("Новости renders the editorial feed (§3.11)", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Новости", exact: true }).click();
