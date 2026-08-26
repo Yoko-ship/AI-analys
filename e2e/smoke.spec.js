@@ -315,6 +315,8 @@ test("navigating to Анализ shows the analysis form", async ({ page }) => {
 test("analysis setup uses labeled controls and honest progressive disclosure", async ({ page }) => {
   await page.goto("/analysis");
   await expect(page.getByRole("heading", { name: "Анализ компании", level: 1 })).toBeVisible();
+  await expect(page.locator(".analysis-workspace-snapshot .workspace-snapshot-grid strong").first()).toHaveText("3");
+  await expect(page.locator(".analysis-builder-grid")).toBeVisible();
   await expect(page.getByLabel("Компания", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Тип анализа", { exact: true })).toBeVisible();
   await expect(page.getByText("Дополнительные параметры", { exact: true })).toBeVisible();
@@ -356,6 +358,10 @@ test("profile workspace exposes account state, accessible editing, and exact his
   await expect(page.getByRole("heading", { name: "Личный кабинет", level: 1 })).toBeVisible();
   await expect(page.getByText("E2E Investor", { exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Разделы профиля" })).toBeVisible();
+  await expect(page.locator(".profile-identity-deck .workspace-snapshot")).toContainText("2");
+  await expect(page.getByLabel("Продолжить работу")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Открыть избранное/ })).toHaveAttribute("href", "#profile-favorites");
+  await expect(page.getByRole("link", { name: /Открыть историю/ })).toHaveAttribute("href", "#profile-history");
 
   const editButton = page.getByRole("button", { name: "Редактировать профиль" });
   await expect(editButton).toHaveAttribute("aria-expanded", "false");
@@ -372,6 +378,10 @@ test("profile workspace exposes account state, accessible editing, and exact his
   await page.getByLabel("Поиск по компании или тикеру").fill("KVTS");
   await expect(page.locator(".history-item")).toHaveCount(1);
   await expect(page.locator(".history-item")).toContainText("Kvarts");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const signedInWidths = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+  expect(signedInWidths.scroll).toBeLessThanOrEqual(signedInWidths.client);
 });
 
 test("profile and analysis workspaces do not overflow a phone viewport", async ({ page }) => {
