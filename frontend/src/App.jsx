@@ -19758,7 +19758,6 @@ function App() {
       <div className="bg-glow bg-glow-b" />
 
       <div className="app-shell">
-        {activeView !== "profile" && (
         <header className={`topbar${mobileNavOpen ? " is-nav-open" : ""}`}>
           <button
             className="topbar-burger"
@@ -19980,7 +19979,6 @@ function App() {
             </div>
           </div>
         </header>
-        )}
 
         <main className="content">
           {activeView === "main" && (
@@ -20273,46 +20271,6 @@ function App() {
 
           {activeView === "profile" && (
             <section className="profile-command-center" aria-labelledby="profile-page-title">
-              <aside className="profile-cmd-sidebar" aria-label={t(language, "profile.sectionNav")}>
-                <button className="profile-cmd-brand" type="button" onClick={() => setActiveView("main")} aria-label={t(language, "brand")}>
-                  <img src={logoIcon} alt="" />
-                  <span><strong>UZ Stock</strong><small>Analyzer</small></span>
-                </button>
-
-                <nav className="profile-cmd-nav">
-                  {[
-                    { key: "market", label: mt(language, "nav"), icon: Icons.chart },
-                    { key: "catalog", label: t(language, "nav.catalog"), icon: Icons.database },
-                    { key: "analysis", label: t(language, "nav.analysis"), icon: Icons.trending },
-                    { key: "profile", label: t(language, "nav.profile"), icon: Icons.users },
-                  ].map((item) => (
-                    <button
-                      key={item.key}
-                      className={`profile-cmd-nav-item${item.key === "profile" ? " active" : ""}`}
-                      type="button"
-                      onClick={() => setActiveView(item.key)}
-                      aria-current={item.key === "profile" ? "page" : undefined}
-                    >
-                      <span className="profile-cmd-nav-icon" aria-hidden="true">{item.icon}</span>
-                      <span>{item.label}</span>
-                    </button>
-                  ))}
-                </nav>
-
-                {profileUser ? (
-                  <button className="profile-cmd-avatar-button" type="button" onClick={toggleProfileEditor} aria-label={t(language, "profile.edit")}>
-                    <span
-                      className="profile-cmd-avatar"
-                      style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 70% 60%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 70% 50%))` }}
-                    >
-                      {profileAvatarPreview ? <img src={profileAvatarPreview} alt="" /> : profileAvatar ? <img src={profileAvatar} alt="" /> : getProfileInitials(profileUser)}
-                    </span>
-                    <i aria-hidden="true" />
-                  </button>
-                ) : null}
-              </aside>
-
-              <div className="profile-cmd-stage">
                 <header className="profile-cmd-header">
                   <h1 id="profile-page-title">{t(language, "profile.command.title")}</h1>
                   <label className="profile-cmd-search" htmlFor="profile-history-search">
@@ -20329,8 +20287,14 @@ function App() {
                       <button type="button" onClick={() => setHistorySearch("")} aria-label={t(language, "profile.clearSearch")}>×</button>
                     ) : null}
                   </label>
-                  <button className="profile-cmd-primary" type="button" onClick={() => setActiveView("analysis")}>
-                    <span aria-hidden="true">＋</span>{t(language, "profile.command.newAnalysis")}
+                  <button
+                    className="profile-cmd-primary"
+                    type="button"
+                    onClick={() => setActiveView("analysis")}
+                    aria-label={t(language, "profile.command.newAnalysis")}
+                  >
+                    <span aria-hidden="true">＋</span>
+                    <span className="profile-cmd-primary-label">{t(language, "profile.command.newAnalysis")}</span>
                   </button>
                 </header>
 
@@ -20532,7 +20496,6 @@ function App() {
                     </div>
                   </div>
                 )}
-              </div>
 
               {profileUser && showProfileEdit ? (
                 <div className="profile-cmd-settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowProfileEdit(false); }}>

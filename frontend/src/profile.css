@@ -1,148 +1,12 @@
-/* Profile command center ----------------------------------------------------
-   This page deliberately uses its own full-height shell. The rest of the site
-   keeps the shared top navigation; the signed-in research workspace gets the
-   denser command-center navigation shown in the approved mockup. */
-
-.view-profile .bg-glow {
-  display: none;
-}
-
-.view-profile .app-shell,
-.view-profile .content {
-  width: 100%;
-  max-width: none;
-  min-height: 100vh;
-  margin: 0;
-  padding: 0;
-}
-
-.view-profile .content {
-  display: block;
-}
+/* Profile workspace ---------------------------------------------------------
+   The profile uses the same global header, page gutters, color tokens and
+   responsive shell as every other product route. Only the dashboard itself is
+   specialized here. */
 
 .profile-command-center {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  display: block;
   min-width: 0;
-  min-height: 100vh;
   color: var(--text);
-  background: var(--bg);
-}
-
-.profile-cmd-sidebar {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  min-width: 0;
-  height: 100vh;
-  padding: 20px 9px;
-  border-right: 1px solid var(--border);
-  background: var(--panel-strong);
-}
-
-.profile-cmd-brand,
-.profile-cmd-nav-item,
-.profile-cmd-avatar-button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-}
-
-.profile-cmd-brand {
-  display: grid;
-  justify-items: center;
-  gap: 9px;
-  padding: 2px 5px 18px;
-  text-align: center;
-}
-
-.profile-cmd-brand img {
-  width: 47px;
-  height: 47px;
-  border-radius: 9px;
-  object-fit: contain;
-  box-shadow: 0 8px 24px var(--accent-glow);
-}
-
-.profile-cmd-brand span {
-  display: grid;
-  line-height: 1.05;
-}
-
-.profile-cmd-brand strong,
-.profile-cmd-brand small {
-  color: var(--text);
-  font-size: 0.83rem;
-  font-weight: 700;
-}
-
-.profile-cmd-nav {
-  display: grid;
-  gap: 10px;
-  margin-top: 38px;
-}
-
-.profile-cmd-nav-item {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  min-height: 96px;
-  padding: 13px 6px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast);
-}
-
-.profile-cmd-nav-item:hover {
-  border-color: var(--border);
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.profile-cmd-nav-item.active {
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
-  background: var(--accent-light);
-  color: var(--accent);
-}
-
-.profile-cmd-nav-icon {
-  display: grid;
-  place-items: center;
-  width: 33px;
-  height: 33px;
-}
-
-.profile-cmd-nav-icon svg {
-  width: 31px;
-  height: 31px;
-  stroke-width: 1.6;
-}
-
-.profile-cmd-avatar-button {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 54px;
-  height: 54px;
-  margin: auto auto 3px;
-  padding: 0;
-}
-
-.profile-cmd-avatar-button > i {
-  position: absolute;
-  right: 2px;
-  bottom: 3px;
-  width: 13px;
-  height: 13px;
-  border: 3px solid var(--panel-strong);
-  border-radius: 50%;
-  background: var(--success);
 }
 
 .profile-cmd-avatar {
@@ -165,18 +29,13 @@
   object-fit: cover;
 }
 
-.profile-cmd-stage {
-  min-width: 0;
-  padding: 20px;
-}
-
 .profile-cmd-header {
   display: grid;
-  grid-template-columns: minmax(220px, 320px) minmax(280px, 565px) minmax(180px, 1fr);
+  grid-template-columns: minmax(220px, 0.7fr) minmax(280px, 1.25fr) auto;
   align-items: center;
-  gap: 22px;
-  min-height: 58px;
-  margin-bottom: 18px;
+  gap: 24px;
+  min-height: 64px;
+  margin-bottom: 24px;
 }
 
 .profile-cmd-header h1 {
@@ -1134,73 +993,6 @@
 }
 
 @media (max-width: 900px) {
-  .profile-command-center {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-cmd-sidebar {
-    position: sticky;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    height: 70px;
-    padding: 8px 12px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .profile-cmd-brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0;
-  }
-
-  .profile-cmd-brand img {
-    width: 38px;
-    height: 38px;
-  }
-
-  .profile-cmd-brand span {
-    text-align: left;
-  }
-
-  .profile-cmd-nav {
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-    margin: 0;
-  }
-
-  .profile-cmd-nav-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 48px;
-    padding: 7px 10px;
-  }
-
-  .profile-cmd-nav-icon {
-    width: 22px;
-    height: 22px;
-  }
-
-  .profile-cmd-nav-icon svg {
-    width: 21px;
-    height: 21px;
-  }
-
-  .profile-cmd-avatar-button {
-    width: 46px;
-    height: 46px;
-    margin: 0;
-  }
-
-  .profile-cmd-avatar-button .profile-cmd-avatar {
-    width: 42px;
-    height: 42px;
-  }
-
   .profile-cmd-header {
     grid-template-columns: minmax(190px, 0.7fr) minmax(260px, 1.3fr) auto;
   }
@@ -1209,7 +1001,7 @@
     min-width: 52px;
   }
 
-  .profile-cmd-header > .profile-cmd-primary > span + * {
+  .profile-cmd-header > .profile-cmd-primary .profile-cmd-primary-label {
     display: none;
   }
 
@@ -1238,39 +1030,6 @@
 }
 
 @media (max-width: 680px) {
-  .profile-cmd-sidebar {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .profile-cmd-brand span,
-  .profile-cmd-avatar-button {
-    display: none;
-  }
-
-  .profile-cmd-nav {
-    justify-content: flex-end;
-    overflow-x: auto;
-  }
-
-  .profile-cmd-nav-item {
-    flex: 0 0 44px;
-    justify-content: center;
-    min-height: 44px;
-    padding: 6px;
-  }
-
-  .profile-cmd-nav-item > span:last-child {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
-
-  .profile-cmd-stage {
-    padding: 14px;
-  }
-
   .profile-cmd-header {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;

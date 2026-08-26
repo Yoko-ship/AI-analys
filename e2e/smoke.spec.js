@@ -380,12 +380,21 @@ test("profile workspace exposes account state, accessible editing, and exact his
 
   await expect(page.getByRole("heading", { name: "Моё пространство", level: 1 })).toBeVisible();
   await expect(page.getByText("E2E Investor", { exact: true })).toBeVisible();
+  await expect(page.locator(".topbar")).toBeVisible();
+  await expect(page.locator(".topbar-nav-btn.active")).toHaveText("Профиль");
   await expect(page.locator(".profile-command-center")).toBeVisible();
-  await expect(page.locator(".profile-cmd-sidebar")).toBeVisible();
+  await expect(page.locator(".profile-cmd-sidebar")).toHaveCount(0);
   await expect(page.locator(".profile-cmd-resume-card")).toContainText("AGBA Bank");
   await expect(page.locator(".profile-cmd-watch-row")).toContainText("AGBA");
   await expect(page.locator(".profile-cmd-week-card")).toBeVisible();
   await expect(page.locator(".profile-cmd-account-card")).toBeVisible();
+  const profileShell = await page.evaluate(() => ({
+    contentPaddingLeft: getComputedStyle(document.querySelector(".content")).paddingLeft,
+    topbarBottom: document.querySelector(".topbar").getBoundingClientRect().bottom,
+    profileTop: document.querySelector(".profile-command-center").getBoundingClientRect().top,
+  }));
+  expect(profileShell.contentPaddingLeft).toBe("40px");
+  expect(profileShell.profileTop).toBeGreaterThanOrEqual(profileShell.topbarBottom);
 
   const editButton = page.getByRole("button", { name: "Настройки" });
   await expect(editButton).toHaveAttribute("aria-expanded", "false");
