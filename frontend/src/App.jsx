@@ -2377,9 +2377,19 @@ const TEXTS = {
     },
     profile: {
       title: "Личный кабинет",
-      subtitle: "Профиль, статистика, избранное и история",
+      subtitle: "Ваш центр исследований: активность, сохранённые компании и быстрый запуск нового анализа.",
       workspaceLabel: "Личное пространство",
       overviewTitle: "Обзор аккаунта",
+      snapshotLabel: "Сводка пространства",
+      quickTitle: "Продолжить работу",
+      quickDescription: "Быстрый доступ к главным действиям без лишней навигации.",
+      accountTitle: "Данные аккаунта",
+      emailLabel: "Электронная почта",
+      statusLabel: "Статус",
+      activeStatus: "Активный аккаунт",
+      openFavorites: "Открыть избранное",
+      openHistory: "Открыть историю",
+      libraryTitle: "Сохранённая работа",
       memberSince: "На платформе с",
       edit: "Редактировать профиль",
       cancel: "Отмена",
@@ -2427,6 +2437,10 @@ const TEXTS = {
       title: "Анализ компании",
       subtitle: "Настройте период и источник — платформа соберёт отчёт, ключевые показатели и риски в одном месте.",
       workspaceLabel: "Аналитическое пространство",
+      snapshotLabel: "Возможности рабочего пространства",
+      companiesStat: "компаний в каталоге",
+      languagesStat: "языка отчёта",
+      formatsStat: "формата экспорта",
       setupLabel: "Новый анализ",
       setupTitle: "Параметры анализа",
       setupDescription: "Сначала выберите компанию и период. Дополнительные параметры нужны только для принудительного обновления или глубокой обработки Excel.",
@@ -2680,9 +2694,19 @@ const TEXTS = {
     },
     profile: {
       title: "Profile",
-      subtitle: "Profile, statistics, favorites, and history",
+      subtitle: "Your research hub for activity, saved companies, and a fast start to the next analysis.",
       workspaceLabel: "Personal workspace",
       overviewTitle: "Account overview",
+      snapshotLabel: "Workspace snapshot",
+      quickTitle: "Continue your work",
+      quickDescription: "Reach the key actions directly without navigating around the app.",
+      accountTitle: "Account details",
+      emailLabel: "Email address",
+      statusLabel: "Status",
+      activeStatus: "Active account",
+      openFavorites: "Open favorites",
+      openHistory: "Open history",
+      libraryTitle: "Saved work",
       memberSince: "Member since",
       edit: "Edit profile",
       cancel: "Cancel",
@@ -2730,6 +2754,10 @@ const TEXTS = {
       title: "Company analysis",
       subtitle: "Choose the period and source, then get the report, key metrics, and risks in one focused workspace.",
       workspaceLabel: "Analysis workspace",
+      snapshotLabel: "Workspace capabilities",
+      companiesStat: "companies in the directory",
+      languagesStat: "report languages",
+      formatsStat: "export formats",
       setupLabel: "New analysis",
       setupTitle: "Analysis setup",
       setupDescription: "Start with a company and reporting period. Advanced options are only needed for a source refresh or deep Excel processing.",
@@ -2983,9 +3011,19 @@ const TEXTS = {
     },
     profile: {
       title: "Profil",
-      subtitle: "Profil, statistika, tanlanganlar va tarix",
+      subtitle: "Faollik, tanlangan kompaniyalar va keyingi tahlilni tez boshlash uchun tadqiqot markazingiz.",
       workspaceLabel: "Shaxsiy maydon",
       overviewTitle: "Hisob ko'rinishi",
+      snapshotLabel: "Maydon xulosasi",
+      quickTitle: "Ishni davom ettirish",
+      quickDescription: "Asosiy amallarga ortiqcha navigatsiyasiz tez o'ting.",
+      accountTitle: "Hisob ma'lumotlari",
+      emailLabel: "Elektron pochta",
+      statusLabel: "Holat",
+      activeStatus: "Faol hisob",
+      openFavorites: "Tanlanganlarni ochish",
+      openHistory: "Tarixni ochish",
+      libraryTitle: "Saqlangan ishlar",
       memberSince: "Platformada",
       edit: "Profilni tahrirlash",
       cancel: "Bekor qilish",
@@ -3033,6 +3071,10 @@ const TEXTS = {
       title: "Kompaniya tahlili",
       subtitle: "Davr va manbani tanlang — hisobot, asosiy ko'rsatkichlar va risklarni yagona ish maydonida oling.",
       workspaceLabel: "Tahlil maydoni",
+      snapshotLabel: "Ish maydoni imkoniyatlari",
+      companiesStat: "ro'yxatdagi kompaniya",
+      languagesStat: "hisobot tili",
+      formatsStat: "eksport formati",
       setupLabel: "Yangi tahlil",
       setupTitle: "Tahlil parametrlari",
       setupDescription: "Avval kompaniya va hisobot davrini tanlang. Qo'shimcha parametrlar faqat manbani yangilash yoki chuqur Excel ishlovi uchun kerak.",
@@ -19605,6 +19647,22 @@ function App() {
     addToast(language === "ru" ? "Текущий аватар будет удален после сохранения" : language === "uz" ? "Joriy avatar saqlangandan so'ng o'chiriladi" : "Current avatar will be removed after saving", "info");
   };
 
+  const toggleProfileEditor = () => {
+    if (showProfileEdit) {
+      setShowProfileEdit(false);
+      return;
+    }
+    setShowProfileEdit(true);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById("profile-edit-panel")?.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          block: "start",
+        });
+      });
+    });
+  };
+
   const toggleTheme = () => {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   };
@@ -20135,20 +20193,9 @@ function App() {
                 description={t(language, "profile.subtitle")}
                 icon={Icons.users}
                 actions={profileUser ? (
-                  <>
-                    <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
-                      {t(language, "profile.analyze")}
-                    </button>
-                    <button
-                      className="ghost-btn"
-                      type="button"
-                      aria-expanded={showProfileEdit}
-                      aria-controls="profile-edit-panel"
-                      onClick={() => setShowProfileEdit((current) => !current)}
-                    >
-                      {showProfileEdit ? t(language, "profile.cancel") : t(language, "profile.edit")}
-                    </button>
-                  </>
+                  <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
+                    {t(language, "profile.analyze")}
+                  </button>
                 ) : (
                   <button className="primary-btn" type="button" onClick={() => setActiveView("auth")}>
                     {t(language, "profile.signIn")}
@@ -20156,25 +20203,51 @@ function App() {
                 )}
               >
                 {profileUser ? (
-                  <div className="profile-account-strip">
-                    <div
-                      className="profile-header-avatar"
-                      role={profileAvatarPreview || profileAvatar ? undefined : "img"}
-                      aria-label={profileAvatarPreview || profileAvatar ? undefined : profileUser.full_name || profileUser.email}
-                      style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 70% 60%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 70% 50%))` }}
-                    >
-                      {profileAvatarPreview ? <img src={profileAvatarPreview} alt="" /> : profileAvatar ? <img src={profileAvatar} alt="" /> : getProfileInitials(profileUser)}
+                  <div className="profile-identity-deck">
+                    <div className="profile-identity-main">
+                      <div className="profile-avatar-wrap">
+                        <div
+                          className="profile-header-avatar"
+                          role={profileAvatarPreview || profileAvatar ? undefined : "img"}
+                          aria-label={profileAvatarPreview || profileAvatar ? undefined : profileUser.full_name || profileUser.email}
+                          style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 70% 60%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 70% 50%))` }}
+                        >
+                          {profileAvatarPreview ? <img src={profileAvatarPreview} alt="" /> : profileAvatar ? <img src={profileAvatar} alt="" /> : getProfileInitials(profileUser)}
+                        </div>
+                        <span className="profile-presence-dot" aria-hidden="true" />
+                      </div>
+                      <div className="profile-header-info">
+                        <span className="profile-header-badge">{t(language, "auth.signedIn")}</span>
+                        <strong>{profileUser.full_name || profileUser.email.split("@")[0]}</strong>
+                        <span>{profileUser.email}</span>
+                        {profileCreated ? <small>{t(language, "profile.memberSince")} {formatDateLabel(profileCreated, language)}</small> : null}
+                      </div>
                     </div>
-                    <div className="profile-header-info">
-                      <strong>{profileUser.full_name || profileUser.email.split("@")[0]}</strong>
-                      <span>{profileUser.email}</span>
-                    </div>
-                    <div className="profile-account-meta">
-                      <span className="profile-header-badge">{t(language, "auth.signedIn")}</span>
-                      {profileCreated ? <span>{t(language, "profile.memberSince")} {formatDateLabel(profileCreated, language)}</span> : null}
+                    <div className="workspace-snapshot" aria-label={t(language, "profile.snapshotLabel")}>
+                      <span className="workspace-snapshot-label">{t(language, "profile.snapshotLabel")}</span>
+                      <div className="workspace-snapshot-grid">
+                        <div>
+                          <strong>{profileStats.total_analyses ?? 0}</strong>
+                          <span>{t(language, "dashboard.cards.analyses")}</span>
+                        </div>
+                        <div>
+                          <strong>{profile?.favorites?.length || 0}</strong>
+                          <span>{t(language, "profile.favoritesTitle")}</span>
+                        </div>
+                        <div>
+                          <strong>{profileStats.avg_score ?? "—"}</strong>
+                          <span>{t(language, "dashboard.cards.avgScore")}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="workspace-page-meta" aria-label={t(language, "profile.workspaceLabel")}>
+                    <span>{t(language, "profile.favoritesTitle")}</span>
+                    <span>{t(language, "profile.historyTitle")}</span>
+                    <span>{t(language, "profile.editTitle")}</span>
+                  </div>
+                )}
               </WorkspacePageHeader>
 
               {profileUser ? (
@@ -20185,6 +20258,93 @@ function App() {
                     <a href="#profile-favorites">{t(language, "profile.sections.favorites")}</a>
                     <a href="#profile-history">{t(language, "profile.sections.history")}</a>
                   </nav>
+
+                  <div className="profile-dashboard-grid">
+                    <div className="profile-dashboard-main">
+                      <section id="profile-overview" className="profile-stats-section" aria-labelledby="profile-overview-title">
+                        <div className="workspace-section-heading">
+                          <div>
+                            <div className="panel-label">{t(language, "profile.sections.overview")}</div>
+                            <h2 id="profile-overview-title">{t(language, "profile.overviewTitle")}</h2>
+                          </div>
+                        </div>
+                        <div className="profile-stats-grid">
+                          {dashboardCards.map((card) => (
+                            <DashboardMetricCard key={card.label} {...card} language={language} />
+                          ))}
+                        </div>
+                      </section>
+
+                      <section id="profile-activity" className="profile-activity-section" aria-labelledby="profile-activity-title">
+                        <article className="panel">
+                          <div className="panel-head">
+                            <div>
+                              <div className="panel-label">{t(language, "profile.sections.activity")}</div>
+                              <h2 id="profile-activity-title">{t(language, "dashboard.activityTitle")}</h2>
+                            </div>
+                            <span className="profile-activity-total">
+                              {activitySeries.total} {language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}
+                            </span>
+                          </div>
+                          <ActivityChart series={activitySeries} language={language} />
+                        </article>
+                      </section>
+                    </div>
+
+                    <aside className="profile-dashboard-rail" aria-label={t(language, "profile.quickTitle")}>
+                      <article className="panel profile-quick-panel">
+                        <span className="profile-rail-icon" aria-hidden="true">{Icons.zap}</span>
+                        <div>
+                          <div className="panel-label">{t(language, "profile.sections.activity")}</div>
+                          <h2>{t(language, "profile.quickTitle")}</h2>
+                          <p>{t(language, "profile.quickDescription")}</p>
+                        </div>
+                        <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
+                          {t(language, "profile.analyze")} <span aria-hidden="true">→</span>
+                        </button>
+                        <a className="profile-quick-link" href="#profile-favorites">
+                          <span>{Icons.star}</span>
+                          <strong>{t(language, "profile.openFavorites")}</strong>
+                          <span aria-hidden="true">→</span>
+                        </a>
+                        <a className="profile-quick-link" href="#profile-history">
+                          <span>{Icons.chart}</span>
+                          <strong>{t(language, "profile.openHistory")}</strong>
+                          <span aria-hidden="true">→</span>
+                        </a>
+                      </article>
+
+                      <article className="panel profile-account-panel">
+                        <div className="panel-label">{t(language, "profile.workspaceLabel")}</div>
+                        <h2>{t(language, "profile.accountTitle")}</h2>
+                        <dl className="profile-account-list">
+                          <div>
+                            <dt>{t(language, "profile.emailLabel")}</dt>
+                            <dd>{profileUser.email}</dd>
+                          </div>
+                          <div>
+                            <dt>{t(language, "profile.statusLabel")}</dt>
+                            <dd><span className="profile-status-dot" aria-hidden="true" />{t(language, "profile.activeStatus")}</dd>
+                          </div>
+                          {profileCreated ? (
+                            <div>
+                              <dt>{t(language, "profile.memberSince")}</dt>
+                              <dd>{formatDateLabel(profileCreated, language)}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                        <button
+                          className="ghost-btn"
+                          type="button"
+                          aria-expanded={showProfileEdit}
+                          aria-controls="profile-edit-panel"
+                          onClick={toggleProfileEditor}
+                        >
+                          {showProfileEdit ? t(language, "profile.cancel") : t(language, "profile.edit")}
+                        </button>
+                      </article>
+                    </aside>
+                  </div>
 
                   {showProfileEdit && (
                     <section id="profile-edit-panel" className="panel profile-edit-panel" aria-labelledby="profile-edit-title">
@@ -20234,35 +20394,14 @@ function App() {
                     </section>
                   )}
 
-                  <section id="profile-overview" className="profile-stats-section" aria-labelledby="profile-overview-title">
-                    <div className="workspace-section-heading">
-                      <div>
-                        <div className="panel-label">{t(language, "profile.sections.overview")}</div>
-                        <h2 id="profile-overview-title">{t(language, "profile.overviewTitle")}</h2>
-                      </div>
+                  <div className="workspace-section-heading profile-library-heading">
+                    <div>
+                      <div className="panel-label">{t(language, "profile.workspaceLabel")}</div>
+                      <h2>{t(language, "profile.libraryTitle")}</h2>
                     </div>
-                    <div className="profile-stats-grid">
-                      {dashboardCards.map((card) => (
-                        <DashboardMetricCard key={card.label} {...card} language={language} />
-                      ))}
-                    </div>
-                  </section>
+                  </div>
 
-                  <section id="profile-activity" className="profile-activity-section" aria-labelledby="profile-activity-title">
-                    <article className="panel">
-                      <div className="panel-head">
-                        <div>
-                          <div className="panel-label">{t(language, "profile.sections.activity")}</div>
-                          <h2 id="profile-activity-title">{t(language, "dashboard.activityTitle")}</h2>
-                        </div>
-                        <span className="profile-activity-total">
-                          {activitySeries.total} {language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}
-                        </span>
-                      </div>
-                      <ActivityChart series={activitySeries} language={language} />
-                    </article>
-                  </section>
-
+                  <div className="profile-library-grid">
                   <section id="profile-favorites" className="profile-favorites-section" aria-labelledby="profile-favorites-title">
                     <article className="panel favorites-panel">
                       <div className="panel-head">
@@ -20274,8 +20413,11 @@ function App() {
                       </div>
                       {profile?.favorites?.length ? (
                         <div className="favorites-list">
-                          {profile.favorites.map((item) => (
+                          {profile.favorites.map((item) => {
+                            const company = companies.find((candidate) => String(candidate.ticker).toUpperCase() === String(item.ticker).toUpperCase());
+                            return (
                             <article className="favorite-item" key={`${item.ticker}-${item.created_at}`}>
+                              <CompanyLogo logo={company?.logo} name={item.company_name || company?.company_name || item.ticker} ticker={item.ticker} />
                               <button
                                 className="favorite-open-button"
                                 type="button"
@@ -20292,7 +20434,8 @@ function App() {
                                 {t(language, "profile.remove")}
                               </button>
                             </article>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="empty-state profile-empty-state">
@@ -20375,6 +20518,7 @@ function App() {
                       )}
                     </article>
                   </section>
+                  </div>
                 </>
               ) : (
                 <article className="panel workspace-empty-state">
@@ -20399,16 +20543,32 @@ function App() {
                 title={t(language, "analysis.title")}
                 description={t(language, "analysis.subtitle")}
                 icon={Icons.chart}
-                actions={!token ? (
+                actions={token ? (
+                  <button className="primary-btn" type="button" onClick={() => document.getElementById("analysis-company-input")?.focus()}>
+                    {t(language, "analysis.setupLabel")}
+                  </button>
+                ) : (
                   <button className="ghost-btn" type="button" onClick={() => setActiveView("auth")}>
                     {t(language, "profile.signIn")}
                   </button>
-                ) : null}
+                )}
               >
-                <div className="workspace-page-meta" aria-label={t(language, "analysis.workspaceLabel")}>
-                  <span>{language === "en" ? "Structured reports" : language === "uz" ? "Tizimli hisobotlar" : "Структурированные отчёты"}</span>
-                  <span>RU · UZ · EN</span>
-                  <span>XLSX · PDF</span>
+                <div className="workspace-snapshot analysis-workspace-snapshot" aria-label={t(language, "analysis.snapshotLabel")}>
+                  <span className="workspace-snapshot-label">{t(language, "analysis.snapshotLabel")}</span>
+                  <div className="workspace-snapshot-grid">
+                    <div>
+                      <strong>{companies.length}</strong>
+                      <span>{t(language, "analysis.companiesStat")}</span>
+                    </div>
+                    <div>
+                      <strong>3</strong>
+                      <span>{t(language, "analysis.languagesStat")}</span>
+                    </div>
+                    <div>
+                      <strong>2</strong>
+                      <span>{t(language, "analysis.formatsStat")}</span>
+                    </div>
+                  </div>
                 </div>
               </WorkspacePageHeader>
 
@@ -20443,6 +20603,7 @@ function App() {
                   </div>
                 ) : null}
 
+                <div className="analysis-builder-grid">
                 <form className="analysis-form-modern" onSubmit={handleAnalysisSubmit}>
                   <div className="analysis-input-group">
                     <label htmlFor="analysis-company-input">{t(language, "analysis.company")}</label>
@@ -20648,6 +20809,7 @@ function App() {
                       </button>
                     ))}
                   </div>
+                </div>
                 </div>
               </article>
 
