@@ -4517,6 +4517,28 @@ function hashToHue(source) {
   return String(source || "").split("").reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 360, 47);
 }
 
+function ProfileAvatar({ user, src = "", className = "" }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const label = user?.full_name || user?.email || "Profile";
+  const hue = hashToHue(user?.email || label);
+  const showImage = Boolean(src) && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+
+  return (
+    <span
+      className={`profile-cmd-avatar ${className}`.trim()}
+      role="img"
+      aria-label={label}
+      style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 60%), hsl(${(hue + 45) % 360} 70% 50%))` }}
+    >
+      {showImage ? <img src={src} alt="" onError={() => setImageFailed(true)} /> : <span className="profile-cmd-avatar-initials">{getProfileInitials(user)}</span>}
+    </span>
+  );
+}
+
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -19653,6 +19675,7 @@ function App() {
   const resumeCompany = companies.find((item) => String(item?.ticker || "").toUpperCase() === resumeTicker) || null;
   const resumeQuote = profileMarketQuote(resumeTicker, marketRows, securitiesMap);
   const profileNotes = Array.isArray(profile?.notes) ? profile.notes : [];
+  const displayedProfileAvatar = profileAvatarPreview || (profileAvatarCleared ? "" : profileAvatar || "");
   const disclosure = disclosureText(language);
   const comparison = compareResult?.comparison || null;
   const compareCharts = Array.isArray(comparison?.charts) ? comparison.charts : [];
@@ -19787,6 +19810,14 @@ function App() {
   const openProfileSettings = (tab = "profile") => {
     setProfileSettingsTab(tab);
     setShowProfileEdit(true);
+  };
+
+  const closeProfileSettings = () => {
+    setShowProfileEdit(false);
+    setProfileAvatarFile(null);
+    setProfileAvatarPreview("");
+    setProfileAvatarCleared(false);
+    setProfileForm({ full_name: profileUser?.full_name || "" });
   };
 
   const toggleTheme = () => {
@@ -20381,14 +20412,7 @@ function App() {
                   <div className="profile-cmd-grid">
                     <div className="profile-cmd-column profile-cmd-column-left">
                       <article className="profile-cmd-card profile-cmd-identity-card">
-                        <div
-                          className="profile-cmd-avatar profile-cmd-avatar-large"
-                          role={profileAvatarPreview || profileAvatar ? undefined : "img"}
-                          aria-label={profileAvatarPreview || profileAvatar ? undefined : profileUser.full_name || profileUser.email}
-                          style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 70% 60%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 70% 50%))` }}
-                        >
-                          {profileAvatarPreview ? <img src={profileAvatarPreview} alt="" /> : profileAvatar ? <img src={profileAvatar} alt="" /> : getProfileInitials(profileUser)}
-                        </div>
+                        <ProfileAvatar user={profileUser} src={displayedProfileAvatar} className="profile-cmd-avatar-large" />
                         <div>
                           <strong>{profileUser.full_name || profileUser.email.split("@")[0]}</strong>
                           <span className="profile-cmd-active"><i aria-hidden="true" />{t(language, "profile.activeStatus")}</span>
@@ -20592,7 +20616,7 @@ function App() {
                   theme={theme}
                   textScale={textScale}
                   apiFetch={apiFetch}
-                  onClose={() => setShowProfileEdit(false)}
+                  onClose={closeProfileSettings}
                   onRefresh={loadProfile}
                   onLogout={handleLogout}
                   onLanguage={setLanguage}
@@ -20606,12 +20630,18 @@ function App() {
                       </div>
                       <div className="profile-form-group">
                         <span className="profile-field-label">{t(language, "profile.avatar")}</span>
-                        <div className="profile-avatar-upload">
-                          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onAvatarChange} id="avatar-input" aria-describedby="avatar-input-hint" />
-                          <label htmlFor="avatar-input" className="profile-avatar-btn">{language === "en" ? "Choose image" : language === "uz" ? "Rasm tanlash" : "Выбрать изображение"}</label>
-                          {(profileAvatarPreview || profileAvatar) ? <button type="button" className="profile-avatar-remove" onClick={removeAvatar}>{t(language, "profile.clearAvatar")}</button> : null}
+                        <div className="profile-avatar-editor">
+                          <ProfileAvatar user={profileUser} src={displayedProfileAvatar} className="profile-avatar-editor-preview" />
+                          <div className="profile-avatar-editor-controls">
+                            <div className="profile-avatar-upload">
+                              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onAvatarChange} id="avatar-input" aria-describedby="avatar-input-hint" />
+                              <label htmlFor="avatar-input" className="profile-avatar-btn"><span aria-hidden="true">＋</span>{language === "en" ? "Choose image" : language === "uz" ? "Rasm tanlash" : "Выбрать изображение"}</label>
+                              {displayedProfileAvatar ? <button type="button" className="profile-avatar-remove" onClick={removeAvatar}>{t(language, "profile.clearAvatar")}</button> : null}
+                            </div>
+                            <span id="avatar-input-hint" className="profile-field-hint">{t(language, "profile.avatarHint")}</span>
+                            {profileAvatarCleared ? <span className="profile-avatar-pending">{language === "en" ? "Avatar will be removed after saving" : language === "uz" ? "Avatar saqlangandan keyin o'chiriladi" : "Аватар будет удалён после сохранения"}</span> : null}
+                          </div>
                         </div>
-                        <span id="avatar-input-hint" className="profile-field-hint">{t(language, "profile.avatarHint")}</span>
                       </div>
                       <div className="profile-form-actions">
                         <button className="profile-cmd-primary" type="submit" disabled={profileSaving}>{profileSaving ? t(language, "profile.saving") : t(language, "profile.saveChanges")}</button>
