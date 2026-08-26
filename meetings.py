@@ -24,12 +24,14 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import requests
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +40,163 @@ PAGE_SIZE = int(os.getenv("MEETINGS_PAGE_SIZE", "200"))
 MAX_PAGES = int(os.getenv("MEETINGS_MAX_PAGES", "12"))
 HORIZON_DAYS = int(os.getenv("MEETINGS_HORIZON_DAYS", "200"))
 REFRESH_TTL_HOURS = int(os.getenv("MEETINGS_TTL_HOURS", "6"))
+DETAIL_TTL_SECONDS = int(os.getenv("MEETINGS_DETAIL_TTL_SECONDS", "600"))
+OPENINFO_ORIGIN = "https://openinfo.uz"
 
 _REFRESH_LOCK = threading.Lock()
 _REFRESH_RUNNING = threading.Event()
 _last_refresh_attempt = 0.0
+_detail_cache: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+_DETAIL_CACHE_LOCK = threading.Lock()
+
+
+class AnnouncementNotFound(LookupError):
+    """The requested announcement does not exist on openinfo."""
+
+
+class AnnouncementSourceError(RuntimeError):
+    """openinfo returned a page that cannot be used as an announcement."""
 
 
 # ---------------------------------------------------------------------------
 # Source
 # ---------------------------------------------------------------------------
+
+def _node_text(node: Any) -> str:
+    joined = " ".join(str(part).strip() for part in node.stripped_strings if str(part).strip())
+    return re.sub(r"\s+", " ", joined).strip()
+
+
+def _announcement_page(html: str, announcement_id: str, language: str) -> dict[str, Any]:
+    """Turn openinfo's public, server-rendered announcement page into safe data.
+
+    We deliberately return text and URLs, not the source HTML.  That keeps the
+    page in our own design and avoids placing third-party markup in the DOM.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    main = soup.find("main")
+    title_node = main.find("h1") if main else None
+    title = _node_text(title_node) if title_node else ""
+    if not main or not title:
+        raise AnnouncementSourceError("openinfo announcement content is missing")
+
+    organization = ""
+    title_wrap = title_node.parent
+    if title_wrap:
+        company_node = title_wrap.find("span")
+        organization = _node_text(company_node) if company_node else ""
+
+    prose = main.find("div", class_=lambda value: value and "prose" in value.split())
+    # The organization heading is localized by openinfo, but its position is
+    # stable: it is the first heading after the announcement body.
+    organization_heading = prose.find_next(["h2", "h3"]) if prose else None
+    organization_box = organization_heading.parent if organization_heading else None
+
+    metadata: list[dict[str, str]] = []
+    for label_node in main.find_all(class_=lambda value: value and "font-medium" in value.split()):
+        if organization_box and organization_box in label_node.parents:
+            continue
+        parent = label_node.parent
+        parts = [str(part).strip() for part in parent.stripped_strings if str(part).strip()]
+        if len(parts) < 2:
+            continue
+        label = parts[0].rstrip(":").strip()
+        value = " ".join(parts[1:]).strip()
+        if label and value:
+            metadata.append({"label": label, "value": value})
+
+    content: list[dict[str, str]] = []
+    if prose:
+        for node in prose.find_all(["h2", "h3", "p", "li"]):
+            if node.name == "li" and node.find_parent("li"):
+                continue
+            text = _node_text(node)
+            if not text:
+                continue
+            is_heading = node.name in {"h2", "h3"}
+            if node.name == "p":
+                strong = node.find("strong")
+                is_heading = bool(strong and _node_text(strong) == text)
+            content.append({
+                "kind": "heading" if is_heading else "list_item" if node.name == "li" else "paragraph",
+                "text": text,
+            })
+
+    organization_details: list[dict[str, str]] = []
+    if organization_box:
+        grid = organization_heading.find_next_sibling("div")
+        for cell in grid.find_all("div", recursive=False) if grid else []:
+            parts = [_node_text(node) for node in cell.find_all("p", recursive=False)]
+            parts = [part for part in parts if part]
+            if len(parts) >= 2:
+                organization_details.append({
+                    "label": parts[0].rstrip(":").strip(),
+                    "value": " ".join(parts[1:]).strip(),
+                })
+
+    pdf_node = main.find("a", href=lambda value: bool(value and "/announce/to_pdf/" in value))
+    pdf_url = str(pdf_node.get("href") or "") if pdf_node else ""
+    source_url = f"{OPENINFO_ORIGIN}/{language}/announce/{announcement_id}"
+    return {
+        "announcement_id": announcement_id,
+        "language": language,
+        "title": title,
+        "organization": organization,
+        "metadata": metadata,
+        "content": content,
+        "organization_details": organization_details,
+        "pdf_url": pdf_url,
+        "source_url": source_url,
+    }
+
+
+def announcement_detail(
+    announcement_id: int | str,
+    language: str = "ru",
+    *,
+    session: requests.Session | None = None,
+) -> dict[str, Any]:
+    """Fetch one announcement from openinfo, with a short in-process cache."""
+    item_id = str(announcement_id).strip()
+    lang = str(language or "ru").strip().lower()
+    if not item_id.isdigit():
+        raise ValueError("announcement id must be numeric")
+    if lang not in {"ru", "uz", "en"}:
+        raise ValueError("language must be ru, uz or en")
+
+    cache_key = (item_id, lang)
+    now = time.time()
+    if session is None:
+        with _DETAIL_CACHE_LOCK:
+            cached = _detail_cache.get(cache_key)
+        if cached and now - cached[0] < DETAIL_TTL_SECONDS:
+            return cached[1]
+
+    url = f"{OPENINFO_ORIGIN}/{lang}/announce/{item_id}"
+    client = session or requests.Session()
+    try:
+        response = client.get(
+            url,
+            timeout=20,
+            headers={
+                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": "UzInvest/1.0 (+https://uzinvest.uz)",
+            },
+        )
+    except requests.RequestException as exc:
+        raise AnnouncementSourceError("openinfo is unavailable") from exc
+    if response.status_code == 404:
+        raise AnnouncementNotFound(f"announcement {item_id} not found")
+    try:
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise AnnouncementSourceError(f"openinfo returned HTTP {response.status_code}") from exc
+
+    payload = _announcement_page(response.text, item_id, lang)
+    if session is None:
+        with _DETAIL_CACHE_LOCK:
+            _detail_cache[cache_key] = (now, payload)
+    return payload
 
 def fetch_calendar(
     session: requests.Session | None = None,

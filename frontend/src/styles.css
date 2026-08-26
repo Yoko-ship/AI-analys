@@ -13038,6 +13038,47 @@ body[data-theme="light"] .heatmap-tree-tile.is-inactive {
   line-height: 1.75; color: var(--text); margin: 0 0 14px; }
 .led .led-art-body p:last-child { margin-bottom: 0; }
 
+/* OpenInfo notices stay on our domain at /news/announcement/{id}.  The source
+   HTML is parsed server-side, so this page owns both its typography and layout. */
+.led .announcement-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 290px);
+  gap: 42px; align-items: start; }
+.led .announcement-main { min-width: 0; }
+.led .announcement-company { margin: 14px 0 0; color: var(--muted); font-size: 15px;
+  line-height: 1.5; font-weight: 600; }
+.led .announcement-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px; margin: 24px 0 0; padding: 1px; border-radius: 10px; overflow: hidden;
+  background: var(--border); }
+.led .announcement-meta > div { min-width: 0; padding: 13px 15px; background: var(--panel); }
+.led .announcement-meta dt { color: var(--muted); font-size: 11px; letter-spacing: .04em; }
+.led .announcement-meta dd { margin: 4px 0 0; color: var(--text); font-size: 13.5px;
+  line-height: 1.45; overflow-wrap: anywhere; }
+.led .announcement-body { margin-top: 30px; max-width: 72ch; }
+.led .announcement-body > .led-panel-h { margin-bottom: 18px; }
+.led .announcement-body h3 { margin: 24px 0 10px; color: var(--text); font-family: var(--led-serif);
+  font-size: 19px; line-height: 1.4; }
+.led .announcement-body p { margin: 0 0 15px; color: var(--text); font-family: var(--led-serif);
+  font-size: clamp(15.5px, 1.3vw, 17px); line-height: 1.75; white-space: pre-line; }
+.led .announcement-body p.is-list-item { position: relative; padding-left: 20px; }
+.led .announcement-body p.is-list-item::before { content: "•"; position: absolute; left: 2px; color: var(--accent); }
+.led .announcement-actions > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.led .announcement-secondary { display: inline-flex; align-items: center; padding: 9px 15px;
+  border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;
+  font-weight: 600; text-decoration: none; }
+.led .announcement-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.led .announcement-rail { position: sticky; top: calc(var(--topbar-h, 80px) + 20px); }
+
+@media (max-width: 820px) {
+  .led .announcement-layout { grid-template-columns: 1fr; gap: 26px; }
+  .led .announcement-rail { position: static; }
+}
+
+@media (max-width: 540px) {
+  .led .announcement-meta { grid-template-columns: 1fr; }
+  .led .announcement-actions { align-items: stretch; }
+  .led .announcement-actions > div,
+  .led .announcement-actions a { width: 100%; justify-content: center; }
+}
+
 .led .led-art-quote { margin: 24px 0 0; padding-left: 18px; border-left: 3px solid var(--accent); }
 .led .led-art-quote .led-panel-h { margin-bottom: 8px; }
 .led .led-art-quote p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--muted); max-width: 62ch; }
