@@ -188,6 +188,19 @@ test("theme toggle flips the data-theme attribute", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("data-theme", after);
 });
 
+test("workspace routes inherit one shared application palette", async ({ page }) => {
+  const palettes = [];
+  for (const path of ["/", "/market", "/news", "/profile"]) {
+    await page.goto(path);
+    palettes.push(await page.evaluate(() => {
+      const style = getComputedStyle(document.body);
+      return ["--bg", "--panel", "--accent", "--success", "--warning", "--danger"]
+        .map((token) => style.getPropertyValue(token).trim());
+    }));
+  }
+  expect(palettes.every((palette) => JSON.stringify(palette) === JSON.stringify(palettes[0]))).toBe(true);
+});
+
 test("language switch re-renders the hero copy", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".hero-copy-block h1")).toContainText(/\S/);
@@ -358,10 +371,10 @@ test("profile workspace exposes account state, accessible editing, and exact his
   await expect(page.getByRole("heading", { name: "Личный кабинет", level: 1 })).toBeVisible();
   await expect(page.getByText("E2E Investor", { exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Разделы профиля" })).toBeVisible();
-  await expect(page.locator(".profile-identity-deck .workspace-snapshot")).toContainText("2");
-  await expect(page.getByLabel("Продолжить работу")).toBeVisible();
-  await expect(page.getByRole("link", { name: /Открыть избранное/ })).toHaveAttribute("href", "#profile-favorites");
-  await expect(page.getByRole("link", { name: /Открыть историю/ })).toHaveAttribute("href", "#profile-history");
+  await expect(page.locator(".profile-command-header .profile-command-metrics")).toContainText("2");
+  await expect(page.locator(".profile-account-panel")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Разделы профиля" }).locator('a[href="#profile-favorites"]')).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Разделы профиля" }).locator('a[href="#profile-history"]')).toBeVisible();
 
   const editButton = page.getByRole("button", { name: "Редактировать профиль" });
   await expect(editButton).toHaveAttribute("aria-expanded", "false");
