@@ -201,6 +201,9 @@ test("calendar meeting headlines follow the selected interface language", async 
 
   await expect(titles.nth(0)).toHaveText("Внеочередное общее собрание акционеров");
   await expect(titles.nth(0)).toHaveAttribute("title", CALENDAR_MEETINGS[0].title);
+  await expect(page.locator("a.newscal-news-row").first())
+    .toHaveAttribute("href", "https://openinfo.uz/ru/announce/meeting-uz");
+  await expect(page.locator("a.newscal-news-row").first()).toHaveAttribute("target", "_blank");
   await expect(titles.nth(1)).toHaveText(CALENDAR_MEETINGS[1].title);
 
   await page.locator("#languageSelect").selectOption("en");
@@ -214,6 +217,37 @@ test("calendar meeting headlines follow the selected interface language", async 
   await page.locator("#languageSelect").selectOption("ru");
   await page.getByRole("button", { name: "Объявления", exact: true }).click();
   await expect(page.locator(".newscal-anntitle").first()).toHaveText("Внеочередное общее собрание акционеров");
+  await expect(page.locator(".newscal-anntitle a").first())
+    .toHaveAttribute("href", "https://openinfo.uz/ru/announce/meeting-uz");
+});
+
+test("clicking a calendar meeting opens its OpenInfo announcement", async ({ page, context }) => {
+  await context.route("https://openinfo.uz/**", (route) => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: "<title>OpenInfo announcement</title>",
+  }));
+  await page.goto("/news?tab=calendar");
+
+  const [source] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.locator("a.newscal-news-row").first().click(),
+  ]);
+
+  await expect(source).toHaveURL("https://openinfo.uz/ru/announce/meeting-uz");
+  await source.close();
+});
+
+test("an open calendar refetches when the tab regains focus", async ({ page }) => {
+  await page.goto("/news?tab=calendar");
+  await expect(page.locator("a.newscal-news-row").first()).toBeVisible();
+  const refreshed = page.waitForRequest((request) => (
+    new URL(request.url()).pathname === "/api/news/calendar/meetings"
+  ));
+
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+
+  await refreshed;
 });
 
 test("navigating to Рынок shows the market board", async ({ page }) => {

@@ -891,6 +891,17 @@ const NEWSCAL_TX = {
   },
 };
 
+const NEWS_CALENDAR_POLL_MS = 5 * 60 * 1000;
+
+function calendarAnnouncementUrl(item, language) {
+  const supplied = String(item?.source_url || item?.link || "").trim();
+  if (/^https?:\/\//i.test(supplied)) return supplied;
+  const id = String(item?.announcement_id || "").trim();
+  if (!id) return "";
+  const lang = normalizeLanguage(language);
+  return `https://openinfo.uz/${lang}/announce/${encodeURIComponent(id)}`;
+}
+
 // Pagination the way the source's tables do it: a shown-range line, a
 // «Показывать по N» selector and a numbered strip with ellipses.
 function NewsCalPager({ p, pages, total, from, to, size, onPage, onSize, tx }) {
@@ -943,7 +954,22 @@ function NewsCalendarView({ language, onOpenCompany }) {
   const [divSort, setDivSort] = React.useState({ key: "pub", dir: -1 });
   const [pageSize, setPageSize] = React.useState(10);
   const [page, setPage] = React.useState(1);
+  const [refreshTick, setRefreshTick] = React.useState(0);
   React.useEffect(() => { setPage(1); }, [view, divType, search, pageSize, divSort]);
+
+  React.useEffect(() => {
+    const refresh = () => {
+      if (!document.hidden) setRefreshTick((n) => n + 1);
+    };
+    const timer = window.setInterval(refresh, NEWS_CALENDAR_POLL_MS);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
 
   React.useEffect(() => {
     let alive = true;
@@ -956,27 +982,27 @@ function NewsCalendarView({ language, onOpenCompany }) {
       .then((d) => { if (alive) setEvents({ loading: false, error: !d || !d.ok, items: (d && d.items) || [] }); })
       .catch(() => { if (alive) setEvents({ loading: false, error: true, items: [] }); });
     return () => { alive = false; };
-  }, [cursor.y, cursor.m, mode]);
+  }, [cursor.y, cursor.m, mode, refreshTick]);
 
   React.useEffect(() => {
-    if (view !== "dividends" || divs) return undefined;
+    if (view !== "dividends") return undefined;
     let alive = true;
     fetch("/api/news/calendar/dividends?limit=1000")
       .then((r) => r.json())
       .then((d) => { if (alive) setDivs({ error: !d || !d.ok, items: (d && d.items) || [] }); })
       .catch(() => { if (alive) setDivs({ error: true, items: [] }); });
     return () => { alive = false; };
-  }, [view, divs]);
+  }, [view, refreshTick]);
 
   React.useEffect(() => {
-    if (view !== "announcements" || anns) return undefined;
+    if (view !== "announcements") return undefined;
     let alive = true;
     fetch("/api/news/calendar/announcements?limit=2000")
       .then((r) => r.json())
       .then((d) => { if (alive) setAnns({ error: !d || !d.ok, items: (d && d.items) || [] }); })
       .catch(() => { if (alive) setAnns({ error: true, items: [] }); });
     return () => { alive = false; };
-  }, [view, anns]);
+  }, [view, refreshTick]);
 
   const q = search.trim().toLowerCase();
   const filteredEvents = React.useMemo(
@@ -1111,21 +1137,31 @@ function NewsCalendarView({ language, onOpenCompany }) {
     )
     : <span className="newscal-row-org">{it.organization}</span>);
 
-  const renderRow = (it, i) => (
-    <div key={it.announcement_id || i} className="newscal-row">
-      <span className="newscal-row-date">
-        {fmtDay(it.meeting_date)}{fmtTime(it.meeting_date) ? ` · ${fmtTime(it.meeting_date)}` : ""}
-      </span>
-      <div className="newscal-row-body">
-        {orgCell(it)}
-        {it.title && (
-          <div className="newscal-row-title" title={it.title}>
-            {localizedCalendarTitle(it, lang)}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const renderRow = (it, i) => {
+    const href = calendarAnnouncementUrl(it, lang);
+    const contents = (
+      <>
+        <span className="newscal-row-date">
+          {fmtDay(it.meeting_date)}{fmtTime(it.meeting_date) ? ` · ${fmtTime(it.meeting_date)}` : ""}
+        </span>
+        <div className="newscal-row-body">
+          <span className="newscal-row-org">{it.organization}</span>
+          {it.title && (
+            <span className="newscal-row-title" title={it.title}>
+              {localizedCalendarTitle(it, lang)}
+            </span>
+          )}
+        </div>
+      </>
+    );
+    return href ? (
+      <a key={it.announcement_id || i} className="newscal-row newscal-news-row"
+        href={href} target="_blank" rel="noreferrer"
+        aria-label={`${it.organization || ""}: ${localizedCalendarTitle(it, lang)}`}>
+        {contents}
+      </a>
+    ) : <div key={it.announcement_id || i} className="newscal-row">{contents}</div>;
+  };
 
   return (
     <div className="newscal">
@@ -1268,7 +1304,12 @@ function NewsCalendarView({ language, onOpenCompany }) {
                       return (
                         <tr key={it.announcement_id || i}>
                           <td>{orgCell(it)}</td>
-                          <td className="newscal-anntitle" title={it.title || undefined}>{localizedTitle || "—"}</td>
+                          <td className="newscal-anntitle" title={it.title || undefined}>
+                            {calendarAnnouncementUrl(it, lang) ? (
+                              <a className="newscal-news-link" href={calendarAnnouncementUrl(it, lang)}
+                                target="_blank" rel="noreferrer">{localizedTitle || "—"}</a>
+                            ) : localizedTitle || "—"}
+                          </td>
                           <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmtDate(it.pub_date)}</td>
                           <td style={{ whiteSpace: "nowrap" }}>
                             {fmtDate(it.meeting_date)}{fmtTime(it.meeting_date) ? ` · ${fmtTime(it.meeting_date)}` : ""}
