@@ -17961,7 +17961,7 @@ const LANDING_TX = {
 };
 
 // The dawn scene: sky gradient, twinkling stars, an occasional meteor, the
-// amber "market chart" horizon line (faded on the left so it never fights the
+// brand-colour "market chart" horizon line (faded on the left so it never fights the
 // headline), and the city silhouette with the Tashkent TV tower.
 function LandingSky({ theme }) {
   const ref = React.useRef(null);
@@ -17973,19 +17973,19 @@ function LandingSky({ theme }) {
     // Two palettes, one scene: night dawn for dark theme, morning for light.
     // Stars, window lights and meteors belong to the night only.
     const pal = theme === "light" ? {
-      sky: [[0, "#c9ddf2"], [0.5, "#e2edf9"], [0.78, "#f4e2c4"], [0.92, "#f6c98e"], [1, "#f1b269"]],
-      glow: [[0, "rgba(255, 224, 170, 0.95)"], [0.35, "rgba(255, 190, 110, 0.45)"], [1, "rgba(255, 190, 110, 0)"]],
+      sky: [[0, "#dfe9e3"], [0.5, "#edf3ef"], [0.78, "#f5f7f5"], [0.92, "#dfeedf"], [1, "#c5dfcf"]],
+      glow: [[0, "rgba(198, 239, 215, 0.9)"], [0.35, "rgba(11, 158, 94, 0.18)"], [1, "rgba(11, 158, 94, 0)"]],
       night: false,
-      line: [[0, "rgba(180, 83, 9, 0.10)"], [0.45, "rgba(180, 83, 9, 0.20)"], [0.62, "rgba(180, 83, 9, 0.55)"], [1, "rgba(180, 83, 9, 0.6)"]],
-      dot: "#b45309", dotGlow: "rgba(180, 83, 9, 0.22)",
-      city: "#2b3a55",
+      line: [[0, "rgba(11, 158, 94, 0.08)"], [0.45, "rgba(11, 158, 94, 0.18)"], [0.62, "rgba(11, 158, 94, 0.52)"], [1, "rgba(11, 158, 94, 0.62)"]],
+      dot: "#0b9e5e", dotGlow: "rgba(11, 158, 94, 0.24)",
+      city: "#25372d",
     } : {
-      sky: [[0, "#0e0f12"], [0.52, "#1a1b20"], [0.78, "#453730"], [0.92, "#b4633f"], [1, "#e8955a"]],
-      glow: [[0, "rgba(255, 214, 140, 0.85)"], [0.35, "rgba(255, 170, 90, 0.35)"], [1, "rgba(255, 170, 90, 0)"]],
+      sky: [[0, "#0a0c0b"], [0.52, "#0f1411"], [0.78, "#16251d"], [0.92, "#1e3c2d"], [1, "#2b6948"]],
+      glow: [[0, "rgba(135, 246, 186, 0.58)"], [0.35, "rgba(63, 224, 143, 0.2)"], [1, "rgba(63, 224, 143, 0)"]],
       night: true,
-      line: [[0, "rgba(255, 180, 94, 0.08)"], [0.45, "rgba(255, 180, 94, 0.16)"], [0.62, "rgba(255, 180, 94, 0.5)"], [1, "rgba(255, 180, 94, 0.55)"]],
-      dot: "#ffb45e", dotGlow: "rgba(255, 180, 94, 0.25)",
-      city: "#08090b",
+      line: [[0, "rgba(63, 224, 143, 0.08)"], [0.45, "rgba(63, 224, 143, 0.16)"], [0.62, "rgba(63, 224, 143, 0.5)"], [1, "rgba(63, 224, 143, 0.58)"]],
+      dot: "#3fe08f", dotGlow: "rgba(63, 224, 143, 0.25)",
+      city: "#050706",
     };
     let stars = [], meteors = [], t0 = 0, lastMeteor = 0, raf = 0, alive = true;
     const pts = [0.0, 0.30, 0.06, 0.26, 0.12, 0.34, 0.18, 0.24, 0.25, 0.30, 0.32, 0.18, 0.40, 0.26,
@@ -19518,40 +19518,6 @@ function App() {
   const profileAvatar = profileUser?.avatar_data_url;
   const profileCreated = profileUser?.created_at;
   const activitySeries = buildActivitySeries(profile?.recent_analyses || [], language);
-  const activitySparkline = activitySeries.days.map((day) => day.count);
-  const cachedSparkline = activitySeries.days.map((day) => day.cached);
-  const scoreSparkline = activitySeries.days.map((day) => day.avgScore).filter((value) => value !== null);
-  const companySparkline = companies.length ? activitySeries.days.map(() => companies.length) : [];
-  const dashboardCards = [
-    {
-      label: t(language, "dashboard.cards.companies"),
-      value: companies.length || 0,
-      sub: t(language, "analysis.availableTitle"),
-      tone: "good",
-      sparkline: companySparkline,
-    },
-    {
-      label: t(language, "dashboard.cards.analyses"),
-      value: profileStats.total_analyses ?? 0,
-      sub: profile ? vt(language, "dashboardPeriod") : t(language, "profile.empty"),
-      tone: "warning",
-      sparkline: activitySparkline,
-    },
-    {
-      label: t(language, "dashboard.cards.avgScore"),
-      value: profile ? profileStats.avg_score ?? "—" : "—",
-      sub: profile ? t(language, "profile.stats.avgScore") : t(language, "analysis.resultEmpty"),
-      tone: "good",
-      sparkline: scoreSparkline,
-    },
-    {
-      label: t(language, "dashboard.cards.cached"),
-      value: profileStats.cached_analyses ?? 0,
-      sub: profile ? t(language, "analysis.resultCacheHit") : t(language, "dashboard.trend"),
-      tone: "neutral",
-      sparkline: cachedSparkline,
-    },
-  ];
   const disclosure = disclosureText(language);
   const comparison = compareResult?.comparison || null;
   const compareCharts = Array.isArray(comparison?.charts) ? comparison.charts : [];
@@ -20186,24 +20152,15 @@ function App() {
 
           {activeView === "profile" && (
             <section className="workspace-page profile-page" aria-labelledby="profile-page-title">
-              <WorkspacePageHeader
-                id="profile-page-title"
-                eyebrow={t(language, "profile.workspaceLabel")}
-                title={t(language, "profile.title")}
-                description={t(language, "profile.subtitle")}
-                icon={Icons.users}
-                actions={profileUser ? (
-                  <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
-                    {t(language, "profile.analyze")}
-                  </button>
-                ) : (
-                  <button className="primary-btn" type="button" onClick={() => setActiveView("auth")}>
-                    {t(language, "profile.signIn")}
-                  </button>
-                )}
-              >
+              <header id="profile-overview" className="profile-command-header">
+                <div className="profile-command-intro">
+                  <span className="profile-command-eyebrow">{t(language, "profile.workspaceLabel")}</span>
+                  <h1 id="profile-page-title">{t(language, "profile.title")}</h1>
+                  <p>{t(language, "profile.subtitle")}</p>
+                </div>
+
                 {profileUser ? (
-                  <div className="profile-identity-deck">
+                  <div className="profile-command-account">
                     <div className="profile-identity-main">
                       <div className="profile-avatar-wrap">
                         <div
@@ -20223,32 +20180,48 @@ function App() {
                         {profileCreated ? <small>{t(language, "profile.memberSince")} {formatDateLabel(profileCreated, language)}</small> : null}
                       </div>
                     </div>
-                    <div className="workspace-snapshot" aria-label={t(language, "profile.snapshotLabel")}>
-                      <span className="workspace-snapshot-label">{t(language, "profile.snapshotLabel")}</span>
-                      <div className="workspace-snapshot-grid">
-                        <div>
-                          <strong>{profileStats.total_analyses ?? 0}</strong>
-                          <span>{t(language, "dashboard.cards.analyses")}</span>
-                        </div>
-                        <div>
-                          <strong>{profile?.favorites?.length || 0}</strong>
-                          <span>{t(language, "profile.favoritesTitle")}</span>
-                        </div>
-                        <div>
-                          <strong>{profileStats.avg_score ?? "—"}</strong>
-                          <span>{t(language, "dashboard.cards.avgScore")}</span>
-                        </div>
-                      </div>
+                    <div className="profile-command-actions">
+                      <button className="ghost-btn" type="button" onClick={toggleProfileEditor} aria-expanded={showProfileEdit} aria-controls="profile-edit-panel">
+                        {showProfileEdit ? t(language, "profile.cancel") : t(language, "profile.edit")}
+                      </button>
+                      <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
+                        {t(language, "profile.analyze")} <span aria-hidden="true">→</span>
+                      </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="workspace-page-meta" aria-label={t(language, "profile.workspaceLabel")}>
-                    <span>{t(language, "profile.favoritesTitle")}</span>
-                    <span>{t(language, "profile.historyTitle")}</span>
-                    <span>{t(language, "profile.editTitle")}</span>
+                  <div className="profile-command-account profile-command-account-signed-out">
+                    <div>
+                      <strong>{t(language, "profile.signedOutTitle")}</strong>
+                      <p>{t(language, "profile.signedOutBody")}</p>
+                    </div>
+                    <button className="primary-btn" type="button" onClick={() => setActiveView("auth")}>
+                      {t(language, "profile.signIn")}
+                    </button>
                   </div>
                 )}
-              </WorkspacePageHeader>
+
+                {profileUser ? (
+                  <div className="profile-command-metrics" aria-label={t(language, "profile.snapshotLabel")}>
+                    <div>
+                      <span>{t(language, "dashboard.cards.analyses")}</span>
+                      <strong>{profileStats.total_analyses ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>{t(language, "profile.favoritesTitle")}</span>
+                      <strong>{profile?.favorites?.length || 0}</strong>
+                    </div>
+                    <div>
+                      <span>{t(language, "dashboard.cards.avgScore")}</span>
+                      <strong>{profileStats.avg_score ?? "—"}</strong>
+                    </div>
+                    <div>
+                      <span>{t(language, "profile.statusLabel")}</span>
+                      <strong className="profile-command-status"><i aria-hidden="true" />{t(language, "profile.activeStatus")}</strong>
+                    </div>
+                  </div>
+                ) : null}
+              </header>
 
               {profileUser ? (
                 <>
@@ -20261,20 +20234,6 @@ function App() {
 
                   <div className="profile-dashboard-grid">
                     <div className="profile-dashboard-main">
-                      <section id="profile-overview" className="profile-stats-section" aria-labelledby="profile-overview-title">
-                        <div className="workspace-section-heading">
-                          <div>
-                            <div className="panel-label">{t(language, "profile.sections.overview")}</div>
-                            <h2 id="profile-overview-title">{t(language, "profile.overviewTitle")}</h2>
-                          </div>
-                        </div>
-                        <div className="profile-stats-grid">
-                          {dashboardCards.map((card) => (
-                            <DashboardMetricCard key={card.label} {...card} language={language} />
-                          ))}
-                        </div>
-                      </section>
-
                       <section id="profile-activity" className="profile-activity-section" aria-labelledby="profile-activity-title">
                         <article className="panel">
                           <div className="panel-head">
@@ -20291,29 +20250,7 @@ function App() {
                       </section>
                     </div>
 
-                    <aside className="profile-dashboard-rail" aria-label={t(language, "profile.quickTitle")}>
-                      <article className="panel profile-quick-panel">
-                        <span className="profile-rail-icon" aria-hidden="true">{Icons.zap}</span>
-                        <div>
-                          <div className="panel-label">{t(language, "profile.sections.activity")}</div>
-                          <h2>{t(language, "profile.quickTitle")}</h2>
-                          <p>{t(language, "profile.quickDescription")}</p>
-                        </div>
-                        <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
-                          {t(language, "profile.analyze")} <span aria-hidden="true">→</span>
-                        </button>
-                        <a className="profile-quick-link" href="#profile-favorites">
-                          <span>{Icons.star}</span>
-                          <strong>{t(language, "profile.openFavorites")}</strong>
-                          <span aria-hidden="true">→</span>
-                        </a>
-                        <a className="profile-quick-link" href="#profile-history">
-                          <span>{Icons.chart}</span>
-                          <strong>{t(language, "profile.openHistory")}</strong>
-                          <span aria-hidden="true">→</span>
-                        </a>
-                      </article>
-
+                    <aside className="profile-dashboard-rail" aria-label={t(language, "profile.accountTitle")}>
                       <article className="panel profile-account-panel">
                         <div className="panel-label">{t(language, "profile.workspaceLabel")}</div>
                         <h2>{t(language, "profile.accountTitle")}</h2>
@@ -20333,15 +20270,6 @@ function App() {
                             </div>
                           ) : null}
                         </dl>
-                        <button
-                          className="ghost-btn"
-                          type="button"
-                          aria-expanded={showProfileEdit}
-                          aria-controls="profile-edit-panel"
-                          onClick={toggleProfileEditor}
-                        >
-                          {showProfileEdit ? t(language, "profile.cancel") : t(language, "profile.edit")}
-                        </button>
                       </article>
                     </aside>
                   </div>
@@ -20520,18 +20448,7 @@ function App() {
                   </section>
                   </div>
                 </>
-              ) : (
-                <article className="panel workspace-empty-state">
-                  <span className="workspace-empty-icon" aria-hidden="true">{Icons.lock}</span>
-                  <div>
-                    <h2>{t(language, "profile.signedOutTitle")}</h2>
-                    <p>{t(language, "profile.signedOutBody")}</p>
-                  </div>
-                  <button className="primary-btn" type="button" onClick={() => setActiveView("auth")}>
-                    {t(language, "profile.signIn")}
-                  </button>
-                </article>
-              )}
+              ) : null}
             </section>
           )}
 
@@ -21887,8 +21804,8 @@ function ActivityChart({ series, language }) {
       <svg className="activity-chart-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t(language, "dashboard.activityTitle")}>
         <defs>
           <linearGradient id="activityBarGradient" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.92" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0.34" />
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.92" />
+            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.22" />
           </linearGradient>
         </defs>
         {series.days.map((day, index) => {

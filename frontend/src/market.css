@@ -2,88 +2,9 @@
    Imported after the shared theme/mobile layers so this page can be dense and
    rectangular without changing the softer component language elsewhere. */
 
-/* Market uses a role-based palette instead of the old all-green terminal look.
-   Cobalt identifies interaction and selection; emerald and coral are reserved
-   for financial direction, so colour keeps a stable meaning at a glance. The
-   tokens live on body only while this route is mounted, which also removes the
-   green cast from the page and topbar without recolouring the rest of the app. */
-html[data-theme="light"] body:has(.market-layout) {
-  --bg: #f6f7fb;
-  --bg-2: #eef1f7;
-  --bg-glass: rgba(255, 255, 255, 0.76);
-  --surface-2: #f0f2f8;
-  --panel: #ffffff;
-  --panel-strong: #ffffff;
-  --panel-elevated: #ffffff;
-  --border: rgba(31, 43, 75, 0.10);
-  --border-hover: rgba(31, 43, 75, 0.19);
-  --border-focus: rgba(74, 96, 210, 0.52);
-  --text: #111827;
-  --text-secondary: #3f4a60;
-  --muted: #687386;
-  --muted-light: #9ba4b4;
-  --accent: #4a60d2;
-  --accent-hover: #394fc2;
-  --accent-light: rgba(74, 96, 210, 0.09);
-  --accent-glow: rgba(74, 96, 210, 0.17);
-  --success: #0c976e;
-  --success-light: rgba(12, 151, 110, 0.10);
-  --success-glow: rgba(12, 151, 110, 0.16);
-  --danger: #d95462;
-  --danger-light: rgba(217, 84, 98, 0.10);
-  --chart-primary: #4a60d2;
-  --chart-secondary: #0c976e;
-  --chart-grid: rgba(79, 94, 126, 0.15);
-  --shadow-glow: 0 0 0 4px rgba(74, 96, 210, 0.14);
-  --shadow-accent-glow: 0 8px 24px rgba(74, 96, 210, 0.16);
-}
-
-html[data-theme="dark"] body:has(.market-layout) {
-  --bg: #090b10;
-  --bg-2: #0f121a;
-  --bg-glass: rgba(13, 16, 24, 0.78);
-  --surface-2: #141823;
-  --panel: #0f131c;
-  --panel-strong: #0c0f17;
-  --panel-elevated: #171c28;
-  --border: rgba(184, 196, 227, 0.11);
-  --border-hover: rgba(184, 196, 227, 0.20);
-  --border-focus: rgba(132, 153, 255, 0.58);
-  --text: #f2f5fb;
-  --text-secondary: #bdc6d8;
-  --muted: #8d97aa;
-  --muted-light: #596274;
-  --accent: #8499ff;
-  --accent-hover: #9eaeff;
-  --accent-light: rgba(132, 153, 255, 0.13);
-  --accent-glow: rgba(132, 153, 255, 0.22);
-  --success: #32d49a;
-  --success-light: rgba(50, 212, 154, 0.13);
-  --success-glow: rgba(50, 212, 154, 0.20);
-  --danger: #ff7481;
-  --danger-light: rgba(255, 116, 129, 0.13);
-  --chart-primary: #8499ff;
-  --chart-secondary: #32d49a;
-  --chart-grid: rgba(184, 196, 227, 0.08);
-  --shadow-glow: 0 0 0 4px rgba(132, 153, 255, 0.20);
-  --shadow-accent-glow: 0 8px 24px rgba(132, 153, 255, 0.22);
-}
-
-/* Shared dark-theme rules predate route palettes and hard-code neon green in
-   the top navigation. Keep the Market tab in the same cobalt interaction role. */
-html[data-theme="dark"] body:has(.market-layout) .topbar-nav-btn:hover {
-  background: var(--accent-light);
-  color: var(--text);
-}
-
-html[data-theme="dark"] body:has(.market-layout) .topbar-nav-btn.active {
-  background: var(--accent-light);
-  color: var(--accent);
-}
-
-html[data-theme="dark"] body:has(.market-layout) .market-layout .panel:hover {
-  border-color: var(--border-hover);
-}
+/* The screener keeps its dense geometry, but inherits the same shared palette
+   as the rest of the product. Colour is reserved for interaction and financial
+   meaning; opening this route no longer recolours the global shell. */
 
 .market-layout {
   display: flex;
@@ -442,9 +363,9 @@ html[data-theme="dark"] body:has(.market-layout) .market-layout .panel:hover {
 }
 
 .market-layout .market-stat-card.is-turnover .market-stat-icon {
-  border-color: color-mix(in srgb, #8d83ff 30%, var(--border));
-  background: color-mix(in srgb, #8d83ff 10%, transparent);
-  color: #938bff;
+  border-color: color-mix(in srgb, var(--chart-tertiary) 30%, var(--border));
+  background: color-mix(in srgb, var(--chart-tertiary) 10%, transparent);
+  color: var(--chart-tertiary);
 }
 
 .market-layout .market-breadth-card {
@@ -689,7 +610,7 @@ html[data-theme="dark"] .market-layout .market-view-toggle button.active {
 }
 
 html[data-theme="dark"] .market-layout .market-type-control button.active {
-  color: #0b1020 !important;
+  color: var(--bg) !important;
 }
 
 .market-layout .market-sector-select select,
@@ -1096,16 +1017,16 @@ html[data-theme="dark"] .market-layout .market-movers-tk .chip-logo {
 }
 
 html[data-theme="dark"] .market-layout .heatmap-tree {
-  background: #0b0f13;
+  background: var(--bg);
 }
 
 html[data-theme="light"] .market-layout .heatmap-tree {
-  background: #e9edf2;
+  background: var(--bg-2);
 }
 
 html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
-  background: linear-gradient(145deg, #252a31, #1b2026);
-  color: rgba(198, 207, 219, 0.76);
+  background: linear-gradient(145deg, var(--panel-elevated), var(--surface-2));
+  color: var(--text-secondary);
 }
 
 @media (max-width: 1100px) {

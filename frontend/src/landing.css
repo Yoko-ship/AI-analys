@@ -11,34 +11,32 @@
    ========================================================================== */
 
 .landing-view {
-  /* Graphite, not navy — chosen by the customer over the original night-blue:
-     a neutral near-black ground so the amber accent and the sunset carry all
-     the color on the page. */
-  --lv-night: #0e0f12;
-  --lv-night-2: #131417;
-  --lv-ink: #f0f1f3;
-  --lv-ink-2: #a9adb6;
-  --lv-ink-3: #6b6f78;
-  --lv-amber: #ffb45e;
-  --lv-amber-deep: #e08b2d;
-  --lv-line: rgba(240, 241, 243, 0.12);
-  --lv-glass: rgba(14, 15, 18, 0.55);
-  --lv-panel: rgba(26, 27, 32, 0.7);
-  --lv-up: #4ade80;
-  --lv-down: #fb7185;
-  --lv-belt-bg: rgba(19, 20, 23, 0.85);
-  --lv-row-line: rgba(240, 241, 243, 0.06);
-  --lv-rail-bg: rgba(10, 11, 13, 0.45);
-  --lv-mover-bg: rgba(30, 31, 36, 0.6);
-  --lv-step-bg: rgba(22, 23, 27, 0.65);
-  --lv-shadow: 0 34px 80px rgba(0, 0, 0, 0.55);
-  --lv-amber-soft: rgba(255, 180, 94, 0.45);
-  --lv-hero-shadow: 0 4px 40px rgba(14, 15, 18, 0.8);
-  --lv-hero-shadow-sm: 0 2px 20px rgba(14, 15, 18, 0.9);
-  --lv-go-bg: #ffb45e;
-  --lv-go-ink: #10131c;
-  --lv-bar-top: #ffb45e;
-  --lv-bar-bot: #e08b2d;
+  /* Landing has its own cinematic geometry, but not its own brand palette. */
+  --lv-night: var(--bg);
+  --lv-night-2: var(--bg-2);
+  --lv-ink: var(--text);
+  --lv-ink-2: var(--text-secondary);
+  --lv-ink-3: var(--muted);
+  --lv-amber: var(--accent);
+  --lv-amber-deep: var(--accent-hover);
+  --lv-line: var(--border);
+  --lv-glass: var(--bg-glass);
+  --lv-panel: color-mix(in srgb, var(--panel) 88%, transparent);
+  --lv-up: var(--success);
+  --lv-down: var(--danger);
+  --lv-belt-bg: color-mix(in srgb, var(--bg-2) 88%, transparent);
+  --lv-row-line: var(--border);
+  --lv-rail-bg: color-mix(in srgb, var(--bg) 58%, transparent);
+  --lv-mover-bg: color-mix(in srgb, var(--panel-elevated) 80%, transparent);
+  --lv-step-bg: color-mix(in srgb, var(--surface-2) 84%, transparent);
+  --lv-shadow: var(--shadow-xl);
+  --lv-amber-soft: var(--accent-glow);
+  --lv-hero-shadow: var(--shadow-lg);
+  --lv-hero-shadow-sm: var(--shadow-sm);
+  --lv-go-bg: var(--accent);
+  --lv-go-ink: var(--panel-strong);
+  --lv-bar-top: var(--accent);
+  --lv-bar-bot: var(--accent-hover);
   --lv-mono: "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
 
   /* Full-bleed: cancel .content's padding on every breakpoint it uses. */
@@ -56,31 +54,31 @@
    LandingSky's light palette); everything else re-resolves through these
    tokens. Amber shifts to its darker steps so accents stay legible on white. */
 [data-theme="light"] .landing-view {
-  --lv-night: #f5f7fa;
-  --lv-night-2: #eceff4;
-  --lv-ink: #101613;
-  --lv-ink-2: #40506a;
-  --lv-ink-3: #64748b;
-  --lv-amber: #b45309;
-  --lv-amber-deep: #92400e;
-  --lv-line: rgba(13, 22, 17, 0.12);
-  --lv-glass: rgba(255, 255, 255, 0.65);
-  --lv-panel: rgba(255, 255, 255, 0.92);
-  --lv-up: #0e9f4e;
-  --lv-down: #dc2626;
-  --lv-belt-bg: #e8edf4;
-  --lv-row-line: rgba(13, 22, 17, 0.07);
-  --lv-rail-bg: rgba(13, 22, 17, 0.035);
-  --lv-mover-bg: #ffffff;
-  --lv-step-bg: #eef2f7;
-  --lv-shadow: 0 24px 60px rgba(13, 22, 17, 0.12);
-  --lv-amber-soft: rgba(180, 83, 9, 0.45);
+  --lv-night: var(--bg);
+  --lv-night-2: var(--bg-2);
+  --lv-ink: var(--text);
+  --lv-ink-2: var(--text-secondary);
+  --lv-ink-3: var(--muted);
+  --lv-amber: var(--accent);
+  --lv-amber-deep: var(--accent-hover);
+  --lv-line: var(--border);
+  --lv-glass: var(--bg-glass);
+  --lv-panel: color-mix(in srgb, var(--panel) 92%, transparent);
+  --lv-up: var(--success);
+  --lv-down: var(--danger);
+  --lv-belt-bg: var(--bg-2);
+  --lv-row-line: var(--border);
+  --lv-rail-bg: color-mix(in srgb, var(--bg-2) 60%, transparent);
+  --lv-mover-bg: var(--panel);
+  --lv-step-bg: var(--surface-2);
+  --lv-shadow: var(--shadow-lg);
+  --lv-amber-soft: var(--accent-glow);
   --lv-hero-shadow: none;
   --lv-hero-shadow-sm: none;
-  --lv-go-bg: #f59e0b;
-  --lv-go-ink: #1c1204;
-  --lv-bar-top: #f6ad3b;
-  --lv-bar-bot: #d97706;
+  --lv-go-bg: var(--accent);
+  --lv-go-ink: #ffffff;
+  --lv-bar-top: var(--accent);
+  --lv-bar-bot: var(--accent-hover);
 }
 
 .landing-view a { color: inherit; text-decoration: none; }
@@ -127,7 +125,7 @@
   color: var(--lv-go-ink); background: var(--lv-go-bg);
   border: none; cursor: pointer;
   padding: 15px 28px; border-radius: 4px;
-  box-shadow: 0 12px 30px rgba(255, 180, 94, 0.3);
+  box-shadow: 0 12px 30px var(--accent-glow);
   transition: transform 0.2s;
 }
 .lv-go:hover { transform: translateY(-2px); }
@@ -207,7 +205,7 @@
   background: none; color: var(--lv-ink-3); cursor: pointer;
 }
 .lv-period button:hover { color: var(--lv-ink); border-color: var(--lv-ink-3); }
-.lv-period button.active { color: var(--lv-ink); border-color: var(--lv-amber-soft); background: rgba(255, 180, 94, 0.12); }
+.lv-period button.active { color: var(--lv-ink); border-color: var(--lv-amber-soft); background: var(--accent-light); }
 .lv-live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--lv-up); margin-right: 7px; animation: lv-pulse 2s ease-in-out infinite; }
 @keyframes lv-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.45); } 50% { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); } }
 
@@ -221,7 +219,7 @@
 .lv-table td { padding: 9px 8px; border-bottom: 1px solid var(--lv-row-line); font-variant-numeric: tabular-nums; color: var(--lv-ink); background: none; }
 .lv-table tr:last-child td { border-bottom: none; }
 .lv-table tbody tr { cursor: pointer; }
-.lv-table tbody tr:hover td { background: rgba(255, 180, 94, 0.05); }
+.lv-table tbody tr:hover td { background: var(--accent-light); }
 .lv-tk { font-family: var(--lv-mono); font-weight: 700; font-size: 15.5px; }
 /* max-width tracks the font size: at 12px/420px the legal names ellipsized at a
    certain word, and a bigger glyph on the same 420px would have cut them EARLIER
@@ -354,7 +352,7 @@
 .lv-cta::before {
   content: ""; position: absolute; left: 50%; bottom: -260px; transform: translateX(-50%);
   width: 720px; height: 520px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 180, 94, 0.28), rgba(255, 180, 94, 0) 65%);
+  background: radial-gradient(circle, var(--accent-glow), transparent 65%);
 }
 .lv-cta h2 {
   position: relative; margin: 0;
