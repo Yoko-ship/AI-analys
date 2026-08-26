@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from delisted import DELISTED_ISINS, DELISTED_TICKERS
 from entity_resolver import ORG_OVERRIDES, UNRELIABLE_FINANCIALS
+from financial_corrections import correction_periods_for, corrections_for
 import dbx
 from db import APP_DATA_DIR, sqlite_connect
 from openinfo_collector import (
@@ -3102,6 +3103,52 @@ def _financials_enrich_enabled() -> bool:
     return os.getenv("FINANCIALS_ENRICH_ON_READ", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+_CORRECTION_BALANCE_KEYS = {
+    "total_assets": "assets_end",
+    "total_equity": "equity_end",
+}
+
+
+def _correction_period(row: dict[str, Any]) -> str | None:
+    """The register's quarter label for a cached financials row."""
+    try:
+        year = int(row.get("year"))
+        quarter = int(row.get("quarter") or 0)
+    except (TypeError, ValueError):
+        return None
+    if quarter not in range(0, 5):
+        return None
+    return f"{year}Q{quarter or 4}"
+
+
+def _apply_registered_financial_corrections(
+        ticker: str, period: str | None, row: dict[str, Any]) -> dict[str, Any]:
+    """Overlay reviewed OpenInfo values on one in-memory catalog row.
+
+    The overlay deliberately runs on reads, after feed/fact enrichment.  A
+    collector refresh can therefore replace the underlying cache without
+    silently reintroducing a value the reviewed register already rejected.
+    Balance totals are mirrored into the filed-balance block because that block
+    is the authority for P/B, ROE and ROA as well as for the Finance table.
+    """
+    if not period:
+        return row
+    registered = corrections_for(ticker, period)
+    if not registered:
+        return row
+    for field, correction in registered.items():
+        row[field] = correction.value_thousands_uzs
+        balance_key = _CORRECTION_BALANCE_KEYS.get(field)
+        if balance_key:
+            balance = dict(row.get("balance") or {})
+            balance[balance_key] = correction.value_thousands_uzs
+            row["balance"] = balance
+        field_periods = row.get("field_periods")
+        if isinstance(field_periods, dict):
+            field_periods.pop(field, None)
+    return row
+
+
 def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     """Return the most recent cached indicators per ticker: {ticker: {...}}.
 
@@ -3199,6 +3246,15 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     if _financials_enrich_enabled():
         _inherit_financials_by_org(conn, out)
         _enrich_financials_from_facts(conn, out)
+    # Reviewed, source-linked corrections are the final authority.  Apply them
+    # after every automated enrichment so the next collector run cannot put a
+    # known-bad parsed/feed value back on the site.
+    for ticker, row in out.items():
+        _apply_registered_financial_corrections(ticker, _correction_period(row), row)
+        annual = row.get("annual")
+        if isinstance(annual, dict):
+            _apply_registered_financial_corrections(
+                ticker, _correction_period(annual), annual)
     conn.close()
     return out
 
@@ -4591,6 +4647,14 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
         out.setdefault(str(row["year"]), {}).update(
             {k: row[k] for k in ("roa", "roe", "debt_ratio", "debt_to_equity")
              if row[k] is not None})
+    # A reviewed "Добавить" can be the only known value in a year.  Seed those
+    # years from the register before applying it; otherwise an absent database
+    # row would make the correction itself unreachable.
+    for period in correction_periods_for(t):
+        if period.endswith("Q4"):
+            out.setdefault(period[:4], {})
+    for year, fields in out.items():
+        _apply_registered_financial_corrections(t, f"{year}Q4", fields)
     return out
 
 
@@ -4625,6 +4689,14 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
     out: dict[str, dict[str, Any]] = {}
     for row in sorted(fin, key=lambda r: r["ticker"] == t):
         out.setdefault(f"{row['year']}Q{row['quarter']}", {}).update(_fin_row_fields(row))
+    # As on the annual path, a correction-only quarter is still a real filed
+    # quarter.  Q4 comes from the annual reader in derive_quarterly_series; add
+    # Q1-Q3 here so a wholly absent cache row does not hide reviewed values.
+    for period in correction_periods_for(t):
+        if not period.endswith("Q4"):
+            out.setdefault(period, {})
+    for period, fields in out.items():
+        _apply_registered_financial_corrections(t, period, fields)
     return out
 
 
