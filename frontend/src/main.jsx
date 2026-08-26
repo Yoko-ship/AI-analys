@@ -7,6 +7,7 @@ import "./mobile.css";
 import "./landing.css";
 import "./market.css";
 import "./profile.css";
+import "./auth.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
