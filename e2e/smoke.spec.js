@@ -452,6 +452,57 @@ test("profile workspace exposes account state, accessible editing, and exact his
   expect(signedInWidths.scroll).toBeLessThanOrEqual(signedInWidths.client);
 });
 
+test("profile avatar editor previews removal and restores the saved image on cancel", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const savedAvatar = "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==";
+  const signedInUser = {
+    id: 99,
+    full_name: "E2E Investor",
+    email: "e2e@test.uz",
+    avatar_data_url: savedAvatar,
+    created_at: "2026-07-01T10:00:00Z",
+  };
+  const profile = {
+    ok: true,
+    user: signedInUser,
+    stats: { total_analyses: 0, avg_score: null, cached_analyses: 0 },
+    preferences: { language: "ru", theme: "dark", text_scale: 100, timezone: "Asia/Tashkent" },
+    security: { email_verified: false, two_factor_enabled: false },
+    notes: [],
+    favorites: [],
+    recent_analyses: [],
+  };
+
+  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "e2e-token"));
+  await page.route("**/api/auth/me", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: signedInUser }) }));
+  await page.route("**/api/profile", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(profile) }));
+  await page.goto("/profile");
+
+  await expect(page.locator(".profile-cmd-identity-card img")).toBeVisible();
+  await page.getByRole("button", { name: "Настройки", exact: true }).last().click();
+  const accountCenter = page.locator(".profile-account-center");
+  await accountCenter.getByRole("button", { name: "Профиль", exact: true }).click();
+  const avatarPreview = accountCenter.locator(".profile-avatar-editor-preview");
+  await expect(avatarPreview.locator("img")).toBeVisible();
+  await accountCenter.getByRole("button", { name: "Удалить аватар", exact: true }).click();
+  await expect(avatarPreview).toHaveText("EI");
+  await expect(accountCenter.getByText("Аватар будет удалён после сохранения", { exact: true })).toBeVisible();
+
+  await accountCenter.getByRole("button", { name: "Закрыть", exact: true }).click();
+  await expect(page.locator(".profile-cmd-identity-card img")).toBeVisible();
+  await page.getByRole("button", { name: "Настройки", exact: true }).last().click();
+  await page.locator(".profile-account-center").getByRole("button", { name: "Профиль", exact: true }).click();
+  await expect(page.locator(".profile-account-center .profile-avatar-editor-preview img")).toBeVisible();
+  const widths = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+  expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+
+  signedInUser.avatar_data_url = "data:image/png;base64,not-a-valid-image";
+  await page.reload();
+  const fallbackAvatar = page.locator(".profile-cmd-identity-card .profile-cmd-avatar");
+  await expect(fallbackAvatar).toHaveText("EI");
+  await expect(fallbackAvatar.locator("img")).toHaveCount(0);
+});
+
 test("profile and analysis workspaces do not overflow a phone viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of ["/profile", "/analysis"]) {
