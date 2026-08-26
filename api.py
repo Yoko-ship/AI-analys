@@ -33,6 +33,7 @@ load_dotenv()
 from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_comparison_excel, build_comparison_pdf, build_summary, report_disclaimer, run_company_analysis  # noqa: E402
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from delisted import DELISTED_ISINS, DELISTED_TICKERS, is_delisted_isin
+from financial_corrections import correction_periods_for
 from openinfo_collector import collect_company_data, get_company_periods
 import news_store  # noqa: E402 — §3.11 editorial-news store
 from reports_catalog import (
@@ -4811,7 +4812,20 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         # does not vanish because a parse of that same filing is cached, so a
         # purged year stays out. A filed-only year the feed never carried was
         # never purged and is untouched.
-        for period in purged_empty & periods:
+        # A reviewed correction is stronger evidence than the indicator feed's
+        # all-zero placeholder.  UZAS 2025 carries exactly that placeholder;
+        # purging again here removed its three verified balance corrections
+        # immediately after the filed-series merge restored them.
+        correction_tickers = {ticker}
+        if sibling and sibling != ticker:
+            correction_tickers.add(sibling)
+        reviewed_annuals = {
+            period[:4]
+            for correction_ticker in correction_tickers
+            for period in correction_periods_for(correction_ticker)
+            if period.endswith("Q4")
+        }
+        for period in (purged_empty - reviewed_annuals) & periods:
             periods.discard(period)
             for entry in series.values():
                 entry["values"].pop(period, None)

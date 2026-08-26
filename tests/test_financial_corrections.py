@@ -87,8 +87,19 @@ def test_every_registered_row_is_available_even_with_an_empty_cache(monkeypatch,
 
 def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "api-corrections.db"))
-    monkeypatch.setattr(api, "get_company_index", lambda ticker: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org_id, dataset=None: [])
+    monkeypatch.setattr(api, "get_company_index", lambda ticker: {"org_id": ticker})
+
+    def facts(org_id, dataset=None):
+        if org_id != "UZAS":
+            return []
+        # Production carries an all-zero 2025 indicator placeholder for UZAS.
+        # The reviewed Q4 register must win instead of being purged with it.
+        return [
+            {"field": field, "period": "2025", "value_num": 0.0}
+            for field in ("total_assets", "total_equity", "total_liabilities", "cash")
+        ]
+
+    monkeypatch.setattr(api, "get_facts", facts)
     monkeypatch.setattr(api, "get_company_reports", lambda ticker: [])
 
     client = TestClient(api.app)
