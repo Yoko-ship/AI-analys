@@ -355,6 +355,7 @@ test("analysis setup uses labeled controls and honest progressive disclosure", a
 
 test("profile workspace exposes account state, accessible editing, and exact history filters", async ({ page }) => {
   const signedInUser = {
+    id: 99,
     full_name: "E2E Investor",
     email: "e2e@test.uz",
     created_at: "2026-07-01T10:00:00Z",
@@ -364,12 +365,15 @@ test("profile workspace exposes account state, accessible editing, and exact his
     ok: true,
     user: signedInUser,
     stats: { total_analyses: 2, avg_score: 61, cached_analyses: 1 },
+    preferences: { language: "ru", theme: "dark", text_scale: 100, timezone: "Asia/Tashkent", notify_reports: true, notify_news: true, notify_price: true, notify_analysis: true },
+    security: { email_verified: false, two_factor_enabled: false },
+    notes: [{ id: 3, title: "AGBA — выводы", body: "Следить за достаточностью капитала", pinned: true, tags: ["banks"] }],
     favorites: [
-      { ticker: "AGBA", company_name: "AGBA Bank", created_at: "2026-08-20T10:00:00Z" },
+      { ticker: "AGBA", company_name: "AGBA Bank", created_at: "2026-08-20T10:00:00Z", position: 0, news_alert_enabled: true, report_alert_enabled: true },
     ],
     recent_analyses: [
-      { company_name: "AGBA Bank", company_input: "AGBA", ticker: "AGBA", created_at: "2026-08-22T10:00:00Z", from_cache: false },
-      { company_name: "Kvarts", company_input: "KVTS", ticker: "KVTS", created_at: "2026-08-21T10:00:00Z", from_cache: true },
+      { id: 1, company_name: "AGBA Bank", company_input: "AGBA", ticker: "AGBA", created_at: "2026-08-22T10:00:00Z", from_cache: false, archived: false, bookmarked: true, tags: ["banks"] },
+      { id: 2, company_name: "Kvarts", company_input: "KVTS", ticker: "KVTS", created_at: "2026-08-21T10:00:00Z", from_cache: true, archived: false },
     ],
   };
 
@@ -396,13 +400,43 @@ test("profile workspace exposes account state, accessible editing, and exact his
   expect(profileShell.contentPaddingLeft).toBe("40px");
   expect(profileShell.profileTop).toBeGreaterThanOrEqual(profileShell.topbarBottom);
 
-  const editButton = page.getByRole("button", { name: "Настройки" });
+  await expect(page.getByRole("button", { name: "Выйти", exact: true }).first()).toBeVisible();
+  const editButton = page.getByRole("button", { name: "Настройки", exact: true }).last();
   await expect(editButton).toHaveAttribute("aria-expanded", "false");
   await editButton.click();
-  await expect(page.getByRole("dialog", { name: "Редактирование профиля" })).toBeVisible();
+  const accountCenter = page.locator(".profile-account-center");
+  await expect(accountCenter).toBeVisible();
+  await expect(accountCenter).toHaveAttribute("aria-labelledby", "profile-center-title");
+  await expect(accountCenter.getByRole("button", { name: "Профиль", exact: true })).toBeVisible();
+  await accountCenter.getByRole("button", { name: "Профиль", exact: true }).click();
   await expect(page.getByLabel("Отображаемое имя")).toHaveValue("E2E Investor");
   await expect(page.getByText("JPG, PNG или WebP, не более 512 КБ")).toBeVisible();
-  await page.getByRole("dialog", { name: "Редактирование профиля" }).getByRole("button", { name: "Отмена" }).first().click();
+  await accountCenter.getByRole("button", { name: "Безопасность", exact: true }).click();
+  await expect(accountCenter.getByText("Изменить пароль", { exact: true })).toBeVisible();
+  await expect(accountCenter.getByText("Двухфакторная защита", { exact: true })).toBeVisible();
+  await expect(accountCenter.getByText("Активные сессии", { exact: true })).toBeVisible();
+  await accountCenter.getByRole("button", { name: "Помощь", exact: true }).click();
+  await accountCenter.getByRole("button", { name: /Написать в поддержку/ }).click();
+  await expect(accountCenter.getByText("Новое обращение", { exact: true })).toBeVisible();
+  await expect(accountCenter.getByRole("button", { name: "Отправить обращение", exact: true })).toBeVisible();
+  await accountCenter.getByRole("button", { name: "Закрыть", exact: true }).click();
+
+  await expect(page.getByText("AGBA — выводы", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Настройки уведомлений", exact: true }).click();
+  const watchlistEditor = page.getByRole("dialog", { name: "Настройки избранного" });
+  await expect(watchlistEditor.getByText("Ценовое уведомление", { exact: true })).toBeVisible();
+  await watchlistEditor.locator("header > button").click();
+
+  await page.locator(".history-item").first().locator("button").click();
+  const researchEditor = page.getByRole("dialog", { name: "Управление исследованием" });
+  await expect(researchEditor.getByText("Добавить в закладки", { exact: true })).toBeVisible();
+  await expect(researchEditor.getByRole("button", { name: "PDF", exact: true })).toBeVisible();
+  await researchEditor.locator("header > button").click();
+
+  await page.getByRole("button", { name: /AGBA — выводы/ }).click();
+  const noteEditor = page.getByRole("dialog", { name: "Редактировать заметку" });
+  await expect(noteEditor.getByLabel("Текст")).toHaveValue("Следить за достаточностью капитала");
+  await noteEditor.locator("header > button").click();
 
   await expect(page.locator(".history-item")).toHaveCount(2);
   await page.getByLabel("Все анализы").selectOption("favorites");

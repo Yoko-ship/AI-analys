@@ -37,7 +37,8 @@ SOURCES = ("reports_catalog.db", "securities.db", "analysis_cache.db")
 
 # PostgreSQL owns these already; the copy must not touch them.
 PROTECTED = {"web_users", "web_sessions", "web_oauth_accounts",
-             "web_favorite_companies", "web_analysis_history", "schema_migrations"}
+             "web_favorite_companies", "web_analysis_history", "web_saved_notes",
+             "web_notification_state", "web_support_requests", "schema_migrations"}
 
 _TYPE_MAP = (
     (re.compile(r"\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b", re.I),
