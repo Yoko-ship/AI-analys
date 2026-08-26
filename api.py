@@ -3679,6 +3679,30 @@ async def api_news_calendar_announcements(limit: int = 1000) -> dict[str, Any]:
         return {"ok": False, "error": str(exc), "items": []}
 
 
+@app.get("/api/news/calendar/announcements/{announcement_id}")
+async def api_news_calendar_announcement(
+    announcement_id: int,
+    language: str = "ru",
+) -> dict[str, Any]:
+    """One openinfo notice, parsed into safe fields for our internal page."""
+    import meetings as meetings_store
+
+    if language not in {"ru", "uz", "en"}:
+        raise HTTPException(status_code=422, detail="language must be ru, uz or en")
+    loop = asyncio.get_running_loop()
+    try:
+        item = await loop.run_in_executor(
+            None,
+            partial(meetings_store.announcement_detail, announcement_id, language),
+        )
+        return _json_safe({"ok": True, "item": item})
+    except meetings_store.AnnouncementNotFound as exc:
+        raise HTTPException(status_code=404, detail="announcement not found") from exc
+    except meetings_store.AnnouncementSourceError as exc:
+        logger.warning("openinfo announcement %s failed: %s", announcement_id, exc)
+        raise HTTPException(status_code=502, detail="announcement source is unavailable") from exc
+
+
 @app.get("/api/news/calendar/dividends")
 async def api_news_calendar_dividends(limit: int = 300) -> dict[str, Any]:
     """The market-wide dividend calendar, one row per filing, newest first.

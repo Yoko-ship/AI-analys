@@ -93,6 +93,9 @@ function viewToPath(view, ticker, newsId, adminSection) {
   // One bond issue on its own page, like /company/{T} for an issuer.
   if (view === "bond" && ticker) return `/bond/${encodeURIComponent(ticker)}`;
   if (view === "newsArticle" && newsId) return `/news/${encodeURIComponent(newsId)}`;
+  if (view === "announcementArticle" && newsId) {
+    return `/news/announcement/${encodeURIComponent(newsId)}`;
+  }
   if (view === "admin") {
     return adminSection && adminSection !== "overview" ? `/admin/${adminSection}` : "/admin";
   }
@@ -115,7 +118,14 @@ function pathToView(pathname) {
   if (clean === "/bonds") {
     return { view: "market", ticker: null, newsId: null };
   }
-  // /news is the feed; /news/{id} is one story on its own page.
+  // Calendar notices and editorial stories are different resources. Check the
+  // longer announcement path first so its id is not mistaken for "announcement".
+  if (clean.startsWith("/news/announcement/")) {
+    const id = decodeURIComponent(clean.slice("/news/announcement/".length)).split("/")[0];
+    return id ? { view: "announcementArticle", ticker: null, newsId: id }
+              : { view: "news", ticker: null, newsId: null };
+  }
+  // /news is the feed; /news/{id} is one editorial story on its own page.
   if (clean.startsWith("/news/")) {
     const id = decodeURIComponent(clean.slice("/news/".length)).split("/")[0];
     return id ? { view: "newsArticle", ticker: null, newsId: id }
@@ -899,13 +909,10 @@ const NEWSCAL_TX = {
 
 const NEWS_CALENDAR_POLL_MS = 5 * 60 * 1000;
 
-function calendarAnnouncementUrl(item, language) {
-  const supplied = String(item?.source_url || item?.link || "").trim();
-  if (/^https?:\/\//i.test(supplied)) return supplied;
+function calendarAnnouncementPath(item) {
   const id = String(item?.announcement_id || "").trim();
   if (!id) return "";
-  const lang = normalizeLanguage(language);
-  return `https://openinfo.uz/${lang}/announce/${encodeURIComponent(id)}`;
+  return `/news/announcement/${encodeURIComponent(id)}`;
 }
 
 // Pagination the way the source's tables do it: a shown-range line, a
@@ -943,7 +950,7 @@ function NewsCalPager({ p, pages, total, from, to, size, onPage, onSize, tx }) {
   );
 }
 
-function NewsCalendarView({ language, onOpenCompany }) {
+function NewsCalendarView({ language, onOpenCompany, onOpenAnnouncement }) {
   const lang = normalizeLanguage(language);
   const tx = NEWSCAL_TX[lang] || NEWSCAL_TX.ru;
   const locale = lang === "en" ? "en-US" : lang === "uz" ? "uz" : "ru-RU";
@@ -1144,7 +1151,7 @@ function NewsCalendarView({ language, onOpenCompany }) {
     : <span className="newscal-row-org">{it.organization}</span>);
 
   const renderRow = (it, i) => {
-    const href = calendarAnnouncementUrl(it, lang);
+    const href = calendarAnnouncementPath(it);
     const contents = (
       <>
         <span className="newscal-row-date">
@@ -1162,7 +1169,8 @@ function NewsCalendarView({ language, onOpenCompany }) {
     );
     return href ? (
       <a key={it.announcement_id || i} className="newscal-row newscal-news-row"
-        href={href} target="_blank" rel="noreferrer"
+        href={href}
+        {...(onOpenAnnouncement ? { onClick: interceptNav(() => onOpenAnnouncement(it)) } : {})}
         aria-label={`${it.organization || ""}: ${localizedCalendarTitle(it, lang)}`}>
         {contents}
       </a>
@@ -1311,9 +1319,11 @@ function NewsCalendarView({ language, onOpenCompany }) {
                         <tr key={it.announcement_id || i}>
                           <td>{orgCell(it)}</td>
                           <td className="newscal-anntitle" title={it.title || undefined}>
-                            {calendarAnnouncementUrl(it, lang) ? (
-                              <a className="newscal-news-link" href={calendarAnnouncementUrl(it, lang)}
-                                target="_blank" rel="noreferrer">{localizedTitle || "—"}</a>
+                            {calendarAnnouncementPath(it) ? (
+                              <a className="newscal-news-link" href={calendarAnnouncementPath(it)}
+                                {...(onOpenAnnouncement ? { onClick: interceptNav(() => onOpenAnnouncement(it)) } : {})}>
+                                {localizedTitle || "—"}
+                              </a>
                             ) : localizedTitle || "—"}
                           </td>
                           <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmtDate(it.pub_date)}</td>
@@ -1402,7 +1412,7 @@ function NewsCalendarView({ language, onOpenCompany }) {
   );
 }
 
-function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
+function NewsView({ language, onOpenCompany, onOpenNews, onOpenAnnouncement, user, apiFetch }) {
   const tx = NEWS_TX[language] || NEWS_TX.ru;
   useTranslationTick();
   const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
@@ -1528,7 +1538,11 @@ function NewsView({ language, onOpenCompany, onOpenNews, user, apiFetch }) {
       )}
 
       {tab === "calendar" ? (
-        <NewsCalendarView language={language} onOpenCompany={onOpenCompany} />
+        <NewsCalendarView
+          language={language}
+          onOpenCompany={onOpenCompany}
+          onOpenAnnouncement={onOpenAnnouncement}
+        />
       ) : loading ? (
         <div className="newsdesk-loading" aria-label={tx.loadingText}>
           <div className="newsdesk-loading-lead" />
@@ -1934,6 +1948,145 @@ function NewsIssuerContext({ tickers, currentId, language, securitiesMap, onOpen
       </div>
       <p className="led-art-hint">{tx.tickersHint}</p>
     </section>
+  );
+}
+
+const ANNOUNCEMENT_ARTICLE_TX = {
+  ru: {
+    back: "К календарю", eyebrow: "Объявление OpenInfo", details: "Текст объявления",
+    organization: "Информация об организации", facts: "Сведения",
+    original: "Открыть оригинал", pdf: "Скачать PDF", source: "Источник: openinfo.uz",
+    loading: "Загружаем объявление…", notFound: "Объявление не найдено.",
+    error: "Не удалось загрузить объявление. Попробуйте позже.",
+  },
+  en: {
+    back: "Back to calendar", eyebrow: "OpenInfo announcement", details: "Announcement",
+    organization: "Organization information", facts: "Details",
+    original: "Open original", pdf: "Download PDF", source: "Source: openinfo.uz",
+    loading: "Loading announcement…", notFound: "Announcement not found.",
+    error: "Could not load the announcement. Please try again later.",
+  },
+  uz: {
+    back: "Taqvimga qaytish", eyebrow: "OpenInfo e'loni", details: "E'lon matni",
+    organization: "Tashkilot haqida ma'lumot", facts: "Ma'lumotlar",
+    original: "Aslini ochish", pdf: "PDF-ni yuklab olish", source: "Manba: openinfo.uz",
+    loading: "E'lon yuklanmoqda…", notFound: "E'lon topilmadi.",
+    error: "E'lonni yuklab bo'lmadi. Keyinroq qayta urinib ko'ring.",
+  },
+};
+
+function AnnouncementArticleView({ announcementId, language, onBack }) {
+  const lang = normalizeLanguage(language);
+  const tx = ANNOUNCEMENT_ARTICLE_TX[lang] || ANNOUNCEMENT_ARTICLE_TX.ru;
+  const [state, setState] = React.useState({ loading: true, error: "", item: null });
+
+  React.useEffect(() => {
+    let alive = true;
+    setState({ loading: true, error: "", item: null });
+    window.scrollTo({ top: 0, behavior: "auto" });
+    fetch(`/api/news/calendar/announcements/${encodeURIComponent(announcementId)}?language=${lang}`)
+      .then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }))
+      .then(({ status, body }) => {
+        if (!alive) return;
+        if (body && body.ok && body.item) {
+          setState({ loading: false, error: "", item: body.item });
+        } else {
+          setState({ loading: false, error: status === 404 || status === 422 ? "notFound" : "error", item: null });
+        }
+      })
+      .catch(() => { if (alive) setState({ loading: false, error: "error", item: null }); });
+    return () => { alive = false; };
+  }, [announcementId, lang]);
+
+  const back = (
+    <a className="led-back" href="/news?tab=calendar" onClick={interceptNav(onBack)}>← {tx.back}</a>
+  );
+  if (state.loading) {
+    return (
+      <div className="news-view led announcement-article">
+        {back}
+        <div className="led-skel-row" aria-label={tx.loading} />
+        <div className="led-skel-lead" />
+      </div>
+    );
+  }
+  if (state.error || !state.item) {
+    return (
+      <div className="news-view led announcement-article">
+        {back}
+        <div className="led-empty">{state.error === "notFound" ? tx.notFound : tx.error}</div>
+      </div>
+    );
+  }
+
+  const item = state.item;
+  const metadata = Array.isArray(item.metadata) ? item.metadata : [];
+  const content = Array.isArray(item.content) ? item.content : [];
+  const organizationDetails = Array.isArray(item.organization_details) ? item.organization_details : [];
+  return (
+    <div className="news-view led announcement-article">
+      {back}
+      <div className="announcement-layout">
+        <main className="announcement-main">
+          <article className="led-art">
+            <div className="led-eyebrow"><span className="led-cat">{tx.eyebrow}</span></div>
+            <h1 className="led-art-title">{item.title}</h1>
+            {item.organization && <p className="announcement-company">{item.organization}</p>}
+
+            {metadata.length > 0 && (
+              <dl className="announcement-meta" aria-label={tx.facts}>
+                {metadata.map((field, i) => (
+                  <div key={`${field.label}-${i}`}>
+                    <dt>{field.label}</dt>
+                    <dd>{field.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+
+            {content.length > 0 && (
+              <section className="announcement-body">
+                <h2 className="led-panel-h">{tx.details}</h2>
+                {content.map((block, i) => (
+                  block.kind === "heading"
+                    ? <h3 key={i}>{block.text}</h3>
+                    : <p key={i} className={block.kind === "list_item" ? "is-list-item" : undefined}>{block.text}</p>
+                ))}
+              </section>
+            )}
+
+            <div className="led-art-source announcement-actions">
+              <p className="led-art-note">{tx.source}</p>
+              <div>
+                {item.pdf_url && (
+                  <a className="announcement-secondary" href={item.pdf_url} target="_blank" rel="noopener noreferrer nofollow">
+                    {tx.pdf}
+                  </a>
+                )}
+                {item.source_url && (
+                  <a className="led-art-cta" href={item.source_url} target="_blank" rel="noopener noreferrer nofollow">
+                    {tx.original}<span className="led-art-host">openinfo.uz</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          </article>
+        </main>
+
+        {organizationDetails.length > 0 && (
+          <aside className="announcement-rail">
+            <div className="led-panel">
+              <h2 className="led-panel-h">{tx.organization}</h2>
+              <dl className="led-sig led-sig--rows">
+                {organizationDetails.map((field, i) => (
+                  <div key={`${field.label}-${i}`}><dt>{field.label}</dt><dd>{field.value}</dd></div>
+                ))}
+              </dl>
+            </div>
+          </aside>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -19166,6 +19319,20 @@ function App() {
     setActiveView("newsArticle");
   };
 
+  const openAnnouncementArticle = (item) => {
+    const id = item && (item.announcement_id != null ? item.announcement_id : item);
+    if (id == null || id === "") return;
+    setNewsId(String(id));
+    setActiveView("announcementArticle");
+  };
+
+  const backToNewsCalendar = () => {
+    // Replace the detail URL before mounting NewsView so its first render reads
+    // the calendar tab from the query string instead of flashing the main feed.
+    try { window.history.replaceState({}, "", "/news?tab=calendar"); } catch { /* noop */ }
+    setActiveView("news");
+  };
+
   const loadMarketStocks = async (typeOverride = null) => {
     setMarketLoading(true);
     setMarketMessage(mt(language, "loading"));
@@ -19924,7 +20091,7 @@ function App() {
                 </button>
               </div>
             ) : (
-              <button key={key} className={`topbar-nav-btn ${activeView === key || (key === "news" && activeView === "newsArticle") ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>
+              <button key={key} className={`topbar-nav-btn ${activeView === key || (key === "news" && ["newsArticle", "announcementArticle"].includes(activeView)) ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>
                 {key === "catalog" ? (
                   <span className="nav-catalog-wrap">
                     {t(language, "nav.catalog")}
@@ -20126,7 +20293,16 @@ function App() {
             )
           )}
 
-          {activeView === "news" && <NewsView language={language} onOpenCompany={openCompanyPage} onOpenNews={openNewsArticle} user={user} apiFetch={apiFetch} />}
+          {activeView === "news" && (
+            <NewsView
+              language={language}
+              onOpenCompany={openCompanyPage}
+              onOpenNews={openNewsArticle}
+              onOpenAnnouncement={openAnnouncementArticle}
+              user={user}
+              apiFetch={apiFetch}
+            />
+          )}
 
           {activeView === "newsArticle" && newsId && (
             <NewsArticleView
@@ -20137,6 +20313,15 @@ function App() {
               onOpenCompany={openCompanyPage}
               onOpenNews={openNewsArticle}
               onBack={() => setActiveView("news")}
+            />
+          )}
+
+          {activeView === "announcementArticle" && newsId && (
+            <AnnouncementArticleView
+              key={`${newsId}-${normalizeLanguage(language)}`}
+              announcementId={newsId}
+              language={language}
+              onBack={backToNewsCalendar}
             />
           )}
 
