@@ -11726,31 +11726,30 @@ body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalo
 .catalog-sparkline-svg { width: 100%; height: 64px; display: block; border-radius: 4px; }
 
 /* ── Catalog research terminal ─────────────────────────────────────────────
-   The catalog is a filing workflow: compact issuer navigation, one persistent
-   company context and a chronological document table. Its violet-blue accent
-   is intentionally independent of the app-wide green trading accent. */
+   The catalog is the source palette for the full product. Local aliases keep
+   its component vocabulary while resolving to the shared application roles. */
 .catalog-layout {
-  --catalog-accent: #6257d9;
-  --catalog-accent-hover: #5147c4;
-  --catalog-accent-soft: rgba(98, 87, 217, 0.1);
-  --catalog-surface: rgba(255, 255, 255, 0.9);
-  --catalog-surface-2: #f5f7fb;
-  --catalog-border: rgba(15, 23, 42, 0.1);
-  --catalog-ink: #111827;
-  --catalog-muted: #667085;
+  --catalog-accent: var(--accent);
+  --catalog-accent-hover: var(--accent-hover);
+  --catalog-accent-soft: var(--accent-light);
+  --catalog-surface: var(--panel);
+  --catalog-surface-2: var(--surface-2);
+  --catalog-border: var(--border);
+  --catalog-ink: var(--text);
+  --catalog-muted: var(--muted);
   gap: 14px;
   padding: 20px;
 }
 
 body[data-theme="dark"] .catalog-layout {
-  --catalog-accent: #8b7cff;
-  --catalog-accent-hover: #9d91ff;
-  --catalog-accent-soft: rgba(139, 124, 255, 0.14);
-  --catalog-surface: #11141b;
-  --catalog-surface-2: #171b24;
-  --catalog-border: rgba(255, 255, 255, 0.08);
-  --catalog-ink: #f3f5fb;
-  --catalog-muted: #8f9aaf;
+  --catalog-accent: var(--accent);
+  --catalog-accent-hover: var(--accent-hover);
+  --catalog-accent-soft: var(--accent-light);
+  --catalog-surface: var(--panel);
+  --catalog-surface-2: var(--surface-2);
+  --catalog-border: var(--border);
+  --catalog-ink: var(--text);
+  --catalog-muted: var(--muted);
 }
 
 .catalog-layout .primary-btn {

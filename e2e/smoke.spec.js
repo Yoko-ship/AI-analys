@@ -189,16 +189,24 @@ test("theme toggle flips the data-theme attribute", async ({ page }) => {
 });
 
 test("workspace routes inherit one shared application palette", async ({ page }) => {
-  const palettes = [];
-  for (const path of ["/", "/market", "/news", "/profile"]) {
-    await page.goto(path);
-    palettes.push(await page.evaluate(() => {
-      const style = getComputedStyle(document.body);
-      return ["--bg", "--panel", "--accent", "--success", "--warning", "--danger"]
-        .map((token) => style.getPropertyValue(token).trim());
-    }));
+  for (const expected of [{ theme: "light", accent: "#6257d9" }, { theme: "dark", accent: "#8b7cff" }]) {
+    await page.goto("/");
+    if (await page.locator("html").getAttribute("data-theme") !== expected.theme) {
+      await page.locator(".theme-toggle").click();
+    }
+
+    const palettes = [];
+    for (const path of ["/", "/market", "/catalog", "/news", "/profile"]) {
+      await page.goto(path);
+      palettes.push(await page.evaluate(() => {
+        const style = getComputedStyle(document.body);
+        return ["--bg", "--panel", "--accent", "--success", "--warning", "--danger"]
+          .map((token) => style.getPropertyValue(token).trim());
+      }));
+    }
+    expect(palettes.every((palette) => JSON.stringify(palette) === JSON.stringify(palettes[0]))).toBe(true);
+    expect(palettes[0][2]).toBe(expected.accent);
   }
-  expect(palettes.every((palette) => JSON.stringify(palette) === JSON.stringify(palettes[0]))).toBe(true);
 });
 
 test("language switch re-renders the hero copy", async ({ page }) => {
@@ -356,7 +364,9 @@ test("profile workspace exposes account state, accessible editing, and exact his
     ok: true,
     user: signedInUser,
     stats: { total_analyses: 2, avg_score: 61, cached_analyses: 1 },
-    favorites: [],
+    favorites: [
+      { ticker: "AGBA", company_name: "AGBA Bank", created_at: "2026-08-20T10:00:00Z" },
+    ],
     recent_analyses: [
       { company_name: "AGBA Bank", company_input: "AGBA", ticker: "AGBA", created_at: "2026-08-22T10:00:00Z", from_cache: false },
       { company_name: "Kvarts", company_input: "KVTS", ticker: "KVTS", created_at: "2026-08-21T10:00:00Z", from_cache: true },
@@ -368,25 +378,27 @@ test("profile workspace exposes account state, accessible editing, and exact his
   await page.route("**/api/profile", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(profile) }));
   await page.goto("/profile");
 
-  await expect(page.getByRole("heading", { name: "Личный кабинет", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Моё пространство", level: 1 })).toBeVisible();
   await expect(page.getByText("E2E Investor", { exact: true })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Разделы профиля" })).toBeVisible();
-  await expect(page.locator(".profile-command-header .profile-command-metrics")).toContainText("2");
-  await expect(page.locator(".profile-account-panel")).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Разделы профиля" }).locator('a[href="#profile-favorites"]')).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Разделы профиля" }).locator('a[href="#profile-history"]')).toBeVisible();
+  await expect(page.locator(".profile-command-center")).toBeVisible();
+  await expect(page.locator(".profile-cmd-sidebar")).toBeVisible();
+  await expect(page.locator(".profile-cmd-resume-card")).toContainText("AGBA Bank");
+  await expect(page.locator(".profile-cmd-watch-row")).toContainText("AGBA");
+  await expect(page.locator(".profile-cmd-week-card")).toBeVisible();
+  await expect(page.locator(".profile-cmd-account-card")).toBeVisible();
 
-  const editButton = page.getByRole("button", { name: "Редактировать профиль" });
+  const editButton = page.getByRole("button", { name: "Настройки" });
   await expect(editButton).toHaveAttribute("aria-expanded", "false");
   await editButton.click();
-  await expect(page.getByRole("button", { name: "Отмена" }).first()).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("dialog", { name: "Редактирование профиля" })).toBeVisible();
   await expect(page.getByLabel("Отображаемое имя")).toHaveValue("E2E Investor");
   await expect(page.getByText("JPG, PNG или WebP, не более 512 КБ")).toBeVisible();
+  await page.getByRole("dialog", { name: "Редактирование профиля" }).getByRole("button", { name: "Отмена" }).first().click();
 
   await expect(page.locator(".history-item")).toHaveCount(2);
   await page.getByLabel("Все анализы").selectOption("favorites");
-  await expect(page.locator(".history-item")).toHaveCount(0);
-  await expect(page.getByText("Показано: 0")).toBeVisible();
+  await expect(page.locator(".history-item")).toHaveCount(1);
+  await expect(page.getByText("Показано: 1")).toBeVisible();
   await page.getByLabel("Все анализы").selectOption("all");
   await page.getByLabel("Поиск по компании или тикеру").fill("KVTS");
   await expect(page.locator(".history-item")).toHaveCount(1);

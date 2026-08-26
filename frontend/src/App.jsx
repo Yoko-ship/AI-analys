@@ -2431,6 +2431,30 @@ const TEXTS = {
       historyEmpty: "После первого анализа здесь появится история действий.",
       favoritesEmpty: "Добавляйте компании в избранное из анализа или истории.",
       filters: { search: "Поиск по компании или тикеру", all: "Все анализы", favorites: "Только избранное" },
+      command: {
+        title: "Моё пространство",
+        search: "Поиск исследований",
+        newAnalysis: "Новый анализ",
+        resume: "Продолжить",
+        continue: "Открыть",
+        updated: "Обновлено",
+        watchlist: "Избранное",
+        manageList: "Управлять",
+        addTicker: "Добавить компанию",
+        thisWeek: "Эта неделя",
+        recentResearch: "Недавние исследования",
+        company: "Компания",
+        score: "Оценка",
+        status: "Статус",
+        upToDate: "Актуально",
+        review: "Проверить",
+        viewAll: "Все исследования",
+        pinnedNotes: "Заметки",
+        account: "Аккаунт",
+        preferences: "Настройки",
+        access: "Безопасность",
+        noNotes: "Заметки появятся из сохранённых выводов анализа.",
+      },
       remove: "Убрать",
     },
     analysis: {
@@ -2748,6 +2772,30 @@ const TEXTS = {
       historyEmpty: "Your activity history will appear after the first analysis.",
       favoritesEmpty: "Add companies to favorites from analysis or history.",
       filters: { search: "Search by company or ticker", all: "All analyses", favorites: "Favorites only" },
+      command: {
+        title: "My workspace",
+        search: "Search research",
+        newAnalysis: "New analysis",
+        resume: "Resume",
+        continue: "Continue",
+        updated: "Updated",
+        watchlist: "Watchlist",
+        manageList: "Manage list",
+        addTicker: "Add company",
+        thisWeek: "This week",
+        recentResearch: "Recent research",
+        company: "Company",
+        score: "Score",
+        status: "Status",
+        upToDate: "Up to date",
+        review: "Review",
+        viewAll: "View all research",
+        pinnedNotes: "Pinned notes",
+        account: "Account",
+        preferences: "Preferences",
+        access: "Security",
+        noNotes: "Notes will appear from saved analysis takeaways.",
+      },
       remove: "Remove",
     },
     analysis: {
@@ -3065,6 +3113,30 @@ const TEXTS = {
       historyEmpty: "Birinchi tahlildan keyin bu yerda tarix paydo bo'ladi.",
       favoritesEmpty: "Tahlil yoki tarixdan kompaniyalarni tanlanganlarga qo'shing.",
       filters: { search: "Kompaniya yoki ticker bo'yicha qidirish", all: "Barcha tahlillar", favorites: "Faqat tanlanganlar" },
+      command: {
+        title: "Mening maydonim",
+        search: "Tadqiqotlarni qidirish",
+        newAnalysis: "Yangi tahlil",
+        resume: "Davom ettirish",
+        continue: "Ochish",
+        updated: "Yangilangan",
+        watchlist: "Tanlanganlar",
+        manageList: "Boshqarish",
+        addTicker: "Kompaniya qo'shish",
+        thisWeek: "Shu hafta",
+        recentResearch: "So'nggi tadqiqotlar",
+        company: "Kompaniya",
+        score: "Baho",
+        status: "Holat",
+        upToDate: "Dolzarb",
+        review: "Tekshirish",
+        viewAll: "Barcha tadqiqotlar",
+        pinnedNotes: "Qaydlar",
+        account: "Hisob",
+        preferences: "Sozlamalar",
+        access: "Xavfsizlik",
+        noNotes: "Qaydlar saqlangan tahlil xulosalaridan paydo bo'ladi.",
+      },
       remove: "O'chirish",
     },
     analysis: {
@@ -3882,6 +3954,43 @@ function formatMarketNumber(value, language, digits = 2) {
     minimumFractionDigits: Math.abs(num) < 10 ? 2 : 0,
     maximumFractionDigits: digits,
   }).format(num);
+}
+
+function formatRelativeTime(value, language) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "—";
+  const seconds = Number(((date.getTime() - Date.now()) / 1000).toFixed(0));
+  const absolute = Math.abs(seconds);
+  const locale = language === "en" ? "en" : language === "uz" ? "uz" : "ru";
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  if (absolute < 60) return formatter.format(seconds, "second");
+  if (absolute < 3600) return formatter.format(Number((seconds / 60).toFixed(0)), "minute");
+  if (absolute < 86400) return formatter.format(Number((seconds / 3600).toFixed(0)), "hour");
+  if (absolute < 604800) return formatter.format(Number((seconds / 86400).toFixed(0)), "day");
+  return formatDateLabel(value, language);
+}
+
+function profileMarketQuote(ticker, rows, securities) {
+  const normalized = String(ticker || "").trim().toUpperCase();
+  const row = (rows || []).find((item) => String(item?.ticker || "").trim().toUpperCase() === normalized) || {};
+  const security = (securities || {})[normalized] || {};
+  const price = safeNumber(row.last_price ?? row.price ?? security.last_price ?? security.price);
+  const previous = safeNumber(row.previous_close ?? row.close_price ?? security.previous_close ?? security.close_price);
+  const directChange = safeNumber(row.change_pct ?? row.change_percent ?? security.change_pct ?? security.change_percent);
+  const change = directChange !== null
+    ? directChange
+    : price !== null && previous !== null && previous !== 0
+      ? ((price - previous) / Math.abs(previous)) * 100
+      : null;
+  return { row, security, price, change };
+}
+
+function profileScoreTone(score) {
+  const value = safeNumber(score);
+  if (value === null) return "neutral";
+  if (value >= 70) return "positive";
+  if (value < 50) return "negative";
+  return "neutral";
 }
 
 function formatCompactVolume(value, lang) {
@@ -17973,19 +18082,19 @@ function LandingSky({ theme }) {
     // Two palettes, one scene: night dawn for dark theme, morning for light.
     // Stars, window lights and meteors belong to the night only.
     const pal = theme === "light" ? {
-      sky: [[0, "#dfe9e3"], [0.5, "#edf3ef"], [0.78, "#f5f7f5"], [0.92, "#dfeedf"], [1, "#c5dfcf"]],
-      glow: [[0, "rgba(198, 239, 215, 0.9)"], [0.35, "rgba(11, 158, 94, 0.18)"], [1, "rgba(11, 158, 94, 0)"]],
+      sky: [[0, "#d9dcf3"], [0.5, "#e8eafb"], [0.78, "#f5f7fb"], [0.92, "#ddd9ff"], [1, "#b9b1f3"]],
+      glow: [[0, "rgba(225, 221, 255, 0.92)"], [0.35, "rgba(98, 87, 217, 0.2)"], [1, "rgba(98, 87, 217, 0)"]],
       night: false,
-      line: [[0, "rgba(11, 158, 94, 0.08)"], [0.45, "rgba(11, 158, 94, 0.18)"], [0.62, "rgba(11, 158, 94, 0.52)"], [1, "rgba(11, 158, 94, 0.62)"]],
-      dot: "#0b9e5e", dotGlow: "rgba(11, 158, 94, 0.24)",
-      city: "#25372d",
+      line: [[0, "rgba(98, 87, 217, 0.08)"], [0.45, "rgba(98, 87, 217, 0.18)"], [0.62, "rgba(98, 87, 217, 0.52)"], [1, "rgba(98, 87, 217, 0.62)"]],
+      dot: "#6257d9", dotGlow: "rgba(98, 87, 217, 0.25)",
+      city: "#2c3045",
     } : {
-      sky: [[0, "#0a0c0b"], [0.52, "#0f1411"], [0.78, "#16251d"], [0.92, "#1e3c2d"], [1, "#2b6948"]],
-      glow: [[0, "rgba(135, 246, 186, 0.58)"], [0.35, "rgba(63, 224, 143, 0.2)"], [1, "rgba(63, 224, 143, 0)"]],
+      sky: [[0, "#0b0d12"], [0.52, "#11141b"], [0.78, "#181a2a"], [0.92, "#252348"], [1, "#3a337d"]],
+      glow: [[0, "rgba(192, 184, 255, 0.58)"], [0.35, "rgba(139, 124, 255, 0.22)"], [1, "rgba(139, 124, 255, 0)"]],
       night: true,
-      line: [[0, "rgba(63, 224, 143, 0.08)"], [0.45, "rgba(63, 224, 143, 0.16)"], [0.62, "rgba(63, 224, 143, 0.5)"], [1, "rgba(63, 224, 143, 0.58)"]],
-      dot: "#3fe08f", dotGlow: "rgba(63, 224, 143, 0.25)",
-      city: "#050706",
+      line: [[0, "rgba(139, 124, 255, 0.08)"], [0.45, "rgba(139, 124, 255, 0.16)"], [0.62, "rgba(139, 124, 255, 0.5)"], [1, "rgba(139, 124, 255, 0.58)"]],
+      dot: "#8b7cff", dotGlow: "rgba(139, 124, 255, 0.26)",
+      city: "#080910",
     };
     let stars = [], meteors = [], t0 = 0, lastMeteor = 0, raf = 0, alive = true;
     const pts = [0.0, 0.30, 0.06, 0.26, 0.12, 0.34, 0.18, 0.24, 0.25, 0.30, 0.32, 0.18, 0.40, 0.26,
@@ -18876,8 +18985,9 @@ function App() {
     // "main": the landing's ticker tape, board preview and movers are the real
     // board, so the "/" page needs the same rows the market view reads.
     if (activeView !== "market" && activeView !== "heatmap"
-      && activeView !== "company" && activeView !== "chart" && activeView !== "main") return;
-    loadMarketStocks().catch((error) => {
+      && activeView !== "company" && activeView !== "chart" && activeView !== "main"
+      && activeView !== "profile") return;
+    loadMarketStocks(activeView === "profile" ? "stock" : null).catch((error) => {
       addToast(error.message, "error");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -19023,14 +19133,15 @@ function App() {
     setActiveView("newsArticle");
   };
 
-  const loadMarketStocks = async () => {
+  const loadMarketStocks = async (typeOverride = null) => {
     setMarketLoading(true);
     setMarketMessage(mt(language, "loading"));
     try {
       const params = new URLSearchParams();
       // "ordinary"/"preferred" are share-type subsets the server can't filter (it
       // only knows stock/bond), so fetch stocks and narrow client-side.
-      const apiType = (marketType === "preferred" || marketType === "ordinary") ? "stock" : marketType;
+      const requestedType = typeof typeOverride === "string" ? typeOverride : marketType;
+      const apiType = (requestedType === "preferred" || requestedType === "ordinary") ? "stock" : requestedType;
       params.set("type", apiType);
       const res = await apiFetch(`/api/market/stocks${params.toString() ? `?${params}` : ""}`);
       const data = await res.json();
@@ -19038,7 +19149,7 @@ function App() {
       setMarketRows(Array.isArray(data.stocks) ? data.stocks : []);
       // Merge, don't replace: `refreshed_at`/`trade_date` come from the
       // trade-stats call, which runs on its own and must survive a reload here.
-      setMarketMeta((prev) => ({ ...prev, updated_at: data.updated_at || null, count: data.count || 0, type: data.type || marketType }));
+      setMarketMeta((prev) => ({ ...prev, updated_at: data.updated_at || null, count: data.count || 0, type: data.type || requestedType }));
       setMarketMessage(mt(language, "ready"));
     } catch (error) {
       setMarketMessage(error.message);
@@ -19516,8 +19627,16 @@ function App() {
   const profileStats = profile?.stats || {};
   const profileUser = profile?.user || user;
   const profileAvatar = profileUser?.avatar_data_url;
-  const profileCreated = profileUser?.created_at;
   const activitySeries = buildActivitySeries(profile?.recent_analyses || [], language);
+  const profileHistory = Array.isArray(profile?.recent_analyses) ? profile.recent_analyses : [];
+  const profileFavorites = Array.isArray(profile?.favorites) ? profile.favorites : [];
+  const resumeResearch = profileHistory[0] || null;
+  const resumeTicker = resolveTicker(resumeResearch?.ticker || resumeResearch?.company_input || profileFavorites[0]?.ticker || "");
+  const resumeCompany = companies.find((item) => String(item?.ticker || "").toUpperCase() === resumeTicker) || null;
+  const resumeQuote = profileMarketQuote(resumeTicker, marketRows, securitiesMap);
+  const profileNotes = profileHistory
+    .filter((item) => item?.summary_text || item?.verdict)
+    .slice(0, 2);
   const disclosure = disclosureText(language);
   const comparison = compareResult?.comparison || null;
   const compareCharts = Array.isArray(comparison?.charts) ? comparison.charts : [];
@@ -19639,6 +19758,7 @@ function App() {
       <div className="bg-glow bg-glow-b" />
 
       <div className="app-shell">
+        {activeView !== "profile" && (
         <header className={`topbar${mobileNavOpen ? " is-nav-open" : ""}`}>
           <button
             className="topbar-burger"
@@ -19860,6 +19980,7 @@ function App() {
             </div>
           </div>
         </header>
+        )}
 
         <main className="content">
           {activeView === "main" && (
@@ -20151,303 +20272,313 @@ function App() {
           )}
 
           {activeView === "profile" && (
-            <section className="workspace-page profile-page" aria-labelledby="profile-page-title">
-              <header id="profile-overview" className="profile-command-header">
-                <div className="profile-command-intro">
-                  <span className="profile-command-eyebrow">{t(language, "profile.workspaceLabel")}</span>
-                  <h1 id="profile-page-title">{t(language, "profile.title")}</h1>
-                  <p>{t(language, "profile.subtitle")}</p>
-                </div>
+            <section className="profile-command-center" aria-labelledby="profile-page-title">
+              <aside className="profile-cmd-sidebar" aria-label={t(language, "profile.sectionNav")}>
+                <button className="profile-cmd-brand" type="button" onClick={() => setActiveView("main")} aria-label={t(language, "brand")}>
+                  <img src={logoIcon} alt="" />
+                  <span><strong>UZ Stock</strong><small>Analyzer</small></span>
+                </button>
+
+                <nav className="profile-cmd-nav">
+                  {[
+                    { key: "market", label: mt(language, "nav"), icon: Icons.chart },
+                    { key: "catalog", label: t(language, "nav.catalog"), icon: Icons.database },
+                    { key: "analysis", label: t(language, "nav.analysis"), icon: Icons.trending },
+                    { key: "profile", label: t(language, "nav.profile"), icon: Icons.users },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      className={`profile-cmd-nav-item${item.key === "profile" ? " active" : ""}`}
+                      type="button"
+                      onClick={() => setActiveView(item.key)}
+                      aria-current={item.key === "profile" ? "page" : undefined}
+                    >
+                      <span className="profile-cmd-nav-icon" aria-hidden="true">{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </nav>
 
                 {profileUser ? (
-                  <div className="profile-command-account">
-                    <div className="profile-identity-main">
-                      <div className="profile-avatar-wrap">
+                  <button className="profile-cmd-avatar-button" type="button" onClick={toggleProfileEditor} aria-label={t(language, "profile.edit")}>
+                    <span
+                      className="profile-cmd-avatar"
+                      style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 70% 60%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 70% 50%))` }}
+                    >
+                      {profileAvatarPreview ? <img src={profileAvatarPreview} alt="" /> : profileAvatar ? <img src={profileAvatar} alt="" /> : getProfileInitials(profileUser)}
+                    </span>
+                    <i aria-hidden="true" />
+                  </button>
+                ) : null}
+              </aside>
+
+              <div className="profile-cmd-stage">
+                <header className="profile-cmd-header">
+                  <h1 id="profile-page-title">{t(language, "profile.command.title")}</h1>
+                  <label className="profile-cmd-search" htmlFor="profile-history-search">
+                    <span className="profile-cmd-search-icon" aria-hidden="true" />
+                    <span className="sr-only">{t(language, "profile.filters.search")}</span>
+                    <input
+                      id="profile-history-search"
+                      type="search"
+                      value={historySearch}
+                      onChange={(event) => setHistorySearch(event.target.value)}
+                      placeholder={t(language, "profile.command.search")}
+                    />
+                    {historySearch ? (
+                      <button type="button" onClick={() => setHistorySearch("")} aria-label={t(language, "profile.clearSearch")}>×</button>
+                    ) : null}
+                  </label>
+                  <button className="profile-cmd-primary" type="button" onClick={() => setActiveView("analysis")}>
+                    <span aria-hidden="true">＋</span>{t(language, "profile.command.newAnalysis")}
+                  </button>
+                </header>
+
+                {!profileUser ? (
+                  <div className="profile-cmd-signed-out">
+                    <span className="profile-cmd-signed-out-icon" aria-hidden="true">{Icons.lock}</span>
+                    <h2>{t(language, "profile.signedOutTitle")}</h2>
+                    <p>{t(language, "profile.signedOutBody")}</p>
+                    <button className="profile-cmd-primary" type="button" onClick={() => setActiveView("auth")}>
+                      {t(language, "profile.signIn")}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="profile-cmd-grid">
+                    <div className="profile-cmd-column profile-cmd-column-left">
+                      <article className="profile-cmd-card profile-cmd-identity-card">
                         <div
-                          className="profile-header-avatar"
+                          className="profile-cmd-avatar profile-cmd-avatar-large"
                           role={profileAvatarPreview || profileAvatar ? undefined : "img"}
                           aria-label={profileAvatarPreview || profileAvatar ? undefined : profileUser.full_name || profileUser.email}
                           style={profileAvatarPreview || profileAvatar ? {} : { background: `linear-gradient(135deg, hsl(${hashToHue(profileUser.email)} 70% 60%), hsl(${(hashToHue(profileUser.email) + 45) % 360} 70% 50%))` }}
                         >
                           {profileAvatarPreview ? <img src={profileAvatarPreview} alt="" /> : profileAvatar ? <img src={profileAvatar} alt="" /> : getProfileInitials(profileUser)}
                         </div>
-                        <span className="profile-presence-dot" aria-hidden="true" />
-                      </div>
-                      <div className="profile-header-info">
-                        <span className="profile-header-badge">{t(language, "auth.signedIn")}</span>
-                        <strong>{profileUser.full_name || profileUser.email.split("@")[0]}</strong>
-                        <span>{profileUser.email}</span>
-                        {profileCreated ? <small>{t(language, "profile.memberSince")} {formatDateLabel(profileCreated, language)}</small> : null}
-                      </div>
+                        <div>
+                          <strong>{profileUser.full_name || profileUser.email.split("@")[0]}</strong>
+                          <span className="profile-cmd-active"><i aria-hidden="true" />{t(language, "profile.activeStatus")}</span>
+                        </div>
+                      </article>
+
+                      <article id="profile-favorites" className="profile-cmd-card profile-cmd-watchlist" aria-labelledby="profile-favorites-title">
+                        <div className="profile-cmd-card-head">
+                          <h2 id="profile-favorites-title">{t(language, "profile.command.watchlist")}</h2>
+                          <button type="button" onClick={() => setActiveView("catalog")}>{t(language, "profile.command.manageList")}</button>
+                        </div>
+                        {profileFavorites.length ? (
+                          <div className="profile-cmd-watch-rows">
+                            {profileFavorites.slice(0, 7).map((item) => {
+                              const ticker = String(item.ticker || "").toUpperCase();
+                              const company = companies.find((candidate) => String(candidate.ticker || "").toUpperCase() === ticker);
+                              const quote = profileMarketQuote(ticker, marketRows, securitiesMap);
+                              return (
+                                <button className="profile-cmd-watch-row" type="button" key={`${ticker}-${item.created_at || "saved"}`} onClick={() => openCompanyPage(ticker)}>
+                                  <CompanyLogo logo={company?.logo || quote.security?.logo_url} name={item.company_name || company?.company_name || ticker} ticker={ticker} />
+                                  <span className="profile-cmd-watch-company">
+                                    <strong>{ticker}</strong>
+                                    <small>{item.company_name || company?.company_name || ticker}</small>
+                                  </span>
+                                  <span className="profile-cmd-watch-price">{formatMarketNumber(quote.price, language)}</span>
+                                  <span className={`profile-cmd-watch-change ${quote.change === null ? "is-flat" : quote.change >= 0 ? "is-up" : "is-down"}`}>
+                                    {formatSignedPercent(quote.change, 2)}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="profile-cmd-empty profile-cmd-empty-compact">
+                            <p>{t(language, "profile.favoritesEmpty")}</p>
+                          </div>
+                        )}
+                        <button className="profile-cmd-add" type="button" onClick={() => setActiveView("catalog")}>
+                          <span aria-hidden="true">＋</span>{t(language, "profile.command.addTicker")}
+                        </button>
+                      </article>
                     </div>
-                    <div className="profile-command-actions">
-                      <button className="ghost-btn" type="button" onClick={toggleProfileEditor} aria-expanded={showProfileEdit} aria-controls="profile-edit-panel">
-                        {showProfileEdit ? t(language, "profile.cancel") : t(language, "profile.edit")}
-                      </button>
-                      <button className="primary-btn" type="button" onClick={() => setActiveView("analysis")}>
-                        {t(language, "profile.analyze")} <span aria-hidden="true">→</span>
-                      </button>
+
+                    <div className="profile-cmd-column profile-cmd-column-main">
+                      <article className="profile-cmd-card profile-cmd-resume-card">
+                        <div className="profile-cmd-card-head">
+                          <h2>{t(language, "profile.command.resume")}</h2>
+                        </div>
+                        {resumeResearch ? (
+                          <>
+                            <div className="profile-cmd-resume-top">
+                              <CompanyLogo logo={resumeCompany?.logo || resumeQuote.security?.logo_url} name={resumeResearch.company_name || resumeCompany?.company_name || resumeTicker} ticker={resumeTicker} />
+                              <div className="profile-cmd-resume-company">
+                                <strong>{resumeResearch.company_name || resumeCompany?.company_name || resumeResearch.company_input || resumeTicker}</strong>
+                                <span>{resumeTicker || "—"}</span>
+                                {(resumeCompany?.sector || resumeQuote.row?.sector || resumeQuote.security?.industry) ? (
+                                  <small>{resumeCompany?.sector || resumeQuote.row?.sector || resumeQuote.security?.industry}</small>
+                                ) : null}
+                              </div>
+                              <div className="profile-cmd-score">
+                                <span>{t(language, "profile.command.score")}</span>
+                                <strong className={`is-${profileScoreTone(resumeResearch.score ?? profileStats.avg_score)}`}>
+                                  {resumeResearch.score ?? profileStats.avg_score ?? "—"}
+                                </strong>
+                                <small>/ 100</small>
+                              </div>
+                            </div>
+                            <ProfileScoreTrend entries={profileHistory} ticker={resumeTicker} language={language} />
+                            <footer className="profile-cmd-resume-footer">
+                              <span><i aria-hidden="true" />{t(language, "profile.command.updated")} {formatRelativeTime(resumeResearch.created_at, language)}</span>
+                              <button className="profile-cmd-primary" type="button" onClick={() => handleRepeatAnalysis(resumeResearch)} disabled={analysisLoading}>
+                                {t(language, "profile.command.continue")} <span aria-hidden="true">›</span>
+                              </button>
+                            </footer>
+                          </>
+                        ) : (
+                          <div className="profile-cmd-empty">
+                            <p>{t(language, "profile.historyEmpty")}</p>
+                            <button className="profile-cmd-primary" type="button" onClick={() => setActiveView("analysis")}>
+                              {t(language, "profile.command.newAnalysis")}
+                            </button>
+                          </div>
+                        )}
+                      </article>
+
+                      <article id="profile-history" className="profile-cmd-card profile-cmd-research-card" aria-labelledby="profile-history-title">
+                        <div className="profile-cmd-card-head profile-cmd-research-head">
+                          <h2 id="profile-history-title">{t(language, "profile.command.recentResearch")}</h2>
+                          <label>
+                            <span className="sr-only">{t(language, "profile.filters.all")}</span>
+                            <select id="profile-history-mode" aria-label={t(language, "profile.filters.all")} value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
+                              <option value="all">{t(language, "profile.filters.all")}</option>
+                              <option value="favorites">{t(language, "profile.filters.favorites")}</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div className="profile-cmd-table-head" aria-hidden="true">
+                          <span>{t(language, "profile.command.company")}</span>
+                          <span>{t(language, "profile.command.score")}</span>
+                          <span>{t(language, "profile.command.updated")}</span>
+                          <span>{t(language, "profile.command.status")}</span>
+                          <span />
+                        </div>
+                        {recentAnalyses.length ? (
+                          <div className="profile-cmd-research-rows">
+                            {recentAnalyses.slice(0, 7).map((item) => {
+                              const ticker = resolveTicker(item.ticker || item.company_input);
+                              const company = companies.find((candidate) => String(candidate.ticker || "").toUpperCase() === ticker);
+                              return (
+                                <article className="profile-cmd-research-row history-item" key={`${item.created_at}-${item.company_input}`}>
+                                  <div className="profile-cmd-research-company">
+                                    <CompanyLogo logo={company?.logo || securitiesMap[ticker]?.logo_url} name={item.company_name || item.company_input || ticker} ticker={ticker} />
+                                    <span><strong>{item.company_name || item.company_input || ticker}</strong><small>{ticker || "—"}</small></span>
+                                  </div>
+                                  <strong className={`profile-cmd-row-score is-${profileScoreTone(item.score)}`}>{item.score ?? "—"}</strong>
+                                  <span className="profile-cmd-row-date">{formatRelativeTime(item.created_at, language)}</span>
+                                  <span className={`profile-cmd-row-status ${item.from_cache ? "needs-review" : "up-to-date"}`}>
+                                    <i aria-hidden="true" />{item.from_cache ? t(language, "profile.command.review") : t(language, "profile.command.upToDate")}
+                                  </span>
+                                  <button type="button" onClick={() => handleRepeatAnalysis(item)} disabled={analysisLoading} aria-label={`${t(language, "profile.repeat")}: ${item.company_name || ticker}`}>›</button>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="profile-cmd-empty profile-cmd-empty-table">
+                            <p>{historySearch || historyMode === "favorites" ? t(language, "analysis.resultEmpty") : t(language, "profile.historyEmpty")}</p>
+                          </div>
+                        )}
+                        <footer className="profile-cmd-table-footer">
+                          <button type="button" onClick={() => { setHistorySearch(""); setHistoryMode("all"); }}>{t(language, "profile.command.viewAll")}</button>
+                          <span aria-live="polite">{t(language, "profile.resultsShown")}: {recentAnalyses.length}</span>
+                        </footer>
+                      </article>
                     </div>
-                  </div>
-                ) : (
-                  <div className="profile-command-account profile-command-account-signed-out">
-                    <div>
-                      <strong>{t(language, "profile.signedOutTitle")}</strong>
-                      <p>{t(language, "profile.signedOutBody")}</p>
+
+                    <div className="profile-cmd-column profile-cmd-column-right">
+                      <article id="profile-activity" className="profile-cmd-card profile-cmd-week-card" aria-labelledby="profile-activity-title">
+                        <div className="profile-cmd-card-head">
+                          <h2 id="profile-activity-title">{t(language, "profile.command.thisWeek")}</h2>
+                          <span>{activitySeries.days.slice(-7)[0]?.label || ""} – {activitySeries.days.at(-1)?.label || ""}</span>
+                        </div>
+                        <ProfileActivityMini series={activitySeries} />
+                      </article>
+
+                      <article className="profile-cmd-card profile-cmd-notes-card">
+                        <div className="profile-cmd-card-head">
+                          <h2><span aria-hidden="true">⌁</span>{t(language, "profile.command.pinnedNotes")}</h2>
+                        </div>
+                        {profileNotes.length ? profileNotes.map((item) => (
+                          <button type="button" className="profile-cmd-note" key={`${item.created_at}-${item.company_input}`} onClick={() => handleRepeatAnalysis(item)}>
+                            <span className="profile-cmd-note-icon" aria-hidden="true">▤</span>
+                            <span><strong>{item.company_name || item.company_input || item.ticker}</strong><small>{item.summary_text || item.verdict}</small></span>
+                            <span aria-hidden="true">›</span>
+                          </button>
+                        )) : (
+                          <div className="profile-cmd-empty profile-cmd-empty-compact"><p>{t(language, "profile.command.noNotes")}</p></div>
+                        )}
+                      </article>
+
+                      <article className="profile-cmd-card profile-cmd-account-card">
+                        <div className="profile-cmd-card-head">
+                          <h2><span aria-hidden="true">○</span>{t(language, "profile.command.account")}</h2>
+                        </div>
+                        <button type="button" onClick={toggleProfileEditor} aria-expanded={showProfileEdit} aria-controls="profile-edit-panel">
+                          <span aria-hidden="true">⚙</span><strong>{showProfileEdit ? t(language, "profile.cancel") : t(language, "profile.command.preferences")}</strong><span aria-hidden="true">›</span>
+                        </button>
+                        <button type="button" onClick={() => setActiveView("auth")}>
+                          <span aria-hidden="true">◇</span><strong>{t(language, "profile.command.access")}</strong><span aria-hidden="true">›</span>
+                        </button>
+                        <button type="button" onClick={handleLogout}>
+                          <span aria-hidden="true">↪</span><strong>{t(language, "auth.logout")}</strong><span aria-hidden="true">›</span>
+                        </button>
+                      </article>
                     </div>
-                    <button className="primary-btn" type="button" onClick={() => setActiveView("auth")}>
-                      {t(language, "profile.signIn")}
-                    </button>
                   </div>
                 )}
+              </div>
 
-                {profileUser ? (
-                  <div className="profile-command-metrics" aria-label={t(language, "profile.snapshotLabel")}>
-                    <div>
-                      <span>{t(language, "dashboard.cards.analyses")}</span>
-                      <strong>{profileStats.total_analyses ?? 0}</strong>
-                    </div>
-                    <div>
-                      <span>{t(language, "profile.favoritesTitle")}</span>
-                      <strong>{profile?.favorites?.length || 0}</strong>
-                    </div>
-                    <div>
-                      <span>{t(language, "dashboard.cards.avgScore")}</span>
-                      <strong>{profileStats.avg_score ?? "—"}</strong>
-                    </div>
-                    <div>
-                      <span>{t(language, "profile.statusLabel")}</span>
-                      <strong className="profile-command-status"><i aria-hidden="true" />{t(language, "profile.activeStatus")}</strong>
-                    </div>
-                  </div>
-                ) : null}
-              </header>
-
-              {profileUser ? (
-                <>
-                  <nav className="workspace-section-nav" aria-label={t(language, "profile.sectionNav")}>
-                    <a href="#profile-overview">{t(language, "profile.sections.overview")}</a>
-                    <a href="#profile-activity">{t(language, "profile.sections.activity")}</a>
-                    <a href="#profile-favorites">{t(language, "profile.sections.favorites")}</a>
-                    <a href="#profile-history">{t(language, "profile.sections.history")}</a>
-                  </nav>
-
-                  <div className="profile-dashboard-grid">
-                    <div className="profile-dashboard-main">
-                      <section id="profile-activity" className="profile-activity-section" aria-labelledby="profile-activity-title">
-                        <article className="panel">
-                          <div className="panel-head">
-                            <div>
-                              <div className="panel-label">{t(language, "profile.sections.activity")}</div>
-                              <h2 id="profile-activity-title">{t(language, "dashboard.activityTitle")}</h2>
-                            </div>
-                            <span className="profile-activity-total">
-                              {activitySeries.total} {language === "uz" ? "tahlil" : language === "en" ? "analyses" : "анализов"}
-                            </span>
-                          </div>
-                          <ActivityChart series={activitySeries} language={language} />
-                        </article>
-                      </section>
-                    </div>
-
-                    <aside className="profile-dashboard-rail" aria-label={t(language, "profile.accountTitle")}>
-                      <article className="panel profile-account-panel">
-                        <div className="panel-label">{t(language, "profile.workspaceLabel")}</div>
-                        <h2>{t(language, "profile.accountTitle")}</h2>
-                        <dl className="profile-account-list">
-                          <div>
-                            <dt>{t(language, "profile.emailLabel")}</dt>
-                            <dd>{profileUser.email}</dd>
-                          </div>
-                          <div>
-                            <dt>{t(language, "profile.statusLabel")}</dt>
-                            <dd><span className="profile-status-dot" aria-hidden="true" />{t(language, "profile.activeStatus")}</dd>
-                          </div>
-                          {profileCreated ? (
-                            <div>
-                              <dt>{t(language, "profile.memberSince")}</dt>
-                              <dd>{formatDateLabel(profileCreated, language)}</dd>
-                            </div>
+              {profileUser && showProfileEdit ? (
+                <div className="profile-cmd-settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowProfileEdit(false); }}>
+                  <section id="profile-edit-panel" className="profile-cmd-settings" role="dialog" aria-modal="true" aria-labelledby="profile-edit-title">
+                    <header>
+                      <div>
+                        <span>{t(language, "profile.workspaceLabel")}</span>
+                        <h2 id="profile-edit-title">{t(language, "profile.editTitle")}</h2>
+                      </div>
+                      <button type="button" onClick={() => setShowProfileEdit(false)} aria-label={t(language, "profile.cancel")}>×</button>
+                    </header>
+                    <form className="profile-settings-form" onSubmit={handleProfileSave}>
+                      <div className="profile-form-group">
+                        <label htmlFor="profile-display-name">{t(language, "profile.name")}</label>
+                        <input
+                          id="profile-display-name"
+                          type="text"
+                          maxLength="120"
+                          autoComplete="name"
+                          value={profileForm.full_name}
+                          onChange={(event) => setProfileForm({ full_name: event.target.value })}
+                          placeholder={t(language, "profile.name")}
+                        />
+                      </div>
+                      <div className="profile-form-group">
+                        <span className="profile-field-label">{t(language, "profile.avatar")}</span>
+                        <div className="profile-avatar-upload">
+                          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onAvatarChange} id="avatar-input" aria-describedby="avatar-input-hint" />
+                          <label htmlFor="avatar-input" className="profile-avatar-btn">
+                            {language === "en" ? "Choose image" : language === "uz" ? "Rasm tanlash" : "Выбрать изображение"}
+                          </label>
+                          {(profileAvatarPreview || profileAvatar) ? (
+                            <button type="button" className="profile-avatar-remove" onClick={removeAvatar}>{t(language, "profile.clearAvatar")}</button>
                           ) : null}
-                        </dl>
-                      </article>
-                    </aside>
-                  </div>
-
-                  {showProfileEdit && (
-                    <section id="profile-edit-panel" className="panel profile-edit-panel" aria-labelledby="profile-edit-title">
-                      <div className="workspace-section-heading">
-                        <div>
-                          <div className="panel-label">{t(language, "profile.workspaceLabel")}</div>
-                          <h2 id="profile-edit-title">{t(language, "profile.editTitle")}</h2>
                         </div>
+                        <span id="avatar-input-hint" className="profile-field-hint">{t(language, "profile.avatarHint")}</span>
                       </div>
-                      <form className="profile-settings-form" onSubmit={handleProfileSave}>
-                        <div className="profile-form-group">
-                          <label htmlFor="profile-display-name">{t(language, "profile.name")}</label>
-                          <input
-                            id="profile-display-name"
-                            type="text"
-                            maxLength="120"
-                            autoComplete="name"
-                            value={profileForm.full_name}
-                            onChange={(event) => setProfileForm({ full_name: event.target.value })}
-                            placeholder={t(language, "profile.name")}
-                          />
-                        </div>
-                        <div className="profile-form-group">
-                          <span className="profile-field-label">{t(language, "profile.avatar")}</span>
-                          <div className="profile-avatar-upload">
-                            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onAvatarChange} id="avatar-input" aria-describedby="avatar-input-hint" />
-                            <label htmlFor="avatar-input" className="profile-avatar-btn">
-                              {language === "en" ? "Choose image" : language === "uz" ? "Rasm tanlash" : "Выбрать изображение"}
-                            </label>
-                            {(profileAvatarPreview || profileAvatar) && (
-                              <button type="button" className="profile-avatar-remove" onClick={removeAvatar}>
-                                {t(language, "profile.clearAvatar")}
-                              </button>
-                            )}
-                          </div>
-                          <span id="avatar-input-hint" className="profile-field-hint">{t(language, "profile.avatarHint")}</span>
-                        </div>
-                        <div className="profile-form-actions">
-                          <button className="primary-btn" type="submit" disabled={profileSaving}>
-                            {profileSaving ? t(language, "profile.saving") : t(language, "profile.saveChanges")}
-                          </button>
-                          <button className="ghost-btn" type="button" onClick={() => setShowProfileEdit(false)}>
-                            {t(language, "profile.cancel")}
-                          </button>
-                        </div>
-                      </form>
-                    </section>
-                  )}
-
-                  <div className="workspace-section-heading profile-library-heading">
-                    <div>
-                      <div className="panel-label">{t(language, "profile.workspaceLabel")}</div>
-                      <h2>{t(language, "profile.libraryTitle")}</h2>
-                    </div>
-                  </div>
-
-                  <div className="profile-library-grid">
-                  <section id="profile-favorites" className="profile-favorites-section" aria-labelledby="profile-favorites-title">
-                    <article className="panel favorites-panel">
-                      <div className="panel-head">
-                        <div>
-                          <div className="panel-label">{t(language, "profile.sections.favorites")}</div>
-                          <h2 id="profile-favorites-title">{t(language, "profile.favoritesTitle")}</h2>
-                        </div>
-                        <span className="workspace-count-badge">{profile?.favorites?.length || 0}</span>
+                      <div className="profile-form-actions">
+                        <button className="profile-cmd-primary" type="submit" disabled={profileSaving}>
+                          {profileSaving ? t(language, "profile.saving") : t(language, "profile.saveChanges")}
+                        </button>
+                        <button className="ghost-btn" type="button" onClick={() => setShowProfileEdit(false)}>{t(language, "profile.cancel")}</button>
                       </div>
-                      {profile?.favorites?.length ? (
-                        <div className="favorites-list">
-                          {profile.favorites.map((item) => {
-                            const company = companies.find((candidate) => String(candidate.ticker).toUpperCase() === String(item.ticker).toUpperCase());
-                            return (
-                            <article className="favorite-item" key={`${item.ticker}-${item.created_at}`}>
-                              <CompanyLogo logo={company?.logo} name={item.company_name || company?.company_name || item.ticker} ticker={item.ticker} />
-                              <button
-                                className="favorite-open-button"
-                                type="button"
-                                onClick={() => openCompanyPage(item.ticker)}
-                                title={language === "en" ? "Open company" : language === "uz" ? "Kompaniyani ochish" : "Открыть компанию"}
-                              >
-                                <span className="favorite-main">
-                                  <strong>{item.company_name || item.ticker}</strong>
-                                  <span>{item.ticker} · {formatDateLabel(item.created_at, language)}</span>
-                                </span>
-                                <span aria-hidden="true">→</span>
-                              </button>
-                              <button className="ghost-btn" type="button" onClick={() => handleToggleFavorite(item.ticker, item.company_name)}>
-                                {t(language, "profile.remove")}
-                              </button>
-                            </article>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="empty-state profile-empty-state">
-                          <p className="empty-copy">{t(language, "profile.favoritesEmpty")}</p>
-                          <button className="ghost-btn" type="button" onClick={() => setActiveView("analysis")}>
-                            {t(language, "profile.analyze")}
-                          </button>
-                        </div>
-                      )}
-                    </article>
+                    </form>
                   </section>
-
-                  <section id="profile-history" className="profile-history-section" aria-labelledby="profile-history-title">
-                    <article className="panel history-panel">
-                      <div className="panel-head">
-                        <div>
-                          <div className="panel-label">{t(language, "profile.sections.history")}</div>
-                          <h2 id="profile-history-title">{t(language, "profile.historyTitle")}</h2>
-                        </div>
-                      </div>
-                      <div className="panel-toolbar history-filters" role="search">
-                        <label className="sr-only" htmlFor="profile-history-search">{t(language, "profile.filters.search")}</label>
-                        <div className="history-search-control">
-                          <input
-                            id="profile-history-search"
-                            type="search"
-                            value={historySearch}
-                            onChange={(event) => setHistorySearch(event.target.value)}
-                            placeholder={t(language, "profile.filters.search")}
-                          />
-                          {historySearch ? (
-                            <button type="button" onClick={() => setHistorySearch("")} aria-label={t(language, "profile.clearSearch")}>×</button>
-                          ) : null}
-                        </div>
-                        <label className="sr-only" htmlFor="profile-history-mode">{t(language, "profile.filters.all")}</label>
-                        <select id="profile-history-mode" value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
-                          <option value="all">{t(language, "profile.filters.all")}</option>
-                          <option value="favorites">{t(language, "profile.filters.favorites")}</option>
-                        </select>
-                        <span className="history-filter-count" aria-live="polite">{t(language, "profile.resultsShown")}: {recentAnalyses.length}</span>
-                      </div>
-                      {recentAnalyses.length ? (
-                        <div className="history-list">
-                          {recentAnalyses.map((item) => (
-                            <article className="history-item" key={`${item.created_at}-${item.company_input}`}>
-                              <div className="history-main">
-                                <div>
-                                  <div className="history-title">{item.company_name || item.company_input || t(language, "profile.empty")}</div>
-                                  <div className="history-sub">
-                                    {item.ticker || "—"} · {item.from_cache ? t(language, "analysis.resultCacheHit") : t(language, "analysis.resultFresh")}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="history-meta">
-                                <span>{formatDateLabel(item.created_at, language)}</span>
-                                <button
-                                  type="button"
-                                  className="history-repeat-btn"
-                                  onClick={() => handleRepeatAnalysis(item)}
-                                  disabled={analysisLoading}
-                                  title={t(language, "profile.repeat")}
-                                >
-                                  <span aria-hidden="true">↻</span> {t(language, "profile.repeat")}
-                                </button>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="empty-state profile-empty-state">
-                          <p className="empty-copy">
-                            {historySearch || historyMode === "favorites" ? t(language, "analysis.resultEmpty") : t(language, "profile.historyEmpty")}
-                          </p>
-                          {(historySearch || historyMode === "favorites") ? (
-                            <button className="ghost-btn" type="button" onClick={() => { setHistorySearch(""); setHistoryMode("all"); }}>
-                              {t(language, "profile.clearSearch")}
-                            </button>
-                          ) : null}
-                        </div>
-                      )}
-                    </article>
-                  </section>
-                  </div>
-                </>
+                </div>
               ) : null}
             </section>
           )}
@@ -21838,6 +21969,74 @@ function ActivityChart({ series, language }) {
           <strong>{series.peak ? series.peak.label : "—"}</strong>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ProfileScoreTrend({ entries, ticker, language }) {
+  const normalized = String(ticker || "").trim().toUpperCase();
+  const points = (Array.isArray(entries) ? entries : [])
+    .filter((item) => String(item?.ticker || item?.company_input || "").trim().toUpperCase() === normalized)
+    .map((item) => ({ score: safeNumber(item?.score), date: item?.created_at }))
+    .filter((item) => item.score !== null)
+    .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
+    .slice(-8);
+  const plotted = points.length === 1 ? [points[0], points[0]] : points;
+  const width = 640;
+  const height = 176;
+  const pad = { top: 16, right: 48, bottom: 28, left: 4 };
+  const innerWidth = width - pad.left - pad.right;
+  const innerHeight = height - pad.top - pad.bottom;
+  const x = (index) => pad.left + (index / Math.max(1, plotted.length - 1)) * innerWidth;
+  const y = (score) => pad.top + ((100 - Math.max(0, Math.min(100, score))) / 100) * innerHeight;
+  const line = plotted.map((item, index) => `${index ? "L" : "M"} ${x(index)} ${y(item.score)}`).join(" ");
+  const area = line ? `${line} L ${x(plotted.length - 1)} ${pad.top + innerHeight} L ${x(0)} ${pad.top + innerHeight} Z` : "";
+
+  if (!plotted.length) {
+    return <div className="profile-cmd-trend profile-cmd-trend-empty"><span /></div>;
+  }
+
+  return (
+    <div className="profile-cmd-trend">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t(language, "profile.command.score")}>
+        <defs>
+          <linearGradient id="profileScoreFill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.24" />
+            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[25, 50, 75].map((tick) => (
+          <line key={tick} x1={pad.left} x2={pad.left + innerWidth} y1={y(tick)} y2={y(tick)} className="profile-cmd-trend-grid" />
+        ))}
+        <path d={area} className="profile-cmd-trend-area" />
+        <path d={line} className="profile-cmd-trend-line" />
+        <circle cx={x(plotted.length - 1)} cy={y(plotted.at(-1).score)} r="4" className="profile-cmd-trend-dot" />
+        {[25, 50, 75].map((tick) => (
+          <text key={tick} x={width - 2} y={y(tick) + 4} textAnchor="end" className="profile-cmd-trend-label">{tick}</text>
+        ))}
+      </svg>
+      <div className="profile-cmd-trend-dates">
+        <span>{formatDateLabel(plotted[0]?.date, language)}</span>
+        <span>{formatDateLabel(plotted.at(-1)?.date, language)}</span>
+      </div>
+    </div>
+  );
+}
+
+function ProfileActivityMini({ series }) {
+  const days = Array.isArray(series?.days) ? series.days.slice(-7) : [];
+  const max = Math.max(1, ...days.map((day) => day.count || 0));
+  return (
+    <div className="profile-cmd-activity-bars">
+      {days.map((day) => (
+        <div className="profile-cmd-activity-day" key={day.key}>
+          <strong>{day.count || 0}</strong>
+          <span className="profile-cmd-activity-track">
+            <i style={{ height: `${Math.max(day.count ? 10 : 2, ((day.count || 0) / max) * 100)}%` }} />
+          </span>
+          <small>{day.shortLabel}</small>
+        </div>
+      ))}
     </div>
   );
 }

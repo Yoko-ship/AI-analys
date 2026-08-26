@@ -15,43 +15,43 @@
 :root,
 html[data-theme="light"],
 html[data-theme="light"] body {
-  /* B2 light: белая бумага + глубокий зелёный вместо синего (заказчик, 2026-08-19) */
-  --bg: #f5f7f5;
-  --bg-2: #edf1ee;
+  /* Catalog palette: cool paper, violet interaction, semantic market tones. */
+  --bg: #f5f7fb;
+  --bg-2: #eef1f7;
   --bg-glass: rgba(255, 255, 255, 0.72);
-  --surface-2: #f0f3f0;
+  --surface-2: #f5f7fb;
 
   --panel: #ffffff;
   --panel-strong: #ffffff;
   --panel-elevated: #ffffff;
 
-  --border: rgba(12, 24, 18, 0.09);
-  --border-hover: rgba(12, 24, 18, 0.17);
-  --border-focus: rgba(11, 158, 94, 0.5);
+  --border: rgba(15, 23, 42, 0.10);
+  --border-hover: rgba(15, 23, 42, 0.18);
+  --border-focus: rgba(98, 87, 217, 0.50);
 
-  --text: #101613;
-  --text-secondary: #39423d;
-  --muted: #65706a;
-  --muted-light: #98a29c;
+  --text: #111827;
+  --text-secondary: #344054;
+  --muted: #667085;
+  --muted-light: #98a2b3;
 
-  --accent: #0b9e5e;
-  --accent-hover: #098a51;
-  --accent-light: rgba(11, 158, 94, 0.08);
-  --accent-glow: rgba(11, 158, 94, 0.15);
-  --accent-2: #cf7a17;
+  --accent: #6257d9;
+  --accent-hover: #5147c4;
+  --accent-light: rgba(98, 87, 217, 0.10);
+  --accent-glow: rgba(98, 87, 217, 0.18);
+  --accent-2: #c98208;
 
-  --success: #0b9e5e;
-  --success-light: rgba(11, 158, 94, 0.10);
-  --success-glow: rgba(11, 158, 94, 0.14);
-  --warning: #cf7a17;
-  --warning-light: rgba(207, 122, 23, 0.10);
-  --danger: #d8544b;
-  --danger-light: rgba(216, 84, 75, 0.09);
+  --success: #0b9f72;
+  --success-light: rgba(11, 159, 114, 0.10);
+  --success-glow: rgba(11, 159, 114, 0.16);
+  --warning: #c98208;
+  --warning-light: rgba(201, 130, 8, 0.12);
+  --danger: #ef6b67;
+  --danger-light: rgba(239, 107, 103, 0.10);
 
-  --chart-primary: #0b9e5e;
-  --chart-secondary: #cf7a17;
-  --chart-tertiary: #6b4bb8;
-  --chart-grid: rgba(120, 140, 130, 0.18);
+  --chart-primary: #6257d9;
+  --chart-secondary: #0b9f72;
+  --chart-tertiary: #c98208;
+  --chart-grid: rgba(102, 112, 133, 0.18);
 
   --shadow-xs: 0 1px 2px rgba(15, 25, 20, 0.05);
   --shadow-sm: 0 2px 8px rgba(15, 25, 20, 0.06);
@@ -59,9 +59,9 @@ html[data-theme="light"] body {
   --shadow-lg: 0 14px 40px rgba(15, 25, 20, 0.10);
   --shadow-xl: 0 24px 60px rgba(15, 25, 20, 0.12);
   --shadow: 0 6px 20px rgba(15, 25, 20, 0.08);
-  --shadow-glow: 0 0 0 4px rgba(11, 158, 94, 0.14);
-  --shadow-success-glow: 0 8px 24px rgba(11, 158, 94, 0.18);
-  --shadow-accent-glow: 0 8px 24px rgba(11, 158, 94, 0.18);
+  --shadow-glow: 0 0 0 4px rgba(98, 87, 217, 0.14);
+  --shadow-success-glow: 0 8px 24px rgba(11, 159, 114, 0.18);
+  --shadow-accent-glow: 0 8px 24px rgba(98, 87, 217, 0.18);
 
   --radius-sm: 10px;
   --radius-md: 14px;
@@ -83,44 +83,42 @@ html[data-theme="light"] body {
 html[data-theme="dark"],
 html[data-theme="dark"] body,
 body[data-theme="dark"] {
-  /* B2 dark (заказчик, 2026-08-19): глубокий чёрно-зелёный «терминал» —
-     почти чёрная подложка с еле тёплым зелёным подтоном, неоново-зелёный
-     акцент (он же success) и янтарь вторым цветом. Синего больше нет. */
-  --bg: #0a0c0b;
-  --bg-2: #0f1210;
-  --bg-glass: rgba(14, 17, 15, 0.72);
-  --surface-2: #131614;
+  /* Dark catalog palette: cool graphite surfaces and a brighter violet focus. */
+  --bg: #0b0d12;
+  --bg-2: #0f1218;
+  --bg-glass: rgba(15, 18, 24, 0.74);
+  --surface-2: #171b24;
 
-  --panel: #101311;
-  --panel-strong: #0d100e;
-  --panel-elevated: #151816;
+  --panel: #11141b;
+  --panel-strong: #0e1016;
+  --panel-elevated: #1a1f2a;
 
   --border: rgba(255, 255, 255, 0.07);
   --border-hover: rgba(255, 255, 255, 0.15);
-  --border-focus: rgba(63, 224, 143, 0.55);
+  --border-focus: rgba(139, 124, 255, 0.58);
 
-  --text: #f2f4f2;
-  --text-secondary: #c3c9c5;
-  --muted: #8b9490;
-  --muted-light: #5d6560;
+  --text: #f3f5fb;
+  --text-secondary: #c7cede;
+  --muted: #8f9aaf;
+  --muted-light: #596274;
 
-  --accent: #3fe08f;
-  --accent-hover: #63e8a6;
-  --accent-light: rgba(63, 224, 143, 0.12);
-  --accent-glow: rgba(63, 224, 143, 0.22);
-  --accent-2: #f0a24a;
+  --accent: #8b7cff;
+  --accent-hover: #9d91ff;
+  --accent-light: rgba(139, 124, 255, 0.14);
+  --accent-glow: rgba(139, 124, 255, 0.22);
+  --accent-2: #f0b35a;
 
-  --success: #3fe08f;
-  --success-light: rgba(63, 224, 143, 0.13);
-  --success-glow: rgba(63, 224, 143, 0.20);
-  --warning: #f0a24a;
-  --warning-light: rgba(240, 162, 74, 0.14);
-  --danger: #ff7a70;
-  --danger-light: rgba(255, 122, 112, 0.13);
+  --success: #34d399;
+  --success-light: rgba(52, 211, 153, 0.13);
+  --success-glow: rgba(52, 211, 153, 0.20);
+  --warning: #f0b35a;
+  --warning-light: rgba(240, 179, 90, 0.14);
+  --danger: #ff7f7a;
+  --danger-light: rgba(255, 127, 122, 0.13);
 
-  --chart-primary: #3fe08f;
-  --chart-secondary: #f0a24a;
-  --chart-tertiary: #8d68e0;
+  --chart-primary: #8b7cff;
+  --chart-secondary: #34d399;
+  --chart-tertiary: #f0b35a;
   --chart-grid: rgba(255, 255, 255, 0.06);
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -129,15 +127,15 @@ body[data-theme="dark"] {
   --shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.5);
   --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.6);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
-  --shadow-glow: 0 0 0 4px rgba(63, 224, 143, 0.20);
-  --shadow-success-glow: 0 8px 24px rgba(63, 224, 143, 0.22);
-  --shadow-accent-glow: 0 8px 24px rgba(63, 224, 143, 0.24);
+  --shadow-glow: 0 0 0 4px rgba(139, 124, 255, 0.20);
+  --shadow-success-glow: 0 8px 24px rgba(52, 211, 153, 0.22);
+  --shadow-accent-glow: 0 8px 24px rgba(139, 124, 255, 0.24);
 
   color-scheme: dark;
 }
 
 /* keep the legacy dark-only alias tokens coherent */
-html[data-theme="dark"] { --accent-2: #f0a24a; }
+html[data-theme="dark"] { --accent-2: #f0b35a; }
 
 /* ---- Base surface --------------------------------------------------------- */
 /* Replace the old radial-glow gradient body background with a calm flat wash. */
@@ -177,14 +175,14 @@ body[data-theme="dark"] {
 
 /* ── Placeholder logo tiles ────────────────────────────────────────────────
    The monogram fallback tiles hash the ticker into a raw 0–360 hue, which lands
-   on clashing colors. Remap that hue into a narrow band around the B2 green
-   (teal → green → moss) so every placeholder stays on-theme while keeping
+   on clashing colors. Remap that hue into the catalog's violet-indigo band so
+   every placeholder stays on-theme while keeping
    issuers distinct. */
 .chip-logo-fallback {
   background: linear-gradient(
     135deg,
-    hsl(calc(150 + (var(--mono-h, 210) - 180) * 0.14), 42%, 44%),
-    hsl(calc(168 + (var(--mono-h, 210) - 180) * 0.14), 45%, 33%)
+    hsl(calc(244 + (var(--mono-h, 210) - 180) * 0.10), 58%, 61%),
+    hsl(calc(258 + (var(--mono-h, 210) - 180) * 0.10), 52%, 48%)
   ) !important;
   color: #fff !important;
 }
@@ -224,10 +222,9 @@ body[data-theme="dark"] {
    the landing page. Data signals keep the product accent; page chrome does not
    introduce a separate blue theme. */
 
-/* Navigation hover is a neutral black surface in dark mode. Green is reserved
-   for live data and positive signals, not for the menu background. */
+/* Navigation hover uses the same cool graphite surface as Catalog. */
 html[data-theme="dark"] body .topbar-nav-btn:hover {
-  background: #151816;
+  background: var(--surface-2);
   color: var(--text);
 }
 
@@ -299,13 +296,13 @@ html[data-theme="dark"] body .topbar-nav-btn:hover {
 .news-time { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .news-ticker { align-self: flex-start; margin-top: auto; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; }
 
-/* Functional category colours (report=blue, listing=green, delisting=amber) */
-.news-tag.cat-report { background: rgba(107,75,184,.14); color: #6b4bb8; }
-.news-tag.cat-listing { background: rgba(11,158,94,.13); color: #0b9e5e; }
-.news-tag.cat-delisting { background: rgba(207,122,23,.15); color: #cf7a17; }
-.cat-report::before { background: #6b4bb8; }
-.cat-listing::before { background: #0b9e5e; }
-.cat-delisting::before { background: #cf7a17; }
+/* Functional category colours reuse Catalog's shared semantic roles. */
+.news-tag.cat-report { background: var(--accent-light); color: var(--accent); }
+.news-tag.cat-listing { background: var(--success-light); color: var(--success); }
+.news-tag.cat-delisting { background: var(--warning-light); color: var(--warning); }
+.cat-report::before { background: var(--accent); }
+.cat-listing::before { background: var(--success); }
+.cat-delisting::before { background: var(--warning); }
 
 /* Latest-events rail */
 .news-rail { position: sticky; top: 84px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 16px 6px 8px; }
@@ -314,12 +311,12 @@ html[data-theme="dark"] body .topbar-nav-btn:hover {
 .news-rail-item { display: flex; gap: 10px; padding: 11px 12px; cursor: pointer; border-radius: 8px; transition: background .12s ease; }
 .news-rail-item:hover { background: rgba(127,127,127,.09); }
 .news-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--muted); }
-.news-dot.cat-report { background: #6b4bb8; } .news-dot.cat-listing { background: #0b9e5e; } .news-dot.cat-delisting { background: #cf7a17; }
+.news-dot.cat-report { background: var(--accent); } .news-dot.cat-listing { background: var(--success); } .news-dot.cat-delisting { background: var(--warning); }
 .news-rail-body { min-width: 0; }
 .news-rail-title { font-size: 13.5px; font-weight: 600; line-height: 1.3; color: var(--text); }
 .news-rail-time { margin-top: 3px; font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .news-tag-mini { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-.news-tag-mini.cat-report { color: #6b4bb8; } .news-tag-mini.cat-listing { color: #0b9e5e; } .news-tag-mini.cat-delisting { color: #cf7a17; }
+.news-tag-mini.cat-report { color: var(--accent); } .news-tag-mini.cat-listing { color: var(--success); } .news-tag-mini.cat-delisting { color: var(--warning); }
 
 /* Empty / skeleton / footnote */
 .news-empty { padding: 60px 20px; text-align: center; color: var(--muted); font-size: 15px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 14px; }
@@ -328,10 +325,10 @@ html[data-theme="dark"] body .topbar-nav-btn:hover {
 @keyframes newsShimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 .news-footnote { margin: 26px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; max-width: 82ch; }
 
-/* Brighter category text in dark mode */
-body[data-theme="dark"] .news-tag.cat-report, body[data-theme="dark"] .news-tag-mini.cat-report { color: #8d68e0; }
-body[data-theme="dark"] .news-tag.cat-listing, body[data-theme="dark"] .news-tag-mini.cat-listing { color: #3fe08f; }
-body[data-theme="dark"] .news-tag.cat-delisting, body[data-theme="dark"] .news-tag-mini.cat-delisting { color: #f0a24a; }
+/* Dark mode resolves through the brighter semantic tokens above. */
+body[data-theme="dark"] .news-tag.cat-report, body[data-theme="dark"] .news-tag-mini.cat-report { color: var(--accent); }
+body[data-theme="dark"] .news-tag.cat-listing, body[data-theme="dark"] .news-tag-mini.cat-listing { color: var(--success); }
+body[data-theme="dark"] .news-tag.cat-delisting, body[data-theme="dark"] .news-tag-mini.cat-delisting { color: var(--warning); }
 
 /* ── Profile command header ────────────────────────────────────────────────
    The account page is a working surface, not a marketing hero. Its identity,
@@ -1027,6 +1024,161 @@ body[data-theme="dark"] .news-tag.cat-delisting, body[data-theme="dark"] .news-t
   .profile-page .history-meta {
     justify-content: space-between;
   }
+}
+
+/* ── Catalog palette harmonization ─────────────────────────────────────────
+   Older component layers predate the shared tokens and contain literal green
+   interaction colours. These final rules make Catalog's violet the UI colour
+   everywhere while leaving positive/negative market data semantic. */
+.brand-mark {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: #fff;
+}
+
+.eyebrow {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: var(--accent-light);
+}
+
+.hero-panel {
+  background:
+    radial-gradient(ellipse at 100% 0%, var(--accent-light), transparent 42%),
+    radial-gradient(ellipse at 0% 100%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 40%),
+    var(--panel);
+}
+
+html[data-theme="dark"] body .topbar {
+  border-color: var(--border);
+  background: var(--panel-strong);
+}
+
+html[data-theme="dark"] body .topbar-nav-btn {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] body .topbar-nav-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+html[data-theme="dark"] body .topbar-nav-btn.active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+html[data-theme="dark"] body .primary-btn {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: #fff;
+  box-shadow: var(--shadow-accent-glow);
+}
+
+html[data-theme="dark"] body .primary-btn:hover {
+  box-shadow: 0 12px 32px var(--accent-glow);
+}
+
+html[data-theme="dark"] body :is(.panel, .tile-card, .profile-stat-card, .metric-card):hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+.activity-bar-track.has-activity,
+html[data-theme="dark"] body .activity-bar-track.has-activity {
+  fill: var(--accent-light);
+}
+
+.activity-bar,
+.activity-axis-label.has-activity,
+.activity-value.has-activity,
+html[data-theme="dark"] body .activity-bar {
+  fill: var(--accent);
+}
+
+html[data-theme="dark"] body .activity-footer > div:hover,
+html[data-theme="dark"] body .profile-avatar-btn,
+.market-colmenu-btn.is-active {
+  background: var(--accent-light);
+}
+
+.cta-content,
+html[data-theme="dark"] body .cta-content {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: linear-gradient(135deg, var(--accent-light), color-mix(in srgb, var(--accent) 4%, transparent));
+}
+
+.analysis-company-chip:hover {
+  box-shadow: 0 6px 24px var(--accent-glow);
+}
+
+html[data-theme="dark"] body .analysis-hero-header {
+  background: linear-gradient(135deg, var(--accent-light) 0%, transparent 60%);
+}
+
+html[data-theme="dark"] body .analysis-company-chip:hover {
+  box-shadow: 0 6px 24px var(--accent-glow);
+}
+
+html body[data-theme="dark"] :is(
+  .analysis-input-wrapper input,
+  .analysis-options-row select,
+  .analysis-form-modern input,
+  .analysis-form-modern select
+):focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px var(--accent-light) !important;
+}
+
+.market-hero-panel {
+  background:
+    linear-gradient(135deg, var(--accent-light), transparent 48%),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 55%),
+    var(--panel);
+}
+
+.market-search input:focus {
+  box-shadow: 0 0 0 4px var(--accent-light);
+}
+
+.market-ticker-btn {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--accent-light);
+}
+
+.market-ticker-btn:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+html[data-theme="light"] body .workspace-page-header {
+  border-color: var(--border);
+  background: linear-gradient(128deg, var(--panel) 0%, var(--surface-2) 64%, var(--panel) 100%);
+  box-shadow: var(--shadow-lg);
+}
+
+html[data-theme="dark"] body .workspace-page-header {
+  border-color: var(--border);
+  background: linear-gradient(128deg, var(--panel) 0%, var(--surface-2) 64%, var(--panel-strong) 100%);
+}
+
+html[data-theme="dark"] body :is(
+  .history-filters input[type="search"],
+  .history-filters select,
+  .panel-toolbar input,
+  .panel-toolbar select,
+  input,
+  select
+) {
+  border-color: var(--border) !important;
+  background: var(--surface-2) !important;
+  background-color: var(--surface-2) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] body :is(input, select):focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-light) !important;
+}
+
+body[data-theme="dark"] .chart-line-revenue {
+  stroke: var(--chart-primary);
 }
 
 /* Responsive: rail drops below, grid to one column */
