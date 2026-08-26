@@ -146,6 +146,7 @@ function newsArticlePath(item) {
 }
 
 const STORAGE_KEY = "uz_stock_analyzer_token";
+const AUTH_REMEMBER_KEY = "uz_stock_analyzer_remember";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
 const THEME_KEY = "uz_stock_analyzer_theme";
 const TEXT_SCALE_KEY = "uz_text_scale";
@@ -3585,6 +3586,64 @@ function t(language, path, params = {}) {
   if (value === undefined || value === null) return "";
   const stringValue = String(value);
   return stringValue.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ""));
+}
+
+const AUTH_PAGE_TEXTS = {
+  ru: {
+    title: "Войти в UZ Stock Analyzer",
+    subtitle: "Ваши исследования и списки наблюдения синхронизируются после входа.",
+    registerTitle: "Создать аккаунт",
+    registerSubtitle: "Сохраняйте исследования, компании и заметки в одном рабочем пространстве.",
+    remember: "Запомнить меня",
+    showPassword: "Показать пароль",
+    hidePassword: "Скрыть пароль",
+    google: "Продолжить с Google",
+    divider: "или",
+    market: "Рынок UZSE",
+    marketFallback: "Актуальные данные рынка Узбекистана",
+    signedInTitle: "Аккаунт подключён",
+    signedInSubtitle: "Вы уже вошли и можете продолжить работу в личном пространстве.",
+    openProfile: "Открыть профиль",
+    privacy: "Данные авторизации защищены и используются только для доступа к вашему аккаунту.",
+  },
+  en: {
+    title: "Sign in to UZ Stock Analyzer",
+    subtitle: "Your research and watchlists sync after you sign in.",
+    registerTitle: "Create an account",
+    registerSubtitle: "Keep research, companies, and notes in one workspace.",
+    remember: "Remember me",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    google: "Continue with Google",
+    divider: "or",
+    market: "UZSE market",
+    marketFallback: "Current Uzbekistan market data",
+    signedInTitle: "Account connected",
+    signedInSubtitle: "You are already signed in and can continue to your workspace.",
+    openProfile: "Open profile",
+    privacy: "Authentication data is protected and used only to access your account.",
+  },
+  uz: {
+    title: "UZ Stock Analyzer'ga kirish",
+    subtitle: "Tadqiqotlaringiz va kuzatuv ro'yxatlaringiz kirgandan so'ng sinxronlanadi.",
+    registerTitle: "Akkaunt yaratish",
+    registerSubtitle: "Tadqiqotlar, kompaniyalar va qaydlarni bitta ish maydonida saqlang.",
+    remember: "Meni eslab qolish",
+    showPassword: "Parolni ko'rsatish",
+    hidePassword: "Parolni yashirish",
+    google: "Google orqali davom etish",
+    divider: "yoki",
+    market: "UZSE bozori",
+    marketFallback: "O'zbekiston bozorining dolzarb ma'lumotlari",
+    signedInTitle: "Akkaunt ulangan",
+    signedInSubtitle: "Siz tizimga kirgansiz va shaxsiy ish maydoniga o'tishingiz mumkin.",
+    openProfile: "Profilni ochish",
+    privacy: "Kirish ma'lumotlari himoyalangan va faqat akkauntingizga kirish uchun ishlatiladi.",
+  },
+};
+
+function authPageText(language) {
+  return AUTH_PAGE_TEXTS[normalizeLanguage(language)] || AUTH_PAGE_TEXTS.ru;
 }
 
 function vt(language, key) {
@@ -17592,7 +17651,7 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
   const [reportPage, setReportPage] = useState(0);
 
   const apiFetch = (path, options = {}) => {
-    const stored = localStorage.getItem(STORAGE_KEY) || "";
+    const stored = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY) || "";
     return fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(stored ? { Authorization: `Bearer ${stored}` } : {}), ...(options.headers || {}) } });
   };
 
@@ -18891,7 +18950,7 @@ function App() {
     const next = TEXT_SCALES[Math.min(TEXT_SCALES.length - 1, Math.max(0, (at < 0 ? 1 : at) + delta))];
     return next;
   });
-  const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
+  const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY) || "");
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [companies, setCompanies] = useState([]);
@@ -18906,6 +18965,9 @@ function App() {
   const [authOtpRequired, setAuthOtpRequired] = useState(false);
   const [registerForm, setRegisterForm] = useState({ full_name: "", email: "", password: "" });
   const [authMessage, setAuthMessage] = useState("");
+  const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(AUTH_REMEMBER_KEY) !== "0");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [analysisCompany, setAnalysisCompany] = useState("");
   const [companyTicker, setCompanyTicker] = useState(() => pathToView(window.location.pathname).ticker);
   const [newsId, setNewsId] = useState(() => pathToView(window.location.pathname).newsId);
@@ -18971,6 +19033,18 @@ function App() {
   const [marketTradeStats, setMarketTradeStats] = useState({});
   const [toasts, setToasts] = useState([]);
 
+  const persistAuthToken = (nextToken) => {
+    setToken(nextToken);
+    localStorage.setItem(AUTH_REMEMBER_KEY, rememberLogin ? "1" : "0");
+    if (rememberLogin) {
+      localStorage.setItem(STORAGE_KEY, nextToken);
+      sessionStorage.removeItem(STORAGE_KEY);
+    } else {
+      sessionStorage.setItem(STORAGE_KEY, nextToken);
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  };
+
   // Dynamic year/quarter options: fallback to static list until per-company periods are fetched
   const annualYearOptions = availablePeriods?.annual_years?.map(String) || reportYearOptions;
   const quarterlyYearOptions = availablePeriods
@@ -19031,8 +19105,7 @@ function App() {
     const provider = hash.get("provider") || hash.get("oauth");
 
     const finishLogin = (newToken, providerName) => {
-      setToken(newToken);
-      localStorage.setItem(STORAGE_KEY, newToken);
+      persistAuthToken(newToken);
       const providerLabel = providerName === "google" ? "Google" : providerName || "";
       addToast(providerLabel ? `${providerLabel}: ${t(language, "auth.messages.loginOk")}` : t(language, "auth.messages.loginOk"), "success");
       setActiveView("profile");
@@ -19078,6 +19151,7 @@ function App() {
     refreshSession().catch(() => {
       setToken("");
       localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
       setUser(null);
       setProfile(null);
     });
@@ -19171,7 +19245,7 @@ function App() {
     // "main": the landing's ticker tape, board preview and movers are the real
     // board, so the "/" page needs the same rows the market view reads.
     if (activeView !== "market" && activeView !== "heatmap"
-      && activeView !== "company" && activeView !== "chart" && activeView !== "main"
+      && activeView !== "company" && activeView !== "chart" && activeView !== "main" && activeView !== "auth"
       && activeView !== "profile") return;
     loadMarketStocks(activeView === "profile" ? "stock" : null).catch((error) => {
       addToast(error.message, "error");
@@ -19373,8 +19447,7 @@ function App() {
 
   const setAuthSuccess = (data) => {
     if (data.token) {
-      setToken(data.token);
-      localStorage.setItem(STORAGE_KEY, data.token);
+      persistAuthToken(data.token);
     }
     if (data.user) {
       setUser(data.user);
@@ -19429,6 +19502,7 @@ function App() {
   };
 
   const handleGoogleLogin = () => {
+    localStorage.setItem(AUTH_REMEMBER_KEY, rememberLogin ? "1" : "0");
     window.location.href = "/api/auth/oauth/google/start";
   };
 
@@ -19439,6 +19513,7 @@ function App() {
       // ignore
     }
     localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
     setToken("");
     setUser(null);
     setProfile(null);
@@ -19842,6 +19917,15 @@ function App() {
   const resumeCompany = companies.find((item) => String(item?.ticker || "").toUpperCase() === resumeTicker) || null;
   const resumeQuote = profileMarketQuote(resumeTicker, marketRows, securitiesMap);
   const profileNotes = Array.isArray(profile?.notes) ? profile.notes : [];
+  const authCopy = authPageText(language);
+  const authMarketItems = (Array.isArray(marketRows) ? marketRows : [])
+    .map((row) => {
+      const ticker = String(row?.ticker || "").trim().toUpperCase();
+      if (!ticker) return null;
+      return { ticker, ...profileMarketQuote(ticker, marketRows, securitiesMap) };
+    })
+    .filter(Boolean)
+    .slice(0, 5);
   const displayedProfileAvatar = profileAvatarPreview || (profileAvatarCleared ? "" : profileAvatar || "");
   const disclosure = disclosureText(language);
   const comparison = compareResult?.comparison || null;
@@ -20414,140 +20498,174 @@ function App() {
           {activeView === "bankfx" && <BankFxPage language={language} />}
 
           {activeView === "auth" && (
-            <section className="auth-layout">
-              <article className="panel auth-panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "nav.auth")}</div>
-                    <h2>{t(language, "auth.title")}</h2>
-                  </div>
-                  <span className={`status-badge ${token ? "" : "muted"}`}>{token ? t(language, "auth.signedIn") : t(language, "auth.signedOut")}</span>
-                </div>
-
-                <div className="segmented-control">
-                  <button type="button" className={authTab === "login" ? "active" : ""} onClick={() => setAuthTab("login")}>
-                    {t(language, "auth.loginTab")}
-                  </button>
-                  <button type="button" className={authTab === "register" ? "active" : ""} onClick={() => setAuthTab("register")}>
-                    {t(language, "auth.registerTab")}
-                  </button>
-                </div>
-
-                {authTab === "login" ? (
-                  <form className="form-grid" onSubmit={handleLogin}>
-                    <label>
-                      <span>{t(language, "auth.login.email")}</span>
-                      <input
-                        type="email"
-                        value={loginForm.email}
-                        onChange={(event) => setLoginForm({ ...loginForm, email: event.target.value })}
-                        placeholder="you@example.com"
-                        required
-                      />
-                    </label>
-                    <label>
-                      <span>{t(language, "auth.login.password")}</span>
-                      <input
-                        type="password"
-                        value={loginForm.password}
-                        onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
-                        placeholder="••••••••"
-                        required
-                      />
-                    </label>
-                    {authOtpRequired ? (
-                      <label>
-                        <span>{language === "en" ? "Authenticator code" : language === "uz" ? "Autentifikator kodi" : "Код из приложения"}</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="one-time-code"
-                          maxLength="6"
-                          value={loginForm.otp}
-                          onChange={(event) => setLoginForm({ ...loginForm, otp: event.target.value.replace(/\D/g, "") })}
-                          placeholder="000000"
-                          required
-                        />
-                      </label>
+            <section className="auth-hub-page" aria-labelledby="auth-page-title">
+              <div className="auth-market-strip" aria-label={authCopy.market}>
+                <span className="auth-market-label">{authCopy.market}</span>
+                {authMarketItems.length ? authMarketItems.map((item) => (
+                  <span className="auth-market-item" key={item.ticker}>
+                    <strong>{item.ticker}</strong>
+                    {item.change !== null ? (
+                      <span className={item.change > 0 ? "is-up" : item.change < 0 ? "is-down" : "is-flat"}>
+                        {formatSignedPercent(item.change, 2)}
+                      </span>
                     ) : null}
-                    <button className="primary-btn" type="submit">
-                      {t(language, "auth.login.submit")}
-                    </button>
-                  </form>
-                ) : (
-                  <form className="form-grid" onSubmit={handleRegister}>
-                    <label>
-                      <span>{t(language, "auth.register.fullName")}</span>
-                      <input
-                        type="text"
-                        value={registerForm.full_name}
-                        onChange={(event) => setRegisterForm({ ...registerForm, full_name: event.target.value })}
-                        placeholder={t(language, "auth.register.fullName")}
-                      />
-                    </label>
-                    <label>
-                      <span>{t(language, "auth.register.email")}</span>
-                      <input
-                        type="email"
-                        value={registerForm.email}
-                        onChange={(event) => setRegisterForm({ ...registerForm, email: event.target.value })}
-                        placeholder="you@example.com"
-                        required
-                      />
-                    </label>
-                    <label>
-                      <span>{t(language, "auth.register.password")}</span>
-                      <input
-                        type="password"
-                        value={registerForm.password}
-                        onChange={(event) => setRegisterForm({ ...registerForm, password: event.target.value })}
-                        placeholder="••••••••"
-                        required
-                      />
-                    </label>
-                    <button className="primary-btn" type="submit">
-                      {t(language, "auth.register.submit")}
-                    </button>
-                  </form>
-                )}
+                  </span>
+                )) : <span className="auth-market-fallback">{authCopy.marketFallback}</span>}
+              </div>
 
-                <div className="oauth-block">
-                  <div className="oauth-label">{t(language, "auth.oauthLabel")}</div>
-                  <button className="oauth-btn oauth-google" type="button" onClick={handleGoogleLogin}>
-                    {t(language, "auth.google")}
-                  </button>
-                </div>
+              <article className="auth-hub-card">
+                <img src={logoIcon} alt="" className="auth-hub-logo" aria-hidden="true" />
 
-                <div className="helper-text">{authMessage}</div>
-              </article>
-
-              <article className="panel auth-side-panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-label">{t(language, "nav.auth")}</div>
-                    <h2>{t(language, "auth.signedInAs")}</h2>
-                  </div>
-                </div>
                 {token && profileUser ? (
-                  <div className="user-card">
-                    <div className="user-line">
-                      <span className="muted">{t(language, "auth.signedInAs")}</span>
+                  <div className="auth-signed-in">
+                    <div className="auth-hub-heading">
+                      <h1 id="auth-page-title">{authCopy.signedInTitle}</h1>
+                      <p>{authCopy.signedInSubtitle}</p>
+                    </div>
+                    <div className="auth-account-summary">
                       <strong>{profileUser.full_name || profileUser.email}</strong>
+                      <span>{profileUser.email}</span>
                     </div>
-                    <div className="user-line">
-                      <span className="muted">Email</span>
-                      <strong>{profileUser.email}</strong>
-                    </div>
-                    <button className="ghost-btn" type="button" onClick={handleLogout}>
+                    <button className="auth-primary-button" type="button" onClick={() => setActiveView("profile")}>
+                      {authCopy.openProfile}
+                      <span aria-hidden="true">→</span>
+                    </button>
+                    <button className="auth-secondary-button" type="button" onClick={handleLogout}>
                       {t(language, "auth.logout")}
                     </button>
                   </div>
                 ) : (
-                  <div className="empty-state">
-                    <p className="empty-copy">{t(language, "auth.messages.authRequired")}</p>
-                  </div>
+                  <>
+                    <div className="auth-hub-heading">
+                      <h1 id="auth-page-title">{authTab === "login" ? authCopy.title : authCopy.registerTitle}</h1>
+                      <p>{authTab === "login" ? authCopy.subtitle : authCopy.registerSubtitle}</p>
+                    </div>
+
+                    <div className="auth-mode-tabs" role="tablist" aria-label={t(language, "auth.title")}>
+                      <button type="button" role="tab" aria-selected={authTab === "login"} className={authTab === "login" ? "is-active" : ""} onClick={() => { setAuthTab("login"); setAuthMessage(""); }}>
+                        {t(language, "auth.loginTab")}
+                      </button>
+                      <button type="button" role="tab" aria-selected={authTab === "register"} className={authTab === "register" ? "is-active" : ""} onClick={() => { setAuthTab("register"); setAuthMessage(""); }}>
+                        {t(language, "auth.registerTab")}
+                      </button>
+                    </div>
+
+                    {authTab === "login" ? (
+                      <form className="auth-hub-form" onSubmit={handleLogin}>
+                        <label className="auth-field">
+                          <span>{t(language, "auth.login.email")}</span>
+                          <input
+                            type="email"
+                            autoComplete="email"
+                            value={loginForm.email}
+                            onChange={(event) => setLoginForm({ ...loginForm, email: event.target.value })}
+                            placeholder="name@example.com"
+                            required
+                          />
+                        </label>
+                        <label className="auth-field">
+                          <span>{t(language, "auth.login.password")}</span>
+                          <span className="auth-password-field">
+                            <input
+                              type={showLoginPassword ? "text" : "password"}
+                              autoComplete="current-password"
+                              value={loginForm.password}
+                              onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
+                              placeholder="••••••••"
+                              required
+                            />
+                            <button type="button" className="auth-password-toggle" aria-label={showLoginPassword ? authCopy.hidePassword : authCopy.showPassword} aria-pressed={showLoginPassword} onClick={() => setShowLoginPassword((shown) => !shown)}>
+                              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+                                <circle cx="12" cy="12" r="2.5" />
+                              </svg>
+                            </button>
+                          </span>
+                        </label>
+                        {authOtpRequired ? (
+                          <label className="auth-field">
+                            <span>{language === "en" ? "Authenticator code" : language === "uz" ? "Autentifikator kodi" : "Код из приложения"}</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              maxLength="6"
+                              value={loginForm.otp}
+                              onChange={(event) => setLoginForm({ ...loginForm, otp: event.target.value.replace(/\D/g, "") })}
+                              placeholder="000000"
+                              required
+                            />
+                          </label>
+                        ) : null}
+                        <label className="auth-remember">
+                          <input type="checkbox" checked={rememberLogin} onChange={(event) => setRememberLogin(event.target.checked)} />
+                          <span>{authCopy.remember}</span>
+                        </label>
+                        <button className="auth-primary-button" type="submit">
+                          {t(language, "auth.login.submit")}
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      </form>
+                    ) : (
+                      <form className="auth-hub-form" onSubmit={handleRegister}>
+                        <label className="auth-field">
+                          <span>{t(language, "auth.register.fullName")}</span>
+                          <input
+                            type="text"
+                            autoComplete="name"
+                            value={registerForm.full_name}
+                            onChange={(event) => setRegisterForm({ ...registerForm, full_name: event.target.value })}
+                            placeholder={t(language, "auth.register.fullName")}
+                          />
+                        </label>
+                        <label className="auth-field">
+                          <span>{t(language, "auth.register.email")}</span>
+                          <input
+                            type="email"
+                            autoComplete="email"
+                            value={registerForm.email}
+                            onChange={(event) => setRegisterForm({ ...registerForm, email: event.target.value })}
+                            placeholder="name@example.com"
+                            required
+                          />
+                        </label>
+                        <label className="auth-field">
+                          <span>{t(language, "auth.register.password")}</span>
+                          <span className="auth-password-field">
+                            <input
+                              type={showRegisterPassword ? "text" : "password"}
+                              autoComplete="new-password"
+                              value={registerForm.password}
+                              onChange={(event) => setRegisterForm({ ...registerForm, password: event.target.value })}
+                              placeholder="••••••••"
+                              required
+                            />
+                            <button type="button" className="auth-password-toggle" aria-label={showRegisterPassword ? authCopy.hidePassword : authCopy.showPassword} aria-pressed={showRegisterPassword} onClick={() => setShowRegisterPassword((shown) => !shown)}>
+                              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+                                <circle cx="12" cy="12" r="2.5" />
+                              </svg>
+                            </button>
+                          </span>
+                        </label>
+                        <button className="auth-primary-button" type="submit">
+                          {t(language, "auth.register.submit")}
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      </form>
+                    )}
+
+                    <div className="auth-divider"><span>{authCopy.divider}</span></div>
+                    <button className="auth-google-button" type="button" onClick={handleGoogleLogin}>
+                      <span className="auth-google-mark" aria-hidden="true">G</span>
+                      {authCopy.google}
+                    </button>
+                    <div className="auth-message" role="status" aria-live="polite">{authMessage}</div>
+                  </>
                 )}
               </article>
+
+              <p className="auth-privacy-note">{authCopy.privacy}</p>
             </section>
           )}
 
@@ -21489,10 +21607,9 @@ function App() {
       </div>
 
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} language={language} />
-      {/* No advertising on the maintenance page: it is staff-facing, it covers
-          the bottom-right of the findings table, and there is nobody there to
-          sell to. */}
-      {activeView !== "admin" && <SponsorOverlay language={language} />}
+      {/* Keep staff tooling and authentication focused: a floating promotion
+          must not cover findings or compete with credentials and recovery. */}
+      {!["admin", "auth"].includes(activeView) && <SponsorOverlay language={language} />}
     </div>
   );
 }
