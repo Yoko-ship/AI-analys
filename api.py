@@ -272,6 +272,13 @@ CATALOG_FULL_SYNC_HOURS = int(os.getenv("CATALOG_FULL_SYNC_HOURS", "24"))
 # that a redeploy landing on it costs almost nothing.
 CATALOG_WATCH_BATCH = int(os.getenv("CATALOG_WATCH_BATCH", "8"))
 
+# Keep the public news calendar current even when nobody has the page open.
+# Client reads still have a stale-while-revalidate guard, but a scheduler is
+# what makes a newly published meeting or dividend appear without depending on
+# visitor traffic or the once-daily collector.
+NEWS_CALENDAR_WATCH = os.getenv("NEWS_CALENDAR_WATCH", "1").strip().lower() not in {"0", "false", "no"}
+NEWS_CALENDAR_WATCH_INTERVAL_MIN = int(os.getenv("NEWS_CALENDAR_WATCH_INTERVAL_MIN", "60"))
+
 
 def _catalog_watch_once() -> dict[str, Any]:
     """One pass: whoever just filed, then whoever has waited longest.
@@ -327,6 +334,32 @@ async def _catalog_watch_loop() -> None:
         await asyncio.sleep(max(60, CATALOG_WATCH_INTERVAL_MIN * 60))
 
 
+def _news_calendar_watch_once() -> dict[str, Any]:
+    """Refresh both source-backed news calendars without visitor traffic."""
+    import dividends as dividends_store
+    import meetings as meetings_store
+
+    result: dict[str, Any] = {"ok": True}
+    for name, refresh in (("meetings", meetings_store.refresh),
+                          ("dividends", dividends_store.refresh)):
+        try:
+            result[name] = refresh(force=True)
+        except Exception as exc:  # one source must not stop the other
+            logger.exception("news calendar watch failed for %s", name)
+            result["ok"] = False
+            result[name] = {"ok": False, "error": str(exc)}
+    return result
+
+
+async def _news_calendar_watch_loop() -> None:
+    """Refresh after boot and then hourly (configurable) for the process lifetime."""
+    loop = asyncio.get_running_loop()
+    await asyncio.sleep(60)
+    while True:
+        await loop.run_in_executor(None, _news_calendar_watch_once)
+        await asyncio.sleep(max(300, NEWS_CALENDAR_WATCH_INTERVAL_MIN * 60))
+
+
 @app.on_event("startup")
 async def _on_startup() -> None:
     # ТЗ §10.10: migrations are applied before deploy, so a process that has just
@@ -374,6 +407,8 @@ async def _on_startup() -> None:
     asyncio.create_task(_populate_securities_on_startup())
     if CATALOG_WATCH:
         asyncio.create_task(_catalog_watch_loop())
+    if NEWS_CALENDAR_WATCH:
+        asyncio.create_task(_news_calendar_watch_loop())
 
 
 class AnalyzeRequest(BaseModel):
