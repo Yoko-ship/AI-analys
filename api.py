@@ -4765,11 +4765,15 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         # and which had UZTL's 2023 and 2024 revenue transposed and 2021 missing
         # while agreeing with the filings everywhere else. Where a year has been
         # parsed from the issuer's own annual report, that year is overwritten;
-        # the feed is left to cover only what the filings do not carry
-        # (total_assets, total_equity, the liquidity coefficients).
+        # the feed is left to cover only what the filings do not carry (chiefly
+        # liquidity coefficients).  Filed assets/equity are included here too:
+        # the reviewed financial-organization register corrects those exact
+        # balance lines, so ignoring them at this merge would make a verified
+        # correction disappear behind the older indicator-feed value.
         FILED = {"revenue": "net_revenue", "net_income": "net_profit",
                  "gross_profit": "gross_profit", "operating_income": "operating_income",
                  "total_liabilities": "total_liabilities", "cash": "cash",
+                 "total_assets": "total_assets", "total_equity": "total_equity",
                  "roe": "roe", "roa": "roa", "debt_ratio": "debt_ratio",
                  "debt_to_equity": "debt_to_equity"}
         filed = await loop.run_in_executor(None, partial(get_financials_series, ticker))
