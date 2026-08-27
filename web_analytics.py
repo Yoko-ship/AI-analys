@@ -27,6 +27,7 @@ audience's day, not the server's.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import re
@@ -98,6 +99,35 @@ def init_db() -> bool:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_session ON web_events(session_id)")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_web_events_ticker_ts ON web_events(ticker, ts) WHERE ticker IS NOT NULL"
+        )
+        # Administrative mutations need a durable, attributable trail.  This is
+        # deliberately separate from application logs: deploys rotate those,
+        # while an account deletion must remain reconstructable afterwards.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_admin_audit_log (
+                id              BIGSERIAL PRIMARY KEY,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                actor_user_id   BIGINT,
+                actor_email     TEXT NOT NULL,
+                action          TEXT NOT NULL,
+                target_type     TEXT NOT NULL,
+                target_id       TEXT,
+                target_label    TEXT,
+                outcome         TEXT NOT NULL,
+                request_id      TEXT NOT NULL,
+                ip_hash         TEXT,
+                details         JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_web_admin_audit_created "
+            "ON web_admin_audit_log(created_at DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_web_admin_audit_actor "
+            "ON web_admin_audit_log(actor_user_id, created_at DESC)"
         )
     return True
 
@@ -844,6 +874,11 @@ def users_list(query: str = "", limit: int = 50, offset: int = 0,
             tuple(params) + (limit, offset),
         ).fetchall()
 
+    # The allowlist is configuration rather than a database role. Return the
+    # effective permission so the UI can mark protected accounts, but enforce
+    # the protection again in ``user_action``; UI state is never authority.
+    from web_auth import is_admin_email
+
     return {
         "ok": True,
         "total": int(total) if total is not None else None,
@@ -856,6 +891,7 @@ def users_list(query: str = "", limit: int = 50, offset: int = 0,
             "favorites": int(r["favorites"] or 0),
             "active_sessions": int(r["active_sessions"] or 0),
             "oauth_providers": r["oauth_providers"],
+            "is_admin": is_admin_email(r["email"]),
         } for r in rows],
     }
 
@@ -943,6 +979,8 @@ def user_detail(user_id: int) -> dict[str, Any]:
             "SELECT provider, provider_email, created_at FROM web_oauth_accounts WHERE user_id = %s",
             (user_id,),
         ).fetchall()
+    from web_auth import is_admin_email
+
     return {
         "ok": True,
         "user": {
@@ -950,6 +988,7 @@ def user_detail(user_id: int) -> dict[str, Any]:
             "is_active": bool(user["is_active"]),
             "created_at": user["created_at"].isoformat() if user["created_at"] else None,
             "last_login_at": user["last_login_at"].isoformat() if user["last_login_at"] else None,
+            "is_admin": is_admin_email(user["email"]),
         },
         "sessions": [{
             "created_at": s["created_at"].isoformat() if s["created_at"] else None,
@@ -974,15 +1013,91 @@ def user_detail(user_id: int) -> dict[str, Any]:
     }
 
 
-def user_action(user_id: int, action: str, *, acted_by: str = "") -> dict[str, Any]:
-    """Deactivate / reactivate / revoke sessions / delete. Every call is logged."""
+def _write_admin_audit(conn, *, actor_user_id: int, actor_email: str,
+                       action: str, target_type: str, target_id: str | None,
+                       target_label: str | None, outcome: str, request_id: str,
+                       source_ip_hash: str | None = None,
+                       details: dict[str, Any] | None = None) -> None:
+    """Append one administrative action inside the mutation's transaction."""
+    conn.execute(
+        """
+        INSERT INTO web_admin_audit_log
+            (actor_user_id, actor_email, action, target_type, target_id,
+             target_label, outcome, request_id, ip_hash, details)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+        """,
+        (actor_user_id, actor_email, action, target_type, target_id,
+         target_label, outcome, request_id, source_ip_hash,
+         json.dumps(details or {}, ensure_ascii=False)),
+    )
+
+
+def admin_audit_log(limit: int = 50, offset: int = 0) -> dict[str, Any]:
+    """Recent privileged mutations, newest first; secrets never enter this log."""
+    if not _available():
+        return {"ok": False, "reason": "no database"}
+    limit = max(1, min(int(limit or 50), 200))
+    offset = max(0, int(offset or 0))
+    with _conn() as conn:
+        total = _scalar(conn, "SELECT COUNT(*) FROM web_admin_audit_log")
+        rows = conn.execute(
+            """
+            SELECT id, created_at, actor_user_id, actor_email, action,
+                   target_type, target_id, target_label, outcome, request_id
+            FROM web_admin_audit_log
+            ORDER BY created_at DESC, id DESC
+            LIMIT %s OFFSET %s
+            """,
+            (limit, offset),
+        ).fetchall()
+    return {
+        "ok": True,
+        "total": int(total) if total is not None else None,
+        "items": [{
+            "id": r["id"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "actor_user_id": r["actor_user_id"],
+            "actor_email": r["actor_email"],
+            "action": r["action"],
+            "target_type": r["target_type"],
+            "target_id": r["target_id"],
+            "target_label": r["target_label"],
+            "outcome": r["outcome"],
+            "request_id": r["request_id"],
+        } for r in rows],
+    }
+
+
+def user_action(user_id: int, action: str, *, actor_user_id: int,
+                actor_email: str, request_id: str,
+                source_ip_hash: str | None = None) -> dict[str, Any]:
+    """Mutate one account and append an attributable audit record atomically."""
     if not _available():
         return {"ok": False, "reason": "no database"}
     action = (action or "").strip()
+    from web_auth import is_admin_email
+
     with _conn() as conn:
         exists = conn.execute("SELECT id, email FROM web_users WHERE id = %s", (user_id,)).fetchone()
         if not exists:
+            _write_admin_audit(
+                conn, actor_user_id=actor_user_id, actor_email=actor_email,
+                action=action, target_type="user", target_id=str(user_id),
+                target_label=None, outcome="not_found", request_id=request_id,
+                source_ip_hash=source_ip_hash,
+            )
             return {"ok": False, "reason": "not found"}
+        # An allowlisted admin cannot be disabled or deleted from the panel.
+        # Remove the address from ADMIN_EMAILS first: changing that control-plane
+        # configuration is an explicit, reviewable act and prevents lockout.
+        if action in {"deactivate", "delete"} and is_admin_email(exists["email"]):
+            _write_admin_audit(
+                conn, actor_user_id=actor_user_id, actor_email=actor_email,
+                action=action, target_type="user", target_id=str(user_id),
+                target_label=exists["email"], outcome="denied_protected_admin",
+                request_id=request_id, source_ip_hash=source_ip_hash,
+            )
+            return {"ok": False, "reason": "protected admin"}
         if action == "deactivate":
             conn.execute("UPDATE web_users SET is_active = FALSE WHERE id = %s", (user_id,))
             conn.execute(
@@ -1001,6 +1116,12 @@ def user_action(user_id: int, action: str, *, acted_by: str = "") -> dict[str, A
             conn.execute("DELETE FROM web_users WHERE id = %s", (user_id,))
         else:
             return {"ok": False, "reason": f"unknown action: {action}"}
+        _write_admin_audit(
+            conn, actor_user_id=actor_user_id, actor_email=actor_email,
+            action=action, target_type="user", target_id=str(user_id),
+            target_label=exists["email"], outcome="success", request_id=request_id,
+            source_ip_hash=source_ip_hash,
+        )
     logger.info("admin user action: %s on user %s (%s) by %s",
-                action, user_id, exists["email"], acted_by or "unknown")
+                action, user_id, exists["email"], actor_email)
     return {"ok": True, "action": action, "user_id": user_id}

@@ -16,7 +16,10 @@
    ========================================================================== */
 
 .admin-view {
+  width: 100%;
   max-width: 1240px;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0 auto;
   padding: 4px 2px 28px;
 }
@@ -102,7 +105,11 @@
 }
 .admin-view .num { font-variant-numeric: tabular-nums; }
 .admin-sp { flex: 1; }
-.admin-section { display: flex; flex-direction: column; gap: 18px; }
+.admin-section { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+/* Wide tables scroll inside their card. Without this flex minimum override, a
+   table's 760px intrinsic width stretches every sibling card on mobile and the
+   app shell clips the right half of the funnel and action log. */
+.admin-section > .panel { min-width: 0; }
 
 .admin-btn {
   display: inline-flex;
@@ -541,4 +548,5 @@
 @media (max-width: 620px) {
   .admin-hbar { grid-template-columns: minmax(90px, 44%) 1fr 56px; }
   .admin-funnel-step { grid-template-columns: minmax(110px, 38%) 1fr 96px; }
+  .admin-filters .admin-seg { width: 100%; max-width: 100%; overflow-x: auto; }
 }
