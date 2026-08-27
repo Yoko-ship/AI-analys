@@ -16,14 +16,24 @@ const VISITOR_KEY = "uz_track_visitor";
 const SESSION_KEY = "uz_track_session";
 const SEEN_KEY = "uz_track_seen";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
+const AUTH_TOKEN_KEY = "uz_stock_analyzer_token";
 const IDLE_MS = 30 * 60 * 1000;
 
-let currentUserId = null;
+let currentAuthToken = "";
 let lastSent = { path: "", at: 0 };
 
-/** The signed-in user's id rides along when known; analytics only, not auth. */
+/** A token lets the server derive the user. The public payload never claims an id. */
 export function setTrackedUser(id) {
-  currentUserId = id || null;
+  if (!id) {
+    currentAuthToken = "";
+    return;
+  }
+  try {
+    currentAuthToken = localStorage.getItem(AUTH_TOKEN_KEY)
+      || sessionStorage.getItem(AUTH_TOKEN_KEY) || "";
+  } catch {
+    currentAuthToken = "";
+  }
 }
 
 function randomId() {
@@ -73,6 +83,22 @@ function sessionId(store) {
 
 function send(payload) {
   const body = JSON.stringify(payload);
+  // sendBeacon cannot attach an Authorization header. Signed-in page views use
+  // fetch so the server can derive (and verify) the user from the session token.
+  if (currentAuthToken) {
+    try {
+      fetch("/api/track", {
+        method: "POST",
+        body,
+        keepalive: true,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${currentAuthToken}`,
+        },
+      }).catch(() => {});
+    } catch { /* a lost beacon is fine */ }
+    return;
+  }
   try {
     if (navigator.sendBeacon
         && navigator.sendBeacon("/api/track", new Blob([body], { type: "application/json" }))) {
@@ -106,7 +132,6 @@ export function trackPageview({ path, view = "", ticker = "" } = {}) {
     send({
       vid: visitorId(store),
       sid,
-      uid: currentUserId,
       path,
       view,
       ticker: ticker || "",

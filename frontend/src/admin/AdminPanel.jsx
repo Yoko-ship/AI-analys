@@ -13,8 +13,8 @@
  * one place to look when a cron card goes red, not seven top-level tabs.
  *
  * Authentication is the signed-in admin's own Bearer token — the machine
- * X-Admin-Secret never reaches the browser. The server side is `_admin_gate`
- * in api.py, which accepts either credential.
+ * X-Admin-Secret never reaches the browser and cannot open these product/user
+ * endpoints. The server derives the actor from that Bearer session.
  *
  * Nothing here invents a number. Where the backend cannot measure something the
  * cell renders «—» — zero and unknown are different facts — and the collectors
@@ -422,6 +422,7 @@ export default function AdminPanel({
   const [rangeDays, setRangeDays] = useState(30);
   const [usersData, setUsersData] = useState(null);
   const [funnel, setFunnel] = useState(null);
+  const [adminLog, setAdminLog] = useState(null);
   const [usersQuery, setUsersQuery] = useState("");
   const [usersOnly, setUsersOnly] = useState("");
   const [userDetail, setUserDetail] = useState(null);
@@ -445,7 +446,13 @@ export default function AdminPanel({
   const [busy, setBusy] = useState(false);
   const alive = useRef(true);
 
-  useEffect(() => () => { alive.current = false; }, []);
+  // React Strict Mode replays effect setup/cleanup once in development. Reset
+  // the guard in setup so that replay does not leave this mounted panel
+  // permanently "dead" and discard every API response.
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   const readJson = useCallback(async (path, options) => {
     const res = await apiFetch(path, options);
@@ -485,11 +492,12 @@ export default function AdminPanel({
     const params = new URLSearchParams({ limit: "100" });
     if (query) params.set("query", query);
     if (only) params.set("only", only);
-    const [list, fun] = await Promise.all([
+    const [list, fun, log] = await Promise.all([
       readJson(`/api/admin/users?${params}`),
       readJson("/api/admin/users/funnel?days=30"),
+      readJson("/api/admin/audit-log?limit=30"),
     ]);
-    if (alive.current) { setUsersData(list); setFunnel(fun); }
+    if (alive.current) { setUsersData(list); setFunnel(fun); setAdminLog(log); }
   }, [readJson]);
 
   const openUser = useCallback(async (id) => {
@@ -675,9 +683,9 @@ export default function AdminPanel({
       "Kim AI-tahlil ishga tushiradi va bu qancha turadi.",
       "Who runs the AI analysis, what they analyse and what it costs. The cache share is directly the LLM bill."),
     users: t(
-      "Зарегистрированные: список, воронка от визита до возврата и действия поддержки. Каждое действие записывается в журнал сервера.",
-      "Ro'yxatdan o'tganlar: ro'yxat, voronka va amallar.",
-      "Registered users: the list, the visit-to-return funnel and support actions. Every action is written to the server log."),
+      "Зарегистрированные: список, воронка от визита до возврата, безопасные действия поддержки и их постоянный журнал.",
+      "Ro'yxatdan o'tganlar: ro'yxat, voronka, xavfsiz amallar va ularning jurnali.",
+      "Registered users: the visit-to-return funnel, safe support actions and their durable audit trail."),
     system: t(
       "Состояние данных: что собрано, что требует решения. Служебная половина панели — один взгляд, когда карточка крона красная.",
       "Ma'lumotlar holati: nima yig'ilgan, nima qaror kutmoqda.",
@@ -1160,14 +1168,26 @@ export default function AdminPanel({
 
   const userRows = (usersData && usersData.items) || [];
   const detailUser = userDetail && userDetail.ok ? userDetail : null;
+  const adminLogRows = (adminLog && adminLog.items) || [];
 
-  const actionButton = (id, action, label, danger) => {
+  const USER_ACTION_LABELS = {
+    deactivate: t("Отключил", "O'chirdi", "Deactivated"),
+    reactivate: t("Включил", "Yoqdi", "Reactivated"),
+    revoke_sessions: t("Отозвал сессии", "Seanslarni bekor qildi", "Revoked sessions"),
+    delete: t("Удалил", "O'chirib tashladi", "Deleted"),
+  };
+
+  const actionButton = (id, action, label, danger, disabled = false) => {
     const armed = confirmAction && confirmAction.id === id && confirmAction.action === action;
     return (
       <button
         type="button"
         className={`admin-btn sm${armed ? " danger" : ""}`}
-        disabled={busy}
+        disabled={busy || disabled}
+        title={disabled
+          ? t("Сначала удалите адрес из ADMIN_EMAILS", "Avval manzilni ADMIN_EMAILS dan olib tashlang",
+              "Remove the address from ADMIN_EMAILS first")
+          : undefined}
         onClick={() => {
           if (danger && !armed) { setConfirmAction({ id, action }); return; }
           runUserAction(id, action);
@@ -1244,6 +1264,11 @@ export default function AdminPanel({
                     <button type="button" className="admin-link" onClick={() => openUser(u.id)}>
                       {u.email}
                     </button>
+                    {u.is_admin ? (
+                      <span className="admin-pill" style={{ marginLeft: 8 }}>
+                        <span className="admin-dot ok" />admin
+                      </span>
+                    ) : null}
                     {u.full_name ? <div className="admin-sub">{u.full_name}{u.oauth_providers ? ` · ${u.oauth_providers}` : ""}</div>
                       : (u.oauth_providers ? <div className="admin-sub">{u.oauth_providers}</div> : null)}
                   </td>
@@ -1282,21 +1307,27 @@ export default function AdminPanel({
 
           <div className="admin-filters" style={{ padding: 0 }}>
             {detailUser.user.is_active
-              ? actionButton(detailUser.user.id, "deactivate", t("Отключить", "O'chirish", "Deactivate"), true)
+              ? actionButton(detailUser.user.id, "deactivate", t("Отключить", "O'chirish", "Deactivate"), true,
+                             detailUser.user.is_admin)
               : actionButton(detailUser.user.id, "reactivate", t("Включить", "Yoqish", "Reactivate"), false)}
             {actionButton(detailUser.user.id, "revoke_sessions",
                           t("Разлогинить везде", "Hamma joydan chiqarish", "Revoke sessions"), false)}
             {actionButton(detailUser.user.id, "delete",
-                          t("Удалить аккаунт", "Hisobni o'chirish", "Delete account"), true)}
+                          t("Удалить аккаунт", "Hisobni o'chirish", "Delete account"), true,
+                          detailUser.user.is_admin)}
             <span className="admin-sp" />
             <button type="button" className="admin-btn sm" onClick={() => { setUserDetail(null); setConfirmAction(null); }}>
               {t("Свернуть", "Yopish", "Close")}
             </button>
           </div>
           <p className="admin-muted admin-note">
-            {t("Удаление уносит и историю анализов, и избранное — это право пользователя на удаление данных, а не уборка. Отключение мгновенно разрывает все сессии.",
-               "O'chirish tahlil tarixini ham olib ketadi.",
-               "Deletion takes the analysis history and favourites with it — the user's right to erasure, not housekeeping. Deactivation severs every session immediately.")}
+            {detailUser.user.is_admin
+              ? t("Администратор защищён от отключения и удаления. Сначала уберите адрес из ADMIN_EMAILS — это намеренное изменение контура доступа.",
+                  "Administrator o'chirish va o'chirib tashlashdan himoyalangan. Avval manzilni ADMIN_EMAILS dan olib tashlang.",
+                  "This administrator is protected from deactivation and deletion. Remove the address from ADMIN_EMAILS first—an explicit access-control change.")
+              : t("Удаление уносит и историю анализов, и избранное — это право пользователя на удаление данных, а не уборка. Отключение мгновенно разрывает все сессии.",
+                  "O'chirish tahlil tarixini ham olib ketadi.",
+                  "Deletion takes the analysis history and favourites with it—the user's right to erasure, not housekeeping. Deactivation severs every session immediately.")}
           </p>
 
           <div className="admin-cols3" style={{ marginTop: 14 }}>
@@ -1353,6 +1384,61 @@ export default function AdminPanel({
           </div>
         </div>
       ) : null}
+
+      <div className="panel">
+        <div className="admin-panel-head">
+          <h2>{t("Журнал действий", "Amallar jurnali", "Administrative activity")}</h2>
+          <span className="admin-muted">
+            {t("Кто, что, над кем и когда", "Kim, nima, kimga va qachon", "Who did what, to whom, and when")}
+          </span>
+        </div>
+        <div className="admin-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 165 }}>{t("Время", "Vaqt", "Time")}</th>
+                <th>{t("Администратор", "Administrator", "Administrator")}</th>
+                <th style={{ width: 170 }}>{t("Действие", "Amal", "Action")}</th>
+                <th>{t("Объект", "Obyekt", "Target")}</th>
+                <th style={{ width: 120 }}>{t("Результат", "Natija", "Outcome")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!adminLogRows.length ? (
+                <tr>
+                  <td colSpan={5} className="admin-muted" style={{ padding: "24px 0", textAlign: "center" }}>
+                    {t("Действий пока не было.", "Hali amallar bo'lmagan.", "No administrative actions yet.")}
+                  </td>
+                </tr>
+              ) : null}
+              {adminLogRows.map((entry) => (
+                <tr key={entry.id}>
+                  <td className="admin-num">{fmtStamp(entry.created_at)}</td>
+                  <td>{entry.actor_email}</td>
+                  <td>{USER_ACTION_LABELS[entry.action] || entry.action}</td>
+                  <td>
+                    {entry.target_label || `${entry.target_type} ${entry.target_id || ""}`}
+                    {entry.target_id ? <div className="admin-sub">ID {entry.target_id}</div> : null}
+                  </td>
+                  <td>
+                    <span className="admin-pill">
+                      <span className={`admin-dot ${entry.outcome === "success" ? "ok" : "err"}`} />
+                      {entry.outcome === "success"
+                        ? t("выполнено", "bajarildi", "success")
+                        : t("отклонено", "rad etildi", "denied")}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="admin-muted admin-note">
+          {t("Журнал хранится в базе отдельно от серверных логов; удаление пользователя не удаляет запись о действии.",
+             "Jurnal server loglaridan alohida bazada saqlanadi.",
+             "This trail is stored in the database separately from server logs; deleting a user does not delete the action record.")}
+        </p>
+      </div>
     </div>
   );
 

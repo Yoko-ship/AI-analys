@@ -705,12 +705,27 @@ def _admin_gate(x_admin_secret: str | None = Header(default=None),
         raise HTTPException(status_code=403, detail="Admin access required")
 
 
+def _admin_panel_gate(request: Request,
+                      authorization: str | None = Header(default=None)) -> WebUser:
+    """Human-only gate for product metrics, user data and account actions.
+
+    The collector secret deliberately has no authority here.  Keeping it off
+    this router is least privilege: a leaked ingestion credential must not be
+    able to enumerate users or delete an account.
+    """
+    user = _require_user(authorization)
+    if not is_admin_email(user.email):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    request.state.admin_user = user
+    return user
+
+
 # The visit beacon and the panel's product metrics live in their own module;
 # the admin router is gated here so every credential rule stays in one place.
 import analytics_api  # noqa: E402 - needs the app and the gate above
 
 app.include_router(analytics_api.public_router)
-app.include_router(analytics_api.admin_router, dependencies=[Depends(_admin_gate)])
+app.include_router(analytics_api.admin_router, dependencies=[Depends(_admin_panel_gate)])
 
 
 # ---------------------------------------------------------------------------

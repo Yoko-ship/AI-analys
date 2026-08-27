@@ -7,20 +7,22 @@ Two routers, mounted separately in api.py:
   everything, and never raises: a tracking failure must not surface in the
   browser console of a visitor who never asked to be counted.
 * ``admin_router`` carries the panel's read endpoints and the user actions.
-  It is mounted with ``dependencies=[Depends(_admin_gate)]`` in api.py, so the
-  gate stays where the other admin gates live.
+  It is mounted behind the human-admin gate in api.py. Collector secrets are
+  intentionally insufficient for user data and account mutations.
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+import uuid
 from functools import partial
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
 import web_analytics
+from web_auth import web_auth_store
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +46,26 @@ async def api_track(request: Request) -> Response:
             request.client.host if request.client else "")
         country = headers.get("cf-ipcountry") or headers.get("x-vercel-ip-country") \
             or headers.get("x-country-code")
+        # ``uid`` is never trusted from this public body. A signed-in view is
+        # associated only when the Bearer token resolves on the server; without
+        # that, the same event remains anonymous instead of corrupting a user's
+        # activity or the signed-in-user metrics.
+        trusted_user_id = None
+        scheme, _, token = headers.get("authorization", "").partition(" ")
+        if scheme.lower() == "bearer" and token.strip():
+            try:
+                user = await asyncio.get_running_loop().run_in_executor(
+                    None, web_auth_store.get_user_by_token, token.strip())
+                trusted_user_id = user.id if user else None
+            except Exception:
+                # Authentication availability must not turn a best-effort
+                # analytics call into a visible application failure.
+                logger.debug("track bearer could not be resolved", exc_info=True)
+        clean_data = dict(data) if isinstance(data, dict) else data
+        if isinstance(clean_data, dict):
+            clean_data["uid"] = trusted_user_id
         web_analytics.record_pageview(
-            data,
+            clean_data,
             user_agent=headers.get("user-agent", ""),
             ip=ip,
             country=country,
@@ -93,6 +113,11 @@ async def api_admin_users_funnel(days: int = 30) -> dict[str, Any]:
     return await _run(web_analytics.users_funnel, days)
 
 
+@admin_router.get("/api/admin/audit-log")
+async def api_admin_audit_log(limit: int = 50, offset: int = 0) -> dict[str, Any]:
+    return await _run(web_analytics.admin_audit_log, limit=limit, offset=offset)
+
+
 @admin_router.get("/api/admin/users/{user_id}")
 async def api_admin_user_detail(user_id: int) -> dict[str, Any]:
     result = await _run(web_analytics.user_detail, user_id)
@@ -109,8 +134,20 @@ async def api_admin_user_action(user_id: int, payload: dict[str, Any],
         raise HTTPException(status_code=400, detail="Unknown action")
     if action == "delete" and (payload or {}).get("confirm") is not True:
         raise HTTPException(status_code=400, detail="Deletion requires confirm: true")
-    result = await _run(web_analytics.user_action, user_id, action,
-                        acted_by=request.headers.get("x-request-id", "") or "admin-panel")
+    actor = getattr(request.state, "admin_user", None)
+    if actor is None:  # fail closed even if the router is mounted incorrectly
+        raise HTTPException(status_code=403, detail="Admin access required")
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() if forwarded else (
+        request.client.host if request.client else "")
+    result = await _run(
+        web_analytics.user_action, user_id, action,
+        actor_user_id=actor.id, actor_email=actor.email,
+        request_id=uuid.uuid4().hex,
+        source_ip_hash=web_analytics.hash_ip(ip),
+    )
     if not result.get("ok") and result.get("reason") == "not found":
         raise HTTPException(status_code=404, detail="User not found")
+    if not result.get("ok") and result.get("reason") == "protected admin":
+        raise HTTPException(status_code=409, detail="Allowlisted admin accounts are protected")
     return result

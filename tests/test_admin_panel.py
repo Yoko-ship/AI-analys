@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 import api
 import admin_overview
+import analytics_api
 
 
 @pytest.fixture()
@@ -27,7 +28,8 @@ def client(monkeypatch) -> TestClient:
 
 
 class _User:
-    def __init__(self, email: str) -> None:
+    def __init__(self, email: str, user_id: int = 41) -> None:
+        self.id = user_id
         self.email = email
 
 
@@ -104,6 +106,85 @@ class TestAdminGate:
     def test_the_rule_book_stays_public(self, client):
         """The rules explain what is checked and why; reading them needs no key."""
         assert client.get("/api/audit/rules").status_code == 200
+
+
+class TestProductAdminGate:
+    def test_collector_secret_cannot_read_human_admin_data(self, client):
+        """An ingestion credential is not a user-management credential."""
+        res = client.get("/api/admin/users", headers={"X-Admin-Secret": "s3cret"})
+        assert res.status_code == 401
+
+    def test_user_action_gets_server_resolved_actor(self, client, monkeypatch):
+        _as_user(monkeypatch, "admin@example.com")
+        monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
+        captured = {}
+
+        def _action(user_id, action, **context):
+            captured.update(user_id=user_id, action=action, **context)
+            return {"ok": True, "action": action, "user_id": user_id}
+
+        monkeypatch.setattr(analytics_api.web_analytics, "user_action", _action)
+        res = client.post(
+            "/api/admin/users/77/action",
+            headers={"Authorization": "Bearer tok"},
+            json={"action": "revoke_sessions"},
+        )
+        assert res.status_code == 200
+        assert captured["actor_user_id"] == 41
+        assert captured["actor_email"] == "admin@example.com"
+        assert captured["user_id"] == 77
+        assert len(captured["request_id"]) == 32
+        assert captured["source_ip_hash"]
+
+    def test_protected_admin_conflict_is_explicit(self, client, monkeypatch):
+        _as_user(monkeypatch, "admin@example.com")
+        monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
+        monkeypatch.setattr(
+            analytics_api.web_analytics, "user_action",
+            lambda *a, **kw: {"ok": False, "reason": "protected admin"},
+        )
+        res = client.post(
+            "/api/admin/users/41/action",
+            headers={"Authorization": "Bearer tok"},
+            json={"action": "deactivate"},
+        )
+        assert res.status_code == 409
+
+
+class TestVisitIdentity:
+    @staticmethod
+    def _payload(uid=999):
+        return {
+            "vid": "a" * 16, "sid": "b" * 16, "uid": uid,
+            "path": "/company/UZTL", "view": "company", "ticker": "UZTL",
+        }
+
+    def test_public_beacon_cannot_claim_a_user_id(self, client, monkeypatch):
+        captured = {}
+        monkeypatch.setattr(
+            analytics_api.web_analytics, "record_pageview",
+            lambda data, **context: captured.update(data=data, **context),
+        )
+        res = client.post(
+            "/api/track", json=self._payload(),
+            headers={"User-Agent": "Mozilla/5.0 Chrome/126.0"},
+        )
+        assert res.status_code == 204
+        assert captured["data"]["uid"] is None
+
+    def test_bearer_session_supplies_the_trusted_user_id(self, client, monkeypatch):
+        _as_user(monkeypatch, "reader@example.com")
+        captured = {}
+        monkeypatch.setattr(
+            analytics_api.web_analytics, "record_pageview",
+            lambda data, **context: captured.update(data=data, **context),
+        )
+        res = client.post(
+            "/api/track", json=self._payload(uid=999),
+            headers={"Authorization": "Bearer tok", "User-Agent": "Mozilla/5.0 Chrome/126.0"},
+        )
+        assert res.status_code == 204
+        assert captured["data"]["uid"] == 41
 
 
 # ---------------------------------------------------------------------------

@@ -165,3 +165,78 @@ def test_bot_traffic_never_enters_the_buffer(monkeypatch):
     wa._buffer.clear()
     assert wa.record_pageview(dict(VALID), user_agent="Googlebot/2.1") is False
     assert not wa._buffer
+
+
+# ── administrative mutations ───────────────────────────────────────────────
+
+class _Result:
+    def __init__(self, row=None):
+        self.row = row
+
+    def fetchone(self):
+        return self.row
+
+
+class _AdminConn:
+    def __init__(self, target_email="reader@example.com"):
+        self.target_email = target_email
+        self.calls = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def execute(self, sql, params=()):
+        compact = " ".join(sql.split())
+        self.calls.append((compact, params))
+        if compact.startswith("SELECT id, email FROM web_users"):
+            return _Result({"id": 7, "email": self.target_email})
+        return _Result()
+
+
+def test_user_mutation_and_audit_record_share_one_transaction(monkeypatch):
+    conn = _AdminConn()
+    monkeypatch.setattr(wa, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(wa, "_conn", lambda: conn)
+    monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
+
+    result = wa.user_action(
+        7, "deactivate", actor_user_id=41, actor_email="admin@example.com",
+        request_id="request-1", source_ip_hash="hashed-ip",
+    )
+
+    assert result["ok"] is True
+    statements = [sql for sql, _ in conn.calls]
+    assert any(sql.startswith("UPDATE web_users SET is_active = FALSE") for sql in statements)
+    assert any(sql.startswith("UPDATE web_sessions SET revoked_at = NOW()") for sql in statements)
+    audit_sql, audit_params = next(
+        (sql, params) for sql, params in conn.calls
+        if sql.startswith("INSERT INTO web_admin_audit_log")
+    )
+    assert audit_params[:9] == (
+        41, "admin@example.com", "deactivate", "user", "7",
+        "reader@example.com", "success", "request-1", "hashed-ip",
+    )
+
+
+def test_allowlisted_admin_cannot_be_deleted_from_panel(monkeypatch):
+    conn = _AdminConn(target_email="admin@example.com")
+    monkeypatch.setattr(wa, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(wa, "_conn", lambda: conn)
+    monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
+
+    result = wa.user_action(
+        7, "delete", actor_user_id=41, actor_email="admin@example.com",
+        request_id="request-2",
+    )
+
+    assert result == {"ok": False, "reason": "protected admin"}
+    statements = [sql for sql, _ in conn.calls]
+    assert not any(sql.startswith("DELETE FROM web_users") for sql in statements)
+    audit_params = next(
+        params for sql, params in conn.calls
+        if sql.startswith("INSERT INTO web_admin_audit_log")
+    )
+    assert audit_params[6] == "denied_protected_admin"
