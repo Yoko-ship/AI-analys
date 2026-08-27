@@ -102,6 +102,7 @@ import migrations  # noqa: E402
 import bond_registry  # noqa: E402
 import bonds  # noqa: E402
 import provenance  # noqa: E402
+from issuer_analysis_api import router as issuer_analysis_v1_router  # noqa: E402
 
 # ТЗ §11.6: each change ships behind a flag so it can be turned off without a
 # rollback. The interface reads them from /api/config rather than guessing.
@@ -175,6 +176,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(issuer_analysis_v1_router)
 
 WEB_SOURCE_DIR = Path(__file__).with_name("web")
 WEB_DIST_DIR = WEB_SOURCE_DIR / "dist"
