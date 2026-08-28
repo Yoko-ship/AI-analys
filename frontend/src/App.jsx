@@ -12328,6 +12328,37 @@ const AC_TYPES = [
   { key: "baseline", label: ["От базы", "Bazadan", "Baseline"] },
 ];
 
+// The candle chart is the one view where horizontal density is part of the
+// question: a reader needs to open the bars up, then move back through the
+// archive without guessing a succession of date ranges. Keep enough bars in
+// view that the resulting shape is still a chart rather than a handful of
+// disconnected sessions.
+const AC_MIN_CANDLE_POINTS = 12;
+const acNearestInt = (value) => (value < 0
+  ? Math.ceil(value - 0.5)
+  : Math.floor(value + 0.5));
+
+function acClampView(view, fallback, total) {
+  if (total <= 0) return { start: 0, end: 0 };
+  const source = view || fallback || { start: 0, end: total };
+  const size = Math.max(1, Math.min(total, acNearestInt(source.end - source.start)));
+  const start = Math.max(0, Math.min(total - size, acNearestInt(source.start)));
+  return { start, end: start + size };
+}
+
+function acZoomView(view, total, anchorRatio, zoomIn) {
+  const size = view.end - view.start;
+  const minSize = Math.min(AC_MIN_CANDLE_POINTS, total);
+  const nextSize = Math.max(minSize, Math.min(total,
+    acNearestInt(size * (zoomIn ? 0.8 : 1.25))));
+  if (nextSize === size) return view;
+  const ratio = Math.max(0, Math.min(1, anchorRatio));
+  const anchor = view.start + ratio * Math.max(0, size - 1);
+  const start = Math.max(0, Math.min(total - nextSize,
+    acNearestInt(anchor - ratio * Math.max(0, nextSize - 1))));
+  return { start, end: start + nextSize };
+}
+
 // Windows are CALENDAR DAYS, never bars — see lib/indicators.js for why that
 // is a correctness matter here and not a preference. The labels say «дн.» so
 // the screen states the same window the calculation used.
@@ -12581,7 +12612,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const [finFields, setFinFields] = React.useState(initial?.fin || []);
   const [compareTickers, setCompareTickers] = React.useState(initial?.compare || []);
   const [menu, setMenu] = React.useState(null);            // "ind" | "fin" | "cmp" | null
-  const [railOpen, setRailOpen] = React.useState(true);
+  const [railOpen, setRailOpen] = React.useState(() => (typeof window === "undefined"
+    ? true
+    : !window.matchMedia("(max-width: 900px)").matches));
 
   const [history, setHistory] = React.useState(null);
   const [adjustments, setAdjustments] = React.useState([]);
@@ -12593,19 +12626,26 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const [fin, setFin] = React.useState(null);
   const [cmpSeries, setCmpSeries] = React.useState({});
   const [cmpLoading, setCmpLoading] = React.useState(false);
+  const [candleView, setCandleView] = React.useState(null);
+  const [candleDragging, setCandleDragging] = React.useState(false);
+  const candleDrag = React.useRef(null);
+  const candleWheelHandler = React.useRef(null);
 
   const custom = Boolean(span.from && span.to);
   // How much history to ask for. A custom span asks back to its own start; the
   // buttons ask for what they show. Either way the fetch is a MONTH count,
-  // which is the only unit /api/price-history understands.
+  // which is the only unit /api/price-history understands. Candle mode keeps
+  // the archive behind the selected window: after zooming in, a drag can then
+  // move into older sessions instead of stopping at an artificial fetch edge.
   const months = React.useMemo(() => {
+    if (type === "candle" && !custom) return 360;
     if (!custom) return chartRangeMonths(range);
     const d = new Date(span.from);
     const now = new Date();
     if (Number.isNaN(d.getTime())) return chartRangeMonths(range);
     return Math.max(1, Math.min(360,
       (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth()) + 2));
-  }, [custom, span.from, range]);
+  }, [custom, span.from, range, type]);
 
   React.useEffect(() => {
     if (!up) return undefined;
@@ -12706,9 +12746,45 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   const windowed = React.useMemo(() => {
     if (custom) return daily.filter((p) => String(p.date) >= span.from && String(p.date) <= span.to);
-    const cutoff = chartRangeCutoff(range);
+    let cutoff = chartRangeCutoff(range);
+    // Normally the API request itself enforces month-based presets. Candle
+    // mode deliberately fetches farther back for panning, so reproduce that
+    // preset boundary here before opening the interactive viewport.
+    if (!cutoff && type === "candle") {
+      const spanMonths = chartRangeSpan(range);
+      if (spanMonths) {
+        const d = new Date();
+        d.setUTCMonth(d.getUTCMonth() - spanMonths);
+        cutoff = d.toISOString().slice(0, 10);
+      }
+    }
     return cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
-  }, [daily, custom, span.from, span.to, range]);
+  }, [daily, custom, span.from, span.to, range, type]);
+
+  // A preset defines the candle view we open with, not a wall around the data.
+  // The full fetched archive stays behind it so a zoomed view can be dragged
+  // into earlier history. A custom range remains a hard boundary because the
+  // dates were an explicit request rather than a convenient zoom preset.
+  const candleSource = custom ? windowed : daily;
+  const defaultCandleView = React.useMemo(() => {
+    if (!candleSource.length) return { start: 0, end: 0 };
+    if (custom || !windowed.length) return { start: 0, end: candleSource.length };
+    const first = String(windowed[0].date);
+    const found = candleSource.findIndex((p) => String(p.date) >= first);
+    return { start: found < 0 ? 0 : found, end: candleSource.length };
+  }, [candleSource, custom, windowed]);
+  const resolvedCandleView = acClampView(candleView, defaultCandleView, candleSource.length);
+  const candlesAllowed = quality ? quality.candles_enabled !== false : true;
+  const candleNavigation = type === "candle" && compareTickers.length === 0 && candlesAllowed;
+  const visibleWindow = candleNavigation
+    ? candleSource.slice(resolvedCandleView.start, resolvedCandleView.end)
+    : windowed;
+
+  React.useEffect(() => {
+    setCandleView(null);
+    candleDrag.current = null;
+    setCandleDragging(false);
+  }, [up, range, span.from, span.to, type]);
 
   // Indicators run on the WHOLE fetched series, not on the visible window: a
   // 200-day average at the left edge of a one-month view is a real average of
@@ -12720,10 +12796,10 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     color: QC_COLORS[i % QC_COLORS.length],
     points: cmpSeries[tk] || null,
   })), [compareTickers, cmpSeries]);
-  const cmp = React.useMemo(() => buildCompareSeries(windowed, cmpLines), [windowed, cmpLines]);
+  const cmp = React.useMemo(() => buildCompareSeries(visibleWindow, cmpLines), [visibleWindow, cmpLines]);
   const cmpOn = Boolean(cmp && cmp.series.length);
 
-  const points = cmpOn ? cmp.points : windowed;
+  const points = cmpOn ? cmp.points : visibleWindow;
   const dates = React.useMemo(() => points.map((p) => String(p.date)), [points]);
 
   // A comparison is a percent question, so the price pane answers in percent —
@@ -12731,7 +12807,6 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // rather than silently drawing something else.
   const effType = cmpOn ? (type === "candle" ? "line" : type) : type;
   // ТЗ §6: candles are only drawn where a day HAS a body worth drawing.
-  const candlesAllowed = quality ? quality.candles_enabled !== false : true;
   const stepLine = quality ? quality.candles_enabled === false : false;
   const drawType = (effType === "candle" && !candlesAllowed) ? "line" : effType;
 
@@ -13027,7 +13102,72 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     setPointer({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
+  const onCandleWheel = (e) => {
+    if (!drawCandles || !e.ctrlKey || !candleSource.length || e.deltaY === 0) return;
+    // Ctrl+wheel normally zooms the whole browser. Inside a candle chart the
+    // modifier has a local, visible meaning, so keep the page itself steady.
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const plotLeft = rect.left + (PAD.left / W) * rect.width;
+    const plotWidth = (innerW / W) * rect.width;
+    const anchorRatio = plotWidth > 0 ? (e.clientX - plotLeft) / plotWidth : 0.5;
+    const next = acZoomView(resolvedCandleView, candleSource.length, anchorRatio, e.deltaY < 0);
+    setCandleView(next);
+    setHover(null);
+  };
+  candleWheelHandler.current = onCandleWheel;
+
+  // React delegates wheel events with a passive root listener. The chart must
+  // cancel the browser's Ctrl+wheel page zoom, so this one listener belongs on
+  // the plot node itself and explicitly opts out of passive handling.
+  React.useEffect(() => {
+    const node = boxNode.current;
+    if (!node) return undefined;
+    const onWheel = (event) => candleWheelHandler.current?.(event);
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const onCandlePointerDown = (e) => {
+    if (!drawCandles || e.pointerType !== "mouse" || e.button !== 0 || !candleSource.length) return;
+    const size = resolvedCandleView.end - resolvedCandleView.start;
+    if (size >= candleSource.length) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const plotWidth = (innerW / W) * rect.width;
+    candleDrag.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      start: resolvedCandleView.start,
+      size,
+      pixelsPerPoint: plotWidth / Math.max(1, size - 1),
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+    setCandleDragging(true);
+    setHover(null);
+  };
+
+  const onCandlePointerMove = (e) => {
+    const drag = candleDrag.current;
+    if (!drag || drag.pointerId !== e.pointerId) { onMove(e); return; }
+    const delta = acNearestInt((e.clientX - drag.startX) / Math.max(0.5, drag.pixelsPerPoint));
+    const start = Math.max(0, Math.min(candleSource.length - drag.size, drag.start - delta));
+    setCandleView({ start, end: start + drag.size });
+  };
+
+  const endCandleDrag = (e) => {
+    if (!candleDrag.current || candleDrag.current.pointerId !== e.pointerId) return;
+    try { e.currentTarget.releasePointerCapture?.(e.pointerId); } catch { /* capture may already be gone */ }
+    candleDrag.current = null;
+    setCandleDragging(false);
+  };
+
   const hp = hover != null && points[hover] ? points[hover] : null;
+  const initialCandleView = acClampView(null, defaultCandleView, candleSource.length);
+  const candleViewChanged = Boolean(candleView)
+    && (resolvedCandleView.start !== initialCandleView.start
+      || resolvedCandleView.end !== initialCandleView.end);
   const relVol = hp ? relativeVolume(daily, hp.date, hp.turnover) : null;
 
   const legendChips = [
@@ -13211,8 +13351,18 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 </div>
               )}
 
-              <svg className="ac-svg" viewBox={`0 0 ${W} ${H}`} width="100%" height={H}
-                onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+              <svg className={`ac-svg ${drawCandles ? "is-candle-interactive" : ""} ${candleDragging ? "is-panning" : ""}`}
+                viewBox={`0 0 ${W} ${H}`} width="100%" height={H}
+                aria-label={drawCandles
+                  ? t("График свечей. Ctrl и колесо меняют масштаб, перетаскивание показывает историю.",
+                      "Shamlar grafigi. Ctrl va g'ildirak masshtabni o'zgartiradi, sudrash tarixni ko'rsatadi.",
+                      "Candlestick chart. Ctrl and the wheel zoom; drag to browse history.")
+                  : undefined}
+                onPointerDown={onCandlePointerDown}
+                onPointerMove={onCandlePointerMove}
+                onPointerUp={endCandleDrag}
+                onPointerCancel={endCandleDrag}
+                onPointerLeave={() => { if (!candleDrag.current) setHover(null); }}>
                 <defs>
                   <linearGradient id="acArea" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={priceColor} stopOpacity="0.26" />
@@ -13274,12 +13424,12 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   const w = Math.max(1, Math.min(9, gapPx * 0.68));
                   const x = xs(i);
                   if (!okp) {
-                    return <line key={`k${i}`} x1={x} y1={ys(p.close)} x2={x} y2={ys(p.close) + 1}
+                    return <line key={`k${i}`} className="ac-candle" x1={x} y1={ys(p.close)} x2={x} y2={ys(p.close) + 1}
                       stroke={c} strokeWidth={Math.max(1, w)} />;
                   }
                   const yo = ys(p.open), yc = ys(p.close);
                   return (
-                    <g key={`k${i}`}>
+                    <g key={`k${i}`} className="ac-candle">
                       <line x1={x} y1={ys(p.high)} x2={x} y2={ys(p.low)} stroke={c} strokeWidth="1" />
                       <rect x={x - w / 2} y={Math.min(yo, yc)} width={w}
                         height={Math.max(1, Math.abs(yc - yo))} fill={c} />
@@ -13311,7 +13461,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   const h = (v / maxVol) * (volBot - volTop);
                   const upDay = i > 0 ? p.close >= points[i - 1].close : true;
                   const w = Math.max(1, Math.min(9, gapPx * 0.68));
-                  return <rect key={`v${i}`} x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
+                  return <rect key={`v${i}`} className="ac-volume-bar" x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
                     fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.45" />;
                 })}
                 <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot}
@@ -13523,6 +13673,22 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       </div>
 
       <div className="ac-notes">
+        {drawCandles && points.length > 0 && (
+          <p className="ac-history-help" data-testid="ac-visible-range"
+            data-from={points[0].date} data-to={points[points.length - 1].date}>
+            <span>
+              {t("Ctrl + колесо: вверх — приблизить, вниз — отдалить; потяните график — перейти по истории.",
+                 "Ctrl + g'ildirak: yuqoriga — yaqinlashtirish, pastga — uzoqlashtirish; tarix uchun grafikni suring.",
+                 "Ctrl + wheel: up zooms in, down zooms out; drag the chart to browse history.")}
+            </span>
+            <span className="ac-history-dates">{fmtDate(points[0].date, true)} — {fmtDate(points[points.length - 1].date, true)}</span>
+            {candleViewChanged && (
+              <button type="button" className="ac-history-reset" onClick={() => setCandleView(null)}>
+                {t("Сбросить", "Tiklash", "Reset")}
+              </button>
+            )}
+          </p>
+        )}
         {stepLine && (
           <p className="muted">
             {t("Цена показана ступенями — между сделками она не менялась.",
