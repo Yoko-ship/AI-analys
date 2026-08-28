@@ -9454,8 +9454,97 @@ function QuickCompareStrip({ peers, securitiesMap, selected, colors, onToggle, l
   );
 }
 
+function aggregateCompanyPricePoints(points, interval) {
+  if (interval === "D") return points;
+  const buckets = [];
+  let current = null;
+  for (const point of points) {
+    const day = String(point.date || "").slice(0, 10);
+    const date = new Date(`${day}T00:00:00Z`);
+    if (!day || Number.isNaN(date.getTime())) continue;
+    let key;
+    if (interval === "W") {
+      const monday = new Date(date.getTime() - ((date.getUTCDay() + 6) % 7) * 864e5);
+      key = `W:${monday.toISOString().slice(0, 10)}`;
+    } else {
+      key = `M:${day.slice(0, 7)}`;
+    }
+    if (!current || current.key !== key) {
+      current = {
+        key,
+        date: point.date,
+        open: point.open > 0 ? point.open : point.close,
+        high: point.high > 0 ? point.high : point.close,
+        low: point.low > 0 ? point.low : point.close,
+        close: point.close,
+        volume: point.volume || 0,
+        turnover: point.turnover || 0,
+        change: point.change,
+      };
+      buckets.push(current);
+    } else {
+      current.date = point.date;
+      current.high = Math.max(current.high, point.high > 0 ? point.high : point.close);
+      current.low = Math.min(current.low, point.low > 0 ? point.low : point.close);
+      current.close = point.close;
+      current.volume += point.volume || 0;
+      current.turnover += point.turnover || 0;
+      current.change = point.change;
+    }
+  }
+  return buckets.map(({ key, ...point }) => point);
+}
+
+function CompanyChartToolIcon({ kind }) {
+  let content = null;
+  if (kind === "pointer") content = (
+    <>
+      <rect x="4" y="3.5" width="11" height="15" rx="1.5" />
+      <path d="M7 7h5M7 10h4M13 12l6 3-3 1.2 1.7 3-1.8 1-1.7-3-1.2 2z" />
+    </>
+  );
+  if (kind === "candle") content = (
+    <>
+      <path d="M7 3v18M17 4v16" />
+      <rect x="4.5" y="7" width="5" height="8" rx="1" />
+      <rect x="14.5" y="9" width="5" height="7" rx="1" />
+    </>
+  );
+  if (kind === "compare") content = (
+    <>
+      <path d="M3 17l5-5 4 3 5-7" />
+      <circle cx="3" cy="17" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="12" r="1" fill="currentColor" stroke="none" />
+      <path d="M19 13v7M15.5 16.5h7" />
+    </>
+  );
+  if (kind === "draw") content = (
+    <>
+      <path d="M4 18L18 5" />
+      <circle cx="4" cy="18" r="2" />
+      <circle cx="18" cy="5" r="2" />
+      <path d="M7 20h10" strokeDasharray="2 2" opacity=".65" />
+    </>
+  );
+  if (kind === "settings") content = (
+    <>
+      <path d="M3 7h18M3 17h18" />
+      <circle cx="9" cy="7" r="2.2" fill="var(--panel)" />
+      <circle cx="16" cy="17" r="2.2" fill="var(--panel)" />
+    </>
+  );
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+      strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {kind === "fx"
+        ? <text x="3.5" y="17" fill="currentColor" stroke="none" fontSize="14" fontStyle="italic">ƒx</text>
+        : content}
+    </svg>
+  );
+}
+
 function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments, lang, quality, metricsWindows,
-                             ticker, compare, compareLoading, onExpand, intraday }) {
+                             ticker, compare, compareLoading, compareTools, onExpand, intraday }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const months = chartRangeSpan(range);
   const [hover, setHover] = React.useState(null);
@@ -9465,6 +9554,46 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // away behind the range buttons, and it read as nothing happening at all.
   const [hoverY, setHoverY] = React.useState(0);
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
+  const [priceView, setPriceView] = React.useState(null);
+  const [priceDragging, setPriceDragging] = React.useState(false);
+  const priceDrag = React.useRef(null);
+  const priceWheelHandler = React.useRef(null);
+  const [chartInterval, setChartInterval] = React.useState("D");
+  const [chartType, setChartType] = React.useState("area");
+  const [cursorOn, setCursorOn] = React.useState(true);
+  const [toolMenu, setToolMenu] = React.useState(null);
+  const [drawMode, setDrawMode] = React.useState(false);
+  const [drawingPoints, setDrawingPoints] = React.useState([]);
+  const [chartPrefs, setChartPrefs] = React.useState({ grid: true, fill: true, lastPrice: true, events: true });
+  const toolStripRef = React.useRef(null);
+  const selectedCompareKey = (compareTools?.selected || []).join(",");
+
+  React.useEffect(() => {
+    setPriceView(null);
+    priceDrag.current = null;
+    setPriceDragging(false);
+    setChartInterval("D");
+    setToolMenu(null);
+    setDrawMode(false);
+    setDrawingPoints([]);
+  }, [ticker, range]);
+  React.useEffect(() => {
+    setDrawingPoints([]);
+    setDrawMode(false);
+  }, [chartInterval, selectedCompareKey]);
+  React.useEffect(() => {
+    if (!toolMenu || typeof document === "undefined") return undefined;
+    const closeOutside = (event) => {
+      if (!toolStripRef.current?.contains(event.target)) setToolMenu(null);
+    };
+    const closeEscape = (event) => { if (event.key === "Escape") setToolMenu(null); };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeEscape);
+    };
+  }, [toolMenu]);
 
   // The chart's height used to be a side effect of its width: the SVG carried a
   // fixed 820x360 viewBox at `width: 100%; height: auto`, so it was 488px tall
@@ -9504,6 +9633,16 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [measure]);
+  // React's delegated wheel listener is passive. This chart gives Ctrl+wheel a
+  // local meaning, so attach one non-passive listener to the SVG after it has
+  // appeared (the component renders a loading state before that).
+  React.useEffect(() => {
+    const node = chartNode.current;
+    if (!node) return undefined;
+    const onWheel = (event) => priceWheelHandler.current?.(event);
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+  }, [loading, history, range]);
 
   const rangeBar = (
     <div className="company-chart-ranges">
@@ -9542,7 +9681,18 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
 
   // The endpoint's smallest unit is a month, so 1Н and YTD ask for the month(s)
   // that contain them and are trimmed here. ISO dates compare as strings.
-  const cutoff = chartRangeCutoff(range);
+  let cutoff = chartRangeCutoff(range);
+  // The overview keeps the complete archive behind the selected preset. The
+  // API request is therefore wider than the button, and month-based presets
+  // need the same client-side boundary that 1Н and YTD already have.
+  if (!cutoff && range !== "max") {
+    const spanMonths = chartRangeSpan(range);
+    if (spanMonths) {
+      const d = new Date();
+      d.setUTCMonth(d.getUTCMonth() - spanMonths);
+      cutoff = d.toISOString().slice(0, 10);
+    }
+  }
   // The hourly ranges draw the executions-log bars (see CHART_RANGES). Peer
   // compare stays on daily closes: the peers arrive as daily series, and a
   // percent line needs every line sampled on the same dates.
@@ -9603,7 +9753,9 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>
         {chartRange(range).ytd
           ? t("С начала года сделок не было", "Yil boshidan bitim bo'lmagan", "No trades since the start of the year")
-          : t("За неделю сделок не было", "Bir haftada bitim bo'lmagan", "No trades in the past week")}
+          : chartRange(range).days
+            ? t("За выбранные дни сделок не было", "Tanlangan kunlarda bitim bo'lmagan", "No trades in the selected days")
+            : t("За выбранный период сделок не было", "Tanlangan davrda bitim bo'lmagan", "No trades in the selected period")}
       </div>
     </div>
   );
@@ -9616,6 +9768,30 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       </div>
     </div>
   );
+
+  // Period buttons choose the initial viewport; they do not discard the rest
+  // of the daily archive. Intraday modes keep their established session logic,
+  // while 1М…Макс can be zoomed and dragged through older history.
+  const historyNavigation = !chartRange(range).hourly && daily.length >= 2;
+  const historySource = historyNavigation ? daily : windowed;
+  const initialPriceView = (() => {
+    if (!historySource.length) return { start: 0, end: 0 };
+    if (!historyNavigation || range === "max" || !windowed.length) {
+      return { start: 0, end: historySource.length };
+    }
+    const first = String(windowed[0].date);
+    const found = historySource.findIndex((p) => String(p.date) >= first);
+    return { start: found < 0 ? 0 : found, end: historySource.length };
+  })();
+  // Shared with the expanded chart below: the same clamping and pointer-centred
+  // zoom math keeps both chart surfaces behaving identically.
+  const resolvedPriceView = acClampView(priceView, initialPriceView, historySource.length);
+  const visibleWindow = historyNavigation
+    ? historySource.slice(resolvedPriceView.start, resolvedPriceView.end)
+    : windowed;
+  const priceViewChanged = Boolean(priceView)
+    && (resolvedPriceView.start !== initialPriceView.start
+      || resolvedPriceView.end !== initialPriceView.end);
 
   // uz-UZ renders months as "M01"/"M02"; keep Russian month names for ru+uz.
   const dateLocale = lang === "en" ? "en-US" : "ru-RU";
@@ -9676,10 +9852,17 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // span every line has and the axis stops being сумы — see buildCompareSeries.
   // Nothing below this point reads `p.close` for a Y position; it reads
   // `baseVals`, which is the close or the percent depending on the mode.
-  const cmp = buildCompareSeries(windowed, range === "1d" ? null : compare);
+  const displayWindow = historyNavigation
+    ? aggregateCompanyPricePoints(visibleWindow, chartInterval)
+    : visibleWindow;
+  const cmp = buildCompareSeries(displayWindow, range === "1d" ? null : compare);
   const cmpOn = Boolean(cmp && cmp.series.length);
-  const points = cmpOn ? cmp.points : windowed;
+  const points = cmpOn ? cmp.points : displayWindow;
   const baseVals = cmpOn ? cmp.basePct : points.map((p) => p.close);
+  // A comparison is a percent-line question. Candles carry one security's
+  // OHLC values, so selecting a peer temporarily draws the base as a line.
+  const effectiveChartType = cmpOn && chartType === "candle" ? "line" : chartType;
+  const drawCandles = effectiveChartType === "candle" && !cmpOn;
   // A price expressed on whatever scale the chart is currently drawing. The
   // moving averages arrive in сумы and have to follow the axis, or MA20 would
   // be plotted at 8 900 on a scale that runs from −12 % to +40 %.
@@ -9703,6 +9886,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // reasoning the candle interval used before it was removed.
   const gapPx = (innerW * (boxW > 0 ? boxW / W : 1)) / Math.max(1, points.length - 1);
   const showPointMarks = stepLine && gapPx >= 8;
+  const candleWidth = Math.max(1, Math.min(9, (innerW / Math.max(1, points.length - 1)) * 0.65));
 
   const xs = (i) => PAD.left + (i / (points.length - 1)) * innerW;
   const ys = (p) => priceTop + (1 - (p - minP) / rangeP) * (priceBot - priceTop);
@@ -9859,6 +10043,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   });
 
   const onMove = (e) => {
+    if (!cursorOn || drawMode) { setHover(null); return; }
     const rect = e.currentTarget.getBoundingClientRect();
     if (!rect.width) return;
     const relX = ((e.clientX - rect.left) / rect.width) * W;
@@ -9870,6 +10055,74 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     const wrap = e.currentTarget.parentElement;
     const wrapTop = wrap ? wrap.getBoundingClientRect().top : rect.top;
     setHoverY(e.clientY - wrapTop);
+  };
+
+  const onPriceWheel = (e) => {
+    if (!historyNavigation || !e.ctrlKey || !historySource.length || e.deltaY === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const plotLeft = rect.left + (PAD.left / W) * rect.width;
+    const plotWidth = (innerW / W) * rect.width;
+    const anchorRatio = plotWidth > 0 ? (e.clientX - plotLeft) / plotWidth : 0.5;
+    const minViewPoints = chartInterval === "M" ? 60 : chartInterval === "W" ? 20 : AC_MIN_CANDLE_POINTS;
+    setPriceView(acZoomView(
+      resolvedPriceView,
+      historySource.length,
+      anchorRatio,
+      e.deltaY < 0,
+      minViewPoints,
+    ));
+    setHover(null);
+  };
+  priceWheelHandler.current = onPriceWheel;
+
+  const onPricePointerDown = (e) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    if (drawMode && points.length) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      if (!rect.width) return;
+      const relX = ((e.clientX - rect.left) / rect.width) * W;
+      let i = acNearestInt(((relX - PAD.left) / innerW) * (points.length - 1));
+      i = Math.max(0, Math.min(points.length - 1, i));
+      const nextPoint = { date: String(points[i].date), value: baseVals[i] };
+      setDrawingPoints((current) => (current.length >= 2 ? [nextPoint] : [...current, nextPoint]));
+      if (drawingPoints.length === 1) setDrawMode(false);
+      setHover(null);
+      e.preventDefault();
+      return;
+    }
+    if (!historyNavigation || !historySource.length) return;
+    const size = resolvedPriceView.end - resolvedPriceView.start;
+    if (size >= historySource.length) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const plotWidth = (innerW / W) * rect.width;
+    priceDrag.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      start: resolvedPriceView.start,
+      size,
+      pixelsPerPoint: plotWidth / Math.max(1, size - 1),
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+    setPriceDragging(true);
+    setHover(null);
+  };
+
+  const onPricePointerMove = (e) => {
+    const drag = priceDrag.current;
+    if (!drag || drag.pointerId !== e.pointerId) { onMove(e); return; }
+    const delta = acNearestInt((e.clientX - drag.startX) / Math.max(0.5, drag.pixelsPerPoint));
+    const start = Math.max(0, Math.min(historySource.length - drag.size, drag.start - delta));
+    setPriceView({ start, end: start + drag.size });
+  };
+
+  const endPriceDrag = (e) => {
+    if (!priceDrag.current || priceDrag.current.pointerId !== e.pointerId) return;
+    try { e.currentTarget.releasePointerCapture?.(e.pointerId); } catch { /* capture may already be gone */ }
+    priceDrag.current = null;
+    setPriceDragging(false);
   };
 
   const hp = hover != null ? points[hover] : null;
@@ -9890,23 +10143,139 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const kindLabel = (kind) => kind === "bonus"
     ? t("бонусная эмиссия", "bonus emissiya", "bonus issue")
     : t("дробление", "aksiyalarni maydalash", "split");
+  const drawingSvgPoints = drawingPoints.map((point) => {
+    const i = points.findIndex((p) => String(p.date) === point.date);
+    return i < 0 ? null : { x: xs(i), y: ys(point.value) };
+  }).filter(Boolean);
+  const selectedCompare = new Set(compareTools?.selected || []);
 
   return (
     <div className="company-chart-wrap">
       <div className="company-chart-toolbar">
         {rangeBar}
         <div className="company-chart-opts">
-          <button type="button" className={`chart-opt-btn chart-ma-ma20 ${maOn.ma20 ? "active" : ""}`}
-            disabled={!ma20Available}
-            title={`${MA_DAYS.ma20} ${t("календарных дней", "kalendar kun", "calendar days")}`}
-            onClick={() => setMaOn((s) => ({ ...s, ma20: !s.ma20 }))}>MA20</button>
-          <button type="button" className={`chart-opt-btn chart-ma-ma50 ${maOn.ma50 ? "active" : ""}`}
-            disabled={!ma50Available}
-            title={`${MA_DAYS.ma50} ${t("календарных дней", "kalendar kun", "calendar days")}`}
-            onClick={() => setMaOn((s) => ({ ...s, ma50: !s.ma50 }))}>MA50</button>
-          {/* Everything this chart deliberately does not carry — candles,
-              indicators, fundamentals, a custom period — is one click away
-              instead of being crammed in beside «О компании». */}
+          <div className="cpc-tool-strip" ref={toolStripRef}>
+            <div className="cpc-tool-slot">
+              <button type="button" className={`cpc-tool-btn ${toolMenu === "interval" ? "active" : ""}`}
+                data-testid="company-chart-interval" aria-haspopup="menu" aria-expanded={toolMenu === "interval"}
+                aria-label={t(`Интервал: ${chartInterval}`, `Interval: ${chartInterval}`, `Interval: ${chartInterval}`)}
+                title={t("Интервал свечей", "Grafik intervali", "Chart interval")}
+                disabled={!historyNavigation}
+                onClick={() => setToolMenu((m) => m === "interval" ? null : "interval")}>{chartInterval}</button>
+              {toolMenu === "interval" && (
+                <div className="cpc-tool-menu" role="menu">
+                  {[["D", "День", "Kun", "Day"], ["W", "Неделя", "Hafta", "Week"], ["M", "Месяц", "Oy", "Month"]].map(([key, ru, uz, en]) => (
+                    <button key={key} type="button" role="menuitemradio" aria-checked={chartInterval === key}
+                      className={chartInterval === key ? "active" : ""}
+                      onClick={() => { setChartInterval(key); setToolMenu(null); }}>{t(ru, uz, en)} <span>{key}</span></button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button type="button" className={`cpc-tool-btn ${cursorOn ? "active" : ""}`}
+              data-testid="company-chart-cursor" aria-pressed={cursorOn}
+              aria-label={t("Перекрестие и подсказки", "Kursor va ko'rsatmalar", "Crosshair and tooltips")}
+              title={t("Перекрестие и подсказки", "Kursor va ko'rsatmalar", "Crosshair and tooltips")}
+              onClick={() => { setCursorOn((on) => !on); setHover(null); setToolMenu(null); }}>
+              <CompanyChartToolIcon kind="pointer" />
+            </button>
+
+            <div className="cpc-tool-slot">
+              <button type="button" className={`cpc-tool-btn ${toolMenu === "type" ? "active" : ""}`}
+                data-testid="company-chart-type" aria-haspopup="menu" aria-expanded={toolMenu === "type"}
+                aria-label={t("Вид графика", "Grafik turi", "Chart type")}
+                title={t("Вид графика", "Grafik turi", "Chart type")}
+                onClick={() => setToolMenu((m) => m === "type" ? null : "type")}>
+                <CompanyChartToolIcon kind="candle" />
+              </button>
+              {toolMenu === "type" && (
+                <div className="cpc-tool-menu" role="menu">
+                  {[["area", "Область", "Maydon", "Area"], ["line", "Линия", "Chiziq", "Line"], ["candle", "Свечи", "Shamlar", "Candles"]].map(([key, ru, uz, en]) => (
+                    <button key={key} type="button" role="menuitemradio" aria-checked={chartType === key}
+                      className={chartType === key ? "active" : ""}
+                      onClick={() => { setChartType(key); setDrawingPoints([]); setToolMenu(null); }}>{t(ru, uz, en)}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="cpc-tool-slot">
+              <button type="button" className={`cpc-tool-btn ${selectedCompare.size ? "has-value" : ""} ${toolMenu === "compare" ? "active" : ""}`}
+                data-testid="company-chart-compare" aria-haspopup="menu" aria-expanded={toolMenu === "compare"}
+                aria-label={t("Добавить бумагу для сравнения", "Taqqoslash uchun qog'oz qo'shish", "Add comparison")}
+                title={t("Сравнить", "Taqqoslash", "Compare")}
+                onClick={() => setToolMenu((m) => m === "compare" ? null : "compare")}>
+                <CompanyChartToolIcon kind="compare" />
+              </button>
+              {toolMenu === "compare" && (
+                <div className="cpc-tool-menu cpc-tool-menu-wide" role="menu">
+                  <strong>{t("Сравнить с", "Taqqoslash", "Compare with")}</strong>
+                  {(compareTools?.peers || []).length ? (compareTools.peers || []).map((peer) => {
+                    const tk = String(peer.ticker || "").toUpperCase();
+                    const active = selectedCompare.has(tk);
+                    return (
+                      <button key={tk} type="button" role="menuitemcheckbox" aria-checked={active}
+                        className={active ? "active" : ""}
+                        disabled={!active && selectedCompare.size >= QC_MAX}
+                        onClick={() => compareTools?.onToggle?.(tk)}>
+                        <span>{peer.name || tk}</span><b>{tk}</b>
+                      </button>
+                    );
+                  }) : <span className="cpc-tool-empty">{t("Нет доступных бумаг", "Qog'ozlar mavjud emas", "No securities available")}</span>}
+                </div>
+              )}
+            </div>
+
+            <button type="button" className={`cpc-tool-btn ${drawMode || drawingPoints.length ? "active" : ""}`}
+              data-testid="company-chart-draw" aria-pressed={drawMode}
+              aria-label={t("Линия тренда", "Trend chizig'i", "Trend line")}
+              title={t("Линия тренда", "Trend chizig'i", "Trend line")}
+              onClick={() => { setDrawMode((on) => !on); setToolMenu(null); setHover(null); }}>
+              <CompanyChartToolIcon kind="draw" />
+            </button>
+
+            <div className="cpc-tool-slot">
+              <button type="button" className={`cpc-tool-btn ${maOn.ma20 || maOn.ma50 ? "has-value" : ""} ${toolMenu === "indicators" ? "active" : ""}`}
+                data-testid="company-chart-indicators" aria-haspopup="menu" aria-expanded={toolMenu === "indicators"}
+                aria-label={t("Индикаторы", "Indikatorlar", "Indicators")}
+                title={t("Индикаторы", "Indikatorlar", "Indicators")}
+                onClick={() => setToolMenu((m) => m === "indicators" ? null : "indicators")}>
+                <CompanyChartToolIcon kind="fx" />
+              </button>
+              {toolMenu === "indicators" && (
+                <div className="cpc-tool-menu cpc-tool-menu-right" role="menu">
+                  <button type="button" role="menuitemcheckbox" aria-checked={maOn.ma20} disabled={!ma20Available}
+                    className={maOn.ma20 ? "active" : ""}
+                    onClick={() => setMaOn((s) => ({ ...s, ma20: !s.ma20 }))}>MA20 <span>{MA_DAYS.ma20} {t("дн.", "kun", "days")}</span></button>
+                  <button type="button" role="menuitemcheckbox" aria-checked={maOn.ma50} disabled={!ma50Available}
+                    className={maOn.ma50 ? "active" : ""}
+                    onClick={() => setMaOn((s) => ({ ...s, ma50: !s.ma50 }))}>MA50 <span>{MA_DAYS.ma50} {t("дн.", "kun", "days")}</span></button>
+                </div>
+              )}
+            </div>
+
+            <div className="cpc-tool-slot">
+              <button type="button" className={`cpc-tool-btn ${toolMenu === "settings" ? "active" : ""}`}
+                data-testid="company-chart-settings" aria-haspopup="menu" aria-expanded={toolMenu === "settings"}
+                aria-label={t("Настройки графика", "Grafik sozlamalari", "Chart settings")}
+                title={t("Настройки графика", "Grafik sozlamalari", "Chart settings")}
+                onClick={() => setToolMenu((m) => m === "settings" ? null : "settings")}>
+                <CompanyChartToolIcon kind="settings" />
+              </button>
+              {toolMenu === "settings" && (
+                <div className="cpc-tool-menu cpc-tool-menu-right cpc-settings-menu">
+                  {[["grid", "Сетка", "To'r", "Grid"], ["fill", "Заливка", "To'ldirish", "Area fill"], ["lastPrice", "Последняя цена", "So'nggi narx", "Last price"], ["events", "События", "Voqealar", "Events"]].map(([key, ru, uz, en]) => (
+                    <label key={key}>
+                      <input type="checkbox" checked={chartPrefs[key]}
+                        onChange={(event) => setChartPrefs((prefs) => ({ ...prefs, [key]: event.target.checked }))} />
+                      <span>{t(ru, uz, en)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
           {onExpand && (
             <button type="button" className="chart-expand-btn" onClick={onExpand}
               title={t("Развернуть в расширенный график", "Kengaytirilgan grafikka", "Expand to the advanced chart")}
@@ -9936,8 +10305,20 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           (axis gutter, volume strip, type) renders at a size set by the WIDTH
           and is unchanged by this; the whole of the extra height goes to the
           price plot, which is the part worth more room. */}
-      <svg ref={attachChart} viewBox={`0 0 ${W} ${H}`} className="company-price-chart-svg" style={{ width: "100%", height: "auto" }}
-        onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+      <svg ref={attachChart} viewBox={`0 0 ${W} ${H}`}
+        className={`company-price-chart-svg ${historyNavigation ? "is-history-interactive" : ""} ${cursorOn ? "is-inspect" : ""} ${drawMode ? "is-drawing" : ""} ${priceDragging ? "is-panning" : ""}`}
+        data-chart-type={effectiveChartType} data-chart-interval={chartInterval}
+        style={{ width: "100%", height: "auto" }}
+        aria-label={historyNavigation
+          ? t("График истории цены. Ctrl и колесо меняют масштаб, перетаскивание показывает историю.",
+              "Narx tarixi grafigi. Ctrl va g'ildirak masshtabni o'zgartiradi, sudrash tarixni ko'rsatadi.",
+              "Price history chart. Ctrl and the wheel zoom; drag to browse history.")
+          : undefined}
+        onPointerDown={onPricePointerDown}
+        onPointerMove={onPricePointerMove}
+        onPointerUp={endPriceDrag}
+        onPointerCancel={endPriceDrag}
+        onPointerLeave={() => { if (!priceDrag.current) setHover(null); }}>
         <defs>
           <linearGradient id="cpcgrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.22" />
@@ -9947,32 +10328,50 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
 
         {/* Dashed horizontal grid, as in the reference. Full plot width, under
             everything the reader is meant to look at. */}
-        {yLabels.map((tick, i) => (
-          <line key={i} x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y}
+        {chartPrefs.grid && yLabels.map((tick, i) => (
+          <line key={i} className="cpc-grid-line" x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y}
             stroke="currentColor" strokeOpacity="0.16" strokeDasharray="4 6" strokeWidth="0.8" />
         ))}
 
         {/* No fill under the line while comparing: the peers cross it, and a
             tinted band under one of several lines reads as the chart's subject
             rather than as one series among them. */}
-        {!cmpOn && <path d={areaD} fill="url(#cpcgrad)" />}
+        {!cmpOn && effectiveChartType === "area" && chartPrefs.fill && <path className="cpc-area-fill" d={areaD} fill="url(#cpcgrad)" />}
         {/* Where the shared start sits — the line every percentage is measured
             from, and the only value on that axis that is not an opinion. */}
         {cmpOn && minP <= 0 && maxP >= 0 && (
           <line x1={PAD.left} y1={ys(0)} x2={W - PAD.right} y2={ys(0)}
             stroke="currentColor" strokeOpacity="0.35" strokeWidth="0.9" />
         )}
-        <path d={lineD} fill="none" stroke={color} strokeWidth="2"
-          strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        {drawCandles ? points.map((point, i) => {
+          const valid = ohlcOk(point);
+          const candleColor = point.close >= (valid ? point.open : (i > 0 ? points[i - 1].close : point.close)) ? "#2fc584" : "#ee6a60";
+          const x = xs(i);
+          if (!valid) return (
+            <line key={`candle${i}`} className="cpc-candle" x1={x} y1={ys(point.close)} x2={x} y2={ys(point.close) + 1}
+              stroke={candleColor} strokeWidth={Math.max(1, candleWidth)} />
+          );
+          const openY = ys(point.open), closeY = ys(point.close);
+          return (
+            <g key={`candle${i}`} className="cpc-candle">
+              <line x1={x} y1={ys(point.high)} x2={x} y2={ys(point.low)} stroke={candleColor} strokeWidth="1" />
+              <rect x={x - candleWidth / 2} y={Math.min(openY, closeY)} width={candleWidth}
+                height={Math.max(1, Math.abs(closeY - openY))} fill={candleColor} />
+            </g>
+          );
+        }) : (
+          <path className="cpc-price-line" d={lineD} fill="none" stroke={color} strokeWidth="2"
+            strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        )}
 
         {cmpOn && cmp.series.map((s) => (
-          <path key={`cmp${s.ticker}`} d={cmpPath(s.pct)} fill="none" stroke={s.color}
+          <path key={`cmp${s.ticker}`} className="cpc-compare-path" d={cmpPath(s.pct)} fill="none" stroke={s.color}
             strokeWidth="1.6" strokeOpacity="0.95" strokeLinejoin="round" strokeLinecap="round"
             vectorEffect="non-scaling-stroke" />
         ))}
 
-        {ma20 && <path d={maPath(ma20)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeOpacity="0.9" />}
-        {ma50 && <path d={maPath(ma50)} fill="none" stroke="#a855f7" strokeWidth="1.5" strokeOpacity="0.9" />}
+        {ma20 && <path className="cpc-ma20" d={maPath(ma20)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeOpacity="0.9" />}
+        {ma50 && <path className="cpc-ma50" d={maPath(ma50)} fill="none" stroke="#a855f7" strokeWidth="1.5" strokeOpacity="0.9" />}
 
         {yLabels.map((tick, i) => (
           <text key={`yl${i}`} x={PAD.left - 6} y={tick.y + 4} textAnchor="end" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
@@ -9992,7 +10391,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
             Sized on TURNOVER, the same thing the readout now names — a marker
             scaled by share count next to a tooltip quoting сум would encode two
             different quantities under one word. */}
-        {showPointMarks && points.map((p, i) => {
+        {!drawCandles && showPointMarks && points.map((p, i) => {
           const share = maxVol > 0 ? (p.turnover || 0) / maxVol : 0;
           const r = 1.6 + Math.sqrt(Math.max(share, 0)) * 3.4;
           const prev = i > 0 ? points[i - 1].close : null;
@@ -10013,20 +10412,30 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           );
         })}
 
-        {<circle cx={xs(points.length - 1)} cy={ys(baseVals[points.length - 1])} r="4" fill={color} />}
-        {cmpOn && cmp.series.map((s) => {
+        {chartPrefs.lastPrice && <circle className="cpc-last-price" cx={xs(points.length - 1)} cy={ys(baseVals[points.length - 1])} r="4" fill={color} />}
+        {chartPrefs.lastPrice && cmpOn && cmp.series.map((s) => {
           const v = s.pct[s.pct.length - 1];
           return v == null ? null
             : <circle key={`cmpdot${s.ticker}`} cx={xs(points.length - 1)} cy={ys(v)} r="3.2" fill={s.color} />;
         })}
 
-        {eventMarks.map((m) => (
+        {chartPrefs.events && eventMarks.map((m) => (
           <line key={`ev${m.ex_date}`} x1={xs(m.i)} y1={priceTop} x2={xs(m.i)} y2={priceBot}
             stroke="currentColor" strokeOpacity="0.3" strokeDasharray="2 4" />
         ))}
 
+        {drawingSvgPoints.length === 2 && (
+          <line className="cpc-drawing-line" x1={drawingSvgPoints[0].x} y1={drawingSvgPoints[0].y}
+            x2={drawingSvgPoints[1].x} y2={drawingSvgPoints[1].y}
+            stroke="var(--accent)" strokeWidth="1.6" strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />
+        )}
+        {drawingSvgPoints.map((point, i) => (
+          <circle key={`drawing${i}`} className="cpc-drawing-point" cx={point.x} cy={point.y} r="3.2"
+            fill="var(--panel)" stroke="var(--accent)" strokeWidth="1.5" />
+        ))}
+
         {/* Crosshair */}
-        {hover != null && (
+        {cursorOn && hover != null && (
           <>
             <line x1={hx} y1={priceTop} x2={hx} y2={priceBot} stroke="currentColor" strokeOpacity="0.38" strokeDasharray="3 3" />
             <circle cx={hx} cy={ys(baseVals[hover])} r="3.6" fill={color} stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
@@ -10038,7 +10447,37 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         )}
       </svg>
 
-      {hp && (
+      {(drawMode || drawingPoints.length > 0) && (
+        <p className="cpc-draw-status" role="status">
+          <span>{drawMode
+            ? (drawingPoints.length === 0
+                ? t("Линия тренда: выберите первую точку", "Trend chizig'i: birinchi nuqtani tanlang", "Trend line: choose the first point")
+                : t("Линия тренда: выберите вторую точку", "Trend chizig'i: ikkinchi nuqtani tanlang", "Trend line: choose the second point"))
+            : t("Линия тренда добавлена", "Trend chizig'i qo'shildi", "Trend line added")}</span>
+          <button type="button" onClick={() => { setDrawingPoints([]); setDrawMode(false); }}>
+            {t("Очистить", "Tozalash", "Clear")}
+          </button>
+        </p>
+      )}
+
+      {historyNavigation && points.length > 0 && (
+        <p className="cpc-history-help" data-testid="company-visible-range"
+          data-from={points[0].date} data-to={points[points.length - 1].date}>
+          <span>
+            {t("Ctrl + колесо: вверх — приблизить, вниз — отдалить; потяните график — перейти по истории.",
+               "Ctrl + g'ildirak: yuqoriga — yaqinlashtirish, pastga — uzoqlashtirish; tarix uchun grafikni suring.",
+               "Ctrl + wheel: up zooms in, down zooms out; drag the chart to browse history.")}
+          </span>
+          <span className="cpc-history-dates">{fmtDate(points[0].date, true)} — {fmtDate(points[points.length - 1].date, true)}</span>
+          {priceViewChanged && (
+            <button type="button" className="cpc-history-reset" onClick={() => setPriceView(null)}>
+              {t("Сбросить", "Tiklash", "Reset")}
+            </button>
+          )}
+        </p>
+      )}
+
+      {cursorOn && hp && (
         <div className="cpc-tooltip" style={{
           // Follows the pointer down the chart, then stops short of either end
           // so the readout never hangs outside the panel that frames it.
@@ -10126,7 +10565,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         </p>
       )}
 
-      {eventMarks.length > 0 && (
+      {chartPrefs.events && eventMarks.length > 0 && (
         <p className="cpc-adjust-note">
           {t("Цены до этих дат пересчитаны на текущую акцию",
              "Bu sanalargacha boʻlgan narxlar joriy aksiyaga qayta hisoblangan",
@@ -10720,7 +11159,7 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
                 only its numbers stopped being printed. */}
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={onRangeChange} adjustments={priceAdjustments} lang={lang}
               intraday={intraday} quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows}
-              ticker={ticker} compare={compare?.series} compareLoading={compare?.loading}
+              ticker={ticker} compare={compare?.series} compareLoading={compare?.loading} compareTools={compare}
               onExpand={onExpandChart} />
             {/* Inside the chart panel, as on the reference page: the strip is a
                 control for the chart above it, not a section of its own. */}
@@ -11820,6 +12259,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   // into what the endpoint understands.
   const [priceRange, setPriceRange] = React.useState("1y");
   const priceMonths = chartRangeMonths(priceRange);
+  // The chart initially shows `priceRange`, but Ctrl+wheel and dragging can
+  // reveal the archive behind it. Fetch the same depth as «Макс» once per
+  // issuer; metrics remain pinned to the selected range below.
+  const priceArchiveMonths = chartRangeMonths("max");
   const [priceLoading, setPriceLoading] = React.useState(false);
   // Window + absolute price metrics from /api/company/{ticker}/metrics.
   const [metrics, setMetrics] = React.useState(null);
@@ -11915,7 +12358,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
     let alive = true;
     setPriceLoading(true);
     setPriceError(false);
-    fetch(`/api/price-history/${encodeURIComponent(ticker)}?months=${priceMonths}`)
+    fetch(`/api/price-history/${encodeURIComponent(ticker)}?months=${priceArchiveMonths}`)
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return;
@@ -11927,7 +12370,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
       .catch(() => { if (alive) setPriceError(true); })
       .finally(() => { if (alive) setPriceLoading(false); });
     return () => { alive = false; };
-  }, [ticker, priceMonths, priceRetry]);
+  }, [ticker, priceArchiveMonths, priceRetry]);
 
   React.useEffect(() => {
     if (!ticker) return undefined;
@@ -12243,6 +12686,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={setPriceRange} lang={lang}
               intraday={intraday} quality={metrics?.quality} metricsWindows={metrics?.ma_windows}
               ticker={ticker} compare={compareLines} compareLoading={compareLoading}
+              compareTools={{ peers: comparePeers, securitiesMap, selected: compareTickers, onToggle: toggleCompare }}
               onExpand={onOpenChart
                 ? () => onOpenChart(ticker, { range: priceRange === "1d" ? "1w" : priceRange,
                                               type: "line", compare: compareTickers,
@@ -12346,9 +12790,9 @@ function acClampView(view, fallback, total) {
   return { start, end: start + size };
 }
 
-function acZoomView(view, total, anchorRatio, zoomIn) {
+function acZoomView(view, total, anchorRatio, zoomIn, minimumPoints = AC_MIN_CANDLE_POINTS) {
   const size = view.end - view.start;
-  const minSize = Math.min(AC_MIN_CANDLE_POINTS, total);
+  const minSize = Math.min(minimumPoints, total);
   const nextSize = Math.max(minSize, Math.min(total,
     acNearestInt(size * (zoomIn ? 0.8 : 1.25))));
   if (nextSize === size) return view;
