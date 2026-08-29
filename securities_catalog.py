@@ -378,6 +378,13 @@ def get_securities_map() -> dict[str, dict]:
     except Exception:  # noqa: BLE001 — a bad optional registry must not break the catalog
         logger.exception("company logo registry unreadable")
         logos = {}
+    try:
+        import company_imports
+
+        approved = company_imports.approved_metadata_map()
+    except Exception:  # noqa: BLE001 — the persisted securities remain a safe fallback
+        logger.exception("approved company metadata unavailable")
+        approved = {}
     conn = _get_conn()
     _init_db(conn)
     rows = conn.execute("SELECT * FROM securities ORDER BY ticker").fetchall()
@@ -398,6 +405,17 @@ def get_securities_map() -> dict[str, dict]:
         current_logo = resolve_logo(d.get("ticker", ""), logos)
         if current_logo:
             d["logo_url"] = current_logo
+        imported = approved.get(d["ticker"]) or {}
+        if imported:
+            d["name"] = imported.get("company_name") or d.get("name")
+            d["company_name"] = imported.get("company_name") or d.get("company_name")
+            d["sector"] = imported.get("sector") or d.get("sector")
+            d["logo_url"] = imported.get("logo_url") or d.get("logo_url")
+            d["isin"] = imported.get("isin") or d.get("isin")
+            d["type"] = imported.get("security_type") or d.get("type")
+            d["share_type"] = imported.get("share_type") or d.get("share_type")
+            d["is_preferred"] = _preferred_flag(
+                d.get("share_type"), d.get("name"), d.get("ticker"))
         vr = records.get(d["ticker"])
         if vr:
             d["max_volume"] = vr["max_volume"]
