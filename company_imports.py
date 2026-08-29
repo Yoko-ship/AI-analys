@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -149,20 +150,23 @@ def _upsert_candidate(rec: dict[str, Any], *, actor: str | None = None) -> dict[
             else:
                 status = "approved" if item["ticker"] in _STATIC_TICKERS else "pending"
                 reviewed_by = "code catalog" if status == "approved" else None
+                reviewed_at = (
+                    datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    if reviewed_by else None
+                )
                 conn.execute(
                     """
                     INSERT INTO catalog_company_imports
                         (ticker, company_name, org_id, isin, security_type, share_type,
                          sector, logo_url, resolved_by, status, source_payload,
                          reviewed_by, reviewed_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,
-                            CASE WHEN ? IS NULL THEN NULL ELSE datetime('now') END)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
                         item["ticker"], item["company_name"], item["org_id"], item["isin"],
                         item["security_type"], item["share_type"], item["sector"],
                         item["logo_url"], item["resolved_by"], status,
-                        item["source_payload"], reviewed_by, reviewed_by,
+                        item["source_payload"], reviewed_by, reviewed_at,
                     ),
                 )
                 _event(conn, item["ticker"], "discovered", actor, {
