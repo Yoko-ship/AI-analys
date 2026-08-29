@@ -41,6 +41,53 @@ class _User:
         self.email = email
 
 
+class _OneRow:
+    def __init__(self, row=None):
+        self.row = row
+
+    def fetchone(self):
+        return self.row
+
+
+class _PostgresStrictCandidateConnection:
+    """Small adapter that rejects the untyped CASE parameter PostgreSQL rejects."""
+
+    def __init__(self):
+        self.row = None
+        self.insert_sql = ""
+        self.insert_params = ()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def close(self):
+        return None
+
+    def execute(self, sql, params=()):
+        compact = " ".join(str(sql).split())
+        if compact.startswith("SELECT * FROM catalog_company_imports"):
+            return _OneRow(self.row)
+        if compact.startswith("INSERT INTO catalog_company_imports"):
+            if "CASE WHEN ?" in compact:
+                raise RuntimeError("PostgreSQL cannot infer the CASE parameter type")
+            self.insert_sql = compact
+            self.insert_params = tuple(params)
+            self.row = {
+                "ticker": params[0],
+                "company_name": params[1],
+                "org_id": params[2],
+                "status": params[9],
+                "reviewed_at": params[12],
+            }
+            return _OneRow()
+        if compact.startswith("INSERT INTO catalog_company_import_events"):
+            return _OneRow()
+        raise AssertionError(f"Unexpected SQL: {compact}")
+
+
 def _as_user(monkeypatch, email: str | None) -> None:
     monkeypatch.setattr(
         api.web_auth_store,
@@ -88,6 +135,19 @@ def test_discovery_creates_a_pending_candidate_and_approval_publishes_it(monkeyp
         "sector": "manufacturing",
         "logo": "",
     }
+
+
+def test_candidate_insert_is_postgres_safe(monkeypatch):
+    conn = _PostgresStrictCandidateConnection()
+    monkeypatch.setattr(company_imports, "_conn", lambda: conn)
+
+    candidate = company_imports._upsert_candidate(_record())
+
+    assert candidate["ticker"] == "ZZCO"
+    assert candidate["status"] == "pending"
+    assert candidate["reviewed_at"] is None
+    assert len(conn.insert_params) == 13
+    assert "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)" in conn.insert_sql
 
 
 def test_regular_catalog_discovery_also_fills_the_admin_review_queue(monkeypatch):
