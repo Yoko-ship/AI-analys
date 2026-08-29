@@ -36,7 +36,7 @@ from openinfo_collector import collect_company_data
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("api_key")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
-ANALYSIS_POLICY_VERSION = "public-information-v10-excel-document-order-2026-06-02"
+ANALYSIS_POLICY_VERSION = "sector-nsbu-first-v1-2026-08-29"
 REPORT_TABLES_VERSION = "report-tables-v1"
 ARTICLE_REPORT_VERSION = "article-report-v17"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "120"))
@@ -7547,6 +7547,124 @@ def run_analysis(company_name: str, company_profile: str, annual_data: list,
     return raw, annual_period, quarterly_period, cost, metrics, ifrs_snapshot, market_context
 
 
+def _sector_nsbu_result(
+    company_input: str,
+    resolved_name: str,
+    company_data: dict | None,
+    language: str,
+    cache_mode: str,
+    excel_report_mode: dict,
+    report_comparison: dict,
+) -> dict:
+    """Adapt the verified sector report to the legacy ``/api/analyze`` shape.
+
+    The previous path asked the language model to calculate ratios and forced a
+    universal fourteen-section investment template.  This adapter keeps the
+    public API stable while making the sector-selected, NSBU-first facts the
+    only source of narrative and risk statements.
+    """
+    from issuer_analysis_api import _resolve_issuer, _sector_ai_report
+
+    security = (company_data or {}).get("security") or {}
+    identifier = security.get("ticker") or company_input or resolved_name
+    issuer = _resolve_issuer(str(identifier))
+
+    requested_period = None
+    current_year = report_comparison.get("current_year")
+    quarter = report_comparison.get("quarter")
+    if current_year:
+        requested_period = f"{current_year}Q{quarter}" if quarter else str(current_year)
+    report = _sector_ai_report(issuer, "nsbu", requested_period, "separate", language)
+    paragraphs = list(report.get("paragraphs") or [])
+    risks = list(report.get("risks") or [])
+    data_quality = list(report.get("data_quality") or [])
+
+    money = "\n\n".join(paragraphs[1:4] or paragraphs)
+    risk_text = "\n".join(
+        f"• {item.get('title')}: {item.get('actual_value')} {item.get('unit') or ''}".rstrip()
+        for item in risks
+    )
+    if not risk_text:
+        risk_text = (
+            "Материальные риски не публикуются без показателя, порога и источника."
+            if language == "ru" else
+            "Ko‘rsatkich, mezon va manbasiz muhim xavf e’lon qilinmaydi."
+            if language == "uz" else
+            "No material risk is published without a metric, threshold and source."
+        )
+    limitation_text = "\n".join(
+        f"• {item.get('message')}" for item in data_quality
+    ) or (
+        "Регуляторные и дополнительные отраслевые показатели показаны только при отдельном официальном раскрытии."
+        if language == "ru" else
+        "Regulyativ va qo‘shimcha tarmoq ko‘rsatkichlari faqat alohida rasmiy oshkor etilganda ko‘rsatiladi."
+        if language == "uz" else
+        "Regulatory and supplemental sector metrics are shown only when separately disclosed by an official source."
+    )
+    sections = {
+        "ВЕРДИКТ": report.get("headline") or "",
+        "ЧТО_С_ДЕНЬГАМИ": money,
+        "СЛАБЫЕ_СТОРОНЫ": risk_text,
+        "ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА": limitation_text,
+        "ИТОГ": "\n\n".join([report.get("headline") or "", paragraphs[-1] if paragraphs else ""]).strip(),
+    }
+    raw_analysis = _serialize_sections_for_report(sections)
+    facts = report.get("verified_facts") or []
+    metrics = {
+        "sector_template_code": report.get("sector_template_code"),
+        "template_version": report.get("template_version"),
+        "verified_facts": facts,
+        "ratios": report.get("ratios") or [],
+        "regulatory_compliance": report.get("regulatory_compliance") or [],
+        "total_score": {},
+    }
+    result = {
+        "company_input": company_input,
+        "company_name": resolved_name,
+        "ticker": issuer.get("ticker"),
+        "analysis_contract": "sector_nsbu",
+        "analysis_status": report.get("status"),
+        "sector_template_code": report.get("sector_template_code"),
+        "template_version": report.get("template_version"),
+        "html_report": None,
+        "raw_analysis": raw_analysis,
+        "sections": sections,
+        "report_tables": {},
+        "report_tables_version": REPORT_TABLES_VERSION,
+        "article_report": None,
+        "article_report_version": ARTICLE_REPORT_VERSION,
+        "annual_period": report.get("period") if "Q" not in str(report.get("period") or "") else "",
+        "quarterly_period": report.get("period") if "Q" in str(report.get("period") or "") else "",
+        "cost": 0.0,
+        "metrics": metrics,
+        "ifrs_snapshot": {},
+        "risk_profile": {"items": risks, "method": "sector_rules"},
+        "observations": data_quality,
+        "liquidity": None,
+        "market_data": company_data or {},
+        "market_context": _compact_market_context(company_data),
+        "excel_report_mode": excel_report_mode,
+        "report_comparison": report_comparison,
+        "cache_mode": cache_mode,
+        "from_cache": False,
+        "source": "fresh",
+        "model": "deterministic-sector-rules",
+        "language": language,
+        "language_label": LANGUAGE_HINTS[language]["label"],
+        "analysis_policy_version": ANALYSIS_POLICY_VERSION,
+        "analysis_policy": PUBLIC_ANALYSIS_POLICY_META,
+        "verified_facts": facts,
+        "regulatory_compliance": report.get("regulatory_compliance") or [],
+        "data_quality": data_quality,
+        "balance_check": report.get("balance_check"),
+    }
+    try:
+        analysis_cache.set(company_input, result, language=language, mode=cache_mode)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to cache sector NSBU analysis for %s: %s", company_input, exc)
+    return result
+
+
 async def run_company_analysis(
     company_name: str,
     force_refresh: bool = False,
@@ -7599,6 +7717,9 @@ async def run_company_analysis(
             cached.setdefault("market_context", {})
             cached.setdefault("analysis_policy", PUBLIC_ANALYSIS_POLICY_META)
             cached.setdefault("excel_report_mode", excel_report_mode)
+            if cached.get("analysis_contract") == "sector_nsbu":
+                cached["report_comparison"] = report_comparison
+                return cached
             enriched_sections, report_tables = _enrich_sections_with_report_tables(
                 cached.get("sections") or {},
                 cached.get("metrics") or {},
@@ -7649,6 +7770,25 @@ async def run_company_analysis(
     except Exception as exc:  # noqa: BLE001
         print(f"   Market data collection failed for '{company_name}': {exc}")
         company_data = {"ok": False, "error": str(exc)}
+
+    # The corrective sector specification makes the verified NSBU report the
+    # sole regular-analysis path.  It selects the legal organization type before
+    # calculating metrics and never asks the LLM to manufacture arithmetic or
+    # fill a missing sector template with generic prose.
+    resolved_name = fetched_name or company_name
+    return _sector_nsbu_result(
+        company_input=company_name,
+        resolved_name=resolved_name,
+        company_data=company_data,
+        language=language,
+        cache_mode=cache_mode,
+        excel_report_mode=excel_report_mode,
+        report_comparison=report_comparison,
+    )
+
+    # Legacy implementation retained below for historical exports; the regular
+    # API path returns above.  It is intentionally unreachable until those
+    # exports are migrated to the sector contract.
     if annual_df is None or quarter_df is None:
         raise ValueError(f"Данные не найдены для «{company_name}»")
 

@@ -3046,7 +3046,16 @@ def _encode_prior_period(value: Any) -> str | None:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
-_BALANCE_KEYS = ("equity_start", "equity_end", "assets_start", "assets_end")
+_BALANCE_BASE_KEYS = ("equity_start", "equity_end", "assets_start", "assets_end")
+_BALANCE_INSURANCE_KEYS = (
+    # Insurance form №1 keeps technical reserves between equity and ordinary
+    # liabilities.  Retaining the three disclosed amounts in the filed-balance
+    # block prevents a later read path from collapsing them into either capital
+    # or zero and makes the economic balance independently auditable.
+    "gross_insurance_reserves", "reinsurer_share_in_reserves",
+    "net_insurance_reserves", "other_liabilities",
+)
+_BALANCE_KEYS = _BALANCE_BASE_KEYS + _BALANCE_INSURANCE_KEYS
 
 
 def _decode_balance_period(raw: Any) -> dict[str, Any] | None:
@@ -3061,7 +3070,11 @@ def _decode_balance_period(raw: Any) -> dict[str, Any] | None:
             return None
     if not isinstance(parsed, dict):
         return None
-    out = {key: _financials_num(parsed.get(key)) for key in _BALANCE_KEYS}
+    out = {key: _financials_num(parsed.get(key)) for key in _BALANCE_BASE_KEYS}
+    for key in _BALANCE_INSURANCE_KEYS:
+        value = _financials_num(parsed.get(key))
+        if value is not None:
+            out[key] = value
     return out if any(v is not None for v in out.values()) else None
 
 
@@ -3069,7 +3082,11 @@ def _encode_balance_period(value: Any) -> str | None:
     """Serialize the filed-balance block; None when it says nothing."""
     if not isinstance(value, dict):
         return None
-    payload = {key: _financials_num(value.get(key)) for key in _BALANCE_KEYS}
+    payload = {key: _financials_num(value.get(key)) for key in _BALANCE_BASE_KEYS}
+    for key in _BALANCE_INSURANCE_KEYS:
+        field_value = _financials_num(value.get(key))
+        if field_value is not None:
+            payload[key] = field_value
     if all(v is None for v in payload.values()):
         return None
     return json.dumps(payload, ensure_ascii=False, sort_keys=True)
@@ -5335,6 +5352,26 @@ _LIABILITIES_SECTION_FORMULAS = ("490+600", "730+930")
 _CURRENT_ASSETS_SECTION_FORMULAS = ("140+190+200+210+320+370+380",
                                     "140+170+180+190+410+460+470")
 
+# Insurance form №1 has two additional balance sections between equity and
+# ordinary liabilities.  Their captions are not unique enough to be handled by
+# the generic label matcher, but their official line formulas are stable and
+# distinguish them from the asset-side sections carrying the same captions.
+_INSURANCE_EQUITY_FORMULAS = ("500+510+520-530+540+550+560",)
+_INSURANCE_GROSS_RESERVE_FORMULAS = ("590+600+610+620+630+640+650+660",)
+_INSURANCE_REINSURER_SHARE_FORMULAS = ("680+690+700+710",)
+_INSURANCE_NET_RESERVE_FORMULAS = ("580-670",)
+
+
+def _extract_formula_total(rows: list[dict], formulas: tuple[str, ...]) -> float | None:
+    """Read a reporting-date total identified by its NSBU line formula."""
+    for row in rows:
+        squashed = _squash(row.get("label"))
+        if any(formula in squashed for formula in formulas):
+            value = _row_value(row.get("numeric_values") or [], strict_period=True)
+            if value is not None:
+                return value
+    return None
+
 
 def _extract_current_assets(rows: list[dict]) -> float | None:
     """«Итого по разделу II» of the ASSET side — the current-assets subtotal."""
@@ -5409,6 +5446,42 @@ def _gather_rows(excel_data: dict | None) -> list[dict]:
     return rows
 
 
+def extract_insurance_balance(balance_data: dict | None) -> dict[str, float | None]:
+    """Extract the four-section economic balance from an insurance NSBU form.
+
+    The published ``Итого по разделу III`` is only ordinary liabilities.  Net
+    insurance reserves are a separate liability section and must be added back
+    for ``assets = equity + liabilities``.  Gross reserves and the reinsurer's
+    share remain separate evidence fields; neither is silently netted away.
+    """
+    rows = _gather_rows(balance_data)
+    gross = _extract_formula_total(rows, _INSURANCE_GROSS_RESERVE_FORMULAS)
+    reinsurer_share = _extract_formula_total(rows, _INSURANCE_REINSURER_SHARE_FORMULAS)
+    filed_net = _extract_formula_total(rows, _INSURANCE_NET_RESERVE_FORMULAS)
+    calculated_net = (
+        gross - reinsurer_share
+        if gross is not None and reinsurer_share is not None
+        else None
+    )
+    net = calculated_net if calculated_net is not None else filed_net
+    other_liabilities = _extract_liabilities_total(rows)
+    total_liabilities = (
+        net + other_liabilities
+        if net is not None and other_liabilities is not None
+        else None
+    )
+    return {
+        "total_assets": _extract_metric(rows, "total_assets"),
+        "total_equity": _extract_formula_total(rows, _INSURANCE_EQUITY_FORMULAS),
+        "gross_insurance_reserves": gross,
+        "reinsurer_share_in_reserves": reinsurer_share,
+        "net_insurance_reserves": net,
+        "filed_net_insurance_reserves": filed_net,
+        "other_liabilities": other_liabilities,
+        "total_liabilities": total_liabilities,
+    }
+
+
 def compute_financial_ratios(income_data: dict | None, balance_data: dict | None) -> dict[str, Any]:
     income_rows = _gather_rows(income_data)
     balance_rows = _gather_rows(balance_data)
@@ -5436,6 +5509,15 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         cur = _extract_metric(balance_rows or all_rows, "cur_liabilities")
         if lt is not None or cur is not None:
             total_liabilities = (lt or 0.0) + (cur or 0.0)
+    insurance_balance = extract_insurance_balance(balance_data or income_data)
+    if insurance_balance.get("gross_insurance_reserves") is not None:
+        # Insurance liabilities are ordinary liabilities PLUS net technical
+        # reserves.  The old parser exposed only section III, making UZAS Q1
+        # 2026 miss 129.18bn UZS of obligations and fail its balance identity.
+        total_assets = insurance_balance.get("total_assets") or total_assets
+        equity = insurance_balance.get("total_equity") or equity
+        total_liabilities = insurance_balance.get("total_liabilities")
+
     # Commercial form №1 labels its equity total only "Итого по разделу I" — the
     # same words as the assets-section total, so no label pattern can pick it out.
     # On a published balance the identity assets = equity + liabilities holds, so
@@ -5471,6 +5553,17 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         "debt_to_equity": _safe_div(total_liabilities, equity),
     }
 
+    balance_block: dict[str, Any] = {
+        "assets_end": total_assets,
+        "equity_end": equity,
+    }
+    if insurance_balance.get("gross_insurance_reserves") is not None:
+        for key in (
+            "gross_insurance_reserves", "reinsurer_share_in_reserves",
+            "net_insurance_reserves", "other_liabilities",
+        ):
+            balance_block[key] = insurance_balance.get(key)
+
     source_rows: dict[str, Any] = {
         "revenue": revenue,
         "net_income": net_income,
@@ -5486,6 +5579,11 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         "current_assets": current_assets,
         "current_liabilities": current_liabilities,
         "inventories": inventories,
+        "gross_insurance_reserves": insurance_balance.get("gross_insurance_reserves"),
+        "reinsurer_share_in_reserves": insurance_balance.get("reinsurer_share_in_reserves"),
+        "net_insurance_reserves": insurance_balance.get("net_insurance_reserves"),
+        "other_liabilities": insurance_balance.get("other_liabilities"),
+        "balance": balance_block,
     }
 
     return {"metrics": metrics, "source_values": source_rows}

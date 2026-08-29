@@ -93,6 +93,27 @@ class TestObligationsLine:
         out = rc.compute_financial_ratios(None, balance)
         assert out["source_values"]["total_liabilities"] == 56_149_257.14
 
+    def test_insurance_reserves_are_added_to_ordinary_liabilities(self) -> None:
+        balance = _sheet([
+            _row("490", "Всего по активу баланса (стр.130+480)", 346_556_015.4),
+            _row("570", "Итого по разделу I (стр.500+510+520-530+540+550+560)", 146_745_491.4),
+            _row("580", "Страховые резервы, всего (стр.590+600+610+620+630+640+650+660)", 301_088_114.6),
+            _row("670", "Доля перестраховщиков в страховых резервах, Всего(стр.680+690+700+710)", 171_910_842.4),
+            _row("720", "Итого по разделу II (стр.580-670)", 129_177_272.2),
+            _row("1190", "Итого по разделу III (стр.730+930)", 70_633_251.8),
+        ])
+
+        out = rc.compute_financial_ratios(None, balance)
+        source = out["source_values"]
+
+        assert source["gross_insurance_reserves"] == pytest.approx(301_088_114.6)
+        assert source["reinsurer_share_in_reserves"] == pytest.approx(171_910_842.4)
+        assert source["net_insurance_reserves"] == pytest.approx(129_177_272.2)
+        assert source["other_liabilities"] == pytest.approx(70_633_251.8)
+        assert source["total_liabilities"] == pytest.approx(199_810_524.0)
+        assert source["total_equity"] == pytest.approx(146_745_491.4)
+        assert source["balance"]["assets_end"] == pytest.approx(346_556_015.4)
+
     def test_the_asset_side_subtotal_is_not_mistaken_for_it(self) -> None:
         balance = _sheet([
             _row("390", "ИТОГО ПО РАЗДЕЛУ II (стр. 140+190+200+210+320+370+380)",
