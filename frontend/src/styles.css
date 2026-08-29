@@ -12299,6 +12299,138 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
 .company-tab-btn:hover { color: var(--text-primary); }
 .company-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 
+/* Company AI report: the compact profile insight opens the same traceable
+   report response in a focused dialog. */
+.company-insight-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 72px;
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg-2));
+  box-shadow: var(--shadow-xs);
+  transition: margin-right .2s ease, border-color .15s;
+}
+/* The sponsor is portaled and appears after the page settles.  Reserve its
+   actual 220px footprint only while it exists so the report action is never
+   hidden underneath it, then reclaim the space when the unit closes. */
+@media (min-width: 761px) {
+  body:has(.sponsor-overlay) .company-insight-card { margin-right: 236px; }
+}
+.company-insight-card.tone-positive { border-color: color-mix(in srgb, var(--success) 24%, var(--border)); }
+.company-insight-card.tone-warning { border-color: color-mix(in srgb, var(--warning) 26%, var(--border)); }
+.company-insight-card.tone-danger { border-color: color-mix(in srgb, var(--danger) 28%, var(--border)); }
+.company-insight-icon { width: 28px; height: 28px; flex: 0 0 28px; overflow: visible; }
+.company-insight-icon.small { width: 17px; height: 17px; flex-basis: 17px; }
+.company-insight-card-copy { flex: 1; min-width: 0; }
+.company-insight-card-copy p { margin: 0; color: var(--text); font-size: 15.5px; line-height: 1.55; }
+.company-insight-action {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid var(--border-hover);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.company-insight-action:hover { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+.company-insight-loading { display: flex; flex-direction: column; gap: 8px; width: min(680px, 86%); }
+.company-insight-loading span { height: 10px; border-radius: 999px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--border-hover) 42%, var(--surface-2) 63%); background-size: 300% 100%; animation: co-shimmer 1.4s ease infinite; }
+.company-insight-loading span:last-child { width: 62%; }
+
+.company-insight-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 450;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 6, 10, .68);
+  backdrop-filter: blur(5px);
+  animation: company-insight-fade .16s ease-out;
+}
+.company-insight-dialog {
+  position: relative;
+  width: min(760px, 100%);
+  max-height: min(88dvh, 860px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 28px 30px 24px;
+  border: 1px solid var(--border-hover);
+  border-radius: 18px;
+  background: var(--bg-2);
+  box-shadow: var(--shadow-xl);
+  color: var(--text);
+  animation: company-insight-rise .2s ease-out;
+}
+@keyframes company-insight-fade { from { opacity: 0; } }
+@keyframes company-insight-rise { from { opacity: 0; transform: translateY(12px) scale(.985); } }
+.company-insight-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+}
+.company-insight-close:hover { color: var(--text); border-color: var(--border); background: var(--panel); }
+.company-insight-dialog-head { display: flex; align-items: flex-start; gap: 14px; padding: 2px 54px 20px 0; border-bottom: 1px solid var(--border); }
+.company-insight-dialog-head > div { min-width: 0; }
+.company-insight-dialog-head h2 { margin: 3px 0 4px; font-size: clamp(21px, 3vw, 27px); line-height: 1.2; letter-spacing: -.015em; }
+.company-insight-dialog-head p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.4; }
+.company-insight-eyebrow { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.company-insight-status { display: inline-flex; margin: 16px 0 0; padding: 5px 10px; border-radius: 999px; background: var(--warning-light); color: var(--warning); font-size: 12px; font-weight: 600; }
+.company-insight-sources { padding: 18px 0 2px; }
+.company-insight-sources h3 { margin: 0 0 9px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.company-insight-sources > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.company-insight-sources a,
+.company-insight-sources span { display: inline-flex; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text-secondary); font-size: 12.5px; line-height: 1.35; text-decoration: none; }
+.company-insight-sources a:hover { border-color: var(--accent); color: var(--accent); }
+.company-insight-report-copy { padding: 16px 0 4px; }
+.company-insight-report-copy p { margin: 0 0 16px; color: var(--text-secondary); font-size: 15px; line-height: 1.75; }
+.company-insight-report-copy p:last-child { margin-bottom: 0; }
+.company-insight-dialog-foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+.company-insight-dialog-foot > span { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 600; }
+.company-insight-dialog-foot p { max-width: 56ch; margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.55; text-align: right; }
+
+@media (max-width: 760px) {
+  .company-insight-card { align-items: flex-start; gap: 11px; padding: 14px; }
+  .company-insight-card-copy p { font-size: 14px; line-height: 1.5; }
+  .company-insight-action { min-height: 44px; padding: 9px 12px; }
+  .company-insight-backdrop { align-items: flex-end; padding: 0; }
+  .company-insight-dialog { width: 100%; max-height: 92dvh; padding: 24px 18px 20px; border-radius: 18px 18px 0 0; border-bottom: 0; }
+  .company-insight-dialog-head { padding-right: 42px; }
+  .company-insight-dialog-head .company-insight-icon { display: none; }
+  .company-insight-dialog-foot { flex-direction: column; gap: 10px; }
+  .company-insight-dialog-foot p { text-align: left; }
+}
+
+@media (max-width: 480px) {
+  .company-insight-card { flex-wrap: wrap; }
+  .company-insight-card-copy { flex-basis: calc(100% - 42px); }
+  .company-insight-card .company-insight-action { width: 100%; }
+}
+
 /* Overview layout */
 .company-overview-layout { display: flex; flex-direction: column; gap: 18px; }
 .company-chart-panel { padding: 16px 20px 12px; }

@@ -51,6 +51,26 @@ const ANALYZE = {
     { type: "joint", tone: "danger", text: "Одновременное ухудшение показателей: прибыль, маржа, долг/капитал" },
   ],
 };
+const COMPANY_AI_REPORT = {
+  ok: true,
+  issuer: { id: "AGBA", ticker: "AGBA", name: "AGBA Bank" },
+  standard: "nsbu",
+  period: "2025",
+  scope: "separate",
+  language: "ru",
+  status: "complete",
+  headline: "Компания демонстрирует рост финансовых результатов и сохраняет прибыльность.",
+  headline_tone: "positive",
+  paragraphs: [
+    "Отчёт относится только к НСБУ за 2025 год. Он сформирован из одного воспроизводимого снимка публичной отчётности и не смешивает показатели разных периодов.",
+    "Выручка и чистая прибыль выросли относительно сопоставимого периода. Рентабельность остаётся положительной, однако вывод следует читать вместе с ограничениями исходных данных.",
+  ],
+  number_references: [
+    { metric: "revenue", value: 9e9, period: "2025", source: { document_id: "catalog:AGBA:NSBU:2025", url: "https://openinfo.uz/report/agba-2025.pdf", provider: "openinfo/catalog" } },
+    { metric: "net_income", value: 2e9, period: "2025", source: { document_id: "catalog:AGBA:NSBU:2025", url: "https://openinfo.uz/report/agba-2025.pdf", provider: "openinfo/catalog" } },
+  ],
+  generated_at: "2026-08-27T19:00:00Z",
+};
 const PERIODS = { ok: true, periods: { annual_years: [2024, 2023, 2022], quarterly: ["2024Q2", "2024Q1"], latest_annual_year: 2024, latest_quarterly: "2024Q2" } };
 
 // Editorial feed (§3.11). Items carry the classifier's output; the article page at
@@ -145,6 +165,7 @@ async function mockApi(page) {
     const j = (b, s = 200) => route.fulfill({ status: s, contentType: "application/json", body: JSON.stringify(b) });
     if (p === "/api/companies") return j(COMPANIES);
     if (p === "/api/securities") return j(SECURITIES);
+    if (p.startsWith("/api/v1/issuers/") && p.endsWith("/ai-report")) return j(COMPANY_AI_REPORT);
     if (p === "/api/market/financials") return j(FINANCIALS);
     if (p === "/api/market/ratios") return j(RATIOS);
     if (p === "/api/analyze") return j(ANALYZE);
@@ -350,6 +371,91 @@ test("company details use a viewport-bound bottom sheet on mobile", async ({ pag
   expect(Math.abs(panelBox.width - 390)).toBeLessThan(1);
   expect(Math.abs(panelBox.y + panelBox.height - 844)).toBeLessThan(1);
   expect(panelBox.y).toBeGreaterThan(0);
+});
+
+test("company overview opens the sourced AI financial report", async ({ page }) => {
+  await page.goto("/company/AGBA");
+
+  const card = page.getByTestId("company-insight-card");
+  const details = card.getByRole("button", { name: "Подробнее" });
+  await expect(card).toContainText(COMPANY_AI_REPORT.headline);
+  await expect(details).toBeVisible();
+  const sponsor = page.getByRole("complementary", { name: "Реклама" });
+  await expect(sponsor).toBeVisible();
+  const actionBox = await details.boundingBox();
+  const sponsorBox = await sponsor.boundingBox();
+  expect(actionBox).not.toBeNull();
+  expect(sponsorBox).not.toBeNull();
+  expect(actionBox.x + actionBox.width).toBeLessThanOrEqual(sponsorBox.x);
+  await details.click();
+
+  const dialog = page.getByRole("dialog", { name: "AI-финансовый отчёт AGBA" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText(COMPANY_AI_REPORT.paragraphs[0]);
+  await expect(dialog.getByRole("link", { name: /Финансовая отчётность NSBU/ }))
+    .toHaveAttribute("href", "https://openinfo.uz/report/agba-2025.pdf");
+  await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
+  await expect(page.getByRole("button", { name: "Закрыть AI-финансовый отчёт" })).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(details).toBeFocused();
+});
+
+test("company insight remains available for a company classified as a bond", async ({ page }) => {
+  await page.route("**/api/securities", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ...SECURITIES,
+      securities: {
+        ...SECURITIES.securities,
+        AGBA: { ...SECURITIES.securities.AGBA, security_type: "bond" },
+      },
+    }),
+  }));
+  await page.goto("/company/AGBA");
+
+  const card = page.getByTestId("company-insight-card");
+  await expect(card).toContainText(COMPANY_AI_REPORT.headline);
+  await expect(card.getByRole("button", { name: "Подробнее" })).toBeVisible();
+});
+
+test("company AI insight becomes a readable bottom sheet on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/company/AGBA");
+
+  const card = page.getByTestId("company-insight-card");
+  const details = card.getByRole("button", { name: "Подробнее" });
+  await expect(details).toBeVisible();
+  const cardBox = await card.boundingBox();
+  const buttonBox = await details.boundingBox();
+  expect(cardBox).not.toBeNull();
+  expect(buttonBox).not.toBeNull();
+  expect(Math.abs(buttonBox.width - (cardBox.width - 28))).toBeLessThanOrEqual(2);
+
+  await details.click();
+  const dialog = page.getByRole("dialog", { name: "AI-финансовый отчёт AGBA" });
+  await page.waitForTimeout(250); // Let the 200 ms sheet entrance animation settle.
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  expect(Math.abs(box.x)).toBeLessThan(1);
+  expect(Math.abs(box.width - 390)).toBeLessThan(1);
+  expect(Math.abs(box.y + box.height - 844)).toBeLessThan(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("company AI insight exposes a retry state when its report is unavailable", async ({ page }) => {
+  await page.route("**/api/v1/issuers/*/ai-report**", (route) => route.fulfill({
+    status: 503,
+    contentType: "application/json",
+    body: JSON.stringify({ detail: "temporarily unavailable" }),
+  }));
+  await page.goto("/company/AGBA");
+
+  const card = page.getByTestId("company-insight-card");
+  await expect(card).toContainText("Краткий AI-вывод сейчас недоступен.");
+  await expect(card.getByRole("button", { name: "Повторить" })).toBeVisible();
 });
 
 test("navigating to Анализ shows the analysis form", async ({ page }) => {
