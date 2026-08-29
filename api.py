@@ -5866,7 +5866,8 @@ async def api_analyze(
     payload: AnalyzeRequest,
     current_user: WebUser = Depends(_require_user),
 ) -> dict[str, Any]:
-    _enforce_llm_quota(current_user)
+    # The regular analysis path is now deterministic and NSBU-first; it does not
+    # spend LLM tokens, so an LLM quota must not block access to the report.
     try:
         result = await run_company_analysis(
             payload.company,
@@ -5900,6 +5901,10 @@ async def api_analyze(
         "from_cache": result.get("from_cache", False),
         "source": result.get("source", "fresh"),
         "cache_mode": result.get("cache_mode"),
+        "analysis_contract": result.get("analysis_contract"),
+        "analysis_status": result.get("analysis_status"),
+        "sector_template_code": result.get("sector_template_code"),
+        "template_version": result.get("template_version"),
         "summary": build_summary(result),
         "sections": result.get("sections", {}),
         "report_tables": result.get("report_tables"),
@@ -5920,6 +5925,10 @@ async def api_analyze(
         "report_comparison": result.get("report_comparison"),
         "analysis_policy_version": result.get("analysis_policy_version"),
         "analysis_policy": result.get("analysis_policy"),
+        "verified_facts": result.get("verified_facts"),
+        "regulatory_compliance": result.get("regulatory_compliance"),
+        "data_quality": result.get("data_quality"),
+        "balance_check": result.get("balance_check"),
         # ТЗ §3.3: mandatory, non-removable disclaimer travels inside every report payload.
         "disclaimer": report_disclaimer(result.get("language", payload.language)),
         "requested_by": current_user.to_public_dict(),
