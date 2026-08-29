@@ -81,6 +81,45 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             sync_error      TEXT
         );
 
+        -- Admin-reviewed imports from the exchange/OpenInfo discovery path.
+        -- ``catalog_companies`` remains the operational ticker -> org map used
+        -- by the collectors; this companion table records whether a discovered
+        -- security has been reviewed for the public product and preserves the
+        -- source snapshot plus any explicit correction the reviewer made.
+        CREATE TABLE IF NOT EXISTS catalog_company_imports (
+            ticker          TEXT PRIMARY KEY,
+            company_name    TEXT NOT NULL,
+            org_id          TEXT,
+            isin            TEXT,
+            security_type   TEXT,
+            share_type      TEXT,
+            sector          TEXT NOT NULL DEFAULT 'other',
+            logo_url        TEXT,
+            resolved_by     TEXT,
+            status          TEXT NOT NULL DEFAULT 'pending',
+            source_payload  TEXT,
+            review_note     TEXT,
+            reviewed_by     TEXT,
+            reviewed_at     TEXT,
+            sync_status     TEXT,
+            sync_error      TEXT,
+            discovered_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_company_import_status
+            ON catalog_company_imports(status, updated_at);
+
+        CREATE TABLE IF NOT EXISTS catalog_company_import_events (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker      TEXT NOT NULL,
+            action      TEXT NOT NULL,
+            actor       TEXT,
+            detail      TEXT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_company_import_event_ticker
+            ON catalog_company_import_events(ticker, created_at);
+
         -- What the catalog knows about itself. One row so far: when the last
         -- FULL sweep finished. That cannot be derived from the company stamps —
         -- the hourly pass refreshes a handful, so the newest is always minutes
@@ -1486,10 +1525,19 @@ def discover_and_upsert_securities() -> dict[str, Any]:
                 )
             upserted += 1
     conn.close()
+    queued = 0
+    try:
+        import company_imports
+
+        queued = len(company_imports.record_discovered_candidates(
+            recs, actor="catalog discovery"))
+    except Exception:  # noqa: BLE001 — operational discovery must still finish
+        logger.exception("company import queue update failed")
     resolved = sum(1 for r in recs if r.get("org_id"))
     orgs = {r["org_id"] for r in recs if r.get("org_id")}
     return {"discovered": len(recs), "resolved": resolved, "distinct_orgs": len(orgs),
-            "upserted": upserted, "corrected": corrected, "records": recs}
+            "upserted": upserted, "corrected": corrected, "queued": queued,
+            "records": recs}
 
 
 def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[str, Any]:
@@ -1809,6 +1857,8 @@ def _report_key(row: Any) -> tuple:
 
 
 def get_company_index(ticker: str) -> dict[str, Any]:
+    import company_imports
+
     conn = get_catalog_conn()
     company_row = conn.execute(
         "SELECT company_name, org_id, last_synced_at FROM catalog_companies WHERE ticker = ?",
@@ -1870,10 +1920,12 @@ def get_company_index(ticker: str) -> dict[str, Any]:
         bucket = availability.setdefault(form, {"annual": [], "quarter": []})
         bucket.setdefault(pt, []).append(entry)
 
+    imported = company_imports.approved_metadata_map().get(ticker) or {}
     return {
         "ticker": ticker,
-        "company_name": company_row["company_name"] if company_row else _TICKER_TO_NAME.get(ticker, ticker),
-        "sector": COMPANY_SECTORS.get(ticker),
+        "company_name": (imported.get("company_name")
+                         or (company_row["company_name"] if company_row else _TICKER_TO_NAME.get(ticker, ticker))),
+        "sector": imported.get("sector") or COMPANY_SECTORS.get(ticker),
         "org_id": company_row["org_id"] if company_row else None,
         "last_synced_at": company_row["last_synced_at"] if company_row else None,
         # Every ticker of this issuer — the entry stands for all of them.

@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 
 from analysis_service import build_analysis_excel, build_analysis_pdf, build_company_comparison, build_comparison_excel, build_comparison_pdf, build_summary, report_disclaimer, run_company_analysis  # noqa: E402
+import company_imports  # noqa: E402
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from delisted import DELISTED_ISINS, DELISTED_TICKERS, is_delisted_isin
 from financial_corrections import correction_periods_for
@@ -533,6 +534,22 @@ class FavoriteToggleRequest(BaseModel):
 class CatalogSyncRequest(BaseModel):
     ticker: str | None = Field(default=None, max_length=40)
     force: bool = False
+
+
+class AdminCompanyApproveRequest(BaseModel):
+    company_name: str | None = Field(default=None, max_length=240)
+    org_id: str | None = Field(default=None, max_length=80)
+    isin: str | None = Field(default=None, max_length=20)
+    sector: str | None = Field(default=None, max_length=40)
+    logo_url: str | None = Field(default=None, max_length=1000)
+    security_type: str | None = Field(default=None, max_length=40)
+    share_type: str | None = Field(default=None, max_length=40)
+    review_note: str | None = Field(default=None, max_length=2000)
+    sync: bool = True
+
+
+class AdminCompanyRejectRequest(BaseModel):
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class CatalogAnalyzeRequest(BaseModel):
@@ -1049,18 +1066,32 @@ async def index() -> FileResponse:
 
 @app.get("/api/companies")
 async def api_companies() -> dict[str, Any]:
+    # Static entries remain the migration fallback; companies approved in the
+    # admin import flow override them and append newly discovered tickers.  This
+    # is the list used by search and AI analysis, so approval becomes visible
+    # without editing company_catalog.py or redeploying the application.
+    approved = await asyncio.get_running_loop().run_in_executor(
+        None, company_imports.approved_metadata_map)
+    companies: dict[str, dict[str, Any]] = {
+        ticker.upper(): {
+            "company_name": name,
+            "ticker": ticker.upper(),
+            "sector": COMPANY_SECTORS.get(ticker.upper(), "other"),
+            "logo": resolve_logo(ticker, COMPANY_LOGOS) or "",
+        }
+        for name, ticker in COMPANY_CATALOG.items()
+    }
+    for ticker, item in approved.items():
+        companies[ticker] = {
+            "company_name": item.get("company_name") or ticker,
+            "ticker": ticker,
+            "sector": item.get("sector") or "other",
+            "logo": item.get("logo_url") or companies.get(ticker, {}).get("logo", ""),
+        }
     return {
         "ok": True,
-        "count": len(COMPANY_CATALOG),
-        "companies": [
-            {
-                "company_name": name,
-                "ticker": ticker,
-                "sector": COMPANY_SECTORS.get(ticker, "other"),
-                "logo": resolve_logo(ticker, COMPANY_LOGOS) or "",
-            }
-            for name, ticker in COMPANY_CATALOG.items()
-        ],
+        "count": len(companies),
+        "companies": sorted(companies.values(), key=lambda item: item["ticker"]),
     }
 
 
@@ -4157,6 +4188,148 @@ def _require_admin_user(current_user: WebUser = Depends(_require_user)) -> WebUs
     return current_user
 
 
+_admin_company_syncs: set[str] = set()
+_admin_company_syncs_lock = threading.Lock()
+
+
+def _sync_approved_company(ticker: str) -> None:
+    """Run one approved import through the existing report collector."""
+    ticker = ticker.upper()
+    try:
+        company_imports.set_sync_status(ticker, "running")
+        metadata = company_imports.approved_metadata_map().get(ticker) or {}
+        if not metadata:
+            raise RuntimeError("company is not approved")
+        result = catalog_sync_company(
+            ticker,
+            str(metadata.get("company_name") or ticker),
+            force=True,
+            org_id=str(metadata.get("org_id") or "") or None,
+        )
+        errors = result.get("errors") if isinstance(result, dict) else None
+        if errors:
+            company_imports.set_sync_status(ticker, "failed", "; ".join(map(str, errors)))
+        else:
+            company_imports.set_sync_status(ticker, "complete")
+    except Exception as exc:  # noqa: BLE001 - status is the admin-facing result
+        logger.exception("admin company sync failed for %s", ticker)
+        company_imports.set_sync_status(ticker, "failed", str(exc))
+    finally:
+        with _admin_company_syncs_lock:
+            _admin_company_syncs.discard(ticker)
+
+
+def _schedule_company_sync(ticker: str) -> bool:
+    ticker = ticker.upper()
+    with _admin_company_syncs_lock:
+        if ticker in _admin_company_syncs:
+            return False
+        _admin_company_syncs.add(ticker)
+    company_imports.set_sync_status(ticker, "queued")
+    asyncio.get_running_loop().run_in_executor(None, _sync_approved_company, ticker)
+    return True
+
+
+@app.get("/api/admin/companies")
+async def api_admin_companies(
+    status: str | None = None,
+    _: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Review queue for securities discovered from UZSE and OpenInfo."""
+    try:
+        return _json_safe(company_imports.list_imports(status))
+    except company_imports.CompanyImportError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/admin/companies/discover")
+async def api_admin_companies_discover(
+    force: bool = False,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Refresh the queue from the authoritative exchange/OpenInfo sources."""
+    try:
+        result = await asyncio.get_running_loop().run_in_executor(
+            None,
+            partial(company_imports.refresh_candidates, force=force, actor=current_user.email),
+        )
+        return _json_safe(result)
+    except (requests.RequestException, LookupError) as exc:
+        raise HTTPException(status_code=502, detail=f"Company discovery failed: {exc}") from exc
+
+
+@app.get("/api/admin/companies/{ticker}/preview")
+async def api_admin_company_preview(
+    ticker: str,
+    refresh: bool = True,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Resolve one ticker and return the exact facts an admin will approve."""
+    try:
+        result = await asyncio.get_running_loop().run_in_executor(
+            None,
+            partial(company_imports.preview_import, ticker, refresh=refresh,
+                    actor=current_user.email),
+        )
+        return _json_safe({"ok": True, "company": result})
+    except company_imports.CompanyImportError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"OpenInfo is unavailable: {exc}") from exc
+
+
+@app.post("/api/admin/companies/{ticker}/approve")
+async def api_admin_company_approve(
+    ticker: str,
+    payload: AdminCompanyApproveRequest,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Publish a reviewed candidate and optionally start its first sync."""
+    try:
+        company = await asyncio.get_running_loop().run_in_executor(
+            None,
+            partial(company_imports.approve_import, ticker,
+                    payload.model_dump(exclude={"sync"}, exclude_none=True),
+                    actor=current_user.email),
+        )
+        started = _schedule_company_sync(ticker) if payload.sync else False
+        return _json_safe({"ok": True, "company": company,
+                           "sync_started": started, "sync_requested": payload.sync})
+    except company_imports.CompanyImportError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/admin/companies/{ticker}/reject")
+async def api_admin_company_reject(
+    ticker: str,
+    payload: AdminCompanyRejectRequest,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    try:
+        company = await asyncio.get_running_loop().run_in_executor(
+            None,
+            partial(company_imports.reject_import, ticker, actor=current_user.email,
+                    note=payload.note),
+        )
+        return _json_safe({"ok": True, "company": company})
+    except company_imports.CompanyImportError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/admin/companies/{ticker}/sync")
+async def api_admin_company_sync(
+    ticker: str,
+    _: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    metadata = company_imports.approved_metadata_map().get(ticker.upper())
+    if not metadata:
+        raise HTTPException(status_code=409, detail="Approve the company before syncing it")
+    started = _schedule_company_sync(ticker)
+    return {"ok": True, "ticker": ticker.upper(), "started": started}
+
+
 @app.get("/api/news/agent-search")
 async def api_news_agent_search(
     q: str,
@@ -5081,7 +5254,10 @@ async def api_securities_info(ticker: str, language: str = "ru") -> dict[str, An
     ticker = ticker.upper()
     try:
         loop = asyncio.get_running_loop()
-        smap = await loop.run_in_executor(None, get_securities_map)
+        smap, approved = await asyncio.gather(
+            loop.run_in_executor(None, get_securities_map),
+            loop.run_in_executor(None, company_imports.approved_metadata_map),
+        )
         sec = smap.get(ticker)
         if not sec:
             # The securities map is filled from the live trading feed only, so
@@ -5965,9 +6141,13 @@ async def api_catalog_status() -> dict[str, Any]:
 async def api_catalog_companies() -> dict[str, Any]:
     try:
         companies = list_companies_with_stats()
+        approved = company_imports.approved_metadata_map()
         for c in companies:
-            c["logo"] = resolve_logo(c.get("ticker", ""), COMPANY_LOGOS) or ""
-            c["sector"] = COMPANY_SECTORS.get(c.get("ticker", ""), "other")
+            ticker = str(c.get("ticker") or "").upper()
+            imported = approved.get(ticker) or {}
+            c["company_name"] = imported.get("company_name") or c.get("company_name")
+            c["logo"] = imported.get("logo_url") or resolve_logo(ticker, COMPANY_LOGOS) or ""
+            c["sector"] = imported.get("sector") or COMPANY_SECTORS.get(ticker, "other")
         return {"ok": True, "count": len(companies), "companies": companies}
     except Exception as exc:
         logger.exception("Catalog companies list failed")
@@ -5999,11 +6179,14 @@ async def api_catalog_sync(
     try:
         if payload.ticker:
             ticker = payload.ticker.upper()
-            company_name = _TICKER_TO_NAME.get(ticker)
+            imported = company_imports.approved_metadata_map().get(ticker) or {}
+            company_name = (_TICKER_TO_NAME.get(ticker)
+                            or imported.get("company_name"))
             if not company_name:
                 raise HTTPException(status_code=404, detail=f"Unknown ticker: {ticker}")
             result = await loop.run_in_executor(
-                None, partial(catalog_sync_company, ticker, company_name, force=payload.force)
+                None, partial(catalog_sync_company, ticker, company_name, force=payload.force,
+                              org_id=imported.get("org_id"))
             )
         else:
             result = await loop.run_in_executor(
@@ -6023,8 +6206,9 @@ async def api_catalog_analyze(
     current_user: WebUser = Depends(_require_user),
 ) -> dict[str, Any]:
     ticker = payload.ticker.upper()
-    company_name = _TICKER_TO_NAME.get(ticker, ticker)
     loop = asyncio.get_running_loop()
+    approved = await loop.run_in_executor(None, company_imports.approved_metadata_map)
+    company_name = _TICKER_TO_NAME.get(ticker) or (approved.get(ticker) or {}).get("company_name") or ticker
     form_map = {"NSBU": "NAS", "MSFO": "IFRS", "Audition": "Audit"}
 
     try:
@@ -6044,9 +6228,12 @@ async def api_catalog_analyze(
                     await loop.run_in_executor(None, partial(upsert_ratio_cache, ticker, payload.form, payload.year, payload.quarter, ratios["metrics"]))
                 except Exception:
                     pass
-            # Sector peers — COMPANY_SECTORS is {ticker: sector_name}
-            sector = COMPANY_SECTORS.get(ticker)
-            sector_peers = [t for t, s in COMPANY_SECTORS.items() if s == sector and t != ticker] if sector else []
+            # Approved imports extend the legacy static sector map immediately.
+            sectors = {**COMPANY_SECTORS,
+                       **{t: item.get("sector") for t, item in approved.items()
+                          if item.get("sector")}}
+            sector = sectors.get(ticker)
+            sector_peers = [t for t, s in sectors.items() if s == sector and t != ticker] if sector else []
             sector_avg: dict = {}
             if sector_peers:
                 try:
@@ -6087,7 +6274,9 @@ async def api_catalog_analyze(
         if payload.analysis_type == "multi_company":
             _enforce_llm_quota(current_user)
             compare_ticker = (payload.compare_ticker or "").upper()
-            compare_name = _TICKER_TO_NAME.get(compare_ticker, compare_ticker)
+            compare_name = (_TICKER_TO_NAME.get(compare_ticker)
+                            or (approved.get(compare_ticker) or {}).get("company_name")
+                            or compare_ticker)
             if not compare_name:
                 raise HTTPException(status_code=400, detail="compare_ticker is required")
             result = await loop.run_in_executor(

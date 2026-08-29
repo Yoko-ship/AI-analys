@@ -550,3 +550,110 @@
   .admin-funnel-step { grid-template-columns: minmax(110px, 38%) 1fr 96px; }
   .admin-filters .admin-seg { width: 100%; max-width: 100%; overflow-x: auto; }
 }
+
+/* ── OpenInfo company import ────────────────────────────────────────────── */
+.admin-company-intake { display: grid; gap: 16px; }
+.admin-company-lookup {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.admin-company-lookup label { display: grid; gap: 6px; min-width: min(280px, 100%); }
+.admin-company-lookup label > span,
+.admin-company-form label > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+.admin-company-lookup .admin-input { width: 100%; min-width: 0; text-transform: uppercase; }
+.admin-company-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 8px 11px;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border));
+  border-radius: var(--radius-sm, 10px);
+  background: color-mix(in srgb, var(--success) 8%, var(--panel));
+  color: var(--text);
+  font-size: 0.84rem;
+}
+.admin-company-review { display: grid; gap: 16px; }
+.admin-company-warnings {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-company-warnings > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--border));
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.admin-company-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+.admin-company-form label { display: grid; align-content: start; gap: 7px; min-width: 0; }
+.admin-company-form label.wide { grid-column: 1 / -1; }
+.admin-company-form input,
+.admin-company-form select,
+.admin-company-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--surface-1);
+  color: var(--text);
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 0.86rem;
+  outline: none;
+}
+.admin-company-form textarea { resize: vertical; line-height: 1.5; }
+.admin-company-form input:focus,
+.admin-company-form select:focus,
+.admin-company-form textarea:focus { border-color: var(--accent); }
+.admin-company-logo-field {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.admin-company-logo-field img,
+.admin-company-logo-empty {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  object-fit: contain;
+  padding: 4px;
+}
+.admin-company-logo-empty {
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 700;
+  padding: 0;
+}
+.admin-company-actions,
+.admin-company-row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-company-row-actions { justify-content: flex-end; }
+.admin-company-table { min-width: 920px !important; }
+.admin-company-table .admin-rule { max-width: 360px; }
+
+@media (max-width: 700px) {
+  .admin-company-form { grid-template-columns: 1fr; }
+  .admin-company-form label.wide { grid-column: auto; }
+  .admin-company-lookup { align-items: stretch; }
+  .admin-company-lookup label,
+  .admin-company-lookup .admin-btn { width: 100%; }
+}

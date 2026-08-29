@@ -99,6 +99,25 @@ function fmtDay(iso) {
   return parts.length === 3 ? `${parts[2]}.${parts[1]}` : String(iso || "");
 }
 
+function companyDraftOf(item) {
+  if (!item) return null;
+  return {
+    ticker: String(item.ticker || "").toUpperCase(),
+    company_name: item.company_name || "",
+    org_id: item.org_id || "",
+    isin: item.isin || "",
+    sector: item.sector || "other",
+    logo_url: item.logo_url || "",
+    security_type: item.security_type || "stock",
+    share_type: item.share_type || "",
+    review_note: item.review_note || "",
+    warnings: item.warnings || [],
+    can_approve: item.can_approve !== false && Boolean(item.org_id),
+    status: item.status || "pending",
+    sync_status: item.sync_status || "",
+  };
+}
+
 const SEVERITY_TONE = { blocking: "err", warning: "warn", info: "ok" };
 
 /* ── sections ─────────────────────────────────────────────────────────────── */
@@ -123,6 +142,7 @@ const SECTIONS = [
 /** Sub-tabs of «Система». The key "system" itself is the data overview. */
 const SYSTEM_SECTIONS = [
   { key: "system", title: ["Данные", "Ma'lumotlar", "Data"] },
+  { key: "companies", title: ["Компании", "Kompaniyalar", "Companies"] },
   { key: "streams", title: ["Сборщики", "Yig'uvchilar", "Collectors"] },
   { key: "findings", title: ["Аудит", "Audit", "Audit"] },
   { key: "intake", title: ["Отчёты", "Hisobotlar", "Statements"] },
@@ -439,6 +459,12 @@ export default function AdminPanel({
   const [ledgerTicker, setLedgerTicker] = useState("");
   const [ruleBook, setRuleBook] = useState(null);
   const [source, setSource] = useState(null);
+  const [companyImports, setCompanyImports] = useState(null);
+  const [companyLookup, setCompanyLookup] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("pending");
+  const [companyDraft, setCompanyDraft] = useState(null);
+  const [companyNotice, setCompanyNotice] = useState("");
+  const [companyBusy, setCompanyBusy] = useState("");
   const [selected, setSelected] = useState(() => new Set());
 
   const [error, setError] = useState("");
@@ -550,6 +576,131 @@ export default function AdminPanel({
     if (alive.current) setSource(data);
   }, [readJson]);
 
+  const loadCompanyImports = useCallback(async (status = companyFilter) => {
+    const suffix = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
+    const data = await readJson(`/api/admin/companies${suffix}`);
+    if (alive.current) setCompanyImports(data);
+  }, [companyFilter, readJson]);
+
+  const discoverCompanies = useCallback(async () => {
+    setCompanyBusy("discover");
+    setCompanyNotice("");
+    setError("");
+    try {
+      const data = await readJson("/api/admin/companies/discover", { method: "POST" });
+      if (alive.current) {
+        setCompanyImports(companyFilter === "all" ? data : {
+          ...data,
+          items: (data.items || []).filter((item) => item.status === companyFilter),
+        });
+        setCompanyNotice(t(
+          `Проверено бумаг: ${data.seen ?? data.discovered ?? 0}`,
+          `Tekshirilgan qog'ozlar: ${data.seen ?? data.discovered ?? 0}`,
+          `Securities checked: ${data.seen ?? data.discovered ?? 0}`,
+        ));
+      }
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      if (alive.current) setCompanyBusy("");
+    }
+  }, [companyFilter, readJson, t]);
+
+  const previewCompany = useCallback(async (ticker, refresh = true) => {
+    const one = String(ticker || "").trim().toUpperCase();
+    if (!one) return;
+    setCompanyBusy(`preview:${one}`);
+    setCompanyNotice("");
+    setError("");
+    try {
+      const data = await readJson(
+        `/api/admin/companies/${encodeURIComponent(one)}/preview?refresh=${refresh ? "true" : "false"}`,
+      );
+      if (alive.current) {
+        setCompanyLookup(one);
+        setCompanyDraft(companyDraftOf(data.company));
+      }
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      if (alive.current) setCompanyBusy("");
+    }
+  }, [readJson]);
+
+  const approveCompany = useCallback(async () => {
+    if (!companyDraft) return;
+    setCompanyBusy(`approve:${companyDraft.ticker}`);
+    setCompanyNotice("");
+    setError("");
+    try {
+      const body = {
+        company_name: companyDraft.company_name,
+        org_id: companyDraft.org_id,
+        isin: companyDraft.isin || null,
+        sector: companyDraft.sector,
+        logo_url: companyDraft.logo_url || null,
+        security_type: companyDraft.security_type,
+        share_type: companyDraft.share_type || null,
+        review_note: companyDraft.review_note || null,
+        sync: true,
+      };
+      const data = await readJson(
+        `/api/admin/companies/${encodeURIComponent(companyDraft.ticker)}/approve`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      if (alive.current) {
+        setCompanyDraft(companyDraftOf(data.company));
+        setCompanyNotice(data.sync_started
+          ? t("Компания опубликована, синхронизация запущена.", "Kompaniya e'lon qilindi, sinxronlash boshlandi.", "Company published; synchronization started.")
+          : t("Компания опубликована.", "Kompaniya e'lon qilindi.", "Company published."));
+        await loadCompanyImports(companyFilter);
+      }
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      if (alive.current) setCompanyBusy("");
+    }
+  }, [companyDraft, companyFilter, loadCompanyImports, readJson, t]);
+
+  const rejectCompany = useCallback(async (item) => {
+    const one = String(item?.ticker || companyDraft?.ticker || "").toUpperCase();
+    if (!one) return;
+    setCompanyBusy(`reject:${one}`);
+    setCompanyNotice("");
+    setError("");
+    try {
+      await readJson(`/api/admin/companies/${encodeURIComponent(one)}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ note: item?.review_note || companyDraft?.review_note || null }),
+      });
+      if (companyDraft?.ticker === one) setCompanyDraft(null);
+      await loadCompanyImports(companyFilter);
+      setCompanyNotice(t("Кандидат отклонён.", "Nomzod rad etildi.", "Candidate rejected."));
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      if (alive.current) setCompanyBusy("");
+    }
+  }, [companyDraft, companyFilter, loadCompanyImports, readJson, t]);
+
+  const syncCompany = useCallback(async (ticker) => {
+    const one = String(ticker || "").toUpperCase();
+    setCompanyBusy(`sync:${one}`);
+    setCompanyNotice("");
+    setError("");
+    try {
+      const data = await readJson(`/api/admin/companies/${encodeURIComponent(one)}/sync`, { method: "POST" });
+      setCompanyNotice(data.started
+        ? t("Синхронизация запущена.", "Sinxronlash boshlandi.", "Synchronization started.")
+        : t("Синхронизация уже идёт.", "Sinxronlash davom etmoqda.", "Synchronization is already running."));
+      await loadCompanyImports(companyFilter);
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      if (alive.current) setCompanyBusy("");
+    }
+  }, [companyFilter, loadCompanyImports, readJson, t]);
+
   const loadLedger = useCallback(async (ticker) => {
     const one = String(ticker || "").trim().toUpperCase();
     if (!one) return;
@@ -580,7 +731,8 @@ export default function AdminPanel({
     const jobs = [];
     if (isSystem) {
       jobs.push(loadOverview());
-      if (section === "findings") jobs.push(loadFindings());
+      if (section === "companies") jobs.push(loadCompanyImports(companyFilter));
+      else if (section === "findings") jobs.push(loadFindings());
       else if (section === "intake") jobs.push(loadIntake());
       else if (section === "rules") jobs.push(loadRuleBook());
       else if (section === "source") jobs.push(loadSource());
@@ -603,7 +755,8 @@ export default function AdminPanel({
     // filter click, not on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, rangeDays, usersOnly, isSystem, loadOverview, loadFindings, loadIntake,
-      loadRuleBook, loadSource, loadMetrics, loadAudience, loadEngagement, loadAnalysis]);
+      loadRuleBook, loadSource, loadCompanyImports, companyFilter,
+      loadMetrics, loadAudience, loadEngagement, loadAnalysis]);
 
   const runAudit = async () => {
     setBusy(true);
@@ -690,6 +843,10 @@ export default function AdminPanel({
       "Состояние данных: что собрано, что требует решения. Служебная половина панели — один взгляд, когда карточка крона красная.",
       "Ma'lumotlar holati: nima yig'ilgan, nima qaror kutmoqda.",
       "The state of the data: what was collected, what needs a decision. The operations half, one look when a cron card goes red."),
+    companies: t(
+      "Новые бумаги приходят с UZSE и OpenInfo автоматически. Здесь администратор проверяет точное соответствие эмитента и публикует компанию без правки кода.",
+      "Yangi qog'ozlar UZSE va OpenInfo'dan avtomatik keladi; administrator ularni tekshiradi va e'lon qiladi.",
+      "New securities arrive automatically from UZSE and OpenInfo. Review the issuer match here and publish without a code change."),
     streams: t(
       "Показана последняя запись в таблице, которую пишет служба, а не её код возврата: сборщики работают отдельными сервисами и в этот процесс не отчитываются.",
       "Xizmat yozadigan jadvaldagi oxirgi yozuv ko'rsatilgan.",
@@ -1545,6 +1702,193 @@ export default function AdminPanel({
     </div>
   );
 
+  /* ── Система · Компании (OpenInfo import review) ─────────────────────── */
+  const companyItems = (companyImports && companyImports.items) || [];
+  const companySummary = (companyImports && companyImports.summary) || {};
+  const sectorTitles = {
+    finance: t("Финансы", "Moliya", "Finance"),
+    manufacturing: t("Промышленность", "Sanoat", "Manufacturing"),
+    mining: t("Добыча", "Konchilik", "Mining"),
+    transport: t("Транспорт", "Transport", "Transport"),
+    logistics: t("Логистика", "Logistika", "Logistics"),
+    telecom: t("Телеком", "Telekom", "Telecom"),
+    professional: t("Профессиональные услуги", "Professional xizmatlar", "Professional services"),
+    trade: t("Торговля", "Savdo", "Trade"),
+    funds: t("Фонды", "Fondlar", "Funds"),
+    other: t("Прочее", "Boshqa", "Other"),
+  };
+  const syncTitle = (value) => ({
+    queued: t("в очереди", "navbatda", "queued"),
+    running: t("синхронизация", "sinxronlash", "syncing"),
+    complete: t("готово", "tayyor", "complete"),
+    failed: t("ошибка", "xato", "failed"),
+  }[value] || t("не запускалась", "ishga tushmagan", "not started"));
+
+  const companiesBody = (
+    <div className="admin-section">
+      <div className="admin-stats">
+        <Stat label={t("Ждут проверки", "Tekshiruv kutilmoqda", "Awaiting review")}
+              value={fmtInt(companySummary.pending)} warn={Boolean(companySummary.pending)}
+              line1={t("Обнаружены UZSE/OpenInfo", "UZSE/OpenInfo topdi", "Discovered by UZSE/OpenInfo")} />
+        <Stat label={t("Опубликованы", "E'lon qilingan", "Published")}
+              value={fmtInt(companySummary.approved)}
+              line1={t("Доступны без деплоя", "Deploysiz mavjud", "Available without a deploy")} />
+        <Stat label={t("Отклонены", "Rad etilgan", "Rejected")}
+              value={fmtInt(companySummary.rejected)}
+              line1={t("Сохраняются в журнале", "Jurnalda saqlanadi", "Kept in the audit trail")} />
+        <Stat label={t("Без OpenInfo ID", "OpenInfo ID yo'q", "Missing OpenInfo ID")}
+              value={fmtInt(companyImports && companyImports.unresolved)}
+              warn={Boolean(companyImports && companyImports.unresolved)}
+              line1={t("Нельзя публиковать", "E'lon qilib bo'lmaydi", "Cannot be published")} />
+      </div>
+
+      <div className="panel admin-company-intake">
+        <div className="admin-panel-head">
+          <div>
+            <h2>{t("Импортировать компанию", "Kompaniyani import qilish", "Import a company")}</h2>
+            <p className="admin-muted admin-note">
+              {t("Введите тикер — название, ISIN и эмитент будут взяты из UZSE и OpenInfo.",
+                 "Tickerni kiriting — nom, ISIN va emitent UZSE va OpenInfo'dan olinadi.",
+                 "Enter a ticker; name, ISIN, and issuer are read from UZSE and OpenInfo.")}
+            </p>
+          </div>
+          <button type="button" className="admin-btn" disabled={Boolean(companyBusy)} onClick={discoverCompanies}>
+            <Icon name={companyBusy === "discover" ? "clock" : "refresh"} />
+            {companyBusy === "discover"
+              ? t("Проверяем источники…", "Manbalar tekshirilmoqda…", "Checking sources…")
+              : t("Найти новые", "Yangilarini topish", "Discover new")}
+          </button>
+        </div>
+        <form className="admin-company-lookup" onSubmit={(event) => { event.preventDefault(); previewCompany(companyLookup, true); }}>
+          <label>
+            <span>{t("Тикер", "Ticker", "Ticker")}</span>
+            <input className="admin-input" value={companyLookup}
+                   onChange={(event) => setCompanyLookup(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                   placeholder="UZTL" maxLength={40} />
+          </label>
+          <button type="submit" className="admin-btn accent" disabled={!companyLookup || Boolean(companyBusy)}>
+            <Icon name={companyBusy.startsWith("preview:") ? "clock" : "search"} />
+            {t("Проверить OpenInfo", "OpenInfo'ni tekshirish", "Check OpenInfo")}
+          </button>
+        </form>
+        {companyNotice ? <div className="admin-company-notice"><span className="admin-dot ok" />{companyNotice}</div> : null}
+      </div>
+
+      {companyDraft ? (
+        <div className="panel admin-company-review">
+          <div className="admin-panel-head">
+            <div>
+              <div className="panel-label">{t("Предпросмотр источника", "Manba ko'rinishi", "Source preview")}</div>
+              <h2>{companyDraft.ticker} · {companyDraft.company_name || t("Без названия", "Nomsiz", "Unnamed")}</h2>
+            </div>
+            <span className="admin-pill">
+              <span className={`admin-dot ${companyDraft.org_id ? "ok" : "err"}`} />
+              {companyDraft.org_id ? `OpenInfo ${companyDraft.org_id}` : t("OpenInfo не найден", "OpenInfo topilmadi", "OpenInfo unresolved")}
+            </span>
+          </div>
+
+          {companyDraft.warnings.length ? (
+            <div className="admin-company-warnings">
+              {companyDraft.warnings.map((warning) => <span key={warning}><span className="admin-dot warn" />{warning}</span>)}
+            </div>
+          ) : null}
+
+          <div className="admin-company-form">
+            <label className="wide"><span>{t("Официальное название", "Rasmiy nomi", "Official name")}</span>
+              <input value={companyDraft.company_name} onChange={(event) => setCompanyDraft({ ...companyDraft, company_name: event.target.value })} /></label>
+            <label><span>{t("OpenInfo org ID", "OpenInfo org ID", "OpenInfo org ID")}</span>
+              <input value={companyDraft.org_id} onChange={(event) => setCompanyDraft({ ...companyDraft, org_id: event.target.value })} /></label>
+            <label><span>ISIN</span>
+              <input value={companyDraft.isin} onChange={(event) => setCompanyDraft({ ...companyDraft, isin: event.target.value.toUpperCase() })} /></label>
+            <label><span>{t("Сектор", "Sektor", "Sector")}</span>
+              <select value={companyDraft.sector} onChange={(event) => setCompanyDraft({ ...companyDraft, sector: event.target.value })}>
+                {Object.entries(sectorTitles).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select></label>
+            <label><span>{t("Тип бумаги", "Qog'oz turi", "Security type")}</span>
+              <select value={companyDraft.security_type} onChange={(event) => setCompanyDraft({ ...companyDraft, security_type: event.target.value })}>
+                <option value="stock">{t("Акция", "Aksiya", "Stock")}</option>
+                <option value="bond">{t("Облигация", "Obligatsiya", "Bond")}</option>
+                <option value="fund">{t("Фонд", "Fond", "Fund")}</option>
+                <option value="other">{t("Прочее", "Boshqa", "Other")}</option>
+              </select></label>
+            <label className="wide"><span>{t("Логотип из OpenInfo", "OpenInfo logotipi", "OpenInfo logo")}</span>
+              <div className="admin-company-logo-field">
+                {companyDraft.logo_url ? <img src={companyDraft.logo_url} alt="" /> : <span className="admin-company-logo-empty">{companyDraft.ticker.slice(0, 2)}</span>}
+                <input value={companyDraft.logo_url} onChange={(event) => setCompanyDraft({ ...companyDraft, logo_url: event.target.value })} placeholder="https://…" />
+              </div></label>
+            <label className="wide"><span>{t("Причина ручной коррекции", "Qo'lda tuzatish sababi", "Reason for a manual correction")}</span>
+              <textarea rows="3" value={companyDraft.review_note} onChange={(event) => setCompanyDraft({ ...companyDraft, review_note: event.target.value })}
+                        placeholder={t("Оставьте пустым, если данные источника верны", "Manba to'g'ri bo'lsa bo'sh qoldiring", "Leave blank when the source is correct")} /></label>
+          </div>
+
+          <div className="admin-company-actions">
+            <button type="button" className="admin-btn accent" disabled={!companyDraft.org_id || Boolean(companyBusy)} onClick={approveCompany}>
+              <Icon name={companyBusy.startsWith("approve:") ? "clock" : "check"} />
+              {companyDraft.status === "approved"
+                ? t("Сохранить и синхронизировать", "Saqlash va sinxronlash", "Save and synchronize")
+                : t("Опубликовать и синхронизировать", "E'lon qilish va sinxronlash", "Publish and synchronize")}
+            </button>
+            {companyDraft.status !== "approved" ? (
+              <button type="button" className="admin-btn danger" disabled={Boolean(companyBusy)} onClick={() => rejectCompany(companyDraft)}>
+                {t("Отклонить", "Rad etish", "Reject")}
+              </button>
+            ) : null}
+            <button type="button" className="admin-btn" onClick={() => setCompanyDraft(null)}>
+              {t("Закрыть", "Yopish", "Close")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="panel">
+        <div className="admin-panel-bar">
+          <div className="admin-seg">
+            {["pending", "approved", "rejected", "all"].map((status) => (
+              <button type="button" key={status} aria-selected={companyFilter === status}
+                      onClick={() => setCompanyFilter(status)}>
+                {status === "pending" ? t("На проверке", "Tekshiruvda", "Pending")
+                  : status === "approved" ? t("Опубликованы", "E'lon qilingan", "Published")
+                    : status === "rejected" ? t("Отклонены", "Rad etilgan", "Rejected")
+                      : t("Все", "Barchasi", "All")}
+                {status !== "all" ? <span className="n">{fmtInt(companySummary[status])}</span> : null}
+              </button>
+            ))}
+          </div>
+          <span className="admin-sp" />
+          <button type="button" className="admin-btn sm" onClick={() => loadCompanyImports(companyFilter)} disabled={Boolean(companyBusy)}>
+            <Icon name="refresh" />{t("Обновить", "Yangilash", "Refresh")}
+          </button>
+        </div>
+        <div className="admin-scroll">
+          <table className="admin-company-table">
+            <thead><tr>
+              <th>{t("Компания", "Kompaniya", "Company")}</th>
+              <th>{t("Идентификаторы", "Identifikatorlar", "Identifiers")}</th>
+              <th>{t("Разрешение", "Moslik", "Resolution")}</th>
+              <th>{t("Синхронизация", "Sinxronlash", "Synchronization")}</th>
+              <th className="r">{t("Действие", "Amal", "Action")}</th>
+            </tr></thead>
+            <tbody>
+              {!companyItems.length ? <tr><td colSpan={5}><div className="admin-empty"><b>{t("Список пуст", "Ro'yxat bo'sh", "Nothing here")}</b>{companyFilter === "pending" ? t("Запустите поиск новых компаний.", "Yangi kompaniyalarni qidiring.", "Run discovery to find new companies.") : ""}</div></td></tr> : null}
+              {companyItems.map((item) => (
+                <tr key={item.ticker}>
+                  <td><div className="admin-rule"><code>{item.ticker}</code>{item.company_name}</div><div className="admin-sub">{sectorTitles[item.sector] || item.sector}</div></td>
+                  <td className="admin-num"><b>{item.isin || "—"}</b><div className="admin-sub">OpenInfo {item.org_id || "—"}</div></td>
+                  <td><span className="admin-pill"><span className={`admin-dot ${item.org_id ? "ok" : "err"}`} />{item.resolved_by || t("не найдено", "topilmadi", "unresolved")}</span></td>
+                  <td><span className="admin-pill" title={item.sync_error || item.catalog_sync_error || ""}><span className={`admin-dot ${item.sync_status === "complete" ? "ok" : item.sync_status === "failed" ? "err" : item.sync_status ? "warn" : ""}`} />{syncTitle(item.sync_status)}</span><div className="admin-sub">{fmtStamp(item.catalog_last_synced_at)}</div></td>
+                  <td className="r"><div className="admin-company-row-actions">
+                    <button type="button" className="admin-btn sm" disabled={Boolean(companyBusy)} onClick={() => { setCompanyDraft(companyDraftOf(item)); setCompanyLookup(item.ticker); }}>{item.status === "approved" ? t("Изменить", "O'zgartirish", "Edit") : t("Проверить", "Tekshirish", "Review")}</button>
+                    {item.status === "approved" ? <button type="button" className="admin-btn sm" disabled={Boolean(companyBusy)} onClick={() => syncCompany(item.ticker)}>{t("Синхр.", "Sinxr.", "Sync")}</button> : null}
+                  </div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
   const streamsBody = (
     <div className="admin-section">
       <div className="panel">
@@ -2112,6 +2456,7 @@ export default function AdminPanel({
     analysis: analysisBody,
     users: usersBody,
     system: dataBody,
+    companies: companiesBody,
     streams: streamsBody,
     findings: findingsBody,
     intake: intakeBody,

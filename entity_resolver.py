@@ -372,6 +372,7 @@ def resolve_all(session: requests.Session | None = None) -> list[dict[str, Any]]
         rec = resolve_security(sec, session=session, resolved_orgs=resolved_orgs, all_tickers=all_tickers)
         rec["type"] = sec.get("type")
         rec["isin"] = sec.get("isin")
+        rec["share_type"] = sec.get("share_type")
         rec["base_ticker"] = base_ticker(rec["ticker"], all_tickers)
         if rec.get("org_id"):
             resolved_orgs[rec["ticker"]] = rec["org_id"]
