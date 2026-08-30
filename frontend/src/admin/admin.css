@@ -111,6 +111,28 @@
    app shell clips the right half of the funnel and action log. */
 .admin-section > .panel { min-width: 0; }
 
+/* Railway operations follow the existing panel and theme tokens. */
+.railway-toolbar, .railway-service-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.railway-panel h2, .railway-panel h3 { margin: 0; overflow-wrap: anywhere; }
+.railway-toolbar p { margin: 8px 0; }
+.railway-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 16px; }
+.railway-service { min-width: 0; }
+.railway-service dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: .85rem; }
+.railway-service dt { color: var(--muted); }
+.railway-service dd { margin: 0; overflow-wrap: anywhere; }
+.railway-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.railway-actions label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.railway-actions select { max-width: 100%; min-width: 0; padding: 8px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; }
+.railway-actions .admin-btn { white-space: normal; text-decoration: none; }
+.railway-confirm { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 8px; }
+.railway-confirm p, .railway-details p { line-height: 1.6; }
+.railway-details { scroll-margin-top: 100px; }
+.railway-excerpt { margin-top: 16px; padding: 12px; border-left: 3px solid var(--danger); background: var(--panel); }
+.railway-excerpt pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin-bottom: 0; }
+.railway-log { max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-size: .78rem; line-height: 1.6; }
+.railway-grid.is-stale { opacity: .65; }
+.railway-panel :is(button, select, a, pre):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 .admin-btn {
   display: inline-flex;
   align-items: center;

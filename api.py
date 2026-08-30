@@ -744,6 +744,9 @@ import analytics_api  # noqa: E402 - needs the app and the gate above
 app.include_router(analytics_api.public_router)
 app.include_router(analytics_api.admin_router, dependencies=[Depends(_admin_panel_gate)])
 
+import admin_railway  # noqa: E402 - shares the human-only administrator gate
+app.include_router(admin_railway.router, dependencies=[Depends(_admin_panel_gate)])
+
 
 # ---------------------------------------------------------------------------
 # Abuse limits (in-memory; prod runs a single uvicorn worker).

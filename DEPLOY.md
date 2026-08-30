@@ -77,6 +77,67 @@ Comfortable:
 
 ## Railway
 
+### Admin service monitoring and recovery
+
+The administrator's **System → Railway** page (`/admin/railway`) reads the selected
+environment, shows current deployment status and recent deployment history, and
+loads runtime/build log excerpts on demand. It refreshes every 30 seconds while
+the page is visible; it does not provide background notifications or an independent
+uptime monitor. The last ten deployments are retained only as long as Railway
+retains them. Scheduled jobs are labelled **Scheduled**, not assumed to be running
+between executions. A deployment timestamp is not the time of the latest cron run.
+
+Set these variables **on the website API service only**:
+
+```dotenv
+ADMIN_RAILWAY_TOKEN=<project token for this production environment>
+ADMIN_RAILWAY_PROJECT_ID=4a7a725a-4ab6-46f6-b958-b9ee670d78a6
+ADMIN_RAILWAY_ENVIRONMENT_ID=439885d9-1d11-425d-930e-c1ffe90fe793
+ADMIN_RAILWAY_RECOVERY_SERVICES=53a76ca7-6a21-4866-b71d-6c33a9fcc678,5771b303-95a1-4eb8-9e7a-526949b92951,6398d729-72ab-4b6e-b429-d1349bdb8874,a5fe649f-b952-43cf-921f-14c12008889e,abb44b45-95e9-46a9-9f59-b2a2eebb3000,bc26feb5-c268-4fd8-8a2d-ba3fda0541ec,f8c44bc3-0626-4414-a08f-64794e855940
+```
+
+These IDs are for the existing `terrific-freedom` / `production` project. The recovery
+list includes collector, quotes-1610/2130/1300, news-collector, reports-watch and
+bank-fx. It deliberately excludes Postgres and the website API. Resolve IDs again
+for a different project; never copy this list into another environment blindly.
+The project/environment overrides may be omitted when monitoring the API service's
+own Railway environment. Create a project token under **Project settings → Tokens**
+and scope it to production. Store it as a Railway service variable, never in the
+browser, Git, logs, or a chat message. An explicitly configured server-side
+`ADMIN_RAILWAY_API_TOKEN` (account/workspace/OAuth token) is supported as an
+alternative, but has broader access; prefer the project token. There is no fallback
+to a developer's local CLI credentials in the application.
+
+Only signed-in users in `ADMIN_EMAILS` can read this data or recover a service.
+The collector `X-Admin-Secret` cannot use these endpoints. With an empty recovery
+allowlist the screen is read-only. A crashed deployment offers **Restart**; a failed
+build/deployment offers **Redeploy** only if Railway permits it. Both require a
+confirmation, a fresh check that the deployment is still the latest failed one,
+and a durable admin audit record in the existing Postgres audit table. If the audit
+database is unavailable, no mutation is sent. A per-service 60-second cooldown
+prevents duplicate actions in the current single-worker API. Before scaling to
+multiple workers/replicas, move this cooldown and request reservation into a shared
+store. A lost response is reported as unconfirmed, never automatically retried.
+
+The UI distinguishes an accepted recovery request from a verified running service.
+Restarting reuses the same deployment; it does not repair code/configuration and
+can repeat a collector's writes. Log excerpts are evidence of possible causes,
+not a guaranteed diagnosis. Known secret values and common credential formats are
+masked, but logs remain sensitive internal data. There is no arbitrary service URL
+or GraphQL input accepted from the browser.
+
+If the website API or its authentication database is down, this page is unavailable.
+Recover those services in Railway directly. Monitoring/recovery during a complete
+website outage requires a separate control service with separate authentication.
+
+Validation before rollout: run the Railway API tests and the admin UI browser tests,
+then deploy the API/frontend together. Check `/admin/railway` with an administrator
+session, confirm all nine production services appear, and inspect a failed service's
+logs. Do not restart production services merely as a smoke test.
+
+API references: [authentication](https://docs.railway.com/integrations/api) and
+[deployments/logs/recovery](https://docs.railway.com/integrations/api/manage-deployments).
+
 The repository includes `railway.json`, so Railway can deploy it directly from the root.
 
 Recommended setup:
