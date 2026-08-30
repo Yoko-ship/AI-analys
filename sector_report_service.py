@@ -30,7 +30,7 @@ def special_type(issuer):
     return None
 
 
-def sector_report(issuer, standard, period, scope, lang, *, persist=True):
+def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_override=None):
     import issuer_analysis_api as api
     if persist:
         import analysis_monitor
@@ -82,6 +82,10 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True):
             workbook = api.fetch_report_excel_data(issuer["ticker"], "NSBU", year, quarter)
             if not workbook.get("ok"):
                 raise ValueError("source workbook unavailable")
+            workbook = deepcopy(workbook)
+            for form, url in (("income", doc.get("excel_url")), ("balance", doc.get("excel_url_form1") or doc.get("excel_url"))):
+                if workbook.get(form) and url:
+                    workbook[form]["source_url"] = url
             snapshot["parser_version"] = "+".join(sorted({
                 str((workbook.get(form) or {}).get("parser_version")) for form in ("balance", "income")
                 if (workbook.get(form) or {}).get("parser_version")
@@ -110,6 +114,8 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True):
                 "code": "SOURCE_MAPPING_FAILED", "severity": "blocking",
                 "message": engine.tr(lang, "Не удалось прочитать исходные строки отчёта.", "Hisobotning asl satrlari o‘qilmadi.", "The source statement rows could not be read."),
             })
+    from admin_control.rules import apply_snapshot, runtime_rules
+    snapshot = apply_snapshot(snapshot, issuer, workbook, runtime_rules(rule_override))
     snapshot["generated_at"] = api._now().isoformat()
     from sector_regressions import run
     regression = run()

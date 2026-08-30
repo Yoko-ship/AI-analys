@@ -70,6 +70,7 @@ export default function AnalysisMonitor({ readJson, language = "ru" }) {
       <tbody>{(data?.runs || []).map((run) => <tr key={run.version}><td>{run.ticker} · {run.language}</td><td>{run.standard.toUpperCase()} · {run.period || "—"}</td><td>{run.status}</td><td><button className="admin-btn sm" type="button" disabled={busy} onClick={() => open(run.version)}>{run.version.slice(0, 12)}</button></td></tr>)}</tbody>
     </table></div>
     {data && data.runs.length === 0 && <p>{t("Запусков пока нет.", "Hali ishga tushirilmagan.", "No runs have been recorded.")}</p>}
+    {data?.governed_workflow && <p>{t("Изменения методики и откаты требуют проверки второго сотрудника.", "Usulni o‘zgartirish va qaytarish ikkinchi tekshiruvchini talab qiladi.", "Rule changes and rollbacks require a second reviewer.")} <a href="/admin/templates">{t("Правила", "Qoidalar", "Rules")}</a> · <a href="/admin/publications">{t("Публикации", "Nashrlar", "Publications")}</a></p>}
     {can("activate") && <details className="verified-block">
       <summary>{t("Правила выбора шаблона", "Shablon tanlash qoidalari", "Template selection rules")}</summary>
       <form className="verified-rule-form" onSubmit={(e) => { e.preventDefault(); mutate("/api/admin/sector-analysis/overrides", rule); }}>

@@ -198,6 +198,7 @@ def source_line_pairs(workbook, form, known_codes=None):
                             "raw_current": str(current) if current is not None else None,
                             "raw_previous": str(previous) if previous is not None else None,
                             "source_line_id": f"{form}:{code}", "label": row.get("label"),
+                            "source_url": workbook.get("source_url"),
                             "sheet": sheet.get("sheet", sheet.get("name")), "row": row.get("row", row.get("row_index"))}
     return result
 
@@ -457,15 +458,17 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             continue
         line = (snapshot.get("field_sources", {}).get(key) or {}).get("source_line_id") or (mapping.get(key) if mapping.get(key) in lines else f"catalog:{key}")
         raw = (lines.get(line) or {}).get("raw_current", str(values[key]))
+        fact_url = (lines.get(line) or {}).get("source_url") or source_url
+        fact_doc_id = "filing:" + digest([issuer["id"], standard, period, fact_url])[:24] if fact_url else source.get("document_id")
         base = opening if key in FORM1.values() or key in codes["cash_and_working_capital"] else previous
-        fact = {"id": digest([issuer["id"], standard, period, key, raw, source.get("document_id")])[:24],
+        fact = {"id": digest([issuer["id"], standard, period, key, raw, fact_doc_id])[:24],
                 "issuer_id": issuer["id"], "metric": key, "metric_code": key, "label": label(key, lang),
                 "raw": raw, "value_raw": raw, "value": value, "value_normalized": str(decimal(raw)),
                 "unit": "thousand UZS", "unit_raw": "thousand UZS", "unit_normalized": "thousand UZS",
                 "period": period, "period_start": snapshot.get("period_start") or f"{year}-01-01", "period_end": end.isoformat(),
                 "period_kind": snapshot.get("period_basis"), "accounting_standard": standard.upper(),
-                "consolidation_scope": snapshot.get("scope"), "source": source, "source_url": source_url,
-                "source_document_id": source.get("document_id"), "source_line_id": line,
+                "consolidation_scope": snapshot.get("scope"), "source": {**source, "url": fact_url, "document_id": fact_doc_id}, "source_url": fact_url,
+                "source_document_id": fact_doc_id, "source_line_id": line,
                 "source_location": {k: v for k, v in {"sheet": (lines.get(line) or {}).get("sheet"), "row": (lines.get(line) or {}).get("row")}.items() if v is not None},
                 "mapping_rule_version": MAPPING_VERSION, "parser_version": snapshot.get("parser_version", "catalog"),
                 "verification_status": "verified" if publishable else "blocked", "confidence": "high" if source_url else "low",
@@ -473,6 +476,21 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         facts.append(fact)
         by_code[key] = fact
     verified = facts if publishable else []
+    calculation_inputs = []
+    narrative_lines = {fact["source_line_id"] for fact in verified}
+    for line in sorted({line for result in ratios for line in result["component_facts"]} - narrative_lines):
+        row = lines.get(line) or {}
+        raw = row.get("raw_current")
+        if raw is None:
+            continue
+        fact_url = row.get("source_url") or source_url
+        calculation_inputs.append({"id": digest([issuer["id"], standard, period, line, raw, fact_url])[:24],
+                "metric_code": line, "label": row.get("label") or line, "value_raw": raw, "value": number(raw),
+                "unit": "thousand UZS", "period": period, "period_end": end.isoformat(), "source_url": fact_url,
+                "source_document_id": "filing:" + digest([issuer["id"], standard, period, fact_url])[:24], "source_line_id": line,
+                "source_location": {k: row[k] for k in ("sheet", "row") if row.get(k) is not None},
+                "parser_version": snapshot.get("parser_version", "catalog"), "mapping_rule_version": row.get("mapping_rule", MAPPING_VERSION),
+                "verification_status": "verified" if publishable else "blocked"})
     blocks = {key: [{"metric_code": code, "label": label(code, lang), **(by_code.get(code) or {"value": None, "previous": None, "change_value": None, "change_pct": None})} for code in columns] if publishable else [] for key, columns in codes.items()}
     signals = []
 
@@ -596,7 +614,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
               "headline_tone": {"positive": "positive", "mixed": "warning", "negative": "danger", "no_signal": "neutral"}[verdict_status],
               "paragraphs": paragraphs, "text": text, "paragraph_count": len(paragraphs), "word_count": len(text.split()),
               "sections": [{"id": f"section-{i}", "text": p} for i, p in enumerate(paragraphs)] if publishable else [],
-              "verified_facts": refs, "number_references": refs, "ratios": ratios, "replacement_blocks": blocks,
+              "verified_facts": refs, "number_references": refs, "calculation_inputs": calculation_inputs, "ratios": ratios, "replacement_blocks": blocks,
               "capital_analysis": capital if publishable else {}, "profit_quality": quality if publishable else {},
               "analytical_signals": signals, "analytical_issues": issues, "risks": risks,
               "verdict": {"status": verdict_status, "headline": headline if publishable else None, "evidence_signal_ids": [s["id"] for s in signals] if verdict_status != "no_signal" else [], "period_end": end.isoformat()},
@@ -607,6 +625,11 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
               "source_snapshot_hash": digest([issuer["id"], standard, period, values, previous, opening, lines, source]),
               "generated_at": snapshot.get("generated_at")}
     report["control_rule_versions"] = snapshot.get("control_rule_versions", [])
+    for result in report["ratios"]:
+        if result["metric_code"] in snapshot.get("formula_rule_versions", {}):
+            result["method_id"] = snapshot["formula_rule_versions"][result["metric_code"]]
+    if report["control_rule_versions"]:
+        report["calculation_version"] += ":" + digest(report["control_rule_versions"])[:16]
     report["version"] = digest([report["source_snapshot_hash"], resolution, VERSION, MAPPING_VERSION, CALCULATION_VERSION, lang, status, today.isoformat(), report["control_rule_versions"]])
     return report
 
