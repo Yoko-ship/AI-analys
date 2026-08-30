@@ -54,7 +54,7 @@ import { localizedCalendarTitle } from "./lib/calendarTitle.js";
 import { termFor } from "./lib/glossary.js";
 // The admin panel is a screen of its own, with its own token layer — see
 // admin/admin.css for why it deliberately does not inherit the site's theme.
-import AdminPanel from "./admin/AdminPanel.jsx";
+import AdminPanel from "./admin/ControlPanel.jsx";
 import { SectorMonitorPage } from "./admin/AnalysisMonitor.jsx";
 import VerifiedReport, { ReportAvailability } from "./analysis/VerifiedReport.jsx";
 import {
@@ -135,8 +135,8 @@ function pathToView(pathname) {
   }
   if (clean === "/admin" || clean.startsWith("/admin/")) {
     const raw = clean.slice("/admin".length).replace(/^\//, "");
-    // /admin/audit is the old audit screen's URL; it opens the findings section.
-    const section = raw === "audit" ? "findings" : (raw || "overview");
+    // Preserve registry deep links, including the dedicated audit screen.
+    const section = raw || "overview";
     return { view: "admin", ticker: null, newsId: null, adminSection: section };
   }
   const found = Object.entries(VIEW_PATHS).find(([, p]) => p === clean);
@@ -21205,12 +21205,13 @@ function App() {
               reads as a bug, and the page is not secret — its data is guarded on
               the server, where guarding belongs. */}
           {activeView === "admin" && (
-            user && adminSection === "sector-analysis" ? <SectorMonitorPage apiFetch={apiFetch} language={language} /> : user?.is_admin ? (
+            user && adminSection === "sector-analysis" ? <SectorMonitorPage apiFetch={apiFetch} language={language} /> : (user?.is_admin || user?.admin_role) ? (
               <AdminPanel
                 apiFetch={apiFetch}
                 language={language}
                 section={adminSection}
                 onSectionChange={setAdminSection}
+                user={user}
               />
             ) : (
               <div className="panel" style={{ textAlign: "center", padding: 48 }}>

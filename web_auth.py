@@ -6,6 +6,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import struct
 from dataclasses import dataclass
@@ -125,6 +126,7 @@ class WebUser:
     email_verified: bool = False
 
     def to_public_dict(self) -> dict:
+        from admin_control.service import role_for
         return {
             "id": self.id,
             "email": self.email,
@@ -135,6 +137,7 @@ class WebUser:
             "is_active": self.is_active,
             "email_verified": self.email_verified,
             "is_admin": is_admin_email(self.email),
+            "admin_role": role_for(self.email),
         }
 
 
@@ -920,6 +923,14 @@ class WebAuthStore:
         label = row["email"].replace(" ", "%20")
         uri = f"otpauth://totp/UZ%20Stock%20Analyzer:{label}?secret={secret}&issuer=UZ%20Stock%20Analyzer"
         return {"secret": secret, "otpauth_uri": uri}
+
+    def verify_admin_two_factor(self, user_id: int, code: str) -> bool:
+        """Step-up verification without disclosing or changing the MFA secret."""
+        if not re.fullmatch(r"\d{6}", str(code or "")):
+            return False
+        with self._conn() as conn:
+            row = conn.execute("SELECT two_factor_enabled,two_factor_secret FROM web_users WHERE id=%s", (user_id,)).fetchone()
+        return bool(row and row.get("two_factor_enabled") and _verify_totp(row.get("two_factor_secret"), code))
 
     def enable_two_factor(self, user_id: int, code: str) -> bool:
         with self._conn() as conn:

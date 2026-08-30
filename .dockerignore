@@ -35,6 +35,7 @@ playwright.config.js
 eslint.config.js
 playwright-report
 test-results
+audit/admin-control-qa
 .verify_shots
 requirements-dev.txt
 

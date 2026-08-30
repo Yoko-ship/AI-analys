@@ -36,7 +36,8 @@ class OverrideRequest(BaseModel):
 def overview(request: Request):
     actor_for(request)
     return {**analysis_monitor.overview(), "role": request.state.control_actor["role"],
-            "capabilities": sorted(CAPABILITIES[request.state.control_actor["role"]])}
+            "capabilities": sorted(CAPABILITIES[request.state.control_actor["role"]] - {"activate", "rollback"}),
+            "governed_workflow": True}
 
 
 @router.get("/runs/{version}")
@@ -58,18 +59,11 @@ def retry(job_id: str, payload: RetryRequest, request: Request):
 
 @router.post("/overrides")
 def override(payload: OverrideRequest, request: Request):
-    actor = actor_for(request, "activate")
-    if payload.valid_to < payload.valid_from:
-        raise HTTPException(status_code=422, detail="Validity end precedes start")
-    from issuer_analysis_api import _resolve_issuer
-    issuer = _resolve_issuer(payload.ticker)
-    data = payload.model_dump(mode="json")
-    return analysis_monitor.save_override(issuer, data, actor)
+    actor_for(request, "activate")
+    raise HTTPException(status_code=409, detail="USE_GOVERNED_WORKFLOW: Create and approve a versioned rule in /admin/templates.")
 
 
 @router.post("/runs/{version}/rollback")
 def rollback(version: str, payload: RetryRequest, request: Request):
-    actor = actor_for(request, "rollback")
-    if not analysis_monitor.rollback(version, actor, payload.reason):
-        raise HTTPException(status_code=409, detail="Only a verified publication can be restored")
-    return {"ok": True, "version": version}
+    actor_for(request, "rollback")
+    raise HTTPException(status_code=409, detail="USE_GOVERNED_WORKFLOW: Request a second reviewer in /admin/publications.")

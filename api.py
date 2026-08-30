@@ -415,6 +415,30 @@ async def _on_startup() -> None:
         asyncio.create_task(_news_calendar_watch_loop())
     if os.getenv("SECTOR_ANALYSIS_WORKER", "1") == "1":
         app.state.sector_worker = asyncio.create_task(_sector_analysis_loop())
+    if os.getenv("ADMIN_CONTROL_WORKER", "1") == "1":
+        app.state.admin_control_worker = asyncio.create_task(_admin_control_loop())
+
+
+async def _admin_control_loop():
+    """Compatibility worker; dedicated services can disable it and run the same module."""
+    from admin_control import adapters, worker
+    loop = asyncio.get_running_loop()
+    last_indexed = 0.0
+    while True:
+        try:
+            if loop.time() - last_indexed > 300:
+                last_indexed = loop.time()
+                try:
+                    await loop.run_in_executor(None, adapters.refresh_catalog)
+                    await loop.run_in_executor(None, adapters.refresh_analyses)
+                except Exception:
+                    logger.exception("Administrative indexing failed; queued jobs will still run")
+            await loop.run_in_executor(None, worker.run_one)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Administrative control worker failed")
+        await asyncio.sleep(2)
 
 
 async def _sector_analysis_loop():
@@ -431,6 +455,13 @@ async def _sector_analysis_loop():
 
 @app.on_event("shutdown")
 async def _stop_sector_analysis_worker():
+    control_task = getattr(app.state, "admin_control_worker", None)
+    if control_task:
+        control_task.cancel()
+        try:
+            await control_task
+        except asyncio.CancelledError:
+            pass
     task = getattr(app.state, "sector_worker", None)
     if task:
         task.cancel()
@@ -743,7 +774,8 @@ def _admin_gate(x_admin_secret: str | None = Header(default=None),
         return
 
     user = _require_user(authorization)          # raises 401 when not signed in
-    if not is_admin_email(user.email):
+    from admin_control.service import role_for
+    if role_for(user.email) != "administrator":
         raise HTTPException(status_code=403, detail="Admin access required")
 
 
@@ -756,7 +788,8 @@ def _admin_panel_gate(request: Request,
     able to enumerate users or delete an account.
     """
     user = _require_user(authorization)
-    if not is_admin_email(user.email):
+    from admin_control.service import role_for
+    if role_for(user.email) != "administrator":
         raise HTTPException(status_code=403, detail="Admin access required")
     request.state.admin_user = user
     return user
@@ -773,6 +806,25 @@ import admin_railway  # noqa: E402 - shares the human-only administrator gate
 app.include_router(admin_railway.router, dependencies=[Depends(_admin_panel_gate)])
 
 import sector_admin_api  # noqa: E402
+
+import admin_control.api as control_api  # noqa: E402
+
+
+def _control_gate(request: Request, authorization: str | None = Header(default=None)):
+    from admin_control.service import role_for
+    from admin_control.store import ControlError
+    try:
+        user = _require_user(authorization)
+    except HTTPException as exc:
+        raise ControlError("AUTHENTICATION_REQUIRED", "Sign in with an administrative account.", exc.status_code) from None
+    role = role_for(user.email)
+    if not role:
+        raise ControlError("PERMISSION_DENIED", "Your account does not have administrative access.", 403)
+    request.state.control_actor = {"id": user.id, "email": user.email.lower(), "role": role}
+
+
+app.include_router(control_api.router, dependencies=[Depends(_control_gate)])
+
 
 def _sector_analysis_gate(request: Request, authorization: str | None = Header(default=None)):
     user = _require_user(authorization)
@@ -4225,7 +4277,8 @@ def _require_admin_user(current_user: WebUser = Depends(_require_user)) -> WebUs
     (machine X-Admin-Secret), this authorises a logged-in user via their Bearer token —
     so the frontend admin panel can call it without the shared secret ever reaching
     the browser."""
-    if not is_admin_email(current_user.email):
+    from admin_control.service import role_for
+    if role_for(current_user.email) != "administrator":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 

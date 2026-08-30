@@ -22,3 +22,6 @@ web/dist/
 test-results/
 playwright-report/
 audit/sector-v2.2/pytest-run-*/
+
+audit/admin-control-qa/
+frontend/__admin_qa.html

@@ -394,7 +394,9 @@ def test_sector_admin_role_capabilities_cannot_be_escalated(monkeypatch, tmp_pat
         retry = client.post(f"{path}/jobs/{job}/retry", headers=headers, json={"reason": "Review corrected filing"})
         assert retry.status_code == (403 if role == "viewer" else 200)
         update = client.post(f"{path}/overrides", headers=headers, json=payload)
-        assert update.status_code == (200 if role in {"rule_editor", "administrator"} else 403)
+        assert update.status_code == (409 if role in {"rule_editor", "administrator"} else 403)
+        if role in {"rule_editor", "administrator"}:
+            assert "USE_GOVERNED_WORKFLOW" in update.json()["detail"]
 
 
 def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():

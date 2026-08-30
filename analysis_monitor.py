@@ -96,6 +96,12 @@ def record_report(report):
         latest = json.loads(prior["payload"]) if prior else {}
         if report["status"] == "available" and str(report.get("financial_as_of") or "") >= str(latest.get("financial_as_of") or ""):
             connection.execute("INSERT INTO sector_publications VALUES (?,?,?,?) ON CONFLICT(issuer_id,language,standard) DO UPDATE SET version=excluded.version", (*key, report["version"]))
+    try:
+        from admin_control.adapters import record_analysis
+        record_analysis(report)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Administrative analysis projection failed")
     return report
 
 
