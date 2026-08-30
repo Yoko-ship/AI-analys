@@ -42,7 +42,7 @@ EXCEL_CACHE_TTL_SECONDS = int(os.getenv("OPENINFO_EXCEL_CACHE_TTL_DAYS", "30")) 
 EXCEL_CACHE_PATH = Path(
     os.getenv("OPENINFO_EXCEL_CACHE_PATH") or (_APP_DATA_DIR / "openinfo_excel_cache.json")
 ).expanduser()
-EXCEL_PARSER_VERSION = "openinfo-excel-full-rows-v3"
+EXCEL_PARSER_VERSION = "openinfo-excel-source-cells-v4"
 _EXCEL_CACHE_LOCK = threading.Lock()
 
 def _make_session() -> requests.Session:
@@ -696,6 +696,7 @@ def _parse_excel_workbook(
             if label and numeric_cells and len(table_rows) < max_table_rows:
                 table_rows.append({
                     "row": int(index) + 1,
+                    "source_cells": raw_values[:18],
                     "label": label,
                     "values": values[:18],
                     "numeric_values": numeric_values,

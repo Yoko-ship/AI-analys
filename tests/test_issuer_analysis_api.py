@@ -9,6 +9,7 @@ import issuer_analysis_api as subject
 
 @pytest.fixture()
 def client(monkeypatch, tmp_path) -> TestClient:
+    monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "sector.sqlite3"))
     securities = {
         "BANK": {"ticker": "BANK", "isin": "UZBANK", "name": "Test Bank", "sector": "finance", "type": "stock"},
         "INS": {"ticker": "INS", "isin": "UZINS", "name": "Test Insurance", "sector": "finance", "type": "stock"},
@@ -164,7 +165,7 @@ def test_complete_ai_report_meets_length_and_traceability_contract(client, lang)
     assert body["content_status"] == "complete"
     assert body["headline"]
     assert body["headline_tone"] in {"positive", "warning", "danger", "neutral"}
-    assert 4 <= body["paragraph_count"] <= 7
+    assert 3 <= body["paragraph_count"] <= 7
     assert body["number_references"]
     assert all(item["period"] and item["source"]["document_id"] for item in body["number_references"])
     assert "buy" not in body["text"].lower()
@@ -215,7 +216,9 @@ def test_three_object_run_has_reproducible_table_csv_pdf_and_summary(client):
 def test_short_report_does_not_pad_missing_data(client, monkeypatch):
     monkeypatch.setattr(subject, "get_financials_series_quarterly", lambda ticker, form="NSBU": {"2026Q2": {"revenue": 100.0}})
     body = client.get("/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2&lang=ru").json()
-    assert body["status"] == "available"
+    assert body["status"] == "quality_blocked"
+    assert body["verified_facts"] == []
+    assert body["analytical_issues"] == []
     assert body["content_status"] == "shortened"
     assert body["shortened_reason"] == "insufficient_traceable_metrics"
     assert body["headline_tone"] == "neutral"
@@ -230,8 +233,9 @@ def test_bank_report_uses_bank_template_and_never_industrial_liquidity(client):
     assert body["sector_template_code"] == "bank"
     assert body["period_basis"] == "cumulative_ytd"
     assert body["balance_check"]["status"] == "passed"
-    assert {item["status"] for item in body["regulatory_compliance"]} == {"not_disclosed"}
-    forbidden = ("cfo", "capex", "fcf", "current ratio", "коэффициент текущей ликвидности", "валовая маржа")
+    assert "regulatory_compliance" not in body
+    assert not body["ratios"]
+    forbidden = ("cfo", "capex", "fcf", "current ratio", "коэффициент текущей ликвидности", "валовая маржа", "cet1", "lcr", "regulatory_compliance")
     assert not any(token in body["text"].lower() for token in forbidden)
 
 

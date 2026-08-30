@@ -58,7 +58,7 @@ const COMPANY_AI_REPORT = {
   period: "2025",
   scope: "separate",
   language: "ru",
-  status: "complete",
+  status: "available",
   headline: "Компания демонстрирует рост финансовых результатов и сохраняет прибыльность.",
   headline_tone: "positive",
   paragraphs: [
@@ -1177,7 +1177,7 @@ const BONDS = {
       price_pct: ok(100.46), simple_yield: ok(23.89), ytm: no("нет справочных данных по выпуску") },
     { ticker: "ACMT1B2", issuer: "\"AGAT CREDIT\" Aksiyadorlik jamiyati mikromoliya tashkiloti",
       price: 100000.01, change_pct: -0.5, turnover: 4300000.36, trades: 7, issue_value: null,
-      last_trade_date: "2026-07-17", is_current: false, status: "matured",
+      last_trade_date: "2026-07-17", is_current: false, status: "matured", state: "matured",
       reason: "выпуск погашается с 2026-07-23",
       quality: { data_tier: "full" },
       reference: { ...ref(100000, 28), is_complete: true, missing: [], maturity_date: "2026-07-23" },
@@ -1197,16 +1197,20 @@ test("the bonds table says which session each row is from", async ({ page }) => 
 
   // The section names the session it is read against, and how much of it is that session.
   await expect(page.locator(".bonds-head")).toContainText("сессия: 2026-08-11");
-  await expect(page.locator(".bonds-head")).toContainText("2 сегодня");
+  await expect(page.locator(".bonds-head")).toContainText("2 в сессии");
 
   // Every row carries its own day, and the two that are not today's are marked.
   const session = page.locator(".bonds-table tbody .bond-session");
-  await expect(session).toHaveText(["2026-08-11", "2026-08-11", "2026-08-07", "2026-07-17"]);
-  await expect(page.locator(".bonds-table tbody .bond-stale")).toHaveCount(2);
+  await expect(session).toHaveCount(3);
+  await expect(page.locator(".bonds-table tbody .bond-stale")).toHaveCount(1);
+  for (const item of BONDS.items.filter((r) => r.state !== "matured")) {
+    await expect(page.locator(".bonds-table tbody tr", { hasText: item.ticker }).locator(".bond-session")).toHaveText(item.last_trade_date.split("-").reverse().join("."));
+  }
 
   // The redeemed issue blames its redemption, never a missing reference.
+  await page.getByRole("combobox", { name: "Полнота данных" }).selectOption("matured");
   const acmt = page.locator(".bonds-table tbody tr", { hasText: "ACMT1B2" });
-  await expect(acmt.locator(".cell-status", { hasText: "в погашении" })).toBeVisible();
+  await expect(acmt.locator(".cell-status", { hasText: "погашен" })).toBeVisible();
 });
 
 // A chip row of «Все» + one sector is not a filter — both buttons select the same

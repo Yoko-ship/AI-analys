@@ -413,6 +413,31 @@ async def _on_startup() -> None:
         asyncio.create_task(_catalog_watch_loop())
     if NEWS_CALENDAR_WATCH:
         asyncio.create_task(_news_calendar_watch_loop())
+    if os.getenv("SECTOR_ANALYSIS_WORKER", "1") == "1":
+        app.state.sector_worker = asyncio.create_task(_sector_analysis_loop())
+
+
+async def _sector_analysis_loop():
+    import analysis_monitor
+    while True:
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, analysis_monitor.run_pending)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("sector analysis worker failed")
+        await asyncio.sleep(30)
+
+
+@app.on_event("shutdown")
+async def _stop_sector_analysis_worker():
+    task = getattr(app.state, "sector_worker", None)
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 class AnalyzeRequest(BaseModel):
@@ -746,6 +771,18 @@ app.include_router(analytics_api.admin_router, dependencies=[Depends(_admin_pane
 
 import admin_railway  # noqa: E402 - shares the human-only administrator gate
 app.include_router(admin_railway.router, dependencies=[Depends(_admin_panel_gate)])
+
+import sector_admin_api  # noqa: E402
+
+def _sector_analysis_gate(request: Request, authorization: str | None = Header(default=None)):
+    user = _require_user(authorization)
+    role = sector_admin_api.role_for(user.email)
+    if not role:
+        raise HTTPException(status_code=403, detail="Your account does not have administrative access.")
+    request.state.control_actor = {"id": user.id, "email": user.email.lower(), "role": role}
+
+
+app.include_router(sector_admin_api.router, dependencies=[Depends(_sector_analysis_gate)])
 
 
 # ---------------------------------------------------------------------------
@@ -2620,7 +2657,9 @@ async def api_bond_detail(ticker: str) -> dict[str, Any]:
     row = next((r for r in payload["items"] if r["ticker"] == ticker), None)
     if not row:
         raise HTTPException(status_code=404, detail="bond not found")
-    return _json_safe({"ok": True, **row, "coupons": coupons.get(ticker, []),
+    from sector_report_service import bond_issuer_context
+    issuer_context = await asyncio.get_running_loop().run_in_executor(None, bond_issuer_context, references.get(ticker) or {})
+    return _json_safe({"ok": True, **row, **issuer_context, "coupons": coupons.get(ticker, []),
                        # The whole payment schedule of THIS issue — filed where
                        # the issuer filed it, reconstructed from the register's
                        # cycle everywhere else. Served on the card only: the
@@ -4469,6 +4508,13 @@ async def api_admin_financials(
         except Exception:  # noqa: BLE001 — the sums are what the board reads
             logger.exception("admin financials: ratio write failed")
     _schedule_audit("ingest:financials")
+    def _queue_sector_analysis():
+        import analysis_monitor
+        for row in payload.rows:
+            ticker = str(row.get("ticker") or "").upper()
+            if ticker:
+                analysis_monitor.enqueue(ticker, hashlib.sha256(json.dumps(row, sort_keys=True, default=str).encode()).hexdigest())
+    await loop.run_in_executor(None, _queue_sector_analysis)
     return {"ok": True, ("replaced" if payload.mode == "replace" else "upserted"): n,
             "ratios": ratios_written}
 

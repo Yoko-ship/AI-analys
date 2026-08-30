@@ -1,0 +1,64 @@
+{
+  "version": "audited-fund-lines-1.0",
+  "reports": [{
+    "ticker": "UZNF",
+    "period": "2025",
+    "period_start": "2024-12-24",
+    "period_end": "2025-12-31",
+    "standard": "IFRS",
+    "audited": true,
+    "publication_date": "2026-03-30",
+    "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+    "source_document_id": "UZNF-audited-IFRS-2025",
+    "source_unit": "million UZS",
+    "verification": "Reconciled against downloaded audited PDF pages 8-9 and notes 4, 6-8, 11-12, 17 on 2026-08-30",
+    "values": {
+      "total_assets": "30286541",
+      "total_liabilities": "425002",
+      "total_equity": "29861539",
+      "cash": "32730",
+      "portfolio_fair_value": "30120689",
+      "dividends_receivable": "128374",
+      "accounts_payable": "206144",
+      "unrealized_fair_value_gain": "1662300",
+      "dividend_income": "171535",
+      "management_expenses": "175353",
+      "tax": "227435",
+      "net_income": "1403150",
+      "level3_investments": "30120689",
+      "largest_holding": "4853513",
+      "top5_holdings": "20551141"
+    },
+    "source_lines": {
+      "total_assets": "PDF:p9:total_assets",
+      "total_liabilities": "PDF:p9:total_liabilities",
+      "total_equity": "PDF:p9:total_equity",
+      "cash": "PDF:p9:cash_and_cash_equivalents",
+      "portfolio_fair_value": "PDF:p61:note12:total_equity_investments",
+      "dividends_receivable": "PDF:p9:dividends_receivable",
+      "accounts_payable": "PDF:p9:other_payables",
+      "unrealized_fair_value_gain": "PDF:p8:net_unrealized_gain",
+      "dividend_income": "PDF:p8:gross_dividend_income",
+      "management_expenses": "PDF:note8:management_fees",
+      "tax": "PDF:p8:income_tax_expense",
+      "net_income": "PDF:p8:profit_for_period",
+      "level3_investments": "PDF:note5:fair_value_hierarchy",
+      "largest_holding": "PDF:p61:note12:Uzbekistan_Airways",
+      "top5_holdings": "PDF:p61:note12:sum_top5"
+    },
+    "share_basis": {
+      "ifrs_nominal_uzs": "1",
+      "ifrs_issued_shares": "25271312655635",
+      "weighted_average_shares": "13746603049919",
+      "audited_eps_uzs": "0.1021",
+      "source_line_id": "PDF:note11:earnings_per_share",
+      "reconciliation_required": true
+    },
+    "subsequent_events": [{
+      "code": "PORTFOLIO_SWAP",
+      "estimated_nav_effect_mln_uzs": "-769377",
+      "source_line_id": "PDF:note17:portfolio_exchange",
+      "changes_reported_nav": false
+    }]
+  }]
+}

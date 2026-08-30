@@ -55,6 +55,8 @@ import { termFor } from "./lib/glossary.js";
 // The admin panel is a screen of its own, with its own token layer — see
 // admin/admin.css for why it deliberately does not inherit the site's theme.
 import AdminPanel from "./admin/AdminPanel.jsx";
+import { SectorMonitorPage } from "./admin/AnalysisMonitor.jsx";
+import VerifiedReport, { ReportAvailability } from "./analysis/VerifiedReport.jsx";
 import {
   ProfileAccountCenter,
   ProfileFavoriteEditor,
@@ -5937,6 +5939,9 @@ function StructuredReportBlocks({ blocks = [], keyPrefix = "article" }) {
 }
 
 function ReportArticleView({ analysisResult, language = "ru" }) {
+  if (analysisResult?.sector_report) {
+    return <article className="panel"><VerifiedReport report={analysisResult.sector_report} lang={language} narrative /></article>;
+  }
   const articleReport = analysisResult?.article_report?.sections?.length ? analysisResult.article_report : null;
   const sections = analysisResult?.sections || {};
   const ordered = ARTICLE_SECTION_ORDER
@@ -7758,11 +7763,15 @@ function BondsView({ language, onOpenBond, embedded = false }) {
     maturity_date: t("дата погашения", "to'lov sanasi", "the maturity date"),
   };
   const metricCell = (m, formatter) => {
-    if (m?.value != null) return formatter ? formatter(m.value) : fmtMetric(m, lang);
+    if (m?.value != null) return <span title={m.calculation_status || m.status}>
+      {["indicative", "stale_indicative"].includes(m.status) && "≈ "}{formatter ? formatter(m.value) : fmtMetric(m, lang)}
+      {m.status === "stale_indicative" && <small className="bondsec-issuer">{t("устар.", "eskirgan", "stale")}</small>}
+    </span>;
+    if (m?.status === "matured") return <span className="cell-status" title={m.note || ""}>{t("погашен", "so‘ndirilgan", "redeemed")}</span>;
     const miss = (m?.missing || []).map((f) => missingLabel[f] || f).join(", ");
     const title = [m?.note, miss && `${t("эмитент не подал", "emitent topshirmagan", "the issuer has not filed")}: ${miss}`]
       .filter(Boolean).join(" · ");
-    return <span className="cell-status" title={title || m?.status || ""}>—</span>;
+    return <span className="cell-status" title={m?.blocked_reason || title || m?.status || ""}>—</span>;
   };
 
   const rows = (data.items || []).map((b) => ({
@@ -7791,7 +7800,7 @@ function BondsView({ language, onOpenBond, embedded = false }) {
     next: b.schedule?.next_date || null,
     // Days since this issue last printed. A price four months old is not a
     // wrong number, but it is not this morning's either.
-    liq: bondStaleDays(b, data.board_day),
+    liq: b.days_since_trade ?? bondStaleDays(b),
     running: val(b.simple_yield),
     ytm: val(b.ytm),
     gspread: val(b.g_spread),
@@ -7850,6 +7859,12 @@ function BondsView({ language, onOpenBond, embedded = false }) {
 
   return (
     <Wrap className={wrapClass}>
+      <div className="bonds-head muted">
+        <span>{t("Последняя сессия", "Oxirgi sessiya", "Latest session")}: {data.board_day || "—"}</span>
+        <span>{data.traded_today ?? "—"} {t("в сессии", "sessiyada", "in session")}</span>
+        <span>{t("Всего выпусков", "Jami chiqarilishlar", "All issues")}: {data.count ?? rows.length}</span>
+        <span>{t("С расчётом доходности", "Daromadlilik hisoblangan", "With calculable yield")}: {data.with_calculable_yield ?? rows.filter((r) => r.ytm != null).length}</span>
+      </div>
       <div className="bondsec-header">
         <div className="segmented-control bondsec-mode" role="tablist">
           <button type="button" className={mode === "screener" ? "active" : ""} onClick={() => setMode("screener")}>
@@ -7979,18 +7994,18 @@ function BondsView({ language, onOpenBond, embedded = false }) {
                     <td className="num">{metricCell(r.b.g_spread, (v) => fmtBp(v, lang))}</td>
                     <td className="num">{metricCell(r.b.duration, (v) => fmtNumber(v, lang, 2))}</td>
                     <td className="num">{metricCell(r.b.accrued, (v) => fmtNumber(v, lang, 0))}</td>
-                    <td className="num" title={r.b.schedule?.source === "reconstructed"
+                    <td className="num" title={["reconstructed", "inferred"].includes(r.b.schedule?.source)
                       ? t("Дата рассчитана из цикла купона и дат размещения и погашения — эмитент подаёт каждую выплату отдельно и заранее их не публикует.",
                           "Sana kupon sikli va sanalardan hisoblangan.",
                           "Reconstructed from the coupon cycle and the placement and redemption dates — the issuer files each payment separately and does not publish them in advance.")
                       : ""}>
-                      {r.next ? <>{fmtBondDay(r.next)}{r.b.schedule?.source === "reconstructed" && <span className="bondsec-recon">*</span>}</>
+                      {r.next ? <>{fmtBondDay(r.next)}{["reconstructed", "inferred"].includes(r.b.schedule?.source) && <span className="bondsec-recon">*</span>}</>
                         : <span className="cell-status" title={t("график выплат не восстановим", "to'lov jadvali tiklanmaydi", "no schedule can be built")}>—</span>}
                     </td>
                     <td className="num">
                       {r.liq == null
                         ? <span className="cell-status" title={t("выпуск ни разу не печатался на бирже", "hech qachon savdo bo'lmagan", "the issue has never printed a trade")}>{t("нет сделок", "bitim yo'q", "no trades")}</span>
-                        : <span className={`bondsec-liq tone-${r.liq <= 3 ? "pos" : r.liq <= 14 ? "warn" : "neg"}`}>
+                        : <span className={`bondsec-liq tone-${r.liq <= 7 ? "pos" : r.liq <= 30 ? "warn" : "neg"}`}>
                             {r.liq} {t("дн.", "kun", "d")}
                           </span>}
                     </td>
@@ -8674,10 +8689,23 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
         </div>
       </div>
 
+      {bond.issuer_report && <details className="verified-block">
+        <summary>{t("Финансовый профиль эмитента", "Emitentning moliyaviy profili", "Issuer financial profile")} · {bond.financial_as_of || "—"}</summary>
+        <div className="verified-note"><VerifiedReport report={bond.issuer_report} lang={lang} narrative /></div>
+      </details>}
+      {!bond.issuer_report && bond.issuer_link_status && <p className="verified-note">{t("Финансовый профиль эмитента пока не подтверждён.", "Emitent moliyaviy profili hali tasdiqlanmagan.", "Issuer fundamentals are not yet verified.")} ({bond.issuer_link_status})</p>}
       <div className="bondsec-summary">
+        {bond.freshness && <p className="verified-note">
+          {t("Последняя сделка", "So‘nggi bitim", "Last trade")}: {bond.quote_as_of || "—"}
+          {bond.days_since_trade != null && <> · {bond.days_since_trade} {t("дней назад", "kun oldin", "days ago")}</>}
+          {". "}{["stale", "very_stale"].includes(bond.freshness.status) && t("Цена устарела; текущего рыночного вердикта нет. ", "Narx eskirgan; joriy bozor xulosasi yo‘q. ", "The price is stale; no current market verdict is available. ")}
+          {bond.freshness.status === "never_traded" && t("Нет подтверждённой сделки. ", "Tasdiqlangan bitim yo‘q. ", "No verified trade. ")}
+          {bond.schedule?.source === "inferred" && t("График восстановлен; расчёты индикативные.", "Jadval tiklangan; hisoblar indikativ.", "The schedule is inferred; calculations are indicative.")}
+          {bond.yield?.blocked_reason && <> {t("Причина недоступности", "Mavjud emasligi sababi", "Unavailable reason")}: {bond.yield.blocked_reason}.</>}
+        </p>}
         {bond.price != null && ref.nominal != null ? (
           <>
-            {t("Облигация стоит сейчас", "Obligatsiya hozir", "The bond now costs")}{" "}
+            {t("Цена последней сделки", "So‘nggi bitim narxi", "Last traded price")}{" "}
             <b>{fmtPrice(bond.price, lang)} {t("сум", "so'm", "UZS")}</b>
             {val(bond.price_pct) != null && <> ({t("или", "yoki", "or")} <b>{num2(val(bond.price_pct))}%</b> {t("от номинала", "nominaldan", "of par")})</>}
             {". "}
@@ -8686,7 +8714,7 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
               : <>{t("Дату погашения эмитент ещё не подал — она появляется в раскрытии только с началом выкупа. ", "To'lov sanasi hali topshirilmagan. ", "The issuer has not yet filed a maturity date — it appears in disclosure only once redemption begins. ")}</>}
             {val(bond.accrued) != null && nextCoupon && (
               <>
-                {t("Покупая одну облигацию сейчас, вы заплатите продавцу НКД", "Hozir bitta obligatsiya olsangiz, sotuvchiga TKD to'laysiz", "Buying one bond now you pay the seller accrued interest of")}{" "}
+                {t("НКД на дату расчёта", "Hisoblash sanasidagi TKD", "Accrued interest at the calculation date")}{" "}
                 <b>{num2(val(bond.accrued), 0)} {t("сум", "so'm", "UZS")}</b>
                 {nextCoupon.amount != null && <>, {t("а следующий купон", "keyingi kupon esa", "and the next coupon of")} {num2(nextCoupon.amount, 0)} {t("сум получите", "so'mni olasiz", "UZS arrives")} {fmtBondDay(nextCoupon.pay_date)}</>}
                 {". "}
@@ -8694,6 +8722,7 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
             )}
             {val(bond.ytm) != null && (
               <>
+                {bond.ytm?.calculation_status !== "exact" && <strong>{t("Индикативно: ", "Indikativ: ", "Indicative: ")}</strong>}
                 {t("Доходность к погашению —", "So'ndirishgacha daromadlilik —", "Yield to maturity is")}{" "}
                 <b>{num2(val(bond.ytm))}%</b> {t("годовых", "yillik", "p.a.")}
                 {val(bond.g_spread) != null && <>, {t("спред к кривой ГЦБ —", "DQQ egri chizig'iga spred —", "spread to the government curve —")} <b>{fmtBp(val(bond.g_spread), lang)}</b></>}
@@ -11026,7 +11055,7 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   const capClass = safeNumber(row?.marketCap);
   const capIssuer = mult?.market_cap_issuer?.value;
   put(t("Капитализация", "Kapitalizatsiya", "Market cap"),
-      compact(capClass) ? `${compact(capClass)} UZS` : null);
+      capClass != null && capClass > 0 ? `${compact(capClass)} UZS` : null);
   put(t("Акций в обращении", "Muomaladagi aksiyalar", "Shares outstanding"), count(row?.sharesOutstanding));
   // «Номинальная стоимость» — the par the exchange's own card states (`parval`),
   // beside what the market pays for it. A par is only informative next to a
@@ -11209,6 +11238,8 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
       <div className="company-insight-card-copy">
         {loading ? (
           <div className="company-insight-loading" aria-label={tx.loading}><span /><span /></div>
+        ) : report?.status && report.status !== "available" && !error ? (
+          <ReportAvailability report={report} lang={lang} />
         ) : (
           <p>{error ? tx.unavailable : report?.headline}</p>
         )}
@@ -11216,7 +11247,7 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
       {!loading && error && (
         <button className="company-insight-action" type="button" onClick={onRetry}>{tx.retry}</button>
       )}
-      {!loading && !error && report && (
+      {!loading && !error && report && (!report.status || report.status === "available") && report.paragraphs?.length > 0 && (
         <button ref={buttonRef} className="company-insight-action" type="button" onClick={onOpen}>{tx.details}</button>
       )}
     </section>
@@ -11252,7 +11283,7 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
         return;
       }
       if (event.key !== "Tab" || !dialogRef.current) return;
-      const focusable = [...dialogRef.current.querySelectorAll('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')];
+      const focusable = [...dialogRef.current.querySelectorAll('button:not([disabled]), a[href], summary, [tabindex]:not([tabindex="-1"])')].filter((element) => element.getClientRects().length > 0);
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -11274,11 +11305,11 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
   return createPortal((
     <div className="company-insight-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <article ref={dialogRef} className="company-insight-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId}>
-        <button ref={closeRef} className="company-insight-close" type="button" onClick={onClose} aria-label={tx.close}>×</button>
         <header className="company-insight-dialog-head">
+          <button ref={closeRef} className="company-insight-close" type="button" onClick={onClose} aria-label={tx.close}>×</button>
           <CompanyInsightIcon />
           <div>
-            <div className="company-insight-eyebrow">{report.standard?.toUpperCase()} · {report.period || "—"}</div>
+            <div className="company-insight-eyebrow">{report.standard?.toUpperCase()} · {report.period_label || report.period || "—"}</div>
             <h2 id={titleId}>{tx.title} {ticker}</h2>
             <p>{companyName}</p>
           </div>
@@ -11300,6 +11331,7 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
         <div id={bodyId} className="company-insight-report-copy">
           {(report.paragraphs || []).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
         </div>
+        <VerifiedReport report={report} lang={lang} />
         <footer className="company-insight-dialog-foot">
           <span><CompanyInsightIcon small />{tx.generated}</span>
           <p>{tx.disclaimer}</p>
@@ -21173,7 +21205,7 @@ function App() {
               reads as a bug, and the page is not secret — its data is guarded on
               the server, where guarding belongs. */}
           {activeView === "admin" && (
-            user?.is_admin ? (
+            user && adminSection === "sector-analysis" ? <SectorMonitorPage apiFetch={apiFetch} language={language} /> : user?.is_admin ? (
               <AdminPanel
                 apiFetch={apiFetch}
                 language={language}
@@ -22142,8 +22174,8 @@ function App() {
 
           {activeView === "analysis" && (analysisResult || analysisLoading) && (
             <section className="results-grid">
-              <HeroVerdictBlock analysisResult={analysisResult} language={language} />
-              <article className="panel metrics-panel">
+              {!analysisResult?.sector_report && <HeroVerdictBlock analysisResult={analysisResult} language={language} />}
+              {!analysisResult?.sector_report && <article className="panel metrics-panel">
                 <div className="panel-head">
                   <div>
                     <div className="panel-label">{t(language, "analysis.metricsTitle")}</div>
@@ -22161,11 +22193,11 @@ function App() {
                     <p className="empty-copy">{analysisLoading ? t(language, "analysis.loadingMetrics") : t(language, "analysis.resultEmpty")}</p>
                   </div>
                 )}
-              </article>
+              </article>}
 
               {analysisResult?.sections && <ReportArticleView analysisResult={analysisResult} language={language} />}
 
-              <article className="panel sections-panel">
+              {!analysisResult?.sector_report && <article className="panel sections-panel">
                 <div className="panel-head">
                   <div>
                     <div className="panel-label">{t(language, "analysis.sectionsTitle")}</div>
@@ -22220,7 +22252,7 @@ function App() {
                     <p className="empty-copy">{analysisLoading ? t(language, "analysis.loadingSections") : t(language, "analysis.resultEmpty")}</p>
                   </div>
                 )}
-              </article>
+              </article>}
 
               {analysisResult && <DisclaimerNote language={language} variant="report" />}
             </section>

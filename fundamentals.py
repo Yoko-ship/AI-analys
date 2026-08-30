@@ -421,6 +421,11 @@ def validate_statement(fin: dict[str, Any] | None,
     bal = (fin or {}).get("balance") or {}
     bal_equity = _num(bal.get("equity_end"))
     bal_assets = _num(bal.get("assets_end"))
+    # v2.2: quarantine a cross-form scale anomaly even if the income
+    # statement is internally consistent and no prior annual exists.
+    if bal_assets is not None and bal_assets > 0 and net is not None and abs(net) / bal_assets > 100:
+        for field in ("revenue", "gross_profit", "net_income", "total_equity", "total_assets"):
+            fail(field, "blocked_unit_mismatch", "масштабы Форм №1 и №2 требуют подтверждения источником")
     if (bal_equity is not None and liabilities is not None
             and bal_assets is not None and bal_assets > 0):
         tolerance = float(cfg.get("balance_identity_tolerance", 0.001))
@@ -1000,6 +1005,10 @@ def _suppress_unverified(result: dict[str, Any],
     own reason — the cell says «проверяется» about the number it describes."""
     findings = validation.get("findings") or []
     if validation.get("valid", True) or not findings:
+        return result
+    if any(f.get("code") == "blocked_unit_mismatch" for f in findings):
+        for metric in (*MULTIPLE_INPUTS, "bvps"):
+            result[metric] = _metric(None, "blocked_unit_mismatch", note="межформенный масштаб не подтверждён")
         return result
     for metric, inputs in MULTIPLE_INPUTS.items():
         reasons = list(dict.fromkeys(f["reason"] for f in findings if f["field"] in inputs))

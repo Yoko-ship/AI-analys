@@ -36,7 +36,7 @@ from openinfo_collector import collect_company_data
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("api_key")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower() or "medium"
-ANALYSIS_POLICY_VERSION = "sector-nsbu-first-v1-2026-08-29"
+ANALYSIS_POLICY_VERSION = "sector-analysis-v2.2-2026-08-30"
 REPORT_TABLES_VERSION = "report-tables-v1"
 ARTICLE_REPORT_VERSION = "article-report-v17"
 ARTICLE_ANALYSIS_ROW_LIMIT = int(os.getenv("OPENINFO_ARTICLE_ANALYSIS_ROW_LIMIT", "120"))
@@ -7595,11 +7595,11 @@ def _sector_nsbu_result(
     limitation_text = "\n".join(
         f"• {item.get('message')}" for item in data_quality
     ) or (
-        "Регуляторные и дополнительные отраслевые показатели показаны только при отдельном официальном раскрытии."
+        "Дополнительные отраслевые факты показаны только при отдельном официальном раскрытии."
         if language == "ru" else
-        "Regulyativ va qo‘shimcha tarmoq ko‘rsatkichlari faqat alohida rasmiy oshkor etilganda ko‘rsatiladi."
+        "Qo‘shimcha tarmoq faktlari faqat alohida rasmiy oshkor etilganda ko‘rsatiladi."
         if language == "uz" else
-        "Regulatory and supplemental sector metrics are shown only when separately disclosed by an official source."
+        "Supplemental sector facts are shown only when separately disclosed by an official source."
     )
     sections = {
         "ВЕРДИКТ": report.get("headline") or "",
@@ -7610,12 +7610,15 @@ def _sector_nsbu_result(
     }
     raw_analysis = _serialize_sections_for_report(sections)
     facts = report.get("verified_facts") or []
+    # Do not return the old unverified financial/source dump alongside the new
+    # verified contract. Only trading and instrument context belong here.
+    trading_data = {key: (company_data or {}).get(key) for key in ("ok", "company", "security", "market", "dividends")}
+    trading_context = _compact_market_context(trading_data)
     metrics = {
         "sector_template_code": report.get("sector_template_code"),
         "template_version": report.get("template_version"),
         "verified_facts": facts,
         "ratios": report.get("ratios") or [],
-        "regulatory_compliance": report.get("regulatory_compliance") or [],
         "total_score": {},
     }
     result = {
@@ -7641,8 +7644,8 @@ def _sector_nsbu_result(
         "risk_profile": {"items": risks, "method": "sector_rules"},
         "observations": data_quality,
         "liquidity": None,
-        "market_data": company_data or {},
-        "market_context": _compact_market_context(company_data),
+        "market_data": trading_data,
+        "market_context": trading_context,
         "excel_report_mode": excel_report_mode,
         "report_comparison": report_comparison,
         "cache_mode": cache_mode,
@@ -7654,7 +7657,13 @@ def _sector_nsbu_result(
         "analysis_policy_version": ANALYSIS_POLICY_VERSION,
         "analysis_policy": PUBLIC_ANALYSIS_POLICY_META,
         "verified_facts": facts,
-        "regulatory_compliance": report.get("regulatory_compliance") or [],
+        "sector_report": report,
+        "capital_analysis": report.get("capital_analysis"),
+        "profit_quality": report.get("profit_quality"),
+        "replacement_blocks": report.get("replacement_blocks"),
+        "analytical_signals": report.get("analytical_signals"),
+        "analytical_issues": report.get("analytical_issues"),
+        "verdict": report.get("verdict"),
         "data_quality": data_quality,
         "balance_check": report.get("balance_check"),
     }
@@ -7701,7 +7710,8 @@ async def run_company_analysis(
         "report_comparison": report_comparison,
     }
     cache_mode = _analysis_cache_mode(include_all_excel_reports, excel_report_limit, report_comparison)
-    allow_cache = not force_refresh
+    # The legacy company-name cache has no source/rule or market-date identity.
+    allow_cache = False
 
     if allow_cache:
         cached = analysis_cache.get(company_name, language=language, mode=cache_mode)

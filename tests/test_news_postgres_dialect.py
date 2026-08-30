@@ -14,6 +14,7 @@ news_store is covered the moment a test calls the function that issues it.
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 
 import pytest
 
@@ -66,7 +67,7 @@ ITEM = {
     "url": "https://example.test/a", "source": "Example", "source_id": "example",
     "lang": "ru", "title": "Заголовок", "snippet": "Текст",
     "summary_ru": "Сводка", "summary_en": "", "summary_uz": "",
-    "image_url": None, "published_at": "2026-07-31 09:00:00", "coverage_weight": 0.6,
+    "image_url": None, "published_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), "coverage_weight": 0.6,
     "type": "market", "tone": "neutral", "tone_score": 0.0, "impact": "low",
     "direction": "unclear", "sectors": [], "relevant": 1, "relevance_score": 0.5,
     "reason": "", "model": "test", "tickers": ["AGBA"],
