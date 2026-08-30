@@ -126,7 +126,7 @@ class TestSourcePrecedence:
         assert "ONLJ4" in merged
 
 
-REF = {"ticker": "IQMK5E", "nominal": 1_000_000.0, "coupon_rate": 18.0,
+REF = {"ticker": "IQMK5E", "nominal": 1_000_000.0, "coupon_rate": 18.0, "day_count": "ACT/365",
        "coupon_freq": 4, "issue_date": "2024-09-16", "maturity_date": "2029-09-18"}
 TODAY = date(2026, 8, 20)
 
@@ -189,8 +189,10 @@ class TestYieldsTheRegisterUnblocks:
         that as "no coupon disclosed" and withheld the most computable yields
         on the board."""
         ref = {"nominal": 100.0, "coupon_rate": 0.0, "coupon_freq": 12,
+               "day_count": "ACT/365",
                "issue_date": "2026-08-13", "maturity_date": "2045-08-13"}
         row = bonds.bond_row({"ticker": "OUSP19B5", "type": "bond",
+                              "last_trade_date": TODAY.isoformat(),
                               "last_price": 12.0, "close_price": 12.0},
                              reference=ref, coupons=[], today=TODAY)
         assert row["ytm"]["value"] == pytest.approx(11.8, abs=0.3)
@@ -245,7 +247,7 @@ class TestStatesAndResults:
         row = bonds.bond_row({"ticker": "IQMK5E", "type": "bond", "last_price": 1e6},
                              reference=REF, today=TODAY)
         block = row["schedule"]
-        assert block["source"] == "reconstructed"
+        assert block["source"] == "inferred"
         assert block["total"] == 20
         assert block["paid"] + block["left"] == 20
         assert block["next_date"] > TODAY.isoformat()
@@ -411,15 +413,16 @@ class TestDegradationRulesOfTheSpec:
     Their order is the point: compute, then reconstruct, then honestly dash."""
 
     FULL = {"nominal": 1_000_000.0, "coupon_rate": 18.0, "coupon_freq": 4,
+            "day_count": "ACT/365",
             "coupon_basis": "calendar", "issue_date": "2024-09-16",
             "maturity_date": "2029-09-18"}
 
     def _row(self, price=1_000_000.0, **ref):
-        return bonds.bond_row({"ticker": "X", "type": "bond", "last_price": price},
+        return bonds.bond_row({"ticker": "X", "type": "bond", "last_price": price, "last_trade_date": TODAY.isoformat()},
                               reference={**self.FULL, **ref}, today=TODAY)
 
     def test_1_all_inputs_disclosed_computes(self):
-        assert self._row()["ytm"]["status"] == "ok"
+        assert self._row()["ytm"]["status"] == "indicative"
 
     def test_2_an_unreadable_coupon_cycle_is_not_replaced_by_an_assumption(self):
         """The ТЗ would assume «2 раза в год» and mark it. This codebase does
@@ -436,7 +439,7 @@ class TestDegradationRulesOfTheSpec:
         long the paper has existed is unknown, and a count reaching back to an
         invented placement would be fiction."""
         row = self._row(issue_date=None)
-        assert row["schedule"]["source"] == "reconstructed"
+        assert row["schedule"]["source"] == "inferred"
         assert row["schedule"]["partial"] is True
         assert row["ytm"]["value"] is not None
         assert row["duration"]["value"] is not None

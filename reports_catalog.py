@@ -5369,6 +5369,20 @@ def _row_value(nums: list, strict_period: bool = False) -> float | None:
     return _first_nonzero(rest)
 
 
+def _strict_balance_row_value(row: dict) -> float | None:
+    """Explicit closing column; neither blank nor zero falls back to opening."""
+    from sector_analysis import decimal, number
+    original = row.get("source_cells")
+    if original:
+        candidates = [(i, decimal(v)) for i, v in enumerate(original)]
+        code_index = next((i for i, v in candidates if v is not None and v == int(v) and 0 < v < 2000), None)
+        if code_index is None or len(original) <= code_index + 2:
+            return None
+        return number(original[code_index + 2])
+    nums = row.get("numeric_values") or []
+    return number(nums[-1]) if len(nums) in (2, 3) else None
+
+
 def _extract_metric(rows: list[dict], key: str, strict_period: bool = False) -> float | None:
     patterns = _LABEL_PATTERNS.get(key, [])
     excludes = _LABEL_EXCLUSIONS.get(key, ())
@@ -5377,7 +5391,7 @@ def _extract_metric(rows: list[dict], key: str, strict_period: bool = False) -> 
         if any(p in label for p in patterns):
             if any(x in label for x in excludes):
                 continue
-            v = _row_value(row.get("numeric_values") or [], strict_period=strict_period)
+            v = _strict_balance_row_value(row) if strict_period else _row_value(row.get("numeric_values") or [])
             if v is not None:
                 return v
     return None
@@ -5419,7 +5433,7 @@ def _extract_formula_total(rows: list[dict], formulas: tuple[str, ...]) -> float
     for row in rows:
         squashed = _squash(row.get("label"))
         if any(formula in squashed for formula in formulas):
-            value = _row_value(row.get("numeric_values") or [], strict_period=True)
+            value = _strict_balance_row_value(row)
             if value is not None:
                 return value
     return None
@@ -5436,7 +5450,7 @@ def _extract_current_assets(rows: list[dict]) -> float | None:
     return None
 
 
-def _extract_liabilities_total(rows: list[dict]) -> float | None:
+def _extract_liabilities_total(rows: list[dict], strict_period: bool = False) -> float | None:
     """The obligations total the issuer itself published, if the form prints one.
 
     Preferred over re-adding «Долгосрочные обязательства, всего» and «Текущие
@@ -5448,7 +5462,7 @@ def _extract_liabilities_total(rows: list[dict]) -> float | None:
     for row in rows:
         squashed = _squash(row.get("label"))
         if "итого" in squashed and any(f in squashed for f in _LIABILITIES_SECTION_FORMULAS):
-            v = _row_value(row.get("numeric_values") or [])
+            v = _strict_balance_row_value(row) if strict_period else _row_value(row.get("numeric_values") or [])
             if v is not None:
                 return v
     return None
@@ -5516,14 +5530,14 @@ def extract_insurance_balance(balance_data: dict | None) -> dict[str, float | No
         else None
     )
     net = calculated_net if calculated_net is not None else filed_net
-    other_liabilities = _extract_liabilities_total(rows)
+    other_liabilities = _extract_liabilities_total(rows, strict_period=True)
     total_liabilities = (
         net + other_liabilities
         if net is not None and other_liabilities is not None
         else None
     )
     return {
-        "total_assets": _extract_metric(rows, "total_assets"),
+        "total_assets": _extract_metric(rows, "total_assets", strict_period=True),
         "total_equity": _extract_formula_total(rows, _INSURANCE_EQUITY_FORMULAS),
         "gross_insurance_reserves": gross,
         "reinsurer_share_in_reserves": reinsurer_share,
@@ -5566,8 +5580,8 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         # Insurance liabilities are ordinary liabilities PLUS net technical
         # reserves.  The old parser exposed only section III, making UZAS Q1
         # 2026 miss 129.18bn UZS of obligations and fail its balance identity.
-        total_assets = insurance_balance.get("total_assets") or total_assets
-        equity = insurance_balance.get("total_equity") or equity
+        total_assets = insurance_balance.get("total_assets")
+        equity = insurance_balance.get("total_equity")
         total_liabilities = insurance_balance.get("total_liabilities")
 
     # Commercial form №1 labels its equity total only "Итого по разделу I" — the

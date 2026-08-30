@@ -1,0 +1,30 @@
+.verified-report { width:100%; min-width:0; color:var(--text,inherit); line-height:1.65; }
+.verified-meta { display:flex; flex-wrap:wrap; gap:8px 16px; margin:16px 0; font-size:12px; opacity:.8; }
+.verified-block { border:1px solid var(--border,#cbd5e1); border-radius:12px; margin:12px 0; overflow:hidden; }
+.verified-block summary { cursor:pointer; padding:14px 16px; font-weight:650; }
+.verified-block summary:focus-visible,.verified-scroll:focus-visible { outline:2px solid #5f88d7; outline-offset:-2px; }
+.verified-scroll { overflow:auto; max-width:100%; padding:0 12px 12px; }
+.verified-scroll table { border-collapse:collapse; width:100%; font-size:12px; }
+.verified-scroll caption { text-align:left; padding:6px 0 12px; max-width:70ch; }
+.verified-scroll th,.verified-scroll td { border-bottom:1px solid var(--border,#cbd5e1); padding:10px; text-align:right; white-space:nowrap; }
+.verified-scroll th:first-child { text-align:left; white-space:normal; min-width:160px; }
+.verified-scroll a { display:block; max-width:190px; white-space:normal; overflow-wrap:anywhere; }
+.verified-ratios { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; padding:14px; }
+.verified-ratios article { padding:12px; border:1px solid var(--border,#cbd5e1); border-radius:8px; }
+.verified-ratios p { font-size:12px; overflow-wrap:anywhere; }
+.verified-issues { margin-top:24px; }
+.verified-issues article { margin:12px 0; padding:16px 18px; border:1px solid var(--border,#cbd5e1); border-left:3px solid #c18a33; border-radius:10px; }
+.verified-issues h4 { margin:0 0 8px; font-size:15px; }
+.verified-issues p { margin:7px 0; }
+.verified-note,.verified-availability { padding:16px; border:1px solid var(--border,#cbd5e1); border-radius:12px; margin:14px 0; }
+.verified-availability p { margin:8px 0; overflow-wrap:anywhere; }
+.verified-version { display:block; opacity:.65; padding:14px 0; overflow-wrap:anywhere; }
+.verified-rule-form { display:grid; gap:12px; padding:16px; }
+.verified-rule-form label { display:grid; gap:6px; }
+.verified-rule-form input,.verified-rule-form select { max-width:100%; min-width:0; padding:8px; }
+.sector-monitor .admin-scroll { margin:12px 0; padding:0; }
+.sector-monitor .admin-scroll table { min-width:620px; }
+.sector-monitor .admin-btn { white-space:normal; }
+.sector-monitor .verified-rule-form input,.sector-monitor .verified-rule-form select { border:1px solid var(--border); border-radius:8px; min-height:40px; background:var(--panel); color:var(--text); font:inherit; }
+.sector-monitor :is(button,input,select):focus-visible { outline:2px solid var(--accent,#5f88d7); outline-offset:3px; }
+@media(max-width:560px) { .verified-ratios { grid-template-columns:1fr; } .verified-issues article { padding:12px; } }

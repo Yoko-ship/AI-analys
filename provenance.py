@@ -60,7 +60,7 @@ def init(conn: sqlite3.Connection | None = None) -> None:
     try:
         import dbx
 
-        dbx.ensure_schema(conn, "provenance", _create_schema)
+        dbx.ensure_schema(conn, "provenance-bond-verification-v2", _create_schema)
     finally:
         if own:
             conn.close()
@@ -201,6 +201,18 @@ def _create_schema(conn: sqlite3.Connection) -> None:
               ON bank_fx_rates (ccy, channel, bank_updated_at DESC);
             """
     )
+    import dbx
+    for table, fields in {
+        "bond_reference": {"day_count": "TEXT", "schedule_source": "TEXT", "status": "TEXT",
+                           "cashflows_verified": "INTEGER", "options_verified": "INTEGER",
+                           "future_rates_verified": "INTEGER", "outstanding_principal_per_bond": "REAL",
+                           "issuer_id": "TEXT"},
+        "bond_coupons": {"source_url": "TEXT", "principal": "REAL", "inferred": "INTEGER"},
+    }.items():
+        existing = set(dbx.columns(conn, table))
+        for column, kind in fields.items():
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     conn.commit()
 
 
@@ -508,7 +520,9 @@ def upsert_bond_reference(rows: Sequence[dict[str, Any]]) -> int:
               "coupon_type", "float_base", "coupon_basis", "coupon_period_days",
               "issue_date", "maturity_date", "issue_volume",
               "placed_volume", "issuer", "coupon_source", "maturity_source",
-              "amortization", "has_put", "has_call", "source_url")
+              "amortization", "has_put", "has_call", "source_url",
+              "day_count", "schedule_source", "status", "cashflows_verified",
+              "options_verified", "future_rates_verified", "outstanding_principal_per_bond", "issuer_id")
     written = 0
     try:
         for row in rows or []:
@@ -546,7 +560,8 @@ def upsert_bond_coupons(rows: Sequence[dict[str, Any]]) -> int:
     """
     init()
     conn = _conn()
-    fields = ("ticker", "coupon_no", "period_from", "period_to", "pay_date", "amount", "is_paid")
+    fields = ("ticker", "coupon_no", "period_from", "period_to", "pay_date", "amount", "is_paid",
+              "source_url", "principal", "inferred")
     written = 0
     try:
         for ticker in {str(r.get("ticker") or "").upper() for r in rows or [] if r.get("ticker")}:

@@ -21,3 +21,4 @@ web/dist/
 .verify_shots
 test-results/
 playwright-report/
+audit/sector-v2.2/pytest-run-*/

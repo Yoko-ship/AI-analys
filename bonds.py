@@ -749,7 +749,7 @@ def _days_since_coupon(reference: dict[str, Any], coupons: Sequence[dict[str, An
 # The row the bonds table shows
 # ---------------------------------------------------------------------------
 
-def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
+def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
              quality: dict[str, Any] | None = None,
              reference: dict[str, Any] | None = None,
              coupons: Sequence[dict[str, Any]] | None = None,
@@ -919,7 +919,7 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
     flows = coupon_cashflows(reference, coupons or [], today, schedule)
     ytm = yield_to_maturity(flows, dirty) if dirty else _unavailable()
     duration = macaulay_duration(flows, dirty, ytm.get("value")) if dirty else _unavailable()
-    mod = modified_duration(duration.get("value"), ytm.get("value"), freq)
+    mod = modified_duration(duration.get("value"), ytm.get("value"), 1)
     # The curve is read at the bond's own horizon — its duration when the solver
     # produced one, its remaining term otherwise.
     horizon = duration.get("value")
@@ -935,6 +935,19 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
         "g_spread": g_spread(ytm.get("value"), horizon, gov_points or []),
     })
     return out
+
+
+def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
+             quality: dict[str, Any] | None = None,
+             reference: dict[str, Any] | None = None,
+             coupons: Sequence[dict[str, Any]] | None = None,
+             key_rate: Any = None, today: date | None = None,
+             stats: dict[str, Any] | None = None, board_day: date | None = None,
+             gov_points: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
+    from bond_quality import apply_quality
+    result = _bond_row_unchecked(row, meta, quality, reference, coupons, key_rate, today,
+                                stats, board_day, gov_points)
+    return apply_quality(result, reference or {}, list(coupons or []), today or date.today(), gov_points or [])
 
 
 def issue_schedule(reference: dict[str, Any] | None,
@@ -1154,5 +1167,9 @@ def build_bond_board(board: Iterable[dict[str, Any]],
         "board_day": board_day.isoformat() if board_day else None,
         "traded_today": sum(1 for r in rows if r.get("is_current")),
         "stale": sum(1 for r in rows if r.get("is_current") is False),
-        "day_count_basis": day_count_basis(),
+        "day_count_basis": None,
+        "day_count_policy": "per_issue_disclosed_basis",
+        "active_issues": sum(1 for r in rows if r.get("state") in {"live", "last"}),
+        "with_trades": sum(1 for r in rows if r.get("quote_as_of")),
+        "with_calculable_yield": sum(1 for r in rows if (r.get("ytm") or {}).get("value") is not None),
     }

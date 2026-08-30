@@ -113,8 +113,8 @@ SECTOR_TEMPLATES: dict[str, dict[str, Any]] = {
     "bank": {
         "required_metrics": ["revenue", "net_income", "total_assets", "total_liabilities", "total_equity"],
         "optional_metrics": ["operating_income", "cash"],
-        "warning_rules": ["Use only bank NSBU lines; regulatory ratios require an official regulatory disclosure."],
-        "paragraph_structure": ["verdict", "income", "balance", "regulatory", "risks"],
+        "warning_rules": ["Use only verified bank NSBU lines."],
+        "paragraph_structure": ["verdict", "income", "balance", "risks"],
         "version": "bank-nsbu-1.0",
     },
     "insurance": {
@@ -125,12 +125,12 @@ SECTOR_TEMPLATES: dict[str, dict[str, Any]] = {
         ],
         "optional_metrics": ["operating_income", "cash", "other_liabilities"],
         "warning_rules": ["Gross reserves, reinsurer share and net reserves remain separately traceable."],
-        "paragraph_structure": ["verdict", "income", "reserves", "regulatory", "risks"],
+        "paragraph_structure": ["verdict", "income", "reserves", "risks"],
         "version": "insurance-nsbu-1.0",
     },
     "non_financial": {
         "required_metrics": ["revenue", "net_income", "net_margin_pct", "roe_pct", "debt_ratio_pct", "current_ratio"],
-        "optional_metrics": ["quick_ratio", "pe", "pb", "ev_ebitda"],
+        "optional_metrics": ["quick_ratio", "pe", "pb"],
         "warning_rules": ["Do not publish EBITDA, CFO, CAPEX or FCF without a separately verified source."],
         "paragraph_structure": ["verdict", "income", "balance", "ratios", "risks"],
         "version": "non-financial-nsbu-1.0",
@@ -208,7 +208,15 @@ def _organization_type(issuer: dict[str, Any], standard: str = "nsbu") -> str:
         "insurance": "insurance",
         "microfinance": "microfinance",
         "mfo": "microfinance",
+        "microfinance_bank": "microfinance_bank",
+        "microbank": "microfinance_bank",
+        "investment_fund": "investment_fund_ifrs_annual",
+        "commodity_exchange": "commodity_exchange",
     }
+    from sector_report_service import special_type
+    special = special_type(issuer)
+    if special:
+        return special
     if explicit in aliases:
         return aliases[explicit]
 
@@ -455,6 +463,8 @@ def _financial_snapshot(
     insurance_mapping_error: str | None = None
     if standard == "nsbu" and organization_type == "insurance" and selected:
         year, quarter = _period_key(selected)
+        if "Q" not in selected:
+            quarter = 0
         try:
             workbook = fetch_report_excel_data(ticker, form, year, quarter)
             insurance_balance = extract_insurance_balance(
@@ -470,9 +480,8 @@ def _financial_snapshot(
                     "gross_insurance_reserves", "reinsurer_share_in_reserves",
                     "net_insurance_reserves", "other_liabilities",
                 ):
-                    if insurance_balance.get(field) is not None:
-                        values[field] = insurance_balance[field]
-                        reported_values[field] = insurance_balance[field]
+                    values[field] = insurance_balance.get(field)
+                    reported_values[field] = insurance_balance.get(field)
         except Exception as exc:  # a missing workbook becomes a quality state, never an invented zero
             insurance_mapping_error = str(exc)
     observations: dict[str, dict[str, Any]] = {}
@@ -586,6 +595,11 @@ def _financial_snapshot(
         "previous_comparable_period": previous_period,
         "observations": list(observations.values()),
         "source": source,
+        "current_values": values,
+        "previous_values": previous,
+        "opening_values": {},
+        "scope_verified": (source_doc or {}).get("scope") == scope,
+        "audited": (source_doc or {}).get("audited") is True,
     }
     payload["quality"] = {
         "traceable": all(item["source"]["document_id"] for item in observations.values() if item["raw"] is not None),
@@ -641,15 +655,17 @@ def _issuer_bonds(issuer: dict[str, Any]) -> list[dict[str, Any]]:
     rows = []
     for ticker, reference in provenance.bond_references().items():
         reference_name = _normal_name(reference.get("issuer"))
-        if not reference_name or not (reference_name in issuer_name or issuer_name in reference_name or reference_name in ticker_names):
+        linked_id = str(reference.get("issuer_id") or "")
+        if not (linked_id == str(issuer["id"]) or (not linked_id and reference_name and (reference_name == issuer_name or reference_name in ticker_names))):
             continue
         coupons = provenance.bond_coupons().get(ticker, [])
         schedule = bond_math.issue_schedule(reference, coupons)
         rows.append({
             **reference,
             "ticker": ticker,
+            "issuer_id": issuer["id"],
             "cashflow_schedule": schedule,
-            "cashflow_status": "available" if (schedule or {}).get("items") else "unavailable",
+            "cashflow_status": "available" if schedule else "unavailable",
         })
     return rows
 
@@ -1171,320 +1187,9 @@ def _period_label(period: str | None, lang: str) -> str:
     return labels.get(lang, labels["ru"])[quarter if period and "Q" in period else 0]
 
 
-def _sector_report_risks(snapshot: dict[str, Any], lang: str = "en") -> list[dict[str, Any]]:
-    observations = {item["metric"]: item for item in snapshot.get("observations") or []}
-    risks: list[dict[str, Any]] = []
-
-    language = lang if lang in {"ru", "uz", "en"} else "en"
-    titles = {
-        "ru": {
-            "net_income_decline": "Существенное снижение чистой прибыли",
-            "negative_operating_result": "Отрицательный операционный результат",
-            "low_current_liquidity": "Текущая ликвидность ниже аналитического ориентира",
-        },
-        "uz": {
-            "net_income_decline": "Sof foydaning sezilarli pasayishi",
-            "negative_operating_result": "Salbiy operatsion natija",
-            "low_current_liquidity": "Joriy likvidlik tahliliy mezondan past",
-        },
-        "en": {
-            "net_income_decline": "Material decline in net income",
-            "negative_operating_result": "Negative operating result",
-            "low_current_liquidity": "Current liquidity below the analytical reference",
-        },
-    }
-    consequences = {
-        "ru": {
-            "net_income_decline": "Финансовый результат существенно ослаб относительно сопоставимого накопительного периода.",
-            "negative_operating_result": "Раскрытый операционный результат остался ниже нуля.",
-            "low_current_liquidity": "Текущие активы ниже текущих обязательств по формуле обычного предприятия.",
-        },
-        "uz": {
-            "net_income_decline": "Moliyaviy natija taqqoslanadigan jamlangan davrga nisbatan sezilarli zaiflashdi.",
-            "negative_operating_result": "E’lon qilingan operatsion natija noldan past bo‘lib qoldi.",
-            "low_current_liquidity": "Oddiy korxona formulasida joriy aktivlar joriy majburiyatlardan past.",
-        },
-        "en": {
-            "net_income_decline": "The earnings result weakened materially against the comparable cumulative period.",
-            "negative_operating_result": "The disclosed operating result remained below zero.",
-            "low_current_liquidity": "Reported current assets are below current liabilities under the enterprise formula.",
-        },
-    }
-
-    def add(code: str, metric: str, threshold: float) -> None:
-        fact = observations.get(metric) or {}
-        value = _safe_float(fact.get("normalized"))
-        if value is None:
-            return
-        risks.append({
-            "code": code,
-            "category": "financial",
-            "title": titles[language][code],
-            "severity": "high" if code == "net_income_decline" else "medium",
-            "metric_code": metric,
-            "actual_value": value,
-            "unit": fact.get("unit"),
-            "threshold": threshold,
-            "threshold_type": "analytical_rule",
-            "comparison_period": snapshot.get("previous_comparable_period"),
-            "consequence": consequences[language][code],
-            "evidence_source_id": (fact.get("source") or {}).get("document_id"),
-            "source_line_ids": [metric],
-            "confidence": "high",
-        })
-
-    income_growth = _safe_float((observations.get("net_income_growth_pct") or {}).get("normalized"))
-    if income_growth is not None and income_growth <= -20:
-        add("net_income_decline", "net_income_growth_pct", -20)
-    operating_income = _safe_float((observations.get("operating_income") or {}).get("normalized"))
-    if operating_income is not None and operating_income < 0:
-        add("negative_operating_result", "operating_income", 0)
-    current_ratio = _safe_float((observations.get("current_ratio") or {}).get("normalized"))
-    if snapshot.get("organization_type") == "non_financial" and current_ratio is not None and current_ratio < 1:
-        add("low_current_liquidity", "current_ratio", 1)
-    return risks[:4]
-
-
-def _sector_ai_report_headline(snapshot: dict[str, Any], lang: str) -> tuple[str, str]:
-    language = lang if lang in {"ru", "uz", "en"} else "ru"
-    status = snapshot.get("availability_status")
-    unavailable = {
-        "ru": {
-            "no_source": "Анализ временно недоступен: подходящая отчётность НСБУ не найдена.",
-            "quality_blocked": "Анализ временно недоступен: данные не прошли автоматическую сверку.",
-            "sector_template_missing": "Отраслевой анализ для этого эмитента ещё не настроен.",
-        },
-        "uz": {
-            "no_source": "Tahlil vaqtincha mavjud emas: mos NSBU hisoboti topilmadi.",
-            "quality_blocked": "Tahlil vaqtincha mavjud emas: ma’lumotlar avtomatik tekshiruvdan o‘tmadi.",
-            "sector_template_missing": "Ushbu emitent uchun tarmoq tahlili hali sozlanmagan.",
-        },
-        "en": {
-            "no_source": "Analysis is temporarily unavailable because no suitable NSBU filing was found.",
-            "quality_blocked": "Analysis is temporarily unavailable because the data failed automated validation.",
-            "sector_template_missing": "Sector analysis has not yet been configured for this issuer.",
-        },
-    }
-    if status != "available":
-        return unavailable[language].get(status, unavailable[language]["no_source"]), "neutral"
-
-    available = {
-        item["metric"]: item.get("normalized")
-        for item in snapshot.get("observations") or []
-        if item.get("normalized") is not None
-    }
-    revenue_growth = _safe_float(available.get("revenue_growth_pct"))
-    income_growth = _safe_float(available.get("net_income_growth_pct"))
-    operating_income = _safe_float(available.get("operating_income"))
-    organization_type = snapshot.get("organization_type")
-    deteriorating = income_growth is not None and income_growth <= -20
-    negative_operating = operating_income is not None and operating_income < 0
-    improving = revenue_growth is not None and revenue_growth > 3 and income_growth is not None and income_growth > 3
-    copy = {
-        "ru": {
-            "insurance_down": "Доход страховщика вырос, но прибыль или операционный результат существенно ухудшились.",
-            "insurance_negative": "Доход страховщика вырос, но операционный результат остался отрицательным.",
-            "bank_up": "Банк увеличил раскрытые доходы и чистую прибыль за сопоставимый накопительный период.",
-            "down": "Финансовый результат ухудшился относительно сопоставимого накопительного периода.",
-            "negative": "Операционный результат остаётся отрицательным, несмотря на динамику других показателей.",
-            "up": "Выручка и чистая прибыль выросли относительно сопоставимого накопительного периода.",
-            "mixed": "Динамика финансовых показателей неоднозначна и требует чтения вместе с исходными данными.",
-        },
-        "uz": {
-            "insurance_down": "Sug‘urtalovchi daromadi oshdi, ammo foyda yoki operatsion natija sezilarli yomonlashdi.",
-            "insurance_negative": "Sug‘urtalovchi daromadi oshdi, ammo operatsion natija salbiy bo‘lib qoldi.",
-            "bank_up": "Bank taqqoslanadigan jamlangan davrda daromad va sof foydani oshirdi.",
-            "down": "Moliyaviy natija taqqoslanadigan jamlangan davrga nisbatan yomonlashdi.",
-            "negative": "Boshqa ko‘rsatkichlar dinamikasiga qaramay, operatsion natija salbiy bo‘lib qolmoqda.",
-            "up": "Tushum va sof foyda taqqoslanadigan jamlangan davrga nisbatan oshdi.",
-            "mixed": "Moliyaviy ko‘rsatkichlar dinamikasi turlicha; xulosani manba ma’lumotlari bilan birga o‘qish kerak.",
-        },
-        "en": {
-            "insurance_down": "The insurer's income increased, but profit or the operating result deteriorated materially.",
-            "insurance_negative": "The insurer's income increased, but the operating result remained negative.",
-            "bank_up": "The bank increased disclosed income and net profit over the comparable cumulative period.",
-            "down": "The financial result deteriorated against the comparable cumulative period.",
-            "negative": "The operating result remains negative despite the direction of other metrics.",
-            "up": "Revenue and net income increased against the comparable cumulative period.",
-            "mixed": "The financial trends are mixed and should be read with the underlying filing data.",
-        },
-    }
-    if organization_type == "insurance" and deteriorating:
-        return copy[language]["insurance_down"], "warning"
-    if organization_type == "insurance" and negative_operating:
-        return copy[language]["insurance_negative"], "warning"
-    if deteriorating:
-        return copy[language]["down"], "warning"
-    if negative_operating:
-        return copy[language]["negative"], "warning"
-    if organization_type == "bank" and improving:
-        return copy[language]["bank_up"], "positive"
-    if improving:
-        return copy[language]["up"], "positive"
-    return copy[language]["mixed"], "neutral"
-
-
 def _sector_ai_report(issuer: dict[str, Any], standard: str, period: str | None, scope: str, lang: str) -> dict[str, Any]:
-    """Build a short sector-specific report from verified facts only."""
-    language = lang if lang in {"ru", "uz", "en"} else "ru"
-    snapshot = _financial_snapshot(issuer, standard, period, scope)
-    observations = {item["metric"]: item for item in snapshot["observations"]}
-    available = {key: item["normalized"] for key, item in observations.items() if item["normalized"] is not None}
-    blocking = any(item.get("severity") == "blocking" for item in snapshot["quality"].get("data_quality") or [])
-    if snapshot.get("sector_template_code") == "sector_template_missing":
-        status = "sector_template_missing"
-    elif not snapshot.get("period") or not any(key in available for key in ("revenue", "net_income", "total_assets")):
-        status = "no_source"
-    elif blocking:
-        status = "quality_blocked"
-    else:
-        status = "available"
-    snapshot["availability_status"] = status
-    headline, headline_tone = _sector_ai_report_headline(snapshot, language)
-
-    template = SECTOR_TEMPLATES.get(snapshot.get("sector_template_code")) or {}
-    required = set(template.get("required_metrics") or [])
-    content_status = "complete" if required and len(required & set(available)) >= max(2, math.ceil(len(required) * 0.7)) else "shortened"
-    period_text = _period_label(snapshot.get("period"), language)
-    n = lambda key: _fmt_number(available.get(key), language)
-    p = lambda key: f"{n(key)}%"
-    paragraphs: list[str] = []
-
-    if status != "available":
-        details = snapshot["quality"].get("data_quality") or []
-        reason = details[0].get("message") if details else (
-            "No suitable source filing is available" if language == "en" else
-            "Mos manba hisoboti mavjud emas" if language == "uz" else
-            "Подходящий исходный отчёт отсутствует"
-        )
-        paragraphs = [f"{headline} {reason}"]
-    else:
-        org_type = snapshot.get("organization_type")
-        if language == "ru":
-            facts: list[str] = []
-            if available.get("revenue") is not None:
-                facts.append(f"раскрытый доход составил {n('revenue')} тыс. сум" + (f" ({p('revenue_growth_pct')} год к году)" if available.get("revenue_growth_pct") is not None else ""))
-            if available.get("net_income") is not None:
-                if _safe_float(available.get("net_income")) < 0:
-                    change = f"; результат изменился на {p('net_income_growth_pct')} год к году" if available.get("net_income_growth_pct") is not None else ""
-                    facts.append(f"чистый убыток составил {_fmt_number(abs(available['net_income']), language)} тыс. сум{change}")
-                else:
-                    facts.append(f"чистая прибыль составила {n('net_income')} тыс. сум" + (f" ({p('net_income_growth_pct')} год к году)" if available.get("net_income_growth_pct") is not None else ""))
-            if not facts and available.get("total_assets") is not None:
-                facts.append(f"активы на отчётную дату составили {n('total_assets')} тыс. сум")
-            paragraphs.append(f"По НСБУ за {period_text}: " + "; ".join(facts) + ".")
-            if available.get("operating_income") is not None:
-                paragraphs.append(f"Раскрытый операционный результат равен {n('operating_income')} тыс. сум. Его знак и изменение учитываются в выводе отдельно от динамики дохода.")
-            if org_type == "insurance":
-                paragraphs.append(f"Страховые резервы показаны раздельно: валовые резервы — {n('gross_insurance_reserves')} тыс. сум, доля перестраховщиков — {n('reinsurer_share_in_reserves')} тыс. сум, чистые резервы — {n('net_insurance_reserves')} тыс. сум. Вместе с прочими обязательствами {n('other_liabilities')} тыс. сум совокупные обязательства составляют {n('total_liabilities')} тыс. сум.")
-                paragraphs.append("Маржа платёжеспособности не оценена: в используемом наборе нет отдельного официального регуляторного значения. Коэффициент выплат и доля резервов не подменяют этот норматив.")
-            elif org_type == "bank":
-                paragraphs.append(f"Активы составляют {n('total_assets')} тыс. сум, обязательства — {n('total_liabilities')} тыс. сум, капитал — {n('total_equity')} тыс. сум; балансовое равенство прошло автоматическую проверку.")
-                paragraphs.append("Регулятивный капитал и ликвидность не оценены без официальных CET1, Tier 1, CAR, LCR и NSFR. Балансовая доля обязательств не считается нарушением или доказательством слабой ликвидности.")
-            else:
-                paragraphs.append(f"Активы составляют {n('total_assets')} тыс. сум, обязательства — {n('total_liabilities')} тыс. сум, капитал — {n('total_equity')} тыс. сум. Доля обязательств в активах равна {p('debt_ratio_pct')}.")
-                if available.get("current_ratio") is not None:
-                    paragraphs.append(f"Текущая ликвидность равна {n('current_ratio')}, быстрая ликвидность — {n('quick_ratio')}. Это методические ориентиры обычного предприятия, а не пруденциальные нормативы.")
-            risks = _sector_report_risks(snapshot, language)
-            if risks:
-                paragraphs.append("Материальные сигналы: " + "; ".join(f"{risk['title']}: {n(risk['metric_code'])}{'%' if risk['unit'] == '%' else ''}" for risk in risks) + ". Каждый сигнал связан с исходным показателем и не заменяет проверку первичного документа.")
-        elif language == "uz":
-            income_label = "sof zarar" if _safe_float(available.get("net_income")) is not None and _safe_float(available.get("net_income")) < 0 else "sof foyda"
-            income_value = _fmt_number(abs(available["net_income"]), language) if available.get("net_income") is not None else n("net_income")
-            paragraphs.append(f"{period_text} uchun NSBU ma’lumotlarida daromad {n('revenue')} ming so‘m, {income_label} {income_value} ming so‘mni tashkil etdi. O‘zgarishlar mos ravishda {p('revenue_growth_pct')} va {p('net_income_growth_pct')} bo‘ldi.")
-            if available.get("operating_income") is not None:
-                paragraphs.append(f"E’lon qilingan operatsion natija {n('operating_income')} ming so‘m. Daromad o‘sishi bu natijadagi yomonlashuvni yashirmaydi.")
-            if org_type == "insurance":
-                paragraphs.append(f"Yalpi sug‘urta zaxiralari {n('gross_insurance_reserves')} ming so‘m, qayta sug‘urtalovchilar ulushi {n('reinsurer_share_in_reserves')} ming so‘m va sof zaxiralar {n('net_insurance_reserves')} ming so‘m. Jami majburiyatlar {n('total_liabilities')} ming so‘m.")
-                paragraphs.append("To‘lovga qobiliyatlilik marjasi rasmiy regulyator ko‘rsatkichi bo‘lmagani uchun baholanmadi.")
-            elif org_type == "bank":
-                paragraphs.append(f"Aktivlar {n('total_assets')} ming so‘m, majburiyatlar {n('total_liabilities')} ming so‘m va kapital {n('total_equity')} ming so‘m; balans tengligi tekshirildi.")
-                paragraphs.append("Rasmiy CET1, Tier 1, CAR, LCR va NSFR bo‘lmasa, regulyativ kapital va likvidlik baholanmaydi.")
-            else:
-                paragraphs.append(f"Aktivlar {n('total_assets')} ming so‘m, majburiyatlar {n('total_liabilities')} ming so‘m va kapital {n('total_equity')} ming so‘m.")
-        else:
-            income_label = "net loss" if _safe_float(available.get("net_income")) is not None and _safe_float(available.get("net_income")) < 0 else "net income"
-            income_value = _fmt_number(abs(available["net_income"]), language) if available.get("net_income") is not None else n("net_income")
-            paragraphs.append(f"For {period_text} under NSBU, disclosed income was {n('revenue')} thousand UZS and {income_label} was {income_value} thousand UZS. Their comparable-period changes were {p('revenue_growth_pct')} and {p('net_income_growth_pct')}.")
-            if available.get("operating_income") is not None:
-                paragraphs.append(f"The disclosed operating result was {n('operating_income')} thousand UZS. Income growth does not override deterioration in this result.")
-            if org_type == "insurance":
-                paragraphs.append(f"Gross insurance reserves were {n('gross_insurance_reserves')} thousand UZS, the reinsurer share was {n('reinsurer_share_in_reserves')} thousand UZS, and net reserves were {n('net_insurance_reserves')} thousand UZS. Total liabilities were {n('total_liabilities')} thousand UZS.")
-                paragraphs.append("Solvency-margin compliance was not assessed because no official issuer-specific regulatory value is present in this data layer.")
-            elif org_type == "bank":
-                paragraphs.append(f"Assets were {n('total_assets')} thousand UZS, liabilities {n('total_liabilities')} thousand UZS, and equity {n('total_equity')} thousand UZS; the balance identity passed automated validation.")
-                paragraphs.append("Regulatory capital and liquidity are not assessed without official CET1, Tier 1, CAR, LCR and NSFR values.")
-            else:
-                paragraphs.append(f"Assets were {n('total_assets')} thousand UZS, liabilities {n('total_liabilities')} thousand UZS, and equity {n('total_equity')} thousand UZS.")
-
-        current_risks = _sector_report_risks(snapshot, language)
-        if not current_risks:
-            paragraphs.append(
-                "Ни одно из настроенных пороговых правил не сформировало подтверждённый существенный риск по доступным показателям; это не означает отсутствия рисков за пределами раскрытого набора данных."
-                if language == "ru" else
-                "Mavjud ko‘rsatkichlar bo‘yicha sozlangan mezonlarning hech biri tasdiqlangan muhim xavfni yaratmadi; bu oshkor etilmagan ma’lumotlarda xavf yo‘q degani emas."
-                if language == "uz" else
-                "None of the configured threshold rules produced a substantiated material risk from the available metrics; this does not imply that no risk exists outside the disclosed data."
-            )
-        elif language != "ru":
-            paragraphs.append(
-                ("Muhim signallar: " if language == "uz" else "Material signals: ")
-                + "; ".join(f"{risk['title']}: {n(risk['metric_code'])}{'%' if risk['unit'] == '%' else ''}" for risk in current_risks)
-                + "."
-            )
-
-    risks = _sector_report_risks(snapshot, language) if status == "available" else []
-    regulatory: list[dict[str, Any]] = []
-    if snapshot.get("organization_type") == "bank":
-        regulatory = [{"metric_code": code, "actual": None, "status": "not_disclosed", "actual_source_url": None} for code in ("cet1", "tier1", "car", "lcr", "nsfr")]
-    elif snapshot.get("organization_type") == "insurance":
-        regulatory = [{"metric_code": "solvency_margin_adequacy", "actual": None, "operator": ">=", "threshold": 1.0, "status": "not_disclosed", "actual_source_url": None}]
-    refs = [
-        {"metric": key, "raw": item["raw"], "value": item["normalized"], "period": item["period"], "source": item["source"]}
-        for key, item in observations.items() if item["normalized"] is not None
-    ]
-    text = "\n\n".join(paragraphs)
-    version_key = {
-        "issuer": issuer["id"], "standard": standard, "period": snapshot.get("period"),
-        "scope": scope, "lang": language, "template": snapshot.get("template_version"),
-        "source_snapshot_hash": snapshot["source_snapshot_hash"], "text": text,
-    }
-    return {
-        "ok": True,
-        "issuer": {**{key: issuer[key] for key in ("id", "ticker", "name")}, "sector": issuer.get("sector"), "organization_type": snapshot.get("organization_type")},
-        "report": {"standard": standard.upper(), "template_basis": snapshot.get("template_basis"), "period": snapshot.get("period"), "status": status},
-        "standard": standard,
-        "period": snapshot.get("period"),
-        "period_basis": snapshot.get("period_basis"),
-        "scope": scope,
-        "language": language,
-        "status": status,
-        "content_status": content_status,
-        "shortened_reason": "insufficient_traceable_metrics" if content_status == "shortened" else None,
-        "sector_template_code": snapshot.get("sector_template_code"),
-        "template_version": snapshot.get("template_version"),
-        "headline": headline,
-        "short_summary": headline if status == "available" else None,
-        "headline_tone": headline_tone,
-        "paragraph_count": len(paragraphs),
-        "word_count": len(text.split()),
-        "paragraphs": paragraphs,
-        "text": text,
-        "sections": [{"id": name, "text": paragraph} for name, paragraph in zip(template.get("paragraph_structure") or [], paragraphs)],
-        "verified_facts": refs,
-        "number_references": refs,
-        "ratios": [item for item in refs if item["metric"].endswith("_pct") or item["metric"] in {"current_ratio", "quick_ratio"}],
-        "regulatory_compliance": regulatory,
-        "sector_compliance": [],
-        "risks": risks,
-        "data_quality": snapshot["quality"].get("data_quality") or [],
-        "balance_check": snapshot["quality"].get("balance_check"),
-        "source_snapshot_hash": snapshot["source_snapshot_hash"],
-        "version": _snapshot_hash(version_key),
-        "generated_at": _now().isoformat(),
-        "disclaimer": "Information only; not a personalized investment recommendation.",
-    }
-
+    from sector_report_service import sector_report
+    return sector_report(issuer, standard, period, scope, lang)
 
 @router.get("/issuers/{issuer_id}/profile")
 def issuer_profile(issuer_id: str) -> dict[str, Any]:
@@ -1547,21 +1252,12 @@ def issuer_ai_report(
 @router.get("/issuers/{issuer_id}/credit-profile")
 def issuer_credit_profile(issuer_id: str, standard: Literal["nsbu", "ifrs"] = "nsbu", period: str | None = None) -> dict[str, Any]:
     issuer = _resolve_issuer(issuer_id)
-    snapshot = _financial_snapshot(issuer, standard, period, "separate")
-    observations = {item["metric"]: item for item in snapshot["observations"]}
-    latest = get_all_financials(_standard_form(standard)).get(issuer["ticker"]) or {}
-    method = "bank" if str(latest.get("org_type") or "").lower() == "bank" else "corporate"
-    selected = ["cash", "total_liabilities", "total_equity", "debt_ratio_pct", "debt_to_equity", "current_ratio", "quick_ratio"]
+    report = _sector_ai_report(issuer, standard, period, "separate", "ru")
     return {
-        "ok": True,
-        "issuer": {key: issuer[key] for key in ("id", "ticker", "name")},
-        "method": method,
-        "standard": standard,
-        "period": snapshot["period"],
-        "metrics": [observations[key] for key in selected if key in observations],
-        "bonds": _issuer_bonds(issuer),
-        "warnings": (["bank metrics require regulatory capital, funding and asset-quality data"] if method == "bank" else ["maturity schedule and covenants are shown only when disclosed"]),
-        "source_snapshot_hash": snapshot["source_snapshot_hash"],
+        "ok": True, "issuer": report["issuer"], "standard": report["standard"],
+        "period": report["period"], "status": report["status"],
+        **report["credit_profile"], "bonds": _issuer_bonds(issuer),
+        "data_quality": report["data_quality"], "source_snapshot_hash": report["source_snapshot_hash"],
     }
 
 
@@ -1576,6 +1272,10 @@ def issuer_events(issuer_id: str, limit: int = Query(default=50, ge=1, le=200)) 
 def issuer_bonds(issuer_id: str) -> dict[str, Any]:
     issuer = _resolve_issuer(issuer_id)
     items = _issuer_bonds(issuer)
+    if items:
+        report = _sector_ai_report(issuer, "nsbu", None, "separate", "ru")
+        for item in items:
+            item.update(issuer_analysis_id=report["financial_snapshot_id"], financial_as_of=report["financial_as_of"])
     return {"ok": True, "issuer_id": issuer["id"], "ticker": issuer["ticker"], "count": len(items), "items": items}
 
 

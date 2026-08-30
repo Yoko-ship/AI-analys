@@ -22,7 +22,7 @@ import provenance
 
 def bond_row(ticker="ACMT2B5", price=105310.56, prev=106_000.0, trades=8622,
              turnover=908_000_000.0, cap=105_310_560_000.0, **kw):
-    return {"ticker": ticker, "type": "bond", "last_price": price, "close_price": prev,
+    return {"ticker": ticker, "type": "bond", "last_price": price, "close_price": prev, "last_trade_date": date.today().isoformat(),
             "trade_count": trades, "volume": turnover, "market_cap": cap, **kw}
 
 
@@ -80,7 +80,8 @@ class TestWithoutReference:
     def test_the_day_count_basis_is_always_stated(self):
         """Two developers assuming different bases both get a number and both
         believe they are right."""
-        assert bonds.bond_row(bond_row())["day_count_basis"] == "ACT/365"
+        assert bonds.bond_row(bond_row())["day_count_basis"] is None
+        assert bonds.bond_row(bond_row(), reference={"day_count": "ACT/365"})["day_count_basis"] == "ACT/365"
 
 
 class TestNominalOnly:
@@ -142,7 +143,7 @@ class TestCouponWithoutMaturity:
     own filings state.
     """
 
-    COUPON_ONLY = {"nominal": 100_000.0, "coupon_rate": 28.0, "coupon_freq": 12}
+    COUPON_ONLY = {"nominal": 100_000.0, "coupon_rate": 28.0, "coupon_freq": 12, "day_count": "ACT/365"}
 
     def _coupons(self, *offsets):
         return [{"coupon_no": i + 1, "amount": 2301.37,
@@ -291,6 +292,7 @@ class TestARedeemedIssueSaysSo:
 
     def test_a_live_issue_is_untouched_by_any_of_this(self):
         reference = {"nominal": 100_000.0, "coupon_rate": 28.0, "coupon_freq": 12,
+                     "day_count": "ACT/365",
                      "maturity_date": (date.today() + timedelta(days=200)).isoformat()}
         row = bonds.bond_row(bond_row("ACMT1B3", price=104_999.99), reference=reference,
                              coupons=[{"pay_date": (date.today() - timedelta(days=10)).isoformat()}])
@@ -455,6 +457,7 @@ class TestReferenceCollector:
 class TestWithReference:
     def _reference(self, **kw):
         base = {"nominal": 100_000.0, "coupon_rate": 12.0, "coupon_freq": 1,
+                "day_count": "ACT/365",
                 "maturity_date": (date.today() + timedelta(days=365 * 3)).isoformat(),
                 "days_from_coupon": 0}
         base.update(kw)
@@ -687,6 +690,23 @@ class TestProvenanceWiring:
     These pin the connection: the catalog seeds the registry, a parse moves the
     report through its states, and the published figure names the report.
     """
+
+    @pytest.fixture(autouse=True)
+    def seeded_catalog(self, monkeypatch, tmp_path):
+        """Exercise the real registry with owned data, not a developer's cache."""
+        import reports_catalog as rc
+        monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.sqlite3"))
+        monkeypatch.setattr(rc, "_maybe_seed_financials", lambda *args, **kwargs: None)
+        conn = rc.get_catalog_conn()
+        try:
+            conn.execute("INSERT INTO catalog_companies (ticker, company_name, org_id) VALUES (?,?,?)",
+                         ("ZZSEED", "Provenance test issuer", "TESTSEED"))
+            conn.execute("INSERT INTO catalog_reports (ticker, report_form, period_type, year, quarter, excel_url) "
+                         "VALUES (?,?,?,?,?,?)", ("ZZSEED", "NSBU", "annual", 2025, 0, "https://example.org/filing.xlsx"))
+            conn.commit()
+        finally:
+            conn.close()
+        rc.upsert_financials_cache("ZZSEED", "NSBU", 2025, 0, {"revenue": 1000, "net_income": 100})
 
     def test_the_catalog_seeds_the_registry(self):
         result = provenance.sync_from_catalog()

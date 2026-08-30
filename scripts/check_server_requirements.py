@@ -61,7 +61,8 @@ TRANSITIVE_OK = {
 
 
 def _repo_modules() -> set[str]:
-    return {p.stem for p in REPO.glob("*.py")}
+    return ({p.stem for p in REPO.glob("*.py")}
+            | {p.parent.name for p in REPO.glob("*/__init__.py")})
 
 
 def _imports_of(path: Path) -> tuple[set[str], set[str], set[str]]:
@@ -140,9 +141,10 @@ def main() -> int:
 
     while queue:
         path = queue.pop()
-        if path.name in seen or not path.exists():
+        identity = str(path.relative_to(REPO))
+        if identity in seen or not path.exists():
             continue
-        seen.add(path.name)
+        seen.add(identity)
         local, third, guarded = _imports_of(path)
         for name in third:
             required.setdefault(name, set()).add(path.name)
@@ -153,7 +155,13 @@ def main() -> int:
                 required.setdefault(name, set()).add(path.name)
             else:
                 optional.setdefault(name, set()).add(path.name)
-        queue.extend(REPO / f"{m}.py" for m in local)
+        for module in local:
+            package = REPO / module
+            if (package / "__init__.py").is_file():
+                # Include relative imports and siblings in each runtime package.
+                queue.extend(package.rglob("*.py"))
+            else:
+                queue.append(REPO / f"{module}.py")
 
     missing: dict[str, set[str]] = {}
     for name, users in sorted(required.items()):

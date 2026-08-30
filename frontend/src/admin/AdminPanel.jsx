@@ -24,6 +24,7 @@
 import React from "react";
 import { Icon, IconSprite } from "./icons.jsx";
 import RailwayPanel from "./RailwayPanel.jsx";
+import AnalysisMonitor from "./AnalysisMonitor.jsx";
 import "./admin.css";
 
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
@@ -1232,6 +1233,7 @@ export default function AdminPanel({
   const anaMtd = (ana && ana.month_to_date) || {};
   const analysisBody = (
     <div className="admin-section">
+      <AnalysisMonitor readJson={readJson} language={language} />
       <div className="admin-panel-bar">
         <RangePicker value={rangeDays} onChange={setRangeDays} t={t} />
       </div>
