@@ -23,6 +23,7 @@
  */
 import React from "react";
 import { Icon, IconSprite } from "./icons.jsx";
+import RailwayPanel from "./RailwayPanel.jsx";
 import "./admin.css";
 
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
@@ -142,6 +143,7 @@ const SECTIONS = [
 /** Sub-tabs of «Система». The key "system" itself is the data overview. */
 const SYSTEM_SECTIONS = [
   { key: "system", title: ["Данные", "Ma'lumotlar", "Data"] },
+  { key: "railway", title: ["Railway", "Railway", "Railway"] },
   { key: "companies", title: ["Компании", "Kompaniyalar", "Companies"] },
   { key: "streams", title: ["Сборщики", "Yig'uvchilar", "Collectors"] },
   { key: "findings", title: ["Аудит", "Audit", "Audit"] },
@@ -730,7 +732,7 @@ export default function AdminPanel({
     setError("");
     const jobs = [];
     if (isSystem) {
-      jobs.push(loadOverview());
+      if (section !== "railway") jobs.push(loadOverview());
       if (section === "companies") jobs.push(loadCompanyImports(companyFilter));
       else if (section === "findings") jobs.push(loadFindings());
       else if (section === "intake") jobs.push(loadIntake());
@@ -819,6 +821,9 @@ export default function AdminPanel({
   const activeTab = isSystem ? "system" : section;
 
   const SECTION_LEDE = {
+    railway: t("Состояние сервисов Railway, ошибки из логов и безопасный перезапуск после сбоя.",
+      "Railway xizmatlari holati, loglardagi xatolar va nosozlikdan keyin xavfsiz qayta ishga tushirish.",
+      "Railway service status, errors from logs, and controlled recovery after a failure."),
     overview: t(
       "Сколько людей открыло сайт сегодня, живёт ли аудитория и работает ли продукт — прежде чем смотреть на таблицы.",
       "Bugun saytni nechta odam ochgani va mahsulot ishlayotgani.",
@@ -2456,6 +2461,7 @@ export default function AdminPanel({
     analysis: analysisBody,
     users: usersBody,
     system: dataBody,
+    railway: <RailwayPanel readJson={readJson} t={t} />,
     companies: companiesBody,
     streams: streamsBody,
     findings: findingsBody,
@@ -2475,7 +2481,7 @@ export default function AdminPanel({
           <h1>{t("Администрирование", "Administratsiya", "Administration")}</h1>
           <p>{SECTION_LEDE[section] || SECTION_LEDE.overview}</p>
         </div>
-        {isSystem ? (
+        {isSystem && section !== "railway" ? (
           <div className="admin-head-actions">
             {latest && latest.finished_at ? (
               <span className="admin-btn" style={{ pointerEvents: "none" }}>
