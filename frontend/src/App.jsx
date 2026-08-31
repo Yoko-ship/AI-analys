@@ -1,4 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import NewBadge from "./NewBadge.jsx";
+import useRefreshClock from "./useRefreshClock.js";
 import { createPortal } from "react-dom";
 // ТЗ §10.7: rounding lives in lib/format.js and thresholds come from the
 // server via lib/flags.js, so a label cannot claim a window the calculation
@@ -6180,10 +6182,13 @@ function formatCompareCell(cell, column, language) {
       value: formatCompareValue(cell.raw, language, column?.unit),
       normalized: cell.normalized,
       rank: cell.rank,
+      detail: [cell.base_period, cell.denominator_period, cell.estimate ? (language === "en" ? "estimate" : language === "uz" ? "taxmin" : "оценка") : null, cell.status && cell.status !== "ok" ? (multipleStatusText(cell.status, language) || cell.status) : null, cell.note].filter(Boolean).join(" · "),
     };
   }
   return {
-    value: formatCompareValue(cell, language, column?.unit),
+    value: column?.key === "share_class" && ["ordinary", "preferred"].includes(cell)
+      ? ({ ru: {ordinary: "Обыкновенная", preferred: "Привилегированная"}, en: {ordinary: "Ordinary", preferred: "Preferred"}, uz: {ordinary: "Oddiy", preferred: "Imtiyozli"} }[language] || {ordinary: "Ordinary", preferred: "Preferred"})[cell]
+      : formatCompareValue(cell, language, column?.unit),
     normalized: null,
     rank: null,
   };
@@ -6377,11 +6382,11 @@ function compareCellSortValue(raw) {
   return { num: Number.isFinite(n) ? n : null, str: String(v ?? "") };
 }
 
-function CompareTable({ table, title, language }) {
+export function CompareTable({ table, title, language }) {
   const columns = Array.isArray(table?.columns) ? table.columns : [];
   const rows = Array.isArray(table?.rows) ? table.rows : [];
   const [sort, setSort] = React.useState({ key: null, dir: 1 });
-  const [transposed, setTransposed] = React.useState(false);
+  const [transposed, setTransposed] = React.useState(table?.allow_average === false);
 
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: 1 }));
   const sortedRows = React.useMemo(() => {
@@ -6398,6 +6403,7 @@ function CompareTable({ table, title, language }) {
 
   // "Среднее по сравнению" row — averages each numeric metric across the compared issuers (ТЗ §3.6).
   const avgRow = React.useMemo(() => {
+    if (table?.allow_average === false) return null;
     const out = {};
     let hasAny = false;
     columns.forEach((column) => {
@@ -6410,7 +6416,7 @@ function CompareTable({ table, title, language }) {
       }
     });
     return hasAny ? out : null;
-  }, [rows, columns]);
+  }, [rows, columns, table?.allow_average]);
 
   // Rules of Hooks: the empty-table bail-out MUST come after every hook call.
   // When it sat above the two useMemo above, a table going empty -> non-empty
@@ -6459,6 +6465,7 @@ function CompareTable({ table, title, language }) {
                     return (
                       <td key={column.key}>
                         <strong>{cell.value}</strong>
+                        {cell.detail && <small>{cell.detail}</small>}
                         {cell.normalized !== null && cell.normalized !== undefined ? (
                           <span>{ct(language, "normalized")}: {formatCompareValue(cell.normalized, language, "/100")}</span>
                         ) : null}
@@ -6505,6 +6512,7 @@ function CompareTable({ table, title, language }) {
                     return (
                       <td key={i}>
                         <strong>{cell.value}</strong>
+                        {cell.detail && <small>{cell.detail}</small>}
                         {cell.rank ? <em>#{cell.rank}</em> : null}
                       </td>
                     );
@@ -15593,6 +15601,7 @@ function MarketView({
   // Per-ticker financial ratios & equity (facts store) for P/E, P/B and the
   // §3.8 ratio-coefficient columns. Fetched once; keyed by ticker.
   const [ratios, setRatios] = useState({});
+  const marketRefresh = useRefreshClock();
   useEffect(() => {
     let alive = true;
     fetch("/api/market/ratios")
@@ -15600,7 +15609,7 @@ function MarketView({
       .then((d) => { if (alive && d && d.ok) setRatios(d.ratios || {}); })
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [marketRefresh]);
 
   // Price change over a WEEK, a MONTH, a quarter, half a year, a year and
   // year-to-date, per security, off the same stored closes the charts draw
@@ -15748,7 +15757,7 @@ function MarketView({
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [marketRefresh]);
 
   // Column sorting, as an ORDERED chain of keys. An empty chain falls back to the
   // default (date desc, then |change|) — which is itself two-level, and used to be
@@ -18481,6 +18490,7 @@ function CatalogCompareTable({ result, language }) {
 }
 
 function CatalogView({ language, companies, token, addToast, onNavigateToAnalysis, initialStatus, user }) {
+  const catalogRefresh = useRefreshClock();
   const lang = normalizeLanguage(language);
   const [status, setStatus] = useState(initialStatus || null);
   const [catalogComps, setCatalogComps] = useState([]);
@@ -18545,6 +18555,15 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
   };
 
   useEffect(() => { loadStatus(); loadCatalogComps(); }, []);
+  useEffect(() => {
+    if (!catalogRefresh || !ticker) return undefined;
+    let alive = true;
+    apiFetch(`/api/catalog/index/${encodeURIComponent(ticker)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (alive && data) setIndex(data); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [catalogRefresh, ticker]);
   useEffect(() => {
     if (ticker || !catalogComps.length) return;
     // Open on a useful, data-rich issuer instead of an empty instruction panel.
@@ -18932,6 +18951,7 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                                   }}
                                 >
                                   <strong>{report.year} · {report.quarter ? `Q${report.quarter}` : periodsObj.annual}</strong>
+                                  <NewBadge until={report.is_new ? report.new_until : null} language={lang} />
                                   <small>{report.quarter ? catalogTerminalText(lang, "quarterDetail", report.quarter) : catalogTerminalText(lang, "annualDetail")}</small>
                                 </button>
                               </td>
@@ -19778,6 +19798,7 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
 }
 
 function App() {
+  const financialRefresh = useRefreshClock();
   // Thresholds and flags are fetched once, before anything reads them, so the
   // interface applies the SAME numbers the calculation layer did (ТЗ §10.10).
   useEffect(() => { loadConfig(); }, []);  const defaultReportYear = Math.max(2000, new Date().getFullYear() - 1);
@@ -20138,7 +20159,7 @@ function App() {
         setMarketMeta((prev) => ({ ...prev, refreshed_at: d.refreshed_at || null, trade_date: d.trade_date || null }));
       })
       .catch(() => {});
-  }, [activeView]);
+  }, [activeView, financialRefresh]);
 
   // Fetch available periods whenever the analysis company changes
   useEffect(() => {
@@ -22371,9 +22392,11 @@ function App() {
                     <>
                       <div className="compare-summary-card">
                         <p>{compareSummary.short || ct(language, "noData")}</p>
-                        <span>{ct(language, "normalizedNote")}</span>
+                        {comparison.source !== "market" && <span>{ct(language, "normalizedNote")}</span>}
+                        {(comparison.warnings || []).map((warning) => <p key={warning} role="status">{warning}</p>)}
+                        {comparison.generated_at && <small>{new Date(comparison.generated_at).toLocaleString()}</small>}
                       </div>
-                      <CompareLeaderCards leaders={comparison.leaders} language={language} />
+                      {comparison.source !== "market" && <CompareLeaderCards leaders={comparison.leaders} language={language} />}
                       <div className="compare-ranking-grid">
                         <CompareRanking title={ct(language, "ranking")} rows={comparison.ranking} scoreKey="score" language={language} />
                         <CompareRanking title={ct(language, "normalizedRanking")} rows={comparison.normalized_ranking} scoreKey="composite_score" language={language} />
@@ -22391,13 +22414,13 @@ function App() {
 
           {activeView === "compare" && (compareResult || compareLoading) && (
             <section className="compare-results-grid">
-              <article className="panel compare-chart-main">
+              {comparison?.source !== "market" && <article className="panel compare-chart-main">
                 {comparePrimaryChart ? <CompareChartCard chart={comparePrimaryChart} language={language} /> : (
                   <div className="empty-state">
                     <p className="empty-copy">{compareLoading ? ct(language, "loading") : ct(language, "noData")}</p>
                   </div>
                 )}
-              </article>
+              </article>}
 
               <article className="panel compare-ai-panel">
                 <div className="panel-head">
@@ -22450,7 +22473,7 @@ function App() {
                   </div>
                   <div className="compare-tables-grid">
                     {Object.entries(compareTables).map(([key, table]) => (
-                      <CompareTable key={key} table={table} title={compareTableTitle(language, key)} language={language} />
+                      <CompareTable key={key} table={table} title={key === "market" ? (language === "en" ? "Market metrics" : language === "uz" ? "Bozor ko‘rsatkichlari" : "Показатели рынка") : compareTableTitle(language, key)} language={language} />
                     ))}
                   </div>
                 </article>

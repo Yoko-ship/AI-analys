@@ -1,4 +1,5 @@
 import React from "react";
+import NewBadge from "../NewBadge.jsx";
 import "./verified-report.css";
 
 const pick = (lang, ru, uz, en) => ({ ru, uz, en }[lang] || ru);
@@ -35,6 +36,7 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false 
   };
   return <div className="verified-report" data-testid="verified-report">
     <div className="verified-meta">
+      <NewBadge until={report.new_until} language={lang} />
       <span>{report.report?.standard || report.standard?.toUpperCase()} · {report.period_label || report.period}</span>
       <span>{t("Финансовая дата", "Moliyaviy sana", "Financial date")}: {report.financial_as_of || "—"}</span>
       <span>{t("Дата рынка", "Bozor sanasi", "Market date")}: {report.market_as_of || "—"}</span>

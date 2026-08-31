@@ -71,7 +71,7 @@ def classify(metadata, header="", detected=None):
 
 def validate_source_url(url):
     parsed = urlparse(url)
-    allowed = {s.strip().lower() for s in os.getenv("ADMIN_DOCUMENT_HOSTS", "openinfo.uz,api.openinfo.uz,uzse.uz").split(",") if s.strip()}
+    allowed = {s.strip().lower() for s in os.getenv("ADMIN_DOCUMENT_HOSTS", "openinfo.uz,api.openinfo.uz,new-api.openinfo.uz,uzse.uz").split(",") if s.strip()}
     if parsed.scheme != "https" or parsed.hostname not in allowed or parsed.port not in (None, 443) or parsed.username or parsed.password:
         raise ControlError("SOURCE_NOT_ALLOWED", "This document host is not an approved HTTPS source.", 422)
     try:

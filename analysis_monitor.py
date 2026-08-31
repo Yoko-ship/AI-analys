@@ -87,6 +87,15 @@ def record_report(report):
                 }
         stamp = report.get("generated_at") or now()
         report["generated_at"] = stamp
+        # Daily quote refreshes and cache misses do not make financial analysis
+        # new again. The badge follows a newly published financial source.
+        previous = json.loads(prior["payload"]) if prior else {}
+        same_source = (previous.get("source_snapshot_hash") == report.get("source_snapshot_hash")
+                       and previous.get("period") == report.get("period"))
+        if same_source:
+            report["new_until"] = previous.get("new_until")
+        elif report.get("status") == "available" and str(report.get("financial_as_of") or "") >= str(previous.get("financial_as_of") or ""):
+            report["new_until"] = (datetime.fromisoformat(stamp.replace("Z", "+00:00")) + timedelta(days=7)).isoformat()
         connection.execute(
             "INSERT INTO sector_runs VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(version) DO NOTHING",
             (report["version"], key[0], report["issuer"]["ticker"], key[1], key[2],

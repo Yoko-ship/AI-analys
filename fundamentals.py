@@ -791,6 +791,8 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     shares_check = share_count_consistency(classes)
 
     org_type = str((fin or {}).get("org_type") or "").lower() or None
+    if org_type is None and any(c.get("ticker") == "DRBK" for c in classes):
+        org_type = "bank"  # Davr-bank; legacy cache omitted its form type.
     sector = next((str(c.get("sector") or "").lower()
                    for c in classes if c.get("sector")), None)
     is_bank = org_type in _BANK_FORMS
@@ -907,11 +909,24 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     # --- Net margin: one period, one unit (percent) --------------------------
     if is_bank:
         nonint = flows["values"].get("noninterest_income")
-        total_income = (revenue + nonint
-                        if revenue is not None and nonint is not None else None)
-        if ni is not None and total_income is not None and total_income > 0:
-            net_margin = _flag_range(ni / total_income * 100.0, -margin_max, margin_max,
-                                     base_period=base_period, estimate=estimate,
+        margin_ni, margin_revenue = ni, revenue
+        margin_period, margin_estimate = base_period, estimate
+        methods = {flows["methods"].get(k) for k in ("net_income", "revenue", "noninterest_income")}
+        if len(methods) != 1 or None in methods:
+            # Never add annual non-interest income to TTM interest income.
+            # A complete annual remains usable, with its own explicit period.
+            annual = (fin or {}).get("annual") or {}
+            margin_ni = _num(annual.get("net_income"))
+            margin_revenue = _num(annual.get("revenue"))
+            nonint = _num(annual.get("noninterest_income"))
+            margin_period = period_label(annual)
+            margin_estimate = None
+        total_income = (margin_revenue + nonint
+                        if margin_revenue is not None and nonint is not None else None)
+        if margin_ni is not None and total_income is not None and total_income > 0:
+            net_margin = _flag_range(margin_ni / total_income * 100.0, -margin_max, margin_max,
+                                     base_period=margin_period, estimate=margin_estimate,
+                                     numerator=margin_ni, denominator_value=total_income,
                                      denominator="total_income",
                                      note="для банков — от совокупного дохода")
         else:
