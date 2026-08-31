@@ -28,6 +28,7 @@ _COMPANY_LOGOS_PATH = Path(__file__).with_name("company_logos.json")
 
 # Sector mapping for tickers known from company_catalog
 _TICKER_SECTORS: dict[str, str] = {
+    "DRBK": "finance",  # Davr-bank, ISIN UZ7050240009
     "HMKB": "finance", "HMKBP": "finance",
     "IPKY": "finance",
     "IPTB": "finance", "IPTBP": "finance",
@@ -259,7 +260,7 @@ BOND_ISSUER_LOGOS: dict[str, str] = {
 # sweep grouped it with BNGP and got it wrong. BNGP really is ordinary — it has a
 # separate BNGPP — and must stay out of this set. UZNGP is the same failure as
 # UZINP with a name that gives it away, which the suffix rule below catches.
-_PREFERRED_OVERRIDE = {"UZINP"}
+_PREFERRED_OVERRIDE = {"UZINP", "UZNGP"}  # UZNGP: preferred ISIN UZ7036271003
 
 
 def _preferred_flag(share_type, name, ticker=None) -> bool:
@@ -402,6 +403,8 @@ def get_securities_map() -> dict[str, dict]:
         # shape guess that mislabelled BNGP, or the feed's own «ordinary» for
         # UZINP — answers correctly without waiting for the next sync.
         d["is_preferred"] = _preferred_flag(d.get("share_type"), d.get("name"), d.get("ticker"))
+        if d["ticker"] == "DRBK":
+            d["sector"] = "finance"
         current_logo = resolve_logo(d.get("ticker", ""), logos)
         if current_logo:
             d["logo_url"] = current_logo

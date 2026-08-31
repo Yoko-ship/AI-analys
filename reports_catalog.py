@@ -1879,6 +1879,12 @@ def get_company_index(ticker: str) -> dict[str, Any]:
         """,
         siblings,
     ).fetchall()
+    new_rows = conn.execute(
+        f"""SELECT report_form, period_type, year, quarter, MIN(detected_at) AS detected_at
+            FROM catalog_new_reports WHERE ticker IN ({placeholders})
+            AND detected_at LIKE '____-__-__%'
+            GROUP BY report_form, period_type, year, quarter""", siblings).fetchall()
+    detected = {_report_key(r): r["detected_at"] for r in new_rows}
     conn.close()
 
     # The same filing can be stored under two of the issuer's tickers; keep the
@@ -1916,6 +1922,7 @@ def get_company_index(ticker: str) -> dict[str, Any]:
             "pdf_url": r["pdf_url"],
             "excel_url": r["excel_url"],
             "excel_url_form1": r["excel_url_form1"],
+            **report_freshness(detected.get(_report_key(r))),
         }
         bucket = availability.setdefault(form, {"annual": [], "quarter": []})
         bucket.setdefault(pt, []).append(entry)
@@ -1934,6 +1941,20 @@ def get_company_index(ticker: str) -> dict[str, Any]:
         "years": sorted(years_seen, reverse=True),
         "report_count": len(reports),
     }
+
+
+def report_freshness(detected_at, now=None):
+    """Seven days from first detection, never from a subsequent sync/read."""
+    try:
+        start = datetime.fromisoformat(str(detected_at).replace("Z", "+00:00"))
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        until = start + timedelta(days=7)
+        current = now or datetime.now(timezone.utc)
+        return {"detected_at": start.isoformat(), "new_until": until.isoformat(),
+                "is_new": start <= current < until}
+    except (TypeError, ValueError):
+        return {"detected_at": None, "new_until": None, "is_new": False}
 
 
 def get_report_urls(ticker: str, form: str, year: int, quarter: int) -> dict[str, Any] | None:
@@ -3063,7 +3084,7 @@ def _encode_field_periods(value: Any) -> str | None:
     return json.dumps(decoded, ensure_ascii=False, sort_keys=True) if decoded else None
 
 
-_PRIOR_KEYS = ("revenue", "gross_profit", "net_income", "operating_income")
+_PRIOR_KEYS = ("revenue", "gross_profit", "net_income", "operating_income", "noninterest_income")
 
 
 def _decode_prior_period(raw: Any) -> dict[str, Any] | None:
@@ -3081,6 +3102,10 @@ def _decode_prior_period(raw: Any) -> dict[str, Any] | None:
     out: dict[str, Any] = {"year": int(parsed["year"]), "quarter": int(parsed.get("quarter") or 0)}
     out["is_ytd"] = bool(out["quarter"])
     out["period_months"] = _period_months(out["year"], out["quarter"])
+    if isinstance(parsed.get("field_sources"), dict):
+        out["field_sources"] = parsed["field_sources"]
+    if parsed.get("source"):
+        out["source"] = str(parsed["source"])
     for key in _PRIOR_KEYS:
         out[key] = _financials_num(parsed.get(key))
     return out
@@ -3091,6 +3116,10 @@ def _encode_prior_period(value: Any) -> str | None:
     if not isinstance(value, dict) or value.get("year") is None:
         return None
     payload = {"year": int(value["year"]), "quarter": int(value.get("quarter") or 0)}
+    if isinstance(value.get("field_sources"), dict):
+        payload["field_sources"] = value["field_sources"]
+    if value.get("source"):
+        payload["source"] = str(value["source"])
     for key in _PRIOR_KEYS:
         payload[key] = _financials_num(value.get(key))
     if all(payload[key] is None for key in _PRIOR_KEYS):
@@ -3324,6 +3353,9 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         if isinstance(annual, dict):
             _apply_registered_financial_corrections(
                 ticker, _correction_period(annual), annual)
+    # Reviewed corrections can provide a partial comparative. Complete missing
+    # fields afterwards without replacing any reviewed/restated value.
+    _attach_prior_interim_companion(conn, out, form)
     conn.close()
     return out
 
@@ -3416,7 +3448,8 @@ def _attach_prior_interim_companion(conn: sqlite3.Connection, out: dict[str, dic
         ticker: (int(row["year"]) - 1, int(row["quarter"]))
         for ticker, row in out.items()
         if row.get("quarter") and row.get("year")
-        and not _prior_matches(row.get("prior"), int(row["year"]) - 1, int(row["quarter"]))
+        and (not _prior_matches(row.get("prior"), int(row["year"]) - 1, int(row["quarter"]))
+             or any((row.get("prior") or {}).get(k) is None for k in _TTM_COMPANION_KEYS))
     }
     if not targets:
         return
@@ -3436,11 +3469,18 @@ def _attach_prior_interim_companion(conn: sqlite3.Connection, out: dict[str, dic
         r = stored.get((ticker, year, quarter))
         if r is None:
             continue
-        prior = {"year": year, "quarter": quarter, "is_ytd": True,
-                 "period_months": _period_months(year, quarter), "source": "catalog"}
+        current = out[ticker].get("prior")
+        prior = (dict(current) if _prior_matches(current, year, quarter) else
+                 {"year": year, "quarter": quarter, "is_ytd": True,
+                  "period_months": _period_months(year, quarter), "source": "catalog"})
+        field_sources = dict(prior.get("field_sources") or {})
         for key in _TTM_COMPANION_KEYS:
-            prior[key] = _financials_num(r[key])
-        if any(prior[key] is not None for key in _TTM_COMPANION_KEYS):
+            if prior.get(key) is None:
+                prior[key] = _financials_num(r[key])
+                if prior[key] is not None:
+                    field_sources[key] = "catalog_same_interim"
+        prior["field_sources"] = field_sources
+        if any(prior.get(key) is not None for key in _TTM_COMPANION_KEYS):
             out[ticker]["prior"] = prior
 
 
@@ -4244,17 +4284,9 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
                     tickers: list[str] | None) -> list[dict[str, Any]]:
     """Best parseable report per ticker lacking a fresh cache.
 
-    Considers only reports that have an Excel export (PDF-only issuers can't be
-    parsed). Selection rules, in order:
-
-      * a premature annual (fiscal year not yet ended — openinfo's current-year
-        placeholder) is never a candidate;
-      * the annual for the most recent *completed* fiscal year wins outright — it
-        is the honest full-year figure, preferred over any fresher partial quarter;
-      * otherwise the freshest report wins (a newer quarter beats an older annual),
-        so an issuer whose latest completed annual is missing (it filed only IFRS
-        that year, or files only quarterly like GRBK) still shows current figures
-        instead of a year-plus-stale annual.
+    The latest completed reporting period wins. Freshness belongs to that exact
+    period: a fresh annual must not hide a newly filed quarter, and an uncached
+    old report must not keep requeueing an issuer whose latest period is fresh.
 
     Returns ``[{ticker, year, quarter}]``, newest first.
     """
@@ -4267,14 +4299,14 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
     params = [f"-{ttl_days} days", form, *(tickers or [])]
     rows = conn.execute(
         f"""
-        SELECT r.ticker, r.period_type, r.year, r.quarter
+        SELECT r.ticker, r.period_type, r.year, r.quarter, f.ticker AS cached_ticker
         FROM catalog_reports r
         LEFT JOIN catalog_financials f
-          ON f.ticker = r.ticker AND f.form = r.report_form
+         ON f.ticker = r.ticker AND f.form = r.report_form
+         AND f.year = r.year AND f.quarter = COALESCE(r.quarter, 0)
          AND f.updated_at >= datetime('now', ?)
         WHERE r.report_form = ? AND r.excel_url IS NOT NULL
           AND r.year IS NOT NULL {ticker_filter}
-          AND f.ticker IS NULL
         """,
         params,
     ).fetchall()
@@ -4287,18 +4319,17 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
         is_annual = r["period_type"] == "annual"
         if is_annual and year is not None and year > last_fy:
             continue  # premature placeholder annual — never a candidate
-        if is_annual and year == last_fy:
-            key = (2, year, 1, 0)  # most-recent completed annual: outranks partial quarters
-        else:
-            key = (1, year or 0, 1 if is_annual else 0, quarter)  # else freshest wins
+        if _is_future_period(year, quarter):
+            continue
+        key = (year or 0, 5 if is_annual else quarter)
         if t not in best or key > best[t][0]:
-            best[t] = (key, {"ticker": t, "year": year, "quarter": quarter})
+            best[t] = (key, {"ticker": t, "year": year, "quarter": quarter}, r["cached_ticker"])
     return [
         v[1] for v in sorted(
             best.values(),
             key=lambda x: (x[1]["year"] or 0, x[1]["quarter"]),
             reverse=True,
-        )
+        ) if not v[2]
     ]
 
 
@@ -4585,8 +4616,9 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                              sync_limit: int | None = None) -> dict[str, Any]:
     """Lazily fill the financials cache for stale/missing tickers, in batches.
 
-    Parses the latest annual NSBU report (form 1 + form 2) for each candidate and
-    stores the six headline indicators. When ``sync_missing`` is set and no ticker
+    Reconciles the latest NSBU report and its TTM companions for each candidate.
+    Falls back to the catalog Excel parser when no structured source resolves.
+    When ``sync_missing`` is set and no ticker
     filter is given, first syncs a small batch of not-yet-catalogued companies so a
     fresh backend self-populates over successive calls. Non-blocking: if another
     refresh is already running, returns immediately. Safe to call fire-and-forget
@@ -4619,6 +4651,20 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
             ticker, year, quarter = cand["ticker"], cand["year"], cand["quarter"]
             processed += 1
             try:
+                # The reconciler reads form-specific bank/insurance lines and
+                # attaches annual/prior companions. Use it before the legacy
+                # label parser, which cannot preserve bank TTM provenance.
+                import openinfo_reconcile
+                reconciled, _meta = (openinfo_reconcile.reconcile_ticker(ticker)
+                                     if form == "NSBU" else (None, {}))
+                if (reconciled is not None and
+                        (int(reconciled["year"]), int(reconciled.get("quarter") or 0)) == (year, quarter or 0)):
+                    push_rows = openinfo_reconcile.admin_push_rows(reconciled)
+                    bulk_upsert_financials(push_rows, form)
+                    invalidate_ratios_cache()
+                    _queue_financial_analysis(ticker, push_rows)
+                    filled += 1
+                    continue
                 data = fetch_report_excel_data(ticker, form, year, quarter)
                 ratios = compute_financial_ratios(data.get("income"), data.get("balance")) if data.get("ok") else {}
                 vals = (ratios.get("source_values") or {}) if ratios else {}
@@ -4633,6 +4679,7 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                             alt_vals = alt_ratios.get("source_values") or {}
                             if any(alt_vals.get(k) is not None for k in _FINANCIAL_KEYS):
                                 year, quarter, vals, ratios = alt["year"], alt["quarter"], alt_vals, alt_ratios
+                                data = alt_data
                 # ТЗ Дополнение 1 §Б.2/§Б.3: the report this parse consumed moves
                 # through its states and the figures are recorded against it, so
                 # every number we publish can name the filing it came from. A
@@ -4648,6 +4695,8 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                     metrics = (ratios or {}).get("metrics") or {}
                     if any(v is not None for v in metrics.values()):
                         upsert_ratio_cache(ticker, form, year, quarter or 0, metrics)
+                    invalidate_ratios_cache()
+                    _queue_financial_analysis(ticker, {"year": year, "quarter": quarter, "values": vals})
                     filled += 1
             except Exception:
                 logger.exception("financials refresh failed for %s", ticker)
@@ -4655,6 +4704,16 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                 "processed": processed, "filled": filled}
     finally:
         _FIN_LOCK.release()
+
+
+def _queue_financial_analysis(ticker, event_data):
+    try:
+        import analysis_monitor
+        import hashlib
+        event = hashlib.sha256(json.dumps(event_data, sort_keys=True, default=str).encode()).hexdigest()
+        analysis_monitor.enqueue(ticker, event)
+    except Exception:
+        logger.exception("analysis queue failed after financial refresh for %s", ticker)
 
 
 def _fin_row_fields(row: Any) -> dict[str, Any]:

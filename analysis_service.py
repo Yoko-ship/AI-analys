@@ -6580,6 +6580,9 @@ def _build_comparative_ai_summary(
                     "piotroski_score", "altman_score", "avg_daily_trading_value",
                     "period_change_percent", "dividend_count", "report_document_count",
                     "risk_flags",
+                    "pe", "pb", "ps", "roe", "roa", "net_margin", "equity_assets",
+                    "base_period", "balance_period", "share_class", "issuer", "sector",
+                    "metric_details", "market_cap_class", "market_cap_issuer", "last_trade_date",
                 ]
             }
             for row in rows
@@ -6589,7 +6592,9 @@ def _build_comparative_ai_summary(
     }
     prompt = (
         f"Language: {LANGUAGE_HINTS[language]['label']}.\n"
-        "Write a compact comparative AI summary for 2-3 public issuers. "
+        "Write a compact comparative AI summary for the supplied public issuers. "
+        "Respect metric-specific periods, unavailable statuses and share classes. "
+        "Do not rank companies with different periods or sectors and do not invent an overall score. "
         "Use only the JSON data below. Do not give investment recommendations, price targets or forecasts. "
         "Explain differences by facts and numbers. Return plain text with 4-7 short bullet-like lines.\n\n"
         f"{json.dumps(prompt_payload, ensure_ascii=False, indent=2)}"
@@ -6803,7 +6808,7 @@ def _comparison_matrix(result: dict):
     """Flatten a /api/compare result into (fields, companies, cell-getter) for
     export. Accepts either the full response or the inner `comparison` block."""
     comp = result.get("comparison") if isinstance(result.get("comparison"), dict) else result
-    fields = comp.get("fields") or COMPARISON_FIELDS
+    fields = comp.get("export_fields") or comp.get("fields") or COMPARISON_FIELDS
     rows = comp.get("rows") or []
     companies = [
         {"name": r.get("company_name") or r.get("input") or "—", "ticker": r.get("ticker") or "", "row": r}
@@ -6849,6 +6854,10 @@ def build_comparison_excel(result: dict, language: str = "ru", generated_at=None
             num = _safe_float(raw)
             ws.cell(row=ri, column=ci, value=num if num is not None else (raw if raw not in (None, "") else "—"))
     ws.column_dimensions["A"].width = 34
+    ws.freeze_panes = "B2"
+    ws.auto_filter.ref = ws.dimensions
+    if _comp.get("warnings"):
+        ws0.cell(row=7, column=1, value="\n".join(_comp["warnings"])).alignment = Alignment(wrap_text=True)
     for ci in range(2, len(companies) + 2):
         ws.column_dimensions[chr(64 + ci) if ci <= 26 else "A"].width = 20
 
@@ -6897,6 +6906,8 @@ def build_comparison_pdf(result: dict, language: str = "ru", generated_at=None) 
     story = [Paragraph(_risk_tr(lang, "Сравнение эмитентов", "Issuer comparison", "Emitentlar taqqoslovi"), h1)]
     story.append(Paragraph(", ".join(esc(c["name"]) for c in companies) + " · " + generated_at.strftime("%Y-%m-%d %H:%M"), muted))
     story.append(Spacer(1, 8))
+    for warning in comp.get("warnings") or []:
+        story.append(Paragraph(esc(warning), body))
 
     head = [Paragraph(_risk_tr(lang, "Показатель", "Metric", "Ko'rsatkich"), cellb)]
     head += [Paragraph(esc(c["name"]) + (f"<br/>{esc(c['ticker'])}" if c["ticker"] else ""), cellb) for c in companies]

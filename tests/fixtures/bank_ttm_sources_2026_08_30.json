@@ -1,0 +1,1117 @@
+{
+  "captured_at": "2026-08-30",
+  "unit": "UZS",
+  "issuers": [
+    {
+      "ticker": "AGBAP",
+      "current": {
+        "file": "1750.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 104560786862000.0,
+          "liabilities_start": 97442300703000.0,
+          "equity_end": 13871116898000.0,
+          "equity_start": 13811425191000.0,
+          "assets_end": 118431903760000.0,
+          "assets_start": 111253725894000.0,
+          "revenue": 11168488904000.0,
+          "noninterest_income": 6102980301000.0,
+          "net_income": 95620555000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Agrobank\" aksiyadorlik tijorat banki",
+        "ticker_text": "AGBA, AGBAP",
+        "report_date": "2026-06-30",
+        "org_type": "bank"
+      },
+      "annual": {
+        "file": "AGBAP.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 89822254380000.0,
+          "equity_end": 13774358264000.0,
+          "assets_end": 103596612644000.0,
+          "revenue": 17518657821000.0,
+          "noninterest_income": 7671129146000.0,
+          "net_income": 98827172000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Agrobank\" aksiyadorlik tijorat banki",
+        "ticker_text": "AGBA, AGBAP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "AGBAP.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 81943801659000.0,
+          "liabilities_start": 66977013467000.0,
+          "equity_end": 13712137591000.0,
+          "equity_start": 12426815170000.0,
+          "assets_end": 95655939250000.0,
+          "assets_start": 79403828637000.0,
+          "revenue": 7736939317000.0,
+          "noninterest_income": 2790648895000.0,
+          "net_income": 35322424000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Agrobank\" aksiyadorlik tijorat banki",
+        "ticker_text": "AGBA, AGBAP",
+        "report_date": "2025-06-30",
+        "org_type": "bank"
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "current": {
+        "file": "1751.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 31725506974000.0,
+          "liabilities_start": 30288658920000.0,
+          "equity_end": 4942648443000.0,
+          "equity_start": 3964852831000.0,
+          "assets_end": 36668155417000.0,
+          "assets_start": 34253511751000.0,
+          "revenue": 1950425544000.0,
+          "noninterest_income": 1215126298000.0,
+          "net_income": 251989411000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "Аksiyadorlik tijorat \"Aloqabank\"",
+        "ticker_text": "ALKB, ALKBP",
+        "report_date": "2026-06-30",
+        "org_type": "bank"
+      },
+      "annual": {
+        "file": "ALKB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 27680661795000.0,
+          "equity_end": 3846878282000.0,
+          "assets_end": 31527540077000.0,
+          "revenue": 3230868672000.0,
+          "noninterest_income": 1939711438000.0,
+          "net_income": 251453457000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "Аksiyadorlik tijorat \"Aloqabank\"",
+        "ticker_text": "ALKB, ALKBP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "ALKB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 24129968879000.0,
+          "liabilities_start": 21993195821000.0,
+          "equity_end": 3802985009000.0,
+          "equity_start": 3354457252000.0,
+          "assets_end": 27932953888000.0,
+          "assets_start": 25347653073000.0,
+          "revenue": 1483729945000.0,
+          "noninterest_income": 989799075000.0,
+          "net_income": 207560184000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "Аksiyadorlik tijorat \"Aloqabank\"",
+        "ticker_text": "ALKB, ALKBP",
+        "report_date": "2025-06-30",
+        "org_type": "bank"
+      }
+    },
+    {
+      "ticker": "BRBN",
+      "current": {
+        "file": "1775.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 35668452923000.0,
+          "equity_end": 5490352762000.0,
+          "assets_end": 41158805685000.0,
+          "revenue": 3644528120000.0,
+          "noninterest_income": 1365840658000.0,
+          "net_income": 208517996000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Biznesni rivojlantirish banki\" aksiyadorlik tijorat banki",
+        "ticker_text": "BRBN, BRBNP",
+        "report_date": "2026-06-30",
+        "org_type": "bank",
+        "notes": [
+          "liabilities: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "equity: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "assets: единственная ненулевая сумма банка; вторая колонка пустая/0"
+        ]
+      },
+      "annual": {
+        "file": "BRBN.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 32898296737000.0,
+          "equity_end": 5269433892000.0,
+          "assets_end": 38167730629000.0,
+          "revenue": 6755286035000.0,
+          "noninterest_income": 3186797430000.0,
+          "net_income": 503029723000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Biznesni rivojlantirish banki\" aksiyadorlik tijorat banki",
+        "ticker_text": "BRBN, BRBNP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "BRBN.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 30568114718000.0,
+          "equity_end": 5086339454000.0,
+          "assets_end": 35654454172000.0,
+          "revenue": 3220721822000.0,
+          "noninterest_income": 1321969943000.0,
+          "net_income": 319666970000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Biznesni rivojlantirish banki\" aksiyadorlik tijorat banki",
+        "ticker_text": "BRBN, BRBNP",
+        "report_date": "2025-06-30",
+        "org_type": "bank",
+        "notes": [
+          "liabilities: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "equity: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "assets: единственная ненулевая сумма банка; вторая колонка пустая/0"
+        ]
+      }
+    },
+    {
+      "ticker": "GRBK",
+      "current": {
+        "file": "1805.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 4195800285000.0,
+          "liabilities_start": 3665506378000.0,
+          "equity_end": 580596648000.0,
+          "equity_start": 562904257000.0,
+          "assets_end": 4776396933000.0,
+          "assets_start": 4228410605000.0,
+          "revenue": 335246242000.0,
+          "noninterest_income": 596415969000.0,
+          "net_income": 28536111000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "“Garant bank” aksiyadorlik jamiyati",
+        "ticker_text": "GRBK, GRBKP",
+        "report_date": "2026-06-30",
+        "org_type": "bank"
+      },
+      "annual": {
+        "file": "GRBK.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 3806485953000.0,
+          "equity_end": 552060543000.0,
+          "assets_end": 4358519496000.0,
+          "revenue": 504851900000.0,
+          "noninterest_income": 290115895000.0,
+          "net_income": 5152355000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "“Garant bank” aksiyadorlik jamiyati",
+        "ticker_text": "GRBK, GRBKP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "GRBK.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 3476103046000.0,
+          "liabilities_start": 2934916206000.0,
+          "equity_end": 537202093000.0,
+          "equity_start": 534364797000.0,
+          "assets_end": 4013305139000.0,
+          "assets_start": 3469281003000.0,
+          "revenue": 213502171000.0,
+          "noninterest_income": 105142222000.0,
+          "net_income": -9706095000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "“Garant bank” aksiyadorlik jamiyati",
+        "ticker_text": "GRBK, GRBKP",
+        "report_date": "2025-07-01",
+        "org_type": "bank"
+      }
+    },
+    {
+      "ticker": "HMKB",
+      "current": {
+        "file": "1389.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 33640142060000.0,
+          "liabilities_start": 31443406241000.0,
+          "equity_end": 7674671935000.0,
+          "equity_start": 7172385698000.0,
+          "assets_end": 41314813995000.0,
+          "assets_start": 38615791939000.0,
+          "revenue": 2994355667000.0,
+          "noninterest_income": 2807874974000.0,
+          "net_income": 969962031000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+        "ticker_text": "HMKB, HMKBP",
+        "report_date": "2026-06-30",
+        "org_type": "bank"
+      },
+      "annual": {
+        "file": "HMKB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 29206939823000.0,
+          "equity_end": 6704709904000.0,
+          "assets_end": 35911649727000.0,
+          "revenue": 5174244859000.0,
+          "noninterest_income": 4191539040000.0,
+          "net_income": 1704969118000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+        "ticker_text": "HMKB, HMKBP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "HMKB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 26170355150000.0,
+          "liabilities_start": 24032863065000.0,
+          "equity_end": 5968200026000.0,
+          "equity_start": 5554812686000.0,
+          "assets_end": 32138555176000.0,
+          "assets_start": 29587675751000.0,
+          "revenue": 2463836316000.0,
+          "noninterest_income": 407869442000.0,
+          "net_income": 806796995000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+        "ticker_text": "HMKB, HMKBP",
+        "report_date": "2025-06-30",
+        "org_type": "bank"
+      }
+    },
+    {
+      "ticker": "IPKY",
+      "current": {
+        "file": "1806.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 27949973073000.0,
+          "liabilities_start": 0.0,
+          "equity_end": 4906209440000.0,
+          "equity_start": 0.0,
+          "assets_end": 32856182513000.0,
+          "assets_start": 0.0,
+          "revenue": 2102587817000.0,
+          "noninterest_income": 1043603573000.0,
+          "net_income": 480465229000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Ipak Yo'li\" aksiyadorlik innovatsiya tijorat banki",
+        "ticker_text": "IPKY, IPKYP",
+        "report_date": "2026-06-30",
+        "org_type": "bank"
+      },
+      "annual": {
+        "file": "IPKY.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 23953420835000.0,
+          "equity_end": 4425744211000.0,
+          "assets_end": 28379165046000.0,
+          "revenue": 4799180149000.0,
+          "noninterest_income": 1800580785000.0,
+          "net_income": 929260663000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Ipak Yo'li\" aksiyadorlik innovatsiya tijorat banki",
+        "ticker_text": "IPKY, IPKYP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "IPKY.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 20203259522000.0,
+          "liabilities_start": 0.0,
+          "equity_end": 4073158795000.0,
+          "equity_start": 0.0,
+          "assets_end": 24276418317000.0,
+          "assets_start": 0.0,
+          "revenue": 2391956053000.0,
+          "noninterest_income": 787802752000.0,
+          "net_income": 485107246000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Ipak Yo'li\" aksiyadorlik innovatsiya tijorat banki",
+        "ticker_text": "IPKY, IPKYP",
+        "report_date": "2025-06-30",
+        "org_type": "bank"
+      }
+    },
+    {
+      "ticker": "IPTB",
+      "current": {
+        "file": "1807.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 47210960682000.0,
+          "liabilities_start": 47761680297000.0,
+          "equity_end": 9524773677000.0,
+          "equity_start": 8581121045000.0,
+          "assets_end": 56735734359000.0,
+          "assets_start": 56342801342000.0,
+          "revenue": 6233796888000.0,
+          "noninterest_income": 2125222026000.0,
+          "net_income": 1388686374000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Ipoteka-bank\" aksiyadorlik tijorat ipoteka banki",
+        "ticker_text": "IPTB, IPTBP",
+        "report_date": "2026-06-30",
+        "org_type": "bank"
+      },
+      "annual": {
+        "file": "IPTB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 46993806963000.0,
+          "equity_end": 7734691283000.0,
+          "assets_end": 54728498246000.0,
+          "revenue": 11411348440000.0,
+          "noninterest_income": 3786029713000.0,
+          "net_income": 399925532000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Ipoteka-bank\" aksiyadorlik tijorat ipoteka banki",
+        "ticker_text": "IPTB, IPTBP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "IPTB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 43728994315000.0,
+          "liabilities_start": 43174702731000.0,
+          "equity_end": 6944254277000.0,
+          "equity_start": 7306044997000.0,
+          "assets_end": 50673248592000.0,
+          "assets_start": 50480747728000.0,
+          "revenue": 5460405294000.0,
+          "noninterest_income": 2147544027000.0,
+          "net_income": -392524474000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Ipoteka-bank\" aksiyadorlik tijorat ipoteka banki",
+        "ticker_text": "IPTB, IPTBP",
+        "report_date": "2025-06-30",
+        "org_type": "bank"
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "current": {
+        "file": "1810.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 28591877115000.0,
+          "liabilities_start": 22936198217000.0,
+          "equity_end": 5815721156000.0,
+          "equity_start": 5669288090000.0,
+          "assets_end": 34407598271000.0,
+          "assets_start": 28605486307000.0,
+          "revenue": 2950445637000.0,
+          "noninterest_income": 572938920000.0,
+          "net_income": 76510259000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Mikrokreditbank\" aksiyadorlik-tijorat banki",
+        "ticker_text": "MCBA, MCBAP",
+        "report_date": "2026-07-23",
+        "org_type": "bank"
+      },
+      "annual": {
+        "file": "MCBAP.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 24989576234000.0,
+          "equity_end": 5739210946000.0,
+          "assets_end": 30728787180000.0,
+          "revenue": 3564831563000.0,
+          "noninterest_income": 1426420524000.0,
+          "net_income": 160802633000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Mikrokreditbank\" aksiyadorlik-tijorat banki",
+        "ticker_text": "MCBA, MCBAP",
+        "report_date": "2026-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "MCBAP.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 22282990672000.0,
+          "liabilities_start": 22632969737000.0,
+          "equity_end": 5627463127000.0,
+          "equity_start": 3574654778000.0,
+          "assets_end": 27910453799000.0,
+          "assets_start": 26207624515000.0,
+          "revenue": 2491239850000.0,
+          "noninterest_income": 752858674000.0,
+          "net_income": 49026144000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Mikrokreditbank\" aksiyadorlik-tijorat banki",
+        "ticker_text": "MCBA, MCBAP",
+        "report_date": "2025-06-30",
+        "org_type": "bank"
+      }
+    },
+    {
+      "ticker": "SQBN",
+      "current": {
+        "file": "1480.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 95582604553000.0,
+          "equity_end": 12951978780000.0,
+          "assets_end": 108534583333000.0,
+          "revenue": 5499783675000.0,
+          "noninterest_income": 10413263396000.0,
+          "net_income": 1105136010000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"O'zbekiston sanoat - qurilish banki\" aksiyadorlik tijorat banki",
+        "ticker_text": "SQBN, SQBNP",
+        "report_date": "2026-06-30",
+        "org_type": "bank",
+        "notes": [
+          "liabilities: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "equity: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "assets: единственная ненулевая сумма банка; вторая колонка пустая/0"
+        ]
+      },
+      "annual": {
+        "file": "SQBNP.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 90563493903000.0,
+          "equity_end": 11875165808000.0,
+          "assets_end": 102438659711000.0,
+          "revenue": 10798148130000.0,
+          "noninterest_income": 7030153839000.0,
+          "net_income": 1880069362000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"O'zbekiston sanoat - qurilish banki\" aksiyadorlik tijorat banki",
+        "ticker_text": "SQBN, SQBNP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "SQBNP.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 86418212632000.0,
+          "equity_end": 10805273030000.0,
+          "assets_end": 97223485662000.0,
+          "revenue": 5215016365000.0,
+          "noninterest_income": 3450231597000.0,
+          "net_income": 808559683000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"O'zbekiston sanoat - qurilish banki\" aksiyadorlik tijorat banki",
+        "ticker_text": "SQBN, SQBNP",
+        "report_date": "2025-06-30",
+        "org_type": "bank",
+        "notes": [
+          "liabilities: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "equity: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "assets: единственная ненулевая сумма банка; вторая колонка пустая/0"
+        ]
+      }
+    },
+    {
+      "ticker": "TNBN",
+      "current": {
+        "file": "1497.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 19837146773000.0,
+          "liabilities_start": 19443707709000.0,
+          "equity_end": 2114149125000.0,
+          "equity_start": 2099606410000.0,
+          "assets_end": 21951295898000.0,
+          "assets_start": 21543314119000.0,
+          "revenue": 1022437992000.0,
+          "noninterest_income": 244779132000.0,
+          "net_income": 22008866000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Turonbank\" aksiyadorlik tijorat banki",
+        "ticker_text": "TNBN, TNBNP",
+        "report_date": "2026-06-30",
+        "org_type": "bank"
+      },
+      "annual": {
+        "file": "TNBN.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 19675758850000.0,
+          "equity_end": 2092140259000.0,
+          "assets_end": 21767899109000.0,
+          "revenue": 1731462286000.0,
+          "noninterest_income": 500076026000.0,
+          "net_income": 24936908000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Turonbank\" aksiyadorlik tijorat banki",
+        "ticker_text": "TNBN, TNBNP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "TNBN.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 17109604554000.0,
+          "liabilities_start": 15628613193000.0,
+          "equity_end": 1933510151000.0,
+          "equity_start": 1926148715000.0,
+          "assets_end": 19043114705000.0,
+          "assets_start": 17554761908000.0,
+          "revenue": 804029064000.0,
+          "noninterest_income": 244952659000.0,
+          "net_income": 14617851000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Turonbank\" aksiyadorlik tijorat banki",
+        "ticker_text": "TNBN, TNBNP",
+        "report_date": "2025-06-30",
+        "org_type": "bank"
+      }
+    },
+    {
+      "ticker": "TRSB",
+      "current": {
+        "file": "1818.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 13758873730000.0,
+          "liabilities_start": 0.0,
+          "equity_end": 3979782611000.0,
+          "equity_start": 0.0,
+          "assets_end": 17735656341000.0,
+          "assets_start": 0.0,
+          "revenue": 1340001733000.0,
+          "noninterest_income": 695499390000.0,
+          "net_income": 503846637000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Trastbank\" xususiy aksiyadorlik banki",
+        "ticker_text": "TRSB, TRSBP",
+        "report_date": "2026-06-30",
+        "org_type": "bank"
+      },
+      "annual": {
+        "file": "TRSB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 10667291209000.0,
+          "equity_end": 3665002558000.0,
+          "assets_end": 14332293767000.0,
+          "revenue": 2215694489000.0,
+          "noninterest_income": 1021088546000.0,
+          "net_income": 865149690000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Trastbank\" xususiy aksiyadorlik banki",
+        "ticker_text": "TRSB, TRSBP",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "TRSB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 9628296299000.0,
+          "liabilities_start": 0.0,
+          "equity_end": 3202200704000.0,
+          "equity_start": 0.0,
+          "assets_end": 12830497003000.0,
+          "assets_start": 0.0,
+          "revenue": 1026782548000.0,
+          "noninterest_income": 459040129000.0,
+          "net_income": 402347836000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "\"Trastbank\" xususiy aksiyadorlik banki",
+        "ticker_text": "TRSB, TRSBP",
+        "report_date": "2025-06-30",
+        "org_type": "bank"
+      }
+    },
+    {
+      "ticker": "UNVB",
+      "current": {
+        "file": "1819.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 4217781766000.0,
+          "equity_end": 895400351000.0,
+          "assets_end": 5113182117000.0,
+          "revenue": 446314660000.0,
+          "noninterest_income": 589866556000.0,
+          "net_income": 138971193000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "Aksiyadorlik-tijorat banki \"Universal bank\"",
+        "ticker_text": "UNVB",
+        "report_date": "2026-06-30",
+        "org_type": "bank",
+        "notes": [
+          "liabilities: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "equity: единственная ненулевая сумма банка; вторая колонка пустая/0",
+          "assets: единственная ненулевая сумма банка; вторая колонка пустая/0"
+        ]
+      },
+      "annual": {
+        "file": "UNVB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 4025616980000.0,
+          "equity_end": 806429157000.0,
+          "assets_end": 4832046137000.0,
+          "revenue": 727872267000.0,
+          "noninterest_income": 1101689824000.0,
+          "net_income": 240856384000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "Aksiyadorlik-tijorat banki \"Universal bank\"",
+        "ticker_text": "UNVB",
+        "report_date": "2025-12-31",
+        "org_type": "bank"
+      },
+      "prior": {
+        "file": "UNVB.xlsx",
+        "sheet": "Квартальный отчет Банк рус",
+        "fields": {
+          "liabilities_end": 3192648427000.0,
+          "liabilities_start": 0.0,
+          "equity_end": 710712995000.0,
+          "equity_start": 0.0,
+          "assets_end": 3903361422000.0,
+          "assets_start": 0.0,
+          "revenue": 346717855000.0,
+          "noninterest_income": 504507382000.0,
+          "net_income": 145140221000.0
+        },
+        "prior": {},
+        "source_cells": {
+          "liabilities_end": "Квартальный отчет Банк рус!C78",
+          "liabilities_start": "Квартальный отчет Банк рус!B78",
+          "equity_end": "Квартальный отчет Банк рус!C90",
+          "equity_start": "Квартальный отчет Банк рус!B90",
+          "assets_end": "Квартальный отчет Банк рус!C91",
+          "assets_start": "Квартальный отчет Банк рус!B91",
+          "revenue": "Квартальный отчет Банк рус!B106",
+          "noninterest_income": "Квартальный отчет Банк рус!B128",
+          "net_income": "Квартальный отчет Банк рус!B152"
+        },
+        "unit_scale": 1000,
+        "issuer_name": "Aksiyadorlik-tijorat banki \"Universal bank\"",
+        "ticker_text": "UNVB",
+        "report_date": "2025-06-30",
+        "org_type": "bank"
+      }
+    }
+  ]
+}
