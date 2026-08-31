@@ -131,6 +131,7 @@ RELAXED_MATCH = (set(SEARCH_OVERRIDE) - {"KFSK", "KFSKP"})
 # Pinned to the organization id, verified by INN against the issuer registry, so
 # the reports are listed by organization instead of guessed by name.
 ORG_ID_OVERRIDE = {
+    "BIOK": 396,                              # Biokimyo AJ, INN 200468069
     "ACMT1B2": 1058, "ACMT1B3": 1058,          # "AGAT CREDIT" AJ MMT, INN 304463924
     "ACMT2B4": 1058, "ACMT2B5": 1058,
     "CTFB3": 1067, "CTFB3B2": 1067,            # "CONTACT FINANCE" MCHJ MMT, INN 311426602
@@ -770,6 +771,38 @@ def select_reports(ticker, today=None, max_fetch=8):
     if best is None:
         return None, None, {"error": "no report with data", "search": search,
                             "source": source, "candidates": len(cands)}
+    # Bank forms do not print a comparative P&L column. Read the exact same
+    # interim a year earlier, bound to the already-resolved organization. Never
+    # replace a comparative/restatement printed in the current filing.
+    year, quarter = best["meta"]["year"], best["meta"]["quarter"]
+    prior = dict(best["metrics"].get("prior") or {})
+    if quarter in (1, 2, 3) and by_org and any(prior.get(k) is None for k in PRIOR_KEYS):
+        wanted = period_rank(year - 1, quarter)
+        attempts = 0
+        for candidate in cands:
+            if candidate["period_type"] != "quarter" or _period_ceiling(candidate, today) != wanted:
+                continue
+            if attempts >= 3:
+                break
+            attempts += 1
+            try:
+                detail = fetch_detail(candidate)
+                if hint and hint not in (_norm(detail.get("organization_short_name")) + " " + _norm(detail.get("organization_name"))):
+                    continue
+                actual = period_year_quarter(detail.get("reporting_year"), "quarter", today=today, pub_date=candidate["pub_date"])
+                if actual != (year - 1, quarter):
+                    continue
+                earlier = extract_metrics(detail)
+                sources = dict(prior.get("field_sources") or {})
+                for key in PRIOR_KEYS:
+                    if prior.get(key) is None and earlier.get(key) is not None:
+                        prior[key] = earlier[key]
+                        sources[key] = {"source": "same_interim_filing", "object_id": candidate["object_id"]}
+                prior["field_sources"] = sources
+                best["metrics"]["prior"] = prior
+                break
+            except Exception:
+                log.exception("could not read comparative filing for %s", ticker)
     # Same report on both sides means the latest period IS the annual; one row.
     if best_annual is not None and best_annual["rank"] == best["rank"]:
         best_annual = None
@@ -903,7 +936,7 @@ def period_year_quarter(reporting_year, period_type, today=None, pub_date=None):
     return year, q
 
 
-PRIOR_KEYS = ("revenue", "gross_profit", "net_income", "operating_income")
+PRIOR_KEYS = ("revenue", "gross_profit", "net_income", "operating_income", "noninterest_income")
 
 
 def _figures(ticker, metrics, meta):
@@ -933,6 +966,7 @@ def _figures(ticker, metrics, meta):
             "year": prior_year, "quarter": meta["quarter"],
             "period_months": period_months(prior_year, meta["quarter"]),
             "is_ytd": bool(meta["quarter"]),
+            "field_sources": prior.get("field_sources", {}),
             **{f"{k}_thousand": (None if prior.get(k) is None else round(prior[k], 2))
                for k in PRIOR_KEYS},
             **{f"{k}_full": (None if prior.get(k) is None else round(prior[k] * NSBU_THOUSANDS, 2))
@@ -981,6 +1015,7 @@ def admin_push_row(row):
         # that ranks periods and divide a ratio by a balance sheet that is not
         # there.
         out["prior"] = {"year": prior["year"], "quarter": prior["quarter"],
+                        "field_sources": prior.get("field_sources", {}),
                         **{k: prior.get(f"{k}_thousand") for k in PRIOR_KEYS}}
     return out
 

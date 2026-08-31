@@ -46,10 +46,10 @@ ORG_OVERRIDES: dict[str, str] = {
     "UZMK": "383", "UZMKP": "383",
     "KVTS": "445",                      # Кварц (UZSE "Kvarts AJ" hits a payment processor 1001)
     "GRBK": "11",                       # Garant bank (catalog carried a stale org)
-    # Andijon biokimyo zavodi (org 78, INN 200240495). Name matching hit the
-    # other biochemical plant "QO'QON BIOKIMYO" (org 433, INN 200126834), which
-    # left BIOK's ratios empty and would attach the wrong issuer's filings.
-    "BIOK": "78",
+    # BIOK = Biokimyo AJ, Yangiyul, INN 200468069, ISIN UZ7025870005.
+    # Verified against /organizations/organizations/?search=200468069 on
+    # 2026-08-31. Org 78 is Andijon biokimyo, a different legal entity.
+    "BIOK": "396",
     # O'z-Tong Hong Kompani (org 80, INN 201832779): the screener TIN join
     # returns nothing for its ISIN UZ7044930004, so the deterministic index
     # never resolves it and its ratios/financials stayed blank.

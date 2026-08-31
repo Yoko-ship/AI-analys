@@ -306,7 +306,8 @@ def _catalog_watch_once() -> dict[str, Any]:
         logger.info("catalog watch: full sweep (last %s h ago) %s",
                     None if age is None else round(age, 1),
                     {k: result.get(k) for k in ("total", "synced", "skipped")})
-        return {"mode": "full", **result}
+        financials = refresh_financials_cache(sync_missing=False)
+        return {"mode": "full", **result, "financials": financials}
 
     filings = sync_recent_filings(hours=CATALOG_WATCH_WINDOW_HOURS)
     # The feed only knows who filed. An issuer that fell behind for any other
@@ -317,7 +318,8 @@ def _catalog_watch_once() -> dict[str, Any]:
     if filings.get("synced") or filings.get("errors") or stale.get("synced"):
         logger.info("catalog watch: filed=%s stale=%s remaining=%s",
                     filings.get("targets"), stale.get("targets"), stale.get("remaining"))
-    return {"mode": "filings", "filings": filings, "stale": stale}
+    financials = refresh_financials_cache(sync_missing=False)
+    return {"mode": "filings", "filings": filings, "stale": stale, "financials": financials}
 
 
 async def _catalog_watch_loop() -> None:
@@ -330,7 +332,9 @@ async def _catalog_watch_loop() -> None:
         if not _admin_catalog_sync_running.is_set():
             _admin_catalog_sync_running.set()
             try:
-                await loop.run_in_executor(None, _catalog_watch_once)
+                result = await loop.run_in_executor(None, _catalog_watch_once)
+                if (result.get("financials") or {}).get("filled"):
+                    _schedule_audit("catalog:financials")
             except Exception:
                 logger.exception("catalog watch pass failed")
             finally:
@@ -1708,7 +1712,13 @@ async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
     security_type = (type or "").strip().lower()
     if security_type and security_type not in {"stock", "bond"}:
         raise HTTPException(status_code=400, detail="type must be stock or bond")
-    return await _build_board(security_type)
+    result = await _build_board(security_type)
+    from securities_catalog import _preferred_flag
+    for row in result.get("stocks", []):
+        if row.get("type") != "bond":
+            row["is_preferred"] = _preferred_flag(row.get("share_type"), row.get("name"), row.get("ticker"))
+            row["share_type"] = "preferred" if row["is_preferred"] else "ordinary"
+    return result
 
 
 @app.get("/api/market/audit")
@@ -2002,6 +2012,7 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
         catalog_rows.append({
             "ticker": str(ticker).upper(), **meta,
             "market_cap": _cap_for(row),
+            "last_price": row.get("last_price"),
             "shares_outstanding": row.get("shares_outstanding") or meta.get("shares_outstanding"),
         })
     # Board rows with no catalog card yet (ТЗ мультипликаторов, лист 15: EQQU
@@ -2021,6 +2032,7 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
             "share_type": row.get("share_type"),
             "is_preferred": row.get("is_preferred"),
             "market_cap": _cap_for(row),
+            "last_price": row.get("last_price"),
             "shares_outstanding": row.get("shares_outstanding"),
         })
     groups = fundamentals.group_by_issuer(catalog_rows)
@@ -6004,18 +6016,19 @@ async def api_compare(
     payload: CompareRequest,
     current_user: WebUser = Depends(_require_user),
 ) -> dict[str, Any]:
-    _enforce_llm_quota(current_user)
+    if payload.include_ai_summary:
+        _enforce_llm_quota(current_user)
     try:
+        from market_comparison import build_market_comparison
+        inputs = await _market_inputs()
+        published = _multiples_payload(inputs)
+        result = build_market_comparison(payload.companies, inputs, published, payload.language)
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(
-            None,
-            partial(
-                build_company_comparison,
-                payload.companies,
-                payload.language,
-                payload.include_ai_summary,
-            ),
-        )
+        if payload.include_ai_summary:
+            from analysis_service import _build_comparative_ai_summary
+            comp = result["comparison"]
+            comp["comparative_ai_summary"] = await loop.run_in_executor(
+                None, partial(_build_comparative_ai_summary, comp["rows"], {}, [], payload.language))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

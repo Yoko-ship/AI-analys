@@ -307,7 +307,15 @@ def issuer_ledger(key: str, classes: Sequence[dict[str, Any]],
         "roa": {"formula": "NI_TTM / A_сред", "numerator": ni,
                 "denominator": snapshot.get("assets_avg")},
         "net_margin": {"formula": "NI_TTM / REV_TTM", "numerator": ni, "denominator": revenue},
+        "equity_assets": {"formula": "EQ_кон / A_кон", "numerator": snapshot.get("equity"),
+                          "denominator": snapshot.get("assets")},
     }
+    if multiples.get("org_type") in ("bank", "microfinance"):
+        margin = multiples.get("net_margin") or {}
+        inputs["net_margin"] = {"formula": "NI / (INTEREST_INCOME + NONINTEREST_INCOME)",
+                                "numerator": margin.get("numerator"),
+                                "denominator": margin.get("denominator_value"),
+                                "period": margin.get("base_period")}
     for name, block in inputs.items():
         metric = multiples.get(name) or {}
         block["value"] = metric.get("value")
