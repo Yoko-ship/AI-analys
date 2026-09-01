@@ -150,6 +150,37 @@ def test_no_signal_does_not_invent_an_issue():
     assert generic["verdict"]["status"] == "no_signal"
 
 
+def test_trend_requires_comparable_points_and_four_points_for_three_declines():
+    context = {"period_basis": "cumulative_ytd", "accounting_standard": "nsbu",
+               "consolidation_scope": "separate"}
+    two = [
+        {"period": "2025Q2", "value": 12, **context},
+        {"period": "2026Q2", "value": 10, **context},
+    ]
+    assert core.trend_state(two)["status"] == "comparison_only"
+    three = two + [{"period": "2027Q2", "value": 8, **context}]
+    assert core.trend_state(three)["status"] == "trend"
+    four = three + [{"period": "2028Q2", "value": 7, **context}]
+    assert core.trend_state(four)["status"] == "three_consecutive_declines"
+    mixed_basis = [two[0], {**two[1], "period_basis": "standalone_quarter"}]
+    assert core.trend_state(mixed_basis)["status"] == "not_comparable"
+
+
+def test_bank_without_prior_income_uses_required_comparison_limit():
+    current = {
+        "total_assets": 1000, "total_equity": 400, "total_liabilities": 600,
+        "cash": 100, "loan_portfolio": 650, "customer_funds": 500,
+        "interest_income": 90, "interest_expenses": 40, "net_income": 25,
+    }
+    data = snapshot(organization_type="bank", current_values=current,
+                    previous_values={}, opening_values={"total_assets": 900, "total_equity": 380,
+                                                       "total_liabilities": 520})
+    bank = {"id": "BANK", "ticker": "BANK", "name": "Bank", "special_legal_type": "bank"}
+    report = core.make_report(data, bank, today=TODAY, lang="ru")
+    assert report["content_status"] == "complete"
+    assert "Динамика баланса — относительно начала года; изменение прибыли и рентабельности не оценивается" in report["text"]
+
+
 def test_zero_insurance_assets_are_not_replaced_by_previous_year():
     rows = [
         {"label": "Всего по активу баланса (стр.130+480)", "numeric_values": [490, 9999, 0]},
@@ -273,6 +304,43 @@ def test_bond_accrual_does_not_require_a_market_trade_but_does_require_its_perio
     result = bonds.bond_row(row, reference=ref, coupons=coupons, today=TODAY)
     assert result["accrued"]["value"] is None
     assert result["accrued"]["blocked_reason"] == "ACCRUAL_PERIOD_NOT_VERIFIED"
+
+
+@pytest.mark.parametrize("basis", ["ACT/360", "ACT/ACT", "30/360"])
+def test_verified_bond_supports_disclosed_day_count_conventions(basis):
+    row, ref, coupons = bond_input()
+    ref["day_count"] = basis
+    result = bonds.bond_row(row, reference=ref, coupons=coupons, today=TODAY)
+    assert result["day_count_basis"] == basis
+    assert result["ytm"]["status"] == "exact"
+    assert result["rate_scenarios"]["status"] == "ok"
+    assert [item["shift_bps"] for item in result["rate_scenarios"]["items"]] == [-200, -100, 100, 200]
+    assert result["dv01"]["value"] == pytest.approx(result["bpv"]["value"])
+
+
+def test_negative_yield_and_verified_call_scenarios_are_supported():
+    negative = bonds.yield_to_maturity([(1.0, 100.0)], 110.0, basis="ACT/365F")
+    assert negative["value"] == pytest.approx(-9.090909, abs=1e-5)
+    row, ref, coupons = bond_input()
+    ref.update(has_call=True, call_schedule=[{"date": "2027-02-28", "price": 1000}])
+    result = bonds.bond_row(row, reference=ref, coupons=coupons, today=TODAY)
+    assert result["ytc"]["value"] is not None
+    assert result["ytw"]["value"] == min(result["ytm"]["value"], result["ytc"]["value"])
+    assert result["ytw"]["scenario"] in {"maturity", "issuer_call"}
+
+
+def test_due_date_and_accrual_filing_do_not_claim_payment_execution():
+    reference = {"nominal": 1000, "coupon_rate": 20, "coupon_freq": 1,
+                 "issue_date": "2025-08-30", "maturity_date": "2027-08-30"}
+    accrual = {"coupon_no": 1, "pay_date": "2026-08-30", "amount": 200,
+               "source_url": "https://example.org/accrual"}
+    due = next(item for item in bonds.issue_schedule(reference, [accrual], TODAY)
+               if item["date"] == "2026-08-30")
+    assert due["due"] is True and due["paid"] is False
+    assert due["execution_status"] == "due_unconfirmed"
+    confirmed = next(item for item in bonds.issue_schedule(reference, [{**accrual, "payment_confirmed": True}], TODAY)
+                     if item["date"] == "2026-08-30")
+    assert confirmed["paid"] is True and confirmed["execution_status"] == "paid_confirmed"
 
 
 def test_monitor_idempotency_retains_last_good_and_audits_retries(monkeypatch, tmp_path):

@@ -8667,6 +8667,29 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
   const m = (mm, formatter) => (mm?.value != null
     ? (formatter ? formatter(mm.value) : num2(mm.value))
     : dash(mm?.note || (mm?.missing || []).join(", ") || mm?.status));
+  const assessmentStatus = (status) => ({
+    verified: t("проверено", "tekshirilgan", "verified"),
+    limited: t("ограничено данными", "ma’lumotlar bilan cheklangan", "data-limited"),
+    calculation_verified: t("расчёт проверен", "hisob tekshirilgan", "calculation verified"),
+    insufficient_data: t("недостаточно данных", "ma’lumot yetarli emas", "insufficient data"),
+    fresh: t("актуальная котировка", "dolzarb kotirovka", "current quote"),
+    stale: t("устаревающая котировка", "eskirayotgan kotirovka", "aging quote"),
+    very_stale: t("устаревшая котировка", "eskirgan kotirovka", "stale quote"),
+    never_traded: t("нет подтверждённой сделки", "tasdiqlangan bitim yo‘q", "no verified trade"),
+  }[status] || status || "—");
+  const monitorCopy = (point, field) => {
+    const market = point.metric_code === "market_liquidity";
+    const copy = market ? {
+      improvement_signal: t("новые проверенные сделки расширяют свежую историю цены и объёма", "yangi tekshirilgan bitimlar narx va hajmning yangi tarixini kengaytiradi", "new verified trades broaden the recent price and volume history"),
+      risk_signal: t("котировка стареет или не подтверждается сделками и объёмом", "kotirovka eskiradi yoki bitimlar va hajm bilan tasdiqlanmaydi", "the quote ages or remains unsupported by trades and volume"),
+      required_disclosure: t("датированные сделки за 30/90 дней, объём и доступные заявки", "30/90 kunlik sanalangan bitimlar, hajm va mavjud buyurtmalar", "dated 30/90-day trading activity, volume and available bid/ask data"),
+    } : {
+      improvement_signal: t("исполнение выплаты подтверждено официальным источником", "to‘lov ijrosi rasmiy manba bilan tasdiqlangan", "payment execution is confirmed by an official source"),
+      risk_signal: t("срок выплаты прошёл без подтверждения исполнения", "to‘lov muddati ijro tasdig‘isiz o‘tdi", "the due date passes without verified execution"),
+      required_disclosure: t("официальное подтверждение выплаты и договорный срок устранения нарушения", "to‘lovning rasmiy tasdig‘i va buzilishni bartaraf etish shartnoma muddati", "official payment confirmation and any contractual cure period"),
+    };
+    return copy[field] || point[field] || "—";
+  };
 
   return (
     <section className="panel bondsec bondsec-card">
@@ -8748,6 +8771,15 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
         )}
       </div>
 
+      {bond.assessments && <section className="verified-watch" aria-label={t("Три независимые оценки", "Uchta mustaqil baho", "Three independent assessments")}>
+        <h3>{t("Три независимые оценки", "Uchta mustaqil baho", "Three independent assessments")}</h3>
+        <div className="verified-watch-grid">
+          <article><h4>{t("Финансы эмитента", "Emitent moliyasi", "Issuer financials")}</h4><p>{assessmentStatus(bond.assessments.issuer_financials?.status)} · {bond.assessments.issuer_financials?.financial_as_of || "—"}</p></article>
+          <article><h4>{t("Условия и исполнение выпуска", "Chiqarilish shartlari va ijrosi", "Issue terms and execution")}</h4><p>{assessmentStatus(bond.assessments.issue_terms_and_execution?.status)}</p><p>{t("Выплат с наступившим сроком без подтверждения", "Tasdiqsiz muddati kelgan to‘lovlar", "Due payments without confirmation")}: {bond.assessments.issue_terms_and_execution?.unconfirmed_due_payments ?? "—"}</p></article>
+          <article><h4>{t("Цена и возможность продажи", "Narx va sotish imkoniyati", "Price and saleability")}</h4><p>{assessmentStatus(bond.assessments.market_price_and_liquidity?.status)} · {bond.assessments.market_price_and_liquidity?.quote_as_of || "—"}</p></article>
+        </div>
+      </section>}
+
       <div className="bondsec-cols">
         <div className="bondsec-kv-card">
           <table className="bondsec-kv">
@@ -8806,8 +8838,8 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
                   : dash(t("график не восстановим", "jadval tiklanmaydi", "no schedule"))}</td>
               </tr>
               <tr>
-                <td>{t("Из них подано эмитентом", "Emitent topshirgan", "Filed by the issuer")}</td>
-                <td title={t("Существенные факты № 32 «Начисление доходов по ценным бумагам» — единственное подтверждение состоявшейся выплаты.", "32-son muhim fakt.", "Material fact #32 is the only confirmation a payment was made.")}>
+                <td>{t("Начислений подано эмитентом", "Emitent topshirgan hisoblashlar", "Accruals filed by the issuer")}</td>
+                <td title={t("Существенный факт № 32 подтверждает начисление дохода, но не фактическую выплату денег.", "32-son muhim fakt daromad hisoblanishini tasdiqlaydi, lekin haqiqiy to‘lovni emas.", "Material fact #32 confirms accrual, not actual cash payment.")}>
                   {coupons.length || <span className="cell-status">0</span>}
                 </td>
               </tr>
@@ -8828,6 +8860,8 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
                 </tr>
               )}
               <tr><td>{t("Доходность к погашению", "So'ndirishgacha daromadlilik", "YTM")}<TermInfo termId="ytm" lang={lang} /></td><td className="bondsec-strong">{m(bond.ytm, (v) => `${num2(v)}%`)}</td></tr>
+              <tr><td>{t("Доходность к отзыву", "Qaytarib olishgacha daromadlilik", "YTC")}</td><td>{m(bond.ytc, (v) => `${num2(v)}%`)}</td></tr>
+              <tr><td>{t("Худшая доходность для владельца", "Egasi uchun eng past daromadlilik", "Yield to worst")}</td><td>{m(bond.ytw, (v) => `${num2(v)}%`)}</td></tr>
               <tr>
                 <td>{t("Доходность при цене номинала", "Nominal narxdagi daromadlilik", "Yield at par")}<TermInfo termId="effectiveAtPar" lang={lang} /></td>
                 <td>{m(bond.effective_at_par, (v) => `${num2(v)}%`)}</td>
@@ -8837,7 +8871,7 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
               <tr><td>{t("Дюрация Маколея, лет", "Makoley dyuratsiyasi", "Macaulay duration")}<TermInfo termId="duration" lang={lang} /></td><td>{m(bond.duration)}</td></tr>
               <tr><td>{t("Модифицированная дюрация", "Modifikatsiyalangan dyuratsiya", "Modified duration")}</td><td>{m(bond.modified_duration)}</td></tr>
               <tr><td>{t("Выпуклость", "Qavariqlik", "Convexity")}<TermInfo termId="convexity" lang={lang} /></td><td>{m(bond.convexity)}</td></tr>
-              <tr><td>{t("BPV", "BPV", "BPV")}<TermInfo termId="bpv" lang={lang} /></td><td>{m(bond.bpv, (v) => `${num2(v, 0)} ${t("сум", "so'm", "UZS")}`)}</td></tr>
+              <tr><td>{t("DV01 (BPV)", "DV01 (BPV)", "DV01 (BPV)")}<TermInfo termId="bpv" lang={lang} /></td><td>{m(bond.dv01 || bond.bpv, (v) => `${num2(v, 2)} ${t("сум", "so'm", "UZS")}`)}</td></tr>
               <tr><td>{t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}</td><td>{fmtCompact(bond.issue_value, lang)}</td></tr>
               <tr><td>{t("Качество истории", "Tarix sifati", "History quality")}</td><td>{bond.quality?.data_tier || "—"}</td></tr>
             </tbody>
@@ -8845,8 +8879,29 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
         </div>
       </div>
 
+      {bond.rate_scenarios?.items?.length > 0 && <details className="verified-block">
+        <summary>{t("Сценарии ставки ±1/±2 п.п.", "Stavka ssenariylari ±1/±2 f.p.", "Rate scenarios ±1/±2 pp")}</summary>
+        <div className="verified-scroll" tabIndex={0} role="region" aria-label={t("Сценарии ставки", "Stavka ssenariylari", "Rate scenarios")}>
+          <table><thead><tr><th>{t("Сдвиг", "Siljish", "Shift")}</th><th>{t("Расчётная полная цена", "Hisoblangan to‘liq narx", "Repriced dirty price")}</th><th>{t("Изменение цены", "Narx o‘zgarishi", "Price change")}</th></tr></thead>
+            <tbody>{bond.rate_scenarios.items.map((item) => <tr key={item.shift_bps}><td>{item.shift_bps > 0 ? "+" : ""}{num2(item.shift_bps / 100, 0)} {t("п.п.", "f.p.", "pp")}</td><td>{item.price != null ? fmtPrice(item.price, lang) : "—"}</td><td>{item.change_pct != null ? `${num2(item.change_pct)}%` : "—"}</td></tr>)}</tbody>
+          </table>
+        </div>
+      </details>}
+
+      {bond.monitoring_points?.length > 0 && <section className="verified-watch">
+        <h3>{t("Два пункта наблюдения", "Ikki kuzatuv bandi", "Two monitoring points")}</h3>
+        <div className="verified-watch-grid">{bond.monitoring_points.slice(0, 2).map((point) => <article key={point.metric_code}>
+          <h4>{point.metric_code === "market_liquidity" ? t("Ликвидность рынка", "Bozor likvidligi", "Market liquidity") : t("Ближайшая или неподтверждённая выплата", "Yaqin yoki tasdiqlanmagan to‘lov", "Next or unconfirmed payment")}</h4>
+          {point.date && <p><strong>{t("Текущая база", "Joriy baza", "Current baseline")}:</strong> {fmtBondDay(point.date)} · {point.current_baseline}</p>}
+          {point.metric_code === "market_liquidity" && <p><strong>{t("Текущая база", "Joriy baza", "Current baseline")}:</strong> {point.current_baseline?.quote_as_of || "—"} · {t("сделки", "bitimlar", "trades")}: {point.current_baseline?.trades ?? "—"} · {t("оборот", "aylanma", "turnover")}: {fmtCompact(point.current_baseline?.turnover, lang)}</p>}
+          <p><strong>{t("Признак улучшения", "Yaxshilanish belgisi", "Improvement signal")}:</strong> {monitorCopy(point, "improvement_signal")}</p>
+          <p><strong>{t("Признак риска", "Xavf belgisi", "Risk signal")}:</strong> {monitorCopy(point, "risk_signal")}</p>
+          <p><strong>{t("Нужно раскрыть", "Oshkor qilish kerak", "Disclosure needed")}:</strong> {monitorCopy(point, "required_disclosure")}</p>
+        </article>)}</div>
+      </section>}
+
       <BondLifeLine bond={bond} flows={(bond.schedule_flows || []).map((f) => ({
-        date: f.date, paid: f.due, principal: f.principal || 0,
+        date: f.date, paid: f.paid, due: f.due, executionStatus: f.execution_status, principal: f.principal || 0,
       }))} lang={lang} />
 
       <div className="bondsec-tabs" role="tablist">
@@ -8989,7 +9044,8 @@ function BondCouponsPanel({ bond, coupons, lang }) {
   const flows = served.length
     ? served.map((f) => ({
         date: f.date, coupon: f.coupon, principal: f.principal || 0,
-        paid: f.due, no: f.no, filed: f.filed,
+        due: f.due, paid: f.paid, executionStatus: f.execution_status,
+        no: f.no, filed: f.filed,
       }))
     : coupons
         .filter((c) => c.pay_date)
@@ -8997,13 +9053,14 @@ function BondCouponsPanel({ bond, coupons, lang }) {
           date: c.pay_date.slice(0, 10),
           coupon: c.amount,
           principal: maturity && c.pay_date.slice(0, 10) === maturity.slice(0, 10) && nominal != null ? nominal : 0,
-          paid: c.is_paid || c.pay_date.slice(0, 10) <= today,
+          due: c.pay_date.slice(0, 10) <= today,
+          paid: c.payment_confirmed === true || ["paid", "confirmed", "executed"].includes(String(c.execution_status || "").toLowerCase()),
           no: c.coupon_no,
           filed: true,
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
   if (!served.length && maturity && nominal != null && !flows.some((f) => f.principal)) {
-    flows.push({ date: maturity.slice(0, 10), coupon: null, principal: nominal, paid: maturity.slice(0, 10) <= today, no: null, filed: false });
+    flows.push({ date: maturity.slice(0, 10), coupon: null, principal: nominal, due: maturity.slice(0, 10) <= today, paid: false, no: null, filed: false });
   }
   if (!flows.length) {
     return (
@@ -9029,7 +9086,7 @@ function BondCouponsPanel({ bond, coupons, lang }) {
       <div className="bondsec-legend muted">
         <span><i className="bondsec-dot" style={{ background: "var(--accent)" }} />{t("купон", "kupon", "coupon")}</span>
         {flows.some((f) => f.principal > 0) && <span><i className="bondsec-dot bondsec-dot-principal" />{t("погашение номинала", "nominal qaytishi", "principal")}</span>}
-        <span>{t("бледное — уже выплачено", "xira — allaqachon to'langan", "faded = already paid")}</span>
+        <span>{t("бледное — исполнение подтверждено", "xira — ijro tasdiqlangan", "faded = execution confirmed")}</span>
       </div>
       <svg className="bondsec-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("Календарь выплат", "To'lovlar kalendari", "Payment calendar")}>
         <line x1={L} x2={W - R} y1={T + ph} y2={T + ph} className="bondsec-axis" />
@@ -9052,7 +9109,7 @@ function BondCouponsPanel({ bond, coupons, lang }) {
                   {`${fmtBondDay(f.date)}${f.no != null ? ` · ${t("купон №", "kupon №", "coupon #")}${f.no}` : ""}\n`}
                   {f.coupon != null ? `${t("Купон", "Kupon", "Coupon")}: ${fmtNumber(f.coupon, lang, 2)} ${t("сум", "so'm", "UZS")}\n` : `${t("Сумма купона не подана", "Kupon summasi topshirilmagan", "Coupon amount not filed")}\n`}
                   {f.principal > 0 ? `${t("Номинал", "Nominal", "Principal")}: ${fmtNumber(f.principal, lang, 0)} ${t("сум", "so'm", "UZS")}\n` : ""}
-                  {f.paid ? t("выплачено", "to'langan", "paid") : t("предстоит", "kutilmoqda", "upcoming")}
+                  {f.paid ? t("выплата подтверждена", "to‘lov tasdiqlangan", "payment confirmed") : f.due ? t("срок наступил, выплата не подтверждена", "muddat keldi, to‘lov tasdiqlanmagan", "due; payment not confirmed") : t("предстоит", "kutilmoqda", "upcoming")}
                 </title>
               </rect>
             </g>
@@ -9078,9 +9135,9 @@ function BondCouponsPanel({ bond, coupons, lang }) {
                 <td className="num">{f.coupon != null ? fmtNumber(f.coupon, lang, 2) : "—"}</td>
                 <td className="num">{f.principal > 0 ? fmtNumber(f.principal, lang, 0) : "—"}</td>
                 <td className="muted">
-                  {f.paid ? t("срок прошёл", "muddat o'tdi", "fell due") : t("предстоит", "kutilmoqda", "upcoming")}
+                  {f.paid ? t("выплата подтверждена", "to‘lov tasdiqlangan", "payment confirmed") : f.due ? t("срок наступил, выплата не подтверждена", "muddat keldi, to‘lov tasdiqlanmagan", "due; payment not confirmed") : t("предстоит", "kutilmoqda", "upcoming")}
                   {f.filed === false && <span className="bondsec-recon" title={t("Дата и сумма рассчитаны из условий выпуска, эмитент этот платёж не подавал.", "Sana va summa chiqarilish shartlaridan hisoblangan.", "Date and amount computed from the issue's terms; the issuer has not filed this payment.")}> *</span>}
-                  {f.filed === true && <span className="tone-pos" title={t("Эмитент подал этот платёж существенным фактом.", "Emitent bu to'lovni muhim fakt sifatida topshirgan.", "The issuer filed this payment as a material fact.")}> ✓</span>}
+                  {f.filed === true && <span className="tone-pos" title={t("Эмитент подал начисление; это не подтверждает фактическую выплату.", "Emitent hisoblashni topshirgan; bu haqiqiy to‘lovni tasdiqlamaydi.", "The issuer filed the accrual; this does not confirm cash payment.")}> ✓</span>}
                 </td>
               </tr>
             ))}
@@ -9092,9 +9149,9 @@ function BondCouponsPanel({ bond, coupons, lang }) {
           ? t(`График собран из условий выпуска: реестр обращающихся выпусков биржи публикует ставку, цикл купона и даты размещения и погашения, а сами даты платежей между ними раскладываются равномерно. Из ${flows.length} выплат эмитент подал ${flows.length - reconstructed} — они отмечены галочкой; остальные ${reconstructed} рассчитаны и отмечены звёздочкой. «Срок прошёл» означает, что платёж наступил по календарю, а не что он подтверждён исполненным.`,
              `Jadval chiqarilish shartlaridan yig'ilgan. ${flows.length} to'lovdan ${flows.length - reconstructed} tasini emitent topshirgan, qolgan ${reconstructed} tasi hisoblangan.`,
              `The schedule is assembled from the issue's terms: the exchange's register of circulating issues publishes the rate, the coupon cycle and the placement and redemption dates, and the payment dates between them are laid evenly. Of ${flows.length} payments the issuer has filed ${flows.length - reconstructed} — marked with a tick; the other ${reconstructed} are computed and marked with a star. "Fell due" means the date has passed, not that the payment is confirmed met.`)
-          : t("Каждая выплата в этом графике подана эмитентом существенным фактом на openinfo.uz.",
-             "Bu jadvaldagi har bir to'lov emitent tomonidan muhim fakt sifatida topshirilgan.",
-             "Every payment in this schedule was filed by the issuer as a material fact on openinfo.uz.")}
+          : t("Каждое начисление в графике подано эмитентом; фактическая выплата считается подтверждённой только при отдельном источнике исполнения.",
+             "Jadvaldagi har bir hisoblash emitent tomonidan topshirilgan; haqiqiy to‘lov faqat alohida ijro manbasi bilan tasdiqlanadi.",
+             "Every accrual in the schedule was filed by the issuer; actual payment is confirmed only by a separate execution source.")}
       </p>
     </div>
   );
@@ -11171,7 +11228,7 @@ function dividendSummary(items, { isPreferred, lastPrice } = {}) {
 
 const COMPANY_INSIGHT_TX = {
   ru: {
-    details: "Подробнее",
+    details: "Открыть полный анализ",
     retry: "Повторить",
     unavailable: "Краткий AI-вывод сейчас недоступен.",
     loading: "Формируем краткий финансовый вывод…",
@@ -11184,7 +11241,7 @@ const COMPANY_INSIGHT_TX = {
     disclaimer: "Материал основан на публичной отчётности, носит информационный характер и не является инвестиционной рекомендацией.",
   },
   uz: {
-    details: "Batafsil",
+    details: "To‘liq tahlilni ochish",
     retry: "Qayta urinish",
     unavailable: "Qisqa AI xulosasi hozir mavjud emas.",
     loading: "Qisqa moliyaviy xulosa tayyorlanmoqda…",
@@ -11197,7 +11254,7 @@ const COMPANY_INSIGHT_TX = {
     disclaimer: "Material ochiq moliyaviy hisobotlarga asoslangan, faqat ma’lumot uchun berilgan va investitsiya tavsiyasi emas.",
   },
   en: {
-    details: "View details",
+    details: "Open full analysis",
     retry: "Retry",
     unavailable: "The short AI insight is currently unavailable.",
     loading: "Preparing a short financial insight…",
@@ -11241,7 +11298,7 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
         ) : report?.status && report.status !== "available" && !error ? (
           <ReportAvailability report={report} lang={lang} />
         ) : (
-          <p>{error ? tx.unavailable : report?.headline}</p>
+          <p>{error ? tx.unavailable : (report?.card_text || report?.short_summary || report?.headline)}</p>
         )}
       </div>
       {!loading && error && (

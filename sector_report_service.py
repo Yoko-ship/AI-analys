@@ -15,6 +15,23 @@ _REPORT_CACHE = {}
 _CACHE_LOCK = RLock()
 
 
+def public_report(report):
+    """Return the public contract without internal-only liquidity ratios.
+
+    Current and quick liquidity remain available to the calculation trace and
+    administrator controls, but the v1.3 public set deliberately excludes
+    them.  Copying here keeps monitoring and rollback records complete while
+    preventing the website and public APIs from leaking the internal fields.
+    """
+    result = deepcopy(report)
+    result["ratios"] = deepcopy(result.get("public_ratios") or [])
+    result.pop("public_ratios", None)
+    credit = result.get("credit_profile")
+    if isinstance(credit, dict):
+        credit["public_ratio_policy"] = "current_and_quick_liquidity_excluded"
+    return result
+
+
 def special_type(issuer):
     # Versioned legal-type routing from the supplied v2.2 specification.
     # These rules contain no financial values.
@@ -215,6 +232,7 @@ def bond_issuer_context(reference, lang="ru"):
     if report.get("valuation"):
         report["valuation"] = {"price_to_nav": None, "premium_to_nav_pct": None,
                                "blocked_reason": "SHARE_VALUATION_NOT_APPLICABLE_TO_BOND"}
+    report = public_report(report)
     return {"issuer_id": issuer["id"], "issuer_analysis_id": report["financial_snapshot_id"],
             "financial_as_of": report["financial_as_of"], "issuer_link_status": "verified",
             "issuer_report": report}

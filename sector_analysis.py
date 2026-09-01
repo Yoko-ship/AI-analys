@@ -12,8 +12,8 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
 
-VERSION = "sector-analysis-2.2"
-CALCULATION_VERSION = "nsbu-core-2.0"
+VERSION = "sector-analysis-2.3"
+CALCULATION_VERSION = "nsbu-core-2.1"
 MAPPING_VERSION = "nsbu-lines-2.0"
 FINANCIAL_TYPES = {"bank", "microfinance_bank", "microfinance", "insurance", "investment_fund_ifrs_annual", "spv"}
 SPECIAL_TYPES = {
@@ -360,6 +360,47 @@ def format_number(value):
     return "—" if value is None else f"{float(value):,.2f}".replace(",", " ")
 
 
+def trend_state(points):
+    """Describe only trends supported by comparable observations.
+
+    Two observations are a comparison, not a trend.  Three comparable points
+    can establish a direction; saying that a metric fell three times in a row
+    requires four observations.  Context fields are part of comparability so a
+    year, YTD and standalone quarter can never be joined into one sequence.
+    """
+    clean = []
+    for point in points or []:
+        value = decimal(point.get("value"))
+        period = point.get("period")
+        if value is None or not period:
+            continue
+        clean.append({**point, "value": number(value)})
+    clean.sort(key=lambda item: str(item["period"]))
+    if not clean:
+        return {"status": "unavailable", "points": 0, "direction": None, "consecutive_moves": 0}
+    contexts = {
+        (item.get("period_basis"), item.get("accounting_standard"), item.get("consolidation_scope"))
+        for item in clean
+    }
+    if len(contexts) > 1:
+        return {"status": "not_comparable", "points": len(clean), "direction": None, "consecutive_moves": 0}
+    if len(clean) == 1:
+        return {"status": "single_point", "points": 1, "direction": None, "consecutive_moves": 0}
+    moves = [clean[index]["value"] - clean[index - 1]["value"] for index in range(1, len(clean))]
+    direction = "up" if all(move > 0 for move in moves) else "down" if all(move < 0 for move in moves) else "mixed"
+    if len(clean) == 2:
+        status = "comparison_only"
+    elif direction == "down" and len(moves) >= 3:
+        status = "three_consecutive_declines"
+    elif direction in {"up", "down"}:
+        status = "trend"
+    else:
+        status = "mixed"
+    return {"status": status, "points": len(clean), "direction": direction,
+            "consecutive_moves": len(moves) if direction in {"up", "down"} else 0,
+            "periods": [item["period"] for item in clean]}
+
+
 def prepare_inputs(snapshot, workbook=None):
     """Add exact form lines without changing the independent comparison API."""
     values = dict(snapshot.get("current_values") or {})
@@ -457,19 +498,29 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         if value is None:
             continue
         line = (snapshot.get("field_sources", {}).get(key) or {}).get("source_line_id") or (mapping.get(key) if mapping.get(key) in lines else f"catalog:{key}")
-        raw = (lines.get(line) or {}).get("raw_current", str(values[key]))
-        fact_url = (lines.get(line) or {}).get("source_url") or source_url
+        line_row = lines.get(line) or {}
+        raw = line_row.get("raw_current", str(values[key]))
+        fact_url = line_row.get("source_url") or source_url
         fact_doc_id = "filing:" + digest([issuer["id"], standard, period, fact_url])[:24] if fact_url else source.get("document_id")
         base = opening if key in FORM1.values() or key in codes["cash_and_working_capital"] else previous
         fact = {"id": digest([issuer["id"], standard, period, key, raw, fact_doc_id])[:24],
                 "issuer_id": issuer["id"], "metric": key, "metric_code": key, "label": label(key, lang),
                 "raw": raw, "value_raw": raw, "value": value, "value_normalized": str(decimal(raw)),
-                "unit": "thousand UZS", "unit_raw": "thousand UZS", "unit_normalized": "thousand UZS",
+                "unit": "thousand UZS", "unit_raw": line_row.get("unit") or source.get("unit") or "thousand UZS",
+                "unit_normalized": "thousand UZS", "currency": line_row.get("currency") or source.get("currency") or snapshot.get("currency") or "UZS",
+                "multiplier": number(line_row.get("multiplier") or source.get("multiplier") or snapshot.get("multiplier") or 1),
                 "period": period, "period_start": snapshot.get("period_start") or f"{year}-01-01", "period_end": end.isoformat(),
                 "period_kind": snapshot.get("period_basis"), "accounting_standard": standard.upper(),
                 "consolidation_scope": snapshot.get("scope"), "source": {**source, "url": fact_url, "document_id": fact_doc_id}, "source_url": fact_url,
                 "source_document_id": fact_doc_id, "source_line_id": line,
-                "source_location": {k: v for k, v in {"sheet": (lines.get(line) or {}).get("sheet"), "row": (lines.get(line) or {}).get("row")}.items() if v is not None},
+                "source_document_hash": source.get("document_hash") or source.get("sha256") or source.get("hash"),
+                "source_published_at": source.get("published_at") or source.get("publication_date"),
+                "source_received_at": source.get("received_at") or source.get("retrieved_at"),
+                "source_location": {k: v for k, v in {
+                    "page": line_row.get("page") or source.get("page"), "sheet": line_row.get("sheet"),
+                    "row": line_row.get("row"), "cell": line_row.get("cell") or line_row.get("cell_ref")
+                }.items() if v is not None},
+                "source_original_line": line_row.get("label") or line_row.get("original_line"),
                 "mapping_rule_version": MAPPING_VERSION, "parser_version": snapshot.get("parser_version", "catalog"),
                 "verification_status": "verified" if publishable else "blocked", "confidence": "high" if source_url else "low",
                 **change(value, base.get(key))}
@@ -580,43 +631,202 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
     if not publishable:
         headline, verdict_status = unavailable.get(status, unavailable["quality_blocked"]), "no_signal"
     issues, risks = make_issues(negatives, by_code, quality, verdict_status, lang, period)
+    watch_candidates = {
+        "bank": ("net_income", "loan_portfolio", "customer_funds", "total_equity"),
+        "microfinance_bank": ("net_income", "loan_portfolio", "customer_funds", "total_equity"),
+        "microfinance": ("net_income", "loan_portfolio", "total_liabilities", "cash"),
+        "insurance": ("operating_income", "net_income", "net_insurance_reserves", "insurance_claims"),
+        "investment_fund_ifrs_annual": ("dividend_income", "unrealized_fair_value_gain", "cash", "management_expenses"),
+        "commodity_exchange": ("operating_income", "own_cash", "client_cash", "settlement_liabilities"),
+    }.get(template, ("operating_income", "net_income", "cash", "total_liabilities", "revenue"))
+    monitoring_points = []
+    for key in watch_candidates:
+        fact = by_code.get(key)
+        if not fact or len(monitoring_points) >= 2:
+            continue
+        comparison = fact.get("previous")
+        monitoring_points.append({
+            "id": digest([issuer["id"], period, "watch", key])[:24],
+            "metric_code": key, "label": fact["label"], "period": period,
+            "current_baseline": {"value": fact["value"], "unit": fact["unit"], "period": period},
+            "comparison_baseline": ({"value": comparison, "unit": fact["unit"],
+                                     "period": snapshot.get("previous_comparable_period")} if comparison is not None else None),
+            "improvement_signal": tr(
+                lang,
+                "сопоставимая динамика улучшается без смены стандарта, состава и базы",
+                "standart, tarkib va baza o‘zgarmasdan taqqoslanadigan dinamika yaxshilanadi",
+                "the comparable movement improves without changing standard, scope or basis",
+            ),
+            "risk_signal": tr(
+                lang,
+                "сопоставимая динамика ухудшается, меняет знак или теряет проверяемую базу",
+                "taqqoslanadigan dinamika yomonlashadi, ishorani o‘zgartiradi yoki tekshiriladigan bazani yo‘qotadi",
+                "the comparable movement deteriorates, changes sign or loses its verifiable basis",
+            ),
+            "required_disclosure": tr(
+                lang,
+                "следующая сопоставимая форма и примечание о причинах изменения",
+                "keyingi taqqoslanadigan shakl va o‘zgarish sababi haqidagi izoh",
+                "the next comparable filing and a disclosure explaining the movement",
+            ),
+            "evidence_fact_ids": [fact["id"]], "source_url": fact.get("source_url"),
+        })
+
+    series = snapshot.get("comparable_series") or []
+    if isinstance(series, dict):
+        series = series.get("net_income") or series.get("revenue") or []
+    if not series:
+        trend_key = "net_income" if values.get("net_income") is not None else "revenue"
+        series = []
+        if previous.get(trend_key) is not None:
+            series.append({"period": snapshot.get("previous_comparable_period") or "previous",
+                           "value": number(previous[trend_key]), "period_basis": snapshot.get("period_basis"),
+                           "accounting_standard": standard, "consolidation_scope": snapshot.get("scope")})
+        if values.get(trend_key) is not None:
+            series.append({"period": period, "value": number(values[trend_key]),
+                           "period_basis": snapshot.get("period_basis"), "accounting_standard": standard,
+                           "consolidation_scope": snapshot.get("scope")})
+    trend = trend_state(series)
+
+    key_metrics = ("revenue", "net_income", "total_assets", "total_liabilities", "total_equity", "cash")
+    missing_metrics = [label(key, lang) for key in key_metrics if values.get(key) is None]
+    checked = []
+    if source_url:
+        checked.append(tr(lang, "исходный документ и период", "asl hujjat va davr", "source document and period"))
+    if balance.get("status") == "passed":
+        checked.append(tr(lang, "равенство активов, капитала и обязательств", "aktivlar, kapital va majburiyatlar tengligi", "assets, equity and liabilities identity"))
+    if previous:
+        checked.append(tr(lang, "сопоставимая база изменения", "o‘zgarishning taqqoslanadigan bazasi", "comparable movement basis"))
+    if ratios:
+        checked.append(tr(lang, "формулы и входы применимых коэффициентов", "qo‘llanadigan koeffitsiyent formulalari va kirishlari", "formulas and inputs for applicable ratios"))
+    cannot_assess = []
+    if values.get("cfo") is None:
+        cannot_assess.append(tr(
+            lang,
+            "качество прибыли и свободный денежный поток без данных об операционном денежном потоке и капитальных вложениях",
+            "operatsion pul oqimi va kapital qo‘yilmalar ma’lumotlarisiz foyda sifati hamda erkin pul oqimi",
+            "earnings quality and free cash flow without operating-cash-flow and capital-investment inputs",
+        ))
+    if template in {"bank", "microfinance_bank", "microfinance"}:
+        cannot_assess.append(tr(lang, "регуляторные нормативы без раскрытых компонентов и методики", "oshkor qilingan qismlar va metodikasiz regulyativ me’yorlar", "regulatory ratios without disclosed components and methodology"))
+    elif values.get("interest_expenses") is None:
+        cannot_assess.append(tr(lang, "покрытие долга без графика платежей и процентных расходов", "to‘lov jadvali va foiz xarajatlarisiz qarz qoplamasi", "debt-service coverage without a payment schedule and interest expense"))
+    verification_summary = {
+        "checked": checked,
+        "missing": missing_metrics,
+        "cannot_assess": cannot_assess,
+    }
+
+    complete_content = publishable and len(verified) >= 7
+    bank_without_income_comparison = template == "bank" and not any(
+        previous.get(key) is not None for key in ("net_income", "profit_before_tax", "interest_income")
+    )
     paragraphs = []
-    if publishable:
-        paragraphs.append(headline)
+    if complete_content:
+        method = tr(
+            lang,
+            "Вывод основан только на проверенных фактах этого финансового снимка; автоматический инвестиционный рейтинг и торговая рекомендация не формируются.",
+            "Xulosa faqat shu moliyaviy suratdagi tekshirilgan faktlarga asoslanadi; avtomatik investitsiya reytingi yoki savdo tavsiyasi tuzilmaydi.",
+            "The conclusion uses only verified facts in this financial snapshot; it does not produce an automatic investment rating or trading recommendation.",
+        )
+        paragraphs.append(f"{headline} {method}")
+
+        result_facts = [fact_sentence(key) for key in ("revenue", "net_income", "operating_income", "interest_income", "insurance_premiums")]
+        result_facts = [item for item in result_facts if item][:3]
+        if bank_without_income_comparison:
+            comparison_note = tr(
+                lang,
+                "Динамика баланса — относительно начала года; изменение прибыли и рентабельности не оценивается",
+                "Balans dinamikasi yil boshiga nisbatan; foyda va rentabellik o‘zgarishi baholanmaydi",
+                "Balance dynamics are measured from year-start; changes in profit and profitability are not assessed",
+            )
+        elif trend["status"] == "comparison_only":
+            comparison_note = tr(lang, "Доступные две точки дают сравнение, но не подтверждают тенденцию", "Ikki nuqta taqqoslash imkonini beradi, ammo trendni tasdiqlamaydi", "The two available points permit a comparison but do not establish a trend")
+        else:
+            comparison_note = tr(lang, "Сравнение использует только одинаковые период, стандарт и состав группы", "Taqqoslash faqat bir xil davr, standart va guruh tarkibidan foydalanadi", "The comparison uses only the same period, standard and group scope")
+        paragraphs.append(tr(lang, "Результат и причины. ", "Natija va sabablar. ", "Result and drivers. ") + "; ".join(result_facts) + f". {comparison_note}.")
+
+        money_facts = [fact_sentence(key) for key in ("cash", "total_liabilities", "total_equity", "total_assets", "receivables", "inventories")]
+        money_facts = [item for item in money_facts if item][:4]
+        money_guard = tr(
+            lang,
+            "Клиентские, ограниченные и недоступные средства не считаются свободными деньгами без отдельного раскрытия",
+            "Mijozlar, cheklangan va mavjud bo‘lmagan mablag‘lar alohida oshkor qilinmasa erkin pul hisoblanmaydi",
+            "Client, restricted and unavailable balances are not treated as free cash without separate disclosure",
+        )
+        paragraphs.append(tr(lang, "Деньги и обязательства. ", "Pul va majburiyatlar. ", "Cash and obligations. ") + "; ".join(money_facts) + f". {money_guard}.")
+
+        if issues:
+            issue = issues[0]
+            risk_text = f"{issue['title']}: {display_money(issue['actual_value'])} {money_unit}. {issue['verdict_text']}."
+        else:
+            risk_text = tr(lang, "Существенный риск не утверждается без показателя, порога и источника.", "Ko‘rsatkich, mezon va manbasiz muhim xavf tasdiqlanmaydi.", "No material risk is asserted without a metric, threshold and source.")
+        missing_text = ", ".join(missing_metrics) if missing_metrics else tr(lang, "ключевые строки доступны", "asosiy satrlar mavjud", "the key lines are available")
+        limit_text = tr(lang, f"Не хватает: {missing_text}. Поэтому нельзя оценить непроверенные причины, будущие результаты и обязательства вне раскрытого периметра.", f"Yetishmaydi: {missing_text}. Shu sababli tekshirilmagan sabablar, kelajak natijalari va oshkor qilingan doiradan tashqari majburiyatlarni baholab bo‘lmaydi.", f"Missing: {missing_text}. Therefore unverified causes, future outcomes and obligations outside the disclosed scope cannot be assessed.")
+        paragraphs.append(tr(lang, "Риск и ограничения. ", "Xavf va cheklovlar. ", "Risk and limitations. ") + risk_text + " " + limit_text)
+
+        watch_text = []
+        for point in monitoring_points:
+            current = display_money(point["current_baseline"]["value"])
+            watch_text.append(f"{point['label']} — {current} {money_unit}: {point['risk_signal']}; {point['required_disclosure']}.")
+        paragraphs.append(tr(lang, "Следить в следующем отчёте. ", "Keyingi hisobotda kuzatish. ", "Watch in the next report. ") + " ".join(watch_text))
+
+        fillers = [
+            tr(lang, "Опубликованный ноль сохранён как ноль, а отсутствующее значение не заменено предположением.", "E’lon qilingan nol nol sifatida saqlanadi, yetishmagan qiymat esa taxmin bilan almashtirilmaydi.", "A published zero remains zero, while a missing value is not replaced by an assumption."),
+            tr(lang, "Каждое использованное число связано с периодом, исходной строкой и версией методики.", "Har bir ishlatilgan raqam davr, asl satr va metodika versiyasi bilan bog‘langan.", "Every number used is linked to its period, source line and methodology version."),
+            tr(lang, "Операционные причины без примечаний к отчётности не выдумываются.", "Hisobot izohlarisiz operatsion sabablar o‘ylab topilmaydi.", "Operational causes are not invented when the filing notes do not disclose them."),
+        ]
+        for sentence in fillers:
+            if len("\n\n".join(paragraphs).split()) >= 200:
+                break
+            paragraphs[3] += " " + sentence
+    elif publishable:
+        paragraphs = [headline]
         for group in ("financial_result", "cash_and_working_capital", "investment_base"):
             sentences = [fact_sentence(key) for key in codes[group]]
             if any(sentences):
-                paragraphs.append("; ".join(s for s in sentences if s) + ".")
-        if capital["equity_open"] is not None:
-            capital_text = tr(lang, "Капитал с начала года", "Yil boshidan kapital", "Equity since the start of the year") + f": {format_number(capital['equity_open'])} → {format_number(capital['equity_end'])} {money_unit}."
-            retained = next(item["change_value"] for item in capital["change_sources"] if item["metric_code"] == "retained_earnings")
-            if retained is not None:
-                capital_text += " " + tr(lang, "Изменение нераспределённой прибыли", "Taqsimlanmagan foyda o‘zgarishi", "Retained-earnings movement") + f": {format_number(retained)} {money_unit}."
-            if capital["equity_to_assets_open"] is not None:
-                capital_text += " " + tr(lang, "Доля капитала в активах", "Aktivlarda kapital ulushi", "Equity / assets") + f": {format_number(capital['equity_to_assets_open'])}% → {format_number(capital['equity_to_assets_end'])}%."
-            paragraphs.append(capital_text)
-        if issues:
-            paragraphs.append(" ".join(f"{issue['title']}: {display_money(issue['actual_value'])} {money_unit}. {issue['solution_text']} {issue['verdict_text']}." for issue in issues[:2]))
+                paragraphs.append("; ".join(item for item in sentences if item) + ".")
+        paragraphs.append(tr(lang, "Отчёт сокращён: подтверждённых фактов недостаточно; пропуски не заменены нулями или предположениями.", "Hisobot qisqartirilgan: tasdiqlangan faktlar yetarli emas; bo‘sh qiymatlar nol yoki taxmin bilan almashtirilmagan.", "The report is shortened because too few facts are verified; gaps were not replaced by zero or assumptions."))
     else:
         paragraphs = [headline]
     text = "\n\n".join(paragraphs)
+
+    card_text = None
+    if publishable:
+        main_fact = fact_sentence("net_income") or fact_sentence("revenue") or headline
+        risk_card = issues[0]["title"] if issues else tr(lang, "существенный подтверждённый риск не выявлен", "muhim tasdiqlangan xavf aniqlanmadi", "no material verified risk was identified")
+        card_text = tr(
+            lang,
+            f"{issuer['ticker']} · {period_text}. {verdict_label}. {main_fact}. Риск: {risk_card}. Ограничение: вывод охватывает только проверенную отчётность выбранного периода и не оценивает нераскрытые денежные потоки, ковенанты или будущие результаты.",
+            f"{issuer['ticker']} · {period_text}. {verdict_label}. {main_fact}. Xavf: {risk_card}. Cheklov: xulosa faqat tanlangan davrning tekshirilgan hisobotini qamrab oladi va oshkor qilinmagan pul oqimlari, kovenantlar yoki kelajak natijalarini baholamaydi.",
+            f"{issuer['ticker']} · {period_text}. {verdict_label}. {main_fact}. Risk: {risk_card}. Limitation: the conclusion covers only the verified filing for the selected period and does not assess undisclosed cash flows, covenants or future results.",
+        )
+        if len(card_text.split()) < 40:
+            card_text += " " + tr(lang, "Расчёты и источники доступны в полном анализе.", "Hisoblar va manbalar to‘liq tahlilda mavjud.", "Calculations and sources are available in the full analysis.")
+        if len(card_text.split()) > 70:
+            card_text = " ".join(card_text.split()[:69]) + "…"
     refs = [{**f, "raw": number(f["raw"])} for f in verified]
     report = {"ok": True, "issuer": {"id": issuer["id"], "ticker": issuer["ticker"], "name": issuer.get("name"), "organization_type": org, "sector": template},
               "report": {"standard": standard.upper(), "template_basis": snapshot.get("template_basis"), "period": period, "period_end": end.isoformat(), "status": status},
               "standard": standard, "scope": snapshot.get("scope"), "period": period, "period_label": period_text,
               "display_divisor": number(display_divisor),
               "period_basis": snapshot.get("period_basis"), "language": lang, "status": status,
-              "content_status": "complete" if publishable and len(verified) >= 7 else "shortened",
-              "shortened_reason": None if publishable and len(verified) >= 7 else "insufficient_traceable_metrics",
+              "content_status": "complete" if complete_content else "shortened",
+              "shortened_reason": None if complete_content else "insufficient_traceable_metrics",
               "sector_template_code": template, "template_resolution": resolution, "template_version": VERSION,
               "calculation_version": CALCULATION_VERSION, "mapping_version": MAPPING_VERSION,
-              "headline": headline, "short_summary": headline if publishable else None,
+              "headline": headline, "short_summary": card_text, "card_text": card_text,
+              "card_word_count": len(card_text.split()) if card_text else 0,
               "headline_tone": {"positive": "positive", "mixed": "warning", "negative": "danger", "no_signal": "neutral"}[verdict_status],
               "paragraphs": paragraphs, "text": text, "paragraph_count": len(paragraphs), "word_count": len(text.split()),
               "sections": [{"id": f"section-{i}", "text": p} for i, p in enumerate(paragraphs)] if publishable else [],
-              "verified_facts": refs, "number_references": refs, "calculation_inputs": calculation_inputs, "ratios": ratios, "replacement_blocks": blocks,
+              "verified_facts": refs, "number_references": refs, "calculation_inputs": calculation_inputs,
+              "ratios": ratios, "public_ratios": [item for item in ratios if item.get("metric_code") not in {"current_ratio", "quick_ratio"}],
+              "replacement_blocks": blocks,
               "capital_analysis": capital if publishable else {}, "profit_quality": quality if publishable else {},
               "analytical_signals": signals, "analytical_issues": issues, "risks": risks,
+              "monitoring_points": monitoring_points if publishable else [], "trend": trend,
+              "verification_summary": verification_summary,
               "verdict": {"status": verdict_status, "headline": headline if publishable else None, "evidence_signal_ids": [s["id"] for s in signals] if verdict_status != "no_signal" else [], "period_end": end.isoformat()},
               "data_quality": data_quality, "balance_check": balance, "financial_as_of": end.isoformat() if period else None,
               "market_as_of": None, "sources": [source] if source_url else [],
