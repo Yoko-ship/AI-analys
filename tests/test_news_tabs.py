@@ -85,6 +85,51 @@ class TestTheQueryItBuilds:
         assert "p.type IN" not in seen["sql"]
 
 
+class TestRegulatoryIsServedFromPrimarySources:
+    """Regulatory cards come only from NAPP and OpenInfo, in every feed view."""
+
+    def _sql(self, monkeypatch, news_type):
+        seen = {}
+
+        class _Conn:
+            def execute(self, sql, params):
+                seen["sql"], seen["params"] = sql, list(params)
+                return self
+
+            def fetchall(self):
+                return []
+
+            def close(self):
+                return None
+
+        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        ns.get_news_feed(news_type=news_type, order="recent", days=0)
+        return seen
+
+    def test_the_allowlist_is_exactly_napp_and_openinfo(self) -> None:
+        assert ns.REGULATORY_SOURCE_IDS == {"napp", "openinfo_facts"}
+
+    @pytest.mark.parametrize("news_type", ["regulatory", "economy", None])
+    def test_regulatory_rows_are_restricted_in_every_view(self, monkeypatch, news_type) -> None:
+        seen = self._sql(monkeypatch, news_type)
+
+        assert "p.type <> ? OR COALESCE(n.source_id, '') IN (?,?)" in seen["sql"]
+        assert "regulatory" in seen["params"]
+        assert "napp" in seen["params"]
+        assert "openinfo_facts" in seen["params"]
+
+    def test_short_read_paths_drop_other_regulatory_sources(self, monkeypatch) -> None:
+        monkeypatch.setattr(ns, "hidden_source_ids", lambda: set())
+        items = [
+            {"id": 1, "type": "regulatory", "source_id": "napp"},
+            {"id": 2, "type": "regulatory", "source_id": "openinfo_facts"},
+            {"id": 3, "type": "regulatory", "source_id": "cbu"},
+            {"id": 4, "type": "market", "source_id": "cbu"},
+        ]
+
+        assert [item["id"] for item in ns.drop_hidden(items)] == [1, 2, 4]
+
+
 class TestCorporateIsServedFromTheFilings:
     """«Корпоративные» carries the issuers' own disclosures (customer, 2026-08-11).
 
@@ -129,7 +174,7 @@ class TestCorporateIsServedFromTheFilings:
         # The clause is appended last, ahead of LIMIT's own parameter.
         assert seen["params"][-3:-1] == ["financial_report", "openinfo_facts"]
 
-    def test_economy_keeps_every_source(self, monkeypatch) -> None:
+    def test_economy_does_not_apply_the_corporate_source_rule(self, monkeypatch) -> None:
         assert "p.type NOT IN" not in self._sql(monkeypatch, "economy")["sql"]
 
     def test_all_keeps_every_source(self, monkeypatch) -> None:

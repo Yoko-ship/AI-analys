@@ -771,6 +771,12 @@ _international_ids: set[str] | None = None
 _hidden_ids: set[str] | None = None
 _disclosure_ids: set[str] | None = None
 
+# A story classified as regulation is publishable only when it comes from the
+# regulator itself or from the statutory OpenInfo disclosure feed.  Other
+# outlets still remain valid sources for market and corporate stories; this is
+# a per-class editorial rule, not a source-wide block.
+REGULATORY_SOURCE_IDS = frozenset({"napp", "openinfo_facts"})
+
 
 def hidden_source_ids() -> set[str]:
     """Source ids the registry takes off the site (cached, fail-soft).
@@ -817,7 +823,7 @@ def international_source_ids() -> set[str]:
 
 
 def drop_hidden(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Take the hidden sources out of a list of items.
+    """Take editorially disallowed sources out of a list of items.
 
     Used on the short read paths — related stories, an issuer's news, the sentiment inputs —
     where the row count is small and a Python filter is clearer than threading positional
@@ -825,9 +831,14 @@ def drop_hidden(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     because there a dropped row costs a slot in the rank window.
     """
     hidden = hidden_source_ids()
-    if not hidden:
-        return items
-    return [it for it in items if str(it.get("source_id") or "") not in hidden]
+    return [
+        it for it in items
+        if str(it.get("source_id") or "") not in hidden
+        and (
+            str(it.get("type") or "") != "regulatory"
+            or str(it.get("source_id") or "") in REGULATORY_SOURCE_IDS
+        )
+    ]
 
 
 def _balance_origins(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
@@ -1020,6 +1031,15 @@ def get_news_feed(
     if hidden:
         q.append(f"AND COALESCE(n.source_id, '') NOT IN ({','.join('?' * len(hidden))})")
         params.extend(hidden)
+    # Regulatory news is primary-source only (customer, 2026-09-01). Apply the
+    # rule even when no type is requested, so «Все» cannot reintroduce a press
+    # retelling that the dedicated «Регулятор» tab correctly omits. Market and
+    # corporate rows from those same outlets continue to pass unchanged.
+    regulatory_sources = sorted(REGULATORY_SOURCE_IDS)
+    q.append(f"AND (p.type <> ? OR COALESCE(n.source_id, '') IN "
+             f"({','.join('?' * len(regulatory_sources))}))")
+    params.append("regulatory")
+    params.extend(regulatory_sources)
     # «Корпоративные» is served from the filings alone (customer, 2026-08-11). Written per
     # TYPE rather than as a flat AND over the whole query, so a request that mixes the
     # groups («economy,corporate_event») still gets its economy items from every source —
@@ -1090,7 +1110,9 @@ def get_news_item(news_id: int) -> dict[str, Any] | None:
         return None
     # The story page too, not only the feed: a card taken off the list whose URL still opens
     # is not removed, it is unlinked — and the customer's example was the story page itself.
-    if str(row["source_id"] or "") in hidden_source_ids():
+    if str(row["source_id"] or "") in hidden_source_ids() or (
+            str(row["type"] or "") == "regulatory"
+            and str(row["source_id"] or "") not in REGULATORY_SOURCE_IDS):
         return None
     item = _row_to_item(row)
     keys = row.keys()
@@ -1198,7 +1220,7 @@ def get_news_sentiment(ticker: str, *, days: int = 30) -> dict[str, Any]:
     conn = rc.get_catalog_conn()
     rows = conn.execute(
         """
-        SELECT p.tone, p.tone_score, n.coverage_weight, n.source_id
+        SELECT p.type, p.tone, p.tone_score, n.coverage_weight, n.source_id
         FROM news n
         JOIN news_entities e ON e.news_id = n.id
         JOIN news_nlp p       ON p.news_id = n.id
@@ -1210,7 +1232,10 @@ def get_news_sentiment(ticker: str, *, days: int = 30) -> dict[str, Any]:
     conn.close()
     # A story we refuse to publish must not move a number we do publish.
     hidden = hidden_source_ids()
-    rows = [r for r in rows if str(r["source_id"] or "") not in hidden]
+    rows = [r for r in rows
+            if str(r["source_id"] or "") not in hidden
+            and (str(r["type"] or "") != "regulatory"
+                 or str(r["source_id"] or "") in REGULATORY_SOURCE_IDS)]
     if not rows:
         return {"ticker": ticker.upper(), "count": 0, "weighted_tone": None,
                 "positive": 0, "neutral": 0, "negative": 0}
