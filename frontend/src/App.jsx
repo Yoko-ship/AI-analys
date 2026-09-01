@@ -13360,9 +13360,29 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const [finFields, setFinFields] = React.useState(initial?.fin || []);
   const [compareTickers, setCompareTickers] = React.useState(initial?.compare || []);
   const [menu, setMenu] = React.useState(null);            // "ind" | "fin" | "cmp" | null
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [railOpen, setRailOpen] = React.useState(() => (typeof window === "undefined"
     ? true
     : !window.matchMedia("(max-width: 900px)").matches));
+
+  // Full-screen here means the chart workspace fills the browser viewport,
+  // while keeping every period, indicator and comparison control reachable.
+  // Lock the page underneath it and make Escape behave like a native dialog.
+  React.useEffect(() => {
+    if (!isFullscreen || typeof document === "undefined") return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setIsFullscreen(false);
+    };
+    document.body.style.overflow = "hidden";
+    document.body.classList.add("advanced-chart-fullscreen");
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.classList.remove("advanced-chart-fullscreen");
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isFullscreen]);
 
   const [history, setHistory] = React.useState(null);
   const [adjustments, setAdjustments] = React.useState([]);
@@ -13721,7 +13741,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   // ── Drawing ──────────────────────────────────────────────────────────────
   const GAP = 12;
-  const VOL_H = 52;
+  const VOL_H = 96;
   const SUB_H = 92;
   const subPanes = [
     ...(indicators.has("rsi") ? [{ key: "rsi" }] : []),
@@ -13933,7 +13953,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const emptyState = !loading && n < 2;
 
   return (
-    <div className={`advanced-chart ${railOpen ? "rail-open" : ""}`}>
+    <div className={`advanced-chart ${railOpen ? "rail-open" : ""} ${isFullscreen ? "is-fullscreen" : ""}`}>
       <div className="ac-head">
         <button className="ac-back" type="button" onClick={onBack}>
           ← {t("Назад", "Orqaga", "Back")}
@@ -14034,6 +14054,24 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
             ))}
           </div>
         </div>
+        <button type="button" className="ac-fullscreen-btn"
+          aria-pressed={isFullscreen}
+          aria-label={isFullscreen
+            ? t("Выйти из полноэкранного режима", "To'liq ekrandan chiqish", "Exit full screen")
+            : t("Развернуть график на весь экран", "Grafikni to'liq ekranga yoyish", "Expand chart to full screen")}
+          title={isFullscreen
+            ? t("Выйти из полноэкранного режима (Esc)", "To'liq ekrandan chiqish (Esc)", "Exit full screen (Esc)")
+            : t("На весь экран", "To'liq ekran", "Full screen")}
+          onClick={() => setIsFullscreen((value) => !value)}>
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {isFullscreen ? (
+              <path d="M9 4v5H4 M15 4v5h5 M9 20v-5H4 M15 20v-5h5" />
+            ) : (
+              <path d="M8 3H3v5 M16 3h5v5 M8 21H3v-5 M21 16v5h-5" />
+            )}
+          </svg>
+        </button>
         {menu === "span" && (
           <div className="ac-menu ac-span-menu">
             <label>{t("С", "Dan", "From")}
@@ -14206,11 +14244,11 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 {points.map((p, i) => {
                   const v = p.turnover || 0;
                   if (!v) return null;
-                  const h = (v / maxVol) * (volBot - volTop);
+                  const h = Math.max(2.5, (v / maxVol) * (volBot - volTop));
                   const upDay = i > 0 ? p.close >= points[i - 1].close : true;
-                  const w = Math.max(1, Math.min(9, gapPx * 0.68));
+                  const w = Math.max(1.5, Math.min(10, gapPx * 0.76));
                   return <rect key={`v${i}`} className="ac-volume-bar" x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
-                    fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.45" />;
+                    fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.76" />;
                 })}
                 <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot}
                   stroke="currentColor" strokeOpacity="0.18" />
