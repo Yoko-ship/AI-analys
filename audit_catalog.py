@@ -30,6 +30,7 @@ KNOWN_SECTORS: dict[str, str] = {
     "TNBN": "finance", "TNBNP": "finance",
     "ALKB": "finance", "ALKBP": "finance",
     "GRBK": "finance",
+    "DRBK": "finance",   # Davr Bank — relisted 2026-08-28
     "MCBA": "finance", "MCBAP": "finance",
     "UNVB": "finance",
     "BRBN": "finance", "BRNBP": "finance", "BRBNP": "finance",

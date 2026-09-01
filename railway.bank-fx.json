@@ -6,7 +6,7 @@
   },
   "deploy": {
     "cronSchedule": "10 6 * * *",
-    "startCommand": "python collector_financials.py --bank-fx-only",
+    "startCommand": "/usr/local/bin/docker-entrypoint.sh python collector_financials.py --bank-fx-only",
     "restartPolicyType": "NEVER"
   }
 }

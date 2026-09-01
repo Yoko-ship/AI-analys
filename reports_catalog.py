@@ -97,6 +97,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             logo_url        TEXT,
             resolved_by     TEXT,
             status          TEXT NOT NULL DEFAULT 'pending',
+            catalog_visible INTEGER NOT NULL DEFAULT 1,
             source_payload  TEXT,
             review_note     TEXT,
             reviewed_by     TEXT,
@@ -448,9 +449,43 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (news_id, ticker)
         );
         CREATE INDEX IF NOT EXISTS idx_news_ent_ticker ON news_entities(ticker);
+
+        -- One row per collector invocation. Token counts measure the news job
+        -- exactly; the before/after percentage is the account's own rolling
+        -- Codex limit reading, not an estimate derived from tokens.
+        CREATE TABLE IF NOT EXISTS news_usage_runs (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id                TEXT NOT NULL UNIQUE,
+            mode                  TEXT NOT NULL,
+            started_at            TEXT NOT NULL,
+            finished_at           TEXT NOT NULL,
+            model                 TEXT,
+            calls                 INTEGER NOT NULL DEFAULT 0,
+            prompt_tokens         INTEGER NOT NULL DEFAULT 0,
+            completion_tokens     INTEGER NOT NULL DEFAULT 0,
+            cached_input_tokens   INTEGER NOT NULL DEFAULT 0,
+            total_tokens          INTEGER NOT NULL DEFAULT 0,
+            subscription_tokens   INTEGER NOT NULL DEFAULT 0,
+            codex_before_pct      REAL,
+            codex_after_pct       REAL,
+            codex_delta_pct       REAL,
+            codex_resets_at       INTEGER,
+            fetched               INTEGER,
+            classified            INTEGER,
+            relevant              INTEGER,
+            pushed                INTEGER,
+            status                TEXT NOT NULL DEFAULT 'completed'
+        );
+        CREATE INDEX IF NOT EXISTS idx_news_usage_finished
+            ON news_usage_runs(finished_at);
     """)
     # Columns added after the table shipped (CREATE IF NOT EXISTS won't touch
     # an existing table) — idempotent per-column migration.
+    have_imports = set(dbx.columns(conn, "catalog_company_imports"))
+    if "catalog_visible" not in have_imports:
+        conn.execute(
+            "ALTER TABLE catalog_company_imports ADD COLUMN catalog_visible INTEGER NOT NULL DEFAULT 1"
+        )
     have = set(dbx.columns(conn, "catalog_trade_stats"))
     for col in ("open_price", "high_price", "low_price", "close_price"):
         if col not in have:

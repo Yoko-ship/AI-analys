@@ -1,13 +1,13 @@
-# §3.11 News module — DeepSeek-powered collection, classification & search
+# §3.11 News module — Codex-powered collection and classification
 
 Editorial-news layer for the UZSE platform: it **collects** Uzbek market news,
-**classifies/sorts** each item with DeepSeek (type, tone, impact, issuer links),
-and can **actively find** news on demand via a search agent. Built on the
+**classifies/sorts** each item with subscription-backed Codex (type, tone, impact,
+issuer links), and publishes it through the
 existing collector-push → prod-serve architecture (see `news_ai_module_scope.md`).
 
-## Two layers
+## Collector pipeline
 
-**Layer A — collector pipeline (runs itself, scheduled).** `news_collector.py`
+`news_collector.py`
 pulls the enabled feeds in `news_sources.json`, drops already-seen URLs, and puts each new
 item through three gates, cheapest first, before storing it and pushing to
 `POST /api/admin/news`. This is the coverage backbone. The model never browses or fetches
@@ -27,25 +27,14 @@ the `n` it echoes — never by position — and anything missing, unparseable or
 validation is retried as a single call, because a mis-attributed verdict is far worse than a
 second request. A filing whose rating fails is stored **unrated** rather than lost.
 
-**Layer B — `search_news` agent (on demand).** `news_agent.find_news("Kapitalbank")`
-actively finds news. Two backends (`NEWS_SEARCH_BACKEND`):
-- `grok` — **Grok native web + X search** (`news_grok_search.py`, xAI Agent Tools /
-  Responses API). xAI runs the whole search loop server-side and returns items with
-  citations — no Tavily key, and it reaches X/Twitter. Uses `XAI_API_KEY`.
-- `tavily` — provider-agnostic tool loop: the model calls a `search_news(query, days)`
-  tool backed by Tavily, bounded by a hard iteration cap with every query logged.
-Either way the returned items can be fed back through `classify_item` and stored.
-
 ## Files
 
 | File | Role |
 |---|---|
 | `news_sources.json` | Source registry (feed URLs, type, lang, coverage weight, legal flag, enabled) |
-| `llm_client.py` | Provider-abstracted DeepSeek client (OpenAI-compatible) — `complete_json`, `run_tool_loop`, retry/backoff, token accounting |
-| `news_classifier.py` | Layer A — the three gates: `prefilter_reject` (free), `triage_item` (tiny call), full classification (Pydantic-validated); own provider via `NEWS_CLASSIFIER_*` |
-| `news_search_backend.py` | Pluggable search backends for Layer B (`TavilyBackend`, `NullBackend`) |
-| `news_grok_search.py` | Layer B — Grok-native web + X search (xAI Agent Tools API) |
-| `news_agent.py` | Layer B — `find_news` entry point (routes to Grok-native or Tavily) |
+| `codex_client.py` | Hardened `codex exec` adapter with structured output, isolated environment, token accounting, and a second Codex-model fallback |
+| `llm_client.py` | Shared usage accounting and classification error type |
+| `news_classifier.py` | The three gates: `prefilter_reject` (free), batched triage, and Pydantic-validated full classification |
 | `news_lang.py` | Code-only language detection (`detect_lang`, `is_foreign`) — no model, no network |
 | `frontend/src/lib/translate.js` | The browser's own on-device translator (Chrome/Edge `Translator`), as a progressive enhancement |
 | `news_store.py` | `news` / `news_nlp` / `news_entities` upsert + read helpers |
@@ -56,20 +45,14 @@ Either way the returned items can be fed back through `classify_item` and stored
 ## Setup
 
 ```bash
-pip install -r requirements.txt        # adds feedparser, openai
-# .env — all on Grok (both layers). This is the configured default:
-XAI_API_KEY=xai-...                      # Layer-A classification + Layer-B native search
-LLM_BASE_URL=https://api.x.ai/v1
-LLM_MODEL=grok-4.3                       # live id; grok-4-fast retired 2026-05-15
-GROK_SEARCH_MODEL=grok-4.5               # Layer-B native-search model (optional; defaults to grok-4.5)
-NEWS_SEARCH_BACKEND=grok                 # Grok native web+X search (or 'tavily' + TAVILY_API_KEY)
+pip install -r requirements.txt
+NEWS_CODEX_MODEL=gpt-5.6-luna
+NEWS_CODEX_REASONING=low
+NEWS_CODEX_FALLBACK_MODEL=gpt-5.6-terra
+NEWS_CODEX_TIMEOUT=180
+# CODEX_HOME points to private persistent storage containing auth.json.
 ADMIN_API_SECRET=...                    # required to push to prod (shared with financials)
 NEWS_PUSH_URL=https://<your-api>.up.railway.app
-# OPTIONAL — move only the high-volume Layer-A path to a cheaper provider. Layer B stays on
-# Grok regardless. Worth a few dollars a month; costs you a second provider, key and bill:
-#   NEWS_CLASSIFIER_BASE_URL=https://api.deepseek.com
-#   NEWS_CLASSIFIER_MODEL=deepseek-v4-flash
-#   DEEPSEEK_API_KEY=sk-...
 ```
 
 ## Run
@@ -81,7 +64,6 @@ python news_collector.py                    # collect, classify, store, push to 
 python news_collector.py --source cbu        # one source
 python news_collector.py --backfill-images   # images for stored items (no LLM calls)
 python news_collector.py --purge-failed      # drop failed classifications so they retry
-python news_agent.py "Hamkorbank dividend"   # try the search agent (needs TAVILY_API_KEY)
 ```
 
 Serve: `GET /api/news/feed?limit=60&days=30`, `GET /api/news/item/106`, `GET /api/news/ticker/HMKB`.
@@ -188,8 +170,7 @@ of the text rather than at the edge:
 
 * **The classifier writes all three summaries in the call it already makes.** `summary_ru`,
   `summary_en` and `summary_uz` come back from one request — no second call, no translation
-  provider, no key. Measured cost of the extra output: **~$0.14/month** at ~25 classified
-  items a day on grok-4.3 ($2.50/M output). The same applies to the compact filing prompt.
+  provider or API key. The same applies to the compact filing prompt.
 * **The read path ships one headline per language.** `title_ru` / `title_en` / `title_uz` are
   each non-null only when the item's own headline is in a *different* language from that
   reader's — so a Russian headline is promoted-over on the English site exactly as an English
@@ -318,32 +299,18 @@ come from the local DB plus prod's live feed, and updates go through
 It never goes through `POST /api/admin/news` — a full upsert there would rewrite the
 stored classification and drop the item out of the feed.
 
-## Cost & control
+## Usage & control
 
-**Measured, not assumed** (2026-07-25). The one telemetered run — 41 items, ~110k tokens —
-logged `$0.0177` but really cost **`$0.158`**: `est_cost_usd()` was hardcoded to DeepSeek's
-`$0.14`/`$0.28` while the module was running on grok-4.3 at `$1.25`/`$2.50`, understating
-every run by 8.9x. That stale figure is where the old "~$1–3/month" claim came from. The
-estimator now bills at the active model's rates from a per-model table (override with
-`LLM_PRICE_IN`/`_OUT`/`_CACHED`) and counts cached input separately.
+Classification runs through the linked Codex subscription. Operational logs report input,
+cached-input, output, call count, and the actual Codex model used; estimated API spend is
+always zero because there is no API fallback.
 
 Where the tokens went in the old single-call design: of 6,248 input chars per item, the
 **news item was 205 (3.3%)** — the rest was the system prompt (27%) and the 93-line issuer
 universe (68%), re-sent at full price on every call.
 
-What the three gates do to that, at ~140 genuinely-new items/day across the six feeds
-(projection from measured prompt sizes; prefilter drop rate 11% and triage pass rate ~25%
-measured on today's feeds):
-
-| Setup | Per 100 fetched items | Per month |
-|---|---|---|
-| old: one grok-4.3 call per item | `$0.386` | **`$16.20`** |
-| unbatched gates + grok-4.3 — **measured** | `$0.171` | `$7.2` |
-| batched gates + grok-4.3 (**the default**) | `~$0.05` | **`~$2`** |
-| gates + deepseek-v4-flash | `$0.014` | `$0.61` |
-
 **First measured run (2026-07-25, before batching):** 77 fetched, 70 new, 5 prefiltered, 34
-stopped at triage, 19 relevant, 0 failures → 90 calls, 113,745 tokens, **`$0.1201`**, 25%
+stopped at triage, 19 relevant, 0 failures → 90 calls, 113,745 tokens, 25%
 of input served from cache. Anatomy: fresh input 78% of the bill, output 28%, cached input 4%
 — and the constant prefix alone was 68,231 tokens (68% of all input) because it went out once
 per item. Batching that same workload gives **6 calls instead of 90**, 12k input instead of
@@ -352,19 +319,8 @@ patterns. Two projections that missed: triage survival is ~42%, not the 25% assu
 cache came back at 25%, not 90% — after batching the prefix goes out ~6 times, so caching
 stops being the lever it looked like.
 
-So the gates alone bring Grok back to the ~$1–3/month this doc originally (wrongly) claimed.
-There is no cheap tier inside xAI to lean on instead: grok-code-fast-1 is `$1.00`/`$2.00`,
-only 20% under grok-4.3, and no mini tier exists — the 9x gap is a provider gap, not a
-model-choice one. Moving Layer A to DeepSeek is therefore optional and worth a few dollars
-a month; Layer-B search stays on Grok either way, since server-side web+X search is the
-reason Grok was chosen.
-
-Cache hits are the reason the issuer universe moved into the system message: a byte-identical
-prefix is billed at `$0.20`/M on grok-4.3 (`$0.0028`/M on DeepSeek) instead of full price.
-Every run logs what share of its input the provider served from cache (`cached_input_pct`) —
-**that number is unverified against xAI**; if it stays at 0%, the prefix is being re-billed
-and the realistic all-Grok figure is the `$5.43` row, not `$2.51`. Note also that xAI doubles
-every rate on prompts of 200k+ tokens — ours are ~2.3k, so this never applies here.
+The issuer universe remains in the system message as a byte-identical prefix across calls,
+which improves reuse and keeps prompts stable. Every run logs the cached-input share.
 
 Other controls: `--limit` caps items per source per run and a source can cap itself tighter
 with `"max_items"` (kursiv is at 15), `NEWS_MAX_AGE_DAYS` skips stale items before any call,
@@ -452,9 +408,7 @@ Once daily costs the two highest-volume general feeds: Kun.uz truncates at 15 it
 ~8 hours, so a 24-hour gap keeps a third of its output, and UzDaily loses a few. Fetching more
 is not possible — those feeds simply end. Kun is also the lowest-relevance source, so in
 *relevant* items the loss is smaller than it looks. `30 2,14 * * *` (twice daily) or
-`30 2,10,18 * * *` (every 8h) recover that coverage for roughly $1–2/month more. Layer B is separate: Grok's native search is billed per search call
-($5/1k) and the Tavily backend is capped at `NEWS_AGENT_MAX_ITERS` tool calls with each
-query logged.
+`30 2,10,18 * * *` (every 8h) recover that coverage while consuming more subscription usage.
 
 ## The English half of the feed (2026-08-07)
 

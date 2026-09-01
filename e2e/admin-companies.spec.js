@@ -14,6 +14,7 @@ const candidate = {
   sync_status: "",
   warnings: [],
   can_approve: true,
+  catalog_visible: 1,
 };
 
 async function mockAdminApi(page, state) {
@@ -50,7 +51,8 @@ async function mockAdminApi(page, state) {
       const currentStatus = state.approved ? "approved" : "pending";
       const visible = requestedStatus && requestedStatus !== currentStatus
         ? [] : [{ ...candidate, status: currentStatus, sector: state.sector,
-          sync_status: state.approved ? "queued" : "" }];
+          sync_status: state.approved ? "queued" : "",
+          catalog_visible: state.catalogVisible ? 1 : 0 }];
       return send({
         ok: true,
         count: visible.length,
@@ -67,9 +69,18 @@ async function mockAdminApi(page, state) {
       state.sector = JSON.parse(request.postData() || "{}").sector;
       return send({
         ok: true,
-        company: { ...candidate, status: "approved", sector: state.sector, sync_status: "queued" },
+        company: { ...candidate, status: "approved", sector: state.sector, sync_status: "queued",
+          catalog_visible: state.catalogVisible ? 1 : 0 },
         sync_started: true,
         sync_requested: true,
+      });
+    }
+    if (path === "/api/admin/companies/ZZCO/catalog-visibility" && request.method() === "PATCH") {
+      state.catalogVisible = Boolean(JSON.parse(request.postData() || "{}").visible);
+      return send({
+        ok: true,
+        company: { ...candidate, status: "approved", sector: state.sector,
+          catalog_visible: state.catalogVisible ? 1 : 0, affected_tickers: ["ZZCO"] },
       });
     }
     return send({ ok: true });
@@ -77,7 +88,7 @@ async function mockAdminApi(page, state) {
 }
 
 test("admin imports an OpenInfo company and publishes it without leaving the panel", async ({ page }, testInfo) => {
-  const state = { approved: false, sector: "other" };
+  const state = { approved: false, sector: "other", catalogVisible: true };
   await mockAdminApi(page, state);
   await page.goto("/admin/companies");
 
@@ -96,11 +107,22 @@ test("admin imports an OpenInfo company and publishes it without leaving the pan
   await expect(page.getByText("Company published; synchronization started.")).toBeVisible();
   expect(state.approved).toBe(true);
   expect(state.sector).toBe("manufacturing");
+  await page.getByRole("button", { name: /Published/ }).click();
+  const catalogCheckbox = page.getByRole("checkbox", { name: "Show ZZCO in the catalog" });
+  await expect(catalogCheckbox).toHaveAttribute("aria-checked", "true");
+  await catalogCheckbox.click();
+  await expect(catalogCheckbox).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByText("Company hidden from the catalog; its data was kept.")).toBeVisible();
+  expect(state.catalogVisible).toBe(false);
+  await catalogCheckbox.click();
+  await expect(catalogCheckbox).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByText("Company restored to the catalog.")).toBeVisible();
+  expect(state.catalogVisible).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("admin-company-import-desktop.png"), fullPage: true });
 });
 
 test("company import form remains usable on a phone viewport", async ({ page }, testInfo) => {
-  const state = { approved: false, sector: "other" };
+  const state = { approved: false, sector: "other", catalogVisible: true };
   await mockAdminApi(page, state);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin/companies");

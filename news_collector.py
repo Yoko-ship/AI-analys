@@ -6,7 +6,7 @@ collection follows the same collector-push pattern as ``collector_financials.py`
     load news_sources.json (enabled sources)
       → fetch each (RSS today; openinfo/html/telegram adapters below)
       → drop items already seen (skip re-classifying — saves LLM spend)
-      → classify each new item with DeepSeek (Layer A)
+      → classify each new item with Codex (Layer A)
       → store locally + push to POST /api/admin/news
 
 Legal invariant: we keep headline + our own summary + link only — never article body.
@@ -35,18 +35,17 @@ import re
 import sys
 import time
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urljoin, urlparse, urlsplit, urlunsplit
+from uuid import uuid4
 
 import requests
 from dotenv import load_dotenv
 
-# Before the repo imports: reports_catalog resolves DB paths and llm_client reads the
-# API key at import time, and the push needs ADMIN_API_SECRET. Without this, a CLI run
-# from a fresh shell silently has no LLM key (every item → classification_failed) and
-# no push credentials — the failure mode the collector docs describe.
+# Before the repo imports: reports_catalog resolves DB paths and the push needs
+# ADMIN_API_SECRET. Loading the environment here also supplies the Codex model settings.
 load_dotenv()
 
 import news_lang  # noqa: E402  (after load_dotenv)
@@ -54,6 +53,7 @@ import news_store  # noqa: E402  (after load_dotenv)
 import reports_catalog as rc  # noqa: E402  (after load_dotenv)
 from news_classifier import (  # noqa: E402  (after load_dotenv)
     NewsClassification,
+    classifier_model_name,
     classify_filings,
     classify_items,
     prefilter_reject,
@@ -1404,6 +1404,27 @@ def push_news(items: list[dict[str, Any]]) -> int:
     return 0
 
 
+def push_news_usage(record: dict[str, Any]) -> bool:
+    """Send one usage record to prod after every collector invocation."""
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if not secret:
+        logger.error("ADMIN_API_SECRET is not set — cannot push news usage")
+        return False
+    try:
+        resp = requests.post(
+            DEFAULT_PUSH_URL + "/api/admin/news/usage",
+            json={"record": record},
+            headers={"X-Admin-Secret": secret},
+            timeout=60,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        logger.error("push /api/admin/news/usage failed: %s", exc)
+        return False
+    logger.info("news usage tracked in prod: %s", resp.json())
+    return True
+
+
 def known_urls_in_prod(urls: list[str]) -> set[str]:
     """The subset of ``urls`` prod already stores — dedup memory that does not depend on this
     host's SQLite file.
@@ -2019,9 +2040,8 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     # 2) classify what's left (Layer A: cheap triage, then full classification).
     from llm_client import Usage
     usage = Usage()
-    # Label rows with the model that actually classified them (the classifier can run on
-    # a different, cheaper provider than the generic LLM_* one used by Layer B).
-    model = os.getenv("NEWS_CLASSIFIER_MODEL", "").strip() or os.getenv("LLM_MODEL", "grok-4.3")
+    # Label rows with the Codex model that actually classified them.
+    model = classifier_model_name()
     records: list[dict[str, Any]] = []
     failed = 0
     triaged_out = 0
@@ -2043,7 +2063,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         # Rejections ARE stored, so we never pay to triage the same item twice.
         rejected = NewsClassification(relevant=False, relevance_score=score,
                                       reason="triage: not market-relevant")
-        records.append({**it, "model": model, **rejected.model_dump()})
+        records.append({**it, "model": usage.model or model, **rejected.model_dump()})
         triaged_out += 1
 
     # gate 2, batched.
@@ -2054,7 +2074,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         if cls.reason == "classification_failed":
             failed += 1
             continue
-        record = {**it, "model": model, **cls.model_dump()}
+        record = {**it, "model": usage.model or model, **cls.model_dump()}
         # A rating agency reaches us only through a url/title filter that already matched one
         # of our issuers or the sovereign, which is what makes the source authoritative on the
         # read side. The item it publishes is a bare entity name with no snippet ('JSC Navoi
@@ -2072,7 +2092,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         records.append(record)
 
     for it, cls in zip(filings, classify_filings(filings, usage=usage)):
-        record = {**it, "model": model, **cls.model_dump()}
+        record = {**it, "model": usage.model or model, **cls.model_dump()}
         # The source told us the issuer and the filing class; those REPLACE anything the
         # model might say (a wrong ticker would attach this filing to another issuer's feed
         # and its sentiment), and a filing is never dropped as "not relevant".
@@ -2089,10 +2109,11 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         logger.info("%d item(s) kept over the model's verdict: their source filter had already "
                     "matched an issuer", kept_by_filter)
     relevant = [r for r in records if r.get("relevant")]
+    billing_note = "Codex tokens covered by subscription"
     logger.info("classified %d items (%d stopped at triage, %d relevant); ~%d tokens in "
-                "%d calls (%.0f%% of input from prompt cache), est $%.4f at %s list prices",
+                "%d calls (%.0f%% of input from prompt cache), est API $%.4f (%s)",
                 len(records), triaged_out, len(relevant), usage.total_tokens, usage.calls,
-                usage.cache_hit_rate * 100, usage.est_cost_usd(), usage.model or model)
+                usage.cache_hit_rate * 100, usage.est_cost_usd(), billing_note)
 
     # 2b) preview images, for the RELEVANT items only: those are the cards the feed
     # renders, and a whole-site feed like kursiv's is ~85% off-topic — fetching pages
@@ -2113,7 +2134,12 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
                 "prefiltered": len(fresh) - len(kept), "triaged_out": triaged_out,
                 "relevant": len(relevant),
                 "with_image": sum(1 for r in relevant if r.get("image_url")),
-                "tokens": usage.total_tokens, "est_cost_usd": round(usage.est_cost_usd(), 4),
+                "model": usage.model or model, "calls": usage.calls,
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "cached_input_tokens": usage.cached_prompt_tokens,
+                "tokens": usage.total_tokens, "subscription_tokens": usage.subscription_tokens,
+                "est_cost_usd": round(usage.est_cost_usd(), 4),
                 "dry_run": True}
 
     # 3) store locally (dedup memory) + push to prod.
@@ -2156,7 +2182,12 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         "backfilled_images": filled, "detailed": detailed,
         "relevant": len(relevant), "stored": stored, "pushed": pushed,
         "push_failed": push_failed,
+        "model": usage.model or model, "calls": usage.calls,
+        "prompt_tokens": usage.prompt_tokens,
+        "completion_tokens": usage.completion_tokens,
+        "cached_input_tokens": usage.cached_prompt_tokens,
         "tokens": usage.total_tokens, "cached_input_pct": round(usage.cache_hit_rate * 100, 1),
+        "subscription_tokens": usage.subscription_tokens,
         "est_cost_usd": round(usage.est_cost_usd(), 4),
     }
 
@@ -2199,6 +2230,11 @@ def main() -> None:
     # feedparser missing from the image made every cron run collect 0 items while
     # exiting 0 — name the gap in the log instead of shrugging it off.
     preflight(NEWS_REQUIREMENTS, label="news-collector")
+    from codex_usage import read_codex_rate_limit
+
+    run_id = uuid4().hex
+    started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    before_limit = read_codex_rate_limit()
     if args.rejudge:
         result = rejudge_source(args.rejudge, push=not args.no_push)
     elif args.purge_failed:
@@ -2218,6 +2254,61 @@ def main() -> None:
                                 dry_run=args.dry_run)
     else:
         result = run(only=args.source, limit=args.limit, push=not args.no_push, dry_run=args.dry_run)
+
+    finished_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    after_limit = read_codex_rate_limit()
+    before_pct = before_limit.get("used_percent") if before_limit else None
+    after_pct = after_limit.get("used_percent") if after_limit else None
+    delta_pct = round(after_pct - before_pct, 1) if before_pct is not None and after_pct is not None else None
+    resets_at = ((after_limit or before_limit or {}).get("resets_at"))
+    result.update({
+        "codex_limit_used_before_pct": before_pct,
+        "codex_limit_used_after_pct": after_pct,
+        "codex_limit_delta_pct": delta_pct,
+        "codex_limit_resets_at": resets_at,
+    })
+
+    mode = next((name for name, enabled in (
+        ("rejudge", bool(args.rejudge)),
+        ("purge_failed", args.purge_failed),
+        ("backfill_images", args.backfill_images),
+        ("upgrade_images", args.upgrade_images),
+        ("backfill_details", args.backfill_details),
+        ("backfill_translations", args.backfill_translations),
+        ("backfill_facts", args.backfill_facts),
+    ) if enabled), "collect")
+    usage_record = {
+        "run_id": run_id,
+        "mode": mode,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "model": result.get("model") or classifier_model_name(),
+        "calls": int(result.get("calls") or 0),
+        "prompt_tokens": int(result.get("prompt_tokens") or 0),
+        "completion_tokens": int(result.get("completion_tokens") or 0),
+        "cached_input_tokens": int(result.get("cached_input_tokens") or 0),
+        "total_tokens": int(result.get("tokens") or 0),
+        "subscription_tokens": int(result.get("subscription_tokens") or 0),
+        "codex_before_pct": before_pct,
+        "codex_after_pct": after_pct,
+        "codex_delta_pct": delta_pct,
+        "codex_resets_at": resets_at,
+        "fetched": result.get("fetched"),
+        "classified": result.get("classified"),
+        "relevant": result.get("relevant"),
+        "pushed": result.get("pushed"),
+        "status": "push_failed" if result.get("push_failed") else "completed",
+    }
+    try:
+        news_store.record_news_usage(usage_record)
+        tracked_prod = args.no_push or push_news_usage(usage_record)
+    except Exception:  # noqa: BLE001 — telemetry must not turn a good news run red
+        logger.exception("could not persist news usage")
+        tracked_prod = False
+    result["usage_tracked"] = bool(tracked_prod)
+    if before_pct is not None and after_pct is not None:
+        logger.info("Codex limit: %.0f%% -> %.0f%% (%+.1f percentage points); news tokens: %d",
+                    before_pct, after_pct, delta_pct, usage_record["total_tokens"])
     print(json.dumps(result, ensure_ascii=False, indent=2))
     # A run that classified everything correctly and could not hand it to prod has
     # produced nothing a reader will ever see. Exiting 0 made that invisible: the

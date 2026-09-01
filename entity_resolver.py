@@ -65,15 +65,21 @@ ORG_OVERRIDES: dict[str, str] = {
     # the walk at all, and what keeps name matching away from the org-1001
     # payment processor that once contaminated its net profit.
     "OCBK": "27",
+    # Davr Bank (org 26, INN 203709707): relisted under the new DRBK ticker on
+    # 2026-08-28. Openinfo still advertises the old DVRB ticker and currently
+    # attaches Asia Insurance's AISK security to this org, so neither ticker nor
+    # ISIN discovery can resolve it safely without explicit pins.
+    "DRBK": "26",
 }
 
-# Explicit ticker -> ISIN pins for securities that neither openinfo's info_rfb
-# (empty isin_codes) nor its stock-screener proxy (73 rows total) can name.
-# Without the ISIN the listings walk's fallback row carries no security at all
-# — no share count, no last trade, a "нет бумаг" label — while uzse.uz itself
-# serves a full quote page for the code. Consulted before the screener join.
+# Explicit ticker -> ISIN pins for securities that openinfo's info_rfb and stock
+# screener either omit or attach incorrectly. Without the ISIN the listings walk
+# carries no trustworthy security — no share count, no last trade, or even a
+# foreign issuer's line — while uzse.uz itself serves the authoritative card.
+# Consulted before the screener join.
 ISIN_OVERRIDES: dict[str, str] = {
     "OCBK": "UZ7048610008",   # Octobank ordinary; uzse quote page is live
+    "DRBK": "UZ7050240009",   # Davr Bank ordinary; relisted 2026-08-28
 }
 
 # Tickers with no correct openinfo entity — the only match is a *different* company,

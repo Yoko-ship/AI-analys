@@ -481,6 +481,8 @@ class TestBlockingSuppression:
         withheld = api._apply_audit_blocks(rows)
         assert withheld == 1
         assert rows[0]["pe"]["value"] is None
+        assert rows[0]["pe"]["display_value"] == pytest.approx(42.0)
+        assert rows[0]["pe"]["display_warning"] is True
         assert rows[0]["pe"]["status"] == "audit_blocked"
         # Only the flagged metric is withheld; the rest of the row still serves.
         assert rows[0]["pb"]["value"] == pytest.approx(1.5)

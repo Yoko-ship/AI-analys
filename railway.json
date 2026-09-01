@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "sh -c \"if [ \\\"${APP_MODE:-bot}\\\" = api ]; then exec uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}; elif [ \\\"${APP_MODE:-bot}\\\" = collector ]; then exec python collector_financials.py; elif [ \\\"${APP_MODE:-bot}\\\" = quotes ]; then exec python collector_financials.py --trades-only; elif [ \\\"${APP_MODE:-bot}\\\" = reports-watch ]; then exec python collector_financials.py --watch-filings; elif [ \\\"${APP_MODE:-bot}\\\" = bank-fx ]; then exec python collector_financials.py --bank-fx-only; elif [ \\\"${APP_MODE:-bot}\\\" = news-collector ]; then exec python news_collector.py; else exec python bot.py; fi\"",
+    "startCommand": "/usr/local/bin/docker-entrypoint.sh sh -c \"if [ \\\"${APP_MODE:-bot}\\\" = api ]; then exec uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}; elif [ \\\"${APP_MODE:-bot}\\\" = collector ]; then exec python collector_financials.py; elif [ \\\"${APP_MODE:-bot}\\\" = quotes ]; then exec python collector_financials.py --trades-only; elif [ \\\"${APP_MODE:-bot}\\\" = reports-watch ]; then exec python collector_financials.py --watch-filings; elif [ \\\"${APP_MODE:-bot}\\\" = bank-fx ]; then exec python collector_financials.py --bank-fx-only; elif [ \\\"${APP_MODE:-bot}\\\" = news-collector ]; then exec python news_collector.py; else exec python bot.py; fi\"",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

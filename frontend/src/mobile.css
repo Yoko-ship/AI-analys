@@ -1356,6 +1356,10 @@ iframe {
     padding: 4px 8px;
     font-size: 11.5px;
   }
+
+  .ac-type-btn {
+    padding: 0;
+  }
 }
 
 /* «Сравнить с» on a phone: the label keeps its line, the cards get their own.

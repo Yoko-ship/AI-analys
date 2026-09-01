@@ -16,8 +16,13 @@ import news_collector as nc
 @pytest.fixture()
 def cron_run(monkeypatch):
     """main() as the scheduler calls it, with the collection itself stubbed out."""
+    import codex_usage
+
     monkeypatch.setattr(nc.sys, "argv", ["news_collector.py"])
     monkeypatch.setattr(nc, "preflight", lambda *a, **k: None)
+    monkeypatch.setattr(codex_usage, "read_codex_rate_limit", lambda: None)
+    monkeypatch.setattr(nc.news_store, "record_news_usage", lambda record: 1)
+    monkeypatch.setattr(nc, "push_news_usage", lambda record: True)
     return monkeypatch
 
 

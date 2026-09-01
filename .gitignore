@@ -8,6 +8,7 @@ __pycache__/
 *.sqlite3
 *.log
 .env
+.env.local
 data/
 report.html
 analysis_cache.db
@@ -22,6 +23,5 @@ web/dist/
 test-results/
 playwright-report/
 audit/sector-v2.2/pytest-run-*/
-
 audit/admin-control-qa/
 frontend/__admin_qa.html
