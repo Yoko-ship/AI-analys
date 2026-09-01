@@ -26,7 +26,9 @@ function priceHistory() {
       high: Math.max(open, price) * 1.012,
       low: Math.min(open, price) * 0.988,
       close: price,
-      value: 10_000_000 + (offset % 31) * 500_000,
+      // One genuine-looking spike keeps the regression honest: ordinary
+      // sessions still need to remain visible next to the largest turnover.
+      value: offset === 300 ? 1_600_000_000 : 10_000_000 + (offset % 31) * 500_000,
     });
   }
   return out;
@@ -60,6 +62,28 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   const range = page.getByTestId("ac-visible-range");
   await expect(chart).toBeVisible();
   await expect(range).toContainText("Ctrl + колесо");
+
+  const volume = await page.locator(".ac-volume-bar").evaluateAll((bars) => ({
+    maxHeight: Math.max(...bars.map((bar) => Number(bar.getAttribute("height")))),
+    minHeight: Math.min(...bars.map((bar) => Number(bar.getAttribute("height")))),
+    opacity: [...new Set(bars.map((bar) => bar.getAttribute("fill-opacity")))],
+  }));
+  expect(volume.maxHeight).toBeGreaterThanOrEqual(95);
+  expect(volume.minHeight).toBeGreaterThanOrEqual(2.5);
+  expect(volume.opacity).toEqual(["0.76"]);
+
+  const chartWorkspace = page.locator(".advanced-chart");
+  await page.getByRole("button", { name: "Развернуть график на весь экран" }).click();
+  await expect(chartWorkspace).toHaveClass(/is-fullscreen/);
+  await expect(page.locator(".topbar")).toBeHidden();
+  const fullscreenBox = await chartWorkspace.boundingBox();
+  const viewport = page.viewportSize();
+  expect(fullscreenBox).not.toBeNull();
+  expect(Math.abs(fullscreenBox.width - viewport.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(fullscreenBox.height - viewport.height)).toBeLessThanOrEqual(1);
+  await page.keyboard.press("Escape");
+  await expect(chartWorkspace).not.toHaveClass(/is-fullscreen/);
+  await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
 
   const initial = await range.evaluate((el) => ({
     from: el.dataset.from,

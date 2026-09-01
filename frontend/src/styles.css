@@ -12757,6 +12757,18 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
    the whole reason somebody left the company page for it.
    ========================================================================== */
 .advanced-chart { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.advanced-chart.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  padding: 14px;
+  overflow: hidden;
+  background: var(--bg);
+}
+body.advanced-chart-fullscreen .topbar { visibility: hidden; }
 .ac-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ac-back { background: none; border: none; color: var(--text-muted); font-size: 13px; cursor: pointer; padding: 4px 0; }
 .ac-back:hover { color: var(--text-primary); }
@@ -12788,6 +12800,9 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
 .ac-range-custom { border-color: var(--border); }
 .ac-menu-btn.on { border-color: var(--accent); color: var(--text-primary); }
 .ac-menus { margin-left: auto; }
+.ac-fullscreen-btn { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 34px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: none; color: var(--text-secondary, var(--text-muted)); cursor: pointer; transition: color 0.12s, border-color 0.12s, background 0.12s; }
+.ac-fullscreen-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+.ac-fullscreen-btn[aria-pressed="true"] { color: #fff; border-color: var(--accent); background: var(--accent); }
 .ac-menu-wrap { position: relative; }
 /* Anchored to its button rather than to the toolbar: three menus sharing one
    absolute origin would stack on top of each other. */
@@ -12832,6 +12847,7 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
 
 .ac-body { position: relative; display: grid; grid-template-columns: 0 1fr; gap: 0; min-height: 0; }
 .advanced-chart.rail-open .ac-body { grid-template-columns: 232px 1fr; gap: 14px; }
+.advanced-chart.is-fullscreen .ac-body { flex: 1 1 auto; min-height: 0; }
 .ac-rail-wrap { overflow: hidden; min-width: 0; }
 .advanced-chart:not(.rail-open) .ac-rail-wrap { visibility: hidden; }
 .ac-rail { display: flex; flex-direction: column; gap: 12px; max-height: 100%; overflow-y: auto; padding-right: 4px; }
@@ -12859,7 +12875,10 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
    in AdvancedChart. This only floors it for the frame before the first
    measurement lands. */
 .ac-plot { position: relative; min-width: 0; min-height: 420px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); overflow: hidden; }
+.advanced-chart.is-fullscreen .ac-plot { height: 100% !important; min-height: 0; }
 .ac-svg { display: block; color: var(--text-primary); cursor: crosshair; }
+.ac-volume-bar { transition: fill-opacity 0.12s; }
+.ac-volume-bar:hover { fill-opacity: 1; }
 .ac-svg.is-candle-interactive { cursor: grab; touch-action: pan-y; }
 .ac-svg.is-candle-interactive.is-panning { cursor: grabbing; user-select: none; }
 .ac-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 14px; text-align: center; padding: 24px; }
