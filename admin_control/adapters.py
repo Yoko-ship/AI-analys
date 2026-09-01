@@ -31,7 +31,9 @@ def catalog_document(row):
               "detected_format": None, "detected_mime": None, "checksum": None,
               "source_discovered_at": row.get("synced_at") or s.now(), "catalog_id": row.get("id"),
               "catalog_available": bool(url), "parsed": False, "verified": False, "used_in_analysis": False,
-              "audit_status": "unknown", "scope": "unknown", "status": "DISCOVERED"})
+              "audit_status": "unknown", "scope": "unknown", "status": "DISCOVERED",
+              "pipeline_stage": "DETECTED", "pipeline_stage_at": s.now(),
+              "pipeline_journal": [{"stage": "DETECTED", "at": s.now()}]})
 
 
 def index_catalog_row(c, row):
@@ -62,7 +64,8 @@ def coverage(c, doc):
              "period": doc["period"], "standard": doc["standard"], "status": status, "source": doc["source"],
              "source_discovered_at": doc.get("source_discovered_at"), "blockers": doc.get("blockers", []),
              "file_available": doc.get("catalog_available", False), "parsed": doc.get("parsed", False),
-             "verified": doc.get("verified", False), "used_in_analysis": doc.get("used_in_analysis", False)})
+             "verified": doc.get("verified", False), "used_in_analysis": doc.get("used_in_analysis", False),
+             "pipeline_stage": doc.get("pipeline_stage", "DETECTED")})
     if status == "FOUND_NOT_INGESTED" and doc.get("source_discovered_at"):
         try:
             stamp = datetime.fromisoformat(doc["source_discovered_at"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
@@ -184,6 +187,20 @@ def record_analysis(report):
             # The domain pointer is authoritative; an indexing replay cannot
             # re-promote a historical result or erase a pending approval.
             s.put(c, "publications", {**item, **(existing or {}), "status": status})
+        used_document_ids = {fact.get("document_id") for fact in facts if fact.get("document_id")}
+        for document in catalog_docs:
+            if document["id"] not in used_document_ids:
+                continue
+            stage = ("PUBLISHED" if validated and status == "PUBLISHED"
+                     else "SUPERSEDED" if validated else "NEEDS_REVIEW")
+            stamp = s.now()
+            journal = [*document.get("pipeline_journal", []), {"stage": stage, "at": stamp}]
+            updated = s.put(c, "documents", {
+                **document, "used_in_analysis": True, "verified": validated,
+                "pipeline_stage": stage, "pipeline_stage_at": stamp,
+                "pipeline_journal": journal[-100:],
+            })
+            coverage(c, updated)
         for code in blockers:
             incident(c, code, report["version"], stage="analysis", evidence={"ticker": ticker, "analysis_id": report["version"]})
         instrument = report.get("instrument")

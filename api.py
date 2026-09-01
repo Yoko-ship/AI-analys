@@ -103,6 +103,7 @@ import migrations  # noqa: E402
 import bond_registry  # noqa: E402
 import bonds  # noqa: E402
 import provenance  # noqa: E402
+import public_contract  # noqa: E402
 from issuer_analysis_api import router as issuer_analysis_v1_router  # noqa: E402
 
 # ТЗ §11.6: each change ships behind a flag so it can be turned off without a
@@ -1989,20 +1990,23 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     # produced fictitious caps and the P/E, P/B chain downstream of them. Such
     # a class contributes NO capitalisation: the issuer's cap either comes from
     # classes that actually traded or is honestly incomplete.
-    def _cap_for(row: dict[str, Any]) -> Any:
+    def _market_input(row: dict[str, Any], shares: Any) -> dict[str, Any]:
         if not row:
-            return None
-        if not str(row.get("last_trade_date") or "").strip():
-            return None
-        return row.get("market_cap")
+            return public_contract.market_class_input({}, shares_outstanding=shares)
+        return public_contract.market_class_input(row, shares_outstanding=shares)
 
     catalog_rows = []
     for ticker, meta in (securities or {}).items():
         row = board_by_ticker.get(str(ticker).upper()) or {}
+        shares = row.get("shares_outstanding") or meta.get("shares_outstanding")
+        market_input = _market_input(row, shares)
         catalog_rows.append({
             "ticker": str(ticker).upper(), **meta,
-            "market_cap": _cap_for(row),
-            "shares_outstanding": row.get("shares_outstanding") or meta.get("shares_outstanding"),
+            "market_cap": market_input["market_cap"],
+            "last_price": market_input["price"],
+            "last_trade_date": market_input["price_as_of"],
+            "shares_outstanding": market_input["shares_outstanding"],
+            "market_input": market_input,
         })
     # Board rows with no catalog card yet (ТЗ мультипликаторов, лист 15: EQQU
     # traded actively while its filings sat unread because the multiples
@@ -2014,14 +2018,18 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     for ticker, row in board_by_ticker.items():
         if not ticker or ticker in known:
             continue
+        market_input = _market_input(row, row.get("shares_outstanding"))
         catalog_rows.append({
             "ticker": ticker,
             "name": row.get("name"),
             "type": row.get("type") or "stock",
             "share_type": row.get("share_type"),
             "is_preferred": row.get("is_preferred"),
-            "market_cap": _cap_for(row),
-            "shares_outstanding": row.get("shares_outstanding"),
+            "market_cap": market_input["market_cap"],
+            "last_price": market_input["price"],
+            "last_trade_date": market_input["price_as_of"],
+            "shares_outstanding": market_input["shares_outstanding"],
+            "market_input": market_input,
         })
     groups = fundamentals.group_by_issuer(catalog_rows)
 
@@ -2034,6 +2042,8 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
         fin = next((financials.get(t) for t in tickers if financials.get(t)), None)
         rat = next((ratios.get(t) for t in tickers if ratios.get(t)), None)
         multiples = fundamentals.issuer_multiples(classes, fin, rat)
+        multiples = public_contract.multiplier_contract(
+            multiples, classes, fin, rat, market_as_of=inputs.get("trade_date"))
         by_issuer[key] = {"tickers": tickers, "multiples": multiples}
         for cls in classes:
             rows.append({
@@ -2043,12 +2053,15 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
                 "share_class": "preferred" if cls.get("is_preferred") else "ordinary",
                 # Class-specific, by design (ТЗ §8).
                 "market_cap_class": cls.get("market_cap"),
+                "market_input": cls.get("market_input"),
                 # Issuer-level, identical across the classes above.
                 **{k: v for k, v in multiples.items()},
             })
     rows.sort(key=lambda r: r["ticker"])
     _apply_audit_blocks(rows)
     return {"ok": True, "count": len(rows), "issuers": len(groups),
+            "contract_version": public_contract.CONTRACT_VERSION,
+            "input_snapshot": public_contract.market_inputs_version(inputs),
             "items": rows, "by_issuer": by_issuer}
 
 
@@ -2081,8 +2094,10 @@ def _apply_audit_blocks(rows: list[dict[str, Any]]) -> int:
         for metric in metrics:
             current = row.get(metric)
             if isinstance(current, dict) and current.get("value") is not None:
-                row[metric] = {"value": None, "status": "audit_blocked",
+                row[metric] = {**current, "value": None, "status": "audit_blocked",
+                               "calculation_status": public_contract.DATA_CONFLICT,
                                "note": "значение снято аудитором данных",
+                               "limitation_reason": "значение снято аудитором данных",
                                "audit_metric": metric}
                 blocked += 1
     return blocked
@@ -2101,11 +2116,12 @@ async def api_market_multiples(request: Request) -> Response:
         inputs = await _market_inputs()
         trace.step("inputs", instruments=len(inputs["board"]),
                    financials=len(inputs["financials"]), ratios=len(inputs["ratios"]))
-        # ТЗ §10.9: keyed by the session the data describes, not by a clock.
-        # While that has not moved the answer cannot have changed, so the entry
-        # stays valid however old it is — and a new session simply misses.
+        # The session date alone is insufficient: a corrected statement or
+        # share count can arrive before the next trade.  The dependency hash
+        # makes that correction miss the old cache immediately.
+        input_version = public_contract.market_inputs_version(inputs)
         cache_key = cache_layer.key("market:multiples", inputs["trade_date"] or "none",
-                                    len(inputs["board"]), len(inputs["financials"]))
+                                    input_version)
         payload = cache_layer.cached(cache_key, lambda: _multiples_payload(inputs))
         suppressed = sum(1 for r in payload["items"]
                          if not (r.get("validation") or {}).get("valid", True))
@@ -6745,7 +6761,11 @@ async def api_company_reports(ticker: str) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     reports = await loop.run_in_executor(None, partial(get_company_reports, ticker))
     ratios = await loop.run_in_executor(None, partial(get_company_ratios_cached, ticker))
-    return _json_safe({"ok": True, "ticker": ticker, "reports": reports, "ratios": ratios})
+    reports = public_contract.catalog_report_contract(reports)
+    return _json_safe({"ok": True, "ticker": ticker,
+                       "contract_version": public_contract.CONTRACT_VERSION,
+                       "new_badge_window_hours": public_contract.NEW_REPORT_HOURS,
+                       "reports": reports, "ratios": ratios})
 
 
 @app.get("/api/notifications")
