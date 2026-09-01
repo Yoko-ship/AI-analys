@@ -359,6 +359,31 @@ MANUAL_INFO: dict[str, dict[str, Any]] = {
             "birjasida OCBK tikeri ostida sotiladi."
         ),
     },
+    "DRBK": {
+        "title": "Davr Bank",
+        "url": "https://davrbank.uz",
+        "ru": (
+            "«Davr Bank» — частный акционерный коммерческий банк Узбекистана со штаб-"
+            "квартирой в Ташкенте. Банк работает с физическими лицами и бизнесом, предлагая "
+            "кредиты, депозиты, платёжные карты, переводы и расчётно-кассовое обслуживание. "
+            "Обыкновенные акции банка вновь включены в котировальный лист Республиканской "
+            "фондовой биржи «Тошкент» с 28 августа 2026 года под тикером DRBK."
+        ),
+        "en": (
+            "Davr Bank is a private joint-stock commercial bank in Uzbekistan, headquartered "
+            "in Tashkent. It serves individuals and businesses with loans, deposits, payment "
+            "cards, money transfers, and settlement services. The bank's ordinary shares were "
+            "readmitted to the Republican Stock Exchange \"Toshkent\" quotation list on "
+            "28 August 2026 under the ticker DRBK."
+        ),
+        "uz": (
+            "«Davr Bank» — bosh ofisi Toshkent shahrida joylashgan O'zbekiston xususiy "
+            "aksiyadorlik tijorat banki. Bank jismoniy shaxslar va biznesga kreditlar, "
+            "omonatlar, to'lov kartalari, pul o'tkazmalari va hisob-kitob xizmatlarini taqdim "
+            "etadi. Bankning oddiy aksiyalari 2026-yil 28-avgustdan «Toshkent» Respublika fond "
+            "birjasi kotirovkalash varag'iga DRBK tikeri bilan qayta kiritilgan."
+        ),
+    },
     "BRBN": {
         "title": "Business Development Bank",
         "url": None,

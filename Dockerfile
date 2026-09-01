@@ -21,10 +21,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata fonts-dejavu-core \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata fonts-dejavu-core gosu nodejs npm \
     && groupadd --system appuser \
     && useradd --system --gid appuser --create-home --home-dir /home/appuser appuser \
     && rm -rf /var/lib/apt/lists/*
+
+# Pin the CLI so production behavior does not change underneath a scheduled run.
+RUN npm install --global --omit=dev @openai/codex@0.151.0 \
+    && npm cache clean --force
 
 COPY requirements-server.txt /app/
 RUN pip install --upgrade pip \
@@ -32,6 +36,7 @@ RUN pip install --upgrade pip \
 
 COPY . /app
 COPY --from=frontend-builder /app/web/dist /app/web/dist
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Frontend sources are build inputs, not runtime files: the compiled bundle already
 # came from the builder stage above. They cannot be excluded via .dockerignore
@@ -40,9 +45,10 @@ COPY --from=frontend-builder /app/web/dist /app/web/dist
 # a running container.
 RUN rm -rf /app/frontend /app/node_modules /app/package-lock.json /app/vite.config.js \
     && mkdir -p /app/data \
+    && chmod 755 /usr/local/bin/docker-entrypoint.sh \
     && chown -R appuser:appuser /app /home/appuser
 
-USER appuser
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 # Overridden per service by railway.json / railway.collector.json / railway.news.json.
 CMD ["python", "bot.py"]

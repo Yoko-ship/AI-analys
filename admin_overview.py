@@ -161,12 +161,24 @@ def _news_block(conn: Any, now: datetime, *, days: int = 7) -> dict[str, Any]:
     rejected = None
     if collected is not None and published is not None:
         rejected = collected - published
+    usage = None
+    try:
+        row = conn.execute(
+            "SELECT * FROM news_usage_runs ORDER BY finished_at DESC LIMIT 1"
+        ).fetchone()
+        if row is not None:
+            usage = dict(row)
+    except Exception as exc:
+        # Old databases get the table when reports_catalog initialises. Keeping
+        # this best-effort also lets the admin overview load during a rolling deploy.
+        logger.debug("news usage query unavailable: %s", exc)
     return {
         "days": days,
         "collected": collected,
         "published": published,
         "rejected": rejected,
         "without_image": no_image,
+        "usage": usage,
     }
 
 

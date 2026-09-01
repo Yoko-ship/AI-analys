@@ -6,7 +6,7 @@
   },
   "deploy": {
     "cronSchedule": "10 11 * * *",
-    "startCommand": "python news_collector.py",
+    "startCommand": "/usr/local/bin/docker-entrypoint.sh python news_collector.py",
     "restartPolicyType": "NEVER"
   }
 }

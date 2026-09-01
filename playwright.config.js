@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const remoteBaseURL = process.env.E2E_BASE_URL;
+
 /**
  * Smoke e2e for the chat-first frontend.
  * Runs against the built app served by `vite preview`. All /api/** calls are
@@ -14,12 +16,12 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localhost:4173",
+    baseURL: remoteBaseURL || "http://localhost:4173",
     colorScheme: "light",
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
+  webServer: remoteBaseURL ? undefined : {
     command: "npm run preview -- --port 4173 --strictPort",
     port: 4173,
     reuseExistingServer: !process.env.CI,

@@ -6,7 +6,7 @@
   },
   "deploy": {
     "cronSchedule": "0 3 * * 1-5",
-    "startCommand": "python collector_financials.py",
+    "startCommand": "/usr/local/bin/docker-entrypoint.sh python collector_financials.py",
     "restartPolicyType": "NEVER"
   }
 }

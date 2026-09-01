@@ -57,7 +57,7 @@ export function ReportAvailability({ report, lang = "ru" }) {
   </div>;
 }
 
-export default function VerifiedReport({ report, lang = "ru", narrative = false }) {
+export default function VerifiedReport({ report, lang = "ru", narrative = false, hideMeta = false }) {
   if (!report) return null;
   if (report.status !== "available") return <ReportAvailability report={report} lang={lang} />;
   const t = (ru, uz, en) => pick(lang, ru, uz, en);
@@ -72,11 +72,11 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false 
     market_facts: t("Рыночные факты", "Bozor faktlari", "Market facts"),
   };
   return <div className="verified-report" data-testid="verified-report">
-    <div className="verified-meta">
+    {!hideMeta && <div className="verified-meta">
       <span>{report.report?.standard || report.standard?.toUpperCase()} · {report.period_label || report.period}</span>
       <span>{t("Финансовая дата", "Moliyaviy sana", "Financial date")}: {report.financial_as_of || "—"}</span>
       <span>{t("Дата рынка", "Bozor sanasi", "Market date")}: {report.market_as_of || "—"}</span>
-    </div>
+    </div>}
     {report.publication_restored && <p className="verified-note">{t("Восстановлена предыдущая проверенная публикация. Дата финансовых данных сохранена.", "Oldingi tekshirilgan nashr tiklangan. Moliyaviy sana saqlangan.", "A previous verified publication has been restored with its original financial date.")}</p>}
     {narrative && (report.paragraphs || []).map((p, i) => <p key={i}>{p}</p>)}
     {report.nav && <section className="verified-ratios" aria-label={t("Стоимость активов фонда", "Fond aktivlari qiymati", "Fund asset valuation")}>

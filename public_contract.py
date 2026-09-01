@@ -22,7 +22,7 @@ import fundamentals
 from formulas import thresholds
 
 
-CONTRACT_VERSION = "financial-public-v1"
+CONTRACT_VERSION = "financial-public-v2"
 NEW_REPORT_HOURS = 168
 
 CALCULATED = "CALCULATED"
@@ -54,6 +54,40 @@ _METRIC_FORMULAS = {
     "equity_assets": "ending_equity / ending_assets * 100",
     "bvps": "ending_equity / total_issuer_shares_outstanding",
 }
+
+
+def _display_value(metric_name: str, metric: dict[str, Any],
+                   inputs: dict[str, Any], status: str) -> float | None:
+    """Return the numeric candidate the UI may show beside a warning.
+
+    ``value`` remains the calculation-safe field used by rankings and exports.
+    A conflicted, stale, loss-making or out-of-range result can still be useful
+    to a reader as a number, provided the UI marks it and never promotes it as
+    verified. Structurally inapplicable metrics remain blank.
+    """
+    if status == NOT_APPLICABLE:
+        return None
+    for candidate in (metric.get("value"), metric.get("computed")):
+        number = _number(candidate)
+        if number is not None:
+            return number
+    keys = {
+        "pe": ("issuer_market_cap", "ttm_net_income", False),
+        "pb": ("issuer_market_cap", "ending_equity", False),
+        "ps": ("issuer_market_cap", "ttm_revenue", False),
+        "roe": ("ttm_net_income", "average_equity", True),
+        "roa": ("ttm_net_income", "average_assets", True),
+        "net_margin": ("ttm_net_income", "ttm_revenue", True),
+        "equity_assets": ("ending_equity", "ending_assets", True),
+        "bvps": ("ending_equity", "total_issuer_shares_outstanding", False),
+    }.get(metric_name)
+    if not keys:
+        return None
+    numerator = _number(inputs.get(keys[0]))
+    denominator = _number(inputs.get(keys[1]))
+    if numerator is None or denominator is None or denominator == 0:
+        return None
+    return numerator / denominator * (100.0 if keys[2] else 1.0)
 
 
 def _number(value: Any) -> float | None:
@@ -315,6 +349,12 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
             "inputs": {key: inputs.get(key) for key in keys},
             "calculation_snapshot": snapshot_id,
         })
+        display_value = _display_value(name, metric, inputs, status)
+        metric["display_value"] = display_value
+        metric["display_warning"] = bool(
+            display_value is not None
+            and (status != CALCULATED or metric.get("status") == fundamentals.STATUS_OUT_OF_RANGE)
+        )
         limitation = _reason(metric)
         if status != CALCULATED and limitation:
             metric["limitation_reason"] = limitation

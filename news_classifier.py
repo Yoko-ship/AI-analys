@@ -1,29 +1,27 @@
-"""Layer A — per-item news classifier (the cheap, high-volume path).
+"""Layer A — subscription-backed Codex news classifier.
 
 Three gates, cheapest first, because this path runs once per collected item and the
 enabled feeds are whole-site feeds where most items are not market news at all:
 
   0. ``prefilter_reject`` — free, code only. Drops obvious non-market items (sport,
      horoscopes, weather, accidents, culture) that carry no market signal.
-  1. ``triage_item`` — one tiny LLM call: pass/score only, no issuer universe in the
+  1. ``triage_item`` — one small model call: pass/score only, no issuer universe in the
      prompt, ~20 output tokens.
   2. the full classification — class, tone, impact, direction, issuer links and our own
      summary, and ONLY for items that survive triage.
 
-Both LLM gates are **batched**: many numbered items per call, one shared prompt. Measured on
+Both model gates are **batched**: many numbered items per call, one shared prompt. Measured on
 the 2026-07-25 run, the ~2,200-token constant prefix was re-sent 31 times and accounted for
 68% of all input tokens, while the news text itself was 2%. Batching sends it once per batch
 instead of once per item; output volume is unchanged, so the saving is pure input.
 
 The expensive constant (the ~93-line issuer universe) sits in the SYSTEM message so it
-is an identical prefix on every call and the provider's prompt cache can serve it: on
-grok-4.3 cached input is $0.20/M vs $1.25/M, on DeepSeek V4-Flash $0.0028/M vs $0.14/M.
+is an identical prefix on every call and Codex can reuse the stable context.
 
 Issuer filings take a separate, compact prompt: their ticker and class come from the filing
 itself, so sending them the issuer universe is pure waste.
 
-Provider: the classifier takes its own config (``NEWS_CLASSIFIER_*``) so this high-volume
-path can run on a cheap model while Layer-B search stays on Grok.
+The primary and secondary Codex models are selected with ``NEWS_CODEX_*`` settings.
 
 Compliance (TZ §3.11): every output is a *statistical/analytical signal, not a
 diagnosis*. We never assert manipulation or an "attack". The price-direction
@@ -38,7 +36,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from llm_client import LLMClient, Usage, get_client
+from codex_client import CodexClient
+from llm_client import Usage
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ Tone = Literal["positive", "neutral", "negative"]
 Impact = Literal["high", "medium", "low", "none"]
 Direction = Literal["up", "down", "mixed", "unclear"]
 
-# Grok returns null/empty for these constrained fields on off-topic items; coerce to
+# Models can return null/empty for these constrained fields on off-topic items; coerce to
 # the field default so an irrelevant item validates cleanly instead of raising (which
 # would drop it to a generic classification_failed and spam the logs).
 _ENUM_DEFAULTS = {"type": "market", "tone": "neutral", "impact": "none", "direction": "unclear"}
@@ -99,38 +98,94 @@ class NewsClassification(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# provider (own config: the classifier is the high-volume path)
+# subscription-backed Codex provider
 # --------------------------------------------------------------------------- #
-_CLS_MODEL = os.getenv("NEWS_CLASSIFIER_MODEL", "").strip()
-_CLS_BASE_URL = os.getenv("NEWS_CLASSIFIER_BASE_URL", "").strip()
-_CLS_API_KEY = (os.getenv("NEWS_CLASSIFIER_API_KEY", "").strip()
-                or os.getenv("DEEPSEEK_API_KEY", "").strip())
-_client: LLMClient | None = None
+_CODEX_MODEL = os.getenv("NEWS_CODEX_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
+_CODEX_REASONING = os.getenv("NEWS_CODEX_REASONING", "low").strip().lower() or "low"
+_CODEX_FALLBACK_MODEL = os.getenv("NEWS_CODEX_FALLBACK_MODEL", "gpt-5.6-terra").strip()
+_CODEX_TIMEOUT = float(os.getenv("NEWS_CODEX_TIMEOUT", "180"))
+ClassifierClient = CodexClient
+_client: CodexClient | None = None
 
 
-def get_classifier_client() -> LLMClient:
-    """The classifier's client: ``NEWS_CLASSIFIER_MODEL`` / ``_BASE_URL`` / ``_API_KEY``
-    if configured, else the generic ``LLM_*`` one. Lets Layer A run on a cheap model
-    (DeepSeek V4-Flash, $0.14/$0.28 per M) while Layer-B search stays on Grok.
+def classifier_model_name() -> str:
+    """Configured model label stored alongside each classification."""
+    return _CODEX_MODEL
 
-    A half-configured override (model/base_url set but no key for that provider) falls
-    back to the generic client rather than failing the whole run with an auth error.
-    """
+
+def get_classifier_client() -> ClassifierClient:
+    """Build the subscription-backed Layer-A Codex client."""
     global _client
     if _client is not None:
         return _client
-    if (_CLS_MODEL or _CLS_BASE_URL) and not _CLS_API_KEY:
-        logger.warning("NEWS_CLASSIFIER_MODEL/BASE_URL set without NEWS_CLASSIFIER_API_KEY "
-                       "(or DEEPSEEK_API_KEY) — falling back to the generic LLM_* client")
-        _client = get_client()
-    elif _CLS_MODEL or _CLS_BASE_URL or _CLS_API_KEY:
-        _client = LLMClient(api_key=_CLS_API_KEY or None,
-                            base_url=_CLS_BASE_URL or None,
-                            model=_CLS_MODEL or None)
-        logger.info("classifier provider: model=%s", _client.model)
-    else:
-        _client = get_client()
+    _client = CodexClient(
+        model=_CODEX_MODEL,
+        reasoning_effort=_CODEX_REASONING,
+        fallback_model=_CODEX_FALLBACK_MODEL or None,
+        timeout=_CODEX_TIMEOUT,
+    )
+    logger.info(
+        "classifier provider: codex model=%s reasoning=%s fallback_model=%s",
+        _CODEX_MODEL,
+        _CODEX_REASONING,
+        _CODEX_FALLBACK_MODEL or "disabled",
+    )
     return _client
+
+
+def _strict_object(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required or list(properties),
+        "additionalProperties": False,
+    }
+
+
+_TRIAGE_SCHEMA = _strict_object({
+    "pass": {"type": "boolean"},
+    "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+})
+_CLASSIFICATION_SCHEMA = _strict_object({
+    "relevant": {"type": "boolean"},
+    "relevance_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "type": {"type": "string", "enum": ["financial_report", "corporate_event", "regulatory", "market"]},
+    "tone": {"type": "string", "enum": ["positive", "neutral", "negative"]},
+    "tone_score": {"type": "number", "minimum": -1.0, "maximum": 1.0},
+    "impact": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+    "direction": {"type": "string", "enum": ["up", "down", "mixed", "unclear"]},
+    "tickers": {"type": "array", "items": {"type": "string"}},
+    "sectors": {"type": "array", "items": {"type": "string"}},
+    "summary_ru": {"type": "string"},
+    "summary_en": {"type": "string"},
+    "summary_uz": {"type": "string"},
+    "reason": {"type": "string"},
+})
+_FILING_SCHEMA = _strict_object({
+    "tone": {"type": "string", "enum": ["positive", "neutral", "negative"]},
+    "tone_score": {"type": "number", "minimum": -1.0, "maximum": 1.0},
+    "impact": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+    "direction": {"type": "string", "enum": ["up", "down", "mixed", "unclear"]},
+    "summary_ru": {"type": "string"},
+    "summary_en": {"type": "string"},
+    "summary_uz": {"type": "string"},
+    "reason": {"type": "string"},
+})
+_TRANSLATE_SCHEMA = _strict_object({
+    "summary_en": {"type": "string"},
+    "summary_uz": {"type": "string"},
+})
+_DETAIL_SCHEMA = _strict_object({
+    "detail_ru": {"type": "string"},
+    "detail_en": {"type": "string"},
+    "detail_uz": {"type": "string"},
+})
+
+
+def _batch_schema(row_schema: dict[str, Any]) -> dict[str, Any]:
+    row_properties = {"n": {"type": "integer", "minimum": 1}, **row_schema["properties"]}
+    row = _strict_object(row_properties, ["n", *row_schema["required"]])
+    return _strict_object({"items": {"type": "array", "items": row}})
 
 
 # --------------------------------------------------------------------------- #
@@ -256,14 +311,14 @@ _BATCH_SIZE = max(1, int(os.getenv("NEWS_BATCH_SIZE", "10")))
 _TRIAGE_BATCH_SIZE = max(1, int(os.getenv("NEWS_TRIAGE_BATCH_SIZE", "20")))
 
 
-def triage_item(item: dict[str, Any], *, client: LLMClient | None = None,
+def triage_item(item: dict[str, Any], *, client: ClassifierClient | None = None,
                 usage: Usage | None = None) -> tuple[bool, float]:
     """(passes, score) from the cheap gate. On any failure it PASSES the item through:
     a broken gate must not silently swallow market news."""
     client = client or get_classifier_client()
     try:
         raw = client.complete_json(_TRIAGE_SYSTEM, _format_item(item), usage=usage,
-                                   max_tokens=60)
+                                   max_tokens=60, response_schema=_TRIAGE_SCHEMA)
     except Exception as exc:  # noqa: BLE001 — never let the cheap gate drop an item
         logger.warning("triage failed for %s (%s) — passing through", item.get("url"), exc)
         return True, 1.0
@@ -307,7 +362,7 @@ def _by_number(raw: Any, expected: int) -> dict[int, dict[str, Any]]:
     return out
 
 
-def screen_items(items: list[dict[str, Any]], *, client: LLMClient | None = None,
+def screen_items(items: list[dict[str, Any]], *, client: ClassifierClient | None = None,
                  usage: Usage | None = None) -> list[tuple[bool, float]]:
     """Batched gate 1: ``[(passes, score), ...]`` aligned with ``items``.
 
@@ -325,7 +380,8 @@ def screen_items(items: list[dict[str, Any]], *, client: LLMClient | None = None
         rows: dict[int, dict[str, Any]] = {}
         try:
             raw = client.complete_json(_TRIAGE_SYSTEM + _BATCH_PROTOCOL, _numbered(chunk),
-                                       usage=usage, max_tokens=60 * len(chunk) + 120)
+                                       usage=usage, max_tokens=60 * len(chunk) + 120,
+                                       response_schema=_batch_schema(_TRIAGE_SCHEMA))
             rows = _by_number(raw, len(chunk))
         except Exception as exc:  # noqa: BLE001 — fall through to per-item retries
             logger.warning("batched triage failed for %d item(s) (%s); retrying individually",
@@ -344,7 +400,7 @@ def screen_items(items: list[dict[str, Any]], *, client: LLMClient | None = None
 
 
 def classify_items(items: list[dict[str, Any]], universe: dict[str, str] | None = None, *,
-                   client: LLMClient | None = None, usage: Usage | None = None,
+                   client: ClassifierClient | None = None, usage: Usage | None = None,
                    ) -> list[NewsClassification]:
     """Batched gate 2, aligned with ``items``. Triage is NOT applied here — call
     :func:`screen_items` first and pass only the survivors.
@@ -367,7 +423,8 @@ def classify_items(items: list[dict[str, Any]], universe: dict[str, str] | None 
             # 480 -> 620: two more summaries of the same length as summary_ru. Measured
             # 2026-07-29 the reply averaged ~380 tokens an item, so the headroom holds.
             raw = client.complete_json(system, _numbered(chunk), usage=usage,
-                                       max_tokens=620 * len(chunk) + 200)
+                                       max_tokens=620 * len(chunk) + 200,
+                                       response_schema=_batch_schema(_CLASSIFICATION_SCHEMA))
             rows = _by_number(raw, len(chunk))
         except Exception as exc:  # noqa: BLE001
             logger.warning("batched classification failed for %d item(s) (%s); "
@@ -454,7 +511,7 @@ Reply with ONLY a JSON object with keys: tone, tone_score, impact, direction,
 summary_ru, summary_en, summary_uz, reason."""
 
 
-def classify_filings(items: list[dict[str, Any]], *, client: LLMClient | None = None,
+def classify_filings(items: list[dict[str, Any]], *, client: ClassifierClient | None = None,
                      usage: Usage | None = None) -> list[NewsClassification]:
     """Batched rating of issuer filings, aligned with ``items``.
 
@@ -488,7 +545,9 @@ def classify_filings(items: list[dict[str, Any]], *, client: LLMClient | None = 
             system = _FILING_SYSTEM if single else _FILING_SYSTEM + _BATCH_PROTOCOL
             user = _format_item(chunk[0]) if single else _numbered(chunk)
             raw = client.complete_json(system, user, usage=usage,
-                                       max_tokens=(420 if single else 380 * len(chunk) + 200))
+                                       max_tokens=(420 if single else 380 * len(chunk) + 200),
+                                       response_schema=(_FILING_SCHEMA if single else
+                                                        _batch_schema(_FILING_SCHEMA)))
             rows = {1: raw} if single else _by_number(raw, len(chunk))
         except Exception as exc:  # noqa: BLE001 — a filing must still be stored
             logger.warning("filing rating failed for %d item(s): %s", len(chunk), exc)
@@ -527,7 +586,7 @@ an addition. Keep tickers, company names and numbers exactly as they appear.
 Reply with ONLY a JSON object: {"summary_en": "...", "summary_uz": "..."}"""
 
 
-def translate_summaries(items: list[dict[str, Any]], *, client: LLMClient | None = None,
+def translate_summaries(items: list[dict[str, Any]], *, client: ClassifierClient | None = None,
                         usage: Usage | None = None) -> list[dict[str, str]]:
     """``[{"en": ..., "uz": ...}, ...]`` aligned with ``items`` (each needs ``summary_ru``).
 
@@ -548,7 +607,9 @@ def translate_summaries(items: list[dict[str, Any]], *, client: LLMClient | None
             system = _TRANSLATE_SYSTEM if single else _TRANSLATE_SYSTEM + _BATCH_PROTOCOL
             user = (chunk[0].get("summary_ru") or "").strip() if single else body
             raw = client.complete_json(system, user, usage=usage,
-                                       max_tokens=(220 if single else 200 * len(chunk) + 150))
+                                       max_tokens=(220 if single else 200 * len(chunk) + 150),
+                                       response_schema=(_TRANSLATE_SCHEMA if single else
+                                                        _batch_schema(_TRANSLATE_SCHEMA)))
             rows = {1: raw} if single else _by_number(raw, len(chunk))
         except Exception as exc:  # noqa: BLE001 — a failed backfill must not abort the run
             logger.warning("summary translation failed for %d item(s): %s", len(chunk), exc)
@@ -655,7 +716,7 @@ def brief_material(item: dict[str, Any]) -> str:
     return "\n\n".join(seen)
 
 
-def write_brief_detail(item: dict[str, Any], *, client: LLMClient | None = None,
+def write_brief_detail(item: dict[str, Any], *, client: ClassifierClient | None = None,
                        usage: Usage | None = None) -> dict[str, str]:
     """``{"ru":…, "en":…, "uz":…}`` from the stored material alone, or empty strings.
 
@@ -679,7 +740,8 @@ def write_brief_detail(item: dict[str, Any], *, client: LLMClient | None = None,
             + (f"DATE: {item.get('published_at')}\n" if item.get("published_at") else "")
             + f"\nMATERIAL:\n{material[:_DETAIL_MAX_CHARS]}")
     try:
-        raw = client.complete_json(_BRIEF_SYSTEM, user, usage=usage, max_tokens=1200)
+        raw = client.complete_json(_BRIEF_SYSTEM, user, usage=usage, max_tokens=1200,
+                                   response_schema=_DETAIL_SCHEMA)
     except Exception as exc:  # noqa: BLE001 — a story page without a long read is the old page
         logger.warning("brief detail failed for %s: %s", item.get("url"), exc)
         return {"ru": "", "en": "", "uz": ""}
@@ -691,7 +753,7 @@ def write_brief_detail(item: dict[str, Any], *, client: LLMClient | None = None,
 
 
 def write_detail(item: dict[str, Any], article_text: str, *,
-                 client: LLMClient | None = None,
+                 client: ClassifierClient | None = None,
                  usage: Usage | None = None) -> dict[str, str]:
     """``{"ru":…, "en":…, "uz":…}`` — our own long read of one article, or empty strings.
 
@@ -708,7 +770,8 @@ def write_detail(item: dict[str, Any], article_text: str, *,
             f"SOURCE: {(item.get('source') or item.get('source_id') or '').strip()}\n\n"
             f"ARTICLE:\n{text[:_DETAIL_MAX_CHARS]}")
     try:
-        raw = client.complete_json(_DETAIL_SYSTEM, user, usage=usage, max_tokens=1600)
+        raw = client.complete_json(_DETAIL_SYSTEM, user, usage=usage, max_tokens=1600,
+                                   response_schema=_DETAIL_SCHEMA)
     except Exception as exc:  # noqa: BLE001 — a story page without a long read is the old page
         logger.warning("detail write failed for %s: %s", item.get("url"), exc)
         return {"ru": "", "en": "", "uz": ""}
@@ -735,9 +798,8 @@ def _system_with_universe(universe: dict[str, str] | None) -> str:
 
     The universe used to be prepended to the USER message, which made ~69% of every
     request a constant that could never be a shared cache prefix. In the system message
-    it is byte-identical across a run, so the provider serves it from its prompt cache
-    (grok-4.3 $0.20/M vs $1.25/M; DeepSeek V4-Flash $0.0028/M vs $0.14/M). Memoised so
-    the string is also identical object-to-object within a process.
+    it is byte-identical across a run, which makes the context reusable. Memoised so the
+    string is also identical object-to-object within a process.
     """
     key = id(universe) if universe else 0
     cached = _system_cache.get(key)
@@ -766,7 +828,7 @@ def classify_item(
     item: dict[str, Any],
     universe: dict[str, str] | None = None,
     *,
-    client: LLMClient | None = None,
+    client: ClassifierClient | None = None,
     usage: Usage | None = None,
     triage: bool = True,
 ) -> NewsClassification:
@@ -788,7 +850,8 @@ def classify_item(
                                       reason="triage: not market-relevant")
     try:
         raw = client.complete_json(_system_with_universe(universe),
-                                   f"NEWS ITEM:\n{_format_item(item)}", usage=usage)
+                                   f"NEWS ITEM:\n{_format_item(item)}", usage=usage,
+                                   response_schema=_CLASSIFICATION_SCHEMA)
         return NewsClassification.model_validate(raw)
     except ValidationError as exc:
         logger.warning("classification validation failed for %s: %s", item.get("url"), exc)

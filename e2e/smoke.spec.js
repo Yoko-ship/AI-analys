@@ -9,7 +9,8 @@ const COMPANIES = { companies: [
   { ticker: "KVTS", company_name: "Kvarts", sector: "Industry" },
 ] };
 const SECURITIES = { ok: true, securities: {
-  AGBA: { name: "AGBA Bank", security_type: "stock", last_price: 1500, close_price: 1440, industry: "Banks" },
+  AGBA: { name: "AGBA Bank", security_type: "stock", last_price: 1500, close_price: 1440, industry: "Banks",
+    logo_url: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" },
   ALKB: { name: "Aloqabank", security_type: "stock", last_price: 900, close_price: 930, industry: "Banks" },
   KVTS: { name: "Kvarts", security_type: "stock", last_price: 320, close_price: 300, industry: "Industry" },
 } };
@@ -106,7 +107,7 @@ const NEWS_ITEMS = [
 
 const CALENDAR_MEETINGS = [
   {
-    announcement_id: "21211",
+    announcement_id: "meeting-uz",
     organization: '"Sinov kompaniyasi" AJ',
     ticker: "AGBA",
     title: "Акциядорларнинг навбатдан ташқари умумий йиғилишини ўтказиш тўғрисида",
@@ -114,7 +115,7 @@ const CALENDAR_MEETINGS = [
     pub_date: "2026-08-20T09:00:00",
   },
   {
-    announcement_id: "21212",
+    announcement_id: "meeting-ru",
     organization: 'АО "Проверка"',
     ticker: null,
     title: "Сообщение о проведении годового общего собрания акционеров",
@@ -122,28 +123,6 @@ const CALENDAR_MEETINGS = [
     pub_date: "2026-08-21T09:00:00",
   },
 ];
-
-const CALENDAR_ANNOUNCEMENT = {
-  announcement_id: "21211",
-  language: "ru",
-  title: "Навбадтан ташкари умумий йигилиш",
-  organization: '"Sinov kompaniyasi" AJ',
-  metadata: [
-    { label: "Дата публикации", value: "20.08.2026 09:00" },
-    { label: "Дата собрания", value: "26.08.2026, 10:00" },
-    { label: "Адрес", value: "Ташкент, ул. Тестовая, 1" },
-  ],
-  content: [
-    { kind: "heading", text: "Акционерам общества" },
-    { kind: "paragraph", text: "Полный текст объявления показывается внутри сайта." },
-  ],
-  organization_details: [
-    { label: "ИНН", value: "200000001" },
-    { label: "Короткое название", value: "SINOV AJ" },
-  ],
-  pdf_url: "https://openinfo.uz/ru/announce/to_pdf/21211/",
-  source_url: "https://openinfo.uz/ru/announce/21211",
-};
 
 // What the price did around story 11 — two dated closes, as `formulas.price_reaction`
 // returns them. Never a claim that the story moved the price.
@@ -188,7 +167,6 @@ async function mockApi(page) {
     if (p === "/api/news/feed") return j({ ok: true, count: NEWS_ITEMS.length, items: NEWS_ITEMS, disclaimer: NEWS_DISCLAIMER });
     if (p === "/api/news/calendar/meetings") return j({ ok: true, count: CALENDAR_MEETINGS.length, items: CALENDAR_MEETINGS });
     if (p === "/api/news/calendar/announcements") return j({ ok: true, count: CALENDAR_MEETINGS.length, items: CALENDAR_MEETINGS });
-    if (p === "/api/news/calendar/announcements/21211") return j({ ok: true, item: CALENDAR_ANNOUNCEMENT });
     if (p === "/api/news/calendar/dividends") return j({ ok: true, count: 0, items: [] });
     if (p.startsWith("/api/news/ticker/")) {
       const tk = p.slice("/api/news/ticker/".length);
@@ -267,8 +245,8 @@ test("calendar meeting headlines follow the selected interface language", async 
   await expect(titles.nth(0)).toHaveText("Внеочередное общее собрание акционеров");
   await expect(titles.nth(0)).toHaveAttribute("title", CALENDAR_MEETINGS[0].title);
   await expect(page.locator("a.newscal-news-row").first())
-    .toHaveAttribute("href", "/news/announcement/21211");
-  await expect(page.locator("a.newscal-news-row").first()).not.toHaveAttribute("target", "_blank");
+    .toHaveAttribute("href", "https://openinfo.uz/ru/announce/meeting-uz");
+  await expect(page.locator("a.newscal-news-row").first()).toHaveAttribute("target", "_blank");
   await expect(titles.nth(1)).toHaveText(CALENDAR_MEETINGS[1].title);
 
   await page.locator("#languageSelect").selectOption("en");
@@ -283,26 +261,24 @@ test("calendar meeting headlines follow the selected interface language", async 
   await page.getByRole("button", { name: "Объявления", exact: true }).click();
   await expect(page.locator(".newscal-anntitle").first()).toHaveText("Внеочередное общее собрание акционеров");
   await expect(page.locator(".newscal-anntitle a").first())
-    .toHaveAttribute("href", "/news/announcement/21211");
+    .toHaveAttribute("href", "https://openinfo.uz/ru/announce/meeting-uz");
 });
 
-test("clicking a calendar meeting opens its announcement inside the site", async ({ page }) => {
+test("clicking a calendar meeting opens its OpenInfo announcement", async ({ page, context }) => {
+  await context.route("https://openinfo.uz/**", (route) => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: "<title>OpenInfo announcement</title>",
+  }));
   await page.goto("/news?tab=calendar");
-  await page.locator("a.newscal-news-row").first().click();
 
-  await expect(page).toHaveURL(/\/news\/announcement\/21211$/);
-  await expect(page.locator(".announcement-article h1")).toHaveText(CALENDAR_ANNOUNCEMENT.title);
-  await expect(page.getByText("Полный текст объявления показывается внутри сайта.")).toBeVisible();
-  await expect(page.getByText("200000001")).toBeVisible();
+  const [source] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.locator("a.newscal-news-row").first().click(),
+  ]);
 
-  // Dynamic route must survive a cold load, not only an in-app state change.
-  await page.reload();
-  await expect(page).toHaveURL(/\/news\/announcement\/21211$/);
-  await expect(page.locator(".announcement-article h1")).toHaveText(CALENDAR_ANNOUNCEMENT.title);
-
-  await page.getByRole("link", { name: /К календарю/ }).click();
-  await expect(page).toHaveURL(/\/news\?tab=calendar$/);
-  await expect(page.locator("a.newscal-news-row").first()).toBeVisible();
+  await expect(source).toHaveURL("https://openinfo.uz/ru/announce/meeting-uz");
+  await source.close();
 });
 
 test("an open calendar refetches when the tab regains focus", async ({ page }) => {
@@ -317,11 +293,94 @@ test("an open calendar refetches when the tab regains focus", async ({ page }) =
   await refreshed;
 });
 
+test("calendar rows show company logos and a fallback icon", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/news?tab=calendar");
+  const issuers = page.locator(".newscal-row-issuer");
+
+  await expect(issuers.nth(0).locator("img.chip-logo")).toBeVisible();
+  await expect(issuers.nth(0).locator("img.chip-logo")).toHaveAttribute("src", SECURITIES.securities.AGBA.logo_url);
+  await expect(issuers.nth(1).locator(".chip-logo-fallback")).toBeVisible();
+
+  const widths = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+});
+
+test("calendar keeps all seven weekdays inside the screenshot-width viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 705, height: 1001 });
+  await page.goto("/news?tab=calendar");
+
+  const grid = page.locator(".newscal-grid");
+  const weekdays = page.locator(".newscal-dow");
+  await expect(grid).toBeVisible();
+  await expect(weekdays).toHaveCount(7);
+  await expect(page.locator(".newscal-row-title").first())
+    .toHaveText("Внеочередное общее собрание акционеров");
+
+  const geometry = await page.evaluate(() => {
+    const calendar = document.querySelector(".newscal-grid");
+    const days = [...document.querySelectorAll(".newscal-dow")];
+    const gridRect = calendar.getBoundingClientRect();
+    const lastDayRect = days.at(-1).getBoundingClientRect();
+    return {
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      gridLeft: gridRect.left,
+      gridRight: gridRect.right,
+      lastDayLeft: lastDayRect.left,
+      lastDayRight: lastDayRect.right,
+    };
+  });
+
+  expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+  expect(geometry.gridLeft).toBeGreaterThanOrEqual(0);
+  expect(geometry.gridRight).toBeLessThanOrEqual(geometry.clientWidth);
+  expect(geometry.lastDayLeft).toBeGreaterThan(geometry.gridLeft);
+  expect(geometry.lastDayRight).toBeLessThanOrEqual(geometry.clientWidth);
+});
+
 test("navigating to Рынок shows the market board", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
   await expect(page.getByText(/Цены акций/)).toBeVisible();
   await expect(page.getByText("AGBA Bank").first()).toBeVisible();
+});
+
+test("market financial cells show numeric candidates instead of status prose", async ({ page }) => {
+  await page.setViewportSize({ width: 1900, height: 1000 });
+  await page.addInitScript(() => {
+    localStorage.setItem("uz_market_cols_v3", JSON.stringify([
+      "pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets",
+    ]));
+  });
+  await page.route("**/api/market/multiples", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      items: [{
+        ticker: "AGBA",
+        pe: { value: null, display_value: 12.34, display_warning: true, status: "unverified", limitation_reason: "statement check" },
+        pb: { value: 73.86, display_value: 73.86, display_warning: true, status: "out_of_range", limitation_reason: "outside range" },
+        ps: { value: null, display_value: null, status: "not_applicable", limitation_reason: "bank form" },
+        roe: { value: null, display_value: 18.2, display_warning: true, status: "unverified" },
+        roa: { value: null, display_value: 6.1, display_warning: true, status: "stale_period" },
+        net_margin: { value: null, display_value: 22, display_warning: true, status: "audit_blocked" },
+        equity_assets: { value: null, display_value: 40, display_warning: true, status: "unverified" },
+      }],
+    }),
+  }));
+
+  await page.goto("/market");
+  const row = page.locator(".market-table-wrap tbody tr").filter({ hasText: "AGBA" }).first();
+  await expect(row).toContainText("12,34×");
+  await expect(row).toContainText("73,86×");
+  await expect(row).toContainText("18,2%");
+  await expect(row).not.toContainText(/проверяется|нет свежего отчёта|н\/п|н\/зн/);
+  await expect(row.locator(".metric-value-warning")).toHaveCount(6);
 });
 
 test("company details stay fixed to the viewport when opened from a scrolled market row", async ({ page }) => {

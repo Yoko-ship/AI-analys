@@ -35,6 +35,12 @@ _CONCLUSIONS_LOOKBACK_DAYS = 3650
 _UZSE_BASE = "https://uzse.uz"
 _SCREENER_ISINS: dict[str, str] | None = None
 
+# The exchange card does not publish the listing date. Keep exact dates for
+# securities whose ISIN has to be pinned while openinfo catches up.
+_LISTING_DATE_OVERRIDES: dict[str, str] = {
+    "DRBK": "2026-08-28",
+}
+
 
 def _uzse_screener_isins(session: Any) -> dict[str, str]:
     """ticker → ISIN for every UZSE-listed stock (openinfo's screener proxy).
@@ -339,7 +345,19 @@ def collect_listing_rows() -> list[dict[str, Any]]:
 
         rfb = (detail.get("info_rfb") or {}) if isinstance(detail, dict) else {}
         name = detail.get("full_name_text") or detail.get("short_name_text") or ticker
-        for ic in rfb.get("isin_codes") or []:
+        # An explicit ISIN pin means the openinfo security list is known to be
+        # absent or wrong. DRBK is the sharp case: Davr Bank's org currently
+        # carries AISK (Asia Insurance), so trusting that list would both hide
+        # DRBK and publish AISK under the wrong issuer. Build the row from the
+        # exchange's authoritative security card instead.
+        pinned_isin = ISIN_OVERRIDES.get(ticker)
+        isin_codes = ([{
+            "ticker": ticker,
+            "isu_cd": pinned_isin,
+            "stock_type": "01",
+            "listing_date": _LISTING_DATE_OVERRIDES.get(ticker),
+        }] if pinned_isin else (rfb.get("isin_codes") or []))
+        for ic in isin_codes:
             tk = str(ic.get("ticker") or "").strip().upper()
             isin = str(ic.get("isu_cd") or "").strip().upper()
             if not tk or not isin or tk in seen_tickers:
@@ -418,7 +436,7 @@ def collect_listing_rows() -> list[dict[str, Any]]:
         # isin_codes — e.g. an inactive exchange registration like NGQT): still
         # surface it on the board (financials only, no price) so curated catalog
         # companies stay visible instead of vanishing. Keyed by our catalog ticker.
-        if not (rfb.get("isin_codes") or []) and ticker not in seen_tickers \
+        if not isin_codes and ticker not in seen_tickers \
                 and ticker not in DELISTED_TICKERS:
             seen_tickers.add(ticker)
             # openinfo lists no RFB security for this issuer, but UZSE may still
@@ -487,6 +505,11 @@ def _org_to_tickers(session: Any) -> dict[str, set[str]]:
         # facts nor the financials aliases below can re-publish them by ticker.
         if ticker.upper() not in DELISTED_TICKERS:
             bucket.add(ticker.upper())
+        # A pinned ISIN declares openinfo's security list untrustworthy for this
+        # issuer. Do not let a foreign ticker from that list inherit the pinned
+        # issuer's financials or org mapping (DRBK org 26 currently returns AISK).
+        if ticker.upper() in ISIN_OVERRIDES:
+            continue
         for ic in rfb.get("isin_codes") or []:
             tk = str(ic.get("ticker") or "").strip().upper()
             if tk and tk not in DELISTED_TICKERS:

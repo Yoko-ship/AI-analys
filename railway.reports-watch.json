@@ -5,8 +5,8 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "cronSchedule": "0 4-18 * * 1-6",
-    "startCommand": "python collector_financials.py --watch-filings",
+    "cronSchedule": "0 4 * * *",
+    "startCommand": "/usr/local/bin/docker-entrypoint.sh python collector_financials.py --watch-filings",
     "restartPolicyType": "NEVER"
   }
 }

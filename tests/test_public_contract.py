@@ -83,6 +83,8 @@ def test_multiplier_contract_discloses_formula_inputs_and_stable_snapshot():
         "ttm_net_income": 200.0,
     }
     assert first["pe"]["basis"] == "issuer"
+    assert first["pe"]["display_value"] == 5.0
+    assert first["pe"]["display_warning"] is False
     assert first["pe"]["financial_scope"] == "UNKNOWN"
     assert first["calculation_snapshot"]["id"] == second["calculation_snapshot"]["id"]
     assert len(first["calculation_snapshot"]["id"]) == 64
@@ -113,7 +115,7 @@ def test_stale_class_price_overrides_cap_dependent_public_status():
         assert got[metric]["calculation_status"] == contract.STALE_PRICE
 
 
-def test_loss_is_not_meaningful_and_is_never_a_negative_pe():
+def test_loss_keeps_negative_pe_out_of_rankings_but_exposes_the_candidate():
     classes = [_class()]
     fin, ratio = _statement(net_income=-50.0), _ratio()
     base = fundamentals.issuer_multiples(classes, fin, ratio, today=TODAY)
@@ -121,6 +123,34 @@ def test_loss_is_not_meaningful_and_is_never_a_negative_pe():
                                        market_as_of="2026-08-31")
     assert got["pe"]["value"] is None
     assert got["pe"]["calculation_status"] == contract.NOT_MEANINGFUL
+    assert got["pe"]["display_value"] == -20.0
+    assert got["pe"]["display_warning"] is True
+
+
+def test_conflicted_statement_keeps_a_numeric_display_candidate():
+    classes = [_class()]
+    fin, ratio = _statement(), _ratio()
+    fin["gross_profit"] = 2_000.0
+    base = fundamentals.issuer_multiples(classes, fin, ratio, today=TODAY)
+    got = contract.multiplier_contract(base, classes, fin, ratio,
+                                       market_as_of="2026-08-31")
+
+    assert got["pe"]["value"] is None
+    assert got["pe"]["calculation_status"] == contract.DATA_CONFLICT
+    assert got["pe"]["display_value"] == 5.0
+    assert got["pe"]["display_warning"] is True
+
+
+def test_structurally_inapplicable_metric_has_no_display_candidate():
+    classes = [_class()]
+    fin, ratio = _statement(), _ratio()
+    fin["org_type"] = "bank"
+    base = fundamentals.issuer_multiples(classes, fin, ratio, today=TODAY)
+    got = contract.multiplier_contract(base, classes, fin, ratio,
+                                       market_as_of="2026-08-31")
+
+    assert got["ps"]["calculation_status"] == contract.NOT_APPLICABLE
+    assert got["ps"]["display_value"] is None
 
 
 def test_new_badge_expires_at_exactly_168_hours():

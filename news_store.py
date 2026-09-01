@@ -33,6 +33,52 @@ SUMMARY_LANGS = ("ru", "en", "uz")
 _NLP_FIELDS = ("relevant", "relevance_score", "type", "tone", "tone_score",
                "impact", "direction", "reason", "model")
 
+
+def record_news_usage(record: dict[str, Any]) -> int:
+    """Persist one collector usage record, idempotently by ``run_id``."""
+    run_id = str(record.get("run_id") or "").strip()
+    if not run_id:
+        raise ValueError("news usage record requires run_id")
+    fields = (
+        "run_id", "mode", "started_at", "finished_at", "model", "calls",
+        "prompt_tokens", "completion_tokens", "cached_input_tokens", "total_tokens",
+        "subscription_tokens", "codex_before_pct", "codex_after_pct", "codex_delta_pct",
+        "codex_resets_at", "fetched", "classified", "relevant", "pushed", "status",
+    )
+    values = [record.get(field) for field in fields]
+    conn = rc.get_catalog_conn()
+    try:
+        with conn:
+            conn.execute(
+                f"""
+                INSERT INTO news_usage_runs ({', '.join(fields)})
+                VALUES ({', '.join('?' for _ in fields)})
+                ON CONFLICT(run_id) DO UPDATE SET
+                    mode=excluded.mode,
+                    finished_at=excluded.finished_at,
+                    model=excluded.model,
+                    calls=excluded.calls,
+                    prompt_tokens=excluded.prompt_tokens,
+                    completion_tokens=excluded.completion_tokens,
+                    cached_input_tokens=excluded.cached_input_tokens,
+                    total_tokens=excluded.total_tokens,
+                    subscription_tokens=excluded.subscription_tokens,
+                    codex_before_pct=excluded.codex_before_pct,
+                    codex_after_pct=excluded.codex_after_pct,
+                    codex_delta_pct=excluded.codex_delta_pct,
+                    codex_resets_at=excluded.codex_resets_at,
+                    fetched=excluded.fetched,
+                    classified=excluded.classified,
+                    relevant=excluded.relevant,
+                    pushed=excluded.pushed,
+                    status=excluded.status
+                """,
+                values,
+            )
+        return 1
+    finally:
+        conn.close()
+
 # --------------------------------------------------------------------------- #
 # feed ranking (TZ §3.11: the page promises news SORTED by likely price impact,
 # so the read path ranks — it does not just order by date)
