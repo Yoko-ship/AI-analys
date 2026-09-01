@@ -229,9 +229,24 @@ def test_reprocess_creates_new_runs_and_deduplicates_bytes(monkeypatch):
     b = worker.process_document("doc2")
     assert a["verified"] and b["duplicate"]
     assert get("documents", "doc1")["period"] == "2026H1"
+    assert get("documents", "doc1")["pipeline_stage"] == "RECALCULATING"
     assert get("documents", "doc2")["canonical_document_id"] == "doc1"
+    assert get("documents", "doc2")["pipeline_stage"] == "DUPLICATE"
     second = worker.process_document("doc1")
     assert second["parser_run_id"] != a["parser_run_id"]
+
+
+def test_source_failure_is_persisted_as_a_document_stage(monkeypatch):
+    put("documents", {"id": "source-down", "ticker": "UZNF",
+                      "source_url": "https://openinfo.uz/down"})
+    monkeypatch.setattr(documents, "fetch_original",
+                        lambda url: (_ for _ in ()).throw(RuntimeError("offline")))
+    with pytest.raises(RuntimeError, match="offline"):
+        worker.process_document("source-down")
+    stored = get("documents", "source-down")
+    assert stored["pipeline_stage"] == "SOURCE_UNAVAILABLE"
+    assert [item["stage"] for item in stored["pipeline_journal"]] == [
+        "DOWNLOADING", "SOURCE_UNAVAILABLE"]
 
 
 def test_api_access_validation_and_export(monkeypatch):
@@ -290,7 +305,9 @@ def test_http_document_job_persists_revisions_and_original(monkeypatch):
     assert changed["period"] == "2026H1" and changed["metadata_verified"] and not changed["verified"]
     assert client.get(base + "/documents/http-doc/preview?sheet=Balance", headers=headers).json()["rows"][0][1]["value"] == "100"
     history = client.get(base + "/documents/http-doc/history", headers=headers).json()["items"]
-    assert len(history) == 2 and {r["period"] for r in history} == {"2026", "2026H1"}
+    assert len(history) >= 2 and {r["period"] for r in history} == {"2026", "2026H1"}
+    assert [item["stage"] for item in changed["pipeline_journal"]] == [
+        "DOWNLOADING", "PARSING", "VALIDATING", "READY_IN_LIBRARY", "RECALCULATING"]
     monkeypatch.setenv("ADMIN_ROLES", json.dumps({user.email: "viewer"}))
     assert client.post(base + "/documents/http-doc/reprocess", headers={**headers, "Idempotency-Key": "viewer-denied"}, json={**payload, "version": changed["version"]}).status_code == 403
     assert client.get("/api/admin/overview", headers=headers).status_code == 403

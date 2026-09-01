@@ -19,32 +19,69 @@ from .service import SYSTEM, TERMINAL, incident
 log = logging.getLogger(__name__)
 
 
+def _stage_document(entity_id, stage, **changes):
+    """Persist one observable document transition and its bounded journal."""
+    with s.connection(write=True) as c:
+        current = s.get(c, "documents", entity_id)
+        stamp = s.now()
+        journal = [*current.get("pipeline_journal", []), {"stage": stage, "at": stamp}]
+        return s.put(c, "documents", {
+            **current, **changes, "pipeline_stage": stage,
+            "pipeline_stage_at": stamp, "pipeline_journal": journal[-100:],
+        })
+
+
 def process_document(entity_id):
-    with s.connection() as c:
-        old = s.get(c, "documents", entity_id)
+    old = _stage_document(entity_id, "DOWNLOADING")
     if not old.get("source_url"):
+        _stage_document(entity_id, "SOURCE_UNAVAILABLE")
         raise s.ControlError("SOURCE_URL_MISSING", "No official source URL is available.", 422)
-    data = documents.fetch_original(old["source_url"])
+    try:
+        data = documents.fetch_original(old["source_url"])
+    except Exception:
+        _stage_document(entity_id, "SOURCE_UNAVAILABLE")
+        raise
     checksum = documents.save_original(data)
-    doc = {**old, "checksum": checksum, "detected_format": documents.detect_format(data)}
-    first = documents.preview(doc)
-    header = first.get("text") or "\n".join(" ".join(str(cell["value"] or "") for cell in row) for row in first.get("rows", []))
-    doc = rules.apply_parser(doc, header[:20000])
+    doc = _stage_document(entity_id, "PARSING", checksum=checksum,
+                          detected_format=documents.detect_format(data))
+    try:
+        first = documents.preview(doc)
+        header = first.get("text") or "\n".join(
+            " ".join(str(cell["value"] or "") for cell in row)
+            for row in first.get("rows", []))
+        doc = rules.apply_parser(doc, header[:20000])
+    except Exception:
+        _stage_document(entity_id, "PARSER_ERROR")
+        raise
+    doc = _stage_document(entity_id, "VALIDATING", **doc)
     doc.update(parsed=True, metadata_verified=not doc["blockers"], verified=False,
-               status="QUALITY_BLOCKED" if doc["blockers"] else "CLASSIFIED")
+               status="QUALITY_BLOCKED" if doc["blockers"] else "CLASSIFIED",
+               pipeline_stage="NEEDS_REVIEW" if doc["blockers"] else "READY_IN_LIBRARY",
+               pipeline_stage_at=s.now())
     with s.connection(write=True) as c:
         # One checksum can be disclosed at multiple URLs; preserve source aliases.
         duplicate = next((d for d in s.all_items(c, "documents") if d.get("checksum") == checksum and d["id"] != entity_id and d.get("status") != "DUPLICATE"), None)
         if duplicate and duplicate.get("ticker") != doc.get("ticker"):
             doc.update(status="QUALITY_BLOCKED", metadata_verified=False, verified=False,
+                       pipeline_stage="NEEDS_REVIEW", pipeline_stage_at=s.now(),
                        blockers=sorted(set(doc["blockers"] + ["SOURCE_IDENTITY_CONFLICT"])))
             duplicate = None
         if duplicate:
-            alias = s.put(c, "documents", {**doc, "status": "DUPLICATE", "canonical_document_id": duplicate["id"], "checksum": checksum})
+            stamp = s.now()
+            alias = s.put(c, "documents", {
+                **doc, "status": "DUPLICATE", "pipeline_stage": "DUPLICATE",
+                "pipeline_stage_at": stamp,
+                "pipeline_journal": [*doc.get("pipeline_journal", []),
+                                     {"stage": "DUPLICATE", "at": stamp}][-100:],
+                "canonical_document_id": duplicate["id"], "checksum": checksum,
+            })
             aliases = sorted(set(duplicate.get("source_aliases", []) + [doc["source_url"], duplicate["source_url"]]))
             s.put(c, "documents", {**duplicate, "source_aliases": aliases})
             adapters.coverage(c, alias)
             return {"verified": bool(duplicate.get("metadata_verified")), "verification_scope": "classification", "canonical_document_id": duplicate["id"], "duplicate": True}
+        stamp = doc["pipeline_stage_at"]
+        doc["pipeline_journal"] = [*doc.get("pipeline_journal", []),
+                                   {"stage": doc["pipeline_stage"], "at": stamp}][-100:]
         doc = s.put(c, "documents", doc)
         run_id = s.uid("parser")
         parser = {"id": run_id, "document_id": entity_id, "ticker": doc["ticker"], "status": doc["status"],
@@ -63,6 +100,7 @@ def process_document(entity_id):
     if not doc["blockers"]:
         import analysis_monitor
         analysis_monitor.enqueue(doc["ticker"], "document:" + checksum)
+        doc = _stage_document(entity_id, "RECALCULATING")
     return {"verified": not doc["blockers"], "verification_scope": "classification", "document_id": entity_id, "parser_run_id": run_id, "blockers": doc["blockers"]}
 
 

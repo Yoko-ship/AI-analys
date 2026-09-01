@@ -5667,7 +5667,9 @@ def get_company_reports(ticker: str) -> list[dict[str, Any]]:
     siblings = _org_siblings(conn, ticker) or [(ticker or "").upper()]
     placeholders = ",".join("?" * len(siblings))
     rows = conn.execute(f"""
-        SELECT report_form, period_type, year, quarter, title, pdf_url, excel_url, excel_url_form1, synced_at
+        SELECT report_form, period_type, year, quarter, title, published_at,
+               pdf_url, excel_url, excel_url_form1, openinfo_report_id, object_id,
+               synced_at
         FROM catalog_reports
         WHERE ticker IN ({placeholders})
         ORDER BY year DESC, quarter DESC, synced_at DESC
