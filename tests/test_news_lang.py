@@ -223,7 +223,7 @@ def test_a_translation_only_update_cannot_overwrite_or_reclassify(tmp_path, monk
     monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
 
     news_store.upsert_news([{
-        "url": "https://example.test/x", "source": "S", "source_id": "spot", "lang": "ru",
+        "url": "https://example.test/x", "source": "S", "source_id": "napp", "lang": "ru",
         "title": "ЦБ сохранил ставку", "snippet": "", "summary_ru": "Центробанк сохранил ставку.",
         "summary_en": "Written by the classifier.", "summary_uz": "",
         "relevant": True, "relevance_score": 0.8, "type": "regulatory", "tone": "neutral",
