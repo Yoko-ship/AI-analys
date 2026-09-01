@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from datetime import date, timedelta
 from typing import Any, Iterable, Sequence
 
@@ -76,7 +77,22 @@ MATURED_NOTE = "выпуск погашен {date}"
 # Day-count basis. ТЗ А.5 requires this to be configuration AND to be stated in
 # the response: two developers who assume different bases both get a number and
 # both believe they are right.
-DAY_COUNT_BASES = {"ACT/365": 365.0, "ACT/360": 360.0, "ACT/ACT": None}
+DAY_COUNT_BASES = {
+    "ACT/365": 365.0, "ACT/365F": 365.0, "ACT/360": 360.0,
+    "ACT/ACT": None, "ACT/ACT ISDA": None, "30/360": 360.0,
+}
+
+
+def normalize_day_count(basis: Any) -> str | None:
+    text = re.sub(r"\s+", " ", str(basis or "").strip().upper().replace("_", "/"))
+    aliases = {
+        "ACTUAL/365": "ACT/365", "ACTUAL/365F": "ACT/365F",
+        "ACTUAL/360": "ACT/360", "ACTUAL/ACTUAL": "ACT/ACT",
+        "ACT/ACT (ISDA)": "ACT/ACT ISDA", "30U/360": "30/360",
+        "30US/360": "30/360", "BOND BASIS": "30/360",
+    }
+    text = aliases.get(text, text)
+    return text if text in DAY_COUNT_BASES else None
 
 
 def day_count_basis() -> str:
@@ -84,10 +100,36 @@ def day_count_basis() -> str:
 
 
 def _days_in_year(basis: str, when: date | None = None) -> float:
-    if basis == "ACT/ACT":
+    basis = normalize_day_count(basis) or basis
+    if basis in {"ACT/ACT", "ACT/ACT ISDA"}:
         year = (when or date.today()).year
         return 366.0 if (year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)) else 365.0
     return DAY_COUNT_BASES.get(basis) or 365.0
+
+
+def year_fraction(start: date, end: date, basis: str) -> float:
+    """Exact year fraction for the disclosed bond convention."""
+    basis = normalize_day_count(basis)
+    if basis is None or end < start:
+        raise ValueError("unsupported day-count basis or reversed dates")
+    if end == start:
+        return 0.0
+    if basis in {"ACT/365", "ACT/365F"}:
+        return (end - start).days / 365.0
+    if basis == "ACT/360":
+        return (end - start).days / 360.0
+    if basis == "30/360":
+        d1 = min(start.day, 30)
+        d2 = 30 if end.day == 31 and d1 == 30 else end.day
+        return ((end.year - start.year) * 360 + (end.month - start.month) * 30 + d2 - d1) / 360.0
+    # ACT/ACT ISDA: split the interval at each calendar-year boundary.
+    total_fraction = 0.0
+    cursor = start
+    while cursor < end:
+        boundary = min(end, date(cursor.year + 1, 1, 1))
+        total_fraction += (boundary - cursor).days / _days_in_year("ACT/ACT", cursor)
+        cursor = boundary
+    return total_fraction
 
 
 def is_bond(row: dict[str, Any], meta: dict[str, Any] | None = None) -> bool:
@@ -205,7 +247,9 @@ def accrued_interest(nominal: Any, coupon_rate: Any, days_from_coupon: Any,
     n, rate, days = _num(nominal), _num(coupon_rate), _num(days_from_coupon)
     if None in (n, rate, days) or n <= 0 or days < 0:
         return _unavailable()
-    basis = basis or day_count_basis()
+    basis = normalize_day_count(basis or day_count_basis())
+    if basis is None:
+        return _unavailable("неподдерживаемый базис дней")
     value = n * (rate / 100.0) * days / _days_in_year(basis, when)
     return _metric(value, "ok", day_count_basis=basis, days_from_coupon=days)
 
@@ -230,7 +274,7 @@ def _pv(cashflows: Sequence[tuple[float, float]], rate: float) -> float:
 
 def yield_to_maturity(cashflows: Sequence[tuple[float, float]], dirty: float,
                       guess: float = 0.1, tolerance: float = 1e-8,
-                      max_iterations: int = 100) -> dict[str, Any]:
+                      max_iterations: int = 100, basis: str | None = None) -> dict[str, Any]:
     """Newton's method on the dirty price (ТЗ А.5).
 
     ``cashflows`` is [(years_from_now, amount)]. The yield is solved against the
@@ -240,6 +284,7 @@ def yield_to_maturity(cashflows: Sequence[tuple[float, float]], dirty: float,
     """
     if not cashflows or dirty is None or dirty <= 0:
         return _unavailable()
+    stated_basis = normalize_day_count(basis or day_count_basis()) or str(basis or day_count_basis())
     rate = guess
     for _ in range(max_iterations):
         value = _pv(cashflows, rate) - dirty
@@ -251,7 +296,27 @@ def yield_to_maturity(cashflows: Sequence[tuple[float, float]], dirty: float,
         if not math.isfinite(rate) or rate <= -0.999:
             break
         if abs(step) < tolerance:
-            return _metric(rate * 100.0, "ok", iterations=_, basis=day_count_basis())
+            return _metric(rate * 100.0, "ok", iterations=_, basis=stated_basis)
+    # A bracketed fallback is slower but covers valid negative yields that can
+    # make a Newton step jump below -100%.  Positive cash flows make the price
+    # function monotone, so bisection is deterministic and easy to audit.
+    low, high = -0.999999, 10.0
+    try:
+        low_value = _pv(cashflows, low) - dirty
+        high_value = _pv(cashflows, high) - dirty
+        if math.isfinite(low_value) and math.isfinite(high_value) and low_value * high_value <= 0:
+            for iteration in range(200):
+                mid = (low + high) / 2.0
+                value = _pv(cashflows, mid) - dirty
+                if abs(value) <= max(tolerance, dirty * tolerance) or high - low < tolerance:
+                    return _metric(mid * 100.0, "ok", iterations=max_iterations + iteration,
+                                   basis=stated_basis, solver="bisection")
+                if value > 0:
+                    low = mid
+                else:
+                    high = mid
+    except (OverflowError, ValueError, ZeroDivisionError):
+        pass
     return _metric(None, "not_converged",
                    note="уравнение доходности не сошлось за 100 итераций")
 
@@ -295,6 +360,29 @@ def bpv(mod_duration: float | None, dirty: float | None) -> dict[str, Any]:
     if mod_duration is None or not dirty:
         return _unavailable()
     return _metric(mod_duration * dirty * 1e-4, "ok")
+
+
+def rate_scenarios(cashflows: Sequence[tuple[float, float]], dirty: float | None,
+                   ytm_pct: float | None) -> dict[str, Any]:
+    """Exact repricing for the required ±1/±2 percentage-point scenarios."""
+    if not cashflows or dirty is None or dirty <= 0 or ytm_pct is None:
+        return {"status": "unavailable", "items": [], "small_shift_check": None}
+    base = ytm_pct / 100.0
+    items = []
+    for shift_bps in (-200, -100, 100, 200):
+        shifted = base + shift_bps / 10_000.0
+        if shifted <= -0.999:
+            items.append({"shift_bps": shift_bps, "price": None, "change_pct": None,
+                          "status": "invalid_rate"})
+            continue
+        price = _pv(cashflows, shifted)
+        items.append({"shift_bps": shift_bps, "price": price,
+                      "change_pct": (price / dirty - 1.0) * 100.0, "status": "ok"})
+    up_one_bp = _pv(cashflows, base + 0.0001)
+    exact_dv01 = dirty - up_one_bp
+    return {"status": "ok", "items": items,
+            "small_shift_check": {"shift_bps": 1, "repriced": up_one_bp,
+                                  "price_change": exact_dv01}}
 
 
 # ---------------------------------------------------------------------------
@@ -596,8 +684,9 @@ def coupon_cashflows(reference: dict[str, Any], coupons: Iterable[dict[str, Any]
     schedule the yield is the yield.
     """
     today = today or date.today()
-    basis = day_count_basis()
-    year_days = _days_in_year(basis, today)
+    basis = normalize_day_count(reference.get("day_count") or reference.get("day_count_basis") or day_count_basis())
+    if basis is None:
+        return []
     nominal = _num(reference.get("nominal")) or 0.0
     maturity = _as_date(reference.get("maturity_date"))
     schedule = schedule if schedule is not None else coupon_schedule(reference, list(coupons or []))
@@ -616,9 +705,9 @@ def coupon_cashflows(reference: dict[str, Any], coupons: Iterable[dict[str, Any]
         value = filed_amounts.get(pay, amount)
         if value is None:
             continue
-        flows.append(((pay - today).days / year_days, value))
+        flows.append((year_fraction(today, pay, basis), value))
     if maturity and maturity > today and nominal > 0:
-        flows.append(((maturity - today).days / year_days, nominal))
+        flows.append((year_fraction(today, maturity, basis), nominal))
     return sorted(flows)
 
 
@@ -766,6 +855,7 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
     change = ((price - prev) / prev * 100.0) if (price and prev and prev > 0) else None
     traded = (_num(row.get("trade_count")) or 0) > 0 or (_num(row.get("volume")) or 0) > 0
     session_day = _as_date(row.get("last_trade_date"))
+    stated_basis = normalize_day_count((reference or {}).get("day_count") or (reference or {}).get("day_count_basis") or day_count_basis())
 
     out: dict[str, Any] = {
         "ticker": str(row.get("ticker") or "").upper(),
@@ -802,7 +892,7 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
         # the fields are absent, not null. A null invites "we could not compute
         # it"; absence says the question does not apply.
         "multiples": {"available": False, "reason": "долговой инструмент"},
-        "day_count_basis": day_count_basis(),
+        "day_count_basis": stated_basis,
     }
 
     if price is None:
@@ -868,10 +958,11 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
     # needs no maturity: what a bond has earned since its last coupon is
     # knowable years before anyone files a redemption date.
     if not ref_state["has_coupon"]:
-        for field in ("accrued", "clean", "dirty", "simple_yield", "ytm",
+        for field in ("accrued", "clean", "dirty", "simple_yield", "ytm", "ytc", "ytw",
                       "duration", "modified_duration", "spread",
-                      "convexity", "bpv", "g_spread"):
+                      "convexity", "bpv", "dv01", "g_spread"):
             out[field] = _unavailable(missing=ref_state["missing"] or None)
+        out["rate_scenarios"] = {"status": "unavailable", "items": [], "small_shift_check": None}
         return out
 
     # Accrual stops at redemption. Past its maturity ACMT1B2 was still earning
@@ -880,7 +971,7 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
     # a number there is worse than a dash.
     days_from_coupon = (None if matured
                         else _days_since_coupon(reference, coupons, freq, today, schedule))
-    accrued = (accrued_interest(nominal, rate, days_from_coupon, when=today)
+    accrued = (accrued_interest(nominal, rate, days_from_coupon, basis=stated_basis, when=today)
                if days_from_coupon is not None
                else (_matured(maturity) if matured
                      else _unavailable("нет даты последней купонной выплаты")))
@@ -898,9 +989,10 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
     # term reconstructed from "N days after placement began" lands days away
     # from the filed date — near enough to look right and not near enough to be.
     if not ref_state["is_complete"]:
-        for field in ("ytm", "duration", "modified_duration", "spread",
-                      "convexity", "bpv", "g_spread"):
+        for field in ("ytm", "ytc", "ytw", "duration", "modified_duration", "spread",
+                      "convexity", "bpv", "dv01", "g_spread"):
             out[field] = _unavailable(missing=ref_state["missing"] or None)
+        out["rate_scenarios"] = {"status": "unavailable", "items": [], "small_shift_check": None}
         return out
 
     # A redeemed issue has no cashflows left, so there is nothing to discount —
@@ -908,16 +1000,17 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
     # back empty-handed and report «нет справочных данных по выпуску» about the
     # one issue on the board whose reference is complete.
     if matured:
-        for field in ("ytm", "duration", "modified_duration", "spread",
-                      "convexity", "bpv", "g_spread"):
+        for field in ("ytm", "ytc", "ytw", "duration", "modified_duration", "spread",
+                      "convexity", "bpv", "dv01", "g_spread"):
             out[field] = _matured(maturity)
+        out["rate_scenarios"] = {"status": "matured", "items": [], "small_shift_check": None}
         # What it DID return, in place of what it will: the issue's own result
         # over its life, rather than an empty block where a yield used to be.
         out["realized"] = realized_return(reference, schedule, today)
         return out
 
     flows = coupon_cashflows(reference, coupons or [], today, schedule)
-    ytm = yield_to_maturity(flows, dirty) if dirty else _unavailable()
+    ytm = yield_to_maturity(flows, dirty, basis=stated_basis) if dirty else _unavailable()
     duration = macaulay_duration(flows, dirty, ytm.get("value")) if dirty else _unavailable()
     mod = modified_duration(duration.get("value"), ytm.get("value"), 1)
     # The curve is read at the bond's own horizon — its duration when the solver
@@ -925,13 +1018,17 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
     horizon = duration.get("value")
     if horizon is None and maturity:
         horizon = (maturity - today).days / 365.0
+    dv01 = bpv(mod.get("value"), dirty)
     out.update({
         "ytm": ytm,
+        "ytc": _unavailable("условия досрочного погашения не подтверждены"),
+        "ytw": ({**ytm, "scenario": "maturity"} if ytm.get("value") is not None else _unavailable()),
         "duration": duration,
         "modified_duration": mod,
         "spread": spread_to_key_rate(ytm.get("value"), key_rate),
         "convexity": convexity(flows, dirty, ytm.get("value")),
-        "bpv": bpv(mod.get("value"), dirty),
+        "bpv": dv01, "dv01": dict(dv01),
+        "rate_scenarios": rate_scenarios(flows, dirty, ytm.get("value")),
         "g_spread": g_spread(ytm.get("value"), horizon, gov_points or []),
     })
     return out
@@ -953,12 +1050,12 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
 def issue_schedule(reference: dict[str, Any] | None,
                    coupons: Sequence[dict[str, Any]] | None = None,
                    today: date | None = None) -> list[dict[str, Any]]:
-    """One issue's payments, past and future, ready to draw.
+    """One issue's contractual schedule, accrual filings and execution state.
 
-    The filed amount wins on any date the issuer has filed; every other date
-    carries the periodic amount the terms imply, and says which of the two it
-    is. ``paid`` is a statement about the calendar, not about the issuer: a date
-    in the past is a payment that fell due, and only a filing proves it was met.
+    A passed date proves only that the payment fell due.  A coupon accrual
+    filing is not proof that cash was paid, so ``paid`` is true only when the
+    source record explicitly verifies execution.  This keeps plan, accrual,
+    due date and payment confirmation as independent facts.
     """
     today = today or date.today()
     reference = reference or {}
@@ -975,13 +1072,19 @@ def issue_schedule(reference: dict[str, Any] | None,
     for n, when in enumerate(schedule.get("dates") or [], start=1):
         record = filed.get(when)
         value = _num((record or {}).get("amount"))
+        payment_confirmed = bool((record or {}).get("payment_confirmed") in (True, 1)
+                                 or str((record or {}).get("execution_status") or "").lower() in {"paid", "confirmed", "executed"})
+        due = when <= today
+        execution_status = ("paid_confirmed" if payment_confirmed else
+                            "due_unconfirmed" if due else "scheduled")
         out.append({
             "no": (record or {}).get("coupon_no", n),
             "date": when.isoformat(),
             "coupon": value if value is not None else amount,
             "principal": (nominal if (maturity and when == maturity and nominal) else None),
-            "due": when <= today,
-            "filed": record is not None,
+            "due": due, "paid": payment_confirmed,
+            "accrual_filed": record is not None, "filed": record is not None,
+            "execution_status": execution_status,
             "source": "filed" if record is not None else schedule.get("source"),
         })
     return out

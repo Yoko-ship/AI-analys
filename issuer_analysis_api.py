@@ -1188,8 +1188,8 @@ def _period_label(period: str | None, lang: str) -> str:
 
 
 def _sector_ai_report(issuer: dict[str, Any], standard: str, period: str | None, scope: str, lang: str) -> dict[str, Any]:
-    from sector_report_service import sector_report
-    return sector_report(issuer, standard, period, scope, lang)
+    from sector_report_service import public_report, sector_report
+    return public_report(sector_report(issuer, standard, period, scope, lang))
 
 @router.get("/issuers/{issuer_id}/profile")
 def issuer_profile(issuer_id: str) -> dict[str, Any]:

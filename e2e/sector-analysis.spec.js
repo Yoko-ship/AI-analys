@@ -2,9 +2,23 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
 const REPORT = JSON.parse(readFileSync(new URL("../tests/fixtures/sector_ui_report.json", import.meta.url), "utf8"));
+const PUBLIC_REPORT = {
+  ...REPORT,
+  card_text: "UZMK: выручка выросла на 6,55%, но прибыль основной деятельности снизилась на 8,90%. Рост чистой прибыли во многом связан с курсовыми разницами, поэтому устойчивость результата ещё не подтверждена. Денежные средства выросли, одновременно увеличились обязательства. В следующем отчёте важно проверить основной результат и движение денежных средств.",
+  ratios: (REPORT.ratios || []).filter((item) => !["current_ratio", "quick_ratio"].includes(item.metric_code)),
+  monitoring_points: [
+    { id: "operating-income", metric_code: "operating_income", label: "Прибыль основной деятельности", current_baseline: { value: 373505355, period: "2026Q2" }, improvement_signal: "рост в сопоставимом периоде", risk_signal: "повторное снижение", required_disclosure: "форма 2 и объяснение изменения" },
+    { id: "cash", metric_code: "cash", label: "Денежные средства", current_baseline: { value: 1181472863, period: "2026Q2" }, improvement_signal: "рост без опережающего роста обязательств", risk_signal: "снижение при росте обязательств", required_disclosure: "форма 1 и ограничения на денежные средства" },
+  ],
+  verification_summary: {
+    checked: ["исходный документ и период", "формулы и входы применимых коэффициентов"],
+    missing: [],
+    cannot_assess: ["устойчивость результата без следующего сопоставимого отчёта"],
+  },
+};
 const SEC = { ticker: "UZMK", name: "Узметкомбинат", type: "stock", isin: "QA-UZMK", last_price: 4000, sector: "manufacturing" };
 
-async function api(page, report = REPORT, admin = false) {
+async function api(page, report = PUBLIC_REPORT, admin = false) {
   await page.route("**/api/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -32,13 +46,18 @@ test("sector report opens from the company card and exposes sourced formulas", a
   page.on("pageerror", (e) => errors.push(e.message));
   await api(page);
   await page.goto("/company/UZMK");
-  const details = page.getByTestId("company-insight-card").getByRole("button", { name: "Подробнее" });
-  await expect(page.getByTestId("company-insight-card")).toContainText("-8.90%");
+  const details = page.getByTestId("company-insight-card").getByRole("button", { name: "Открыть полный анализ" });
+  await expect(page.getByTestId("company-insight-card")).toContainText("8,90%");
   await details.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByTestId("verified-report")).toBeVisible();
   await dialog.getByText("Проверенные формулы НСБУ", { exact: true }).click();
-  await expect(dialog.getByText("quick_ratio: 1,02", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("P1: 2,14%", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/quick_ratio:/)).toHaveCount(0);
+  await expect(dialog.getByText("Два показателя для следующего отчёта", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/^Проверено:/)).toBeVisible();
+  await dialog.getByText("Два показателя для следующего отчёта", { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "audit/sector-v2.3/report-monitoring.png" });
   await dialog.getByText("Финансовый результат", { exact: true }).click();
   await expect(dialog.locator("table").first()).toContainText("315");
   await expect(dialog.getByRole("link", { name: "form2:c270" })).toHaveAttribute("href", REPORT.sources[0].url);
@@ -58,7 +77,7 @@ test("blocked reports keep a dated prior report and never open empty details", a
   await page.goto("/company/UZMK");
   const card = page.getByTestId("company-insight-card");
   await expect(card).toContainText("BALANCE_IDENTITY_FAILED");
-  await expect(card.getByRole("button", { name: "Подробнее" })).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Открыть полный анализ" })).toHaveCount(0);
   await card.getByText(/Последний проверенный анализ/).click();
   await expect(card).toContainText("Проверенный отчёт за I квартал");
   const width = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
@@ -75,7 +94,7 @@ test("a source error can be retried successfully", async ({ page }) => {
   await page.goto("/company/UZMK");
   const card = page.getByTestId("company-insight-card");
   await card.getByRole("button", { name: "Повторить" }).click();
-  await expect(card.getByRole("button", { name: "Подробнее" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Открыть полный анализ" })).toBeVisible();
   expect(attempts).toBe(2);
 });
 
@@ -99,7 +118,7 @@ test("admin rules require evidence and a reason, then send a scoped update", asy
   expect(mutation.override_template).toBe("metallurgy");
   expect(mutation.evidence_source).toBe("https://example.org/verified-activity");
   await expect(page.getByRole("status")).toContainText("Изменение сохранено");
-  await page.screenshot({ path: "audit/sector-v2.2/admin-rules.png", fullPage: true });
+  await page.screenshot({ path: "audit/sector-v2.3/admin-rules.png", fullPage: true });
 });
 
 test("verified financial tables stay inside the mobile dark report", async ({ page }) => {
@@ -107,7 +126,7 @@ test("verified financial tables stay inside the mobile dark report", async ({ pa
   await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_theme", "dark"));
   await api(page);
   await page.goto("/company/UZMK");
-  await page.getByTestId("company-insight-card").getByRole("button", { name: "Подробнее" }).click();
+  await page.getByTestId("company-insight-card").getByRole("button", { name: "Открыть полный анализ" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByText("Финансовый результат", { exact: true }).click();
   await dialog.getByRole("region", { name: "Финансовый результат", exact: true }).scrollIntoViewIfNeeded();
@@ -118,7 +137,7 @@ test("verified financial tables stay inside the mobile dark report", async ({ pa
   expect(geometry.left).toBeGreaterThanOrEqual(0);
   expect(geometry.right).toBeLessThanOrEqual(geometry.width);
   expect(geometry.page).toBeLessThanOrEqual(geometry.width);
-  await page.screenshot({ path: "audit/sector-v2.2/report-mobile-dark.png" });
+  await page.screenshot({ path: "audit/sector-v2.3/report-mobile-dark.png" });
   const close = dialog.getByRole("button", { name: "Закрыть" });
   await expect(close).toBeInViewport();
   await close.click();
@@ -142,14 +161,29 @@ test("a bond opens its shared issuer report without borrowing the share verdict"
     ok: true, ticker: "EX1B", isin: "QA-BOND", issuer: "Узметкомбинат", state: "live",
     reference: { nominal: 1000, currency: "UZS" }, price: 1000, schedule: {}, coupons: [],
     freshness: { status: "very_stale" }, quote_as_of: "2026-05-01", days_since_trade: 121,
+    assessments: {
+      issuer_financials: { status: "verified", financial_as_of: "2026-06-30" },
+      issue_terms_and_execution: { status: "insufficient_data", unconfirmed_due_payments: 1 },
+      market_price_and_liquidity: { status: "very_stale", quote_as_of: "2026-05-01" },
+    },
+    monitoring_points: [
+      { metric_code: "next_or_unconfirmed_payment", date: "2026-08-30", current_baseline: "due_unconfirmed", improvement_signal: "payment execution is confirmed by an official source", risk_signal: "the due date passes without verified execution", required_disclosure: "official payment confirmation and any contractual cure period" },
+      { metric_code: "market_liquidity", current_baseline: { quote_as_of: "2026-05-01", trades: 0, turnover: 0 }, improvement_signal: "new verified trades broaden the recent price and volume history", risk_signal: "the quote ages or remains unsupported by trades and volume", required_disclosure: "dated 30/90-day trading activity, volume and available bid/ask data" },
+    ],
     issuer_report: { ...REPORT, instrument: undefined, market_as_of: null },
     issuer_id: REPORT.issuer.id, issuer_analysis_id: REPORT.financial_snapshot_id,
     financial_as_of: REPORT.financial_as_of, instrument_verdict: "insufficient_data",
   }) }));
   await page.goto("/bond/EX1B");
   await expect(page.getByText(/Цена устарела; текущего рыночного вердикта нет/)).toBeVisible();
+  await expect(page.getByText("Три независимые оценки", { exact: true })).toBeVisible();
+  await expect(page.getByText(/исполнение выплаты подтверждено официальным источником/)).toBeVisible();
+  await expect(page.getByText(/сделки: 0 · оборот: 0/)).toBeVisible();
+  await expect(page.getByText(/payment execution is confirmed/)).toHaveCount(0);
+  await page.getByText("Три независимые оценки", { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "audit/sector-v2.3/bond-assessments.png" });
   await page.getByText(/Финансовый профиль эмитента ·/).click();
   await expect(page.getByTestId("verified-report")).toBeVisible();
   await expect(page.getByTestId("verified-report")).toContainText("2026-06-30");
-  await page.screenshot({ path: "audit/sector-v2.2/bond-issuer-report.png" });
+  await page.screenshot({ path: "audit/sector-v2.3/bond-issuer-report.png" });
 });

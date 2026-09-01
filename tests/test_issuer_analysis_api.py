@@ -166,6 +166,13 @@ def test_complete_ai_report_meets_length_and_traceability_contract(client, lang)
     assert body["headline"]
     assert body["headline_tone"] in {"positive", "warning", "danger", "neutral"}
     assert 3 <= body["paragraph_count"] <= 7
+    assert 200 <= body["word_count"] <= 250
+    assert 40 <= body["card_word_count"] <= 70
+    assert body["card_text"] == body["short_summary"]
+    assert len(body["monitoring_points"]) == 2
+    assert all(point["current_baseline"]["period"] == body["period"] for point in body["monitoring_points"])
+    assert body["verification_summary"]["checked"]
+    assert all(item["metric_code"] not in {"current_ratio", "quick_ratio"} for item in body["ratios"])
     assert body["number_references"]
     assert all(item["period"] and item["source"]["document_id"] for item in body["number_references"])
     assert "buy" not in body["text"].lower()

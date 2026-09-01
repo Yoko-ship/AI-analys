@@ -2711,13 +2711,49 @@ async def api_bond_detail(ticker: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="bond not found")
     from sector_report_service import bond_issuer_context
     issuer_context = await asyncio.get_running_loop().run_in_executor(None, bond_issuer_context, references.get(ticker) or {})
+    schedule_flows = bonds.issue_schedule(references.get(ticker), coupons.get(ticker, []))
+    payment_watch = next((flow for flow in schedule_flows if flow.get("execution_status") == "due_unconfirmed"), None)
+    payment_watch = payment_watch or next((flow for flow in schedule_flows if flow.get("execution_status") == "scheduled"), None)
+    assessments = {
+        "issuer_financials": {
+            "status": "verified" if (issuer_context.get("issuer_report") or {}).get("status") == "available" else "limited",
+            "financial_as_of": issuer_context.get("financial_as_of"),
+            "reason": issuer_context.get("issuer_link_status"),
+        },
+        "issue_terms_and_execution": {
+            "status": row.get("instrument_verdict"),
+            "schedule_status": (row.get("schedule") or {}).get("calculation_status"),
+            "unconfirmed_due_payments": sum(flow.get("execution_status") == "due_unconfirmed" for flow in schedule_flows),
+        },
+        "market_price_and_liquidity": {
+            "status": (row.get("freshness") or {}).get("status"),
+            "quote_as_of": row.get("quote_as_of"), "trades": row.get("trades"),
+            "turnover": row.get("turnover"),
+        },
+    }
+    monitoring_points = []
+    if payment_watch:
+        monitoring_points.append({
+            "metric_code": "next_or_unconfirmed_payment", "date": payment_watch.get("date"),
+            "current_baseline": payment_watch.get("execution_status"),
+            "improvement_signal": "payment execution is confirmed by an official source",
+            "risk_signal": "the due date passes without verified execution",
+            "required_disclosure": "official payment confirmation and any contractual cure period",
+        })
+    monitoring_points.append({
+        "metric_code": "market_liquidity", "current_baseline": {
+            "quote_as_of": row.get("quote_as_of"), "trades": row.get("trades"), "turnover": row.get("turnover")},
+        "improvement_signal": "new verified trades broaden the recent price and volume history",
+        "risk_signal": "the quote ages or remains unsupported by trades and volume",
+        "required_disclosure": "dated 30/90-day trading activity, volume and available bid/ask data",
+    })
     return _json_safe({"ok": True, **row, **issuer_context, "coupons": coupons.get(ticker, []),
+                       "assessments": assessments, "monitoring_points": monitoring_points[:2],
                        # The whole payment schedule of THIS issue — filed where
                        # the issuer filed it, reconstructed from the register's
                        # cycle everywhere else. Served on the card only: the
                        # board would carry sixty-five of these for nothing.
-                       "schedule_flows": bonds.issue_schedule(references.get(ticker),
-                                                              coupons.get(ticker, [])),
+                       "schedule_flows": schedule_flows,
                        "gov_curve": gov_points, "key_rate": key_rate,
                        "board_day": payload.get("board_day")})
 
