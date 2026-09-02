@@ -11399,6 +11399,9 @@ function CompanyInsightIcon({ small = false }) {
 
 function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef, lang }) {
   const tx = COMPANY_INSIGHT_TX[lang] || COMPANY_INSIGHT_TX.ru;
+  const teaser = report?.card_text || report?.short_summary || report?.headline;
+  const teaserWords = String(teaser || "").trim().split(/\s+/).filter(Boolean);
+  const cappedTeaser = teaserWords.length > 40 ? `${teaserWords.slice(0, 40).join(" ").replace(/[\s,;:]+$/, "")}…` : teaser;
   return (
     <section className={`company-insight-card tone-${report?.headline_tone || "neutral"}`} data-testid="company-insight-card" aria-live="polite" aria-busy={loading ? "true" : "false"}>
       <CompanyInsightIcon />
@@ -11408,7 +11411,7 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
         ) : report?.status && report.status !== "available" && !error ? (
           <ReportAvailability report={report} lang={lang} />
         ) : (
-          <p>{error ? tx.unavailable : (report?.card_text || report?.short_summary || report?.headline)}</p>
+          <p>{error ? tx.unavailable : cappedTeaser}</p>
         )}
       </div>
       {!loading && error && (
@@ -11496,7 +11499,13 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
           </section>
         )}
         <div id={bodyId} className="company-insight-report-copy">
-          {(report.paragraphs || []).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+          {report.abstract && <aside className="company-insight-abstract"><span>{lang === "ru" ? "Аннотация" : lang === "uz" ? "Annotatsiya" : "Abstract"}</span><p>{report.abstract}</p></aside>}
+          {(report.sections?.length ? report.sections : (report.paragraphs || []).map((text, index) => ({ id: `section-${index}`, text }))).map((section, index) => (
+            <section className="company-insight-report-section" key={section.id || index}>
+              {section.title && <header><span>{section.number || String(index + 1).padStart(2, "0")}</span><h3>{section.title}</h3></header>}
+              <p>{section.text}</p>
+            </section>
+          ))}
         </div>
         <VerifiedReport report={report} lang={lang} />
         <footer className="company-insight-dialog-foot">

@@ -791,6 +791,36 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         paragraphs = [headline]
     text = "\n\n".join(paragraphs)
 
+    section_titles = {
+        "ru": [
+            ("methodology", "Общие сведения и методология"),
+            ("financial_results", "Анализ финансовых результатов"),
+            ("balance_sheet", "Горизонтальный и вертикальный анализ баланса"),
+            ("risks", "Риски и ограничения"),
+            ("conclusion", "Итоговая оценка"),
+        ],
+        "uz": [
+            ("methodology", "Umumiy ma’lumot va metodologiya"),
+            ("financial_results", "Moliyaviy natijalar tahlili"),
+            ("balance_sheet", "Balansning gorizontal va vertikal tahlili"),
+            ("risks", "Xavflar va cheklovlar"),
+            ("conclusion", "Yakuniy baho"),
+        ],
+        "en": [
+            ("methodology", "Issuer overview and methodology"),
+            ("financial_results", "Financial results analysis"),
+            ("balance_sheet", "Horizontal and vertical balance analysis"),
+            ("risks", "Risks and limitations"),
+            ("conclusion", "Final assessment"),
+        ],
+    }
+    outline = section_titles.get(lang, section_titles["ru"])
+    report_sections = [
+        {"id": section_id, "number": f"{index:02d}", "title": title, "text": paragraphs[index - 1]}
+        for index, (section_id, title) in enumerate(outline, 1)
+        if index <= len(paragraphs)
+    ] if publishable else []
+
     card_text = None
     if publishable:
         main_fact = fact_sentence("net_income") or fact_sentence("revenue") or headline
@@ -801,10 +831,8 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             f"{issuer['ticker']} · {period_text}. {verdict_label}. {main_fact}. Xavf: {risk_card}. Cheklov: xulosa faqat tanlangan davrning tekshirilgan hisobotini qamrab oladi va oshkor qilinmagan pul oqimlari, kovenantlar yoki kelajak natijalarini baholamaydi.",
             f"{issuer['ticker']} · {period_text}. {verdict_label}. {main_fact}. Risk: {risk_card}. Limitation: the conclusion covers only the verified filing for the selected period and does not assess undisclosed cash flows, covenants or future results.",
         )
-        if len(card_text.split()) < 40:
-            card_text += " " + tr(lang, "Расчёты и источники доступны в полном анализе.", "Hisoblar va manbalar to‘liq tahlilda mavjud.", "Calculations and sources are available in the full analysis.")
-        if len(card_text.split()) > 70:
-            card_text = " ".join(card_text.split()[:69]) + "…"
+        if len(card_text.split()) > 40:
+            card_text = " ".join(card_text.split()[:40]).rstrip(" ,;:") + "…"
     refs = [{**f, "raw": number(f["raw"])} for f in verified]
     report = {"ok": True, "issuer": {"id": issuer["id"], "ticker": issuer["ticker"], "name": issuer.get("name"), "organization_type": org, "sector": template},
               "report": {"standard": standard.upper(), "template_basis": snapshot.get("template_basis"), "period": period, "period_end": end.isoformat(), "status": status},
@@ -819,7 +847,8 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
               "card_word_count": len(card_text.split()) if card_text else 0,
               "headline_tone": {"positive": "positive", "mixed": "warning", "negative": "danger", "no_signal": "neutral"}[verdict_status],
               "paragraphs": paragraphs, "text": text, "paragraph_count": len(paragraphs), "word_count": len(text.split()),
-              "sections": [{"id": f"section-{i}", "text": p} for i, p in enumerate(paragraphs)] if publishable else [],
+              "abstract": headline if publishable else None,
+              "sections": report_sections,
               "verified_facts": refs, "number_references": refs, "calculation_inputs": calculation_inputs,
               "ratios": ratios, "public_ratios": [item for item in ratios if item.get("metric_code") not in {"current_ratio", "quick_ratio"}],
               "replacement_blocks": blocks,
