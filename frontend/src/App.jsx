@@ -13497,6 +13497,15 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     ? true
     : !window.matchMedia("(max-width: 900px)").matches));
 
+  React.useEffect(() => {
+    if (!menu || typeof document === "undefined") return undefined;
+    const closeMenu = (event) => {
+      if (event.key === "Escape") setMenu(null);
+    };
+    document.addEventListener("keydown", closeMenu);
+    return () => document.removeEventListener("keydown", closeMenu);
+  }, [menu]);
+
   // Full-screen here means the chart workspace fills the browser viewport,
   // while keeping every period, indicator and comparison control reachable.
   // Lock the page underneath it and make Escape behave like a native dialog.
@@ -14199,7 +14208,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
           </div>
           <button type="button" className={`cpc-tool-btn ${drawMode || drawPoints.length ? "active" : ""}`}
             aria-pressed={drawMode} aria-label={t("Линия тренда", "Trend chizig'i", "Trend line")}
-            onClick={() => { setDrawMode((value) => !value); setHover(null); }}>
+            onClick={() => { setMenu(null); setDrawMode((value) => !value); setHover(null); }}>
             <CompanyChartToolIcon kind="draw" />
           </button>
           <button type="button" className={`cpc-tool-btn ${indicators.size ? "has-value" : ""} ${menu === "ind" ? "active" : ""}`}
