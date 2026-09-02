@@ -69,8 +69,8 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
     opacity: [...new Set(bars.map((bar) => bar.getAttribute("fill-opacity")))],
   }));
   expect(volume.maxHeight).toBeGreaterThanOrEqual(95);
-  expect(volume.minHeight).toBeGreaterThanOrEqual(2.5);
-  expect(volume.opacity).toEqual(["0.76"]);
+  expect(volume.minHeight).toBeGreaterThanOrEqual(8);
+  expect(volume.opacity).toEqual(["0.9"]);
 
   const chartWorkspace = page.locator(".advanced-chart");
   await page.getByRole("button", { name: "Развернуть график на весь экран" }).click();
@@ -125,6 +125,22 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   await expect(range).toHaveAttribute("data-from", initial.from);
   await expect(range).toHaveAttribute("data-to", initial.to);
   await expect(page.locator(".ac-candle")).toHaveCount(initialCandles);
+
+  // Line/area/baseline use the same movable viewport as candles. This was
+  // previously wired only to candle mode, leaving the line frozen in place.
+  await page.getByTitle("Линия").click();
+  await expect(page.locator(".ac-candle")).toHaveCount(0);
+  const lineFrom = await range.getAttribute("data-from");
+  const lineBox = await chart.boundingBox();
+  await page.mouse.move(lineBox.x + lineBox.width * 0.4, lineBox.y + lineBox.height * 0.45);
+  await page.mouse.down();
+  await page.mouse.move(lineBox.x + lineBox.width * 0.7, lineBox.y + lineBox.height * 0.45, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(async () => range.getAttribute("data-from")).not.toBe(lineFrom);
+
+  // For a one-year window every represented month gets a calendar label;
+  // sparse sessions must not make October disappear from an index-based sample.
+  await expect(page.locator(".ac-svg text").filter({ hasText: /окт/i }).first()).toBeVisible();
   await page.getByTitle("Светлая").click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "light");
   const lightShot = testInfo.outputPath("candle-history-light.png");

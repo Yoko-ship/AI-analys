@@ -2593,7 +2593,10 @@ async def api_instruments(request: Request, include_inactive: bool = True) -> Re
         raise HTTPException(status_code=502, detail="catalog unavailable") from exc
 
 
-async def _bond_history_quality(inputs: dict[str, Any]) -> dict[str, dict[str, Any]]:
+_BOND_QUALITY_TASKS: dict[str, asyncio.Task] = {}
+
+
+async def _compute_bond_history_quality(inputs: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """The data tier of each bond, from its own price history.
 
     §А.2 puts history quality in the bond table for the same reason the equity
@@ -2625,6 +2628,40 @@ async def _bond_history_quality(inputs: dict[str, Any]) -> dict[str, dict[str, A
 
     results = await asyncio.gather(*(one(t, i) for t, i in targets))
     return {t: q for t, q in results if q}
+
+
+async def _bond_history_quality(inputs: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Return cached enrichment immediately; warm a cold cache in background.
+
+    Price-history quality is useful context, but it must not hold the entire
+    bond screener behind dozens of upstream history downloads.
+    """
+    securities = inputs["securities"]
+    targets = sorted(
+        (str(row.get("ticker") or "").upper(), row.get("isin") or (securities.get(str(row.get("ticker") or "").upper()) or {}).get("isin"))
+        for row in inputs["board"]
+        if bonds.is_bond(row, securities.get(str(row.get("ticker") or "").upper()) or {})
+    )
+    revision = f"{inputs.get('trade_date') or 'none'}:{','.join(f'{ticker}={isin}' for ticker, isin in targets if isin)}"
+    cache_key = cache_layer.key("bond:history-quality", revision)
+    cached = cache_layer.get(cache_key)
+    if cached is not None:
+        return cached
+
+    async def compute_and_store():
+        value = await _compute_bond_history_quality(inputs)
+        cache_layer.set(cache_key, value, ttl=3600)
+        return value
+
+    task = _BOND_QUALITY_TASKS.get(cache_key)
+    if task is None or task.done():
+        task = asyncio.create_task(compute_and_store())
+        _BOND_QUALITY_TASKS[cache_key] = task
+        task.add_done_callback(lambda _task: _BOND_QUALITY_TASKS.pop(cache_key, None))
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), timeout=0.75)
+    except asyncio.TimeoutError:
+        return {}
 
 
 @app.get("/api/bonds")
