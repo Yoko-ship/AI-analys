@@ -310,6 +310,12 @@ class TestMultiples:
             assert got[field]["computed"] is not None
             assert got[field]["reasons"] == ["валовая прибыль больше выручки"]
 
+    def test_validation_keeps_the_computed_negative_pe_visible(self):
+        got = self._issuer(fin={"gross_profit": -5000.0, "net_income": -20.0})
+        assert got["pe"]["value"] is None
+        assert got["pe"]["status"] == fundamentals.STATUS_UNVERIFIED
+        assert got["pe"]["computed"] == pytest.approx(-50.0)
+
     def test_and_leaves_alone_the_ones_it_does_not(self):
         """Book value is built from equity. A P&L that cannot be true says
         nothing about it, and blanking it too was thirteen rows of silence."""
