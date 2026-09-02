@@ -14070,7 +14070,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   }, []);
 
   const onCandlePointerDown = (e) => {
-    if (!chartNavigation || (e.pointerType === "mouse" && e.button !== 0) || !candleSource.length) return;
+    if (drawMode || !chartNavigation || (e.pointerType === "mouse" && e.button !== 0) || !candleSource.length) return;
     const size = resolvedCandleView.end - resolvedCandleView.start;
     if (size >= candleSource.length) return;
     const rect = e.currentTarget.getBoundingClientRect();
