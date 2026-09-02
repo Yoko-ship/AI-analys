@@ -326,6 +326,8 @@ class TestHistoryQuality:
             return {"points": [{"date": "2026-07-31", "close": 100}]}
 
         monkeypatch.setattr(api, "_full_history", fake_history)
+        api.cache_layer.clear()
+        api._BOND_QUALITY_TASKS.clear()
         inputs = {"board": [{"ticker": "ACMT2B5", "type": "bond", "isin": "UZ6OK"},
                             {"ticker": "CTFB3", "type": "bond", "isin": "UZ6BAD"},
                             {"ticker": "UZHM", "type": "stock", "isin": "UZ7EQ"}],
@@ -333,6 +335,11 @@ class TestHistoryQuality:
         got = asyncio.run(api._bond_history_quality(inputs))
         assert sorted(asked) == ["UZ6BAD", "UZ6OK"]
         assert "ACMT2B5" in got and "CTFB3" not in got
+        # The next request reads the completed enrichment cache and performs no
+        # upstream history calls.
+        again = asyncio.run(api._bond_history_quality(inputs))
+        assert again == got
+        assert sorted(asked) == ["UZ6BAD", "UZ6OK"]
 
 
 class TestTermsFromFilings:

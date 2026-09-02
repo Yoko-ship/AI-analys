@@ -9293,12 +9293,14 @@ function chartRangeWindowQuery(key) {
 }
 
 /** The first date the view keeps, or null when the whole fetch is shown. */
-function chartRangeCutoff(key) {
+function chartRangeCutoff(key, anchorValue = null) {
   const r = chartRange(key);
-  if (r.ytd) return `${new Date().getFullYear()}-01-01`;
+  const anchor = anchorValue ? new Date(anchorValue) : new Date();
+  if (Number.isNaN(anchor.getTime())) return null;
+  if (r.ytd) return `${anchor.getUTCFullYear()}-01-01`;
   if (r.days) {
-    const d = new Date();
-    d.setDate(d.getDate() - r.days);
+    const d = new Date(anchor);
+    d.setUTCDate(d.getUTCDate() - r.days);
     return d.toISOString().slice(0, 10);
   }
   return null;
@@ -9774,7 +9776,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   if (!cutoff && range !== "max") {
     const spanMonths = chartRangeSpan(range);
     if (spanMonths) {
-      const d = new Date();
+      const d = new Date(daily.at(-1)?.date || Date.now());
       d.setUTCMonth(d.getUTCMonth() - spanMonths);
       cutoff = d.toISOString().slice(0, 10);
     }
@@ -13487,6 +13489,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const [compareTickers, setCompareTickers] = React.useState(initial?.compare || []);
   const [menu, setMenu] = React.useState(null);            // "ind" | "fin" | "cmp" | null
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const chartShellRef = React.useRef(null);
   const [railOpen, setRailOpen] = React.useState(() => (typeof window === "undefined"
     ? true
     : !window.matchMedia("(max-width: 900px)").matches));
@@ -13494,6 +13497,13 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // Full-screen here means the chart workspace fills the browser viewport,
   // while keeping every period, indicator and comparison control reachable.
   // Lock the page underneath it and make Escape behave like a native dialog.
+  React.useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const onFullscreenChange = () => setIsFullscreen(document.fullscreenElement === chartShellRef.current);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
   React.useEffect(() => {
     if (!isFullscreen || typeof document === "undefined") return undefined;
     const previousOverflow = document.body.style.overflow;
@@ -13509,6 +13519,18 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [isFullscreen]);
+
+  const toggleFullscreen = async () => {
+    const node = chartShellRef.current;
+    if (!node || typeof document === "undefined") return;
+    try {
+      if (document.fullscreenElement === node) await document.exitFullscreen();
+      else if (node.requestFullscreen) await node.requestFullscreen();
+      else setIsFullscreen((value) => !value);
+    } catch {
+      setIsFullscreen((value) => !value);
+    }
+  };
 
   const [history, setHistory] = React.useState(null);
   const [adjustments, setAdjustments] = React.useState([]);
@@ -13640,14 +13662,14 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   const windowed = React.useMemo(() => {
     if (custom) return daily.filter((p) => String(p.date) >= span.from && String(p.date) <= span.to);
-    let cutoff = chartRangeCutoff(range);
+    let cutoff = chartRangeCutoff(range, daily.at(-1)?.date);
     // Normally the API request itself enforces month-based presets. Candle
     // mode deliberately fetches farther back for panning, so reproduce that
     // preset boundary here before opening the interactive viewport.
-    if (!cutoff && type === "candle") {
+    if (!cutoff && range !== "max") {
       const spanMonths = chartRangeSpan(range);
       if (spanMonths) {
-        const d = new Date();
+        const d = new Date(daily.at(-1)?.date || Date.now());
         d.setUTCMonth(d.getUTCMonth() - spanMonths);
         cutoff = d.toISOString().slice(0, 10);
       }
@@ -13954,10 +13976,21 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   const xLabels = [];
   {
-    const step = Math.max(1, Math.floor(n / Math.max(2, Math.floor(innerW / 110))));
     const withYear = (chartRangeSpan(range) || 12) >= 12 || custom;
-    for (let i = 0; i < n; i += step) {
-      xLabels.push({ x: xs(i), label: withYear ? fmtDate(points[i].date, true) : fmtDate(points[i].date) });
+    const spanMonths = chartRangeSpan(range) || 12;
+    if (spanMonths <= 12) {
+      let previousMonth = null;
+      points.forEach((point, i) => {
+        const month = String(point.date).slice(0, 7);
+        if (month === previousMonth) return;
+        previousMonth = month;
+        xLabels.push({ x: xs(i), label: fmtDate(point.date, true) });
+      });
+    } else {
+      const step = Math.max(1, Math.floor(n / Math.max(2, Math.floor(innerW / 110))));
+      for (let i = 0; i < n; i += step) {
+        xLabels.push({ x: xs(i), label: withYear ? fmtDate(points[i].date, true) : fmtDate(points[i].date) });
+      }
     }
   }
 
@@ -14087,7 +14120,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const emptyState = !loading && n < 2;
 
   return (
-    <div className={`advanced-chart ${railOpen ? "rail-open" : ""} ${isFullscreen ? "is-fullscreen" : ""}`}>
+    <div ref={chartShellRef} className={`advanced-chart ${railOpen ? "rail-open" : ""} ${isFullscreen ? "is-fullscreen" : ""}`}>
       <div className="ac-head">
         <button className="ac-back" type="button" onClick={onBack}>
           ← {t("Назад", "Orqaga", "Back")}
@@ -14196,7 +14229,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
           title={isFullscreen
             ? t("Выйти из полноэкранного режима (Esc)", "To'liq ekrandan chiqish (Esc)", "Exit full screen (Esc)")
             : t("На весь экран", "To'liq ekran", "Full screen")}
-          onClick={() => setIsFullscreen((value) => !value)}>
+          onClick={toggleFullscreen}>
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
             strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             {isFullscreen ? (
