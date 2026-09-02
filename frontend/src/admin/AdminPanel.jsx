@@ -117,6 +117,7 @@ function companyDraftOf(item) {
     can_approve: item.can_approve !== false && Boolean(item.org_id),
     status: item.status || "pending",
     sync_status: item.sync_status || "",
+    catalog_visible: item.catalog_visible !== 0,
   };
 }
 
@@ -697,6 +698,28 @@ export default function AdminPanel({
         ? t("Синхронизация запущена.", "Sinxronlash boshlandi.", "Synchronization started.")
         : t("Синхронизация уже идёт.", "Sinxronlash davom etmoqda.", "Synchronization is already running."));
       await loadCompanyImports(companyFilter);
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      if (alive.current) setCompanyBusy("");
+    }
+  }, [companyFilter, loadCompanyImports, readJson, t]);
+
+  const setCompanyVisibility = useCallback(async (item, visible) => {
+    const one = String(item?.ticker || "").toUpperCase();
+    if (!one) return;
+    setCompanyBusy(`visibility:${one}`);
+    setCompanyNotice("");
+    setError("");
+    try {
+      await readJson(`/api/admin/companies/${encodeURIComponent(one)}/visibility`, {
+        method: "PATCH",
+        body: JSON.stringify({ visible }),
+      });
+      await loadCompanyImports(companyFilter);
+      setCompanyNotice(visible
+        ? t("Компания возвращена в каталог.", "Kompaniya katalogga qaytarildi.", "Company restored to the catalog.")
+        : t("Компания скрыта из каталога.", "Kompaniya katalogdan yashirildi.", "Company hidden from the catalog."));
     } catch (e) {
       setError(String(e.message || e));
     } finally {
@@ -1872,16 +1895,29 @@ export default function AdminPanel({
               <th>{t("Компания", "Kompaniya", "Company")}</th>
               <th>{t("Идентификаторы", "Identifikatorlar", "Identifiers")}</th>
               <th>{t("Разрешение", "Moslik", "Resolution")}</th>
+              <th>{t("В каталоге", "Katalogda", "In catalog")}</th>
               <th>{t("Синхронизация", "Sinxronlash", "Synchronization")}</th>
               <th className="r">{t("Действие", "Amal", "Action")}</th>
             </tr></thead>
             <tbody>
-              {!companyItems.length ? <tr><td colSpan={5}><div className="admin-empty"><b>{t("Список пуст", "Ro'yxat bo'sh", "Nothing here")}</b>{companyFilter === "pending" ? t("Запустите поиск новых компаний.", "Yangi kompaniyalarni qidiring.", "Run discovery to find new companies.") : ""}</div></td></tr> : null}
+              {!companyItems.length ? <tr><td colSpan={6}><div className="admin-empty"><b>{t("Список пуст", "Ro'yxat bo'sh", "Nothing here")}</b>{companyFilter === "pending" ? t("Запустите поиск новых компаний.", "Yangi kompaniyalarni qidiring.", "Run discovery to find new companies.") : ""}</div></td></tr> : null}
               {companyItems.map((item) => (
                 <tr key={item.ticker}>
                   <td><div className="admin-rule"><code>{item.ticker}</code>{item.company_name}</div><div className="admin-sub">{sectorTitles[item.sector] || item.sector}</div></td>
                   <td className="admin-num"><b>{item.isin || "—"}</b><div className="admin-sub">OpenInfo {item.org_id || "—"}</div></td>
                   <td><span className="admin-pill"><span className={`admin-dot ${item.org_id ? "ok" : "err"}`} />{item.resolved_by || t("не найдено", "topilmadi", "unresolved")}</span></td>
+                  <td>
+                    {item.status === "approved" ? (
+                      <label className="admin-catalog-toggle" title={t("Показывать компанию в публичном каталоге", "Kompaniyani ochiq katalogda ko'rsatish", "Show company in the public catalog")}>
+                        <input type="checkbox" checked={item.catalog_visible !== 0}
+                          disabled={Boolean(companyBusy)}
+                          onChange={(event) => setCompanyVisibility(item, event.target.checked)} />
+                        <span>{item.catalog_visible !== 0
+                          ? t("Показана", "Ko'rsatilgan", "Visible")
+                          : t("Скрыта", "Yashirilgan", "Hidden")}</span>
+                      </label>
+                    ) : <span className="admin-sub">—</span>}
+                  </td>
                   <td><span className="admin-pill" title={item.sync_error || item.catalog_sync_error || ""}><span className={`admin-dot ${item.sync_status === "complete" ? "ok" : item.sync_status === "failed" ? "err" : item.sync_status ? "warn" : ""}`} />{syncTitle(item.sync_status)}</span><div className="admin-sub">{fmtStamp(item.catalog_last_synced_at)}</div></td>
                   <td className="r"><div className="admin-company-row-actions">
                     <button type="button" className="admin-btn sm" disabled={Boolean(companyBusy)} onClick={() => { setCompanyDraft(companyDraftOf(item)); setCompanyLookup(item.ticker); }}>{item.status === "approved" ? t("Изменить", "O'zgartirish", "Edit") : t("Проверить", "Tekshirish", "Review")}</button>

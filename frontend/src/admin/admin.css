@@ -671,6 +671,9 @@
 .admin-company-row-actions { justify-content: flex-end; }
 .admin-company-table { min-width: 920px !important; }
 .admin-company-table .admin-rule { max-width: 360px; }
+.admin-catalog-toggle { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text-secondary, var(--text-muted)); }
+.admin-catalog-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.admin-catalog-toggle input:disabled { cursor: wait; opacity: .55; }
 
 @media (max-width: 700px) {
   .admin-company-form { grid-template-columns: 1fr; }

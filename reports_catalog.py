@@ -103,6 +103,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             reviewed_at     TEXT,
             sync_status     TEXT,
             sync_error      TEXT,
+            catalog_visible INTEGER NOT NULL DEFAULT 1,
             discovered_at   TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -454,6 +455,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     for col in ("open_price", "high_price", "low_price", "close_price"):
         if col not in have:
             conn.execute(f"ALTER TABLE catalog_trade_stats ADD COLUMN {col} REAL")
+    have_imports = set(dbx.columns(conn, "catalog_company_imports"))
+    if "catalog_visible" not in have_imports:
+        conn.execute(
+            "ALTER TABLE catalog_company_imports "
+            "ADD COLUMN catalog_visible INTEGER NOT NULL DEFAULT 1"
+        )
     have_hist = set(dbx.columns(conn, "catalog_quote_history"))
     for col in ("open_price", "high_price", "low_price", "trade_count",
                 "largest_value", "largest_qty"):

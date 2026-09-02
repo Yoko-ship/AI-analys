@@ -190,6 +190,37 @@ def test_an_unresolved_candidate_cannot_be_approved(monkeypatch):
         company_imports.approve_import("ZZCO", {}, actor="admin@example.com")
 
 
+def test_admin_can_hide_and_restore_an_approved_company_in_public_catalog(monkeypatch):
+    monkeypatch.setattr(entity_resolver, "resolve_all", lambda: [_record()])
+    company_imports.refresh_candidates(actor="admin@example.com")
+    company_imports.approve_import("ZZCO", {}, actor="admin@example.com")
+
+    hidden = company_imports.set_catalog_visibility(
+        "ZZCO", False, actor="admin@example.com",
+    )
+    assert hidden["catalog_visible"] == 0
+    assert all(item["ticker"] != "ZZCO" for item in TestClient(api.app).get(
+        "/api/catalog/companies"
+    ).json()["companies"])
+
+    restored = company_imports.set_catalog_visibility(
+        "ZZCO", True, actor="admin@example.com",
+    )
+    assert restored["catalog_visible"] == 1
+    assert any(item["ticker"] == "ZZCO" for item in TestClient(api.app).get(
+        "/api/catalog/companies"
+    ).json()["companies"])
+
+    conn = reports_catalog.get_catalog_conn()
+    try:
+        events = [row["action"] for row in conn.execute(
+            "SELECT action FROM catalog_company_import_events WHERE ticker='ZZCO' ORDER BY id"
+        ).fetchall()]
+    finally:
+        conn.close()
+    assert events[-2:] == ["catalog_visibility", "catalog_visibility"]
+
+
 def test_company_import_endpoints_are_human_admin_only(monkeypatch):
     monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
     client = TestClient(api.app)
@@ -231,3 +262,12 @@ def test_admin_can_preview_and_approve_without_starting_external_sync(monkeypatc
     assert approved.status_code == 200
     assert approved.json()["sync_requested"] is False
     assert approved.json()["company"]["status"] == "approved"
+
+    hidden = client.patch(
+        "/api/admin/companies/ZZCO/visibility",
+        headers=headers,
+        json={"visible": False},
+    )
+    assert hidden.status_code == 200
+    assert hidden.json()["visible"] is False
+    assert hidden.json()["company"]["catalog_visible"] == 0
