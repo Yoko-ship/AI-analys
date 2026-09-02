@@ -132,7 +132,7 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
 
   // Line/area/baseline use the same movable viewport as candles. This was
   // previously wired only to candle mode, leaving the line frozen in place.
-  await page.getByTitle("Линия").click();
+  await page.locator('.ac-type-btn[aria-label="Линия"]').click();
   await expect(page.locator(".ac-candle")).toHaveCount(0);
   const lineFrom = await range.getAttribute("data-from");
   const lineBox = await chart.boundingBox();
@@ -180,4 +180,40 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   await page.screenshot({ path: mobileShot, fullPage: true });
   await testInfo.attach("candle-history-mobile", { path: mobileShot, contentType: "image/png" });
   expect(runtimeErrors).toEqual([]);
+});
+
+test("advanced chart menu renders every extended chart type", async ({ page }) => {
+  const history = priceHistory();
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (path === "/api/securities") return json({ ok: true, securities: { [TICKER]: SECURITY } });
+    if (path === `/api/price-history/${TICKER}`) return json({ ok: true, points: history, adjustments: [] });
+    if (path === `/api/company/${TICKER}/metrics`) return json({ ok: true, quality: { candles_enabled: true } });
+    if (path === `/api/securities/${TICKER}/info`) return json({ ok: true, security: SECURITY });
+    if (path === "/api/auth/me") return json({ user: null }, 401);
+    return json({});
+  });
+  await page.goto(`/chart/${TICKER}?type=line&range=1y`);
+  const tools = page.getByTestId("advanced-chart-tool-strip");
+  const choose = async (name) => {
+    await tools.getByRole("button", { name: "Вид графика" }).click();
+    await tools.getByRole("button", { name, exact: true }).click();
+  };
+  await tools.getByRole("button", { name: "Вид графика" }).click();
+  await expect(tools.locator(".ac-menu-item")).toHaveCount(10);
+  await tools.getByRole("button", { name: "Вид графика" }).click();
+  await choose("Бары");
+  await expect(page.locator(".ac-ohlc-bar").first()).toBeVisible();
+  await choose("Колонки");
+  await expect(page.locator(".ac-price-column").first()).toBeVisible();
+  await choose("Хейкин Аши");
+  await expect(page.locator(".ac-candle").first()).toBeVisible();
+  await expect(page.locator(".ac-synthetic-note")).toBeVisible();
+  await choose("Ренко");
+  await expect(page.locator(".ac-renko-brick").first()).toBeVisible();
+  await choose("Каги");
+  await expect(page.locator(".ac-kagi-line")).toBeVisible();
+  await choose("Крестики-нолики");
+  await expect(page.locator(".ac-pnf-column").first()).toBeVisible();
 });
