@@ -10164,7 +10164,10 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   priceWheelHandler.current = onPriceWheel;
 
   const onPricePointerDown = (e) => {
-    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    // Pointer events unify mouse, pen and touch. The old mouse-only gate made
+    // the chart draggable on desktop but inert on phones. CSS `touch-action:
+    // pan-y` still leaves vertical page scrolling to the browser.
+    if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
     if (drawMode && points.length) {
       const rect = e.currentTarget.getBoundingClientRect();
       if (!rect.width) return;
@@ -12498,6 +12501,13 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
 function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpenCompany, onOpenChart, marketRows, financials, tradeStats, favoriteTickers, onToggleFavorite, signedIn }) {
   const lang = normalizeLanguage(language);
   const [tab, setTab] = React.useState("overview");
+
+  // A company is a new page, even though the SPA swaps it into the same
+  // document. Reset the previous view's scroll offset before paint so opening
+  // a row near the bottom of the market board still shows the company header.
+  React.useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [ticker]);
   // Issuer-level multiples, straight from the endpoint the market board reads.
   const [mult, setMult] = React.useState(null);
   // A SECOND metrics call, pinned to twelve months. The main one follows the
