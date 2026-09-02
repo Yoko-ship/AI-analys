@@ -13488,6 +13488,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const [finFields, setFinFields] = React.useState(initial?.fin || []);
   const [compareTickers, setCompareTickers] = React.useState(initial?.compare || []);
   const [menu, setMenu] = React.useState(null);            // "ind" | "fin" | "cmp" | null
+  const [cursorOn, setCursorOn] = React.useState(true);
+  const [drawMode, setDrawMode] = React.useState(false);
+  const [drawPoints, setDrawPoints] = React.useState([]);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const chartShellRef = React.useRef(null);
   const [railOpen, setRailOpen] = React.useState(() => (typeof window === "undefined"
@@ -13701,6 +13704,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     setCandleView(null);
     candleDrag.current = null;
     setCandleDragging(false);
+    setDrawPoints([]);
   }, [up, range, span.from, span.to, type]);
 
   // Indicators run on the WHOLE fetched series, not on the visible window: a
@@ -14028,6 +14032,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     : 1;
 
   const onMove = (e) => {
+    if (!cursorOn && !drawMode) return;
     const rect = e.currentTarget.getBoundingClientRect();
     if (!rect.width || n < 1) return;
     const x = ((e.clientX - rect.left) / rect.width) * W;
@@ -14104,6 +14109,10 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     && (resolvedCandleView.start !== initialCandleView.start
       || resolvedCandleView.end !== initialCandleView.end);
   const relVol = hp ? relativeVolume(daily, hp.date, hp.turnover) : null;
+  const addTrendPoint = () => {
+    if (!drawMode || hover == null) return;
+    setDrawPoints((current) => current.length >= 2 ? [hover] : [...current, hover]);
+  };
 
   const legendChips = [
     ...(cmpOn ? cmp.series.map((s) => ({ key: `c:${s.ticker}`, color: s.color, text: s.ticker, off: () => toggleCompare(s.ticker) })) : []),
@@ -14155,6 +14164,54 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
       <div className="ac-toolbar">
         {rangeBar}
+        <div className="cpc-tool-strip ac-company-tools" data-testid="advanced-chart-tool-strip">
+          <button type="button" className="cpc-tool-btn" aria-label={t("Дневной интервал", "Kunlik interval", "Daily interval")} title={t("Дневной интервал", "Kunlik interval", "Daily interval")}>D</button>
+          <button type="button" className={`cpc-tool-btn ${cursorOn ? "active" : ""}`}
+            aria-pressed={cursorOn} aria-label={t("Перекрестие и подсказки", "Kursor va ko'rsatmalar", "Crosshair and tooltips")}
+            onClick={() => { setCursorOn((value) => !value); setHover(null); }}>
+            <CompanyChartToolIcon kind="pointer" />
+          </button>
+          <div className="cpc-tool-slot">
+            <button type="button" className={`cpc-tool-btn ${menu === "type" ? "active" : ""}`}
+              aria-haspopup="menu" aria-expanded={menu === "type"} aria-label={t("Вид графика", "Grafik turi", "Chart type")}
+              onClick={() => setMenu(menu === "type" ? null : "type")}>
+              <CompanyChartToolIcon kind="candle" />
+            </button>
+            {menuPanel("type", AC_TYPES.map((tp) => {
+              const name = tp.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0];
+              return <button key={tp.key} type="button" className={`ac-menu-item ${effType === tp.key ? "on" : ""}`}
+                disabled={tp.key === "candle" && (cmpOn || !candlesAllowed)}
+                onClick={() => { setType(tp.key); setMenu(null); }}>{name}</button>;
+            }))}
+          </div>
+          <div className="cpc-tool-slot">
+            <button type="button" className={`cpc-tool-btn ${compareTickers.length ? "has-value" : ""} ${menu === "cmp" ? "active" : ""}`}
+              aria-haspopup="menu" aria-expanded={menu === "cmp"} aria-label={t("Сравнить", "Taqqoslash", "Compare")}
+              onClick={() => setMenu(menu === "cmp" ? null : "cmp")}>
+              <CompanyChartToolIcon kind="compare" />
+            </button>
+            {menuPanel("cmp", peers.slice(0, 30).map((peer) => {
+              const tk = String(peer.ticker || "").toUpperCase();
+              return <button key={tk} type="button" className={`ac-menu-item ${compareTickers.includes(tk) ? "on" : ""}`}
+                disabled={!compareTickers.includes(tk) && compareTickers.length >= QC_MAX}
+                onClick={() => toggleCompare(tk)}>{peer.name || tk} <b className="ac-menu-tk">{tk}</b></button>;
+            }))}
+          </div>
+          <button type="button" className={`cpc-tool-btn ${drawMode || drawPoints.length ? "active" : ""}`}
+            aria-pressed={drawMode} aria-label={t("Линия тренда", "Trend chizig'i", "Trend line")}
+            onClick={() => { setDrawMode((value) => !value); setHover(null); }}>
+            <CompanyChartToolIcon kind="draw" />
+          </button>
+          <button type="button" className={`cpc-tool-btn ${indicators.size ? "has-value" : ""} ${menu === "ind" ? "active" : ""}`}
+            aria-label={t("Индикаторы", "Indikatorlar", "Indicators")} onClick={() => setMenu(menu === "ind" ? null : "ind")}>
+            <CompanyChartToolIcon kind="fx" />
+          </button>
+          <button type="button" className={`cpc-tool-btn ${finFields.length ? "has-value" : ""} ${menu === "fin" ? "active" : ""}`}
+            aria-label={t("Настройки и финансовые слои", "Sozlamalar va moliyaviy qatlamlar", "Settings and financial overlays")}
+            onClick={() => setMenu(menu === "fin" ? null : "fin")}>
+            <CompanyChartToolIcon kind="settings" />
+          </button>
+        </div>
         <div className="ac-toolbar-group ac-types" role="group"
           aria-label={t("Вид графика", "Grafik turi", "Chart type")}>
           {AC_TYPES.map((tp) => {
@@ -14318,6 +14375,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 onPointerMove={onCandlePointerMove}
                 onPointerUp={endCandleDrag}
                 onPointerCancel={endCandleDrag}
+                onClick={addTrendPoint}
                 onPointerLeave={() => { if (!candleDrag.current) setHover(null); }}>
                 <defs>
                   <linearGradient id="acArea" x1="0" y1="0" x2="0" y2="1">
@@ -14405,6 +14463,12 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   <path key={`cs${s.ticker}`} d={linePath(s.pct, ys)} fill="none" stroke={s.color}
                     strokeWidth="1.5" strokeOpacity="0.95" strokeLinejoin="round" />
                 ))}
+
+                {drawPoints.length === 2 && points[drawPoints[0]] && points[drawPoints[1]] && (
+                  <line className="ac-trend-line" x1={xs(drawPoints[0])} y1={ys(baseVals[drawPoints[0]])}
+                    x2={xs(drawPoints[1])} y2={ys(baseVals[drawPoints[1]])}
+                    stroke="var(--accent)" strokeWidth="2" strokeDasharray="5 3" />
+                )}
 
                 {/* Volume. Not decoration: on this market a move worth 40 000
                     сум and a move worth 400 млн are different events, and the

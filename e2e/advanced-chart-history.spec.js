@@ -62,6 +62,9 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   const range = page.getByTestId("ac-visible-range");
   await expect(chart).toBeVisible();
   await expect(range).toContainText("Ctrl + колесо");
+  const advancedTools = page.getByTestId("advanced-chart-tool-strip");
+  await expect(advancedTools).toBeVisible();
+  await expect(advancedTools.locator("button")).toHaveCount(7);
 
   const volume = await page.locator(".ac-volume-bar").evaluateAll((bars) => ({
     maxHeight: Math.max(...bars.map((bar) => Number(bar.getAttribute("height")))),
@@ -75,6 +78,7 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   const chartWorkspace = page.locator(".advanced-chart");
   await page.getByRole("button", { name: "Развернуть график на весь экран" }).click();
   await expect(chartWorkspace).toHaveClass(/is-fullscreen/);
+  await expect(advancedTools).toBeVisible();
   await expect(page.locator(".topbar")).toBeHidden();
   const fullscreenBox = await chartWorkspace.boundingBox();
   const viewport = page.viewportSize();
