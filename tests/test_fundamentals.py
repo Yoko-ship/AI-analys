@@ -274,6 +274,7 @@ class TestMultiples:
         got = self._issuer(fin={"net_income": -50.0, "revenue": 1000.0})
         assert got["pe"]["value"] is None
         assert got["pe"]["status"] == fundamentals.STATUS_LOSS
+        assert got["pe"]["computed"] == pytest.approx(-25.0)
 
     def test_pe_outside_the_range_is_published_with_the_check_flag(self):
         """V15 (ТЗ мультипликаторов): out of range the value is SHOWN, flagged
@@ -306,6 +307,7 @@ class TestMultiples:
         for field in ("pe", "roe", "roa", "net_margin"):
             assert got[field]["value"] is None
             assert got[field]["status"] == fundamentals.STATUS_UNVERIFIED
+            assert got[field]["computed"] is not None
             assert got[field]["reasons"] == ["валовая прибыль больше выручки"]
 
     def test_and_leaves_alone_the_ones_it_does_not(self):
