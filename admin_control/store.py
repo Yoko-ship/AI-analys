@@ -22,6 +22,8 @@ COLLECTIONS = frozenset({"issuers", "documents", "coverage", "parsers", "facts",
                          "rules", "incidents", "analyses", "publications", "sources", "securities", "jobs", "access"})
 FILTERS = {"ticker", "status", "standard", "period", "severity", "source", "category"}
 SORTS = FILTERS | {"id", "updated_at"}
+REVISION_KEEP_PER_OBJECT = max(1, int(os.getenv("ADMIN_REVISION_KEEP", "10")))
+REVISION_KEEP_DAYS = max(1, int(os.getenv("ADMIN_REVISION_KEEP_DAYS", "90")))
 
 
 class ControlError(Exception):
@@ -83,7 +85,8 @@ def schema(c):
                           "BEGIN SELECT RAISE(ABORT, 'immutable history'); END")
     else:
         c.execute("CREATE OR REPLACE FUNCTION control_immutable() RETURNS trigger LANGUAGE plpgsql AS $$ "
-                  "BEGIN RAISE EXCEPTION 'immutable history'; END; $$")
+                  "BEGIN IF TG_OP = 'DELETE' AND current_setting('app.revision_prune', true) = 'on' "
+                  "THEN RETURN OLD; END IF; RAISE EXCEPTION 'immutable history'; END; $$")
         for table in ("control_audit", "control_revisions"):
             c.execute(f"DROP TRIGGER IF EXISTS {table}_immutable ON {table}")
             c.execute(f"CREATE TRIGGER {table}_immutable BEFORE UPDATE OR DELETE ON {table} "
@@ -142,7 +145,43 @@ def put(c, collection, value, *, expected=None):
               (environment(), collection, entity_id, *columns, item["version"], item["updated_at"], payload.lower(), payload))
     c.execute("INSERT INTO control_revisions VALUES (?,?,?,?,?,?)",
               (environment(), collection, entity_id, item["version"], item["updated_at"], payload))
+    _prune_revisions(c, environment(), collection, entity_id, item["version"])
     return item
+
+
+def _prune_revisions(c, env, collection, entity_id, current_version):
+    """Bound PostgreSQL revision storage while preserving the current snapshot.
+
+    The control API still cannot delete history: the immutable trigger permits
+    this narrowly scoped maintenance delete only inside the current transaction.
+    SQLite remains fully immutable for local/offline audit fixtures.
+    """
+    if dbx.backend() == dbx.SQLITE:
+        return
+    c.execute("SELECT set_config('app.revision_prune', 'on', true)")
+    try:
+        c.execute(
+            """
+            DELETE FROM control_revisions
+            WHERE environment=? AND collection=? AND id=? AND version<>?
+              AND (
+                version NOT IN (
+                  SELECT version FROM control_revisions
+                  WHERE environment=? AND collection=? AND id=?
+                  ORDER BY version DESC LIMIT ?
+                )
+                OR created_at < to_char(
+                  now() AT TIME ZONE 'UTC' - (? * interval '1 day'),
+                  'YYYY-MM-DD"T"HH24:MI:SS'
+                )
+              )
+            """,
+            (env, collection, entity_id, current_version,
+             env, collection, entity_id, REVISION_KEEP_PER_OBJECT,
+             REVISION_KEEP_DAYS),
+        )
+    finally:
+        c.execute("SELECT set_config('app.revision_prune', 'off', true)")
 
 
 def audit(c, actor, action, entity, reason, request_id, old=None, new=None, result="success"):
