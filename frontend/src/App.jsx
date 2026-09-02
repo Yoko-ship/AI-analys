@@ -13237,10 +13237,97 @@ const AC_TYPE_ICONS = {
 
 const AC_TYPES = [
   { key: "line", label: ["Линия", "Chiziq", "Line"] },
-  { key: "candle", label: ["Свечи", "Shamlar", "Candles"] },
   { key: "area", label: ["Область", "Maydon", "Area"] },
   { key: "baseline", label: ["От базы", "Bazadan", "Baseline"] },
+  { key: "candle", label: ["Свечи", "Shamlar", "Candles"] },
+  { key: "bars", label: ["Бары", "Barlar", "Bars"] },
+  { key: "columns", label: ["Колонки", "Ustunlar", "Columns"] },
+  { key: "kagi", label: ["Каги", "Kagi", "Kagi"] },
+  { key: "point_figure", label: ["Крестики-нолики", "Nuqta va shakl", "Point and Figure"] },
+  { key: "heikin_ashi", label: ["Хейкин Аши", "Heikin Ashi", "Heikin Ashi"] },
+  { key: "renko", label: ["Ренко", "Renko", "Renko"] },
 ];
+
+const AC_SYNTHETIC_TYPES = new Set(["kagi", "point_figure", "heikin_ashi", "renko"]);
+const AC_OHLC_TYPES = new Set(["candle", "bars", "heikin_ashi"]);
+const AC_COMPARISON_TYPES = new Set(["line", "area", "baseline", "columns"]);
+
+function acHeikinAshi(points) {
+  let previous = null;
+  return points.map((point) => {
+    const source = [point.open, point.high, point.low, point.close].every((value) => Number.isFinite(value) && value > 0)
+      ? point : { ...point, open: point.close, high: point.close, low: point.close };
+    const close = (source.open + source.high + source.low + source.close) / 4;
+    const open = previous ? (previous.open + previous.close) / 2 : (source.open + source.close) / 2;
+    const next = { ...source, open, close, high: Math.max(source.high, open, close), low: Math.min(source.low, open, close) };
+    previous = next;
+    return next;
+  });
+}
+
+function acMovementBox(points) {
+  const moves = points.slice(1).map((point, i) => Math.abs(point.close - points[i].close)).filter((value) => value > 0).sort((a, b) => a - b);
+  if (moves.length) return moves[Math.floor(moves.length / 2)];
+  const closes = points.map((point) => point.close).filter(Number.isFinite);
+  return Math.max(0.01, (Math.max(...closes) - Math.min(...closes)) / 30 || closes[0] * 0.01 || 1);
+}
+
+function acRenko(points) {
+  if (!points.length) return { box: 1, bricks: [] };
+  const box = acMovementBox(points);
+  let level = points[0].close;
+  const bricks = [];
+  points.slice(1).forEach((point) => {
+    while (Math.abs(point.close - level) >= box && bricks.length < 400) {
+      const direction = point.close > level ? 1 : -1;
+      const next = level + direction * box;
+      bricks.push({ from: level, to: next, direction, date: point.date });
+      level = next;
+    }
+  });
+  return { box, bricks };
+}
+
+function acKagi(points) {
+  if (!points.length) return { box: 1, turns: [] };
+  const box = acMovementBox(points);
+  const turns = [{ value: points[0].close, direction: 0 }];
+  let extreme = points[0].close, direction = 0;
+  points.slice(1).forEach((point) => {
+    const price = point.close;
+    if (!direction && Math.abs(price - extreme) >= box) direction = price > extreme ? 1 : -1;
+    if ((direction >= 0 && price >= extreme) || (direction <= 0 && price <= extreme)) {
+      extreme = price;
+      turns[turns.length - 1] = { value: price, direction };
+    } else if (Math.abs(price - extreme) >= box) {
+      turns.push({ value: extreme, direction }, { value: price, direction: -direction });
+      direction *= -1;
+      extreme = price;
+    }
+  });
+  return { box, turns };
+}
+
+function acPointFigure(points) {
+  if (!points.length) return { box: 1, columns: [] };
+  const box = acMovementBox(points);
+  const columns = [];
+  let anchor = points[0].close;
+  points.slice(1).forEach((point) => {
+    const boxes = Math.floor(Math.abs(point.close - anchor) / box);
+    if (!boxes) return;
+    const direction = point.close > anchor ? 1 : -1;
+    const last = columns.at(-1);
+    if (!last || last.direction === direction) {
+      if (!last) columns.push({ direction, from: anchor, to: anchor + direction * boxes * box });
+      else if ((direction > 0 && point.close > last.to) || (direction < 0 && point.close < last.to)) last.to = anchor + direction * boxes * box;
+    } else if (boxes >= 3) {
+      columns.push({ direction, from: anchor + direction * box, to: anchor + direction * boxes * box });
+    }
+    anchor = columns.at(-1)?.to ?? anchor;
+  });
+  return { box, columns: columns.slice(-120) };
+}
 
 // The candle chart is the one view where horizontal density is part of the
 // question: a reader needs to open the bars up, then move back through the
@@ -13773,10 +13860,10 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // A comparison is a percent question, so the price pane answers in percent —
   // and a candle has no meaning on a rebased axis. The type control says so
   // rather than silently drawing something else.
-  const effType = cmpOn ? (type === "candle" ? "line" : type) : type;
+  const effType = cmpOn && !AC_COMPARISON_TYPES.has(type) ? "line" : type;
   // ТЗ §6: candles are only drawn where a day HAS a body worth drawing.
   const stepLine = quality ? quality.candles_enabled === false : false;
-  const drawType = (effType === "candle" && !candlesAllowed) ? "line" : effType;
+  const drawType = (AC_OHLC_TYPES.has(effType) && !candlesAllowed) ? "line" : effType;
 
   const ind = React.useMemo(() => {
     if (!cal.days.length) return {};
@@ -13982,14 +14069,23 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // a peer is on the chart.
   const baseVals = cmpOn ? cmp.basePct : points.map((p) => p.close);
   const toScale = (price) => (cmpOn ? (price / cmp.base0 - 1) * 100 : price);
-  const drawCandles = drawType === "candle" && !cmpOn;
+  const heikinPoints = React.useMemo(() => acHeikinAshi(points), [points]);
+  const candleDrawPoints = drawType === "heikin_ashi" ? heikinPoints : points;
+  const drawCandles = ["candle", "heikin_ashi"].includes(drawType) && !cmpOn;
+  const renko = React.useMemo(() => acRenko(points), [points]);
+  const kagi = React.useMemo(() => acKagi(points), [points]);
+  const pointFigure = React.useMemo(() => acPointFigure(points), [points]);
 
   const priceExtent = () => {
     const vals = [];
     points.forEach((p, i) => {
-      if (drawCandles && ohlcOk(p)) { vals.push(toScale(p.high)); vals.push(toScale(p.low)); }
+      const candlePoint = candleDrawPoints[i];
+      if (drawCandles && ohlcOk(candlePoint)) { vals.push(toScale(candlePoint.high)); vals.push(toScale(candlePoint.low)); }
       else vals.push(baseVals[i]);
     });
+    if (drawType === "renko") renko.bricks.forEach((brick) => vals.push(brick.from, brick.to));
+    if (drawType === "kagi") kagi.turns.forEach((turn) => vals.push(turn.value));
+    if (drawType === "point_figure") pointFigure.columns.forEach((column) => vals.push(column.from, column.to));
     if (cmpOn) cmp.series.forEach((s) => s.pct.forEach((v) => { if (v != null) vals.push(v); }));
     ["sma50", "sma200", "ema50", "ema200"].forEach((k) => {
       (ind[k] || []).forEach((v) => { if (v != null) vals.push(toScale(v)); });
@@ -14227,7 +14323,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
             {menuPanel("type", AC_TYPES.map((tp) => {
               const name = tp.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0];
               return <button key={tp.key} type="button" className={`ac-menu-item ${effType === tp.key ? "on" : ""}`}
-                disabled={tp.key === "candle" && (cmpOn || !candlesAllowed)}
+                disabled={(cmpOn && !AC_COMPARISON_TYPES.has(tp.key)) || (AC_OHLC_TYPES.has(tp.key) && !candlesAllowed)}
                 onClick={() => { setType(tp.key); setMenu(null); }}>{name}</button>;
             }))}
           </div>
@@ -14261,11 +14357,11 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
         </div>
         <div className="ac-toolbar-group ac-types" role="group"
           aria-label={t("Вид графика", "Grafik turi", "Chart type")}>
-          {AC_TYPES.map((tp) => {
+          {AC_TYPES.filter((tp) => ["line", "candle", "area", "baseline"].includes(tp.key)).map((tp) => {
             const name = tp.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0];
             // A disabled button still has to say WHY, and the reason differs:
             // one is a fact about the security, the other about the axis.
-            const why = tp.key !== "candle" ? null
+            const why = !AC_OHLC_TYPES.has(tp.key) ? null
               : !candlesAllowed
                 ? t("Слишком мало сделок — день не имеет тела",
                     "Bitimlar juda kam — kunning tanasi yo'q",
@@ -14278,7 +14374,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
             return (
               <button key={tp.key} type="button"
                 className={`ac-type-btn ${effType === tp.key ? "active" : ""}`}
-                disabled={(tp.key === "candle") && (cmpOn || !candlesAllowed)}
+                disabled={(cmpOn && !AC_COMPARISON_TYPES.has(tp.key)) || (AC_OHLC_TYPES.has(tp.key) && !candlesAllowed)}
                 aria-pressed={effType === tp.key}
                 aria-label={name}
                 title={why ? `${name} — ${why}` : name}
@@ -14478,7 +14574,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                     stroke="currentColor" strokeOpacity="0.35" strokeDasharray="3 4" />
                 )}
 
-                {drawCandles ? points.map((p, i) => {
+                {drawCandles ? candleDrawPoints.map((p, i) => {
                   const okp = ohlcOk(p);
                   const upDay = okp ? p.close >= p.open : (i > 0 ? p.close >= points[i - 1].close : true);
                   const c = upDay ? "#2fc584" : "#ee6a60";
@@ -14496,6 +14592,43 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                         height={Math.max(1, Math.abs(yc - yo))} fill={c} />
                     </g>
                   );
+                }) : drawType === "bars" ? points.map((p, i) => {
+                  if (!ohlcOk(p)) return null;
+                  const c = p.close >= p.open ? "#2fc584" : "#ee6a60";
+                  const x = xs(i), tick = Math.max(2, Math.min(6, gapPx * 0.32));
+                  return <g key={`bar${i}`} className="ac-ohlc-bar">
+                    <line x1={x} y1={ys(p.high)} x2={x} y2={ys(p.low)} stroke={c} strokeWidth="1.4" />
+                    <line x1={x - tick} y1={ys(p.open)} x2={x} y2={ys(p.open)} stroke={c} strokeWidth="1.4" />
+                    <line x1={x} y1={ys(p.close)} x2={x + tick} y2={ys(p.close)} stroke={c} strokeWidth="1.4" />
+                  </g>;
+                }) : drawType === "columns" ? points.map((p, i) => {
+                  const y = ys(baseVals[i]);
+                  const previous = i ? baseVals[i - 1] : baseVals[i];
+                  return <rect key={`col${i}`} className="ac-price-column"
+                    x={xs(i) - Math.max(1, gapPx * 0.34)} y={Math.min(y, priceBot)}
+                    width={Math.max(2, gapPx * 0.68)} height={Math.max(1, priceBot - y)}
+                    fill={baseVals[i] >= previous ? "#2fc584" : "#ee6a60"} fillOpacity="0.78" />;
+                }) : drawType === "renko" ? renko.bricks.map((brick, i) => {
+                  const width = innerW / Math.max(1, renko.bricks.length);
+                  const y1 = ys(brick.from), y2 = ys(brick.to);
+                  return <rect key={`renko${i}`} className="ac-renko-brick"
+                    x={PAD.left + i * width} y={Math.min(y1, y2)} width={Math.max(2, width * 0.92)}
+                    height={Math.max(2, Math.abs(y2 - y1))} fill={brick.direction > 0 ? "#2fc584" : "#ee6a60"}
+                    fillOpacity="0.72" stroke={brick.direction > 0 ? "#2fc584" : "#ee6a60"} />;
+                }) : drawType === "kagi" ? (
+                  <path className="ac-kagi-line" d={kagi.turns.reduce((path, turn, i) => {
+                    const x = PAD.left + (i / Math.max(1, kagi.turns.length - 1)) * innerW;
+                    return i ? `${path} H${x.toFixed(1)} V${ys(turn.value).toFixed(1)}` : `M${x.toFixed(1)},${ys(turn.value).toFixed(1)}`;
+                  }, "")} fill="none" stroke={priceColor} strokeWidth="2.2" strokeLinejoin="round" />
+                ) : drawType === "point_figure" ? pointFigure.columns.map((column, i) => {
+                  const x = PAD.left + ((i + 0.5) / Math.max(1, pointFigure.columns.length)) * innerW;
+                  const from = Math.round(column.from / pointFigure.box), to = Math.round(column.to / pointFigure.box);
+                  const levels = Array.from({ length: Math.min(80, Math.abs(to - from) + 1) }, (_, j) => from + Math.sign(to - from || 1) * j);
+                  return <g key={`pnf${i}`} className={`ac-pnf-column ${column.direction > 0 ? "up" : "down"}`}>
+                    {levels.map((level) => <text key={level} x={x} y={ys(level * pointFigure.box) + 4}
+                      textAnchor="middle" fontSize={Math.max(7, Math.min(13, innerW / Math.max(20, pointFigure.columns.length * 1.4)))}
+                      fill={column.direction > 0 ? "#2fc584" : "#ee6a60"}>{column.direction > 0 ? "×" : "○"}</text>)}
+                  </g>;
                 }) : (
                   <path d={baseD} fill="none" stroke={drawType === "baseline" ? "url(#acBase)" : priceColor}
                     strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
@@ -14746,7 +14879,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       </div>
 
       <div className="ac-notes">
-        {drawCandles && points.length > 0 && (
+        {chartNavigation && points.length > 0 && (
           <p className="ac-history-help" data-testid="ac-visible-range"
             data-from={points[0].date} data-to={points[points.length - 1].date}>
             <span>
@@ -14768,6 +14901,13 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                "Narx pog'onalar bilan — bitimlar orasida u o'zgarmagan.",
                "The price is drawn as steps — between trades it did not move.")}
             {quality?.reason ? ` ${quality.reason}` : ""}
+          </p>
+        )}
+        {AC_SYNTHETIC_TYPES.has(drawType) && (
+          <p className="muted ac-synthetic-note">
+            {t("Расчётный вид по дневным данным; значения фигур синтетические и не являются ценами сделок.",
+               "Kunlik ma’lumotlar asosidagi hisobiy ko‘rinish; shakl qiymatlari sintetik va bitim narxlari emas.",
+               "Calculated from daily data; figure values are synthetic and are not traded prices.")}
           </p>
         )}
         {cmpOn && cmp.start && (
