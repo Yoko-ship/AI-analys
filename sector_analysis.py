@@ -625,7 +625,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
     unavailable = {
         "no_source": tr(lang, "Анализ временно недоступен: подходящая отчётность НСБУ не найдена.", "Tahlil mavjud emas: mos hisobot topilmadi.", "Analysis unavailable: no suitable filing was found."),
         "quality_blocked": tr(lang, "Анализ временно недоступен: данные не прошли автоматическую сверку.", "Tahlil mavjud emas: ma’lumotlar tekshiruvdan o‘tmadi.", "Analysis unavailable: the data failed automated validation."),
-        "mapping_failed": tr(lang, "Не удалось сопоставить строки отчётности.", "Hisobot satrlari moslashtirilmadi.", "Source rows could not be mapped."),
+        "mapping_failed": tr(lang, "Отчёт пока готовится.", "Hisobot hozir tayyorlanmoqda.", "The report is being prepared."),
         "stale": tr(lang, "Доступен только старый отчёт", "Faqat eski hisobot mavjud", "Only an old filing is available") + f": {period_text}.",
     }
     if not publishable:
@@ -872,7 +872,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
               "data_quality": data_quality, "balance_check": balance, "financial_as_of": end.isoformat() if period else None,
               "market_as_of": None, "sources": [source] if source_url else [],
               "availability": {"reason_code": status, "last_source_period": period, "last_successful_period": None,
-                               "next_action": tr(lang, "Автоматический повтор после обновления источника", "Manba yangilangach avtomatik takrorlash", "Automatically retry after the source updates") if not publishable else None},
+                               "next_action": tr(lang, "Мы проверим данные снова после обновления источника.", "Manba yangilangach ma’lumotlarni yana tekshiramiz.", "We will check the data again after the source is updated.") if not publishable else None},
               "source_snapshot_hash": digest([issuer["id"], standard, period, values, previous, opening, lines, source]),
               "generated_at": snapshot.get("generated_at")}
     report["control_rule_versions"] = snapshot.get("control_rule_versions", [])

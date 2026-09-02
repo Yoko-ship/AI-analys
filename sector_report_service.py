@@ -129,7 +129,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
             # Internal exceptions never become public prose.
             snapshot["quality"]["data_quality"].append({
                 "code": "SOURCE_MAPPING_FAILED", "severity": "blocking",
-                "message": engine.tr(lang, "Не удалось прочитать исходные строки отчёта.", "Hisobotning asl satrlari o‘qilmadi.", "The source statement rows could not be read."),
+                "message": engine.tr(lang, "Данные найдены, но их пока не удалось подготовить для анализа.", "Ma’lumotlar topildi, ammo hozircha tahlil uchun tayyorlanmadi.", "The data was found but is not ready for analysis yet."),
             })
     from admin_control.rules import apply_snapshot, runtime_rules
     snapshot = apply_snapshot(snapshot, issuer, workbook, runtime_rules(rule_override))

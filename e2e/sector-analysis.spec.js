@@ -86,12 +86,28 @@ test("blocked reports keep a dated prior report and never open empty details", a
   });
   await page.goto("/company/UZMK");
   const card = page.getByTestId("company-insight-card");
-  await expect(card).toContainText("BALANCE_IDENTITY_FAILED");
+  await expect(card).toContainText("Баланс не сходится");
+  await expect(card).not.toContainText("BALANCE_IDENTITY_FAILED");
   await expect(card.getByRole("button", { name: "Открыть полный анализ" })).toHaveCount(0);
   await card.getByText(/Последний проверенный анализ/).click();
   await expect(card).toContainText("Проверенный отчёт за I квартал");
   const width = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
   expect(width.scroll).toBeLessThanOrEqual(width.client);
+});
+
+test("mapping problems are explained without internal parser language", async ({ page }) => {
+  await api(page, {
+    ...REPORT, status: "mapping_failed", headline: "Не удалось сопоставить строки отчётности.",
+    data_quality: [{ code: "SOURCE_MAPPING_FAILED", message: "Не удалось прочитать исходные строки отчёта." }],
+    availability: { last_source_period: "2025Q1", next_action: "Автоматический повтор после обновления источника" },
+  });
+  await page.goto("/company/UZMK");
+  const card = page.getByTestId("company-insight-card");
+  await expect(card).toContainText("Отчёт пока готовится");
+  await expect(card).toContainText("Доступный период: 2025Q1");
+  await expect(card).toContainText("Данные найдены, но их пока не удалось подготовить для анализа");
+  await expect(card).toContainText("Мы проверим данные снова после обновления источника");
+  await expect(card).not.toContainText(/SOURCE_MAPPING_FAILED|сопоставить строки|исходные строки/i);
 });
 
 test("a source error can be retried successfully", async ({ page }) => {
