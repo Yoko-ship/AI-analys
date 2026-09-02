@@ -12813,6 +12813,10 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
 .advanced-chart.is-fullscreen .ac-menu-btn,
 .advanced-chart.is-fullscreen .ac-fullscreen-btn { flex: 0 0 auto; }
 .advanced-chart.is-fullscreen .ac-menus { margin-left: auto; }
+.ac-company-tools { flex: 0 0 auto; }
+.ac-company-tools .ac-menu { right: auto; left: 0; }
+.ac-company-tools .ac-menu-item { justify-content: space-between; white-space: nowrap; }
+.ac-trend-line { pointer-events: none; }
 .ac-ranges, .ac-toolbar-group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .ac-range-btn, .ac-type-btn, .ac-menu-btn { padding: 4px 11px; border-radius: 999px; border: 1px solid transparent; background: none; font-size: 12.5px; line-height: 1.3; color: var(--text-secondary, var(--text-muted)); cursor: pointer; transition: all 0.12s; }
 .ac-range-btn:hover, .ac-type-btn:hover:not(:disabled), .ac-menu-btn:hover { color: var(--text-primary); border-color: var(--border); }
