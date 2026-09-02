@@ -11399,11 +11399,49 @@ function CompanyInsightIcon({ small = false }) {
   );
 }
 
+function companyInsightTeaser(report, lang) {
+  if (!report) return "";
+  const rows = Object.values(report.replacement_blocks || {}).flatMap((items) => Array.isArray(items) ? items : []);
+  const candidates = ["revenue", "operating_income", "net_income"];
+  const labels = {
+    revenue: ["выручка", "tushum", "revenue"],
+    operating_income: ["операционная прибыль", "operatsion foyda", "operating profit"],
+    net_income: ["чистая прибыль", "sof foyda", "net profit"],
+  };
+  const languageIndex = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
+  const changes = candidates.map((code) => rows.find((row) => row.metric_code === code))
+    .filter((row) => Number.isFinite(Number(row?.change_pct)))
+    .slice(0, 2)
+    .map((row) => {
+      const value = Number(row.change_pct);
+      const direction = lang === "uz" ? (value >= 0 ? "o‘sdi" : "pasaydi")
+        : lang === "en" ? (value >= 0 ? "rose" : "fell")
+          : (value >= 0 ? "выросла" : "снизилась");
+      const percent = Math.abs(value).toLocaleString(lang === "en" ? "en-US" : "ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${labels[row.metric_code][languageIndex]} ${direction} ${lang === "en" ? "by " : "на "}${percent}%`;
+    });
+  if (changes.length) {
+    const tone = report.verdict?.status || report.headline_tone;
+    const verdicts = {
+      positive: ["Динамика положительная", "Ijobiy dinamika", "Positive momentum"],
+      mixed: ["Динамика смешанная", "Dinamika aralash", "Mixed momentum"],
+      warning: ["Динамика смешанная", "Dinamika aralash", "Mixed momentum"],
+      negative: ["Показатели ухудшились", "Ko‘rsatkichlar yomonlashdi", "Performance weakened"],
+      danger: ["Показатели ухудшились", "Ko‘rsatkichlar yomonlashdi", "Performance weakened"],
+      no_signal: ["Для уверенного вывода пока мало данных", "Aniq xulosa uchun ma’lumot hali kam", "More data is needed for a firm conclusion"],
+      neutral: ["Для уверенного вывода пока мало данных", "Aniq xulosa uchun ma’lumot hali kam", "More data is needed for a firm conclusion"],
+    };
+    const verdict = (verdicts[tone] || verdicts.neutral)[languageIndex];
+    return `${report.issuer?.ticker || ""}: ${changes.join(", ")}. ${verdict}.`.trim();
+  }
+  const teaser = report.card_text || report.short_summary || report.headline || "";
+  const words = String(teaser).trim().split(/\s+/).filter(Boolean);
+  return words.length > 22 ? `${words.slice(0, 22).join(" ").replace(/[\s,;:]+$/, "")}…` : teaser;
+}
+
 function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef, lang }) {
   const tx = COMPANY_INSIGHT_TX[lang] || COMPANY_INSIGHT_TX.ru;
-  const teaser = report?.card_text || report?.short_summary || report?.headline;
-  const teaserWords = String(teaser || "").trim().split(/\s+/).filter(Boolean);
-  const cappedTeaser = teaserWords.length > 40 ? `${teaserWords.slice(0, 40).join(" ").replace(/[\s,;:]+$/, "")}…` : teaser;
+  const teaser = companyInsightTeaser(report, lang);
   return (
     <section className={`company-insight-card tone-${report?.headline_tone || "neutral"}`} data-testid="company-insight-card" aria-live="polite" aria-busy={loading ? "true" : "false"}>
       <CompanyInsightIcon />
@@ -11413,7 +11451,7 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
         ) : report?.status && report.status !== "available" && !error ? (
           <ReportAvailability report={report} lang={lang} />
         ) : (
-          <p>{error ? tx.unavailable : cappedTeaser}</p>
+          <p>{error ? tx.unavailable : teaser}</p>
         )}
       </div>
       {!loading && error && (
