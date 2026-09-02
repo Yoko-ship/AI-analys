@@ -13528,11 +13528,11 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const custom = Boolean(span.from && span.to);
   // How much history to ask for. A custom span asks back to its own start; the
   // buttons ask for what they show. Either way the fetch is a MONTH count,
-  // which is the only unit /api/price-history understands. Candle mode keeps
-  // the archive behind the selected window: after zooming in, a drag can then
-  // move into older sessions instead of stopping at an artificial fetch edge.
+  // which is the only unit /api/price-history understands. Every chart type
+  // keeps the archive behind the selected window so dragging can browse older
+  // sessions instead of stopping at an artificial fetch edge.
   const months = React.useMemo(() => {
-    if (type === "candle" && !custom) return 360;
+    if (!custom) return 360;
     if (!custom) return chartRangeMonths(range);
     const d = new Date(span.from);
     const now = new Date();
@@ -13655,7 +13655,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     return cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
   }, [daily, custom, span.from, span.to, range, type]);
 
-  // A preset defines the candle view we open with, not a wall around the data.
+  // A preset defines the view we open with, not a wall around the data.
   // The full fetched archive stays behind it so a zoomed view can be dragged
   // into earlier history. A custom range remains a hard boundary because the
   // dates were an explicit request rather than a convenient zoom preset.
@@ -13669,8 +13669,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   }, [candleSource, custom, windowed]);
   const resolvedCandleView = acClampView(candleView, defaultCandleView, candleSource.length);
   const candlesAllowed = quality ? quality.candles_enabled !== false : true;
-  const candleNavigation = type === "candle" && compareTickers.length === 0 && candlesAllowed;
-  const visibleWindow = candleNavigation
+  const chartNavigation = !custom && compareTickers.length === 0
+    && (type !== "candle" || candlesAllowed);
+  const visibleWindow = chartNavigation
     ? candleSource.slice(resolvedCandleView.start, resolvedCandleView.end)
     : windowed;
 
@@ -14004,7 +14005,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   };
 
   const onCandleWheel = (e) => {
-    if (!drawCandles || !e.ctrlKey || !candleSource.length || e.deltaY === 0) return;
+    if (!chartNavigation || !e.ctrlKey || !candleSource.length || e.deltaY === 0) return;
     // Ctrl+wheel normally zooms the whole browser. Inside a candle chart the
     // modifier has a local, visible meaning, so keep the page itself steady.
     e.preventDefault();
@@ -14031,7 +14032,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   }, []);
 
   const onCandlePointerDown = (e) => {
-    if (!drawCandles || e.pointerType !== "mouse" || e.button !== 0 || !candleSource.length) return;
+    if (!chartNavigation || (e.pointerType === "mouse" && e.button !== 0) || !candleSource.length) return;
     const size = resolvedCandleView.end - resolvedCandleView.start;
     if (size >= candleSource.length) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -14273,12 +14274,12 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 </div>
               )}
 
-              <svg className={`ac-svg ${drawCandles ? "is-candle-interactive" : ""} ${candleDragging ? "is-panning" : ""}`}
+              <svg className={`ac-svg ${chartNavigation ? "is-candle-interactive" : ""} ${candleDragging ? "is-panning" : ""}`}
                 viewBox={`0 0 ${W} ${H}`} width="100%" height={H}
-                aria-label={drawCandles
-                  ? t("График свечей. Ctrl и колесо меняют масштаб, перетаскивание показывает историю.",
-                      "Shamlar grafigi. Ctrl va g'ildirak masshtabni o'zgartiradi, sudrash tarixni ko'rsatadi.",
-                      "Candlestick chart. Ctrl and the wheel zoom; drag to browse history.")
+                aria-label={chartNavigation
+                  ? t("График. Ctrl и колесо меняют масштаб, перетаскивание показывает историю.",
+                      "Grafik. Ctrl va g'ildirak masshtabni o'zgartiradi, sudrash tarixni ko'rsatadi.",
+                      "Chart. Ctrl and the wheel zoom; drag to browse history.")
                   : undefined}
                 onPointerDown={onCandlePointerDown}
                 onPointerMove={onCandlePointerMove}
