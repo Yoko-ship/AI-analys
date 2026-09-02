@@ -9943,12 +9943,26 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     : visibleWindow;
   const cmp = buildCompareSeries(displayWindow, range === "1d" ? null : compare);
   const cmpOn = Boolean(cmp && cmp.series.length);
-  const points = cmpOn ? cmp.points : displayWindow;
+  const rawPoints = cmpOn ? cmp.points : displayWindow;
+  // A comparison is a percent-line question. Price-construction charts encode
+  // one security's OHLC or reversal structure, so peers temporarily use a line.
+  const comparisonTypes = new Set(["line", "area", "baseline"]);
+  const effectiveChartType = cmpOn && !comparisonTypes.has(chartType) ? "line" : chartType;
+  const heikinPoints = (() => {
+    let previous = null;
+    return rawPoints.map((point) => {
+      const valid = point.open > 0 && point.high > 0 && point.low > 0 && point.close > 0;
+      if (!valid) { previous = null; return point; }
+      const close = (point.open + point.high + point.low + point.close) / 4;
+      const open = previous ? (previous.open + previous.close) / 2 : (point.open + point.close) / 2;
+      const next = { ...point, open, close, high: Math.max(point.high, open, close), low: Math.min(point.low, open, close) };
+      previous = next;
+      return next;
+    });
+  })();
+  const points = effectiveChartType === "heikin_ashi" ? heikinPoints : rawPoints;
   const baseVals = cmpOn ? cmp.basePct : points.map((p) => p.close);
-  // A comparison is a percent-line question. Candles carry one security's
-  // OHLC values, so selecting a peer temporarily draws the base as a line.
-  const effectiveChartType = cmpOn && chartType === "candle" ? "line" : chartType;
-  const drawCandles = effectiveChartType === "candle" && !cmpOn;
+  const drawCandles = (effectiveChartType === "candle" || effectiveChartType === "heikin_ashi") && !cmpOn;
   // A price expressed on whatever scale the chart is currently drawing. The
   // moving averages arrive in сумы and have to follow the axis, or MA20 would
   // be plotted at 8 900 on a scale that runs from −12 % to +40 %.
@@ -9984,6 +9998,40 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     return stepLine ? `L${x},${ys(baseVals[i - 1]).toFixed(1)} L${x},${y}` : `L${x},${y}`;
   }).join(" ");
   const areaD = `${lineD} L${xs(points.length - 1).toFixed(1)},${priceBot.toFixed(1)} L${xs(0).toFixed(1)},${priceBot.toFixed(1)} Z`;
+  const baselineValue = baseVals[0];
+  const baselineY = ys(baselineValue);
+  const baselineStop = Math.max(0, Math.min(100, ((baselineY - priceTop) / Math.max(1, priceBot - priceTop)) * 100));
+  const renkoBox = Math.max(rangeP / 20, Math.abs(baseVals[0] || 1) * 0.0025);
+  const renkoBricks = (() => {
+    if (!points.length || !Number.isFinite(renkoBox) || renkoBox <= 0) return [];
+    const bricks = [];
+    let level = baseVals[0];
+    points.slice(1).forEach((point, pointIndex) => {
+      let guard = 0;
+      while (Math.abs(baseVals[pointIndex + 1] - level) >= renkoBox && guard < 80) {
+        const direction = baseVals[pointIndex + 1] > level ? 1 : -1;
+        const open = level;
+        level += direction * renkoBox;
+        bricks.push({ open, close: level, direction, date: point.date });
+        guard += 1;
+      }
+    });
+    return bricks.slice(-120);
+  })();
+  const renkoX = (i) => PAD.left + (i / Math.max(1, renkoBricks.length)) * innerW;
+  const renkoWidth = innerW / Math.max(1, renkoBricks.length);
+  const pointFigureMarks = (() => {
+    const limit = 48;
+    const stride = Math.max(1, Math.ceil((points.length - 1) / limit));
+    const marks = [];
+    for (let i = stride; i < points.length; i += stride) {
+      const previous = baseVals[Math.max(0, i - stride)];
+      const current = baseVals[i];
+      if (current === previous) continue;
+      marks.push({ value: current, up: current > previous });
+    }
+    return marks;
+  })();
   const isUp = baseVals[baseVals.length - 1] >= baseVals[0];
   const color = isUp ? "#2fc584" : "#ee6a60";
   // A peer's line, on the same percent scale, skipping the sessions before its
@@ -10280,7 +10328,18 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
               </button>
               {toolMenu === "type" && (
                 <div className="cpc-tool-menu" role="menu">
-                  {[["area", "Область", "Maydon", "Area"], ["line", "Линия", "Chiziq", "Line"], ["candle", "Свечи", "Shamlar", "Candles"]].map(([key, ru, uz, en]) => (
+                  {[
+                    ["line", "Линия", "Chiziq", "Line"],
+                    ["area", "Область", "Maydon", "Area"],
+                    ["baseline", "Базовая линия", "Asosiy chiziq", "Baseline"],
+                    ["candle", "Свечи", "Shamlar", "Candle"],
+                    ["bars", "Бары", "Barlar", "Bars"],
+                    ["columns", "Колонки", "Ustunlar", "Columns"],
+                    ["kagi", "Каги", "Kagi", "Kagi"],
+                    ["point_figure", "Крестики-нолики", "Nuqta va shakl", "Point and Figure"],
+                    ["heikin_ashi", "Хейкин Аши", "Heikin Ashi", "Heikin Ashi"],
+                    ["renko", "Ренко", "Renko", "Renko"],
+                  ].map(([key, ru, uz, en]) => (
                     <button key={key} type="button" role="menuitemradio" aria-checked={chartType === key}
                       className={chartType === key ? "active" : ""}
                       onClick={() => { setChartType(key); setDrawingPoints([]); setToolMenu(null); }}>{t(ru, uz, en)}</button>
@@ -10413,6 +10472,10 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
             <stop offset="0%" stopColor={color} stopOpacity="0.22" />
             <stop offset="100%" stopColor={color} stopOpacity="0.02" />
           </linearGradient>
+          <linearGradient id="cpcbaseline" x1="0" y1={priceTop} x2="0" y2={priceBot} gradientUnits="userSpaceOnUse">
+            <stop offset={`${baselineStop}%`} stopColor="#2fc584" />
+            <stop offset={`${baselineStop}%`} stopColor="#ee6a60" />
+          </linearGradient>
         </defs>
 
         {/* Dashed horizontal grid, as in the reference. Full plot width, under
@@ -10426,6 +10489,10 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
             tinted band under one of several lines reads as the chart's subject
             rather than as one series among them. */}
         {!cmpOn && effectiveChartType === "area" && chartPrefs.fill && <path className="cpc-area-fill" d={areaD} fill="url(#cpcgrad)" />}
+        {!cmpOn && effectiveChartType === "baseline" && (
+          <line x1={PAD.left} y1={baselineY} x2={W - PAD.right} y2={baselineY}
+            stroke="currentColor" strokeOpacity="0.28" strokeDasharray="4 4" />
+        )}
         {/* Where the shared start sits — the line every percentage is measured
             from, and the only value on that axis that is not an opinion. */}
         {cmpOn && minP <= 0 && maxP >= 0 && (
@@ -10448,8 +10515,48 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
                 height={Math.max(1, Math.abs(closeY - openY))} fill={candleColor} />
             </g>
           );
+        }) : effectiveChartType === "bars" ? points.map((point, i) => {
+          const valid = ohlcOk(point);
+          const barColor = point.close >= (valid ? point.open : (i > 0 ? points[i - 1].close : point.close)) ? "#2fc584" : "#ee6a60";
+          const x = xs(i);
+          const half = Math.max(1.5, candleWidth * 0.55);
+          return valid ? (
+            <g key={`bar${i}`} className="cpc-ohlc-bar" stroke={barColor} strokeWidth="1.2">
+              <line x1={x} y1={ys(point.high)} x2={x} y2={ys(point.low)} />
+              <line x1={x - half} y1={ys(point.open)} x2={x} y2={ys(point.open)} />
+              <line x1={x} y1={ys(point.close)} x2={x + half} y2={ys(point.close)} />
+            </g>
+          ) : null;
+        }) : effectiveChartType === "columns" ? points.map((point, i) => {
+          const x = xs(i);
+          const y = ys(baseVals[i]);
+          const columnColor = i === 0 || baseVals[i] >= baseVals[i - 1] ? "#2fc584" : "#ee6a60";
+          return <rect key={`column${i}`} x={x - candleWidth / 2} y={Math.min(y, priceBot)}
+            width={candleWidth} height={Math.max(1, Math.abs(priceBot - y))} fill={columnColor} fillOpacity="0.82" />;
+        }) : effectiveChartType === "renko" ? renkoBricks.map((brick, i) => {
+          const top = Math.min(ys(brick.open), ys(brick.close));
+          const height = Math.max(1, Math.abs(ys(brick.open) - ys(brick.close)));
+          const brickColor = brick.direction > 0 ? "#2fc584" : "#ee6a60";
+          return <rect key={`renko${i}`} x={renkoX(i)} y={top} width={Math.max(1, renkoWidth)} height={height}
+            fill={brickColor} fillOpacity="0.2" stroke={brickColor} strokeWidth="1" />;
+        }) : effectiveChartType === "point_figure" ? pointFigureMarks.map((mark, i) => {
+          const x = PAD.left + ((i + 0.5) / Math.max(1, pointFigureMarks.length)) * innerW;
+          const y = ys(mark.value);
+          const size = Math.max(3, Math.min(7, innerW / Math.max(1, pointFigureMarks.length) * 0.3));
+          return mark.up ? (
+            <g key={`pf${i}`} stroke="#2fc584" strokeWidth="1.3">
+              <line x1={x - size} y1={y - size} x2={x + size} y2={y + size} />
+              <line x1={x + size} y1={y - size} x2={x - size} y2={y + size} />
+            </g>
+          ) : <circle key={`pf${i}`} cx={x} cy={y} r={size} fill="none" stroke="#ee6a60" strokeWidth="1.3" />;
+        }) : effectiveChartType === "kagi" ? points.slice(1).map((point, i) => {
+          const upSegment = baseVals[i + 1] >= baseVals[i];
+          return <path key={`kagi${i}`} d={`M${xs(i)},${ys(baseVals[i])} H${xs(i + 1)} V${ys(baseVals[i + 1])}`}
+            fill="none" stroke={upSegment ? "#2fc584" : "#ee6a60"} strokeWidth={upSegment ? "2.4" : "1.2"}
+            strokeLinejoin="miter" vectorEffect="non-scaling-stroke" />;
         }) : (
-          <path className="cpc-price-line" d={lineD} fill="none" stroke={color} strokeWidth="2"
+          <path className="cpc-price-line" d={lineD} fill="none" strokeWidth="2"
+            stroke={effectiveChartType === "baseline" ? "url(#cpcbaseline)" : color}
             strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         )}
 
