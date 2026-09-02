@@ -5,6 +5,31 @@ const pick = (lang, ru, uz, en) => ({ ru, uz, en }[lang] || ru);
 const fmt = (value, lang) => value == null ? "—" : Number(value).toLocaleString(lang === "en" ? "en-US" : "ru-RU", { maximumFractionDigits: 2 });
 const safeUrl = (value) => /^https?:\/\//i.test(value || "") ? value : undefined;
 
+const RATIO_COPY = {
+  P1: ["Рентабельность активов", "Aktivlar rentabelligi", "Return on assets", "Чистая прибыль на каждые 100 сум активов", "Har 100 so‘mlik aktivdan sof foyda", "Net profit per 100 UZS of assets"],
+  P2: ["Доходность оборотных активов", "Aylanma aktivlar daromadliligi", "Return on current assets", "Прибыль до налога на каждые 100 сум оборотных активов", "Har 100 so‘mlik aylanma aktivdan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of current assets"],
+  P3: ["Рентабельность вложенного капитала", "Kiritilgan kapital rentabelligi", "Return on invested capital", "Прибыль до налога на каждые 100 сум вложенного капитала", "Har 100 so‘mlik kiritilgan kapitaldan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of invested capital"],
+  P4: ["Рентабельность собственного капитала", "O‘z kapitali rentabelligi", "Return on equity", "Прибыль до налога на каждые 100 сум собственного капитала", "Har 100 so‘mlik o‘z kapitalidan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of equity"],
+  P5: ["Валовая маржа", "Yalpi marja", "Gross margin", "Валовая прибыль в каждых 100 сум выручки", "Har 100 so‘mlik tushumdagi yalpi foyda", "Gross profit in every 100 UZS of revenue"],
+  P6: ["Рентабельность себестоимости", "Tannarx rentabelligi", "Return on cost of sales", "Валовая прибыль на каждые 100 сум себестоимости", "Har 100 so‘mlik tannarxdan yalpi foyda", "Gross profit per 100 UZS of cost of sales"],
+  P7: ["Маржа до налога", "Soliqqacha marja", "Pre-tax margin", "Прибыль до налога в каждых 100 сум выручки", "Har 100 so‘mlik tushumdagi soliqdan oldingi foyda", "Pre-tax profit in every 100 UZS of revenue"],
+  P8: ["Доходность долгосрочных активов", "Uzoq muddatli aktivlar daromadliligi", "Return on long-term assets", "Прибыль до налога на каждые 100 сум долгосрочных активов", "Har 100 so‘mlik uzoq muddatli aktivdan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of long-term assets"],
+  current_ratio: ["Текущая ликвидность", "Joriy likvidlik", "Current ratio", "Покрытие текущих обязательств оборотными активами", "Joriy majburiyatlarning aylanma aktivlar bilan qoplanishi", "Coverage of current liabilities by current assets"],
+  quick_ratio: ["Быстрая ликвидность", "Tezkor likvidlik", "Quick ratio", "Покрытие текущих обязательств без продажи запасов", "Zaxiralarni sotmasdan joriy majburiyatlarni qoplash", "Coverage of current liabilities without selling inventory"],
+  absolute_liquidity: ["Абсолютная ликвидность", "Mutlaq likvidlik", "Absolute liquidity", "Доля текущих обязательств, которую можно погасить сразу", "Darhol to‘lash mumkin bo‘lgan joriy majburiyatlar ulushi", "Share of current liabilities payable immediately"],
+};
+
+const ratioText = (item, lang, offset) => {
+  const copy = RATIO_COPY[item.metric_code] || [item.metric_code, item.metric_code, item.metric_code, "", "", ""];
+  const languageIndex = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
+  return copy[offset + languageIndex];
+};
+
+const compactNumber = (value, lang) => value == null ? "—" : Number(value).toLocaleString(
+  lang === "en" ? "en-US" : "ru-RU",
+  { notation: "compact", maximumFractionDigits: 2 },
+);
+
 export function ReportAvailability({ report, lang = "ru" }) {
   if (!report || report.status === "available") return null;
   return <div className="verified-availability" role="status">
@@ -67,13 +92,24 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false 
       </div>
     </details> : null)}
     {report.ratios?.length > 0 && <details className="verified-block">
-      <summary>{t("Проверенные формулы НСБУ", "Tekshirilgan NSBU formulalari", "Verified NSBU formulas")}</summary>
+      <summary>{t("Финансовые коэффициенты", "Moliyaviy koeffitsiyentlar", "Financial ratios")}</summary>
       <div className="verified-ratios">
-        {report.ratios.map((item) => <article key={item.method_id}>
-          <strong>{item.metric_code}: {fmt(item.value, lang)}{item.unit === "percent" ? "%" : ""}</strong>
-          <p>{item.formula}</p><p>{fmt(item.numerator_value, lang)} / {fmt(item.denominator_value, lang)}</p>
-          {item.benchmark_type && <small>{t("Методический ориентир", "Metodik mezon", "Methodological reference")}: {item.benchmark_min}{item.benchmark_max ? "–" + item.benchmark_max : "+"}</small>}
+        {report.ratios.map((item) => <article key={item.method_id} data-testid={`verified-ratio-${item.metric_code}`}>
+          <strong className="verified-ratio-name">{ratioText(item, lang, 0)}</strong>
+          <p className="verified-ratio-value">{fmt(item.value, lang)}{item.unit === "percent" ? "%" : "×"}</p>
+          <p className="verified-ratio-meaning">{ratioText(item, lang, 3)}</p>
+          {item.benchmark_type && item.value != null && <small className={`verified-ratio-status ${item.value >= item.benchmark_min && (item.benchmark_max == null || item.value <= item.benchmark_max) ? "good" : "attention"}`}>
+            {item.value >= item.benchmark_min && (item.benchmark_max == null || item.value <= item.benchmark_max)
+              ? t("В пределах ориентира", "Me’yor doirasida", "Within reference range")
+              : t("Требует внимания", "E’tibor talab qiladi", "Needs attention")}
+            {` · ${t("ориентир", "me’yor", "reference")} ${item.benchmark_min}${item.benchmark_max ? "–" + item.benchmark_max : "+"}`}
+          </small>}
           {item.value == null && <small>{t("Нет полного набора компонентов", "Tarkibiy qismlar to‘liq emas", "Components are incomplete or invalid")}</small>}
+          <details className="verified-ratio-details">
+            <summary>{t("Как рассчитано", "Qanday hisoblangan", "How it is calculated")}</summary>
+            <p><code>{item.metric_code}</code> · {item.formula}</p>
+            <p>{compactNumber(item.numerator_value, lang)} / {compactNumber(item.denominator_value, lang)}</p>
+          </details>
         </article>)}
       </div>
     </details>}
