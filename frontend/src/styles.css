@@ -12904,7 +12904,7 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
 .ac-plot { position: relative; min-width: 0; min-height: 420px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); overflow: hidden; }
 .advanced-chart.is-fullscreen .ac-plot { height: 100% !important; min-height: 0; }
 .ac-svg { display: block; color: var(--text-primary); cursor: crosshair; }
-.ac-volume-bar { transition: fill-opacity 0.12s; shape-rendering: crispEdges; }
+.ac-volume-bar { transition: fill-opacity 0.12s; shape-rendering: crispEdges; filter: saturate(1.12); }
 .ac-volume-bar:hover { fill-opacity: 1; }
 .ac-svg.is-candle-interactive { cursor: grab; touch-action: pan-y; }
 .ac-svg.is-candle-interactive.is-panning { cursor: grabbing; user-select: none; }

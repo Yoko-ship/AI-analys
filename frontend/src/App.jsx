@@ -13870,7 +13870,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // Volume needs enough of its own pane to be readable. UZSE sessions often
   // contain one block trade that is orders of magnitude larger than normal
   // turnover, so using the absolute maximum would flatten every other bar.
-  const VOL_H = 124;
+  const VOL_H = 160;
   const SUB_H = 92;
   const subPanes = [
     ...(indicators.has("rsi") ? [{ key: "rsi" }] : []),
@@ -14380,7 +14380,11 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 {points.map((p, i) => {
                   const v = p.turnover || 0;
                   if (!v) return null;
-                  const h = Math.max(4, Math.min(1, v / volumeScale) * (volBot - volTop));
+                  // Square-root display scaling keeps ordinary sessions visible
+                  // beside a rare block-trade spike. The tooltip still shows
+                  // the exact turnover, so only the visual emphasis changes.
+                  const volumeRatio = Math.min(1, v / volumeScale);
+                  const h = Math.max(8, Math.sqrt(volumeRatio) * (volBot - volTop));
                   const upDay = i > 0 ? p.close >= points[i - 1].close : true;
                   const w = Math.max(1.5, Math.min(10, gapPx * 0.76));
                   return <rect key={`v${i}`} className="ac-volume-bar" x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
@@ -14388,7 +14392,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 })}
                 <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot}
                   stroke="currentColor" strokeOpacity="0.18" />
-                <text x={PAD.left + 2} y={volTop + 11} fontSize="10" fill="currentColor" opacity="0.5">
+                <line x1={PAD.left} y1={volTop + VOL_H / 2} x2={W - PAD.right} y2={volTop + VOL_H / 2}
+                  stroke="currentColor" strokeOpacity="0.08" strokeDasharray="3 5" />
+                <text x={PAD.left + 4} y={volTop + 15} fontSize="12" fontWeight="600" fill="currentColor" opacity="0.72">
                   {t("Объём", "Hajm", "Volume")} · {fmtCompact(maxVol, lang)} {t("сум", "so'm", "UZS")}
                 </text>
 
