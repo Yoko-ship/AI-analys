@@ -630,6 +630,9 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
     }
     if not publishable:
         headline, verdict_status = unavailable.get(status, unavailable["quality_blocked"]), "no_signal"
+    headline_words = headline.split()
+    if len(headline_words) > 40:
+        headline = " ".join(headline_words[:40]).rstrip(" ,;:") + "…"
     issues, risks = make_issues(negatives, by_code, quality, verdict_status, lang, period)
     watch_candidates = {
         "bank": ("net_income", "loan_portfolio", "customer_funds", "total_equity"),
