@@ -1017,8 +1017,16 @@ def _suppress_unverified(result: dict[str, Any],
         if not reasons:
             continue
         current = result.get(metric) or {}
+        computed = current.get("value")
+        if computed is None:
+            computed = current.get("computed")
+        # Validation cannot turn an intrinsically uncomputable metric into an
+        # "under review" cell: without market cap/input there is no number to
+        # review, so retain the more precise original status.
+        if computed is None:
+            continue
         result[metric] = _metric(None, STATUS_UNVERIFIED,
-                                 computed=current.get("value"), reasons=reasons,
+                                 computed=computed, reasons=reasons,
                                  base_period=current.get("base_period"))
     return result
 
