@@ -609,6 +609,10 @@ class AdminCompanyRejectRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class AdminCompanyVisibilityRequest(BaseModel):
+    visible: bool
+
+
 class CatalogAnalyzeRequest(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=40)
     year: int = Field(..., ge=2000, le=2100)
@@ -4465,6 +4469,26 @@ async def api_admin_company_reject(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@app.patch("/api/admin/companies/{ticker}/visibility")
+async def api_admin_company_visibility(
+    ticker: str,
+    payload: AdminCompanyVisibilityRequest,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Reversibly include or exclude an approved issuer from the public catalog."""
+    try:
+        company = await asyncio.get_running_loop().run_in_executor(
+            None,
+            partial(company_imports.set_catalog_visibility, ticker, payload.visible,
+                    actor=current_user.email),
+        )
+        return _json_safe({"ok": True, "company": company,
+                           "visible": payload.visible,
+                           "affected_tickers": company.get("affected_tickers", 1)})
+    except company_imports.CompanyImportError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @app.post("/api/admin/companies/{ticker}/sync")
 async def api_admin_company_sync(
     ticker: str,
@@ -6296,13 +6320,21 @@ async def api_catalog_companies() -> dict[str, Any]:
     try:
         companies = list_companies_with_stats()
         approved = company_imports.approved_metadata_map()
+        visible_companies = []
         for c in companies:
             ticker = str(c.get("ticker") or "").upper()
+            member_metadata = [approved.get(str(member or "").upper())
+                               for member in (c.get("tickers") or [ticker])]
+            reviewed_members = [item for item in member_metadata if item]
+            if reviewed_members and not any(bool(item.get("catalog_visible", 1))
+                                            for item in reviewed_members):
+                continue
             imported = approved.get(ticker) or {}
             c["company_name"] = imported.get("company_name") or c.get("company_name")
             c["logo"] = imported.get("logo_url") or resolve_logo(ticker, COMPANY_LOGOS) or ""
             c["sector"] = imported.get("sector") or COMPANY_SECTORS.get(ticker, "other")
-        return {"ok": True, "count": len(companies), "companies": companies}
+            visible_companies.append(c)
+        return {"ok": True, "count": len(visible_companies), "companies": visible_companies}
     except Exception as exc:
         logger.exception("Catalog companies list failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

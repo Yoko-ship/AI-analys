@@ -442,6 +442,39 @@ def reject_import(ticker: str, *, actor: str, note: str | None = None) -> dict[s
         conn.close()
 
 
+def set_catalog_visibility(ticker: str, visible: bool, *, actor: str) -> dict[str, Any]:
+    """Show or hide an approved issuer in the public catalog without deleting data."""
+    ticker = _clean_ticker(ticker)
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT * FROM catalog_company_imports WHERE ticker = ?", (ticker,)
+        ).fetchone()
+        if not row:
+            raise CompanyImportError("Company candidate was not found")
+        current = dict(row)
+        if current.get("status") != "approved":
+            raise CompanyImportError("Only an approved company can be shown in the catalog")
+        org_id = str(current.get("org_id") or "").strip()
+        where = "status='approved' AND org_id=?" if org_id else "status='approved' AND ticker=?"
+        value = 1 if visible else 0
+        with conn:
+            affected = conn.execute(
+                f"UPDATE catalog_company_imports SET catalog_visible=?, updated_at=datetime('now') WHERE {where}",
+                (value, org_id or ticker),
+            ).rowcount
+            _event(conn, ticker, "catalog_visibility", actor, {
+                "visible": bool(visible), "issuer_org_id": org_id or None,
+                "affected_tickers": affected,
+            })
+        saved = conn.execute(
+            "SELECT * FROM catalog_company_imports WHERE ticker = ?", (ticker,)
+        ).fetchone()
+        return {**dict(saved), "affected_tickers": affected}
+    finally:
+        conn.close()
+
+
 def set_sync_status(ticker: str, status: str, error: str | None = None) -> None:
     ticker = _clean_ticker(ticker)
     if status not in {"queued", "running", "complete", "failed"}:
@@ -468,7 +501,7 @@ def approved_metadata_map() -> dict[str, dict[str, Any]]:
         rows = conn.execute(
             """
             SELECT ticker, company_name, org_id, isin, security_type, share_type,
-                   sector, logo_url, reviewed_at
+                   sector, logo_url, reviewed_at, catalog_visible
             FROM catalog_company_imports
             WHERE status='approved'
             """
