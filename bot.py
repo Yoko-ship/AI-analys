@@ -795,7 +795,9 @@ async def _start_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE,
         result = await run_full_analysis(company, update_progress)
 
         # Сохраняем в кэш, историю пользователя и в chat_data
-        analysis_cache.set(company, result)
+        # Telegram's HTML download is the only consumer that needs the rendered
+        # document in cache.  Web analyses keep only structured JSON.
+        analysis_cache.set(company, result, store_html=True)
         user_db.record_analysis(tg_user.id, result["company_name"],
                                 cost=result["cost"], from_cache=False)
         context.chat_data["last_result"] = result

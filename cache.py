@@ -4,7 +4,7 @@ cache.py — кэш результатов анализа на SQLite.
 Логика:
   - Ключ кэша: нормализованное имя компании + язык ответа
   - TTL по умолчанию: 7 дней
-  - Хранит: raw_analysis, html_report, периоды, стоимость, timestamp
+  - Хранит: structured analysis data; HTML is opt-in for Telegram exports
   - Никаких внешних зависимостей — только стандартная библиотека
 
 Использование:
@@ -244,6 +244,8 @@ class AnalysisCache:
         result: dict,
         language: str | None = "ru",
         mode: str | None = "default",
+        *,
+        store_html: bool = False,
     ):
         """
         Сохраняет результат анализа в кэш.
@@ -256,8 +258,15 @@ class AnalysisCache:
         sections_json = json.dumps(
             result.get("sections", {}), ensure_ascii=False
         )
+        # html_report used to be stored twice: once in its own column and once
+        # inside result_json.  The web application renders structured fields and
+        # never needs cached HTML.  Telegram explicitly opts in because it can
+        # send the report as a file.
+        cached_result = dict(result)
+        cached_result.pop("html_report", None)
+        html_report = str(result.get("html_report") or "") if store_html else ""
         result_json = json.dumps(
-            result,
+            cached_result,
             ensure_ascii=False,
             default=_json_default,
         )
@@ -283,7 +292,7 @@ class AnalysisCache:
                 key,
                 result["company_name"],
                 result["raw_analysis"],
-                result["html_report"],
+                html_report,
                 sections_json,
                 result_json,
                 result.get("annual_period",    ""),
