@@ -16533,6 +16533,16 @@ function MarketView({
     }
     const label = statusText(metric?.status);
     if (!label) return <td className="num">{noSecLabel(row)}</td>;
+    if (metric?.computed != null && ["unverified", "loss_making"].includes(metric.status)) {
+      const period = metric?.base_period ? ` · ${metric.base_period}` : "";
+      const reasons = (metric?.reasons || []).join("; ") || metric?.note || label;
+      return (
+        <td className="num" title={`${reasons}${period}`}>
+          <strong>{formatRatio(metric.computed, digits, lang)}{suffix}</strong>
+          <span className={`fin-cell-period metric-warning metric-warning--${metric.status}`}>{label}</span>
+        </td>
+      );
+    }
     const reasons = (metric?.reasons || []).join("; ")
       || (metric?.computed != null
         ? `${formatRatio(metric.computed, digits, lang)}${suffix} ∉ [${metric.allowed?.join(", ")}]`

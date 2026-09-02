@@ -847,9 +847,11 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     elif ni is None:
         pe = _metric(None, STATUS_NO_FINANCIALS)
     elif ni <= 0:
-        # ТЗ: at a loss the cell says «убыток» — a number is not printed and
-        # the row does not sort beside profitable issuers as if it were cheap.
-        pe = _metric(None, STATUS_LOSS, base_period=base_period)
+        # Keep the arithmetic available for display while preserving the loss
+        # status: a negative P/E is not a cheap-company signal, but the user can
+        # still inspect the actual ratio instead of seeing only a word.
+        pe = _metric(None, STATUS_LOSS, computed=cap_value / ni,
+                     base_period=base_period)
     else:
         pe = _flag_range(cap_value / ni, pe_lo, pe_hi,
                          base_period=base_period, base_months=base_months,
@@ -1015,7 +1017,8 @@ def _suppress_unverified(result: dict[str, Any],
         if not reasons:
             continue
         current = result.get(metric) or {}
-        result[metric] = _metric(None, STATUS_UNVERIFIED, reasons=reasons,
+        result[metric] = _metric(None, STATUS_UNVERIFIED,
+                                 computed=current.get("value"), reasons=reasons,
                                  base_period=current.get("base_period"))
     return result
 

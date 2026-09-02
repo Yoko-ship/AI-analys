@@ -8108,6 +8108,8 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
   color: var(--warn, #d97706);
   opacity: 0.95;
 }
+.market-table td.num .fin-cell-period.metric-warning { color: var(--warn, #f59e0b); font-weight: 700; }
+.market-table td.num .fin-cell-period.metric-warning--loss_making { color: var(--danger, #ef4444); }
 
 .market-table th.market-th-sortable {
   cursor: pointer;
