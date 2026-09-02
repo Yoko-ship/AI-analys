@@ -145,6 +145,10 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   // The compact expanded-view strip remains interactive: drawing mode owns
   // pointer clicks instead of accidentally starting the history-pan gesture.
   const drawTool = advancedTools.getByRole("button", { name: "Линия тренда" });
+  await advancedTools.getByRole("button", { name: "Сравнить" }).click();
+  await expect(advancedTools.locator(".ac-menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(advancedTools.locator(".ac-menu")).toHaveCount(0);
   await drawTool.click();
   await page.mouse.move(lineBox.x + lineBox.width * 0.30, lineBox.y + lineBox.height * 0.35);
   await page.waitForTimeout(50);
