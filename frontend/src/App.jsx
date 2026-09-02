@@ -13751,7 +13751,10 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   // ── Drawing ──────────────────────────────────────────────────────────────
   const GAP = 12;
-  const VOL_H = 96;
+  // Volume needs enough of its own pane to be readable. UZSE sessions often
+  // contain one block trade that is orders of magnitude larger than normal
+  // turnover, so using the absolute maximum would flatten every other bar.
+  const VOL_H = 124;
   const SUB_H = 92;
   const subPanes = [
     ...(indicators.has("rsi") ? [{ key: "rsi" }] : []),
@@ -13868,7 +13871,11 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const priceColor = cmpOn ? "#2fc584" : isUp ? "#2fc584" : "#ee6a60";
   const baseLevel = n ? baseVals[0] : 0;
 
-  const maxVol = Math.max(1, ...points.map((p) => p.turnover || 0));
+  const volumeValues = points.map((p) => p.turnover || 0).filter((v) => v > 0).sort((a, b) => a - b);
+  const maxVol = Math.max(1, volumeValues.at(-1) || 0);
+  const volumeScale = volumeValues.length
+    ? Math.max(1, volumeValues[Math.min(volumeValues.length - 1, Math.floor((volumeValues.length - 1) * 0.95))])
+    : 1;
 
   const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -14081,6 +14088,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
               <path d="M8 3H3v5 M16 3h5v5 M8 21H3v-5 M21 16v5h-5" />
             )}
           </svg>
+          <span className="ac-fullscreen-label">
+            {isFullscreen ? t("Свернуть", "Kichraytirish", "Restore") : t("На весь экран", "To'liq ekran", "Full screen")}
+          </span>
         </button>
         {menu === "span" && (
           <div className="ac-menu ac-span-menu">
@@ -14254,11 +14264,11 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 {points.map((p, i) => {
                   const v = p.turnover || 0;
                   if (!v) return null;
-                  const h = Math.max(2.5, (v / maxVol) * (volBot - volTop));
+                  const h = Math.max(4, Math.min(1, v / volumeScale) * (volBot - volTop));
                   const upDay = i > 0 ? p.close >= points[i - 1].close : true;
                   const w = Math.max(1.5, Math.min(10, gapPx * 0.76));
                   return <rect key={`v${i}`} className="ac-volume-bar" x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
-                    fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.76" />;
+                    fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.9" />;
                 })}
                 <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot}
                   stroke="currentColor" strokeOpacity="0.18" />

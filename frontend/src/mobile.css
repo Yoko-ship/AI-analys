@@ -1322,6 +1322,15 @@ iframe {
 }
 
 @media (max-width: 620px) {
+  .ac-fullscreen-btn {
+    width: 34px;
+    padding: 0;
+  }
+
+  .ac-fullscreen-label {
+    display: none;
+  }
+
   .advanced-chart.is-fullscreen {
     padding: 8px;
   }
