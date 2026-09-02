@@ -826,16 +826,25 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
 
     card_text = None
     if publishable:
-        main_fact = fact_sentence("net_income") or fact_sentence("revenue") or headline
-        risk_card = issues[0]["title"] if issues else tr(lang, "существенный подтверждённый риск не выявлен", "muhim tasdiqlangan xavf aniqlanmadi", "no material verified risk was identified")
-        card_text = tr(
-            lang,
-            f"{issuer['ticker']} · {period_text}. {verdict_label}. {main_fact}. Риск: {risk_card}. Ограничение: вывод охватывает только проверенную отчётность выбранного периода и не оценивает нераскрытые денежные потоки, ковенанты или будущие результаты.",
-            f"{issuer['ticker']} · {period_text}. {verdict_label}. {main_fact}. Xavf: {risk_card}. Cheklov: xulosa faqat tanlangan davrning tekshirilgan hisobotini qamrab oladi va oshkor qilinmagan pul oqimlari, kovenantlar yoki kelajak natijalarini baholamaydi.",
-            f"{issuer['ticker']} · {period_text}. {verdict_label}. {main_fact}. Risk: {risk_card}. Limitation: the conclusion covers only the verified filing for the selected period and does not assess undisclosed cash flows, covenants or future results.",
-        )
-        if len(card_text.split()) > 40:
-            card_text = " ".join(card_text.split()[:40]).rstrip(" ,;:") + "…"
+        brief_labels = {
+            "revenue": tr(lang, "выручка", "tushum", "revenue"),
+            "operating_income": tr(lang, "операционная прибыль", "operatsion foyda", "operating profit"),
+            "net_income": tr(lang, "чистая прибыль", "sof foyda", "net profit"),
+        }
+        brief_facts = []
+        for code in ("revenue", "operating_income", "net_income"):
+            fact = by_code.get(code)
+            if not fact or fact.get("change_pct") is None:
+                continue
+            if lang == "ru":
+                direction = "выросла" if fact["change_pct"] >= 0 else "снизилась"
+            else:
+                direction = tr(lang, "", "o‘sdi", "rose") if fact["change_pct"] >= 0 else tr(lang, "", "pasaydi", "fell")
+            connector = "by " if lang == "en" else "на "
+            brief_facts.append(f"{brief_labels[code]} {direction} {connector}{format_number(abs(fact['change_pct']))}%")
+            if len(brief_facts) == 2:
+                break
+        card_text = f"{issuer['ticker']}: {', '.join(brief_facts)}. {verdict_label}." if brief_facts else f"{issuer['ticker']}: {verdict_label}."
     refs = [{**f, "raw": number(f["raw"])} for f in verified]
     report = {"ok": True, "issuer": {"id": issuer["id"], "ticker": issuer["ticker"], "name": issuer.get("name"), "organization_type": org, "sector": template},
               "report": {"standard": standard.upper(), "template_basis": snapshot.get("template_basis"), "period": period, "period_end": end.isoformat(), "status": status},

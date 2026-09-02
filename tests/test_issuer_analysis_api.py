@@ -168,7 +168,7 @@ def test_complete_ai_report_meets_length_and_traceability_contract(client, lang)
     assert body["headline_tone"] in {"positive", "warning", "danger", "neutral"}
     assert 3 <= body["paragraph_count"] <= 7
     assert 200 <= body["word_count"] <= 250
-    assert 1 <= body["card_word_count"] <= 40
+    assert 1 <= body["card_word_count"] <= 22
     assert body["card_text"] == body["short_summary"]
     assert body["abstract"] == body["headline"]
     assert [section["id"] for section in body["sections"]] == [
