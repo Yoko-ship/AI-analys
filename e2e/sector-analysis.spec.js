@@ -51,8 +51,14 @@ test("sector report opens from the company card and exposes sourced formulas", a
   await details.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByTestId("verified-report")).toBeVisible();
-  await dialog.getByText("Проверенные формулы НСБУ", { exact: true }).click();
-  await expect(dialog.getByText("P1: 2,14%", { exact: true })).toBeVisible();
+  await dialog.getByText("Финансовые коэффициенты", { exact: true }).click();
+  await expect(dialog.getByText("Рентабельность активов", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("2,14%", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Чистая прибыль на каждые 100 сум активов", { exact: true })).toBeVisible();
+  const roa = dialog.getByTestId("verified-ratio-P1");
+  await expect(roa.getByText(/form2:c270/)).not.toBeVisible();
+  await roa.getByText("Как рассчитано", { exact: true }).click();
+  await expect(roa.getByText(/form2:c270/)).toBeVisible();
   await expect(dialog.getByText(/quick_ratio:/)).toHaveCount(0);
   await expect(dialog.getByText("Два показателя для следующего отчёта", { exact: true })).toBeVisible();
   await expect(dialog.getByText(/^Проверено:/)).toBeVisible();
