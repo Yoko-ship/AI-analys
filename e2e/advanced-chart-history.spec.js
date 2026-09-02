@@ -142,6 +142,18 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   await page.mouse.up();
   await expect.poll(async () => range.getAttribute("data-from")).not.toBe(lineFrom);
 
+  // The compact expanded-view strip remains interactive: drawing mode owns
+  // pointer clicks instead of accidentally starting the history-pan gesture.
+  const drawTool = advancedTools.getByRole("button", { name: "Линия тренда" });
+  await drawTool.click();
+  await page.mouse.move(lineBox.x + lineBox.width * 0.30, lineBox.y + lineBox.height * 0.35);
+  await page.waitForTimeout(50);
+  await page.mouse.click(lineBox.x + lineBox.width * 0.30, lineBox.y + lineBox.height * 0.35);
+  await page.mouse.move(lineBox.x + lineBox.width * 0.68, lineBox.y + lineBox.height * 0.55);
+  await page.waitForTimeout(50);
+  await page.mouse.click(lineBox.x + lineBox.width * 0.68, lineBox.y + lineBox.height * 0.55);
+  await expect(page.locator(".ac-trend-line")).toBeVisible();
+
   // For a one-year window every represented month gets a calendar label;
   // sparse sessions must not make October disappear from an index-based sample.
   await expect(page.locator(".ac-svg text").filter({ hasText: /окт/i }).first()).toBeVisible();
