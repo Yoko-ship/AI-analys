@@ -32,11 +32,24 @@ const compactNumber = (value, lang) => value == null ? "—" : Number(value).toL
 
 export function ReportAvailability({ report, lang = "ru" }) {
   if (!report || report.status === "available") return null;
+  const mappingFailed = report.status === "mapping_failed"
+    || (report.data_quality || []).some((item) => item.code === "SOURCE_MAPPING_FAILED");
+  const heading = mappingFailed
+    ? pick(lang, "Отчёт пока готовится", "Hisobot hozir tayyorlanmoqda", "The report is being prepared")
+    : report.headline;
+  const qualityMessage = (item) => item.code === "SOURCE_MAPPING_FAILED"
+    ? pick(lang,
+      "Данные найдены, но их пока не удалось подготовить для анализа.",
+      "Ma’lumotlar topildi, ammo hozircha tahlil uchun tayyorlanmadi.",
+      "The data was found but is not ready for analysis yet.")
+    : item.message;
   return <div className="verified-availability" role="status">
-    <strong>{report.headline}</strong>
-    <p>{pick(lang, "Последний исходный период", "So‘nggi manba davri", "Latest source period")}: {report.availability?.last_source_period || "—"}</p>
-    {(report.data_quality || []).map((item) => <p key={item.code}>{item.message} <small>({item.code})</small></p>)}
-    {report.availability?.next_action && <p>{report.availability.next_action}</p>}
+    <strong>{heading}</strong>
+    <p>{pick(lang, "Доступный период", "Mavjud davr", "Available period")}: {report.availability?.last_source_period || "—"}</p>
+    {(report.data_quality || []).map((item) => <p key={item.code}>{qualityMessage(item)}</p>)}
+    {report.availability?.next_action && <p>{mappingFailed
+      ? pick(lang, "Мы проверим данные снова после обновления источника.", "Manba yangilangach ma’lumotlarni yana tekshiramiz.", "We will check the data again after the source is updated.")
+      : report.availability.next_action}</p>}
     {report.last_successful_report && <details>
       <summary>{pick(lang, "Последний проверенный анализ", "So‘nggi tekshirilgan tahlil", "Last verified analysis")} · {report.last_successful_report.period}</summary>
       {(report.last_successful_report.paragraphs || []).map((p, i) => <p key={i}>{p}</p>)}
