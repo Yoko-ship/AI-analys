@@ -63,6 +63,28 @@ def _run(fingerprint):
     check("bank_detailed_narrative", bank.get("paragraph_count") == 5 and "Совокупные раскрытые доходы банка" in bank_text)
     check("bank_funding_cost", "на каждый 1 сум процентного дохода" in bank_text)
     check("bank_tax_caveat", "не доказывает наличие льгот" in bank_text)
+    company = core.make_report(
+        {
+            "organization_type": "non_financial", "standard": "nsbu", "period": "2026Q1",
+            "period_basis": "quarter", "scope": "standalone", "display_divisor": 1000,
+            "source": {"url": "https://example.test/company-q1.xlsx", "unit": "thousand UZS"},
+            "current_values": {
+                "revenue": 36093389, "cost_of_sales": 21000000, "gross_profit": 15093389,
+                "period_expenses": 8000000, "operating_income": 770288,
+                "profit_before_tax": 650000, "net_income": 572101,
+                "cash": 900000, "receivables": 2400000, "inventories": 3100000,
+                "total_assets": 18000000, "total_liabilities": 11000000, "total_equity": 7000000,
+            },
+            "previous_values": {"revenue": 16238868, "net_income": 833000, "operating_income": 814595},
+            "opening_values": {"cash": 700000, "receivables": 2000000, "inventories": 2800000,
+                               "total_assets": 16500000, "total_liabilities": 10000000, "total_equity": 6500000},
+        },
+        {"id": "company-fixture", "ticker": "COMP", "name": "Fixture Company", "oked_code": "10"},
+        lang="ru", today=date(2026, 4, 10),
+    )
+    company_text = company.get("text") or ""
+    check("company_detailed_narrative", company.get("paragraph_count") == 6 and "Доходы и прямые затраты" in company_text)
+    check("company_margin_analysis", "чистая маржа" in company_text and "обязательства составляют" in company_text)
     return {"status": "passed" if all(c["status"] == "passed" for c in checks) else "failed",
             "code_fingerprint": fingerprint, "checks": checks}
 
