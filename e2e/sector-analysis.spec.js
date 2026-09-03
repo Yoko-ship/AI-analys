@@ -49,11 +49,11 @@ test("sector report opens from the company card and exposes sourced formulas", a
   const details = page.getByTestId("company-insight-card").getByRole("button", { name: "Открыть полный анализ" });
   await expect(page.getByTestId("company-insight-card")).toContainText("8,90%");
   await expect(page.getByTestId("company-insight-card")).toContainText("выручка выросла на 6,55%");
-  await expect(page.getByTestId("company-insight-card")).toContainText("операционная эффективность ухудшилась");
-  await expect(page.getByTestId("company-insight-card")).toContainText("проверьте себестоимость, расходы и денежную позицию");
+  await expect(page.getByTestId("company-insight-card")).toContainText("эффективность снизилась");
+  await expect(page.getByTestId("company-insight-card")).toContainText("Проверьте себестоимость, расходы и денежный поток");
   await expect(page.getByTestId("company-insight-card")).not.toContainText("Ограничение:");
   const teaserWords = await page.getByTestId("company-insight-card").locator(".company-insight-card-copy p").evaluate((node) => node.textContent.trim().split(/\s+/).length);
-  expect(teaserWords).toBeLessThanOrEqual(40);
+  expect(teaserWords).toBeLessThanOrEqual(28);
   await details.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByTestId("verified-report")).toBeVisible();
