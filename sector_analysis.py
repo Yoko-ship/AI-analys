@@ -705,16 +705,35 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             "A difference from the statutory rate does not by itself prove tax relief; tax notes are needed for that conclusion.",
         )
 
-        balance_facts = [fact_sentence(key) for key in ("loan_portfolio", "customer_funds", "cash", "total_assets", "total_equity")]
+        balance_facts = [fact_sentence(key) for key in ("total_assets", "loan_portfolio", "cash", "customer_funds", "total_liabilities", "total_equity")]
         balance_facts = [item for item in balance_facts if item]
+        horizontal_text = tr(lang, "Горизонтальный анализ баланса. ", "Balansning gorizontal tahlili. ", "Horizontal balance-sheet analysis. ") + ("; ".join(balance_facts) if balance_facts else tr(lang, "Недостаточно сопоставимых строк.", "Taqqoslanadigan satrlar yetarli emas.", "Insufficient comparable lines.")) + "."
+        vertical_parts = []
+        assets = value("total_assets")
+        for key in ("loan_portfolio", "cash", "total_liabilities", "total_equity"):
+            share = pct(value(key), assets)
+            if share is not None:
+                vertical_parts.append(f"{label(key, lang)} — {pct_text(share)} {tr(lang, 'активов', 'aktivlarga nisbatan', 'of assets')}")
+        vertical_text = tr(lang, "Вертикальный анализ баланса. ", "Balansning vertikal tahlili. ", "Vertical balance-sheet analysis. ") + ("; ".join(vertical_parts) if vertical_parts else tr(lang, "Недостаточно данных для расчёта структуры.", "Tarkibni hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the structure.")) + "."
+        results_text = " ".join((income_text, expense_text, profit_text))
+        ratio_parts = []
+        if funding_ratio is not None:
+            ratio_parts.append(tr(lang, f"Стоимость фондирования = процентные расходы / процентные доходы = {pct_text(funding_ratio)}", f"Moliyalashtirish qiymati = foizli xarajatlar / foizli daromad = {pct_text(funding_ratio)}", f"Funding cost = interest expense / interest income = {pct_text(funding_ratio)}"))
+        ldr = pct(value("loan_portfolio"), value("customer_funds"))
+        if ldr is not None:
+            ratio_parts.append(f"LDR = {tr(lang, 'кредиты / средства клиентов', 'kreditlar / mijozlar mablag‘i', 'loans / customer funds')} = {pct_text(ldr)}")
+        capital_share = pct(value("total_equity"), assets)
+        if capital_share is not None:
+            ratio_parts.append(f"{tr(lang, 'Капитал / активы', 'Kapital / aktivlar', 'Equity / assets')} = {pct_text(capital_share)}")
+        ratio_text = tr(lang, "Коэффициентный анализ. ", "Koeffitsiyentlar tahlili. ", "Ratio analysis. ") + ("; ".join(ratio_parts) if ratio_parts else tr(lang, "Недостаточно компонентов для расчёта.", "Hisoblash komponentlari yetarli emas.", "Insufficient components for calculation.")) + "."
         watch = " ".join(
             f"{point['label']} — {display_money(point['current_baseline']['value'])} {money_unit}: {point['risk_signal']}; {point['required_disclosure']}."
             for point in monitoring_points
         )
-        balance_text = tr(lang, "Баланс, устойчивость и следующий контроль. ", "Balans, barqarorlik va keyingi nazorat. ", "Balance, resilience and next checks. ") + ("; ".join(balance_facts[:4]) + ". " if balance_facts else "") + (watch or tr(lang, "Для следующего отчёта контрольные показатели не сформированы из-за недостатка данных.", "Keyingi hisobot uchun nazorat ko‘rsatkichlari ma’lumot yetishmasligi sababli shakllantirilmadi.", "No monitoring metrics were formed because the data is insufficient."))
+        balance_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + (watch or tr(lang, "Контрольные показатели не сформированы из-за недостатка данных.", "Nazorat ko‘rsatkichlari ma’lumot yetishmasligi sababli shakllantirilmadi.", "No monitoring metrics were formed because the data is insufficient."))
         if total_expenses is None:
             balance_text += " " + tr(lang, "Полная сумма расходов не рассчитана, поскольку не все необходимые строки раскрыты.", "Barcha zarur satrlar oshkor qilinmagani uchun jami xarajatlar hisoblanmadi.", "Total expenses were not calculated because not all required lines were disclosed.")
-        return [intro, income_text, expense_text, profit_text, balance_text]
+        return [intro, horizontal_text, vertical_text, results_text, ratio_text, balance_text]
 
     def general_analysis_paragraphs():
         """Detailed non-bank narrative using only traceable statement totals."""
@@ -818,7 +837,30 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             funding_parts.append(tr(lang, f"обязательства составляют {pct_text(debt_share)} активов", f"majburiyatlar aktivlarning {pct_text(debt_share)}ini tashkil etadi", f"liabilities equal {pct_text(debt_share)} of assets"))
         watch = " ".join(f"{point['label']} — {display_money(point['current_baseline']['value'])} {money_unit}; требуется следующая сопоставимая форма и объяснение изменения." for point in monitoring_points)
         funding_text = tr(lang, "Капитал, обязательства и следующий контроль. ", "Kapital, majburiyatlar va keyingi nazorat. ", "Capital, liabilities and next checks. ") + ("; ".join(funding_parts) if funding_parts else tr(lang, "Недостаточно данных о структуре финансирования.", "Moliyalashtirish tarkibi haqida ma’lumot yetarli emas.", "Insufficient funding-structure data.")) + ". " + watch
-        return [intro, income_text, expense_text, profit_text, asset_text, funding_text]
+        horizontal_text = asset_text + " " + funding_text
+        assets = value("total_assets")
+        vertical_parts = []
+        for key in ("cash", "receivables", "inventories", "fixed_assets", "total_liabilities", "total_equity"):
+            share = pct(value(key), assets)
+            if share is not None:
+                vertical_parts.append(f"{label(key, lang)} — {pct_text(share)} {tr(lang, 'активов', 'aktivlarga nisbatan', 'of assets')}")
+        vertical_text = tr(lang, "Вертикальный анализ баланса. ", "Balansning vertikal tahlili. ", "Vertical balance-sheet analysis. ") + ("; ".join(vertical_parts) if vertical_parts else tr(lang, "Недостаточно данных для расчёта структуры.", "Tarkibni hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the structure.")) + "."
+        results_text = " ".join((income_text, expense_text, profit_text))
+        ratio_parts = []
+        for ratio_label, numerator in ((tr(lang, "Валовая маржа", "Yalpi marja", "Gross margin"), gross), (tr(lang, "Операционная маржа", "Operatsion marja", "Operating margin"), operating_income), (tr(lang, "Чистая маржа", "Sof marja", "Net margin"), net_income)):
+            calculated = pct(numerator, revenue)
+            if calculated is not None:
+                ratio_parts.append(f"{ratio_label} = {pct_text(calculated)}")
+        if debt_share is not None:
+            ratio_parts.append(f"{tr(lang, 'Обязательства / активы', 'Majburiyatlar / aktivlar', 'Liabilities / assets')} = {pct_text(debt_share)}")
+        ratio_text = tr(lang, "Коэффициентный анализ. ", "Koeffitsiyentlar tahlili. ", "Ratio analysis. ") + ("; ".join(ratio_parts) if ratio_parts else tr(lang, "Недостаточно компонентов для расчёта.", "Hisoblash komponentlari yetarli emas.", "Insufficient components for calculation.")) + "."
+        summary_parts = []
+        if revenue_change is not None and operating_change is not None and revenue_change > 0 > operating_change:
+            summary_parts.append(tr(lang, "Сильная сторона — рост выручки; основной риск — снижение операционной маржи.", "Kuchli tomon — tushum o‘sishi; asosiy xavf — operatsion marja pasayishi.", "The strength is revenue growth; the main risk is the lower operating margin."))
+        if cash_change is not None and liabilities_change is not None and cash_change < 0 < liabilities_change:
+            summary_parts.append(tr(lang, "Снижение денег при росте обязательств усиливает риск ликвидности.", "Majburiyatlar o‘sib, pul kamayishi likvidlik xavfini kuchaytiradi.", "Falling cash alongside rising liabilities increases liquidity risk."))
+        summary_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + (" ".join(summary_parts) or tr(lang, "Оценка ограничена раскрытыми показателями; ключевые изменения приведены выше.", "Baho oshkor qilingan ko‘rsatkichlar bilan cheklangan; asosiy o‘zgarishlar yuqorida keltirilgan.", "The assessment is limited to disclosed metrics; the key movements are shown above."))
+        return [intro, horizontal_text, vertical_text, results_text, ratio_text, summary_text]
 
     headline_facts = [fact_sentence("net_income"), fact_sentence("operating_income")]
     if quality["driver"] == "FX-driven":
@@ -973,53 +1015,56 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
     if publishable and complete_content and template in {"bank", "microfinance_bank", "microfinance"}:
         bank_section_titles = {
             "ru": [
-                ("key_takeaway", "Главный вывод"),
-                ("income_structure", "Структура доходов"),
-                ("funding_and_costs", "Стоимость фондирования и расходы"),
-                ("profit_and_tax", "Чистая прибыль и налог"),
-                ("risks", "Баланс, риски и контрольные точки"),
+                ("methodology", "Общие сведения и методология анализа"),
+                ("horizontal_balance", "Горизонтальный анализ бухгалтерского баланса"),
+                ("vertical_balance", "Вертикальный анализ бухгалтерского баланса"),
+                ("financial_results", "Анализ отчёта о финансовых результатах"),
+                ("ratios", "Коэффициентный анализ"),
+                ("summary", "Сводная оценка финансового состояния"),
             ],
             "uz": [
-                ("key_takeaway", "Asosiy xulosa"),
-                ("income_structure", "Daromadlar tarkibi"),
-                ("funding_and_costs", "Moliyalashtirish qiymati va xarajatlar"),
-                ("profit_and_tax", "Sof foyda va soliq"),
-                ("risks", "Balans, xavflar va nazorat nuqtalari"),
+                ("methodology", "Umumiy ma’lumot va tahlil metodologiyasi"),
+                ("horizontal_balance", "Buxgalteriya balansining gorizontal tahlili"),
+                ("vertical_balance", "Buxgalteriya balansining vertikal tahlili"),
+                ("financial_results", "Moliyaviy natijalar hisobotining tahlili"),
+                ("ratios", "Koeffitsiyentlar tahlili"),
+                ("summary", "Moliyaviy holatning yakuniy bahosi"),
             ],
             "en": [
-                ("key_takeaway", "Key takeaway"),
-                ("income_structure", "Income mix"),
-                ("funding_and_costs", "Funding cost and expenses"),
-                ("profit_and_tax", "Net profit and tax"),
-                ("risks", "Balance, risks and control points"),
+                ("methodology", "Issuer overview and analysis methodology"),
+                ("horizontal_balance", "Horizontal balance-sheet analysis"),
+                ("vertical_balance", "Vertical balance-sheet analysis"),
+                ("financial_results", "Financial-results statement analysis"),
+                ("ratios", "Ratio analysis"),
+                ("summary", "Summary assessment of financial condition"),
             ],
         }
         outline = bank_section_titles.get(lang, bank_section_titles["ru"])
     elif publishable and complete_content:
         general_section_titles = {
             "ru": [
-                ("key_takeaway", "Главный вывод"),
-                ("income_and_margin", "Финансовые результаты и маржа"),
-                ("profit_drivers", "Что повлияло на прибыль"),
-                ("profit_and_tax", "Чистая прибыль и налог"),
-                ("liquidity", "Ликвидность и оборотный капитал"),
-                ("risks", "Капитал, риски и контрольные точки"),
+                ("methodology", "Общие сведения и методология анализа"),
+                ("horizontal_balance", "Горизонтальный анализ бухгалтерского баланса"),
+                ("vertical_balance", "Вертикальный анализ бухгалтерского баланса"),
+                ("financial_results", "Анализ отчёта о финансовых результатах"),
+                ("ratios", "Коэффициентный анализ"),
+                ("summary", "Сводная оценка финансового состояния"),
             ],
             "uz": [
-                ("key_takeaway", "Asosiy xulosa"),
-                ("income_and_margin", "Moliyaviy natijalar va marja"),
-                ("profit_drivers", "Foydaga ta’sir qilgan omillar"),
-                ("profit_and_tax", "Sof foyda va soliq"),
-                ("liquidity", "Likvidlik va aylanma kapital"),
-                ("risks", "Kapital, xavflar va nazorat nuqtalari"),
+                ("methodology", "Umumiy ma’lumot va tahlil metodologiyasi"),
+                ("horizontal_balance", "Buxgalteriya balansining gorizontal tahlili"),
+                ("vertical_balance", "Buxgalteriya balansining vertikal tahlili"),
+                ("financial_results", "Moliyaviy natijalar hisobotining tahlili"),
+                ("ratios", "Koeffitsiyentlar tahlili"),
+                ("summary", "Moliyaviy holatning yakuniy bahosi"),
             ],
             "en": [
-                ("key_takeaway", "Key takeaway"),
-                ("income_and_margin", "Financial results and margins"),
-                ("profit_drivers", "What drove profit"),
-                ("profit_and_tax", "Net profit and tax"),
-                ("liquidity", "Liquidity and working capital"),
-                ("risks", "Capital, risks and control points"),
+                ("methodology", "Issuer overview and analysis methodology"),
+                ("horizontal_balance", "Horizontal balance-sheet analysis"),
+                ("vertical_balance", "Vertical balance-sheet analysis"),
+                ("financial_results", "Financial-results statement analysis"),
+                ("ratios", "Ratio analysis"),
+                ("summary", "Summary assessment of financial condition"),
             ],
         }
         outline = general_section_titles.get(lang, general_section_titles["ru"])

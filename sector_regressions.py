@@ -60,7 +60,8 @@ def _run(fingerprint):
         lang="ru", today=date(2026, 4, 10),
     )
     bank_text = bank.get("text") or ""
-    check("bank_detailed_narrative", bank.get("paragraph_count") == 5 and "Совокупные раскрытые доходы банка" in bank_text)
+    check("bank_detailed_narrative", bank.get("paragraph_count") == 6 and "Совокупные раскрытые доходы банка" in bank_text)
+    check("bank_html_structure", [item.get("id") for item in bank.get("sections", [])] == ["methodology", "horizontal_balance", "vertical_balance", "financial_results", "ratios", "summary"])
     check("bank_funding_cost", "на каждый 1 сум процентного дохода" in bank_text)
     check("bank_tax_caveat", "не доказывает наличие льгот" in bank_text)
     company = core.make_report(
@@ -84,6 +85,7 @@ def _run(fingerprint):
     )
     company_text = company.get("text") or ""
     check("company_detailed_narrative", company.get("paragraph_count") == 6 and "Доходы и прямые затраты" in company_text)
+    check("company_html_structure", [item.get("id") for item in company.get("sections", [])] == ["methodology", "horizontal_balance", "vertical_balance", "financial_results", "ratios", "summary"])
     check("company_margin_analysis", "чистая маржа" in company_text and "обязательства составляют" in company_text)
     check("company_executive_analysis", "рост масштаба не улучшил эффективность" in company_text)
     check("company_card_mixed_verdict", "Картина смешанная" in (company.get("card_text") or ""))
