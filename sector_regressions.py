@@ -4,6 +4,7 @@ Expected results are fixed acceptance examples, not copied computed outputs.
 The larger pytest suite exercises persistence, adapters, failures and the UI.
 """
 from functools import lru_cache
+from datetime import date
 from pathlib import Path
 
 import sector_analysis as core
@@ -39,6 +40,29 @@ def _run(fingerprint):
     check("P3", ratios["P3"] == 20)
     check("P4", ratios["P4"] == 25)
     check("quick_liquidity", ratios["quick_ratio"] == 1.02)
+    bank = core.make_report(
+        {
+            "organization_type": "bank", "standard": "nsbu", "period": "2026Q1",
+            "period_basis": "quarter", "scope": "standalone", "display_divisor": 1000,
+            "source": {"url": "https://example.test/bank-q1.xlsx", "unit": "thousand UZS"},
+            "current_values": {
+                "interest_income": 3112700, "interest_expenses": 2080900,
+                "noninterest_income": 1353200, "noninterest_expenses": 310000,
+                "operating_expenses": 545600, "profit_before_tax": 968500,
+                "net_income": 846400, "total_assets": 20000000,
+                "total_liabilities": 17000000, "total_equity": 3000000,
+                "loan_portfolio": 12000000, "customer_funds": 11000000,
+            },
+            "previous_values": {"net_income": 700000, "interest_income": 2800000},
+            "opening_values": {"total_assets": 19000000, "total_liabilities": 16200000, "total_equity": 2800000},
+        },
+        {"id": "bank-fixture", "ticker": "BANK", "name": "Fixture Bank"},
+        lang="ru", today=date(2026, 4, 10),
+    )
+    bank_text = bank.get("text") or ""
+    check("bank_detailed_narrative", bank.get("paragraph_count") == 5 and "Совокупные раскрытые доходы банка" in bank_text)
+    check("bank_funding_cost", "на каждый 1 сум процентного дохода" in bank_text)
+    check("bank_tax_caveat", "не доказывает наличие льгот" in bank_text)
     return {"status": "passed" if all(c["status"] == "passed" for c in checks) else "failed",
             "code_fingerprint": fingerprint, "checks": checks}
 
