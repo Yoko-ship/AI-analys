@@ -1008,6 +1008,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             "net_income": tr(lang, "чистая прибыль", "sof foyda", "net profit"),
         }
         brief_facts = []
+        brief_directions = []
         for code in ("revenue", "operating_income", "net_income"):
             fact = by_code.get(code)
             if not fact or fact.get("change_pct") is None:
@@ -1018,9 +1019,18 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 direction = tr(lang, "", "o‘sdi", "rose") if fact["change_pct"] >= 0 else tr(lang, "", "pasaydi", "fell")
             connector = "by " if lang == "en" else "на "
             brief_facts.append(f"{brief_labels[code]} {direction} {connector}{format_number(abs(fact['change_pct']))}%")
+            brief_directions.append("positive" if fact["change_pct"] >= 0 else "negative")
             if len(brief_facts) == 2:
                 break
-        card_text = f"{issuer['ticker']}: {', '.join(brief_facts)}. {verdict_label}." if brief_facts else f"{issuer['ticker']}: {verdict_label}."
+        if "positive" in brief_directions and "negative" in brief_directions:
+            card_verdict = tr(lang, "Картина смешанная", "Natijalar aralash", "The picture is mixed")
+        elif brief_directions and all(item == "positive" for item in brief_directions):
+            card_verdict = tr(lang, "Динамика положительная", "Dinamika ijobiy", "The trend is positive")
+        elif brief_directions and all(item == "negative" for item in brief_directions):
+            card_verdict = tr(lang, "Динамика отрицательная", "Dinamika salbiy", "The trend is negative")
+        else:
+            card_verdict = verdict_label
+        card_text = f"{issuer['ticker']}: {', '.join(brief_facts)}. {card_verdict}." if brief_facts else f"{issuer['ticker']}: {card_verdict}."
     refs = [{**f, "raw": number(f["raw"])} for f in verified]
     report = {"ok": True, "issuer": {"id": issuer["id"], "ticker": issuer["ticker"], "name": issuer.get("name"), "organization_type": org, "sector": template},
               "report": {"standard": standard.upper(), "template_basis": snapshot.get("template_basis"), "period": period, "period_end": end.isoformat(), "status": status},
