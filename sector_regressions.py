@@ -85,6 +85,7 @@ def _run(fingerprint):
     company_text = company.get("text") or ""
     check("company_detailed_narrative", company.get("paragraph_count") == 6 and "Доходы и прямые затраты" in company_text)
     check("company_margin_analysis", "чистая маржа" in company_text and "обязательства составляют" in company_text)
+    check("company_executive_analysis", "рост масштаба не улучшил эффективность" in company_text)
     check("company_card_mixed_verdict", "Картина смешанная" in (company.get("card_text") or ""))
     return {"status": "passed" if all(c["status"] == "passed" for c in checks) else "failed",
             "code_fingerprint": fingerprint, "checks": checks}

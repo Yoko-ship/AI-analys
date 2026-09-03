@@ -637,16 +637,21 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         disclosed_tax = value("tax")
         total_income = total(interest_income, noninterest_income)
         total_expenses = total(interest_expenses, noninterest_expenses, operating_expenses)
+        funding_ratio = pct(interest_expenses, interest_income)
         tax_amount = disclosed_tax
         if tax_amount is None and profit_before_tax is not None and net_income is not None:
             tax_amount = profit_before_tax - net_income
 
-        intro = f"{headline} " + tr(
-            lang,
-            "Ниже результат разобран по структуре доходов, стоимости фондирования, расходам и итоговой прибыли. Все доли рассчитаны только по раскрытым сопоставимым строкам отчёта; отсутствующая детализация не заменяется предположениями.",
-            "Quyida natija daromadlar tarkibi, moliyalashtirish qiymati, xarajatlar va yakuniy foyda bo‘yicha tahlil qilinadi. Barcha ulushlar faqat hisobotdagi taqqoslanadigan satrlardan hisoblangan; yetishmagan tafsilotlar taxmin bilan almashtirilmagan.",
-            "The result is analysed through income mix, funding cost, expenses and final profit. Every share uses only comparable disclosed lines; missing detail is not replaced with assumptions.",
-        )
+        net_change = (by_code.get("net_income") or {}).get("change_pct")
+        loan_change = (by_code.get("loan_portfolio") or {}).get("change_pct")
+        bank_exec = []
+        if net_change is not None:
+            bank_exec.append(tr(lang, f"Чистая прибыль изменилась на {format_number(net_change)}%.", f"Sof foyda {format_number(net_change)}% ga o‘zgardi.", f"Net profit changed {format_number(net_change)}%."))
+        if funding_ratio is not None:
+            bank_exec.append(tr(lang, f"Процентные расходы поглощают {pct_text(funding_ratio)} процентных доходов, поэтому устойчивость результата зависит от стоимости фондирования.", f"Foizli xarajatlar foizli daromadning {pct_text(funding_ratio)}ini egallaydi; natija barqarorligi moliyalashtirish qiymatiga bog‘liq.", f"Interest expense absorbs {pct_text(funding_ratio)} of interest income, so earnings resilience depends on funding cost."))
+        if loan_change is not None and loan_change < 0:
+            bank_exec.append(tr(lang, f"Кредитный портфель сократился на {format_number(abs(loan_change))}%, что ограничивает будущую процентную базу, если снижение продолжится.", f"Kredit portfeli {format_number(abs(loan_change))}% ga qisqardi; pasayish davom etsa, kelajakdagi foiz bazasi cheklanadi.", f"The loan portfolio contracted {format_number(abs(loan_change))}%, which would constrain the future interest base if sustained."))
+        intro = f"{headline} " + (" ".join(bank_exec) or tr(lang, "Главный вывод ограничен доступными раскрытиями.", "Asosiy xulosa mavjud ma’lumotlar bilan cheklangan.", "The key takeaway is limited by available disclosures."))
 
         if total_income is not None and total_income > 0 and interest_income >= 0 and noninterest_income >= 0:
             interest_share = pct(interest_income, total_income)
@@ -662,7 +667,6 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             income_text = tr(lang, "Структура доходов. ", "Daromadlar tarkibi. ", "Income mix. ") + (available_income or tr(lang, "Недостаточно данных для расчёта.", "Hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate it."))
 
         expense_parts = []
-        funding_ratio = pct(interest_expenses, interest_income)
         if interest_expenses is not None:
             expense_parts.append(tr(lang, f"процентные расходы — {money('interest_expenses')}", f"foizli xarajatlar — {money('interest_expenses')}", f"interest expense was {money('interest_expenses')}"))
         if funding_ratio is not None:
@@ -732,12 +736,37 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         if tax_amount is None and profit_before_tax is not None and net_income is not None:
             tax_amount = profit_before_tax - net_income
 
-        intro = f"{headline} " + tr(
-            lang,
-            "Ниже результат разобран по доходам, расходам, рентабельности и структуре баланса. Расчёты используют только проверенные строки отчётности; возможные причины изменения не выдаются за факт без примечаний эмитента.",
-            "Quyida natija daromadlar, xarajatlar, rentabellik va balans tarkibi bo‘yicha tahlil qilinadi. Hisob-kitoblar faqat tekshirilgan hisobot satrlariga asoslanadi; emitent izohisiz ehtimoliy sabablar fakt sifatida berilmaydi.",
-            "The result is analysed through income, expenses, profitability and balance-sheet structure. Calculations use only verified statement lines; possible causes are not presented as fact without issuer notes.",
-        )
+        revenue_change = (by_code.get(revenue_key) or {}).get("change_pct")
+        operating_change = (by_code.get("operating_income") or {}).get("change_pct")
+        net_change = (by_code.get("net_income") or {}).get("change_pct")
+        cash_change = (by_code.get("cash") or {}).get("change_pct")
+        liabilities_change = (by_code.get("total_liabilities") or {}).get("change_pct")
+        operating_margin = pct(operating_income, revenue)
+        executive = []
+        if revenue_change is not None and revenue_change > 0 and operating_change is not None and operating_change < 0:
+            executive.append(tr(
+                lang,
+                f"Выручка выросла на {format_number(revenue_change)}%, однако операционная прибыль снизилась на {format_number(abs(operating_change))}%; операционная маржа составила {pct_text(operating_margin) or '—'}. Это означает, что рост масштаба не улучшил эффективность основной деятельности.",
+                f"Tushum {format_number(revenue_change)}% ga oshdi, biroq operatsion foyda {format_number(abs(operating_change))}% ga kamaydi; operatsion marja {pct_text(operating_margin) or '—'} bo‘ldi. Demak, faoliyat ko‘lami o‘sishi asosiy faoliyat samaradorligini yaxshilamadi.",
+                f"Revenue grew {format_number(revenue_change)}%, but operating profit fell {format_number(abs(operating_change))}%; operating margin was {pct_text(operating_margin) or '—'}. Greater scale therefore did not improve core operating efficiency.",
+            ))
+        elif revenue_change is not None and net_change is not None:
+            executive.append(tr(
+                lang,
+                f"Доходы изменились на {format_number(revenue_change)}%, чистая прибыль — на {format_number(net_change)}%. Разница между темпами показывает, улучшается ли конверсия выручки в итоговый результат.",
+                f"Daromad {format_number(revenue_change)}%, sof foyda esa {format_number(net_change)}% ga o‘zgardi. O‘sish sur’atlari farqi tushumning yakuniy natijaga aylanishi yaxshilanayotganini ko‘rsatadi.",
+                f"Income changed {format_number(revenue_change)}% and net profit {format_number(net_change)}%. The gap shows whether revenue is converting into final earnings more effectively.",
+            ))
+        if cash_change is not None and liabilities_change is not None and cash_change < 0 < liabilities_change:
+            executive.append(tr(
+                lang,
+                f"Одновременно деньги сократились на {format_number(abs(cash_change))}%, а обязательства выросли на {format_number(liabilities_change)}%, поэтому главный риск периода — ослабление ликвидной позиции.",
+                f"Shu bilan birga pul {format_number(abs(cash_change))}% ga kamaydi, majburiyatlar {format_number(liabilities_change)}% ga oshdi; davrning asosiy xavfi — likvidlik holatining zaiflashishi.",
+                f"At the same time, cash fell {format_number(abs(cash_change))}% while liabilities rose {format_number(liabilities_change)}%, making weaker liquidity the period’s main risk.",
+            ))
+        if not executive:
+            executive.append(tr(lang, "Главный вывод формируется из динамики прибыли, маржи и баланса; неподтверждённые причины не используются.", "Asosiy xulosa foyda, marja va balans dinamikasidan tuziladi; tasdiqlanmagan sabablar ishlatilmaydi.", "The main conclusion is based on profit, margin and balance-sheet movements; unverified causes are excluded."))
+        intro = f"{headline} " + " ".join(executive)
 
         income_parts = [fact_sentence(revenue_key)] if revenue_key in by_code else []
         if cost is not None:
@@ -944,53 +973,53 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
     if publishable and complete_content and template in {"bank", "microfinance_bank", "microfinance"}:
         bank_section_titles = {
             "ru": [
-                ("methodology", "Итог и методология"),
+                ("key_takeaway", "Главный вывод"),
                 ("income_structure", "Структура доходов"),
-                ("expense_structure", "Расходы и стоимость ресурсов"),
-                ("profit_and_tax", "Прибыль и налог"),
-                ("balance_and_monitoring", "Баланс и следующий контроль"),
+                ("funding_and_costs", "Стоимость фондирования и расходы"),
+                ("profit_and_tax", "Чистая прибыль и налог"),
+                ("risks", "Баланс, риски и контрольные точки"),
             ],
             "uz": [
-                ("methodology", "Natija va metodologiya"),
+                ("key_takeaway", "Asosiy xulosa"),
                 ("income_structure", "Daromadlar tarkibi"),
-                ("expense_structure", "Xarajatlar va resurslar qiymati"),
-                ("profit_and_tax", "Foyda va soliq"),
-                ("balance_and_monitoring", "Balans va keyingi nazorat"),
+                ("funding_and_costs", "Moliyalashtirish qiymati va xarajatlar"),
+                ("profit_and_tax", "Sof foyda va soliq"),
+                ("risks", "Balans, xavflar va nazorat nuqtalari"),
             ],
             "en": [
-                ("methodology", "Result and methodology"),
+                ("key_takeaway", "Key takeaway"),
                 ("income_structure", "Income mix"),
-                ("expense_structure", "Expenses and funding cost"),
-                ("profit_and_tax", "Profit and tax"),
-                ("balance_and_monitoring", "Balance and next checks"),
+                ("funding_and_costs", "Funding cost and expenses"),
+                ("profit_and_tax", "Net profit and tax"),
+                ("risks", "Balance, risks and control points"),
             ],
         }
         outline = bank_section_titles.get(lang, bank_section_titles["ru"])
     elif publishable and complete_content:
         general_section_titles = {
             "ru": [
-                ("methodology", "Итог и методология"),
-                ("income_structure", "Доходы и прямые затраты"),
-                ("expense_structure", "Операционные и финансовые расходы"),
-                ("profit_and_tax", "Итоговая прибыль и налог"),
-                ("assets_and_working_capital", "Активы и оборотный капитал"),
-                ("capital_and_monitoring", "Капитал и следующий контроль"),
+                ("key_takeaway", "Главный вывод"),
+                ("income_and_margin", "Финансовые результаты и маржа"),
+                ("profit_drivers", "Что повлияло на прибыль"),
+                ("profit_and_tax", "Чистая прибыль и налог"),
+                ("liquidity", "Ликвидность и оборотный капитал"),
+                ("risks", "Капитал, риски и контрольные точки"),
             ],
             "uz": [
-                ("methodology", "Natija va metodologiya"),
-                ("income_structure", "Daromadlar va bevosita xarajatlar"),
-                ("expense_structure", "Operatsion va moliyaviy xarajatlar"),
-                ("profit_and_tax", "Yakuniy foyda va soliq"),
-                ("assets_and_working_capital", "Aktivlar va aylanma kapital"),
-                ("capital_and_monitoring", "Kapital va keyingi nazorat"),
+                ("key_takeaway", "Asosiy xulosa"),
+                ("income_and_margin", "Moliyaviy natijalar va marja"),
+                ("profit_drivers", "Foydaga ta’sir qilgan omillar"),
+                ("profit_and_tax", "Sof foyda va soliq"),
+                ("liquidity", "Likvidlik va aylanma kapital"),
+                ("risks", "Kapital, xavflar va nazorat nuqtalari"),
             ],
             "en": [
-                ("methodology", "Result and methodology"),
-                ("income_structure", "Income and direct costs"),
-                ("expense_structure", "Operating and finance costs"),
-                ("profit_and_tax", "Final profit and tax"),
-                ("assets_and_working_capital", "Assets and working capital"),
-                ("capital_and_monitoring", "Capital and next checks"),
+                ("key_takeaway", "Key takeaway"),
+                ("income_and_margin", "Financial results and margins"),
+                ("profit_drivers", "What drove profit"),
+                ("profit_and_tax", "Net profit and tax"),
+                ("liquidity", "Liquidity and working capital"),
+                ("risks", "Capital, risks and control points"),
             ],
         }
         outline = general_section_titles.get(lang, general_section_titles["ru"])
