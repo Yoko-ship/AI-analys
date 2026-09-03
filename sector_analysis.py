@@ -32,6 +32,66 @@ OKED_MAP = {"511": "aviation", "512": "aviation", "61": "telecom", "6491": "leas
             "49": "transport", "50": "transport", "52": "transport",
             **{str(n): "industry" for n in range(10, 34) if n not in (23, 24)}}
 
+# The OKED code changes the analytical lens, not the underlying accounting
+# facts. Each profile names the balance items and operating ratios that are
+# economically material for that activity.
+SECTOR_PROFILES = {
+    "industry": {
+        "name": ("производство", "ishlab chiqarish", "manufacturing"),
+        "assets": ("fixed_assets", "inventories", "receivables", "cash"),
+        "result": ("Для производства ключевой вопрос — покрывает ли валовая маржа расходы периода и сохраняется ли операционная прибыль.", "Ishlab chiqarishda asosiy savol — yalpi marja davr xarajatlarini qoplayaptimi va operatsion foyda saqlanyaptimi.", "For manufacturing, the key question is whether gross margin covers period costs and preserves operating profit."),
+        "risk": ("Отраслевой риск оценивается по себестоимости, запасам и загрузке основных средств.", "Tarmoq xavfi tannarx, zaxiralar va asosiy vositalar yuklamasi bo‘yicha baholanadi.", "Sector risk is assessed through production cost, inventory and fixed-asset utilisation."),
+    },
+    "cement": {
+        "name": ("производство стройматериалов", "qurilish materiallari ishlab chiqarish", "building-materials production"),
+        "assets": ("fixed_assets", "inventories", "cash", "receivables"),
+        "result": ("Для капиталоёмкого производства цемента важны себестоимость, валовая маржа и способность операционной прибыли обслуживать вложения в мощности.", "Kapital talab qiladigan sement ishlab chiqarishda tannarx, yalpi marja va quvvatlarga investitsiyalarni operatsion foyda bilan qoplash muhim.", "For capital-intensive cement production, cost, gross margin and operating earnings available to support capacity are central."),
+        "risk": ("Отраслевой риск — сжатие маржи при высокой доле основных средств и запасов.", "Tarmoq xavfi — asosiy vositalar va zaxiralar ulushi yuqori bo‘lganda marjaning qisqarishi.", "The sector risk is margin compression alongside a high fixed-asset and inventory burden."),
+    },
+    "metallurgy": {
+        "name": ("металлургия", "metallurgiya", "metallurgy"),
+        "assets": ("inventories", "fixed_assets", "receivables", "cash"),
+        "result": ("Для металлургии качество результата определяется валовой маржой: рост выручки без опережения себестоимости не усиливает прибыль.", "Metallurgiyada natija sifati yalpi marja bilan belgilanadi: tushum tannarxdan tezroq o‘smasa, foyda kuchaymaydi.", "In metallurgy, earnings quality is governed by gross margin: revenue growth does not strengthen profit unless it outpaces cost."),
+        "risk": ("Отраслевой риск оценивается по запасам, капиталоёмкости и устойчивости операционной маржи.", "Tarmoq xavfi zaxiralar, kapital sig‘imi va operatsion marja barqarorligi bo‘yicha baholanadi.", "Sector risk is assessed through inventory, capital intensity and operating-margin resilience."),
+    },
+    "extractive": {
+        "name": ("добывающая отрасль", "qazib olish sanoati", "extractive industry"),
+        "assets": ("fixed_assets", "construction_in_progress", "inventories", "cash"),
+        "result": ("Для добывающей компании сопоставляются операционная маржа и капиталоёмкость; объёмы добычи и цены нельзя определить без отраслевых примечаний.", "Qazib olish kompaniyasida operatsion marja va kapital sig‘imi solishtiriladi; qazib olish hajmi va narxlar izohlarsiz aniqlanmaydi.", "For an extractive company, operating margin is assessed against capital intensity; production volumes and prices require sector notes."),
+        "risk": ("Отраслевой риск — слабая отдача от основных средств и незавершённых инвестиций.", "Tarmoq xavfi — asosiy vositalar va tugallanmagan investitsiyalarning past qaytimi.", "The sector risk is weak returns on fixed assets and construction in progress."),
+    },
+    "trade": {
+        "name": ("торговля", "savdo", "trade"),
+        "assets": ("inventories", "receivables", "cash", "current_liabilities"),
+        "result": ("Для торговли рост выручки оценивается через валовую маржу и оборотный капитал: запасы и дебиторская задолженность не должны поглощать деньги.", "Savdoda tushum o‘sishi yalpi marja va aylanma kapital orqali baholanadi: zaxira va debitorlik pulni yutmasligi kerak.", "For trade, revenue growth is tested against gross margin and working capital: inventory and receivables should not absorb cash."),
+        "risk": ("Отраслевой риск — накопление запасов и дебиторской задолженности при слабой ликвидности.", "Tarmoq xavfi — likvidlik zaiflashganda zaxira va debitorlikning to‘planishi.", "The sector risk is inventory and receivables accumulating while liquidity weakens."),
+    },
+    "transport": {
+        "name": ("транспорт и логистика", "transport va logistika", "transport and logistics"),
+        "assets": ("fixed_assets", "receivables", "cash", "current_liabilities"),
+        "result": ("Для транспорта ключевые показатели — операционная маржа и отдача от основных средств; выручка сама по себе не показывает загрузку активов.", "Transportda operatsion marja va asosiy vositalar qaytimi muhim; tushumning o‘zi aktivlar yuklamasini ko‘rsatmaydi.", "For transport, operating margin and fixed-asset returns matter; revenue alone does not reveal asset utilisation."),
+        "risk": ("Отраслевой риск — слабая операционная прибыль при высокой капиталоёмкости и долговой нагрузке.", "Tarmoq xavfi — kapital sig‘imi va qarz yuklamasi yuqori bo‘lganda operatsion foydaning zaifligi.", "The sector risk is weak operating profit alongside high capital intensity and leverage."),
+    },
+    "aviation": {
+        "name": ("авиация", "aviatsiya", "aviation"),
+        "assets": ("fixed_assets", "receivables", "cash", "current_liabilities"),
+        "result": ("Для авиации результат оценивается по операционной марже, капиталоёмкости и запасу ликвидности; данные о загрузке и топливе требуют примечаний.", "Aviatsiyada natija operatsion marja, kapital sig‘imi va likvidlik zaxirasi bo‘yicha baholanadi; yuklama va yoqilg‘i ma’lumotlari izohlarni talab qiladi.", "For aviation, operating margin, capital intensity and liquidity headroom are central; load factors and fuel data require notes."),
+        "risk": ("Отраслевой риск — недостаточная маржа для покрытия капитальных и финансовых расходов.", "Tarmoq xavfi — kapital va moliyaviy xarajatlarni qoplash uchun marjaning yetishmasligi.", "The sector risk is insufficient margin to cover capital and financing costs."),
+    },
+    "telecom": {
+        "name": ("телекоммуникации", "telekommunikatsiyalar", "telecommunications"),
+        "assets": ("fixed_assets", "construction_in_progress", "cash", "receivables"),
+        "result": ("Для телекома важны операционная маржа и отдача от сети: рост выручки сопоставляется с основными средствами и незавершёнными инвестициями.", "Telekomda operatsion marja va tarmoq qaytimi muhim: tushum o‘sishi asosiy vositalar va tugallanmagan investitsiyalar bilan solishtiriladi.", "For telecoms, operating margin and network returns matter: revenue growth is assessed against fixed assets and construction in progress."),
+        "risk": ("Отраслевой риск — рост инвестиций и долга без соответствующего усиления операционной прибыли.", "Tarmoq xavfi — operatsion foyda mos ravishda oshmasdan investitsiya va qarzning o‘sishi.", "The sector risk is investment and debt growth without a matching increase in operating profit."),
+    },
+    "leasing": {
+        "name": ("лизинг", "lizing", "leasing"),
+        "assets": ("receivables", "long_term_investments", "cash", "total_liabilities"),
+        "result": ("Для лизинга прибыль сопоставляется с дебиторской задолженностью и стоимостью финансирования; качество портфеля без примечаний не оценивается.", "Lizingda foyda debitorlik va moliyalashtirish qiymati bilan solishtiriladi; portfel sifati izohlarsiz baholanmaydi.", "For leasing, profit is assessed against receivables and funding cost; portfolio quality cannot be judged without notes."),
+        "risk": ("Отраслевой риск — рост портфеля и обязательств без достаточной прибыли и ликвидности.", "Tarmoq xavfi — yetarli foyda va likvidliksiz portfel va majburiyatlarning o‘sishi.", "The sector risk is portfolio and liability growth without sufficient earnings and liquidity."),
+    },
+}
+
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
@@ -741,6 +801,9 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         pct = lambda numerator, denominator: ratio(numerator, denominator, True)
         money = lambda key: f"{display_money(value(key))} {money_unit}" if value(key) is not None else None
         pct_text = lambda item: f"{format_number(item)}%" if item is not None else None
+        profile = SECTOR_PROFILES.get(template)
+        sector_name = tr(lang, *profile["name"]) if profile else tr(lang, "универсальный профиль", "umumiy profil", "general profile")
+        oked_code = resolution.get("input_oked")
 
         revenue = value("revenue") or value("insurance_premiums") or value("operating_income")
         revenue_key = "revenue" if value("revenue") is not None else "insurance_premiums" if value("insurance_premiums") is not None else "operating_income"
@@ -785,7 +848,13 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             ))
         if not executive:
             executive.append(tr(lang, "Главный вывод формируется из динамики прибыли, маржи и баланса; неподтверждённые причины не используются.", "Asosiy xulosa foyda, marja va balans dinamikasidan tuziladi; tasdiqlanmagan sabablar ishlatilmaydi.", "The main conclusion is based on profit, margin and balance-sheet movements; unverified causes are excluded."))
-        intro = f"{headline} " + " ".join(executive)
+        basis = tr(
+            lang,
+            f"Аналитический профиль: {sector_name}" + (f" (ОКЭД {oked_code})" if oked_code else "") + ".",
+            f"Tahlil profili: {sector_name}" + (f" (IFUT {oked_code})" if oked_code else "") + ".",
+            f"Analysis profile: {sector_name}" + (f" (OKED {oked_code})" if oked_code else "") + ".",
+        )
+        intro = f"{headline} {basis} " + " ".join(executive)
 
         income_parts = [fact_sentence(revenue_key)] if revenue_key in by_code else []
         if cost is not None:
@@ -794,12 +863,9 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             income_parts.append(f"{label(cost_key, lang)}: {money(cost_key)}" + (f" ({pct_text(cost_share)} {tr(lang, 'доходов', 'daromadga nisbatan', 'of income')})" if cost_share is not None else ""))
         if gross is not None:
             income_parts.append(f"{label('gross_profit', lang)}: {money('gross_profit')}" + (f" ({tr(lang, 'маржа', 'marja', 'margin')} {pct_text(pct(gross, revenue))})" if pct(gross, revenue) is not None else ""))
-        income_text = tr(lang, "Доходы и прямые затраты. ", "Daromadlar va bevosita xarajatlar. ", "Income and direct costs. ") + ("; ".join(filter(None, income_parts)) if income_parts else tr(lang, "Недостаточно данных для расчёта структуры.", "Tarkibni hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the structure.")) + ". " + tr(
-            lang,
-            "Соотношение показывает, какая часть дохода остаётся после прямых затрат; детализация драйверов требует примечаний к отчётности.",
-            "Bu nisbat bevosita xarajatlardan keyin daromadning qancha qismi qolishini ko‘rsatadi; omillar tafsiloti hisobot izohlarini talab qiladi.",
-            "The relationship shows how much income remains after direct costs; identifying the drivers requires statement notes.",
-        )
+        income_text = tr(lang, "Доходы и прямые затраты. ", "Daromadlar va bevosita xarajatlar. ", "Income and direct costs. ") + ("; ".join(filter(None, income_parts)) if income_parts else tr(lang, "Недостаточно данных для расчёта структуры.", "Tarkibni hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the structure.")) + "."
+        if profile:
+            income_text += " " + tr(lang, *profile["result"])
 
         expense_parts = []
         if period_expenses is not None:
@@ -826,7 +892,8 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             profit_parts.append(tr(lang, f"налог — {display_money(tax_amount)} {money_unit}, эффективная ставка — {pct_text(effective_tax) or 'не рассчитывается'} ({tax_basis})", f"soliq — {display_money(tax_amount)} {money_unit}, samarali stavka — {pct_text(effective_tax) or 'hisoblanmaydi'} ({tax_basis})", f"tax — {display_money(tax_amount)} {money_unit}, effective rate — {pct_text(effective_tax) or 'not calculable'} ({tax_basis})"))
         profit_text = tr(lang, "Итоговая прибыль и налог. ", "Yakuniy foyda va soliq. ", "Final profit and tax. ") + ("; ".join(profit_parts) if profit_parts else tr(lang, "Недостаточно данных.", "Ma’lumot yetarli emas.", "Insufficient data.")) + "."
 
-        asset_parts = [fact_sentence(key) for key in ("total_assets", "cash", "receivables", "inventories", "fixed_assets", "long_term_investments")]
+        profile_assets = profile["assets"] if profile else ("cash", "receivables", "inventories", "fixed_assets")
+        asset_parts = [fact_sentence(key) for key in ("total_assets",) + tuple(profile_assets)]
         asset_parts = [item for item in asset_parts if item]
         asset_text = tr(lang, "Активы и оборотный капитал. ", "Aktivlar va aylanma kapital. ", "Assets and working capital. ") + ("; ".join(asset_parts[:5]) if asset_parts else tr(lang, "Недостаточно данных.", "Ma’lumot yetarli emas.", "Insufficient data.")) + ". " + tr(lang, "Рост доходов следует оценивать вместе с движением денег, дебиторской задолженности и запасов.", "Daromad o‘sishini pul, debitorlik va zaxiralar harakati bilan birga baholash kerak.", "Income growth should be assessed alongside cash, receivables and inventory movements.")
 
@@ -840,11 +907,12 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         horizontal_text = asset_text + " " + funding_text
         assets = value("total_assets")
         vertical_parts = []
-        for key in ("cash", "receivables", "inventories", "fixed_assets", "total_liabilities", "total_equity"):
+        vertical_keys = tuple(dict.fromkeys(tuple(profile_assets) + ("total_liabilities", "total_equity")))
+        for key in vertical_keys:
             share = pct(value(key), assets)
             if share is not None:
                 vertical_parts.append(f"{label(key, lang)} — {pct_text(share)} {tr(lang, 'активов', 'aktivlarga nisbatan', 'of assets')}")
-        vertical_text = tr(lang, "Вертикальный анализ баланса. ", "Balansning vertikal tahlili. ", "Vertical balance-sheet analysis. ") + ("; ".join(vertical_parts) if vertical_parts else tr(lang, "Недостаточно данных для расчёта структуры.", "Tarkibni hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the structure.")) + "."
+        vertical_text = tr(lang, f"Структура активов для профиля «{sector_name}». ", f"«{sector_name}» profili uchun aktivlar tarkibi. ", f"Asset structure for the {sector_name} profile. ") + ("; ".join(vertical_parts) if vertical_parts else tr(lang, "Недостаточно данных для расчёта отраслевой структуры.", "Tarmoq tarkibini hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the sector-relevant structure.")) + "."
         results_text = " ".join((income_text, expense_text, profit_text))
         ratio_parts = []
         for ratio_label, numerator in ((tr(lang, "Валовая маржа", "Yalpi marja", "Gross margin"), gross), (tr(lang, "Операционная маржа", "Operatsion marja", "Operating margin"), operating_income), (tr(lang, "Чистая маржа", "Sof marja", "Net margin"), net_income)):
@@ -853,12 +921,26 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 ratio_parts.append(f"{ratio_label} = {pct_text(calculated)}")
         if debt_share is not None:
             ratio_parts.append(f"{tr(lang, 'Обязательства / активы', 'Majburiyatlar / aktivlar', 'Liabilities / assets')} = {pct_text(debt_share)}")
+        if template in {"industry", "cement", "metallurgy", "extractive", "transport", "aviation", "telecom"}:
+            fixed_asset_share = pct(value("fixed_assets"), assets)
+            if fixed_asset_share is not None:
+                ratio_parts.append(f"{tr(lang, 'Основные средства / активы', 'Asosiy vositalar / aktivlar', 'Fixed assets / assets')} = {pct_text(fixed_asset_share)}")
+        if template == "trade":
+            working_capital_share = pct(total(value("inventories"), value("receivables")), assets)
+            if working_capital_share is not None:
+                ratio_parts.append(f"{tr(lang, 'Запасы и дебиторка / активы', 'Zaxira va debitorlik / aktivlar', 'Inventory and receivables / assets')} = {pct_text(working_capital_share)}")
+        if template == "leasing":
+            receivables_share = pct(value("receivables"), assets)
+            if receivables_share is not None:
+                ratio_parts.append(f"{tr(lang, 'Дебиторская задолженность / активы', 'Debitorlik / aktivlar', 'Receivables / assets')} = {pct_text(receivables_share)}")
         ratio_text = tr(lang, "Коэффициентный анализ. ", "Koeffitsiyentlar tahlili. ", "Ratio analysis. ") + ("; ".join(ratio_parts) if ratio_parts else tr(lang, "Недостаточно компонентов для расчёта.", "Hisoblash komponentlari yetarli emas.", "Insufficient components for calculation.")) + "."
         summary_parts = []
         if revenue_change is not None and operating_change is not None and revenue_change > 0 > operating_change:
             summary_parts.append(tr(lang, "Сильная сторона — рост выручки; основной риск — снижение операционной маржи.", "Kuchli tomon — tushum o‘sishi; asosiy xavf — operatsion marja pasayishi.", "The strength is revenue growth; the main risk is the lower operating margin."))
         if cash_change is not None and liabilities_change is not None and cash_change < 0 < liabilities_change:
             summary_parts.append(tr(lang, "Снижение денег при росте обязательств усиливает риск ликвидности.", "Majburiyatlar o‘sib, pul kamayishi likvidlik xavfini kuchaytiradi.", "Falling cash alongside rising liabilities increases liquidity risk."))
+        if profile:
+            summary_parts.append(tr(lang, *profile["risk"]))
         summary_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + (" ".join(summary_parts) or tr(lang, "Оценка ограничена раскрытыми показателями; ключевые изменения приведены выше.", "Baho oshkor qilingan ko‘rsatkichlar bilan cheklangan; asosiy o‘zgarishlar yuqorida keltirilgan.", "The assessment is limited to disclosed metrics; the key movements are shown above."))
         return [intro, horizontal_text, vertical_text, results_text, ratio_text, summary_text]
 
@@ -1020,7 +1102,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 ("vertical_balance", "Вертикальный анализ бухгалтерского баланса"),
                 ("financial_results", "Анализ отчёта о финансовых результатах"),
                 ("ratios", "Коэффициентный анализ"),
-                ("summary", "Сводная оценка финансового состояния"),
+                ("summary", "Вердикт"),
             ],
             "uz": [
                 ("methodology", "Umumiy ma’lumot va tahlil metodologiyasi"),
@@ -1028,7 +1110,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 ("vertical_balance", "Buxgalteriya balansining vertikal tahlili"),
                 ("financial_results", "Moliyaviy natijalar hisobotining tahlili"),
                 ("ratios", "Koeffitsiyentlar tahlili"),
-                ("summary", "Moliyaviy holatning yakuniy bahosi"),
+                ("summary", "Xulosa"),
             ],
             "en": [
                 ("methodology", "Issuer overview and analysis methodology"),
@@ -1036,7 +1118,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 ("vertical_balance", "Vertical balance-sheet analysis"),
                 ("financial_results", "Financial-results statement analysis"),
                 ("ratios", "Ratio analysis"),
-                ("summary", "Summary assessment of financial condition"),
+                ("summary", "Verdict"),
             ],
         }
         outline = bank_section_titles.get(lang, bank_section_titles["ru"])
@@ -1048,7 +1130,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 ("vertical_balance", "Вертикальный анализ бухгалтерского баланса"),
                 ("financial_results", "Анализ отчёта о финансовых результатах"),
                 ("ratios", "Коэффициентный анализ"),
-                ("summary", "Сводная оценка финансового состояния"),
+                ("summary", "Вердикт"),
             ],
             "uz": [
                 ("methodology", "Umumiy ma’lumot va tahlil metodologiyasi"),
@@ -1056,7 +1138,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 ("vertical_balance", "Buxgalteriya balansining vertikal tahlili"),
                 ("financial_results", "Moliyaviy natijalar hisobotining tahlili"),
                 ("ratios", "Koeffitsiyentlar tahlili"),
-                ("summary", "Moliyaviy holatning yakuniy bahosi"),
+                ("summary", "Xulosa"),
             ],
             "en": [
                 ("methodology", "Issuer overview and analysis methodology"),
@@ -1064,7 +1146,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 ("vertical_balance", "Vertical balance-sheet analysis"),
                 ("financial_results", "Financial-results statement analysis"),
                 ("ratios", "Ratio analysis"),
-                ("summary", "Summary assessment of financial condition"),
+                ("summary", "Verdict"),
             ],
         }
         outline = general_section_titles.get(lang, general_section_titles["ru"])
@@ -1113,7 +1195,10 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
               "period_basis": snapshot.get("period_basis"), "language": lang, "status": status,
               "content_status": "complete" if complete_content else "shortened",
               "shortened_reason": None if complete_content else "insufficient_traceable_metrics",
-              "sector_template_code": template, "template_resolution": resolution, "template_version": VERSION,
+              "sector_template_code": template, "template_resolution": resolution,
+              "industry_analysis_basis": {"oked_code": resolution.get("input_oked"), "profile": template,
+                                            "matched": template in SECTOR_PROFILES},
+              "template_version": VERSION,
               "calculation_version": CALCULATION_VERSION, "mapping_version": MAPPING_VERSION,
               "headline": headline, "short_summary": card_text, "card_text": card_text,
               "card_word_count": len(card_text.split()) if card_text else 0,
