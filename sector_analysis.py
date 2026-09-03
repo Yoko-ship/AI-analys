@@ -294,9 +294,9 @@ def profit_quality(values, previous):
             "net_fx_result_change": number(fx_delta), "driver": driver, "cash_confirmation": "not_available"}
 
 
-CORE_RESULT = ["revenue", "cost_of_sales", "gross_profit", "period_expenses", "operating_income", "profit_before_tax", "net_income"]
+CORE_RESULT = ["revenue", "cost_of_sales", "gross_profit", "period_expenses", "operating_income", "profit_before_tax", "tax", "net_income"]
 BANK_RESULT = ["interest_income", "interest_expenses", "noninterest_income", "noninterest_expenses", "operating_expenses", "profit_before_tax", "tax", "net_income"]
-INSURANCE_RESULT = ["insurance_premiums", "insurance_claims", "revenue", "expenses", "operating_income", "profit_before_tax", "net_income"]
+INSURANCE_RESULT = ["insurance_premiums", "insurance_claims", "revenue", "expenses", "operating_income", "profit_before_tax", "tax", "net_income"]
 FUND_RESULT = ["unrealized_fair_value_gain", "dividend_income", "management_expenses", "tax", "net_income"]
 BALANCE = ["cash", "receivables", "inventories", "current_liabilities", "total_assets", "total_liabilities", "total_equity"]
 FINANCE_BALANCE = ["cash", "central_bank_balances", "loan_portfolio", "customer_funds", "borrowings", "loan_reserves", "total_assets", "total_liabilities", "total_equity"]
@@ -710,6 +710,85 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             balance_text += " " + tr(lang, "Полная сумма расходов не рассчитана, поскольку не все необходимые строки раскрыты.", "Barcha zarur satrlar oshkor qilinmagani uchun jami xarajatlar hisoblanmadi.", "Total expenses were not calculated because not all required lines were disclosed.")
         return [intro, income_text, expense_text, profit_text, balance_text]
 
+    def general_analysis_paragraphs():
+        """Detailed non-bank narrative using only traceable statement totals."""
+        value = lambda key: decimal((by_code.get(key) or {}).get("value"))
+        pct = lambda numerator, denominator: ratio(numerator, denominator, True)
+        money = lambda key: f"{display_money(value(key))} {money_unit}" if value(key) is not None else None
+        pct_text = lambda item: f"{format_number(item)}%" if item is not None else None
+
+        revenue = value("revenue") or value("insurance_premiums") or value("operating_income")
+        revenue_key = "revenue" if value("revenue") is not None else "insurance_premiums" if value("insurance_premiums") is not None else "operating_income"
+        cost = value("cost_of_sales") or value("insurance_claims")
+        gross = value("gross_profit")
+        period_expenses = value("period_expenses") or value("expenses") or value("management_expenses")
+        operating_income = value("operating_income")
+        profit_before_tax = value("profit_before_tax")
+        net_income = value("net_income")
+        disclosed_tax = value("tax")
+        tax_amount = disclosed_tax
+        if tax_amount is None and profit_before_tax is not None and net_income is not None:
+            tax_amount = profit_before_tax - net_income
+
+        intro = f"{headline} " + tr(
+            lang,
+            "Ниже результат разобран по доходам, расходам, рентабельности и структуре баланса. Расчёты используют только проверенные строки отчётности; возможные причины изменения не выдаются за факт без примечаний эмитента.",
+            "Quyida natija daromadlar, xarajatlar, rentabellik va balans tarkibi bo‘yicha tahlil qilinadi. Hisob-kitoblar faqat tekshirilgan hisobot satrlariga asoslanadi; emitent izohisiz ehtimoliy sabablar fakt sifatida berilmaydi.",
+            "The result is analysed through income, expenses, profitability and balance-sheet structure. Calculations use only verified statement lines; possible causes are not presented as fact without issuer notes.",
+        )
+
+        income_parts = [fact_sentence(revenue_key)] if revenue_key in by_code else []
+        if cost is not None:
+            cost_key = "cost_of_sales" if value("cost_of_sales") is not None else "insurance_claims"
+            cost_share = pct(cost, revenue)
+            income_parts.append(f"{label(cost_key, lang)}: {money(cost_key)}" + (f" ({pct_text(cost_share)} {tr(lang, 'доходов', 'daromadga nisbatan', 'of income')})" if cost_share is not None else ""))
+        if gross is not None:
+            income_parts.append(f"{label('gross_profit', lang)}: {money('gross_profit')}" + (f" ({tr(lang, 'маржа', 'marja', 'margin')} {pct_text(pct(gross, revenue))})" if pct(gross, revenue) is not None else ""))
+        income_text = tr(lang, "Доходы и прямые затраты. ", "Daromadlar va bevosita xarajatlar. ", "Income and direct costs. ") + ("; ".join(filter(None, income_parts)) if income_parts else tr(lang, "Недостаточно данных для расчёта структуры.", "Tarkibni hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the structure.")) + ". " + tr(
+            lang,
+            "Соотношение показывает, какая часть дохода остаётся после прямых затрат; детализация драйверов требует примечаний к отчётности.",
+            "Bu nisbat bevosita xarajatlardan keyin daromadning qancha qismi qolishini ko‘rsatadi; omillar tafsiloti hisobot izohlarini talab qiladi.",
+            "The relationship shows how much income remains after direct costs; identifying the drivers requires statement notes.",
+        )
+
+        expense_parts = []
+        if period_expenses is not None:
+            expense_key = "period_expenses" if value("period_expenses") is not None else "expenses" if value("expenses") is not None else "management_expenses"
+            expense_parts.append(f"{label(expense_key, lang)}: {money(expense_key)}" + (f" ({pct_text(pct(period_expenses, revenue))} {tr(lang, 'доходов', 'daromadga nisbatan', 'of income')})" if pct(period_expenses, revenue) is not None else ""))
+        for key in ("financial_income", "financial_expenses", "interest_expenses"):
+            if value(key) is not None:
+                expense_parts.append(f"{label(key, lang)}: {money(key)}")
+        if operating_income is not None:
+            expense_parts.append(f"{label('operating_income', lang)}: {money('operating_income')}" + (f" ({tr(lang, 'операционная маржа', 'operatsion marja', 'operating margin')} {pct_text(pct(operating_income, revenue))})" if pct(operating_income, revenue) is not None else ""))
+        expense_text = tr(lang, "Операционные и финансовые расходы. ", "Operatsion va moliyaviy xarajatlar. ", "Operating and finance costs. ") + ("; ".join(expense_parts) if expense_parts else tr(lang, "Недостаточно раскрытых данных.", "Oshkor qilingan ma’lumot yetarli emas.", "Insufficient disclosed data.")) + "."
+
+        profit_parts = []
+        if net_income is not None:
+            profit_parts.append(f"{label('net_income', lang)}: {money('net_income')}" + (f" ({tr(lang, 'чистая маржа', 'sof marja', 'net margin')} {pct_text(pct(net_income, revenue))})" if pct(net_income, revenue) is not None else ""))
+            movement = (by_code.get("net_income") or {}).get("change_pct")
+            if movement is not None:
+                profit_parts.append(tr(lang, f"изменение к сопоставимому периоду — {format_number(movement)}%", f"taqqoslanadigan davrga nisbatan o‘zgarish — {format_number(movement)}%", f"change from the comparable period — {format_number(movement)}%"))
+        if profit_before_tax is not None:
+            profit_parts.append(f"{label('profit_before_tax', lang)}: {money('profit_before_tax')}")
+        effective_tax = pct(tax_amount, profit_before_tax)
+        if tax_amount is not None:
+            tax_basis = tr(lang, "раскрытая строка", "oshkor qilingan satr", "disclosed line") if disclosed_tax is not None else tr(lang, "расчётная разница до/после налога", "soliqdan oldingi/keyingi hisoblangan farq", "calculated pre/post-tax difference")
+            profit_parts.append(tr(lang, f"налог — {display_money(tax_amount)} {money_unit}, эффективная ставка — {pct_text(effective_tax) or 'не рассчитывается'} ({tax_basis})", f"soliq — {display_money(tax_amount)} {money_unit}, samarali stavka — {pct_text(effective_tax) or 'hisoblanmaydi'} ({tax_basis})", f"tax — {display_money(tax_amount)} {money_unit}, effective rate — {pct_text(effective_tax) or 'not calculable'} ({tax_basis})"))
+        profit_text = tr(lang, "Итоговая прибыль и налог. ", "Yakuniy foyda va soliq. ", "Final profit and tax. ") + ("; ".join(profit_parts) if profit_parts else tr(lang, "Недостаточно данных.", "Ma’lumot yetarli emas.", "Insufficient data.")) + "."
+
+        asset_parts = [fact_sentence(key) for key in ("total_assets", "cash", "receivables", "inventories", "fixed_assets", "long_term_investments")]
+        asset_parts = [item for item in asset_parts if item]
+        asset_text = tr(lang, "Активы и оборотный капитал. ", "Aktivlar va aylanma kapital. ", "Assets and working capital. ") + ("; ".join(asset_parts[:5]) if asset_parts else tr(lang, "Недостаточно данных.", "Ma’lumot yetarli emas.", "Insufficient data.")) + ". " + tr(lang, "Рост доходов следует оценивать вместе с движением денег, дебиторской задолженности и запасов.", "Daromad o‘sishini pul, debitorlik va zaxiralar harakati bilan birga baholash kerak.", "Income growth should be assessed alongside cash, receivables and inventory movements.")
+
+        funding_parts = [fact_sentence(key) for key in ("total_liabilities", "total_equity", "current_liabilities")]
+        funding_parts = [item for item in funding_parts if item]
+        debt_share = pct(value("total_liabilities"), value("total_assets"))
+        if debt_share is not None:
+            funding_parts.append(tr(lang, f"обязательства составляют {pct_text(debt_share)} активов", f"majburiyatlar aktivlarning {pct_text(debt_share)}ini tashkil etadi", f"liabilities equal {pct_text(debt_share)} of assets"))
+        watch = " ".join(f"{point['label']} — {display_money(point['current_baseline']['value'])} {money_unit}; требуется следующая сопоставимая форма и объяснение изменения." for point in monitoring_points)
+        funding_text = tr(lang, "Капитал, обязательства и следующий контроль. ", "Kapital, majburiyatlar va keyingi nazorat. ", "Capital, liabilities and next checks. ") + ("; ".join(funding_parts) if funding_parts else tr(lang, "Недостаточно данных о структуре финансирования.", "Moliyalashtirish tarkibi haqida ma’lumot yetarli emas.", "Insufficient funding-structure data.")) + ". " + watch
+        return [intro, income_text, expense_text, profit_text, asset_text, funding_text]
+
     headline_facts = [fact_sentence("net_income"), fact_sentence("operating_income")]
     if quality["driver"] == "FX-driven":
         headline_facts.append(tr(lang, "Драйвер — курсовые разницы", "Asosiy omil — kurs farqlari", "Driven by foreign-exchange movements") + f": Δ {format_number(quality['net_fx_result_change'])} {money_unit}")
@@ -821,66 +900,10 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         previous.get(key) is not None for key in ("net_income", "profit_before_tax", "interest_income")
     )
     paragraphs = []
-    if complete_content and template in {"bank", "microfinance_bank"}:
+    if complete_content and template in {"bank", "microfinance_bank", "microfinance"}:
         paragraphs = bank_analysis_paragraphs()
     elif complete_content:
-        method = tr(
-            lang,
-            "Вывод основан только на проверенных фактах этого финансового снимка; автоматический инвестиционный рейтинг и торговая рекомендация не формируются.",
-            "Xulosa faqat shu moliyaviy suratdagi tekshirilgan faktlarga asoslanadi; avtomatik investitsiya reytingi yoki savdo tavsiyasi tuzilmaydi.",
-            "The conclusion uses only verified facts in this financial snapshot; it does not produce an automatic investment rating or trading recommendation.",
-        )
-        paragraphs.append(f"{headline} {method}")
-
-        result_facts = [fact_sentence(key) for key in ("revenue", "net_income", "operating_income", "interest_income", "insurance_premiums")]
-        result_facts = [item for item in result_facts if item][:3]
-        if bank_without_income_comparison:
-            comparison_note = tr(
-                lang,
-                "Динамика баланса — относительно начала года; изменение прибыли и рентабельности не оценивается",
-                "Balans dinamikasi yil boshiga nisbatan; foyda va rentabellik o‘zgarishi baholanmaydi",
-                "Balance dynamics are measured from year-start; changes in profit and profitability are not assessed",
-            )
-        elif trend["status"] == "comparison_only":
-            comparison_note = tr(lang, "Доступные две точки дают сравнение, но не подтверждают тенденцию", "Ikki nuqta taqqoslash imkonini beradi, ammo trendni tasdiqlamaydi", "The two available points permit a comparison but do not establish a trend")
-        else:
-            comparison_note = tr(lang, "Сравнение использует только одинаковые период, стандарт и состав группы", "Taqqoslash faqat bir xil davr, standart va guruh tarkibidan foydalanadi", "The comparison uses only the same period, standard and group scope")
-        paragraphs.append(tr(lang, "Результат и причины. ", "Natija va sabablar. ", "Result and drivers. ") + "; ".join(result_facts) + f". {comparison_note}.")
-
-        money_facts = [fact_sentence(key) for key in ("cash", "total_liabilities", "total_equity", "total_assets", "receivables", "inventories")]
-        money_facts = [item for item in money_facts if item][:4]
-        money_guard = tr(
-            lang,
-            "Клиентские, ограниченные и недоступные средства не считаются свободными деньгами без отдельного раскрытия",
-            "Mijozlar, cheklangan va mavjud bo‘lmagan mablag‘lar alohida oshkor qilinmasa erkin pul hisoblanmaydi",
-            "Client, restricted and unavailable balances are not treated as free cash without separate disclosure",
-        )
-        paragraphs.append(tr(lang, "Деньги и обязательства. ", "Pul va majburiyatlar. ", "Cash and obligations. ") + "; ".join(money_facts) + f". {money_guard}.")
-
-        if issues:
-            issue = issues[0]
-            risk_text = f"{issue['title']}: {display_money(issue['actual_value'])} {money_unit}. {issue['verdict_text']}."
-        else:
-            risk_text = tr(lang, "Существенный риск не утверждается без показателя, порога и источника.", "Ko‘rsatkich, mezon va manbasiz muhim xavf tasdiqlanmaydi.", "No material risk is asserted without a metric, threshold and source.")
-        missing_text = ", ".join(missing_metrics) if missing_metrics else tr(lang, "ключевые строки доступны", "asosiy satrlar mavjud", "the key lines are available")
-        limit_text = tr(lang, f"Не хватает: {missing_text}. Поэтому нельзя оценить непроверенные причины, будущие результаты и обязательства вне раскрытого периметра.", f"Yetishmaydi: {missing_text}. Shu sababli tekshirilmagan sabablar, kelajak natijalari va oshkor qilingan doiradan tashqari majburiyatlarni baholab bo‘lmaydi.", f"Missing: {missing_text}. Therefore unverified causes, future outcomes and obligations outside the disclosed scope cannot be assessed.")
-        paragraphs.append(tr(lang, "Риск и ограничения. ", "Xavf va cheklovlar. ", "Risk and limitations. ") + risk_text + " " + limit_text)
-
-        watch_text = []
-        for point in monitoring_points:
-            current = display_money(point["current_baseline"]["value"])
-            watch_text.append(f"{point['label']} — {current} {money_unit}: {point['risk_signal']}; {point['required_disclosure']}.")
-        paragraphs.append(tr(lang, "Следить в следующем отчёте. ", "Keyingi hisobotda kuzatish. ", "Watch in the next report. ") + " ".join(watch_text))
-
-        fillers = [
-            tr(lang, "Опубликованный ноль сохранён как ноль, а отсутствующее значение не заменено предположением.", "E’lon qilingan nol nol sifatida saqlanadi, yetishmagan qiymat esa taxmin bilan almashtirilmaydi.", "A published zero remains zero, while a missing value is not replaced by an assumption."),
-            tr(lang, "Каждое использованное число связано с периодом, исходной строкой и версией методики.", "Har bir ishlatilgan raqam davr, asl satr va metodika versiyasi bilan bog‘langan.", "Every number used is linked to its period, source line and methodology version."),
-            tr(lang, "Операционные причины без примечаний к отчётности не выдумываются.", "Hisobot izohlarisiz operatsion sabablar o‘ylab topilmaydi.", "Operational causes are not invented when the filing notes do not disclose them."),
-        ]
-        for sentence in fillers:
-            if len("\n\n".join(paragraphs).split()) >= 200:
-                break
-            paragraphs[3] += " " + sentence
+        paragraphs = general_analysis_paragraphs()
     elif publishable:
         paragraphs = [headline]
         for group in ("financial_result", "cash_and_working_capital", "investment_base"):
@@ -916,7 +939,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         ],
     }
     outline = section_titles.get(lang, section_titles["ru"])
-    if publishable and complete_content and template in {"bank", "microfinance_bank"}:
+    if publishable and complete_content and template in {"bank", "microfinance_bank", "microfinance"}:
         bank_section_titles = {
             "ru": [
                 ("methodology", "Итог и методология"),
@@ -941,6 +964,34 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             ],
         }
         outline = bank_section_titles.get(lang, bank_section_titles["ru"])
+    elif publishable and complete_content:
+        general_section_titles = {
+            "ru": [
+                ("methodology", "Итог и методология"),
+                ("income_structure", "Доходы и прямые затраты"),
+                ("expense_structure", "Операционные и финансовые расходы"),
+                ("profit_and_tax", "Итоговая прибыль и налог"),
+                ("assets_and_working_capital", "Активы и оборотный капитал"),
+                ("capital_and_monitoring", "Капитал и следующий контроль"),
+            ],
+            "uz": [
+                ("methodology", "Natija va metodologiya"),
+                ("income_structure", "Daromadlar va bevosita xarajatlar"),
+                ("expense_structure", "Operatsion va moliyaviy xarajatlar"),
+                ("profit_and_tax", "Yakuniy foyda va soliq"),
+                ("assets_and_working_capital", "Aktivlar va aylanma kapital"),
+                ("capital_and_monitoring", "Kapital va keyingi nazorat"),
+            ],
+            "en": [
+                ("methodology", "Result and methodology"),
+                ("income_structure", "Income and direct costs"),
+                ("expense_structure", "Operating and finance costs"),
+                ("profit_and_tax", "Final profit and tax"),
+                ("assets_and_working_capital", "Assets and working capital"),
+                ("capital_and_monitoring", "Capital and next checks"),
+            ],
+        }
+        outline = general_section_titles.get(lang, general_section_titles["ru"])
     report_sections = [
         {"id": section_id, "number": f"{index:02d}", "title": title, "text": paragraphs[index - 1]}
         for index, (section_id, title) in enumerate(outline, 1)
