@@ -11409,10 +11409,10 @@ function companyInsightTeaser(report, lang) {
     net_income: ["чистая прибыль", "sof foyda", "net profit"],
   };
   const languageIndex = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
-  const changes = candidates.map((code) => rows.find((row) => row.metric_code === code))
+  const comparable = candidates.map((code) => rows.find((row) => row.metric_code === code))
     .filter((row) => Number.isFinite(Number(row?.change_pct)))
-    .slice(0, 2)
-    .map((row) => {
+    .slice(0, 2);
+  const changes = comparable.map((row) => {
       const value = Number(row.change_pct);
       const direction = lang === "uz" ? (value >= 0 ? "o‘sdi" : "pasaydi")
         : lang === "en" ? (value >= 0 ? "rose" : "fell")
@@ -11432,7 +11432,40 @@ function companyInsightTeaser(report, lang) {
       neutral: ["Для уверенного вывода пока мало данных", "Aniq xulosa uchun ma’lumot hali kam", "More data is needed for a firm conclusion"],
     };
     const verdict = (verdicts[tone] || verdicts.neutral)[languageIndex];
-    return `${report.issuer?.ticker || ""}: ${changes.join(", ")}. ${verdict}.`.trim();
+    const movement = Object.fromEntries(comparable.map((row) => [row.metric_code, Number(row.change_pct)]));
+    let interpretation;
+    if (movement.revenue > 0 && (movement.operating_income < 0 || movement.net_income < 0)) {
+      interpretation = [
+        "Рост выручки не преобразовался в рост прибыли: операционная эффективность ухудшилась. В полном отчёте проверьте себестоимость, расходы и денежную позицию",
+        "Tushum o‘sishi foyda o‘sishiga aylanmadi: operatsion samaradorlik yomonlashdi. To‘liq hisobotda tannarx, xarajatlar va pul holatini tekshiring",
+        "Revenue growth did not translate into profit growth, indicating weaker operating efficiency. Check costs, expenses and the cash position in the full report",
+      ][languageIndex];
+    } else if (comparable.length >= 2 && comparable.every((row) => Number(row.change_pct) >= 0)) {
+      interpretation = [
+        "Рост доходов поддержан ростом прибыли; полный отчёт показывает устойчивость маржи и баланса",
+        "Daromad o‘sishi foyda o‘sishi bilan qo‘llab-quvvatlangan; to‘liq hisobot marja va balans barqarorligini ko‘rsatadi",
+        "Income growth is supported by profit growth; open the full report to assess margin and balance-sheet resilience",
+      ][languageIndex];
+    } else if (comparable.length >= 2 && comparable.every((row) => Number(row.change_pct) < 0)) {
+      interpretation = [
+        "Одновременное снижение доходов и прибыли указывает на ослабление результатов; в полном отчёте проверьте расходы и структуру баланса",
+        "Daromad va foydaning bir vaqtda pasayishi natijalar zaiflashganini ko‘rsatadi; to‘liq hisobotda xarajatlar va balans tarkibini tekshiring",
+        "The simultaneous decline in income and profit indicates weaker performance; check expenses and the balance-sheet structure in the full report",
+      ][languageIndex];
+    } else if (comparable.length >= 2) {
+      interpretation = [
+        "Показатели движутся разнонаправленно; полный отчёт объясняет влияние маржи, расходов и баланса",
+        "Ko‘rsatkichlar turli yo‘nalishda o‘zgarmoqda; to‘liq hisobot marja, xarajatlar va balans ta’sirini tushuntiradi",
+        "The metrics are moving in different directions; the full report explains the impact of margins, expenses and the balance sheet",
+      ][languageIndex];
+    } else {
+      interpretation = [
+        "Это главный подтверждённый сигнал периода; откройте полный отчёт для оценки расходов, прибыли и баланса",
+        "Bu davrning asosiy tasdiqlangan signalidir; xarajatlar, foyda va balansni baholash uchun to‘liq hisobotni oching",
+        "This is the period’s main verified signal; open the full report to assess expenses, profit and the balance sheet",
+      ][languageIndex];
+    }
+    return `${report.issuer?.ticker || ""}: ${changes.join(", ")}. ${verdict}. ${interpretation}.`.trim();
   }
   const teaser = report.card_text || report.short_summary || report.headline || "";
   const words = String(teaser).trim().split(/\s+/).filter(Boolean);
