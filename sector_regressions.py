@@ -30,6 +30,7 @@ def _run(fingerprint):
     check("trade_oked_routing", core.resolve_template({"oked_code": "47110"})["selected_template"] == "trade")
     check("transport_oked_routing", core.resolve_template({"oked_code": "49410"})["selected_template"] == "transport")
     check("telecom_oked_routing", core.resolve_template({"oked_code": "61100"})["selected_template"] == "telecom")
+    check("catalog_sector_fallback", core.resolve_template({"sector": "mining"})["selected_template"] == "extractive")
     check("unknown_oked", core.resolve_template({})["selected_template"] == "generic_nsbu")
     check("bank_no_enterprise_ratios", not core.enterprise_ratios({}, "bank", "nsbu", "2026Q1"))
     check("sign_change", core.change(-10, 20)["change_value"] == -30 and core.change(-10, 20)["base_effect"])

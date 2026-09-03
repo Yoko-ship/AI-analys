@@ -91,6 +91,12 @@ SECTOR_PROFILES = {
         "risk": ("Отраслевой риск — рост портфеля и обязательств без достаточной прибыли и ликвидности.", "Tarmoq xavfi — yetarli foyda va likvidliksiz portfel va majburiyatlarning o‘sishi.", "The sector risk is portfolio and liability growth without sufficient earnings and liquidity."),
     },
 }
+CATALOG_SECTOR_TEMPLATES = {
+    "manufacturing": "industry", "industry": "industry",
+    "mining": "extractive", "extractive": "extractive",
+    "transport": "transport", "telecom": "telecom", "trade": "trade",
+    "aviation": "aviation", "leasing": "leasing",
+}
 
 
 def digest(value):
@@ -164,8 +170,10 @@ def resolve_template(issuer, organization_type="non_financial", today=None):
                           override.get("valid_from", "0000") <= today.isoformat() <= override.get("valid_to", "9999"))
     special = SPECIAL_TYPES.get(explicit)
     prefix = next((p for p in sorted(OKED_MAP, key=len, reverse=True) if oked.startswith(p)), None)
-    selected = special or (OKED_MAP[prefix] if prefix else "generic_nsbu")
-    status = "special_override" if special else "matched_prefix" if prefix else "generic_fallback"
+    sector = str(issuer.get("sector") or index.get("sector") or security.get("sector") or "").strip().lower()
+    sector_template = CATALOG_SECTOR_TEMPLATES.get(sector)
+    selected = special or (OKED_MAP[prefix] if prefix else sector_template or "generic_nsbu")
+    status = "special_override" if special else "matched_prefix" if prefix else "sector_catalog_fallback" if sector_template else "generic_fallback"
     if valid_override:
         selected, status = override.get("override_template", "generic_nsbu"), "manual_override"
     activity = issuer.get("verified_activity_template") or index.get("verified_activity_template")
@@ -173,7 +181,7 @@ def resolve_template(issuer, organization_type="non_financial", today=None):
         status = "classification_conflict"
     return {"selected_template": selected, "resolution_status": status, "input_oked": oked or None,
             "rule_version": VERSION, "evidence_source": override.get("evidence_source") if valid_override else index.get("source_url"),
-            "reason_code": override.get("reason_code") if valid_override else ("special_legal_type" if special else "primary_oked" if prefix else "unknown_oked")}
+            "reason_code": override.get("reason_code") if valid_override else ("special_legal_type" if special else "primary_oked" if prefix else "catalog_sector" if sector_template else "unknown_oked")}
 
 
 FORM1 = {"c400": "total_assets", "c480": "total_equity", "c770": "total_liabilities",
