@@ -157,6 +157,5 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false 
       <h3>{t("Ограничения данных", "Ma’lumotlar cheklovlari", "Data limitations")}</h3>
       {report.data_quality.map((item) => <p key={item.code}>{item.message}</p>)}
     </aside>}
-    <small className="verified-version">{report.template_version} · {report.calculation_version}</small>
   </div>;
 }
