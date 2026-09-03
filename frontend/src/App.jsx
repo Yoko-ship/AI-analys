@@ -11416,11 +11416,19 @@ function companyInsightTeaser(report, lang) {
     const movement = Object.fromEntries(comparable.map((row) => [row.metric_code, Number(row.change_pct)]));
     let thesis;
     if (movement.revenue > 0 && (movement.operating_income < 0 || movement.net_income < 0)) {
-      thesis = [
-        "выручка растёт, но прибыль снижается — рост пока не повышает эффективность",
-        "tushum o‘smoqda, ammo foyda pasaymoqda — o‘sish hali samaradorlikni oshirmadi",
-        "revenue is growing, but profit is falling — growth has not improved efficiency",
-      ][languageIndex];
+      if (movement.operating_income < 0) {
+        thesis = [
+          "рост выручки при падении операционной прибыли указывает на сжатие маржи и ухудшение эффективности",
+          "tushum o‘sib, operatsion foyda pasayishi marja qisqarishi va samaradorlik yomonlashganini ko‘rsatadi",
+          "revenue growth alongside falling operating profit indicates margin compression and weaker efficiency",
+        ][languageIndex];
+      } else {
+        thesis = [
+          "рост выручки при падении чистой прибыли указывает на снижение чистой маржи и качества результата",
+          "tushum o‘sib, sof foyda pasayishi sof marja va natija sifati yomonlashganini ko‘rsatadi",
+          "revenue growth alongside falling net profit indicates lower net margins and weaker earnings quality",
+        ][languageIndex];
+      }
     } else if (comparable.length >= 2 && comparable.every((row) => Number(row.change_pct) >= 0)) {
       thesis = [
         "доходы и прибыль растут — финансовая динамика положительная",
