@@ -11465,7 +11465,11 @@ function companyInsightTeaser(report, lang) {
         "This is the period’s main verified signal; open the full report to assess expenses, profit and the balance sheet",
       ][languageIndex];
     }
-    return `${report.issuer?.ticker || ""}: ${changes.join(", ")}. ${verdict}. ${interpretation}.`.trim();
+    const detailedTeaser = `${report.issuer?.ticker || ""}: ${changes.join(", ")}. ${verdict}. ${interpretation}.`.trim();
+    const detailedWords = detailedTeaser.split(/\s+/).filter(Boolean);
+    return detailedWords.length > 40
+      ? `${detailedWords.slice(0, 40).join(" ").replace(/[\s,;:]+$/, "")}…`
+      : detailedTeaser;
   }
   const teaser = report.card_text || report.short_summary || report.headline || "";
   const words = String(teaser).trim().split(/\s+/).filter(Boolean);
