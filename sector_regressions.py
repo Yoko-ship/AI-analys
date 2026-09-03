@@ -27,6 +27,9 @@ def _run(fingerprint):
     check("null_is_not_zero", core.total(1, None) is None and core.ratio(1, 0) is None)
     check("balance_absolute_and_relative", core.balance_gate({"total_assets": 1000000, "total_equity": 400000, "total_liabilities": 599998})["status"] == "failed")
     check("bank_routing", core.resolve_template({"oked_code": "64190"}, "bank")["selected_template"] == "bank")
+    check("trade_oked_routing", core.resolve_template({"oked_code": "47110"})["selected_template"] == "trade")
+    check("transport_oked_routing", core.resolve_template({"oked_code": "49410"})["selected_template"] == "transport")
+    check("telecom_oked_routing", core.resolve_template({"oked_code": "61100"})["selected_template"] == "telecom")
     check("unknown_oked", core.resolve_template({})["selected_template"] == "generic_nsbu")
     check("bank_no_enterprise_ratios", not core.enterprise_ratios({}, "bank", "nsbu", "2026Q1"))
     check("sign_change", core.change(-10, 20)["change_value"] == -30 and core.change(-10, 20)["base_effect"])
@@ -88,6 +91,10 @@ def _run(fingerprint):
     check("company_html_structure", [item.get("id") for item in company.get("sections", [])] == ["methodology", "horizontal_balance", "vertical_balance", "financial_results", "ratios", "summary"])
     check("company_margin_analysis", "чистая маржа" in company_text and "обязательства составляют" in company_text)
     check("company_executive_analysis", "рост масштаба не улучшил эффективность" in company_text)
+    check("company_oked_basis", "ОКЭД 10" in company_text and "Аналитический профиль: производство" in company_text)
+    check("company_sector_result_lens", "Для производства ключевой вопрос" in company_text)
+    check("company_sector_ratio", "Основные средства / активы" not in company_text or company["industry_analysis_basis"] == {"oked_code": "10", "profile": "industry", "matched": True})
+    check("company_verdict_title", company.get("sections", [])[-1].get("title") == "Вердикт")
     check("company_card_mixed_verdict", "Картина смешанная" in (company.get("card_text") or ""))
     return {"status": "passed" if all(c["status"] == "passed" for c in checks) else "failed",
             "code_fingerprint": fingerprint, "checks": checks}
