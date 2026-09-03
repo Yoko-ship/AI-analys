@@ -11421,54 +11421,43 @@ function companyInsightTeaser(report, lang) {
       return `${labels[row.metric_code][languageIndex]} ${direction} ${lang === "en" ? "by " : "на "}${percent}%`;
     });
   if (changes.length) {
-    const tone = report.verdict?.status || report.headline_tone;
-    const verdicts = {
-      positive: ["Динамика положительная", "Ijobiy dinamika", "Positive momentum"],
-      mixed: ["Динамика смешанная", "Dinamika aralash", "Mixed momentum"],
-      warning: ["Динамика смешанная", "Dinamika aralash", "Mixed momentum"],
-      negative: ["Показатели ухудшились", "Ko‘rsatkichlar yomonlashdi", "Performance weakened"],
-      danger: ["Показатели ухудшились", "Ko‘rsatkichlar yomonlashdi", "Performance weakened"],
-      no_signal: ["Для уверенного вывода пока мало данных", "Aniq xulosa uchun ma’lumot hali kam", "More data is needed for a firm conclusion"],
-      neutral: ["Для уверенного вывода пока мало данных", "Aniq xulosa uchun ma’lumot hali kam", "More data is needed for a firm conclusion"],
-    };
-    const verdict = (verdicts[tone] || verdicts.neutral)[languageIndex];
     const movement = Object.fromEntries(comparable.map((row) => [row.metric_code, Number(row.change_pct)]));
     let interpretation;
     if (movement.revenue > 0 && (movement.operating_income < 0 || movement.net_income < 0)) {
       interpretation = [
-        "Рост выручки не преобразовался в рост прибыли: операционная эффективность ухудшилась. В полном отчёте проверьте себестоимость, расходы и денежную позицию",
-        "Tushum o‘sishi foyda o‘sishiga aylanmadi: operatsion samaradorlik yomonlashdi. To‘liq hisobotda tannarx, xarajatlar va pul holatini tekshiring",
-        "Revenue growth did not translate into profit growth, indicating weaker operating efficiency. Check costs, expenses and the cash position in the full report",
+        "Рост выручки не перешёл в прибыль: эффективность снизилась. Проверьте себестоимость, расходы и денежный поток",
+        "Tushum o‘sishi foydaga aylanmadi: samaradorlik pasaydi. Tannarx, xarajatlar va pul oqimini tekshiring",
+        "Revenue growth did not translate into profit: efficiency weakened. Check costs, expenses and cash flow",
       ][languageIndex];
     } else if (comparable.length >= 2 && comparable.every((row) => Number(row.change_pct) >= 0)) {
       interpretation = [
-        "Рост доходов поддержан ростом прибыли; полный отчёт показывает устойчивость маржи и баланса",
-        "Daromad o‘sishi foyda o‘sishi bilan qo‘llab-quvvatlangan; to‘liq hisobot marja va balans barqarorligini ko‘rsatadi",
-        "Income growth is supported by profit growth; open the full report to assess margin and balance-sheet resilience",
+        "Рост доходов поддержан прибылью. Проверьте устойчивость маржи и баланса",
+        "Daromad o‘sishi foyda bilan qo‘llab-quvvatlangan. Marja va balans barqarorligini tekshiring",
+        "Income growth is supported by profit. Check margin and balance-sheet resilience",
       ][languageIndex];
     } else if (comparable.length >= 2 && comparable.every((row) => Number(row.change_pct) < 0)) {
       interpretation = [
-        "Одновременное снижение доходов и прибыли указывает на ослабление результатов; в полном отчёте проверьте расходы и структуру баланса",
-        "Daromad va foydaning bir vaqtda pasayishi natijalar zaiflashganini ko‘rsatadi; to‘liq hisobotda xarajatlar va balans tarkibini tekshiring",
-        "The simultaneous decline in income and profit indicates weaker performance; check expenses and the balance-sheet structure in the full report",
+        "Доходы и прибыль снижаются. Проверьте расходы, маржу и структуру баланса",
+        "Daromad va foyda pasaymoqda. Xarajatlar, marja va balans tarkibini tekshiring",
+        "Income and profit are declining. Check expenses, margins and the balance sheet",
       ][languageIndex];
     } else if (comparable.length >= 2) {
       interpretation = [
-        "Показатели движутся разнонаправленно; полный отчёт объясняет влияние маржи, расходов и баланса",
-        "Ko‘rsatkichlar turli yo‘nalishda o‘zgarmoqda; to‘liq hisobot marja, xarajatlar va balans ta’sirini tushuntiradi",
-        "The metrics are moving in different directions; the full report explains the impact of margins, expenses and the balance sheet",
+        "Показатели разнонаправленные. Проверьте маржу, расходы и баланс",
+        "Ko‘rsatkichlar turli yo‘nalishda. Marja, xarajatlar va balansni tekshiring",
+        "The metrics are mixed. Check margins, expenses and the balance sheet",
       ][languageIndex];
     } else {
       interpretation = [
-        "Это главный подтверждённый сигнал периода; откройте полный отчёт для оценки расходов, прибыли и баланса",
-        "Bu davrning asosiy tasdiqlangan signalidir; xarajatlar, foyda va balansni baholash uchun to‘liq hisobotni oching",
-        "This is the period’s main verified signal; open the full report to assess expenses, profit and the balance sheet",
+        "Это главный подтверждённый сигнал. Проверьте расходы, прибыль и баланс",
+        "Bu asosiy tasdiqlangan signal. Xarajatlar, foyda va balansni tekshiring",
+        "This is the main verified signal. Check expenses, profit and the balance sheet",
       ][languageIndex];
     }
-    const detailedTeaser = `${report.issuer?.ticker || ""}: ${changes.join(", ")}. ${verdict}. ${interpretation}.`.trim();
+    const detailedTeaser = `${report.issuer?.ticker || ""}: ${changes.join(", ")}. ${interpretation}.`.trim();
     const detailedWords = detailedTeaser.split(/\s+/).filter(Boolean);
-    return detailedWords.length > 40
-      ? `${detailedWords.slice(0, 40).join(" ").replace(/[\s,;:]+$/, "")}…`
+    return detailedWords.length > 28
+      ? `${detailedWords.slice(0, 28).join(" ").replace(/[\s,;:]+$/, "")}…`
       : detailedTeaser;
   }
   const teaser = report.card_text || report.short_summary || report.headline || "";
