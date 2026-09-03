@@ -11412,52 +11412,47 @@ function companyInsightTeaser(report, lang) {
   const comparable = candidates.map((code) => rows.find((row) => row.metric_code === code))
     .filter((row) => Number.isFinite(Number(row?.change_pct)))
     .slice(0, 2);
-  const changes = comparable.map((row) => {
-      const value = Number(row.change_pct);
-      const direction = lang === "uz" ? (value >= 0 ? "o‘sdi" : "pasaydi")
-        : lang === "en" ? (value >= 0 ? "rose" : "fell")
-          : (value >= 0 ? "выросла" : "снизилась");
-      const percent = Math.abs(value).toLocaleString(lang === "en" ? "en-US" : "ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return `${labels[row.metric_code][languageIndex]} ${direction} ${lang === "en" ? "by " : "на "}${percent}%`;
-    });
-  if (changes.length) {
+  if (comparable.length) {
     const movement = Object.fromEntries(comparable.map((row) => [row.metric_code, Number(row.change_pct)]));
-    let interpretation;
+    let thesis;
     if (movement.revenue > 0 && (movement.operating_income < 0 || movement.net_income < 0)) {
-      interpretation = [
-        "Рост выручки не перешёл в прибыль: эффективность снизилась. Проверьте себестоимость, расходы и денежный поток",
-        "Tushum o‘sishi foydaga aylanmadi: samaradorlik pasaydi. Tannarx, xarajatlar va pul oqimini tekshiring",
-        "Revenue growth did not translate into profit: efficiency weakened. Check costs, expenses and cash flow",
+      thesis = [
+        "выручка растёт, но прибыль снижается — рост пока не повышает эффективность",
+        "tushum o‘smoqda, ammo foyda pasaymoqda — o‘sish hali samaradorlikni oshirmadi",
+        "revenue is growing, but profit is falling — growth has not improved efficiency",
       ][languageIndex];
     } else if (comparable.length >= 2 && comparable.every((row) => Number(row.change_pct) >= 0)) {
-      interpretation = [
-        "Рост доходов поддержан прибылью. Проверьте устойчивость маржи и баланса",
-        "Daromad o‘sishi foyda bilan qo‘llab-quvvatlangan. Marja va balans barqarorligini tekshiring",
-        "Income growth is supported by profit. Check margin and balance-sheet resilience",
+      thesis = [
+        "доходы и прибыль растут — финансовая динамика положительная",
+        "daromad va foyda o‘smoqda — moliyaviy dinamika ijobiy",
+        "income and profit are growing — financial momentum is positive",
       ][languageIndex];
     } else if (comparable.length >= 2 && comparable.every((row) => Number(row.change_pct) < 0)) {
-      interpretation = [
-        "Доходы и прибыль снижаются. Проверьте расходы, маржу и структуру баланса",
-        "Daromad va foyda pasaymoqda. Xarajatlar, marja va balans tarkibini tekshiring",
-        "Income and profit are declining. Check expenses, margins and the balance sheet",
+      thesis = [
+        "доходы и прибыль снижаются — финансовые результаты ослабевают",
+        "daromad va foyda pasaymoqda — moliyaviy natijalar zaiflashmoqda",
+        "income and profit are declining — financial performance is weakening",
       ][languageIndex];
     } else if (comparable.length >= 2) {
-      interpretation = [
-        "Показатели разнонаправленные. Проверьте маржу, расходы и баланс",
-        "Ko‘rsatkichlar turli yo‘nalishda. Marja, xarajatlar va balansni tekshiring",
-        "The metrics are mixed. Check margins, expenses and the balance sheet",
+      thesis = [
+        "ключевые показатели разнонаправленные — устойчивого улучшения пока нет",
+        "asosiy ko‘rsatkichlar turli yo‘nalishda — barqaror yaxshilanish hali yo‘q",
+        "key metrics are mixed — there is no sustained improvement yet",
       ][languageIndex];
     } else {
-      interpretation = [
-        "Это главный подтверждённый сигнал. Проверьте расходы, прибыль и баланс",
-        "Bu asosiy tasdiqlangan signal. Xarajatlar, foyda va balansni tekshiring",
-        "This is the main verified signal. Check expenses, profit and the balance sheet",
+      const row = comparable[0];
+      const labelText = labels[row.metric_code][languageIndex];
+      const rising = Number(row.change_pct) >= 0;
+      thesis = [
+        `${labelText} ${rising ? "растёт" : "снижается"} — это главный подтверждённый сигнал периода`,
+        `${labelText} ${rising ? "o‘smoqda" : "pasaymoqda"} — bu davrning asosiy tasdiqlangan signali`,
+        `${labelText} is ${rising ? "growing" : "declining"} — the period’s main verified signal`,
       ][languageIndex];
     }
-    const detailedTeaser = `${report.issuer?.ticker || ""}: ${changes.join(", ")}. ${interpretation}.`.trim();
+    const detailedTeaser = `${report.issuer?.ticker || ""}: ${thesis}.`.trim();
     const detailedWords = detailedTeaser.split(/\s+/).filter(Boolean);
-    return detailedWords.length > 28
-      ? `${detailedWords.slice(0, 28).join(" ").replace(/[\s,;:]+$/, "")}…`
+    return detailedWords.length > 18
+      ? `${detailedWords.slice(0, 18).join(" ").replace(/[\s,;:]+$/, "")}…`
       : detailedTeaser;
   }
   const teaser = report.card_text || report.short_summary || report.headline || "";
@@ -11565,7 +11560,7 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
           </section>
         )}
         <div id={bodyId} className="company-insight-report-copy">
-          {report.abstract && <aside className="company-insight-abstract"><span>{lang === "ru" ? "Аннотация" : lang === "uz" ? "Annotatsiya" : "Abstract"}</span><p>{report.abstract}</p></aside>}
+          {report.abstract && <aside className="company-insight-abstract"><span>{lang === "ru" ? "Аннотация" : lang === "uz" ? "Annotatsiya" : "Abstract"}</span><p>{companyInsightTeaser(report, lang)}</p></aside>}
           {(report.sections?.length ? report.sections : (report.paragraphs || []).map((text, index) => ({ id: `section-${index}`, text }))).map((section, index) => (
             <section className="company-insight-report-section" key={section.id || index}>
               {section.title && <header><span>{section.number || String(index + 1).padStart(2, "0")}</span><h3>{section.title}</h3></header>}
