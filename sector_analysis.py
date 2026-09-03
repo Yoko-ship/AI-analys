@@ -323,6 +323,8 @@ LABELS = {
     "total_liabilities": ("Обязательства", "Majburiyatlar", "Liabilities"), "cash": ("Деньги", "Pul mablag‘lari", "Cash"),
     "cost_of_sales": ("Себестоимость", "Tannarx", "Cost of sales"), "gross_profit": ("Валовая прибыль", "Yalpi foyda", "Gross profit"),
     "period_expenses": ("Расходы периода", "Davr xarajatlari", "Period expenses"), "profit_before_tax": ("Прибыль до налога", "Soliqdan oldingi foyda", "Profit before tax"),
+    "financial_income": ("Финансовые доходы", "Moliyaviy daromadlar", "Finance income"),
+    "financial_expenses": ("Финансовые расходы", "Moliyaviy xarajatlar", "Finance expenses"),
     "receivables": ("Дебиторская задолженность", "Debitorlik qarzi", "Receivables"), "inventories": ("Запасы", "Zaxiralar", "Inventories"),
     "current_liabilities": ("Текущие обязательства", "Joriy majburiyatlar", "Current liabilities"),
     "fixed_assets": ("Основные средства", "Asosiy vositalar", "Fixed assets"), "construction_in_progress": ("Незавершённые вложения", "Tugallanmagan investitsiyalar", "Construction in progress"),
