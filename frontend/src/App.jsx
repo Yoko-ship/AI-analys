@@ -11246,20 +11246,20 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
         `${t("все классы", "barcha sinflar", "all classes")}: ${mult.issuer_classes.join(", ")}`);
   }
   const valuationRows = rows.splice(0, rows.length);
-  putMultiple("P/E", mult?.pe, 2, "×", mult?.base_period || undefined);
-  putMultiple("P/B", mult?.pb, 2, "×", mult?.balance_period || undefined);
-  putMultiple("P/S", mult?.ps, 2, "×", mult?.base_period || undefined);
-  putMultiple("BVPS", mult?.bvps, 2, "");
+  putMultiple("P/E", mult?.pe, 2, "×", mult?.pe?.base_period || mult?.base_period || undefined);
+  putMultiple("P/B", mult?.pb, 2, "×", mult?.pb?.base_period || mult?.balance_period || undefined);
+  putMultiple("P/S", mult?.ps, 2, "×", mult?.ps?.base_period || mult?.base_period || undefined);
+  putMultiple("BVPS", mult?.bvps, 2, "", mult?.bvps?.base_period || mult?.balance_period || undefined);
   pushBlock("valuation", t("Оценка", "Baholash", "Valuation"), [...valuationRows, ...rows.splice(0, rows.length)]);
 
   // --- Profitability -------------------------------------------------------
   // Долг/Капитал ушёл из витрины по ТЗ мультипликаторов (лист 06); его место
   // занимает Капитал/Активы — та же информация о долговой нагрузке, но в
   // шкале 0…100 %, где разы и проценты перепутать невозможно.
-  putMultiple("ROE", mult?.roe, 2, "");
-  putMultiple("ROA", mult?.roa, 2, "");
-  putMultiple(t("Чистая маржа", "Sof marja", "Net margin"), mult?.net_margin, 2, "");
-  putMultiple(t("Капитал/Активы", "Kapital/Aktivlar", "Equity/Assets"), mult?.equity_assets, 2, "");
+  putMultiple("ROE", mult?.roe, 2, "", mult?.roe?.base_period || undefined);
+  putMultiple("ROA", mult?.roa, 2, "", mult?.roa?.base_period || undefined);
+  putMultiple(t("Чистая маржа", "Sof marja", "Net margin"), mult?.net_margin, 2, "", mult?.net_margin?.base_period || undefined);
+  putMultiple(t("Капитал/Активы", "Kapital/Aktivlar", "Equity/Assets"), mult?.equity_assets, 2, "", mult?.equity_assets?.base_period || mult?.balance_period || undefined);
   pushBlock("profitability", t("Рентабельность", "Rentabellik", "Profitability"), rows.splice(0, rows.length));
 
   // --- Dividends -----------------------------------------------------------
@@ -16839,15 +16839,20 @@ function MarketView({
     if (metric?.value != null) {
       const flags = [];
       if (metric.estimate) flags.push(mt(lang, "estimateFlag"));
+      const period = metric.base_period || metric.financial_period || null;
       const title = [
-        metric.base_period,
+        period,
+        metric.denominator_period && metric.denominator_period !== period
+          ? `${lang === "ru" ? "средняя база" : lang === "uz" ? "o‘rtacha baza" : "average base"}: ${metric.denominator_period}`
+          : null,
         metric.note,
         metric.allowed ? `∉ [${metric.allowed.join("; ")}]` : null,
       ].filter(Boolean).join(" · ") || undefined;
+      const sub = [period, ...flags].filter(Boolean).join(" · ");
       return (
         <td className="num" title={title}>
-          {formatRatio(metric.value, digits, lang)}{suffix}
-          {flags.length > 0 && <span className="fin-cell-period">{flags.join(" · ")}</span>}
+          <strong>{formatRatio(metric.value, digits, lang)}{suffix}</strong>
+          {sub && <span className="fin-cell-period">{sub}</span>}
         </td>
       );
     }
