@@ -14701,11 +14701,14 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                                 "No trades or volume was not published")}</title>
                     </rect>
                   );
-                  // Square-root display scaling keeps ordinary sessions visible
-                  // beside a rare block-trade spike. The tooltip still shows
-                  // the exact turnover, so only the visual emphasis changes.
+                  // A fourth-root display scale keeps genuinely small sessions
+                  // readable beside rare multi-million spikes. Square-root still
+                  // crushed KFSK's older 48k–100k sessions into an 8px baseline
+                  // while recent 11.8m sessions filled the pane, which looked like
+                  // missing data. The tooltip keeps the exact turnover; only the
+                  // visual height is compressed.
                   const volumeRatio = Math.min(1, v / volumeScale);
-                  const h = Math.max(8, Math.sqrt(volumeRatio) * (volBot - volTop));
+                  const h = Math.max(12, Math.pow(volumeRatio, 0.25) * (volBot - volTop));
                   const upDay = i > 0 ? p.close >= points[i - 1].close : true;
                   return <rect key={`v${i}`} className="ac-volume-bar" x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
                     fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.9" />;
