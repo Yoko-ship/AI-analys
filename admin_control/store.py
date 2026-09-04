@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import time
 import uuid
 
 import dbx
@@ -100,7 +101,20 @@ def connection(write=False):
     path.parent.mkdir(parents=True, exist_ok=True)
     c = dbx.connect(str(path))
     try:
-        dbx.ensure_schema(c, "admin-control-v1", schema)
+        # A rolling deployment can start several workers at once. PostgreSQL
+        # may then deadlock one worker while identical idempotent DDL/upserts
+        # initialise the control schema on separate pooled connections. Retry
+        # only that transient transaction state; application/data errors must
+        # still fail immediately.
+        for attempt in range(3):
+            try:
+                dbx.ensure_schema(c, "admin-control-v1", schema)
+                break
+            except Exception as exc:
+                if getattr(exc, "sqlstate", None) != "40P01" or attempt == 2:
+                    raise
+                c.rollback()
+                time.sleep(0.05 * (attempt + 1))
         if write:
             # Serialize short commands across processes, including the first insert.
             # No external I/O is performed while this transaction is held.
