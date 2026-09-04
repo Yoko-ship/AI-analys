@@ -1243,7 +1243,7 @@ def _listing_to_stock(lst: dict[str, Any]) -> dict[str, Any]:
         "trade_count": None,
         "security_type_text": None,
         "shares_outstanding": lst.get("shares_outstanding"),
-        "nominal": lst.get("nominal"),
+        "nominal": corporate_actions.current_par(lst.get("ticker"), lst.get("nominal")),
         "market_cap": lst.get("market_cap"),
         "inactive": True,
     }
@@ -1585,6 +1585,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
                    or listings_by_isin.get(str(row.get("isin") or "").upper()))
             if lst and lst.get("nominal") is not None:
                 row["nominal"] = lst["nominal"]
+        row["nominal"] = corporate_actions.current_par(row.get("ticker"), row.get("nominal"))
     for row in merged:
         if row.get("market_cap"):
             continue

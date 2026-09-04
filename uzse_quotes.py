@@ -30,6 +30,7 @@ import time
 from typing import Any, Iterable
 
 import requests
+import corporate_actions
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -361,12 +362,13 @@ def fetch_issue_detail(isin: str, session: requests.Session | None = None) -> di
             if str(share.get("isu_cd") or "").upper() != isin.upper():
                 continue
             kind = str(share.get("type") or "")
+            ticker = str(share.get("isu_srt_cd") or "").upper() or None
             return {
                 "isin": isin.upper(),
-                "ticker": str(share.get("isu_srt_cd") or "").upper() or None,
+                "ticker": ticker,
                 "name": record.get("company_name") or None,
                 "share_type": "preferred" if kind.startswith("Привилег") else "ordinary",
-                "nominal": _num(share.get("parval")),
+                "nominal": corporate_actions.current_par(ticker, share.get("parval")),
                 "shares_outstanding": _num(share.get("list_shrs")),
             }
     return None

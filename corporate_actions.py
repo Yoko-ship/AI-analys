@@ -119,6 +119,29 @@ CORPORATE_ACTIONS: dict[str, tuple[ShareAction, ...]] = {
     "KASUP": (ShareAction("2022-08-19", 100.0, "split", _FACT_URL.format(62349)),),
 }
 
+# The exchange detail endpoint occasionally serves an issuer-level historical
+# ``parval`` instead of the current security denomination.  Aloqabank is the
+# concrete case: after fact P0021-28 changed the par from 121 to 1 sum, the
+# endpoint still returns 100 000 for ALKB on some responses.  Keep the verified
+# post-redenomination value next to the actions that establish it, so every
+# collector and API response can reject that stale field consistently.
+CURRENT_PAR_VALUES: dict[str, float] = {
+    "ALKB": 1.0,
+    "ALKBP": 1.0,
+}
+
+
+def current_par(ticker: str | None, observed: Any = None) -> float | None:
+    """Return the verified current par, otherwise a valid observed value."""
+    known = CURRENT_PAR_VALUES.get(str(ticker or "").strip().upper())
+    if known is not None:
+        return known
+    try:
+        value = float(observed)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
 # openinfo's conclusions payload names the ticker itself, but only for securities it has
 # indexed — this is the fallback for the ones covered here.
 ISIN_TICKERS: dict[str, str] = {

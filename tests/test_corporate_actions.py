@@ -14,7 +14,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from corporate_actions import CORPORATE_ACTIONS, actions_for, adjust_history, resolve_ticker  # noqa: E402
+from corporate_actions import (  # noqa: E402
+    CORPORATE_ACTIONS,
+    actions_for,
+    adjust_history,
+    current_par,
+    resolve_ticker,
+)
 
 
 def point(date: str, close: float, **extra):
@@ -75,6 +81,16 @@ def test_isin_resolves_when_the_feed_omits_the_ticker():
     points, applied = adjust_history([point("2021-01-05", 10.0)], None, "UZ7038380000")
     assert points[0]["close"] == pytest.approx(1.0)
     assert applied[0]["kind"] == "split"
+
+
+def test_verified_current_par_replaces_stale_aloqabank_registry_value():
+    assert current_par("ALKB", 100_000) == 1.0
+    assert current_par("alkbp", 121) == 1.0
+
+
+def test_current_par_preserves_other_valid_registry_values():
+    assert current_par("SQBN", 19) == 19.0
+    assert current_par("SQBN", 0) is None
 
 
 @pytest.mark.parametrize("ticker,expected", [

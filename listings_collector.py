@@ -19,6 +19,7 @@ from typing import Any
 import requests
 
 import reports_catalog as rc
+import corporate_actions
 from delisted import DELISTED_TICKERS
 from entity_resolver import ISIN_OVERRIDES, ORG_OVERRIDES
 from openinfo_collector import OPENINFO_API_BASE, _json_get, _make_session
@@ -240,7 +241,8 @@ def _uzse_equity(session: Any, isin: str) -> dict | None:
                 continue
             for sh in rec.get("shares") or []:
                 if str(sh.get("isu_cd") or "").upper() == isin.upper():
-                    parval = _num(sh.get("parval"))
+                    ticker = str(sh.get("isu_srt_cd") or "").strip().upper()
+                    parval = corporate_actions.current_par(ticker, sh.get("parval"))
                     result = {
                         "shares": _num(sh.get("list_shrs")),
                         "price": _num(sh.get("trade_price")),
