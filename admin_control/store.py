@@ -75,7 +75,6 @@ def schema(c):
           environment TEXT NOT NULL, actor TEXT NOT NULL, command_key TEXT NOT NULL,
           fingerprint TEXT NOT NULL, response TEXT, PRIMARY KEY(environment,actor,command_key));
         CREATE TABLE IF NOT EXISTS control_lock (id INTEGER PRIMARY KEY, counter INTEGER NOT NULL);
-        INSERT INTO control_lock(id,counter) VALUES (1,0) ON CONFLICT(id) DO NOTHING;
     """)
     # No application API can delete history. Database triggers also protect it
     # from accidental UPDATE/DELETE through the application connection.
@@ -89,9 +88,13 @@ def schema(c):
                   "BEGIN IF TG_OP = 'DELETE' AND current_setting('app.revision_prune', true) = 'on' "
                   "THEN RETURN OLD; END IF; RAISE EXCEPTION 'immutable history'; END; $$")
         for table in ("control_audit", "control_revisions"):
-            c.execute(f"DROP TRIGGER IF EXISTS {table}_immutable ON {table}")
-            c.execute(f"CREATE TRIGGER {table}_immutable BEFORE UPDATE OR DELETE ON {table} "
-                      "FOR EACH ROW EXECUTE FUNCTION control_immutable()")
+            trigger = f"{table}_immutable"
+            c.execute(
+                "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = ? AND NOT tgisinternal) THEN "
+                f"CREATE TRIGGER {trigger} BEFORE UPDATE OR DELETE ON {table} "
+                "FOR EACH ROW EXECUTE FUNCTION control_immutable(); END IF; END $$",
+                (trigger,),
+            )
     c.commit()
 
 
@@ -118,6 +121,7 @@ def connection(write=False):
         if write:
             # Serialize short commands across processes, including the first insert.
             # No external I/O is performed while this transaction is held.
+            c.execute("INSERT INTO control_lock(id,counter) VALUES (1,0) ON CONFLICT(id) DO NOTHING")
             c.execute("UPDATE control_lock SET counter=counter+1 WHERE id=1")
         yield c
         c.commit()
