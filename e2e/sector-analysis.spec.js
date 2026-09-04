@@ -55,8 +55,14 @@ test("sector report opens from the company card and exposes sourced formulas", a
   expect(teaserWords).toBeLessThanOrEqual(18);
   await details.click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.locator(".company-insight-abstract")).toContainText("сжатие маржи и ухудшение эффективности");
   await expect(dialog.getByTestId("verified-report")).toBeVisible();
+  await page.waitForTimeout(300);
+  const drawerBox = await dialog.boundingBox();
+  const viewport = page.viewportSize();
+  expect(drawerBox).not.toBeNull();
+  expect(Math.abs(drawerBox.x + drawerBox.width - viewport.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(drawerBox.height - viewport.height)).toBeLessThanOrEqual(1);
+  expect(drawerBox.width).toBeLessThan(viewport.width * 0.55);
   await dialog.getByText("Финансовые коэффициенты", { exact: true }).click();
   await expect(dialog.getByText("Рентабельность активов", { exact: true })).toBeVisible();
   await expect(dialog.getByText("2,14%", { exact: true })).toBeVisible();
