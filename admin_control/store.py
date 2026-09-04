@@ -90,10 +90,9 @@ def schema(c):
         for table in ("control_audit", "control_revisions"):
             trigger = f"{table}_immutable"
             c.execute(
-                "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = ? AND NOT tgisinternal) THEN "
+                f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '{trigger}' AND NOT tgisinternal) THEN "
                 f"CREATE TRIGGER {trigger} BEFORE UPDATE OR DELETE ON {table} "
-                "FOR EACH ROW EXECUTE FUNCTION control_immutable(); END IF; END $$",
-                (trigger,),
+                "FOR EACH ROW EXECUTE FUNCTION control_immutable(); END IF; END $$"
             )
     c.commit()
 
