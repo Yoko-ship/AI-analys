@@ -72,7 +72,7 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
     opacity: [...new Set(bars.map((bar) => bar.getAttribute("fill-opacity")))],
   }));
   expect(volume.maxHeight).toBeGreaterThanOrEqual(95);
-  expect(volume.minHeight).toBeGreaterThanOrEqual(8);
+  expect(volume.minHeight).toBeGreaterThanOrEqual(12);
   expect(volume.opacity).toEqual(["0.9"]);
   const emptyVolume = page.locator(".ac-volume-empty");
   await expect(emptyVolume.first()).toBeVisible();
