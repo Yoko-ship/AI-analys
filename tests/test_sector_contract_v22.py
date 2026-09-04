@@ -534,6 +534,30 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
     assert bank["total_assets"] == bank["total_liabilities"] + bank["total_equity"]
 
 
+def test_bank_mapper_preserves_reconciled_catalog_totals():
+    from sector_report_service import map_special_lines
+
+    data = snapshot(
+        current_values={"total_assets": 1000, "total_equity": 200, "total_liabilities": 800},
+        previous_values={}, opening_values={}, organization_type="bank",
+    )
+    workbook = {
+        "balance": {"sheets": [{"sheet": "bank", "table_rows": [
+            {"row": 1, "label": "Итого активов", "source_cells": ["Итого активов", 900, 0], "numeric_values": [900, 0]},
+            {"row": 2, "label": "Итого собственного капитала", "source_cells": ["Итого собственного капитала", 180, 0], "numeric_values": [180, 0]},
+            {"row": 3, "label": "Итого обязательств", "source_cells": ["Итого обязательств", 720, 0], "numeric_values": [720, 0]},
+        ]}]},
+        "income": {"sheets": []},
+    }
+
+    map_special_lines(data, workbook, "bank")
+
+    assert data["current_values"]["total_assets"] == 1000
+    assert data["current_values"]["total_equity"] == 200
+    assert data["current_values"]["total_liabilities"] == 800
+    assert core.balance_gate(data["current_values"])["status"] == "passed"
+
+
 def test_two_bonds_share_issuer_calculation_but_not_instrument_results(monkeypatch, tmp_path):
     import sector_report_service as service
     import issuer_analysis_api as api

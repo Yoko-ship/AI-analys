@@ -12,9 +12,9 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
 
-VERSION = "sector-analysis-2.5"
+VERSION = "sector-analysis-2.6"
 CALCULATION_VERSION = "nsbu-core-2.1"
-MAPPING_VERSION = "nsbu-lines-2.0"
+MAPPING_VERSION = "nsbu-lines-2.1"
 FINANCIAL_TYPES = {"bank", "microfinance_bank", "microfinance", "insurance", "investment_fund_ifrs_annual", "spv"}
 SPECIAL_TYPES = {
     "bank": "bank", "insurance": "insurance", "insurer": "insurance",
