@@ -413,6 +413,13 @@ class Connection:
         """
         if key in self._schemas:
             return
+        if self._target == POSTGRES:
+            # Different Railway replicas have separate Python locks but share
+            # PostgreSQL. Serialize idempotent DDL across those processes so
+            # concurrent CREATE/DROP/UPSERT statements cannot deadlock during
+            # a rolling start. The transaction-scoped lock is released by the
+            # initializer's commit (or by the caller's rollback on failure).
+            self.execute("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", (key,))
         initializer(self)
         self._schemas.add(key)
 
