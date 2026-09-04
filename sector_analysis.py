@@ -873,11 +873,8 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         if capital_share is not None:
             ratio_parts.append(f"{tr(lang, 'Капитал / активы', 'Kapital / aktivlar', 'Equity / assets')} = {pct_text(capital_share)}")
         ratio_text = tr(lang, "Коэффициентный анализ. ", "Koeffitsiyentlar tahlili. ", "Ratio analysis. ") + ("; ".join(ratio_parts) if ratio_parts else tr(lang, "Недостаточно компонентов для расчёта.", "Hisoblash komponentlari yetarli emas.", "Insufficient components for calculation.")) + "."
-        watch = " ".join(
-            f"{point['label']} — {display_money(point['current_baseline']['value'])} {money_unit}: {point['risk_signal']}; {point['required_disclosure']}."
-            for point in monitoring_points
-        )
-        balance_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + (watch or tr(lang, "Контрольные показатели не сформированы из-за недостатка данных.", "Nazorat ko‘rsatkichlari ma’lumot yetishmasligi sababli shakllantirilmadi.", "No monitoring metrics were formed because the data is insufficient."))
+        balance_conclusion = " ".join(bank_exec)
+        balance_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + (balance_conclusion or tr(lang, "Итог ограничен раскрытыми показателями выше.", "Xulosa yuqorida oshkor qilingan ko‘rsatkichlar bilan cheklangan.", "The conclusion is limited to the disclosed metrics above."))
         if total_expenses is None:
             balance_text += " " + tr(lang, "Полная сумма расходов не рассчитана, поскольку не все необходимые строки раскрыты.", "Barcha zarur satrlar oshkor qilinmagani uchun jami xarajatlar hisoblanmadi.", "Total expenses were not calculated because not all required lines were disclosed.")
         return [intro, horizontal_text, vertical_text, results_text, ratio_text, balance_text]
@@ -989,8 +986,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         debt_share = pct(value("total_liabilities"), value("total_assets"))
         if debt_share is not None:
             funding_parts.append(tr(lang, f"обязательства составляют {pct_text(debt_share)} активов", f"majburiyatlar aktivlarning {pct_text(debt_share)}ini tashkil etadi", f"liabilities equal {pct_text(debt_share)} of assets"))
-        watch = " ".join(f"{point['label']} — {display_money(point['current_baseline']['value'])} {money_unit}; требуется следующая сопоставимая форма и объяснение изменения." for point in monitoring_points)
-        funding_text = tr(lang, "Капитал, обязательства и следующий контроль. ", "Kapital, majburiyatlar va keyingi nazorat. ", "Capital, liabilities and next checks. ") + ("; ".join(funding_parts) if funding_parts else tr(lang, "Недостаточно данных о структуре финансирования.", "Moliyalashtirish tarkibi haqida ma’lumot yetarli emas.", "Insufficient funding-structure data.")) + ". " + watch
+        funding_text = tr(lang, "Капитал и обязательства. ", "Kapital va majburiyatlar. ", "Capital and liabilities. ") + ("; ".join(funding_parts) if funding_parts else tr(lang, "Недостаточно данных о структуре финансирования.", "Moliyalashtirish tarkibi haqida ma’lumot yetarli emas.", "Insufficient funding-structure data.")) + "."
         horizontal_text = asset_text + " " + funding_text
         assets = value("total_assets")
         vertical_keys = tuple(dict.fromkeys(tuple(profile_assets) + ("total_liabilities", "total_equity")))
