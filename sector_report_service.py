@@ -287,6 +287,17 @@ def map_special_lines(snapshot, workbook, org):
                     prior, current = nums[-2:]
                 else:
                     continue
+                # The catalog snapshot has already reconciled these three
+                # bank balance totals.  Some bank workbooks append percentage
+                # columns or export blank totals as zero; treating one of
+                # those cells as the amount used to replace valid catalog
+                # totals and incorrectly block an otherwise complete report.
+                # Keep the reconciled values and use the workbook mapper for
+                # the bank-specific detail lines around them.
+                if matched in {"total_assets", "total_equity", "total_liabilities"}:
+                    existing = engine.decimal(snapshot["current_values"].get(matched))
+                    if existing is not None and existing > 0:
+                        continue
                 snapshot["current_values"][matched] = engine.number(current)
                 target = "opening_values" if form == "balance" else "previous_values"
                 if prior is not None:
