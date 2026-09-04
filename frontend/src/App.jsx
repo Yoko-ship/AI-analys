@@ -14708,7 +14708,13 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   // missing data. The tooltip keeps the exact turnover; only the
                   // visual height is compressed.
                   const volumeRatio = Math.min(1, v / volumeScale);
-                  const h = Math.max(12, Math.pow(volumeRatio, 0.25) * (volBot - volTop));
+                  // A 12px floor was still effectively invisible at the 115%
+                  // browser scale used on the market workstation: KFSK's small
+                  // sessions looked like missing columns between the large ones.
+                  // Reserve one fifth of the pane as the visible floor. Exact
+                  // magnitude remains in the tooltip; the bar chart communicates
+                  // both presence and relative activity without blank-looking days.
+                  const h = Math.max(32, Math.pow(volumeRatio, 0.25) * (volBot - volTop));
                   const upDay = i > 0 ? p.close >= points[i - 1].close : true;
                   return <rect key={`v${i}`} className="ac-volume-bar" x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
                     fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.9" />;
