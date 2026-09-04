@@ -12,7 +12,7 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
 
-VERSION = "sector-analysis-2.3"
+VERSION = "sector-analysis-2.4"
 CALCULATION_VERSION = "nsbu-core-2.1"
 MAPPING_VERSION = "nsbu-lines-2.0"
 FINANCIAL_TYPES = {"bank", "microfinance_bank", "microfinance", "insurance", "investment_fund_ifrs_annual", "spv"}
@@ -684,6 +684,86 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 text += f" ({format_number(fact['change_pct'])}%)"
         return text
 
+    def vertical_narrative(asset_keys, heading):
+        """Explain the balance mix as a comparison, not a list of percentages.
+
+        This follows the useful part of a Task-1 style commentary: lead with the
+        dominant feature, compare both dates in percentage points, then explain
+        the economic implication without inventing an undisclosed cause.
+        """
+        assets_fact = by_code.get("total_assets") or {}
+        assets_now = decimal(assets_fact.get("value"))
+        assets_before = decimal(assets_fact.get("previous"))
+        if not assets_now or assets_now <= 0:
+            return heading + tr(lang, "Недостаточно данных для расчёта структуры.", "Tarkibni hisoblash uchun ma’lumot yetarli emas.", "There is insufficient data to calculate the structure.")
+
+        rows = []
+        for key in dict.fromkeys(asset_keys):
+            fact = by_code.get(key) or {}
+            current = ratio(fact.get("value"), assets_now, True)
+            previous_share = ratio(fact.get("previous"), assets_before, True)
+            if current is None:
+                continue
+            rows.append({"key": key, "current": current, "previous": previous_share,
+                         "shift": difference(current, previous_share)})
+        if not rows:
+            return heading + tr(lang, "Недостаточно данных для расчёта структуры.", "Tarkibni hisoblash uchun ma’lumot yetarli emas.", "There is insufficient data to calculate the structure.")
+
+        dominant = max(rows, key=lambda item: item["current"])
+        first = tr(
+            lang,
+            f"В структуре активов доминирует статья «{label(dominant['key'], lang)}» — {format_number(dominant['current'])}% итога баланса.",
+            f"Aktivlar tarkibida «{label(dominant['key'], lang)}» ustun — balans jami aktivlarining {format_number(dominant['current'])}%i.",
+            f"{label(dominant['key'], lang)} dominates the asset mix at {format_number(dominant['current'])}% of total assets.",
+        )
+        if dominant["previous"] is not None:
+            first += " " + tr(
+                lang,
+                f"На начало периода доля составляла {format_number(dominant['previous'])}%, то есть изменилась на {format_number(dominant['shift'])} п.п.",
+                f"Davr boshida ulush {format_number(dominant['previous'])}% edi, ya’ni {format_number(dominant['shift'])} foiz punktga o‘zgardi.",
+                f"At the start of the period it was {format_number(dominant['previous'])}%, a change of {format_number(dominant['shift'])} percentage points.",
+            )
+
+        comparable = sorted((row for row in rows if row["shift"] is not None),
+                            key=lambda item: abs(item["shift"]), reverse=True)
+        movement = ""
+        if comparable:
+            parts = []
+            for row in comparable[:2]:
+                direction = tr(lang, "выросла", "oshdi", "rose") if row["shift"] >= 0 else tr(lang, "снизилась", "kamaydi", "fell")
+                parts.append(tr(
+                    lang,
+                    f"доля «{label(row['key'], lang)}» {direction} с {format_number(row['previous'])}% до {format_number(row['current'])}% ({format_number(abs(row['shift']))} п.п.)",
+                    f"«{label(row['key'], lang)}» ulushi {format_number(row['previous'])}%dan {format_number(row['current'])}%gacha {direction} ({format_number(abs(row['shift']))} foiz punkt)",
+                    f"{label(row['key'], lang)} {direction} from {format_number(row['previous'])}% to {format_number(row['current'])}% ({format_number(abs(row['shift']))} pp)",
+                ))
+            movement = tr(lang, "Главные структурные изменения: ", "Asosiy tarkibiy o‘zgarishlar: ", "The main structural changes were: ") + "; ".join(parts) + "."
+
+        implications = {
+            "fixed_assets": tr(lang, "Высокая доля основных средств подтверждает капиталоёмкость бизнеса: значительная часть ресурсов связана в производственной базе.", "Asosiy vositalarning yuqori ulushi biznes kapital talabchanligini ko‘rsatadi: resurslarning katta qismi ishlab chiqarish bazasiga bog‘langan.", "The high fixed-asset share confirms a capital-intensive model, with substantial resources tied to the operating base."),
+            "inventories": tr(lang, "Рост доли запасов означает, что больше средств связано в оборотном капитале; важно сопоставить это с динамикой выручки.", "Zaxiralar ulushining o‘sishi aylanma kapitalga ko‘proq mablag‘ bog‘langanini anglatadi; buni tushum dinamikasi bilan solishtirish kerak.", "A rising inventory share ties up more working capital and should be assessed against revenue growth."),
+            "receivables": tr(lang, "Рост доли дебиторской задолженности усиливает зависимость ликвидности от своевременных расчётов покупателей.", "Debitorlik ulushining o‘sishi likvidlikni xaridorlarning o‘z vaqtida to‘lovlariga ko‘proq bog‘laydi.", "A rising receivables share makes liquidity more dependent on timely customer payments."),
+            "cash": tr(lang, "Изменение доли денег показывает, усилился или сократился немедленный запас ликвидности.", "Pul ulushining o‘zgarishi tezkor likvidlik zaxirasi kuchayganini yoki qisqarganini ko‘rsatadi.", "The movement in cash shows whether the immediate liquidity buffer strengthened or weakened."),
+            "loan_portfolio": tr(lang, "Доминирование кредитного портфеля подтверждает кредитную специализацию банка и концентрацию активов на кредитном риске.", "Kredit portfelining ustunligi bankning kreditlashga ixtisoslashganini va aktivlar kredit riskida jamlanganini ko‘rsatadi.", "The dominant loan portfolio confirms the bank’s lending focus and concentration of assets in credit risk."),
+        }
+        meaning = implications.get(dominant["key"], tr(lang, "Такое соотношение показывает, где сосредоточена основная часть ресурсов компании.", "Bu nisbat kompaniya resurslarining asosiy qismi qayerda jamlanganini ko‘rsatadi.", "This mix shows where most of the company’s resources are concentrated."))
+        equity_share = ratio((by_code.get("total_equity") or {}).get("value"), assets_now, True)
+        liability_share = ratio((by_code.get("total_liabilities") or {}).get("value"), assets_now, True)
+        funding = ""
+        if equity_share is not None and liability_share is not None:
+            funding = tr(
+                lang,
+                f"Источники финансирования распределены так: собственный капитал покрывает {format_number(equity_share)}% активов, обязательства — {format_number(liability_share)}%; это прямо показывает уровень финансовой автономии и зависимость от внешнего фондирования.",
+                f"Moliyalashtirish manbalari quyidagicha: kapital aktivlarning {format_number(equity_share)}%ini, majburiyatlar esa {format_number(liability_share)}%ini qoplaydi; bu moliyaviy mustaqillik va tashqi mablag‘larga bog‘liqlik darajasini ko‘rsatadi.",
+                f"Funding is split between equity covering {format_number(equity_share)}% of assets and liabilities covering {format_number(liability_share)}%, directly indicating financial autonomy and reliance on external funding.",
+            )
+        return " ".join(part for part in (heading, first, movement, meaning, funding, tr(
+            lang,
+            "Точную операционную причину изменения можно подтвердить только примечаниями к отчётности.",
+            "O‘zgarishning aniq operatsion sababini faqat hisobot izohlari tasdiqlashi mumkin.",
+            "The exact operating cause can only be confirmed from the notes to the financial statements.",
+        )) if part)
+
     def bank_analysis_paragraphs():
         """Build an explanatory bank narrative from verified totals only.
 
@@ -776,13 +856,11 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         balance_facts = [fact_sentence(key) for key in ("total_assets", "loan_portfolio", "cash", "customer_funds", "total_liabilities", "total_equity")]
         balance_facts = [item for item in balance_facts if item]
         horizontal_text = tr(lang, "Горизонтальный анализ баланса. ", "Balansning gorizontal tahlili. ", "Horizontal balance-sheet analysis. ") + ("; ".join(balance_facts) if balance_facts else tr(lang, "Недостаточно сопоставимых строк.", "Taqqoslanadigan satrlar yetarli emas.", "Insufficient comparable lines.")) + "."
-        vertical_parts = []
         assets = value("total_assets")
-        for key in ("loan_portfolio", "cash", "total_liabilities", "total_equity"):
-            share = pct(value(key), assets)
-            if share is not None:
-                vertical_parts.append(f"{label(key, lang)} — {pct_text(share)} {tr(lang, 'активов', 'aktivlarga nisbatan', 'of assets')}")
-        vertical_text = tr(lang, "Вертикальный анализ баланса. ", "Balansning vertikal tahlili. ", "Vertical balance-sheet analysis. ") + ("; ".join(vertical_parts) if vertical_parts else tr(lang, "Недостаточно данных для расчёта структуры.", "Tarkibni hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the structure.")) + "."
+        vertical_text = vertical_narrative(
+            ("loan_portfolio", "cash", "central_bank_balances"),
+            tr(lang, "Вертикальный анализ показывает не только текущие доли, но и то, как изменилась модель размещения активов. ", "Vertikal tahlil nafaqat joriy ulushlarni, balki aktivlarni joylashtirish modeli qanday o‘zgarganini ham ko‘rsatadi. ", "Vertical analysis shows both current shares and how the asset-allocation model changed. "),
+        )
         results_text = " ".join((income_text, expense_text, profit_text))
         ratio_parts = []
         if funding_ratio is not None:
@@ -914,13 +992,11 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         funding_text = tr(lang, "Капитал, обязательства и следующий контроль. ", "Kapital, majburiyatlar va keyingi nazorat. ", "Capital, liabilities and next checks. ") + ("; ".join(funding_parts) if funding_parts else tr(lang, "Недостаточно данных о структуре финансирования.", "Moliyalashtirish tarkibi haqida ma’lumot yetarli emas.", "Insufficient funding-structure data.")) + ". " + watch
         horizontal_text = asset_text + " " + funding_text
         assets = value("total_assets")
-        vertical_parts = []
         vertical_keys = tuple(dict.fromkeys(tuple(profile_assets) + ("total_liabilities", "total_equity")))
-        for key in vertical_keys:
-            share = pct(value(key), assets)
-            if share is not None:
-                vertical_parts.append(f"{label(key, lang)} — {pct_text(share)} {tr(lang, 'активов', 'aktivlarga nisbatan', 'of assets')}")
-        vertical_text = tr(lang, f"Структура активов для профиля «{sector_name}». ", f"«{sector_name}» profili uchun aktivlar tarkibi. ", f"Asset structure for the {sector_name} profile. ") + ("; ".join(vertical_parts) if vertical_parts else tr(lang, "Недостаточно данных для расчёта отраслевой структуры.", "Tarmoq tarkibini hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the sector-relevant structure.")) + "."
+        vertical_text = vertical_narrative(
+            tuple(key for key in vertical_keys if key not in {"total_liabilities", "total_equity", "current_liabilities"}),
+            tr(lang, f"Для профиля «{sector_name}» важно оценить не перечень долей сам по себе, а концентрацию ресурсов и её изменение за период. ", f"«{sector_name}» profili uchun ulushlar ro‘yxatining o‘zi emas, balki resurslar jamlanishi va uning davr ichidagi o‘zgarishi muhim. ", f"For the {sector_name} profile, the key question is not the list of percentages itself but where resources are concentrated and how that changed. "),
+        )
         results_text = " ".join((income_text, expense_text, profit_text))
         ratio_parts = []
         for ratio_label, numerator in ((tr(lang, "Валовая маржа", "Yalpi marja", "Gross margin"), gross), (tr(lang, "Операционная маржа", "Operatsion marja", "Operating margin"), operating_income), (tr(lang, "Чистая маржа", "Sof marja", "Net margin"), net_income)):
@@ -1076,6 +1152,13 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         paragraphs.append(tr(lang, "Отчёт сокращён: подтверждённых фактов недостаточно; пропуски не заменены нулями или предположениями.", "Hisobot qisqartirilgan: tasdiqlangan faktlar yetarli emas; bo‘sh qiymatlar nol yoki taxmin bilan almashtirilmagan.", "The report is shortened because too few facts are verified; gaps were not replaced by zero or assumptions."))
     else:
         paragraphs = [headline]
+    if bank_without_income_comparison and paragraphs:
+        paragraphs[0] += " " + tr(
+            lang,
+            "Динамика баланса — относительно начала года; изменение прибыли и рентабельности не оценивается без сопоставимого периода.",
+            "Balans dinamikasi yil boshiga nisbatan; taqqoslanadigan davrsiz foyda va rentabellik o‘zgarishi baholanmaydi.",
+            "Balance-sheet movement is measured from the start of the year; profit and profitability changes are not assessed without a comparable period.",
+        )
     text = "\n\n".join(paragraphs)
 
     section_titles = {

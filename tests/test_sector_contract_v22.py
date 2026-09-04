@@ -150,6 +150,28 @@ def test_no_signal_does_not_invent_an_issue():
     assert generic["verdict"]["status"] == "no_signal"
 
 
+def test_vertical_analysis_explains_comparison_and_implication_instead_of_listing_shares():
+    data = snapshot(
+        current_values={
+            "total_assets": 1000, "total_equity": 700, "total_liabilities": 300,
+            "fixed_assets": 480, "inventories": 110, "receivables": 173, "cash": 37,
+            "revenue": 500, "net_income": 80, "operating_income": 100,
+        },
+        opening_values={
+            "total_assets": 900, "total_equity": 630, "total_liabilities": 270,
+            "fixed_assets": 360, "inventories": 135, "receivables": 180, "cash": 45,
+        },
+    )
+    report = core.make_report(data, {**ISSUER, "oked_code": "24100"}, today=TODAY, lang="ru")
+    vertical = next(section["text"] for section in report["sections"] if section["id"] == "vertical_balance")
+
+    assert "доминирует статья «Основные средства» — 48.00%" in vertical
+    assert "с 40.00% до 48.00% (8.00 п.п.)" in vertical
+    assert "подтверждает капиталоёмкость бизнеса" in vertical
+    assert "собственный капитал покрывает 70.00% активов" in vertical
+    assert "Точную операционную причину" in vertical
+
+
 def test_trend_requires_comparable_points_and_four_points_for_three_declines():
     context = {"period_basis": "cumulative_ytd", "accounting_standard": "nsbu",
                "consolidation_scope": "separate"}
