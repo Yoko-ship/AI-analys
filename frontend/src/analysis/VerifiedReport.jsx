@@ -136,18 +136,6 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false 
         {safeUrl(issue.source_url) && <a href={safeUrl(issue.source_url)} target="_blank" rel="noreferrer">{t("Проверить источник", "Manbani tekshirish", "View evidence")} ↗</a>}
       </article>)}
     </section>}
-    {report.monitoring_points?.length > 0 && <section className="verified-watch" aria-labelledby="verified-watch-title">
-      <h3 id="verified-watch-title">{t("Два показателя для следующего отчёта", "Keyingi hisobot uchun ikki ko‘rsatkich", "Two metrics for the next report")}</h3>
-      <div className="verified-watch-grid">
-        {report.monitoring_points.slice(0, 2).map((point) => <article key={point.id || point.metric_code}>
-          <h4>{point.label || point.metric_code}</h4>
-          <p><strong>{t("Текущая база", "Joriy baza", "Current baseline")}:</strong> {money(point.current_baseline?.value)} {units} · {point.current_baseline?.period || report.period}</p>
-          <p><strong>{t("Признак улучшения", "Yaxshilanish belgisi", "Improvement signal")}:</strong> {point.improvement_signal}</p>
-          <p><strong>{t("Признак риска", "Xavf belgisi", "Risk signal")}:</strong> {point.risk_signal}</p>
-          <p><strong>{t("Нужно раскрыть", "Oshkor qilish kerak", "Disclosure needed")}:</strong> {point.required_disclosure}</p>
-        </article>)}
-      </div>
-    </section>}
     {report.verification_summary && <aside className="verified-checks">
       <p><strong>{t("Проверено", "Tekshirildi", "Checked")}:</strong> {(report.verification_summary.checked || []).join("; ") || "—"}.</p>
       <p><strong>{t("Не хватает", "Yetishmaydi", "Missing")}:</strong> {(report.verification_summary.missing || []).join("; ") || t("существенных строк не выявлено", "muhim satrlar yetishmaydi deb topilmadi", "no material line gaps identified")}.</p>
