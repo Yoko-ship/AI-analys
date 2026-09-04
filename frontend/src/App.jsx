@@ -14686,14 +14686,27 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                     scale — and so the bar agrees with the readout above it. */}
                 {points.map((p, i) => {
                   const v = p.turnover || 0;
-                  if (!v) return null;
+                  const w = Math.max(1.5, Math.min(10, gapPx * 0.76));
+                  // A carried close with no turnover used to disappear entirely,
+                  // leaving unexplained holes between otherwise continuous dates.
+                  // Keep zero honest (never invent a coloured volume bar), but
+                  // draw a neutral baseline tick so the reader can distinguish a
+                  // no-trade / unpublished-volume session from a rendering bug.
+                  if (!v) return (
+                    <rect key={`v0${i}`} className="ac-volume-empty"
+                      x={xs(i) - w / 2} y={volBot - 8} width={w} height="8"
+                      fill="currentColor" fillOpacity="0.2">
+                      <title>{t("Торгов не было или объём не опубликован",
+                                "Savdo bo'lmagan yoki hajm e'lon qilinmagan",
+                                "No trades or volume was not published")}</title>
+                    </rect>
+                  );
                   // Square-root display scaling keeps ordinary sessions visible
                   // beside a rare block-trade spike. The tooltip still shows
                   // the exact turnover, so only the visual emphasis changes.
                   const volumeRatio = Math.min(1, v / volumeScale);
                   const h = Math.max(8, Math.sqrt(volumeRatio) * (volBot - volTop));
                   const upDay = i > 0 ? p.close >= points[i - 1].close : true;
-                  const w = Math.max(1.5, Math.min(10, gapPx * 0.76));
                   return <rect key={`v${i}`} className="ac-volume-bar" x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
                     fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.9" />;
                 })}

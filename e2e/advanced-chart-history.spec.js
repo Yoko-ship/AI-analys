@@ -28,7 +28,7 @@ function priceHistory() {
       close: price,
       // One genuine-looking spike keeps the regression honest: ordinary
       // sessions still need to remain visible next to the largest turnover.
-      value: offset === 300 ? 1_600_000_000 : 10_000_000 + (offset % 31) * 500_000,
+      value: offset % 47 === 0 ? 0 : offset === 300 ? 1_600_000_000 : 10_000_000 + (offset % 31) * 500_000,
     });
   }
   return out;
@@ -74,6 +74,11 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   expect(volume.maxHeight).toBeGreaterThanOrEqual(95);
   expect(volume.minHeight).toBeGreaterThanOrEqual(8);
   expect(volume.opacity).toEqual(["0.9"]);
+  const emptyVolume = page.locator(".ac-volume-empty");
+  await expect(emptyVolume.first()).toBeVisible();
+  expect(await emptyVolume.count()).toBeGreaterThan(0);
+  await expect(emptyVolume.first()).toHaveAttribute("height", "8");
+  await expect(emptyVolume.first().locator("title")).toHaveText("Торгов не было или объём не опубликован");
 
   const chartWorkspace = page.locator(".advanced-chart");
   await page.getByRole("button", { name: "Развернуть график на весь экран" }).click();

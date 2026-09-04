@@ -12912,6 +12912,8 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
 .ac-svg { display: block; color: var(--text-primary); cursor: crosshair; }
 .ac-volume-bar { transition: fill-opacity 0.12s; shape-rendering: crispEdges; filter: saturate(1.12); }
 .ac-volume-bar:hover { fill-opacity: 1; }
+.ac-volume-empty { shape-rendering: crispEdges; }
+.ac-volume-empty:hover { fill-opacity: 0.38; }
 .ac-svg.is-candle-interactive { cursor: grab; touch-action: pan-y; }
 .ac-svg.is-candle-interactive.is-panning { cursor: grabbing; user-select: none; }
 .ac-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 14px; text-align: center; padding: 24px; }
