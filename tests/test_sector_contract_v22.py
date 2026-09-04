@@ -171,6 +171,18 @@ def test_vertical_analysis_explains_comparison_and_implication_instead_of_listin
     assert "собственный капитал покрывает 70.00% активов" in vertical
     assert "Точную операционную причину" in vertical
 
+    falling = snapshot(
+        current_values={"total_assets": 1000, "total_equity": 700, "total_liabilities": 300,
+                        "receivables": 400, "fixed_assets": 200, "cash": 30,
+                        "revenue": 500, "net_income": 80, "operating_income": 100},
+        opening_values={"total_assets": 900, "total_equity": 630, "total_liabilities": 270,
+                        "receivables": 450, "fixed_assets": 180, "cash": 27},
+    )
+    falling_report = core.make_report(falling, {**ISSUER, "oked_code": "24100"}, today=TODAY, lang="ru")
+    falling_vertical = next(section["text"] for section in falling_report["sections"] if section["id"] == "vertical_balance")
+    assert "Снижение доли дебиторской задолженности уменьшает объём средств" in falling_vertical
+    assert "Рост доли дебиторской задолженности" not in falling_vertical
+
 
 def test_trend_requires_comparable_points_and_four_points_for_three_declines():
     context = {"period_basis": "cumulative_ytd", "accounting_standard": "nsbu",
