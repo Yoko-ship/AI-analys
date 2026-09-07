@@ -10,14 +10,31 @@ const BASE = "/api/admin/control";
 const langIndex = language => ({ ru: 0, uz: 1, en: 2 }[language] ?? 0);
 const textValue = value => value === null || value === undefined || value === "" ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value);
 const fieldLabel = (key, t) => FIELD_LABELS[key] ? t(...FIELD_LABELS[key]) : key.replaceAll("_", " ");
+const INCIDENT_TITLES = {
+  ANNUAL_BEFORE_YEAR_END: ["Годовой отчёт заканчивается до конца года", "Yillik hisobot yil tugashidan oldin yakunlangan", "Annual report ends before year-end"],
+  BALANCE_COMPONENTS_MISSING: ["Не хватает компонентов баланса", "Balans tarkibiy qismlari yetishmayapti", "Balance components are missing"],
+  BALANCE_IDENTITY_FAILED: ["Баланс не сходится", "Balans tengligi buzilgan", "Balance does not reconcile"],
+  CAPITAL_COMPONENTS_MISMATCH: ["Изменение капитала не сходится", "Kapitaldagi o‘zgarish tarkibiy qismlarga mos emas", "Equity movement does not reconcile"],
+  FOUND_NOT_INGESTED: ["Исходный файл найден, но ещё не загружен", "Manba fayli topildi, ammo hali yuklanmadi", "Source file found but not yet ingested"],
+  IMPOSSIBLE_PERIOD: ["Некорректный отчётный период", "Hisobot davri noto‘g‘ri", "Reporting period is invalid"],
+  INSURANCE_RESERVES_OMITTED: ["Не учтены страховые резервы", "Sug‘urta zaxiralari hisobga olinmagan", "Insurance reserves are missing"],
+  PERIOD_CLASSIFICATION_ERROR: ["Неверно определён отчётный период", "Hisobot davri noto‘g‘ri tasniflangan", "Reporting period is classified incorrectly"],
+  SOURCE_MAPPING_FAILED: ["Не удалось сопоставить данные источника", "Manba ma’lumotlarini moslashtirib bo‘lmadi", "Source data could not be mapped"],
+  SOURCE_NOT_VERIFIED: ["Исходный документ не подтверждён", "Asl hujjat tasdiqlanmagan", "Source document has not been verified"],
+  UZNF_2026H1_SOURCE_UNCONFIRMED: ["Отчёт UZNF за 2026H1 не подтверждён", "UZNFning 2026H1 hisoboti tasdiqlanmagan", "UZNF’s 2026H1 report is unconfirmed"],
+  blocked_unit_mismatch: ["Единицы измерения не совпадают", "O‘lchov birliklari mos kelmaydi", "Units do not match"],
+};
+const incidentTitle = (code, t) => INCIDENT_TITLES[code] ? t(...INCIDENT_TITLES[code]) : String(code || "").replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+const incidentStage = (stage, t) => ({ analysis: t("Анализ", "Tahlil", "Analysis"), classification: t("Классификация", "Tasniflash", "Classification"), coverage: t("Полнота каталога", "Katalog qamrovi", "Catalog coverage") }[stage] || textValue(stage));
+const incidentPriority = (severity, t) => ({ P0: t("Приоритет 0", "0-darajali ustuvorlik", "Priority 0"), P1: t("Приоритет 1", "1-darajali ustuvorlik", "Priority 1"), P2: t("Приоритет 2", "2-darajali ustuvorlik", "Priority 2"), P3: t("Приоритет 3", "3-darajali ustuvorlik", "Priority 3") }[severity] || textValue(severity));
 
-export function StatusBadge({ value }) {
+export function StatusBadge({ value, label }) {
   const state = String(value || "unavailable");
   const tone = /blocked|failed|P0|P1|suspicious|denied|conflict/i.test(state) ? "danger"
     : /warning|stale|not_|P2|draft|insufficient/i.test(state) ? "warning"
       : /complete|verified|validated|published|active|passed|success|resolved/i.test(state) ? "success"
         : /running|queued|retry|processing|rolling/i.test(state) ? "processing" : "neutral";
-  return <span className={`control-status ${tone}`}><span aria-hidden="true" />{state.replaceAll("_", " ")}</span>;
+  return <span className={`control-status ${tone}`} title={state}><span aria-hidden="true" />{label || state.replaceAll("_", " ")}</span>;
 }
 
 function Loading({ t }) {
@@ -55,8 +72,13 @@ function DetailDialog({ title, onClose, children, wide = false, t }) {
 }
 
 function KeyValues({ item, fields, t }) {
+  const displayValue = key => {
+    if (item.blocker_code && key === "severity") return incidentPriority(item[key], t);
+    if (item.blocker_code && key === "stage") return incidentStage(item[key], t);
+    return typeof item[key] === "boolean" ? (item[key] ? t("Да", "Ha", "Yes") : t("Нет", "Yo‘q", "No")) : textValue(item[key]);
+  };
   return <dl className="control-key-values">{fields.filter(key => item[key] !== undefined).map(key => <React.Fragment key={key}>
-    <dt>{fieldLabel(key, t)}</dt><dd>{typeof item[key] === "boolean" ? (item[key] ? t("Да", "Ha", "Yes") : t("Нет", "Yo‘q", "No")) : textValue(item[key])}</dd>
+    <dt>{fieldLabel(key, t)}</dt><dd>{displayValue(key)}</dd>
   </React.Fragment>)}</dl>;
 }
 
@@ -247,6 +269,7 @@ export default function ControlPanel({ apiFetch: fetchProp, language = "ru", sec
   const title = allNav.find(n => n[0] === section)?.[li + 2] || (section === "rules-workspace" ? t("Правила", "Qoidalar", "Rules") : t("Продуктовая аналитика", "Mahsulot tahlili", "Product analytics"));
   const columns = COLUMNS[collection] || COLUMNS.rules;
   const displayColumns = columns.filter(c => !hiddenColumns.includes(c));
+  const selectedIncidentTitle = collection === "incidents" && detail ? incidentTitle(detail.blocker_code || detail.title, t) : null;
   const statusOptions = [...new Set(["OPEN", "INVESTIGATING", "RESOLVED", "PUBLISHED", "BLOCKED", "QUALITY_BLOCKED", "DRAFT", "TESTED", "APPROVED", "ACTIVE", "QUEUED", "RUNNING", "COMPLETED", "FAILED", "verified", "blocked", "stale", "COMPLETE", "FOUND_NOT_INGESTED", "CLASSIFIED_SUSPICIOUS", ...(data?.items || []).map(r => r.status).filter(Boolean)])];
   const actionButton = (name, label, capability, item = detail, extra = {}, coll = collection) => can(capability) && <button className="control-button" onClick={() => requestAction(name, item, extra, coll)}>{label}</button>;
 
@@ -287,7 +310,7 @@ export default function ControlPanel({ apiFetch: fetchProp, language = "ru", sec
               <details><summary>{t("Представления", "Ko‘rinishlar", "Saved views")}</summary><div className="control-popover">{savedViews.map(view => <button key={view.name} onClick={() => navigate(section, view.filters)}>{view.name}</button>)}<form onSubmit={event => { event.preventDefault(); const name = new FormData(event.currentTarget).get("name").trim(); if (!name) return; const views = [...savedViews.filter(v => v.name !== name), { name, filters: Object.fromEntries(params) }].slice(-15); setSavedViews(views); try { localStorage.setItem(savedKey, JSON.stringify(views)); } catch { setNotice("Local preferences are unavailable."); } }}><input name="name" aria-label={t("Название представления", "Ko‘rinish nomi", "View name")} required placeholder={t("Название", "Nomi", "View name")} /><button>{t("Сохранить", "Saqlash", "Save")}</button></form></div></details>
               {can("export") && <><button onClick={() => exportRows("csv")}>CSV ↓</button><button onClick={() => exportRows("json")}>JSON ↓</button></>}
             </div></div>
-            {data?.items?.length ? <div className="control-table-scroll"><table><thead><tr>{displayColumns.map(col => <th key={col} scope="col"><button disabled={!["ticker", "status", "standard", "period", "severity", "source", "category", "updated_at", "id", "created_at", "actor", "action"].includes(col)} onClick={() => updateFilters({ sort: col, direction: params.get("sort") === col && params.get("direction") === "asc" ? "desc" : "asc" })}>{fieldLabel(col, t)}{params.get("sort") === col ? params.get("direction") === "asc" ? " ↑" : " ↓" : ""}</button></th>)}</tr></thead><tbody>{data.items.map(item => <tr key={item.id} className={selected === item.id ? "selected" : ""}>{displayColumns.map((col, i) => <td key={col}>{i === 0 ? <button className="control-row-link" onClick={() => updateFilters({ object: item.id })}>{textValue(item[col])}<Icon name="external" /></button> : ["status", "result", "severity"].includes(col) ? <StatusBadge value={item[col]} /> : typeof item[col] === "boolean" ? <span className={`control-bool ${item[col] ? "yes" : ""}`}>{item[col] ? t("Да", "Ha", "Yes") : "—"}</span> : <span title={textValue(item[col])}>{textValue(item[col])}</span>}</td>)}</tr>)}</tbody></table></div>
+            {data?.items?.length ? <div className="control-table-scroll"><table><thead><tr>{displayColumns.map(col => <th key={col} scope="col"><button disabled={!["ticker", "status", "standard", "period", "severity", "source", "category", "updated_at", "id", "created_at", "actor", "action"].includes(col)} onClick={() => updateFilters({ sort: col, direction: params.get("sort") === col && params.get("direction") === "asc" ? "desc" : "asc" })}>{fieldLabel(col, t)}{params.get("sort") === col ? params.get("direction") === "asc" ? " ↑" : " ↓" : ""}</button></th>)}</tr></thead><tbody>{data.items.map(item => <tr key={item.id} className={selected === item.id ? "selected" : ""}>{displayColumns.map((col, i) => <td key={col}>{i === 0 ? <button className="control-row-link" onClick={() => updateFilters({ object: item.id })}>{collection === "incidents" && col === "severity" ? incidentPriority(item[col], t) : textValue(item[col])}<Icon name="external" /></button> : collection === "incidents" && col === "blocker_code" ? <span className="control-incident-code" title={textValue(item[col])}><strong>{incidentTitle(item[col], t)}</strong><small>{textValue(item[col])}</small></span> : collection === "incidents" && col === "stage" ? <span title={textValue(item[col])}>{incidentStage(item[col], t)}</span> : ["status", "result", "severity"].includes(col) ? <StatusBadge value={item[col]} label={collection === "incidents" && col === "severity" ? incidentPriority(item[col], t) : undefined} /> : typeof item[col] === "boolean" ? <span className={`control-bool ${item[col] ? "yes" : ""}`}>{item[col] ? t("Да", "Ha", "Yes") : "—"}</span> : <span title={textValue(item[col])}>{textValue(item[col])}</span>}</td>)}</tr>)}</tbody></table></div>
               : <div className="control-empty"><Icon name="search" /><h3>{t("Нет записей для этой выборки", "Tanlov bo‘yicha yozuvlar yo‘q", "No records in this view")}</h3><p>{t("Измените фильтры или синхронизируйте каталог. Неполученные данные не считаются проверенными.", "Filtrlarni o‘zgartiring yoki katalogni sinxronlang. Olinmagan ma’lumotlar tekshirilgan hisoblanmaydi.", "Adjust the filters or sync the catalog. Missing data is never marked as verified.")}</p></div>}
             <footer className="control-pagination"><span>{data?.items?.length || 0} / {data?.total || 0}</span><div><button className="control-button" disabled={!params.get("cursor")} onClick={() => updateFilters({ cursor: "" })}>{t("Первая страница", "Birinchi sahifa", "First page")}</button><button className="control-button" disabled={!data?.next_cursor} onClick={() => updateFilters({ cursor: data.next_cursor, object: "" })}>{t("Следующая", "Keyingi", "Next page")} →</button></div></footer>
           </section>
@@ -295,9 +318,10 @@ export default function ControlPanel({ apiFetch: fetchProp, language = "ru", sec
       <footer className="control-footnote"><Icon name="lock" />{t("Исходные данные неизменяемы. Исправления проходят через версионируемые правила.", "Asl ma’lumotlar o‘zgarmaydi. Tuzatishlar versiyali qoidalar orqali bajariladi.", "Source data stays immutable. Corrections go through versioned rules.")}</footer>
       </main>
     </div>
-    {selected && !isLegacy && <DetailDialog title={detail?.ticker ? `${detail.ticker} · ${detail.metric_code || detail.period || title}` : title} onClose={closeDetail} wide={collection === "documents"} t={t}>
+    {selected && !isLegacy && <DetailDialog title={selectedIncidentTitle ? `${detail?.ticker || "—"} · ${selectedIncidentTitle}` : detail?.ticker ? `${detail.ticker} · ${detail.metric_code || detail.period || title}` : title} onClose={closeDetail} wide={collection === "documents"} t={t}>
       {detailError ? <div className="control-error" role="alert">{detailError}</div> : !detail ? <Loading t={t} /> : <>
         <div className="control-detail-meta"><StatusBadge value={detail.status || detail.result} /><span>v{detail.version || 1}</span><code>{detail.id}</code></div>
+        {selectedIncidentTitle && <div className="control-incident-explainer"><strong>{selectedIncidentTitle}</strong><p>{t("Проверка остановила публикацию или пометила данные для проверки. Машинный код сохранён ниже для поиска и аудита.", "Tekshiruv nashrni to‘xtatdi yoki ma’lumotlarni tekshirish uchun belgiladi. Qidiruv va audit uchun mashina kodi quyida saqlanadi.", "The check stopped publication or flagged the data for review. Its machine code is retained below for search and audit.")}</p><code>{detail.blocker_code || detail.title}</code></div>}
         {detail.blockers?.length > 0 && <div className="control-blockers"><strong>{t("Блокеры", "Bloklovchilar", "Blockers")}</strong>{detail.blockers.map(code => <p key={code}><Icon name="alert" />{code}</p>)}</div>}
         <div className="control-detail-actions">
           {collection === "documents" && actionButton("reprocess", t("Повторить обработку", "Qayta ishlash", "Reprocess"), "retry")}

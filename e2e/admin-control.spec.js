@@ -32,6 +32,21 @@ test("operations overview, navigation and desktop layout", async ({ page }, test
   expect(failures).toEqual([]);
 });
 
+test("incidents explain the issue in the selected language while retaining its audit code", async ({ page }, testInfo) => {
+  await setup(page);
+  await page.goto("/admin/incidents");
+  await expect(page.getByText("Reporting period is classified incorrectly", { exact: true })).toBeVisible();
+  await expect(page.getByText("Classification", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "First page", exact: true })).toBeVisible();
+  await expect(page.getByText("Первая страница", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Priority 1", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: /Reporting period is classified incorrectly/ });
+  await expect(dialog.locator(".control-incident-explainer code")).toHaveText("PERIOD_CLASSIFICATION_ERROR");
+  await expect(dialog.getByText("Classification", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/The check stopped publication or flagged the data for review/)).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("incident-detail.png"), fullPage: true });
+});
+
 test("filters persist in the URL and document deep link opens a safe cell grid", async ({ page }, testInfo) => {
   const fixture = await setup(page);
   await page.goto("/admin/documents");
