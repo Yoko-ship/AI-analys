@@ -88,6 +88,12 @@ def _create_schema(conn: sqlite3.Connection) -> None:
               file_hash     TEXT,
               state         TEXT NOT NULL DEFAULT 'discovered',
               state_reason  TEXT,
+              -- When the issuer/source published the filing.  This is distinct
+              -- from discovered_at: a report can be collected days later.
+              source_published_at TEXT,
+              -- Parser build that produced the extracted lines.  NULL means
+              -- historic/unknown, never an invented version string.
+              extraction_version TEXT,
               discovered_at TEXT NOT NULL,
               parsed_at     TEXT, published_at TEXT,
               UNIQUE (org_id, report_form, period_type, period_year, period_quarter)
@@ -203,6 +209,10 @@ def _create_schema(conn: sqlite3.Connection) -> None:
     )
     import dbx
     for table, fields in {
+        "source_reports": {
+            "source_published_at": "TEXT",
+            "extraction_version": "TEXT",
+        },
         "bond_reference": {"day_count": "TEXT", "schedule_source": "TEXT", "status": "TEXT",
                            "cashflows_verified": "INTEGER", "options_verified": "INTEGER",
                            "future_rates_verified": "INTEGER", "outstanding_principal_per_bond": "REAL",
@@ -228,7 +238,9 @@ def file_hash(payload: bytes | str) -> str:
 def upsert_report(org_id: str, report_form: str, period_type: str, period_year: int,
                   period_quarter: int | None = None, *, pdf_url: str | None = None,
                   excel_url: str | None = None, title: str | None = None,
-                  hash_value: str | None = None) -> int:
+                  hash_value: str | None = None,
+                  source_published_at: str | None = None,
+                  extraction_version: str | None = None) -> int:
     """Register a report, or return it to `discovered` if the source replaced it.
 
     The source is entitled to re-upload a filing, and that has to be caught
@@ -248,10 +260,12 @@ def upsert_report(org_id: str, report_form: str, period_type: str, period_year: 
             # which row was written even under concurrency.
             cur = conn.execute(
                 "INSERT INTO source_reports (org_id, report_form, period_type, period_year, "
-                "period_quarter, title, pdf_url, excel_url, file_hash, state, discovered_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?, 'discovered', ?) RETURNING id",
+                "period_quarter, title, pdf_url, excel_url, file_hash, source_published_at, "
+                "extraction_version, state, discovered_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?, 'discovered', ?) RETURNING id",
                 (org_id, report_form, period_type, period_year, period_quarter, title,
-                 pdf_url, excel_url, hash_value, _now()))
+                 pdf_url, excel_url, hash_value, source_published_at,
+                 extraction_version, _now()))
             new_id = int(cur.fetchone()[0])
             conn.commit()
             return new_id
@@ -259,14 +273,20 @@ def upsert_report(org_id: str, report_form: str, period_type: str, period_year: 
             conn.execute(
                 "UPDATE source_reports SET file_hash=?, state='discovered', "
                 "state_reason='файл в источнике заменён', parsed_at=NULL, published_at=NULL, "
-                "pdf_url=COALESCE(?, pdf_url), excel_url=COALESCE(?, excel_url) WHERE id=?",
-                (hash_value, pdf_url, excel_url, row["id"]))
+                "pdf_url=COALESCE(?, pdf_url), excel_url=COALESCE(?, excel_url), "
+                "source_published_at=COALESCE(?, source_published_at), "
+                "extraction_version=COALESCE(?, extraction_version) WHERE id=?",
+                (hash_value, pdf_url, excel_url, source_published_at,
+                 extraction_version, row["id"]))
         else:
             conn.execute(
                 "UPDATE source_reports SET pdf_url=COALESCE(?, pdf_url), "
                 "excel_url=COALESCE(?, excel_url), title=COALESCE(?, title), "
-                "file_hash=COALESCE(?, file_hash) WHERE id=?",
-                (pdf_url, excel_url, title, hash_value, row["id"]))
+                "file_hash=COALESCE(?, file_hash), "
+                "source_published_at=COALESCE(?, source_published_at), "
+                "extraction_version=COALESCE(?, extraction_version) WHERE id=?",
+                (pdf_url, excel_url, title, hash_value, source_published_at,
+                 extraction_version, row["id"]))
         conn.commit()
         return int(row["id"])
     finally:
@@ -285,6 +305,24 @@ def set_state(report_id: int, state: str, reason: str | None = None) -> None:
             stamps = ", published_at = '%s'" % _now()
         conn.execute(f"UPDATE source_reports SET state=?, state_reason=?{stamps} WHERE id=?",
                      (state, reason, report_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def set_extraction_version(report_id: int, version: str | None) -> None:
+    """Record the parser build that produced a report's figures.
+
+    The caller supplies a stable implementation label.  Passing ``None`` does
+    nothing: historic records remain honestly unknown instead of being relabelled
+    as if they had been parsed by a newer build.
+    """
+    if not version:
+        return
+    conn = _conn()
+    try:
+        conn.execute("UPDATE source_reports SET extraction_version=? WHERE id=?",
+                     (str(version), report_id))
         conn.commit()
     finally:
         conn.close()
@@ -809,7 +847,7 @@ def sync_from_catalog() -> dict[str, int]:
         merged: dict[tuple, dict[str, Any]] = {}
         for row in conn.execute(
                 "SELECT r.ticker, r.report_form, r.period_type, r.year, r.quarter, "
-                "       r.title, r.pdf_url, r.excel_url, c.org_id "
+                "       r.title, r.published_at, r.pdf_url, r.excel_url, c.org_id "
                 "FROM catalog_reports r LEFT JOIN catalog_companies c ON c.ticker = r.ticker "
                 "WHERE r.year IS NOT NULL"):
             org_id = row["org_id"] or f"ticker:{row['ticker']}"
@@ -823,11 +861,12 @@ def sync_from_catalog() -> dict[str, int]:
                     "period_type": row["period_type"], "year": row["year"],
                     "quarter": quarter, "pdf_url": row["pdf_url"],
                     "excel_url": row["excel_url"],
+                    "source_published_at": row["published_at"],
                     "title": row["title"] or compose_title(
                         row["report_form"], row["period_type"], row["year"], quarter),
                 }
                 continue
-            for field in ("pdf_url", "excel_url", "title"):
+            for field in ("pdf_url", "excel_url", "source_published_at", "title"):
                 if row[field] is not None:
                     item[field] = row[field]
 
@@ -836,11 +875,13 @@ def sync_from_catalog() -> dict[str, int]:
         for key, item in merged.items():
             report_id = existing.get(key)
             if report_id is not None:
-                updates.append((item["pdf_url"], item["excel_url"], item["title"], report_id))
+                updates.append((item["pdf_url"], item["excel_url"], item["title"],
+                                item["source_published_at"], report_id))
             else:
                 inserts.append((item["org_id"], item["report_form"], item["period_type"],
                                 item["year"], item["quarter"], item["title"],
-                                item["pdf_url"], item["excel_url"], now))
+                                item["pdf_url"], item["excel_url"],
+                                item["source_published_at"], now))
 
         if issuer_rows:
             conn.executemany(
@@ -851,13 +892,14 @@ def sync_from_catalog() -> dict[str, int]:
         if updates:
             conn.executemany(
                 "UPDATE source_reports SET pdf_url=COALESCE(?, pdf_url), "
-                "excel_url=COALESCE(?, excel_url), title=COALESCE(?, title) WHERE id=?",
+                "excel_url=COALESCE(?, excel_url), title=COALESCE(?, title), "
+                "source_published_at=COALESCE(?, source_published_at) WHERE id=?",
                 updates)
         if inserts:
             conn.executemany(
                 "INSERT INTO source_reports (org_id, report_form, period_type, "
                 "period_year, period_quarter, title, pdf_url, excel_url, state, "
-                "discovered_at) VALUES (?,?,?,?,?,?,?,?, 'discovered', ?)",
+                "source_published_at, discovered_at) VALUES (?,?,?,?,?,?,?,?, 'discovered', ?, ?)",
                 inserts)
         conn.commit()
     finally:

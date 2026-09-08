@@ -79,6 +79,7 @@ const VIEW_PATHS = {
   bankfx: "/currency",
   analysis: "/analysis",
   compare: "/compare",
+  portfolio: "/portfolio",
   profile: "/profile",
   auth: "/login",
   // Internal, reached by direct link, not from the nav: the admin panel lives at
@@ -12191,13 +12192,95 @@ function CompanySplitsTable({ items, lang }) {
   );
 }
 
-function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "annual", onFreqChange, splits }) {
+function FinancialPassportDialog({ passport, loading, field, period, lang, onClose }) {
+  const dialogRef = React.useRef(null);
+  const closeRef = React.useRef(null);
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const titleId = `financial-passport-${String(field || "value").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const source = passport?.source;
+
+  React.useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    const onKey = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); onClose(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", onKey); };
+  }, [onClose]);
+
+  const label = finLabel(field, lang);
+  const stateLabel = passport?.status === "SOURCED"
+    ? t("Источник подтверждён", "Manba tasdiqlangan", "Source linked")
+    : passport?.status === "DERIVED"
+      ? t("Рассчитано платформой", "Platforma hisoblagan", "Calculated by the platform")
+      : t("Паспорт источника недоступен", "Manba pasporti mavjud emas", "Source passport unavailable");
+
+  return createPortal((
+    <div className="company-insight-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <article ref={dialogRef} className="company-insight-dialog financial-passport-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <header className="company-insight-dialog-head">
+          <button ref={closeRef} className="company-insight-close" type="button" onClick={onClose}
+            aria-label={t("Закрыть паспорт источника", "Manba pasportini yopish", "Close source passport")}>×</button>
+          <div>
+            <div className="company-insight-eyebrow">{t("Паспорт значения", "Qiymat pasporti", "Value passport")}</div>
+            <h2 id={titleId}>{label}</h2>
+            <p>{period}</p>
+          </div>
+        </header>
+        {loading ? <div className="chart-loading muted" style={{ padding: "28px 0" }}>{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div> : (
+          <div className="financial-passport-copy">
+            <div className={`financial-passport-status ${passport?.status || "unknown"}`}>{stateLabel}</div>
+            {passport?.status === "SOURCED" && source && (
+              <dl className="financial-passport-grid">
+                <div><dt>{t("Отчёт", "Hisobot", "Report")}</dt><dd>{source.title || `${source.report_form || "—"} ${source.period_year || ""}`}</dd></div>
+                <div><dt>{t("Период отчёта", "Hisobot davri", "Report period")}</dt><dd>{source.period_quarter ? `${source.period_year} Q${source.period_quarter}` : source.period_year || "—"}</dd></div>
+                <div><dt>{t("Стандарт", "Standart", "Standard")}</dt><dd>{source.standard || passport.standard || "—"}</dd></div>
+                <div><dt>{t("Периметр", "Qamrov", "Perimeter")}</dt><dd>{source.perimeter || source.source_ticker || "—"}</dd></div>
+                <div><dt>{t("Статус проверки", "Tekshiruv holati", "Review status")}</dt><dd>{source.state || "—"}{source.state_reason ? ` — ${source.state_reason}` : ""}</dd></div>
+                <div><dt>{t("Строка источника", "Manba satri", "Source line")}</dt><dd>{source.raw_label || "—"}</dd></div>
+                <div><dt>{t("Исходная сумма", "Asl summa", "Raw value")}</dt><dd>{source.raw_value ?? "—"}</dd></div>
+                <div><dt>{t("Нормализованное значение", "Normallashtirilgan qiymat", "Normalized value")}</dt><dd>{source.normalized_value ?? "—"}{source.normalization_formula ? ` (${source.normalization_formula})` : ""}</dd></div>
+                <div><dt>{t("Знак", "Belgi", "Sign")}</dt><dd>{source.sign || "—"}</dd></div>
+                <div><dt>{t("Страница", "Sahifa", "Page")}</dt><dd>{source.page || "—"}</dd></div>
+                <div><dt>{t("Единица / масштаб", "Birlik / masshtab", "Unit / scale")}</dt><dd>{source.unit_scale ? `×${source.unit_scale}` : "—"}</dd></div>
+                <div><dt>{t("Дата публикации источника", "Manba e’lon qilingan sana", "Source publication date")}</dt><dd>{source.source_published_at || "—"}</dd></div>
+                <div><dt>{t("Получен платформой", "Platforma olgan vaqt", "Received by platform")}</dt><dd>{source.received_at || "—"}</dd></div>
+                <div><dt>{t("Версия извлечения", "Ajratib olish versiyasi", "Extraction version")}</dt><dd>{source.extraction_version || "—"}</dd></div>
+                <div><dt>{t("Хеш файла", "Fayl xeshi", "File hash")}</dt><dd className="financial-passport-hash">{source.file_hash || "—"}</dd></div>
+              </dl>
+            )}
+            {passport?.status === "DERIVED" && (
+              <section className="financial-passport-formula">
+                <span>{t("Формула", "Formula", "Formula")}</span>
+                <code>{passport.formula}</code>
+                <p>{t("Это расчёт платформы. Откройте входные значения в таблице, чтобы увидеть их источники.", "Bu platforma hisobi. Manbalarni ko‘rish uchun jadvaldagi kirish qiymatlarini oching.", "This is a platform calculation. Open its input values in the table to inspect their filing sources.")}</p>
+              </section>
+            )}
+            {passport?.status !== "SOURCED" && passport?.status !== "DERIVED" && (
+              <p className="financial-passport-reason">{passport?.reason || t("Для этого значения нет проверяемой связи с исходным документом.", "Bu qiymat uchun asl hujjat bilan tekshiriladigan bog‘lanish yo‘q.", "This value has no verifiable link to a source document.")}</p>
+            )}
+            {passport?.reason && passport?.status === "SOURCED" && <p className="financial-passport-reason">{passport.reason}</p>}
+            {source?.excel_url && <a className="company-insight-action" href={source.excel_url} target="_blank" rel="noreferrer">{t("Открыть Excel-отчёт ↗", "Excel hisobotni ochish ↗", "Open Excel report ↗")}</a>}
+            {!source?.excel_url && source?.pdf_url && <a className="company-insight-action" href={source.pdf_url} target="_blank" rel="noreferrer">{t("Открыть PDF-отчёт ↗", "PDF hisobotni ochish ↗", "Open PDF report ↗")}</a>}
+          </div>
+        )}
+      </article>
+    </div>
+  ), document.body);
+}
+
+function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [section, setSection] = React.useState("income");
   // Which lines the chart draws, per section (annual and quarterly sections
   // share a key space, which is fine — «income» means the same lines in both).
   // Unset = the section's default; from the first click the reader owns it.
   const [chartSel, setChartSel] = React.useState({});
+  const [passport, setPassport] = React.useState(null);
+  const [passportTarget, setPassportTarget] = React.useState(null);
+  const [passportLoading, setPassportLoading] = React.useState(false);
   // Line | Bars | Table — the reader's choice, remembered. Exclusive on purpose:
   // «TABLE» is one of the three, so it cannot also be permanently underneath the
   // other two, and a chart with the whole table below it is what this tab was.
@@ -12213,9 +12296,31 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
   }, [dashboard]);
   const quarterly = freq === "quarterly";
 
+  const openPassport = React.useCallback((field, period) => {
+    if (!ticker) return;
+    setPassportTarget({ field, period });
+    setPassport(null);
+    setPassportLoading(true);
+    const params = new URLSearchParams({ period, field, form: standard });
+    fetch(`/api/company/${encodeURIComponent(ticker)}/financials/passport?${params.toString()}`)
+      .then((response) => response.json())
+      .then((body) => setPassport(body?.ok ? body : { status: "NO_SOURCE_PASSPORT" }))
+      .catch(() => setPassport({ status: "NO_SOURCE_PASSPORT", reason: t("Не удалось загрузить паспорт источника.", "Manba pasportini yuklab bo‘lmadi.", "The source passport could not be loaded.") }))
+      .finally(() => setPassportLoading(false));
+  }, [ticker, standard, t]);
+
+  const standardToggle = onStandardChange ? (
+    <div className="fin-freq" role="group" aria-label={t("Стандарт", "Standart", "Standard")}>
+      {[["NSBU", "НСБУ"], ["MSFO", "МСФО"]].map(([code, label]) => (
+        <button key={code} type="button" className={`fin-freq-btn ${standard === code ? "active" : ""}`}
+          aria-pressed={standard === code} onClick={() => onStandardChange(code)}>{label}</button>
+      ))}
+    </div>
+  ) : null;
+
   // Годовые | Квартальные. The switch stays on screen in every state —
   // including "this issuer files no quarterlies" — or there is no way back.
-  const freqToggle = onFreqChange ? (
+  const freqToggle = onFreqChange && standard === "NSBU" ? (
     <div className="fin-freq" role="group" aria-label={t("Период", "Davr", "Period")}>
       {[["annual", t("Годовые", "Yillik", "Annual")],
         ["quarterly", t("Квартальные", "Choraklik", "Quarterly")]].map(([k, label]) => (
@@ -12228,7 +12333,7 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
 
   if (loading) return (
     <div className="company-financials">
-      <div className="fin-subtabs">{freqToggle}</div>
+      <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
       <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>
     </div>
   );
@@ -12246,7 +12351,7 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
   if (available.length === 0 && quarterly) {
     return (
       <div className="company-financials">
-        <div className="fin-subtabs">{freqToggle}</div>
+        <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
           <p className="muted">{t("Эмитент не публикует квартальную отчётность",
                                   "Emitent choraklik hisobot e'lon qilmaydi",
@@ -12256,9 +12361,21 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
     );
   }
 
-  // Nothing in the fact store. Fall back to the single period the reports cache
-  // holds rather than showing an empty tab — it is less, but it is what we have.
+  // Nothing in the fact store.  The legacy ratios cache has no reliable
+  // accounting-standard dimension, so it is a NSBU-only fallback.  Reusing it
+  // while the reader selected IFRS would put a familiar number under a false
+  // label — the exact cross-standard substitution the product prohibits.
   if (available.length === 0) {
+    if (standard !== "NSBU") return (
+      <div className="company-financials">
+        <div className="fin-subtabs">{standardToggle}</div>
+        <div className="panel" style={{ padding: 32, textAlign: "center" }}>
+          <p className="muted">{t("Годовая отчётность по МСФО не опубликована",
+                                  "МСФО бўйича йиллик ҳисобот эълон қилинмаган",
+                                  "No annual IFRS financial statements published")}</p>
+        </div>
+      </div>
+    );
     const m = ratios?.metrics || {};
     const legacy = [["ROA", "ROA"], ["ROE", "ROE"],
                     ["net_margin", finLabel("net_profit_margin", lang)],
@@ -12266,27 +12383,33 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
                     ["debt_to_equity", finLabel("debt_to_equity", lang)]]
       .filter(([k]) => m[k] != null);
     if (legacy.length === 0) return (
-      <div className="panel" style={{ padding: 32, textAlign: "center" }}>
-        <p className="muted">{t("Финансовые показатели не опубликованы",
-                                "Moliyaviy korsatkichlar elon qilinmagan",
-                                "No financial indicators published")}</p>
+      <div className="company-financials">
+        <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
+        <div className="panel" style={{ padding: 32, textAlign: "center" }}>
+          <p className="muted">{t("Финансовые показатели не опубликованы",
+                                  "Moliyaviy korsatkichlar elon qilinmagan",
+                                  "No financial indicators published")}</p>
+        </div>
       </div>
     );
     return (
-      <div className="panel" style={{ padding: "16px 20px" }}>
-        {ratios?.year && (
-          <div className="muted" style={{ marginBottom: 12, fontSize: 13 }}>
-            {t("Последние данные", "Songgi malumotlar", "Latest")}: {ratios.year}
-            {ratios.quarter ? ` Q${ratios.quarter}` : ""}
-          </div>
-        )}
-        <div className="company-metrics-list">
-          {legacy.map(([k, l]) => (
-            <div key={k} className="company-metric-row">
-              <span className="panel-label">{l}</span>
-              <span className="company-metric-val">{formatRatio(m[k], 2, lang)}</span>
+      <div className="company-financials">
+        <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
+        <div className="panel" style={{ padding: "16px 20px" }}>
+          {ratios?.year && (
+            <div className="muted" style={{ marginBottom: 12, fontSize: 13 }}>
+              {t("Последние данные", "Songgi malumotlar", "Latest")}: {ratios.year}
+              {ratios.quarter ? ` Q${ratios.quarter}` : ""}
             </div>
-          ))}
+          )}
+          <div className="company-metrics-list">
+            {legacy.map(([k, l]) => (
+              <div key={k} className="company-metric-row">
+                <span className="panel-label">{l}</span>
+                <span className="company-metric-val">{formatRatio(m[k], 2, lang)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -12407,7 +12530,18 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
               instead of explaining the term. */}
           <TermInfo termId={FIN_FIELD_TERMS[f]} lang={lang} label={finLabel(f, lang)} />
         </th>
-        {cols.map((p) => <td key={p} className="num">{cell(f, p)}</td>)}
+        {cols.map((p) => {
+          const value = series[f].values[p];
+          if (!Number.isFinite(value)) return <td key={p} className="num">—</td>;
+          return (
+            <td key={p} className="num fin-passport-cell">
+              <button type="button" onClick={() => openPassport(f, p)}
+                title={t("Открыть паспорт источника", "Manba pasportini ochish", "Open source passport")}>
+                {cell(f, p)}
+              </button>
+            </td>
+          );
+        })}
       </tr>
       {/* Only when there is a year to compare against: on a single-period
           issuer (ACMT1B2, UZNF and seven more) this row was a line of dashes
@@ -12469,7 +12603,8 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
         </button>
         {section !== "splits" && (
           <>
-            {freqToggle}
+        {standardToggle}
+        {freqToggle}
             {/* Line | Bars | Table. Sits with the period switch because it answers
                 the same kind of question — how to READ this section, not which
                 section — and the two are the only controls this tab has. Neither
@@ -12570,6 +12705,11 @@ function CompanyFinancialsTab({ ratios, series, periods, loading, lang, freq = "
           )}
         </p>
       </div>
+      )}
+      {passportTarget && (
+        <FinancialPassportDialog passport={passport} loading={passportLoading}
+          field={passportTarget.field} period={passportTarget.period} lang={lang}
+          onClose={() => { setPassportTarget(null); setPassport(null); }} />
       )}
     </div>
   );
@@ -12683,7 +12823,97 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
   );
 }
 
-function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpenCompany, onOpenChart, marketRows, financials, tradeStats, favoriteTickers, onToggleFavorite, signedIn }) {
+function CompanyForecastTab({ ticker, language, apiFetch, signedIn, hasProAccess, onUpgrade }) {
+  const lang = normalizeLanguage(language);
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [standard, setStandard] = React.useState("NSBU");
+  const [state, setState] = React.useState({ loading: false, forecast: null, backtest: null, error: "" });
+  const [retry, setRetry] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!hasProAccess || !ticker) return undefined;
+    let alive = true;
+    setState({ loading: true, forecast: null, backtest: null, error: "" });
+    const qs = `form=${encodeURIComponent(standard)}`;
+    Promise.all([
+      apiFetch(`/api/company/${encodeURIComponent(ticker)}/forecast?${qs}`).then(async (response) => {
+        const body = await response.json().catch(() => null);
+        if (!response.ok || !body?.ok) throw new Error(body?.detail?.message || body?.detail || "Forecast unavailable");
+        return body;
+      }),
+      apiFetch(`/api/company/${encodeURIComponent(ticker)}/forecast/backtest?${qs}`).then(async (response) => {
+        const body = await response.json().catch(() => null);
+        if (!response.ok || !body?.ok) throw new Error(body?.detail?.message || body?.detail || "Backtest unavailable");
+        return body;
+      }),
+    ]).then(([forecast, backtest]) => {
+      if (alive) setState({ loading: false, forecast, backtest, error: "" });
+    }).catch((error) => {
+      if (alive) setState({ loading: false, forecast: null, backtest: null, error: String(error?.message || error) });
+    });
+    return () => { alive = false; };
+  }, [ticker, standard, retry, hasProAccess, apiFetch]);
+
+  const title = t("Прогноз и справедливая цена", "Prognoz va adolatli qiymat", "Forecast & fair value");
+  if (!hasProAccess) return <ProFeatureGate language={lang} title={title}
+    description={t("Три сценария, прозрачные предпосылки, диапазон справедливой цены и бэктест доступны в PRO.", "Uchta ssenariy, shaffof taxminlar, adolatli narx oralig‘i va backtest PROda mavjud.", "Three scenarios, transparent assumptions, fair-value range and backtest are available with PRO.")}
+    signedIn={signedIn} onUpgrade={onUpgrade} />;
+
+  const forecast = state.forecast;
+  const backtest = state.backtest;
+  const fmtMoney = (value) => Number.isFinite(Number(value))
+    ? `${formatMarketNumber(Number(value) * 1000, lang)} ${t("сум", "so‘m", "UZS")}` : "—";
+  const fmtPrice = (value) => Number.isFinite(Number(value))
+    ? `${formatMarketNumber(value, lang)} ${t("сум", "so‘m", "UZS")}` : "—";
+  return (
+    <section className="company-forecast stack">
+      <div className="basis-bar">
+        <div>
+          <strong>{title}</strong>
+          <span className="muted" style={{ display: "block", marginTop: 4, fontSize: 12 }}>
+            {t("Модель не является инвестиционной рекомендацией. Вероятности не публикуются без калибровки.", "Model investitsiya tavsiyasi emas. Kalibrlashsiz ehtimollar chop etilmaydi.", "This model is not investment advice. Probabilities are withheld until calibrated.")}
+          </span>
+        </div>
+        <div className="fin-freq" role="group" aria-label={t("Стандарт", "Standart", "Standard")}>
+          {["NSBU", "MSFO"].map((code) => <button key={code} type="button"
+            className={`fin-freq-btn ${standard === code ? "active" : ""}`} onClick={() => setStandard(code)}>{code === "NSBU" ? "НСБУ" : "МСФО"}</button>)}
+        </div>
+      </div>
+      {state.loading && <div className="chart-loading muted">{t("Загрузка прогноза…", "Prognoz yuklanmoqda…", "Loading forecast…")}</div>}
+      {state.error && <div className="panel" style={{ padding: 20 }}><p>{state.error}</p><button className="primary-btn" type="button" onClick={() => setRetry((n) => n + 1)}>{t("Повторить", "Qayta urinish", "Retry")}</button></div>}
+      {!state.loading && forecast?.status === "NO_DATA" && <div className="panel" style={{ padding: 24 }}>
+        <h3>{t("Прогноз пока недоступен", "Prognoz hozircha mavjud emas", "Forecast is not available yet")}</h3><p className="muted">{forecast.reason}</p>
+      </div>}
+      {!state.loading && forecast?.status === "AVAILABLE" && <>
+        <div className="grid3">
+          {(forecast.scenarios || []).map((row) => <article className="panel pad" key={row.scenario}>
+            <span className="panel-label">{row.scenario === "downside" ? t("Негативный", "Salbiy", "Downside") : row.scenario === "upside" ? t("Позитивный", "Ijobiy", "Upside") : t("Базовый", "Asosiy", "Base")}</span>
+            <strong className="big-number">{formatSignedPercent(row.revenue_growth_pct, 1)}</strong>
+            <div className="metric-list"><div><span>{t("Выручка", "Tushum", "Revenue")}</span><b>{fmtMoney(row.revenue)}</b></div><div><span>{t("Чистая прибыль", "Sof foyda", "Net income")}</span><b>{fmtMoney(row.net_profit)}</b></div><div><span>EPS</span><b>{fmtPrice(row.eps)}</b></div></div>
+          </article>)}
+        </div>
+        <article className="panel pad">
+          <div className="section-title" style={{ marginTop: 0 }}><h2>{t("Справедливая цена", "Adolatli narx", "Fair value")}</h2><span className="muted">{forecast.fair_value?.method || t("Нет проверяемого метода", "Tekshiriladigan usul yo‘q", "No verified method")}</span></div>
+          {forecast.fair_value?.status === "AVAILABLE" ? <div className="grid3">
+            {[["lower", t("Нижняя", "Pastki", "Lower")], ["mid", t("Базовая", "Asosiy", "Mid")], ["upper", t("Верхняя", "Yuqori", "Upper")]].map(([key, label]) => <div className="kpi" key={key}><div className="label">{label}</div><div className="value">{fmtPrice(forecast.fair_value[key])}</div><div className="hint">P/E {formatRatio(forecast.fair_value.peer_pe?.[key], 2, lang)}</div></div>)}
+          </div> : <p className="muted">{forecast.fair_value?.reason}</p>}
+          <div className="panel-foot">{t("Факты по состоянию на", "Faktlar holati", "Facts as of")}: {forecast.facts_as_of_year || "—"} · {t("Группа аналогов", "Taqqoslanadigan guruh", "Peer group")}: {forecast.peer_population?.count || 0} ({forecast.peer_population?.sector || t("не определён", "aniqlanmagan", "not mapped")})</div>
+        </article>
+        <article className="panel pad">
+          <h2 className="section-heading">{t("Предпосылки и контроль качества", "Taxminlar va sifat nazorati", "Assumptions & quality control")}</h2>
+          <div className="metric-list"><div><span>{t("Метод", "Usul", "Method")}</span><b>{forecast.assumptions?.method}</b></div><div><span>{t("Исторические годы", "Tarixiy yillar", "Historical years")}</span><b>{(forecast.historical_years || []).join(", ") || "—"}</b></div><div><span>{t("Версия модели", "Model versiyasi", "Model version")}</span><b>{forecast.model_version || "—"}</b></div></div>
+          <div className="callout amber" style={{ marginTop: 14 }}><span className="ico">!</span><div><strong>{t("Публикация заблокирована", "Chop etish bloklangan", "Publication blocked")}</strong><br />{forecast.quality?.reason}</div></div>
+        </article>
+      </>}
+      {!state.loading && backtest && <article className="panel pad">
+        <div className="section-title" style={{ marginTop: 0 }}><h2>{t("Walk-forward бэктест", "Walk-forward backtest", "Walk-forward backtest")}</h2><span className={`status-tag ${backtest.status === "AVAILABLE" ? "warn" : ""}`}>{backtest.status}</span></div>
+        {backtest.status === "AVAILABLE" ? <><div className="grid3"><div className="kpi"><div className="label">MAE</div><div className="value">{formatRatio(backtest.mae_pct, 2, lang)}%</div></div><div className="kpi"><div className="label">{t("Наблюдения", "Kuzatuvlar", "Observations")}</div><div className="value">{backtest.trials?.length || 0}</div></div><div className="kpi"><div className="label">{t("Хронология", "Xronologiya", "Chronology")}</div><div className="value">{backtest.chronology_verified ? t("Проверена", "Tekshirilgan", "Verified") : t("Неполная", "To‘liq emas", "Incomplete")}</div></div></div><p className="muted" style={{ marginTop: 14 }}>{backtest.reason}</p></> : <p className="muted">{backtest.reason}</p>}
+      </article>}
+    </section>
+  );
+}
+
+function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpenCompany, onOpenChart, marketRows, financials, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch, onUpgrade }) {
   const lang = normalizeLanguage(language);
   const [tab, setTab] = React.useState("overview");
 
@@ -12727,6 +12957,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
   // reads it, and most visits never open that tab.
   const [finSeries, setFinSeries] = React.useState(null);
   const [finLoading, setFinLoading] = React.useState(false);
+  // IFRS and NSBU are separate accounting contours.  A form choice therefore
+  // invalidates the cached series; retaining NSBU rows while the header says
+  // IFRS would be worse than a temporary loading state.
+  const [finStandard, setFinStandard] = React.useState("NSBU");
   // The Финансы tab's period switch. The quarterly series is its own request
   // and its own cache: nobody pays for quarters they never open.
   const [finFreq, setFinFreq] = React.useState("annual");
@@ -12881,29 +13115,34 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
     return () => { alive = false; };
   }, [ticker]);
 
-  React.useEffect(() => { setFinSeries(null); setFinQSeries(null); setFinFreq("annual"); setSplits(null); }, [ticker]);
+  React.useEffect(() => {
+    setFinSeries(null);
+    setFinQSeries(null);
+    setSplits(null);
+    if (finStandard !== "NSBU") setFinFreq("annual");
+  }, [ticker, finStandard]);
   React.useEffect(() => {
     if (!ticker || tab !== "financials" || finSeries !== null) return undefined;
     let alive = true;
     setFinLoading(true);
-    fetch(`/api/company/${encodeURIComponent(ticker)}/financials`)
+    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?form=${encodeURIComponent(finStandard)}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setFinSeries(d.ok ? d : { periods: [], series: {} }); })
       .catch(() => { if (alive) setFinSeries({ periods: [], series: {} }); })
       .finally(() => { if (alive) setFinLoading(false); });
     return () => { alive = false; };
-  }, [ticker, tab, finSeries]);
+  }, [ticker, tab, finStandard, finSeries]);
   React.useEffect(() => {
     if (!ticker || tab !== "financials" || finFreq !== "quarterly" || finQSeries !== null) return undefined;
     let alive = true;
     setFinQLoading(true);
-    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?freq=quarterly`)
+    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?freq=quarterly&form=${encodeURIComponent(finStandard)}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setFinQSeries(d.ok ? d : { periods: [], series: {} }); })
       .catch(() => { if (alive) setFinQSeries({ periods: [], series: {} }); })
       .finally(() => { if (alive) setFinQLoading(false); });
     return () => { alive = false; };
-  }, [ticker, tab, finFreq, finQSeries]);
+  }, [ticker, tab, finStandard, finFreq, finQSeries]);
   // The splits register, once per ticker and only when the Финансы tab is
   // open — the same laziness as the series above. An error resolves to [],
   // which the table renders as the honest «не зафиксировано».
@@ -13067,6 +13306,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
     ...(securityType !== "bond" ? [{ key: "dividends", label: lang === "ru" ? "Дивиденды" : lang === "uz" ? "Dividendlar" : "Dividends" }] : []),
     { key: "reports", label: lang === "ru" ? "Отчёты" : lang === "uz" ? "Hisobotlar" : "Reports" },
     { key: "financials", label: lang === "ru" ? "Финансы" : lang === "uz" ? "Moliya" : "Financials" },
+    ...(securityType !== "bond" ? [{ key: "forecast", label: lang === "ru" ? "Прогноз" : lang === "uz" ? "Prognoz" : "Forecast" }] : []),
   ];
   return (
     <div className="company-page">
@@ -13200,13 +13440,18 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
           <CompanyReportsTab reports={companyData?.reports || []} lang={lang} />
         )}
         {tab === "financials" && (
-          <CompanyFinancialsTab ratios={companyData?.ratios || {}} lang={lang}
+          <CompanyFinancialsTab ticker={ticker} ratios={companyData?.ratios || {}} lang={lang}
+            standard={finStandard} onStandardChange={setFinStandard}
             series={(finFreq === "quarterly" ? finQSeries?.series : finSeries?.series) || {}}
             periods={(finFreq === "quarterly" ? finQSeries?.periods : finSeries?.periods) || []}
             loading={finFreq === "quarterly"
               ? (finQLoading && finQSeries === null)
               : (finLoading && finSeries === null)}
             freq={finFreq} onFreqChange={setFinFreq} splits={splits} />
+        )}
+        {tab === "forecast" && (
+          <CompanyForecastTab ticker={ticker} language={language} apiFetch={apiFetch}
+            signedIn={signedIn} hasProAccess={hasProAccess} onUpgrade={onUpgrade} />
         )}
         {insightOpen && insightReport && (
           <CompanyInsightDialog report={insightReport} ticker={ticker} companyName={displayName} lang={lang} onClose={closeInsight} />
@@ -13629,8 +13874,35 @@ function AdvancedChartRail({ rows, securitiesMap, ticker, favorites, onToggleFav
   );
 }
 
+function TechnicalBacktestCard({ ticker, lang, apiFetch, signedIn, hasProAccess, onUpgrade }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const run = async () => {
+    setLoading(true); setError("");
+    try {
+      const response = await apiFetch(`/api/company/${encodeURIComponent(ticker)}/technical-backtest`);
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.ok) throw new Error(body?.detail?.message || body?.detail || "Backtest unavailable");
+      setData(body);
+    } catch (err) { setError(String(err?.message || err)); } finally { setLoading(false); }
+  };
+  const metric = data?.metrics || {};
+  return <article className="panel pad" style={{ marginTop: 16 }}>
+    <div className="section-title" style={{ marginTop: 0 }}><h2>{t("Бэктест торгового правила", "Savdo qoidasi backtesti", "Trading-rule backtest")}</h2>{data?.model_version && <span className="muted">{data.model_version}</span>}</div>
+    {!hasProAccess ? <div className="callout amber"><span className="ico">🔒</span><div><strong>{t("PRO-функция", "PRO funksiya", "PRO feature")}</strong><br />{t("Бэктест использует только подтверждённые сессии, следующую сессию для исполнения, комиссию и проскальзывание.", "Backtest faqat tasdiqlangan sessiyalar, ijro uchun keyingi sessiya, komissiya va sirpanishni ishlatadi.", "The backtest uses confirmed sessions only, next-session execution, fees and slippage.")}</div><button className="primary-btn" type="button" onClick={onUpgrade}>{signedIn ? "PRO" : t("Войти", "Kirish", "Sign in")}</button></div> : <>
+      {!data && <button className="primary-btn" type="button" disabled={loading} onClick={run}>{loading ? t("Расчёт…", "Hisoblanmoqda…", "Running…") : t("Запустить SMA(20)", "SMA(20)ni ishga tushirish", "Run SMA(20)")}</button>}
+      {error && <p className="neg">{error}</p>}
+      {data?.status === "NO_DATA" && <p className="muted">{data.reason}</p>}
+      {data?.status === "AVAILABLE" && <><div className="grid3" style={{ marginTop: 14 }}><div className="kpi"><div className="label">{t("Доходность", "Daromadlilik", "Return")}</div><div className="value">{formatSignedPercent(metric.total_return_pct, 2)}</div></div><div className="kpi"><div className="label">Max drawdown</div><div className="value">{formatRatio(metric.max_drawdown_pct, 2, lang)}%</div></div><div className="kpi"><div className="label">Sharpe</div><div className="value">{formatRatio(metric.sharpe, 2, lang)}</div></div></div><p className="muted" style={{ marginTop: 12 }}>{data.rule} · {data.period?.from} — {data.period?.to} · {data.period?.observations} {t("сессий", "sessiya", "sessions")}. {data.disclaimer}</p></>}
+    </>}
+  </article>;
+}
+
 function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, favorites,
-                         onToggleFavorite, signedIn, onBack, onOpenCompany, onOpenChart, initial }) {
+                         onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch,
+                         onUpgrade, onBack, onOpenCompany, onOpenChart, initial }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const up = String(ticker || "").toUpperCase();
 
@@ -14989,6 +15261,8 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
           </p>
         )}
       </div>
+      <TechnicalBacktestCard ticker={ticker} lang={lang} apiFetch={apiFetch} signedIn={signedIn}
+        hasProAccess={hasProAccess} onUpgrade={onUpgrade} />
     </div>
   );
 }
@@ -20365,6 +20639,96 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
   );
 }
 
+function ProFeatureGate({ language, title, description, signedIn, onUpgrade }) {
+  const copy = language === "en"
+    ? { eyebrow: "PRO feature", signIn: "Sign in", upgrade: "View PRO access" }
+    : language === "uz"
+      ? { eyebrow: "PRO funksiya", signIn: "Kirish", upgrade: "PRO kirishni ko‘rish" }
+      : { eyebrow: "PRO-функция", signIn: "Войти", upgrade: "Открыть PRO-доступ" };
+  return (
+    <section className="pro-gate panel" aria-label={title}>
+      <div className="panel-label">{copy.eyebrow}</div>
+      <span className="pro-gate-icon" aria-hidden="true">{Icons.lock}</span>
+      <h1>{title}</h1>
+      <p>{description}</p>
+      <p className="muted">
+        {language === "en"
+          ? "The feature stays named and explained here; access is controlled by your account tier."
+          : language === "uz"
+            ? "Funksiya nomi va qisqa izohi saqlanadi; kirish hisobingiz tarifiga bog‘liq."
+            : "Название и краткое объяснение функции сохранены; доступ зависит от тарифа аккаунта."}
+      </p>
+      <button type="button" className="primary-btn" onClick={onUpgrade}>
+        {signedIn ? copy.upgrade : copy.signIn}
+      </button>
+    </section>
+  );
+}
+
+function PortfolioView({ language, apiFetch, signedIn, hasProAccess, onUpgrade, onOpenCompany }) {
+  const lang = normalizeLanguage(language);
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const [portfolio, setPortfolio] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+  const [form, setForm] = React.useState({ ticker: "", quantity: "", average_cost: "", note: "" });
+  const [saving, setSaving] = React.useState(false);
+
+  const load = React.useCallback(() => {
+    setLoading(true); setError("");
+    return apiFetch("/api/portfolio").then(async (response) => {
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.ok) throw new Error(body?.detail?.message || body?.detail || "Portfolio unavailable");
+      setPortfolio(body);
+    }).catch((err) => setError(String(err?.message || err))).finally(() => setLoading(false));
+  }, [apiFetch]);
+  React.useEffect(() => { if (hasProAccess) load(); else setLoading(false); }, [hasProAccess, load]);
+
+  const title = t("Портфель", "Portfel", "Portfolio");
+  if (!hasProAccess) return <ProFeatureGate language={lang} title={title}
+    description={t("В PRO можно вести собственные позиции и видеть их стоимость по последней подтверждённой биржевой сделке.", "PROda o‘z pozitsiyalaringizni yuritib, ularning qiymatini so‘nggi tasdiqlangan birja bitimi bo‘yicha ko‘rishingiz mumkin.", "PRO lets you maintain your positions and value them from the last confirmed exchange trade.")}
+    signedIn={signedIn} onUpgrade={onUpgrade} />;
+  const money = (value) => Number.isFinite(Number(value)) ? `${formatMarketNumber(value, lang)} ${t("сум", "so‘m", "UZS")}` : "—";
+  const submit = async (event) => {
+    event.preventDefault(); setSaving(true); setError("");
+    try {
+      const response = await apiFetch("/api/portfolio/positions", { method: "PUT", body: JSON.stringify({
+        ticker: form.ticker.trim().toUpperCase(), quantity: Number(form.quantity), average_cost: Number(form.average_cost), note: form.note,
+      }) });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.ok) throw new Error(body?.detail?.message || body?.detail || "Could not save position");
+      setForm({ ticker: "", quantity: "", average_cost: "", note: "" }); await load();
+    } catch (err) { setError(String(err?.message || err)); } finally { setSaving(false); }
+  };
+  const remove = async (ticker) => {
+    try {
+      const response = await apiFetch(`/api/portfolio/positions/${encodeURIComponent(ticker)}`, { method: "DELETE" });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.ok) throw new Error(body?.detail?.message || body?.detail || "Could not remove position");
+      await load();
+    } catch (err) { setError(String(err?.message || err)); }
+  };
+  return <section className="stack portfolio-view">
+    <header className="page-head"><div><h1>{title}</h1><p>{t("Только вручную добавленные позиции. Нереализованный результат не учитывает комиссии, налоги и корпоративные действия.", "Faqat qo‘lda qo‘shilgan pozitsiyalar. Hisoblangan natija komissiya, soliq va korporativ harakatlarni hisobga olmaydi.", "Only positions you enter. Unrealized P/L excludes fees, tax, and corporate actions.")}</p></div></header>
+    <div className="grid3">
+      <article className="kpi panel"><div className="label">{t("Стоимость", "Qiymat", "Market value")}</div><div className="value">{money(portfolio?.market_value)}</div><div className="hint">{portfolio?.priced_count || 0}/{portfolio?.count || 0} {t("переоценено", "baholangan", "priced")}</div></article>
+      <article className="kpi panel"><div className="label">{t("Себестоимость", "Tannarx", "Cost basis")}</div><div className="value">{money(portfolio?.cost_value)}</div><div className="hint">{portfolio?.price_basis || "—"}</div></article>
+      <article className="kpi panel"><div className="label">{t("Нереализованный P/L", "Amalga oshmagan P/L", "Unrealized P/L")}</div><div className={`value ${Number(portfolio?.unrealized_pnl) >= 0 ? "pos" : "neg"}`}>{money(portfolio?.unrealized_pnl)}</div><div className="hint">UZS</div></article>
+    </div>
+    <article className="panel pad"><h2 className="section-heading">{t("Добавить или обновить позицию", "Pozitsiya qo‘shish yoki yangilash", "Add or update position")}</h2><form className="form-grid" onSubmit={submit}>
+      <label className="field"><span>{t("Тикер", "Ticker", "Ticker")}</span><input required maxLength="40" value={form.ticker} onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })} placeholder="KSCM" /></label>
+      <label className="field"><span>{t("Количество", "Miqdor", "Quantity")}</span><input required min="0.000001" step="any" type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></label>
+      <label className="field"><span>{t("Средняя цена, UZS", "O‘rtacha narx, UZS", "Average cost, UZS")}</span><input required min="0" step="any" type="number" value={form.average_cost} onChange={(e) => setForm({ ...form, average_cost: e.target.value })} /></label>
+      <label className="field"><span>{t("Заметка", "Izoh", "Note")}</span><input maxLength="1000" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></label>
+      <div className="profile-form-actions"><button className="primary-btn" type="submit" disabled={saving}>{saving ? t("Сохранение…", "Saqlanmoqda…", "Saving…") : t("Сохранить", "Saqlash", "Save")}</button></div>
+    </form></article>
+    {error && <div className="callout red"><span className="ico">!</span><div>{error}</div><button type="button" onClick={load}>{t("Повторить", "Qayta urinish", "Retry")}</button></div>}
+    <article className="panel"><div className="panel-head"><h2>{t("Позиции", "Pozitsiyalar", "Positions")}</h2><span className="muted">{portfolio?.price_basis || "—"}</span></div>
+      {loading ? <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div> : !(portfolio?.items || []).length ? <div className="empty-state"><h2>{t("Пока нет позиций", "Hozircha pozitsiyalar yo‘q", "No positions yet")}</h2><p>{t("Добавьте тикер, количество и среднюю цену выше.", "Yuqorida ticker, miqdor va o‘rtacha narxni qo‘shing.", "Add a ticker, quantity, and average cost above.")}</p></div> : <div className="table-wrap"><table><thead><tr><th>{t("Бумага", "Qimmatli qog‘oz", "Security")}</th><th>{t("Количество", "Miqdor", "Quantity")}</th><th>{t("Цена / стоимость", "Narx / qiymat", "Price / value")}</th><th>P/L</th><th /></tr></thead><tbody>{portfolio.items.map((item) => <tr key={item.ticker}><td><button className="rowlink" type="button" onClick={() => onOpenCompany?.(item.ticker)}><b>{item.ticker}</b><span className="meta">{item.company_name || item.note || "—"}</span></button></td><td>{formatRatio(item.quantity, 4, lang)}</td><td>{item.valuation_status === "AVAILABLE" ? <><b>{money(item.last_price)}</b><span className="meta">{money(item.market_value)}</span></> : <span className="muted">{t("Нет подтверждённой цены", "Tasdiqlangan narx yo‘q", "No confirmed price")}</span>}</td><td className={Number(item.unrealized_pnl) >= 0 ? "pos" : "neg"}>{money(item.unrealized_pnl)}<span className="meta">{item.unrealized_pnl_pct == null ? "—" : formatSignedPercent(item.unrealized_pnl_pct, 2)}</span></td><td><button className="icon-btn" type="button" onClick={() => setForm({ ticker: item.ticker, quantity: String(item.quantity), average_cost: String(item.average_cost), note: item.note || "" })}>{t("Изменить", "Tahrirlash", "Edit")}</button><button className="icon-btn" type="button" onClick={() => remove(item.ticker)}>{t("Удалить", "O‘chirish", "Delete")}</button></td></tr>)}</tbody></table></div>}
+    </article>
+  </section>;
+}
+
 function App() {
   // Thresholds and flags are fetched once, before anything reads them, so the
   // interface applies the SAME numbers the calculation layer did (ТЗ §10.10).
@@ -20668,7 +21032,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!token) { setNotifCount(0); setNotifItems([]); return; }
+    if (!token || !Boolean(profile?.user?.pro_access ?? user?.pro_access)) { setNotifCount(0); setNotifItems([]); return; }
     const fetchNotifs = () => {
       apiFetch("/api/notifications")
         .then((r) => r.json())
@@ -20678,7 +21042,7 @@ function App() {
     fetchNotifs();
     const id = setInterval(fetchNotifs, 5 * 60 * 1000);
     return () => clearInterval(id);
-  }, [token]);
+  }, [token, profile?.user?.pro_access, user?.pro_access]);
 
   // The company page reads the board too — price, previous close, the day's
   // OHLC, turnover, capitalisation and share count all come from it. Opening
@@ -20691,8 +21055,8 @@ function App() {
     // board, so the "/" page needs the same rows the market view reads.
     if (activeView !== "market" && activeView !== "heatmap"
       && activeView !== "company" && activeView !== "chart" && activeView !== "main" && activeView !== "auth"
-      && activeView !== "profile") return;
-    loadMarketStocks(activeView === "profile" ? "stock" : null).catch((error) => {
+      && activeView !== "profile" && activeView !== "portfolio") return;
+    loadMarketStocks((activeView === "profile" || activeView === "portfolio") ? "stock" : null).catch((error) => {
       addToast(error.message, "error");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -21362,6 +21726,7 @@ function App() {
   const resumeCompany = companies.find((item) => String(item?.ticker || "").toUpperCase() === resumeTicker) || null;
   const resumeQuote = profileMarketQuote(resumeTicker, marketRows, securitiesMap);
   const profileNotes = Array.isArray(profile?.notes) ? profile.notes : [];
+  const hasProAccess = Boolean(profile?.user?.pro_access ?? user?.pro_access);
   const authCopy = authPageText(language);
   const authMarketItems = (Array.isArray(marketRows) ? marketRows : [])
     .map((row) => {
@@ -21384,7 +21749,7 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "catalog", "news", "profile", "analysis", "compare"]
+    ? ["main", "market", "catalog", "news", "portfolio", "profile", "analysis", "compare"]
     : ["main", "market", "catalog", "news", "auth", "analysis", "compare"];
 
   // The «Рынок» item carries a Finam-style drop-down (sections with their own
@@ -21630,7 +21995,9 @@ function App() {
                       return ageH > 24 ? <span className="nav-stale-dot" title={language === "ru" ? "Каталог устарел" : "Catalog stale"} /> : null;
                     })()}
                   </span>
-                ) : key === "compare" ? ct(language, "nav") : t(language, `nav.${key}`)}
+                ) : key === "compare" ? ct(language, "nav")
+                  : key === "portfolio" ? (language === "en" ? "Portfolio" : language === "uz" ? "Portfel" : "Портфель")
+                    : t(language, `nav.${key}`)}
               </button>
             ))}
           </nav>
@@ -21867,6 +22234,9 @@ function App() {
               favoriteTickers={favoriteTickers}
               onToggleFavorite={handleToggleFavorite}
               signedIn={Boolean(token)}
+              hasProAccess={hasProAccess}
+              apiFetch={apiFetch}
+              onUpgrade={() => setActiveView(token ? "profile" : "auth")}
               onOpenCompany={openCompanyPage}
               onOpenChart={openChartPage}
               onBack={() => setActiveView(prevView || "market")}
@@ -21885,6 +22255,9 @@ function App() {
               favorites={favoriteTickers}
               onToggleFavorite={handleToggleFavorite}
               signedIn={Boolean(token)}
+              hasProAccess={hasProAccess}
+              apiFetch={apiFetch}
+              onUpgrade={() => setActiveView(token ? "profile" : "auth")}
               initial={chartState}
               onBack={() => setActiveView(prevView === "chart" ? "company" : (prevView || "company"))}
               onOpenCompany={openCompanyPage}
@@ -22115,6 +22488,12 @@ function App() {
             </section>
           )}
 
+          {activeView === "portfolio" && (
+            <PortfolioView language={language} apiFetch={apiFetch} signedIn={Boolean(token)}
+              hasProAccess={hasProAccess} onUpgrade={() => setActiveView(token ? "profile" : "auth")}
+              onOpenCompany={openCompanyPage} />
+          )}
+
           {activeView === "profile" && (
             <section className="profile-command-center" aria-labelledby="profile-page-title">
                 <header className="profile-cmd-header">
@@ -22165,6 +22544,12 @@ function App() {
                         <div>
                           <strong>{profileUser.full_name || profileUser.email.split("@")[0]}</strong>
                           <span className="profile-cmd-active"><i aria-hidden="true" />{t(language, "profile.activeStatus")}</span>
+                          <span className="profile-cmd-active">
+                            <i aria-hidden="true" />
+                            {hasProAccess
+                              ? "PRO"
+                              : (language === "en" ? "Free plan" : language === "uz" ? "Bepul tarif" : "Бесплатный тариф")}
+                          </span>
                         </div>
                       </article>
 
@@ -22405,7 +22790,17 @@ function App() {
             </section>
           )}
 
-          {activeView === "analysis" && (
+          {activeView === "analysis" && !hasProAccess && (
+            <ProFeatureGate
+              language={language}
+              signedIn={Boolean(token)}
+              title={language === "en" ? "Professional company analysis" : language === "uz" ? "Professional kompaniya tahlili" : "Профессиональный анализ компании"}
+              description={language === "en" ? "Forecast context, risk analysis, verified comparisons and export are available with PRO access." : language === "uz" ? "Prognoz konteksti, risk tahlili, tekshirilgan taqqoslash va eksport PRO kirishida mavjud." : "Прогнозный контекст, анализ рисков, проверенные сравнения и экспорт доступны с PRO-доступом."}
+              onUpgrade={() => setActiveView(token ? "profile" : "auth")}
+            />
+          )}
+
+          {activeView === "analysis" && hasProAccess && (
             <section className="workspace-page analysis-page" aria-labelledby="analysis-page-title">
               <WorkspacePageHeader
                 id="analysis-page-title"
@@ -22761,7 +23156,7 @@ function App() {
             </section>
           )}
 
-          {activeView === "analysis" && (analysisResult || analysisLoading) && (
+          {activeView === "analysis" && hasProAccess && (analysisResult || analysisLoading) && (
             <section className="results-grid">
               {!analysisResult?.sector_report && <HeroVerdictBlock analysisResult={analysisResult} language={language} />}
               {!analysisResult?.sector_report && <article className="panel metrics-panel">
@@ -22847,7 +23242,17 @@ function App() {
             </section>
           )}
 
-          {activeView === "compare" && (
+          {activeView === "compare" && !hasProAccess && (
+            <ProFeatureGate
+              language={language}
+              signedIn={Boolean(token)}
+              title={language === "en" ? "Issuer comparison" : language === "uz" ? "Emitentlarni taqqoslash" : "Сравнение эмитентов"}
+              description={language === "en" ? "The PRO workspace compares two to five issuers and includes methodology, sources and export." : language === "uz" ? "PRO ish maydoni ikki-beshta emitentni metodologiya, manbalar va eksport bilan taqqoslaydi." : "PRO-рабочее пространство сравнивает от двух до пяти эмитентов, показывает методологию, источники и экспорт."}
+              onUpgrade={() => setActiveView(token ? "profile" : "auth")}
+            />
+          )}
+
+          {activeView === "compare" && hasProAccess && (
             <section className="compare-layout">
               <article className="panel analysis-panel analysis-hero">
                 <div className="analysis-hero-header">
@@ -22977,7 +23382,7 @@ function App() {
             </section>
           )}
 
-          {activeView === "compare" && (compareResult || compareLoading) && (
+          {activeView === "compare" && hasProAccess && (compareResult || compareLoading) && (
             <section className="compare-results-grid">
               <article className="panel compare-chart-main">
                 {comparePrimaryChart ? <CompareChartCard chart={comparePrimaryChart} language={language} /> : (

@@ -12427,6 +12427,46 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
 .company-insight-dialog-foot > span { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 600; }
 .company-insight-dialog-foot p { max-width: 56ch; margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.55; text-align: right; }
 
+/* A financial number is an entry point to its evidence, not decorative text.
+   The table keeps its numeric alignment; the button supplies the affordance and
+   remains usable with keyboard focus. */
+.fin-passport-cell > button {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dotted color-mix(in srgb, var(--muted) 60%, transparent);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.fin-passport-cell > button:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.fin-passport-cell > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.financial-passport-copy { display: grid; gap: 18px; padding: 20px 0 4px; }
+.financial-passport-status { width: fit-content; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 700; }
+.financial-passport-status.SOURCED { background: var(--positive-light); color: var(--positive); }
+.financial-passport-status.DERIVED { background: var(--accent-light); color: var(--accent); }
+.financial-passport-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; margin: 0; }
+.financial-passport-grid > div { min-width: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.financial-passport-grid dt { margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.financial-passport-grid dd { margin: 0; color: var(--text); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.financial-passport-hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px !important; }
+.financial-passport-formula { padding: 16px; border-left: 3px solid var(--accent); border-radius: 0 9px 9px 0; background: var(--accent-light); }
+.financial-passport-formula > span { display: block; margin-bottom: 8px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.financial-passport-formula code { color: var(--text); font-size: 13px; }
+.financial-passport-formula p,
+.financial-passport-reason { margin: 10px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.financial-passport-copy > .company-insight-action { width: fit-content; }
+
+/* A closed feature keeps its name and outcome in view.  The boundary is also
+   enforced by the API; this panel is the explanatory half of that contract. */
+.pro-gate { max-width: 720px; margin: 40px auto; padding: 36px; text-align: center; }
+.pro-gate-icon { display: grid; place-items: center; width: 46px; height: 46px; margin: 10px auto 14px; border-radius: 50%; color: var(--accent); background: var(--accent-light); }
+.pro-gate-icon svg { width: 22px; height: 22px; }
+.pro-gate h1 { margin: 0 0 10px; font-size: 24px; }
+.pro-gate p { max-width: 550px; margin: 0 auto 10px; line-height: 1.6; }
+.pro-gate .primary-btn { margin-top: 12px; }
+
 @media (max-width: 760px) {
   .company-insight-card { align-items: flex-start; gap: 11px; padding: 14px; }
   .company-insight-card-copy p { font-size: 14px; line-height: 1.5; }
@@ -12437,6 +12477,8 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
   .company-insight-report-section > p { margin-left: 0; }
   .company-insight-dialog-foot { flex-direction: column; gap: 10px; }
   .company-insight-dialog-foot p { text-align: left; }
+  .financial-passport-grid { grid-template-columns: 1fr; gap: 11px; }
+  .pro-gate { margin: 22px auto; padding: 24px 18px; }
 }
 
 @media (max-width: 480px) {
