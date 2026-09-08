@@ -859,7 +859,7 @@ def users_list(query: str = "", limit: int = 50, offset: int = 0,
                         tuple(params))
         rows = conn.execute(
             f"""
-            SELECT u.id, u.email, u.full_name, u.is_active, u.created_at, u.last_login_at,
+            SELECT u.id, u.email, u.full_name, u.is_active, u.tier, u.subscription_until, u.created_at, u.last_login_at,
                    (SELECT COUNT(*) FROM web_analysis_history h WHERE h.user_id = u.id) AS analyses,
                    (SELECT COUNT(*) FROM web_favorite_companies f WHERE f.user_id = u.id) AS favorites,
                    (SELECT COUNT(*) FROM web_sessions s WHERE s.user_id = u.id
@@ -885,6 +885,8 @@ def users_list(query: str = "", limit: int = 50, offset: int = 0,
         "items": [{
             "id": r["id"], "email": r["email"], "full_name": r["full_name"],
             "is_active": bool(r["is_active"]),
+            "tier": r.get("tier") or "free",
+            "subscription_until": r["subscription_until"].isoformat() if r.get("subscription_until") else None,
             "created_at": r["created_at"].isoformat() if r["created_at"] else None,
             "last_login_at": r["last_login_at"].isoformat() if r["last_login_at"] else None,
             "analyses": int(r["analyses"] or 0),
@@ -943,7 +945,7 @@ def user_detail(user_id: int) -> dict[str, Any]:
     with _conn() as conn:
         user = conn.execute(
             """
-            SELECT id, email, full_name, is_active, created_at, last_login_at
+            SELECT id, email, full_name, is_active, tier, subscription_until, created_at, last_login_at
             FROM web_users WHERE id = %s
             """,
             (user_id,),
@@ -986,6 +988,8 @@ def user_detail(user_id: int) -> dict[str, Any]:
         "user": {
             "id": user["id"], "email": user["email"], "full_name": user["full_name"],
             "is_active": bool(user["is_active"]),
+            "tier": user.get("tier") or "free",
+            "subscription_until": user["subscription_until"].isoformat() if user.get("subscription_until") else None,
             "created_at": user["created_at"].isoformat() if user["created_at"] else None,
             "last_login_at": user["last_login_at"].isoformat() if user["last_login_at"] else None,
             "is_admin": is_admin_email(user["email"]),
@@ -1125,3 +1129,63 @@ def user_action(user_id: int, action: str, *, actor_user_id: int,
     logger.info("admin user action: %s on user %s (%s) by %s",
                 action, user_id, exists["email"], actor_email)
     return {"ok": True, "action": action, "user_id": user_id}
+
+
+def set_subscription(user_id: int, tier: str, subscription_until: datetime | None, *,
+                     reason: str, actor_user_id: int, actor_email: str,
+                     request_id: str, source_ip_hash: str | None = None) -> dict[str, Any]:
+    """Set a web entitlement and journal the exact before/after state.
+
+    Payment processing is intentionally outside the product specification.  An
+    administrator still needs a controlled way to provision a paid account
+    after an external payment or an approved trial, and that action must be as
+    attributable as every other privileged account change.
+    """
+    if not _available():
+        return {"ok": False, "reason": "no database"}
+    tier = (tier or "").strip().lower()
+    if tier not in {"free", "pro"}:
+        return {"ok": False, "reason": "invalid tier"}
+    reason = (reason or "").strip()
+    if len(reason) < 3:
+        return {"ok": False, "reason": "reason required"}
+    if tier == "free":
+        subscription_until = None
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, email, tier, subscription_until FROM web_users WHERE id = %s",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            _write_admin_audit(
+                conn, actor_user_id=actor_user_id, actor_email=actor_email,
+                action="set_subscription", target_type="user", target_id=str(user_id),
+                target_label=None, outcome="not_found", request_id=request_id,
+                source_ip_hash=source_ip_hash,
+            )
+            return {"ok": False, "reason": "not found"}
+        old = {"tier": row.get("tier") or "free", "subscription_until": row.get("subscription_until")}
+        updated = conn.execute(
+            """
+            UPDATE web_users SET tier = %s, subscription_until = %s
+            WHERE id = %s
+            RETURNING tier, subscription_until
+            """,
+            (tier, subscription_until, user_id),
+        ).fetchone()
+        new = {"tier": updated["tier"], "subscription_until": updated["subscription_until"]}
+        _write_admin_audit(
+            conn, actor_user_id=actor_user_id, actor_email=actor_email,
+            action="set_subscription", target_type="user", target_id=str(user_id),
+            target_label=row["email"], outcome="success", request_id=request_id,
+            source_ip_hash=source_ip_hash,
+            details={
+                "reason": reason,
+                "before": {**old, "subscription_until": old["subscription_until"].isoformat() if old["subscription_until"] else None},
+                "after": {**new, "subscription_until": new["subscription_until"].isoformat() if new["subscription_until"] else None},
+            },
+        )
+    return {
+        "ok": True, "user_id": user_id, "tier": new["tier"],
+        "subscription_until": new["subscription_until"].isoformat() if new["subscription_until"] else None,
+    }

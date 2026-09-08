@@ -45,6 +45,7 @@ from reports_catalog import (
     FIN_MONEY_FIELDS,
     get_financials_series,
     get_financials_series_quarterly,
+    get_financial_value_passport,
     FACT_PERCENT_FIELDS,
     FACT_SHARE_FIELDS,
     RATIO_MONEY_FIELDS,
@@ -60,6 +61,7 @@ from reports_catalog import (
     get_company_reports,
     get_company_ratios_cached,
     get_all_financials,
+    get_all_listings,
     get_all_ratios,
     bulk_upsert_financials,
     bulk_replace_financials,
@@ -87,6 +89,9 @@ from reports_catalog import (
     sync_company as catalog_sync_company,
     sync_all as catalog_sync_all,
 )
+from forecast_engine import build_forecast
+from backtest import walk_forward_annual
+from technical_backtest import run_sma20_backtest
 from market_audit import audit_session
 # ТЗ v1.2 domain layer: every formula lives in these, and nothing above them
 # recomputes one. The API is serialisation and cache headers only (§11.1).
@@ -522,6 +527,13 @@ class ProfileUpdateRequest(BaseModel):
     avatar_data_url: str | None = Field(default=None)
 
 
+class SubscriptionUpdateRequest(BaseModel):
+    """Administrative entitlement change after an external payment or trial."""
+    tier: Literal["free", "pro"]
+    subscription_until: datetime | None = None
+    reason: str = Field(..., min_length=3, max_length=1000)
+
+
 class ProfilePreferencesRequest(BaseModel):
     language: Literal["ru", "en", "uz"] | None = None
     theme: Literal["light", "dark"] | None = None
@@ -560,6 +572,14 @@ class FavoriteUpdateRequest(BaseModel):
     price_alert_below: float | None = Field(default=None, ge=0)
     news_alert_enabled: bool | None = None
     report_alert_enabled: bool | None = None
+
+
+class PortfolioPositionRequest(BaseModel):
+    ticker: str = Field(..., min_length=1, max_length=40)
+    quantity: float = Field(..., gt=0, le=1_000_000_000_000)
+    average_cost: float = Field(..., ge=0, le=1_000_000_000_000)
+    currency: Literal["UZS"] = "UZS"
+    note: str = Field(default="", max_length=1000)
 
 
 class NoteWriteRequest(BaseModel):
@@ -749,6 +769,23 @@ def _require_user(authorization: str | None = Header(default=None)) -> WebUser:
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return user
+
+
+def _require_pro(current_user: WebUser = Depends(_require_user)) -> WebUser:
+    """Protect paid analytical work on the server, not just in the browser.
+
+    A hidden button is not an entitlement boundary: a free user could otherwise
+    call an analysis/export endpoint directly.  The response is deliberately
+    structured so every client can keep the locked feature's context and offer
+    the same upgrade path instead of pretending the requested data is absent.
+    """
+    if not bool(getattr(current_user, "has_pro_access", False)):
+        raise HTTPException(status_code=403, detail={
+            "code": "PRO_REQUIRED",
+            "message": "A PRO subscription is required for this analytical feature.",
+            "required_tier": "pro",
+        })
+    return current_user
 
 
 def _require_admin(x_admin_secret: str | None = Header(default=None)) -> None:
@@ -5085,8 +5122,38 @@ def _fill_equity_by_identity(series: dict[str, dict[str, Any]]) -> None:
     entry["values"].update(gap)
 
 
+@app.get("/api/company/{ticker}/financials/passport")
+async def api_company_financial_passport(
+    ticker: str,
+    period: str,
+    field: str,
+    form: str = "NSBU",
+) -> dict[str, Any]:
+    """Evidence passport for a value shown in the issuer financial table.
+
+    The endpoint deliberately returns an explicit state for calculated and
+    legacy values.  A number without a safe report link is not presented as if
+    it had one merely because a report exists for the same issuer and year.
+    """
+    form = str(form or "NSBU").strip().upper()
+    if form not in {"NSBU", "MSFO"}:
+        raise HTTPException(status_code=422, detail="form must be NSBU or MSFO")
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        None,
+        partial(get_financial_value_passport, ticker, period, field, form),
+    )
+    return _json_safe({
+        "ok": True,
+        "ticker": ticker.strip().upper(),
+        "contract_version": "financial-passport-v1",
+        **result,
+    })
+
+
 @app.get("/api/company/{ticker}/financials")
-async def api_company_financials(request: Request, ticker: str, freq: str = "annual") -> Response:
+async def api_company_financials(request: Request, ticker: str, freq: str = "annual",
+                                 form: str = "NSBU") -> Response:
     """The issuer's annual series — one row per indicator, one column per year.
 
     Reads the `financial_indicators` fact store, which is where openinfo's
@@ -5105,17 +5172,31 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
     one when it exists: it is computed from the filing this platform parsed.
     """
     ticker = ticker.strip().upper()
+    standard = str(form or "NSBU").strip().upper()
+    if standard not in {"NSBU", "MSFO"}:
+        raise HTTPException(status_code=422, detail="form must be NSBU or MSFO")
     loop = asyncio.get_running_loop()
     if str(freq or "").lower().startswith("q"):
+        # The product never derives IFRS quarters from a different accounting
+        # standard.  Until issuers publish comparable interim IFRS statements,
+        # the honest answer is a stated unavailable state, not NSBU quarters
+        # under an IFRS label.
+        if standard != "NSBU":
+            return _etag_json(request, {
+                "ok": True, "ticker": ticker, "currency": "UZS",
+                "standard": standard, "freq": "quarterly", "periods": [],
+                "series": {}, "availability": "NO_QUARTERLY_IFRS",
+                "reason": "Comparable quarterly IFRS filings are not available.",
+            }, max_age=300)
         # The quarterly view is its own, simpler read: the filings alone. The
         # openinfo indicator feed publishes no quarterly sums, so there is
         # nothing to merge, no ghost years and no feed junk to purge — the
         # annual path's machinery has no work here.
         try:
             cumulative = await loop.run_in_executor(
-                None, partial(get_financials_series_quarterly, ticker))
+                None, partial(get_financials_series_quarterly, ticker, standard))
             annual = await loop.run_in_executor(
-                None, partial(get_financials_series, ticker))
+                None, partial(get_financials_series, ticker, standard))
             # The share-class fallback the annual path applies — and it must
             # merge UNCONDITIONALLY, as that path does, not only when the
             # ticker's own read is empty: AGMK carries the ONE row the daily
@@ -5127,13 +5208,13 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
             sibling = ticker[:-1] if ticker.endswith("P") else f"{ticker}P"
             if sibling and sibling != ticker:
                 sib_cum = await loop.run_in_executor(
-                    None, partial(get_financials_series_quarterly, sibling))
+                    None, partial(get_financials_series_quarterly, sibling, standard))
                 for period, fields in (sib_cum or {}).items():
                     merged = dict(fields)
                     merged.update(cumulative.get(period) or {})
                     cumulative[period] = merged
                 sib_annual = await loop.run_in_executor(
-                    None, partial(get_financials_series, sibling))
+                    None, partial(get_financials_series, sibling, standard))
                 for period, fields in (sib_annual or {}).items():
                     merged = dict(fields)
                     merged.update(annual.get(period) or {})
@@ -5160,7 +5241,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                                         "derived": True, "values": margin}
             _fill_equity_by_identity(series)
             return _etag_json(request, {
-                "ok": True, "ticker": ticker, "currency": "UZS", "freq": "quarterly",
+                "ok": True, "ticker": ticker, "currency": "UZS", "standard": standard, "freq": "quarterly",
                 "periods": q_periods, "series": series,
             }, max_age=300)
         except Exception as exc:
@@ -5182,10 +5263,14 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
             org_id = (alt or {}).get("org_id")
         if not org_id:
             return _etag_json(request, {"ok": True, "ticker": ticker, "org_id": None,
-                                        "currency": "UZS", "periods": [], "series": {}},
+                                        "currency": "UZS", "standard": standard,
+                                        "periods": [], "series": {}},
                               max_age=300)
-        facts = await loop.run_in_executor(
-            None, partial(get_facts, org_id, "financial_indicators"))
+        # The historical indicator feed has no accounting-standard dimension.
+        # It may supplement NSBU only; putting it behind an IFRS selector would
+        # silently mix standards, which this product must never do.
+        facts = (await loop.run_in_executor(
+            None, partial(get_facts, org_id, "financial_indicators"))) if standard == "NSBU" else []
         series: dict[str, dict[str, Any]] = {}
         periods: set[str] = set()
         # No annual for a year that has not ended: openinfo publishes a
@@ -5269,14 +5354,14 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                  "total_assets": "total_assets", "total_equity": "total_equity",
                  "roe": "roe", "roa": "roa", "debt_ratio": "debt_ratio",
                  "debt_to_equity": "debt_to_equity"}
-        filed = await loop.run_in_executor(None, partial(get_financials_series, ticker))
+        filed = await loop.run_in_executor(None, partial(get_financials_series, ticker, standard))
         # get_financials_series reads the whole issuer, but only when the
         # catalog links the classes; KFSKP and KSCMP carry no org row of their
         # own, so the P-suffix fallback that already rescued org_id above
         # rescues the filed series the same way. The ticker's own rows win.
         if sibling and sibling != ticker:
             filed_sib = await loop.run_in_executor(
-                None, partial(get_financials_series, sibling))
+                None, partial(get_financials_series, sibling, standard))
             filed = filed or {}
             for period, fields in (filed_sib or {}).items():
                 merged = dict(fields)
@@ -5349,7 +5434,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         # belongs to a collector prune, and this keeps it off the page today.
         annual_years = {str(r.get("year")) for r in (await loop.run_in_executor(
             None, partial(get_company_reports, ticker)) or [])
-            if r.get("report_form") == "NSBU" and not r.get("quarter") and r.get("year")}
+            if r.get("report_form") == standard and not r.get("quarter") and r.get("year")}
         for ghost in duplicate_filed_years(series, periods, annual_years):
             logger.info("financials %s: dropping %s — identical to its neighbour on every "
                         "filed line and with no annual filing of its own", ticker, ghost)
@@ -5380,13 +5465,94 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                                     "values": derived}
         _fill_equity_by_identity(series)
         return _etag_json(request, {
-            "ok": True, "ticker": ticker, "org_id": org_id, "currency": "UZS",
+            "ok": True, "ticker": ticker, "org_id": org_id, "currency": "UZS", "standard": standard,
             "periods": sorted(periods, reverse=True),
             "series": series,
         }, max_age=300)
     except Exception as exc:
         logger.exception("company financials failed for %s", ticker)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/company/{ticker}/forecast")
+async def api_company_forecast(ticker: str, form: str = "NSBU",
+                               _: WebUser = Depends(_require_pro)) -> dict[str, Any]:
+    """Three transparent business scenarios and a comparable-multiple range."""
+    ticker, form = ticker.strip().upper(), str(form or "NSBU").strip().upper()
+    if form not in {"NSBU", "MSFO"}:
+        raise HTTPException(status_code=422, detail="form must be NSBU or MSFO")
+    loop = asyncio.get_running_loop()
+    annual, all_fin, listings = await asyncio.gather(
+        loop.run_in_executor(None, partial(get_financials_series, ticker, form)),
+        loop.run_in_executor(None, partial(get_all_financials, form)),
+        loop.run_in_executor(None, get_all_listings),
+    )
+    listing = listings.get(ticker) or {}
+    target_sector = COMPANY_SECTORS.get(ticker)
+    peers = []
+    for peer_ticker, fin in (all_fin or {}).items():
+        if peer_ticker == ticker or not target_sector or COMPANY_SECTORS.get(peer_ticker) != target_sector:
+            continue
+        peer_listing = listings.get(peer_ticker) or {}
+        price, shares, income = peer_listing.get("last_price"), peer_listing.get("shares_outstanding"), fin.get("net_income")
+        try:
+            pe = float(price) * float(shares) / (float(income) * NSBU_THOUSANDS_UZS)
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        if 0 < pe <= 80:
+            peers.append(pe)
+    result = await loop.run_in_executor(None, partial(
+        build_forecast, ticker, form, annual,
+        shares_outstanding=listing.get("shares_outstanding"), current_price=listing.get("last_price"), peer_pe=peers,
+    ))
+    # A market-wide P/E set is not a sector comparison.  With no reviewed
+    # sector mapping, valuation remains NO DATA rather than quietly changing
+    # the intended peer universe.
+    result["peer_population"] = {"count": len(peers), "sector": target_sector,
+                                 "scope": "sector" if target_sector else "NO_DATA"}
+    return _json_safe({"ok": True, **result})
+
+
+@app.get("/api/company/{ticker}/forecast/backtest")
+async def api_company_forecast_backtest(ticker: str, form: str = "NSBU",
+                                        _: WebUser = Depends(_require_pro)) -> dict[str, Any]:
+    form = str(form or "NSBU").strip().upper()
+    if form not in {"NSBU", "MSFO"}:
+        raise HTTPException(status_code=422, detail="form must be NSBU or MSFO")
+    ticker = ticker.strip().upper()
+    loop = asyncio.get_running_loop()
+    annual, reports = await asyncio.gather(
+        loop.run_in_executor(None, partial(get_financials_series, ticker, form)),
+        loop.run_in_executor(None, partial(get_company_reports, ticker)),
+    )
+    published_by_year = {
+        str(row.get("year")): row.get("published_at")
+        for row in reports
+        if str(row.get("report_form") or "").upper() == form
+        and str(row.get("period_type") or "").lower() == "annual"
+        and row.get("year") is not None and row.get("published_at")
+    }
+    return _json_safe({"ok": True, "ticker": ticker.strip().upper(), "standard": form,
+                       "publication_dates": published_by_year,
+                       **walk_forward_annual(annual, publication_dates=published_by_year)})
+
+
+@app.get("/api/company/{ticker}/technical-backtest")
+async def api_company_technical_backtest(
+    ticker: str, _: WebUser = Depends(_require_pro),
+) -> dict[str, Any]:
+    """Run the disclosed technical rule against stored confirmed sessions only."""
+    ticker = ticker.strip().upper()
+    isin = await _resolve_isin(ticker)
+    if not isin:
+        raise HTTPException(status_code=404, detail="ISIN not found")
+    isin = str(isin).upper()
+    history = await asyncio.get_running_loop().run_in_executor(
+        None, partial(get_quote_history, [isin], 3650))
+    result = await asyncio.get_running_loop().run_in_executor(
+        None, partial(run_sma20_backtest, history.get(isin, [])))
+    return _json_safe({"ok": True, "ticker": ticker, "isin": isin,
+                       "source": "stored confirmed exchange sessions", **result})
 
 
 @app.get("/api/quotes/series")
@@ -5580,6 +5746,48 @@ async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
 @app.get("/api/auth/me")
 async def api_me(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
     return {"ok": True, "user": current_user.to_public_dict()}
+
+
+@app.patch("/api/admin/users/{user_id}/subscription")
+async def api_admin_user_subscription(
+    user_id: int,
+    payload: SubscriptionUpdateRequest,
+    request: Request,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Record a manual subscription entitlement with a durable audit entry.
+
+    The payment processor remains external to this product by specification;
+    this route is the controlled hand-off after a verified payment, invoice, or
+    approved trial.  It intentionally cannot create an administrator role.
+    """
+    import uuid
+    import web_analytics
+
+    until = payload.subscription_until
+    if until is not None and until.tzinfo is None:
+        raise HTTPException(status_code=422, detail="subscription_until must include a timezone")
+    if payload.tier == "pro" and until is not None and until <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=422, detail="subscription_until must be in the future")
+    result = await asyncio.get_running_loop().run_in_executor(
+        None,
+        partial(
+            web_analytics.set_subscription,
+            user_id,
+            payload.tier,
+            until,
+            reason=payload.reason,
+            actor_user_id=current_user.id,
+            actor_email=current_user.email,
+            request_id=uuid.uuid4().hex,
+            source_ip_hash=web_analytics.hash_ip(_client_ip(request)),
+        ),
+    )
+    if not result.get("ok") and result.get("reason") == "not found":
+        raise HTTPException(status_code=404, detail="User not found")
+    if not result.get("ok"):
+        raise HTTPException(status_code=422, detail=result.get("reason") or "Subscription was not updated")
+    return _json_safe(result)
 
 
 @app.post("/api/auth/logout")
@@ -5904,6 +6112,83 @@ async def api_favorite_update(
     return {"ok": True, "favorite": _json_safe(favorite)}
 
 
+@app.get("/api/portfolio")
+async def api_portfolio(current_user: WebUser = Depends(_require_pro)) -> dict[str, Any]:
+    """Value explicitly entered holdings against the last confirmed UZSE price.
+
+    A missing or stale quote remains a missing valuation; it is never filled
+    from an external aggregator or from the user's acquisition cost.
+    """
+    loop = asyncio.get_running_loop()
+    positions, listings, securities = await asyncio.gather(
+        loop.run_in_executor(None, partial(web_auth_store.list_portfolio_positions, current_user.id)),
+        loop.run_in_executor(None, get_all_listings),
+        loop.run_in_executor(None, get_securities_map),
+    )
+    items: list[dict[str, Any]] = []
+    total_market_value = total_cost = 0.0
+    priced_count = 0
+    for position in positions:
+        ticker = str(position["ticker"]).upper()
+        listing, security = listings.get(ticker) or {}, securities.get(ticker) or {}
+        try:
+            price = float(listing.get("last_price"))
+            if price <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            price = None
+        quantity, average_cost = float(position["quantity"]), float(position["average_cost"])
+        cost_value = quantity * average_cost
+        market_value = quantity * price if price is not None else None
+        pnl = market_value - cost_value if market_value is not None else None
+        if market_value is not None:
+            priced_count += 1
+            total_market_value += market_value
+            total_cost += cost_value
+        item = {**position, "security_type": security.get("type") or security.get("security_type"),
+                "company_name": security.get("company_name") or security.get("name"),
+                "last_price": price, "quote_updated_at": listing.get("updated_at"),
+                "cost_value": cost_value, "market_value": market_value, "unrealized_pnl": pnl,
+                "unrealized_pnl_pct": (pnl / cost_value * 100) if pnl is not None and cost_value > 0 else None,
+                "valuation_status": "AVAILABLE" if market_value is not None else "NO_DATA"}
+        items.append(item)
+    return _json_safe({"ok": True, "items": items, "count": len(items),
+                       "priced_count": priced_count, "market_value": total_market_value if priced_count else None,
+                       "cost_value": total_cost if priced_count else None,
+                       "unrealized_pnl": (total_market_value - total_cost) if priced_count else None,
+                       "price_basis": "last confirmed exchange trade", "currency": "UZS"})
+
+
+@app.put("/api/portfolio/positions")
+async def api_portfolio_position_upsert(
+    payload: PortfolioPositionRequest,
+    current_user: WebUser = Depends(_require_pro),
+) -> dict[str, Any]:
+    ticker = payload.ticker.strip().upper()
+    securities = await asyncio.get_running_loop().run_in_executor(None, get_securities_map)
+    if ticker not in securities:
+        raise HTTPException(status_code=404, detail="Unknown security ticker")
+    try:
+        position = await asyncio.get_running_loop().run_in_executor(
+            None, partial(web_auth_store.upsert_portfolio_position, current_user.id, ticker,
+                          quantity=payload.quantity, average_cost=payload.average_cost,
+                          currency=payload.currency, note=payload.note))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"ok": True, "position": _json_safe(position)}
+
+
+@app.delete("/api/portfolio/positions/{ticker}")
+async def api_portfolio_position_delete(
+    ticker: str, current_user: WebUser = Depends(_require_pro),
+) -> dict[str, Any]:
+    deleted = await asyncio.get_running_loop().run_in_executor(
+        None, partial(web_auth_store.delete_portfolio_position, current_user.id, ticker))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Portfolio position not found")
+    return {"ok": True, "ticker": ticker.strip().upper(), "deleted": True}
+
+
 @app.post("/api/profile/notes")
 async def api_profile_note_create(
     payload: NoteWriteRequest,
@@ -6081,7 +6366,7 @@ async def api_oauth_google_callback(
 @app.post("/api/company-data")
 async def api_company_data(
     payload: CompanyDataRequest,
-    current_user: WebUser = Depends(_require_user),
+    current_user: WebUser = Depends(_require_pro),
 ) -> dict[str, Any]:
     try:
         loop = asyncio.get_running_loop()
@@ -6116,7 +6401,7 @@ async def api_company_data(
 @app.post("/api/compare")
 async def api_compare(
     payload: CompareRequest,
-    current_user: WebUser = Depends(_require_user),
+    current_user: WebUser = Depends(_require_pro),
 ) -> dict[str, Any]:
     _enforce_llm_quota(current_user)
     try:
@@ -6152,7 +6437,7 @@ class ExcelExportRequest(BaseModel):
 @app.post("/api/analyze/export/excel")
 async def api_export_excel(
     payload: ExcelExportRequest,
-    current_user: WebUser = Depends(_require_user),
+    current_user: WebUser = Depends(_require_pro),
 ) -> Response:
     """Export a completed analysis result to .xlsx (ТЗ §3.13)."""
     from datetime import datetime
@@ -6179,7 +6464,7 @@ async def api_export_excel(
 @app.post("/api/analyze/export/pdf")
 async def api_export_pdf(
     payload: ExcelExportRequest,
-    current_user: WebUser = Depends(_require_user),
+    current_user: WebUser = Depends(_require_pro),
 ) -> Response:
     """Export a completed analysis result to PDF (ТЗ §3.13 / C5)."""
     from datetime import datetime
@@ -6206,7 +6491,7 @@ async def api_export_pdf(
 @app.post("/api/compare/export/excel")
 async def api_compare_export_excel(
     payload: ExcelExportRequest,
-    current_user: WebUser = Depends(_require_user),
+    current_user: WebUser = Depends(_require_pro),
 ) -> Response:
     """Export a completed comparison result to .xlsx (ТЗ §3.6 / §3.13)."""
     from datetime import datetime
@@ -6231,7 +6516,7 @@ async def api_compare_export_excel(
 @app.post("/api/compare/export/pdf")
 async def api_compare_export_pdf(
     payload: ExcelExportRequest,
-    current_user: WebUser = Depends(_require_user),
+    current_user: WebUser = Depends(_require_pro),
 ) -> Response:
     """Export a completed comparison result to PDF (ТЗ §3.6 / §3.13)."""
     from datetime import datetime
@@ -6256,7 +6541,7 @@ async def api_compare_export_pdf(
 @app.post("/api/analyze")
 async def api_analyze(
     payload: AnalyzeRequest,
-    current_user: WebUser = Depends(_require_user),
+    current_user: WebUser = Depends(_require_pro),
 ) -> dict[str, Any]:
     # The regular analysis path is now deterministic and NSBU-first; it does not
     # spend LLM tokens, so an LLM quota must not block access to the report.
@@ -6839,8 +7124,8 @@ async def api_company_reports(ticker: str) -> dict[str, Any]:
 
 
 @app.get("/api/notifications")
-async def api_notifications(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
-    """New catalog reports for the user's favorited tickers (last 7 days)."""
+async def api_notifications(current_user: WebUser = Depends(_require_pro)) -> dict[str, Any]:
+    """PRO alerts: new filings and user-defined price thresholds."""
     try:
         loop = asyncio.get_running_loop()
         favorites = await loop.run_in_executor(
@@ -6849,9 +7134,26 @@ async def api_notifications(current_user: WebUser = Depends(_require_user)) -> d
             None, partial(web_auth_store.get_preferences, current_user.id))
         tickers = [f["ticker"] for f in favorites if f.get("report_alert_enabled", True)] \
             if preferences.get("notify_reports", True) else []
-        if not tickers:
-            return {"ok": True, "count": 0, "items": []}
-        items = await loop.run_in_executor(None, partial(get_new_reports_for_tickers, tickers, 7))
+        items = (await loop.run_in_executor(None, partial(get_new_reports_for_tickers, tickers, 7))) \
+            if tickers else []
+        listings = await loop.run_in_executor(None, get_all_listings)
+        for favorite in favorites if preferences.get("notify_price", True) else []:
+            ticker = str(favorite.get("ticker") or "").upper()
+            if not ticker:
+                continue
+            price = (listings.get(ticker) or {}).get("last_price")
+            above, below = favorite.get("price_alert_above"), favorite.get("price_alert_below")
+            try:
+                hit_above = bool(favorite.get("price_alert_enabled")) and above is not None and float(price) >= float(above)
+                hit_below = bool(favorite.get("price_alert_enabled")) and below is not None and float(price) <= float(below)
+            except (TypeError, ValueError):
+                hit_above = hit_below = False
+            if hit_above or hit_below:
+                threshold = above if hit_above else below
+                items.append({"ticker": ticker, "report_form": "PRICE", "year": None, "quarter": 0,
+                              "title": f"Price {price:g} reached threshold {threshold:g}",
+                              "detected_at": (listings.get(ticker) or {}).get("updated_at"),
+                              "kind": "price_threshold", "price": price, "threshold": threshold})
         states = await loop.run_in_executor(
             None, partial(web_auth_store.notification_states, current_user.id))
         visible: list[dict[str, Any]] = []
@@ -6875,7 +7177,7 @@ async def api_notifications(current_user: WebUser = Depends(_require_user)) -> d
 @app.post("/api/notifications/read")
 async def api_notifications_read(
     payload: NotificationStateRequest,
-    current_user: WebUser = Depends(_require_user),
+    current_user: WebUser = Depends(_require_pro),
 ) -> dict[str, Any]:
     try:
         count = await asyncio.get_running_loop().run_in_executor(
@@ -6890,7 +7192,7 @@ async def api_notifications_read(
 @app.post("/api/notifications/clear")
 async def api_notifications_clear(
     payload: NotificationStateRequest,
-    current_user: WebUser = Depends(_require_user),
+    current_user: WebUser = Depends(_require_pro),
 ) -> dict[str, Any]:
     try:
         count = await asyncio.get_running_loop().run_in_executor(

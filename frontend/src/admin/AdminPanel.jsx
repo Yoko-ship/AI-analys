@@ -1434,13 +1434,14 @@ export default function AdminPanel({
                 <th style={{ width: 140 }}>{t("Последний вход", "Oxirgi kirish", "Last sign-in")}</th>
                 <th className="r" style={{ width: 90 }}>{t("Анализов", "Tahlillar", "Analyses")}</th>
                 <th className="r" style={{ width: 96 }}>{t("Избранных", "Sevimlilar", "Favourites")}</th>
+                <th style={{ width: 105 }}>{t("Тариф", "Tarif", "Tier")}</th>
                 <th style={{ width: 120 }}>{t("Статус", "Holat", "State")}</th>
               </tr>
             </thead>
             <tbody>
               {!userRows.length ? (
                 <tr>
-                  <td colSpan={6} className="admin-muted" style={{ padding: "24px 0", textAlign: "center" }}>
+                  <td colSpan={7} className="admin-muted" style={{ padding: "24px 0", textAlign: "center" }}>
                     {t("Никого не найдено.", "Hech kim topilmadi.", "Nobody found.")}
                   </td>
                 </tr>
@@ -1463,6 +1464,12 @@ export default function AdminPanel({
                   <td className="admin-num">{fmtStamp(u.last_login_at, { withTime: false })}</td>
                   <td className="r admin-num">{fmtInt(u.analyses)}</td>
                   <td className="r admin-num">{fmtInt(u.favorites)}</td>
+                  <td>
+                    <span className="admin-pill">
+                      <span className={`admin-dot ${u.tier === "pro" ? "ok" : ""}`} />
+                      {u.tier === "pro" ? "PRO" : t("бесплатный", "bepul", "free")}
+                    </span>
+                  </td>
                   <td>
                     <span className="admin-pill">
                       <span className={`admin-dot ${u.is_active ? "ok" : "err"}`} />

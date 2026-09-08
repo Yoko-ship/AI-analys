@@ -124,6 +124,24 @@ class WebUser:
     last_login_at: Optional[datetime]
     is_active: bool
     email_verified: bool = False
+    tier: str = "free"
+    subscription_until: Optional[datetime] = None
+
+    @property
+    def has_pro_access(self) -> bool:
+        """Whether this signed-in account may open paid analytical features.
+
+        The allowlisted platform administrator is deliberately treated as PRO
+        too: an administrator must be able to verify a closed feature without
+        granting their own account a consumer subscription.  A ``NULL`` end
+        date is a deliberately provisioned non-expiring entitlement; normal
+        grants use an explicit end date.
+        """
+        if is_admin_email(self.email):
+            return True
+        if self.tier != "pro":
+            return False
+        return self.subscription_until is None or self.subscription_until > _utcnow()
 
     def to_public_dict(self) -> dict:
         from admin_control.service import role_for
@@ -136,6 +154,9 @@ class WebUser:
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "is_active": self.is_active,
             "email_verified": self.email_verified,
+            "tier": self.tier,
+            "subscription_until": self.subscription_until.isoformat() if self.subscription_until else None,
+            "pro_access": self.has_pro_access,
             "is_admin": is_admin_email(self.email),
             "admin_role": role_for(self.email),
         }
@@ -170,6 +191,8 @@ class WebAuthStore:
                     avatar_data_url TEXT,
                     password_hash   TEXT NOT NULL,
                     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+                    tier            TEXT NOT NULL DEFAULT 'free',
+                    subscription_until TIMESTAMPTZ,
                     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     last_login_at   TIMESTAMPTZ
                 )
@@ -187,6 +210,8 @@ class WebAuthStore:
                 "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE",
                 "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT",
                 "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ",
+                "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS tier TEXT NOT NULL DEFAULT 'free'",
+                "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS subscription_until TIMESTAMPTZ",
             ):
                 conn.execute(statement)
             conn.execute(
@@ -296,6 +321,26 @@ class WebAuthStore:
                 )
                 """
             )
+            # A portfolio is deliberately separate from a watchlist.  A saved
+            # ticker is a research preference; a position has quantities and a
+            # user-entered cost basis, so conflating the two would manufacture
+            # holdings for every favourite.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS web_portfolio_positions (
+                    id              BIGSERIAL PRIMARY KEY,
+                    user_id         BIGINT NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
+                    ticker          TEXT NOT NULL,
+                    quantity        NUMERIC NOT NULL CHECK (quantity > 0),
+                    average_cost    NUMERIC NOT NULL CHECK (average_cost >= 0),
+                    currency        TEXT NOT NULL DEFAULT 'UZS',
+                    note            TEXT NOT NULL DEFAULT '',
+                    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE(user_id, ticker)
+                )
+                """
+            )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS web_support_requests (
@@ -358,6 +403,12 @@ class WebAuthStore:
             )
             conn.execute(
                 """
+                CREATE INDEX IF NOT EXISTS idx_web_portfolio_positions_user_updated
+                ON web_portfolio_positions(user_id, updated_at DESC)
+                """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_web_support_user_created
                 ON web_support_requests(user_id, created_at DESC)
                 """
@@ -373,6 +424,8 @@ class WebAuthStore:
             last_login_at=row["last_login_at"],
             is_active=bool(row["is_active"]),
             email_verified=bool(row.get("email_verified", False)),
+            tier=str(row.get("tier") or "free").lower(),
+            subscription_until=row.get("subscription_until"),
         )
 
     def _normalize_avatar_data_url(self, avatar_data_url: str | None) -> str | None:
@@ -430,7 +483,7 @@ class WebAuthStore:
             """
             INSERT INTO web_users (email, full_name, avatar_data_url, password_hash, created_at, last_login_at, is_active)
             VALUES (%s, %s, NULL, %s, %s, NULL, TRUE)
-            RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified
+            RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified, tier, subscription_until
             """,
             (
                 _normalize_email(email),
@@ -466,7 +519,7 @@ class WebAuthStore:
         with self._conn() as conn:
             row = conn.execute(
                 """
-                SELECT u.id, u.email, u.full_name, u.avatar_data_url, u.created_at, u.last_login_at, u.is_active, u.email_verified
+                SELECT u.id, u.email, u.full_name, u.avatar_data_url, u.created_at, u.last_login_at, u.is_active, u.email_verified, u.tier, u.subscription_until
                 FROM web_oauth_accounts a
                 JOIN web_users u ON u.id = a.user_id
                 WHERE a.provider = %s
@@ -498,7 +551,7 @@ class WebAuthStore:
         with self._conn() as conn:
             existing = conn.execute(
                 """
-                SELECT u.id, u.email, u.full_name, u.avatar_data_url, u.created_at, u.last_login_at, u.is_active, u.email_verified
+                SELECT u.id, u.email, u.full_name, u.avatar_data_url, u.created_at, u.last_login_at, u.is_active, u.email_verified, u.tier, u.subscription_until
                 FROM web_oauth_accounts a
                 JOIN web_users u ON u.id = a.user_id
                 WHERE a.provider = %s
@@ -520,7 +573,7 @@ class WebAuthStore:
                 return self._row_to_user(existing), token
 
             row = conn.execute(
-                "SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified FROM web_users WHERE email = %s",
+                "SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified, tier, subscription_until FROM web_users WHERE email = %s",
                 (normalized_email,),
             ).fetchone()
 
@@ -554,6 +607,8 @@ class WebAuthStore:
             "last_login_at": now,
             "is_active": True,
             "email_verified": bool(email and provider in {"google"}) or bool(row.get("email_verified") if row else False),
+            "tier": row.get("tier") if row else "free",
+            "subscription_until": row.get("subscription_until") if row else None,
         }
         return self._row_to_user(public_row), token
 
@@ -564,7 +619,7 @@ class WebAuthStore:
         with self._conn() as conn:
             row = conn.execute(
                 """
-                SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified
+                SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified, tier, subscription_until
                 FROM web_users
                 WHERE email = %s
                 """,
@@ -581,7 +636,7 @@ class WebAuthStore:
             row = conn.execute(
                 """
                 SELECT u.id, u.email, u.full_name, u.avatar_data_url, u.created_at,
-                       u.last_login_at, u.is_active, u.email_verified
+                       u.last_login_at, u.is_active, u.email_verified, u.tier, u.subscription_until
                 FROM web_sessions s
                 JOIN web_users u ON u.id = s.user_id
                 WHERE s.token_hash = %s
@@ -628,7 +683,7 @@ class WebAuthStore:
                 """
             INSERT INTO web_users (email, full_name, avatar_data_url, password_hash, created_at, last_login_at, is_active)
             VALUES (%s, %s, NULL, %s, %s, NULL, TRUE)
-            RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified
+            RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified, tier, subscription_until
                 """,
                 (normalized, full_name, password_encoded, now),
             ).fetchone()
@@ -648,6 +703,8 @@ class WebAuthStore:
             "last_login_at": now,
             "is_active": row["is_active"],
             "email_verified": bool(row.get("email_verified")),
+            "tier": row.get("tier"),
+            "subscription_until": row.get("subscription_until"),
         }
         return self._row_to_user(public_row), token
 
@@ -667,7 +724,7 @@ class WebAuthStore:
             row = conn.execute(
                 """
                 SELECT id, email, full_name, avatar_data_url, password_hash, created_at,
-                       last_login_at, is_active, email_verified,
+                       last_login_at, is_active, email_verified, tier, subscription_until,
                        two_factor_enabled, two_factor_secret
                 FROM web_users
                 WHERE email = %s
@@ -700,6 +757,8 @@ class WebAuthStore:
             "last_login_at": _utcnow(),
             "is_active": row["is_active"],
             "email_verified": row.get("email_verified", False),
+            "tier": row.get("tier"),
+            "subscription_until": row.get("subscription_until"),
         }
         return self._row_to_user(public_row), token
 
@@ -731,7 +790,7 @@ class WebAuthStore:
             with self._conn() as conn:
                 row = conn.execute(
                     """
-                    SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified
+                    SELECT id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified, tier, subscription_until
                     FROM web_users
                     WHERE id = %s
                     """,
@@ -748,7 +807,7 @@ class WebAuthStore:
                 UPDATE web_users
                 SET {", ".join(updates)}
                 WHERE id = %s
-                RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified
+                RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified, tier, subscription_until
                 """,
                 params,
             ).fetchone()
@@ -1180,6 +1239,78 @@ class WebAuthStore:
             raise ValueError("Favorite not found")
         return next(item for item in self.list_favorites(user_id) if item["ticker"] == row["ticker"])
 
+    def list_portfolio_positions(self, user_id: int) -> list[dict[str, Any]]:
+        """Return only explicit holdings, newest edit first.
+
+        Price, valuation and P/L are calculated by the API from the reconciled
+        market board.  This storage layer owns just the user's declarations.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT ticker, quantity, average_cost, currency, note, created_at, updated_at
+                FROM web_portfolio_positions
+                WHERE user_id = %s
+                ORDER BY updated_at DESC, ticker ASC
+                """,
+                (user_id,),
+            ).fetchall()
+        return [{
+            "ticker": row["ticker"],
+            "quantity": float(row["quantity"]),
+            "average_cost": float(row["average_cost"]),
+            "currency": row["currency"],
+            "note": row["note"] or "",
+            "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+            "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+        } for row in rows]
+
+    def upsert_portfolio_position(self, user_id: int, ticker: str, *, quantity: float,
+                                  average_cost: float, currency: str = "UZS",
+                                  note: str = "") -> dict[str, Any]:
+        ticker = str(ticker or "").strip().upper()
+        if not ticker:
+            raise ValueError("Ticker is required")
+        if quantity <= 0:
+            raise ValueError("Quantity must be greater than zero")
+        if average_cost < 0:
+            raise ValueError("Average cost cannot be negative")
+        currency = str(currency or "UZS").strip().upper()
+        if currency != "UZS":
+            raise ValueError("Only UZS cost basis is currently supported")
+        note = str(note or "").strip()[:1000]
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                INSERT INTO web_portfolio_positions
+                    (user_id, ticker, quantity, average_cost, currency, note, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (user_id, ticker) DO UPDATE SET
+                    quantity = EXCLUDED.quantity,
+                    average_cost = EXCLUDED.average_cost,
+                    currency = EXCLUDED.currency,
+                    note = EXCLUDED.note,
+                    updated_at = NOW()
+                RETURNING ticker, quantity, average_cost, currency, note, created_at, updated_at
+                """,
+                (user_id, ticker, quantity, average_cost, currency, note),
+            ).fetchone()
+        return {
+            "ticker": row["ticker"], "quantity": float(row["quantity"]),
+            "average_cost": float(row["average_cost"]), "currency": row["currency"],
+            "note": row["note"] or "",
+            "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+            "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+        }
+
+    def delete_portfolio_position(self, user_id: int, ticker: str) -> bool:
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "DELETE FROM web_portfolio_positions WHERE user_id = %s AND ticker = %s",
+                (user_id, str(ticker or "").strip().upper()),
+            )
+        return cursor.rowcount > 0
+
     def notification_states(self, user_id: int) -> dict[str, dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(
@@ -1282,7 +1413,7 @@ class WebAuthStore:
             user_row = conn.execute(
                 """
                 SELECT id, email, full_name, avatar_data_url, created_at, last_login_at,
-                       is_active, email_verified, preferences, two_factor_enabled,
+                       is_active, email_verified, tier, subscription_until, preferences, two_factor_enabled,
                        password_changed_at
                 FROM web_users
                 WHERE id = %s
