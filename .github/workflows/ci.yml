@@ -5,6 +5,7 @@ on:
     branches:
       - "**"
   pull_request:
+  workflow_dispatch:
 
 # A push that supersedes an in-flight run cancels it — CI feedback should be about
 # the current head, not a queue of stale ones.
@@ -135,7 +136,7 @@ jobs:
     needs: [backend, frontend, docker]
     # Production is updated only from the deployment branch, and only after the
     # full test/build suite above has passed.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/API'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/API'
     runs-on: ubuntu-latest
     concurrency:
       group: production-deploy
@@ -151,6 +152,59 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+
+      - name: Synchronize Google OAuth configuration
+        # OAuth credentials live only in GitHub Secrets and the production .env;
+        # they are never committed to this repository or printed in CI logs.
+        if: ${{ secrets.GOOGLE_CLIENT_ID != '' && secrets.GOOGLE_CLIENT_SECRET != '' }}
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          oauth_file="$(mktemp)"
+          trap 'rm -f "$oauth_file"' EXIT
+          python3 - "$oauth_file" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          Path(sys.argv[1]).write_text(json.dumps({
+              "client_id": os.environ["GOOGLE_CLIENT_ID"],
+              "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+          }), encoding="utf-8")
+          PY
+          scp -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -P "$PROD_PORT" "$oauth_file" \
+            "$PROD_USER@$PROD_HOST:/root/uzstock/.google-oauth.json"
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          oauth_file=/root/uzstock/.google-oauth.json
+          trap 'rm -f "$oauth_file"' EXIT
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/root/uzstock/.google-oauth.json").read_text(encoding="utf-8"))
+          values = {
+              "PUBLIC_BASE_URL": "https://uzstock.uz",
+              "CORS_ORIGINS": "https://uzstock.uz",
+              "GOOGLE_REDIRECT_URI": "https://uzstock.uz/api/auth/oauth/google/callback",
+              "GOOGLE_CLIENT_ID": str(payload["client_id"]),
+              "GOOGLE_CLIENT_SECRET": str(payload["client_secret"]),
+          }
+          if any("\n" in value or "\r" in value for value in values.values()):
+              raise ValueError("OAuth values must not contain line breaks")
+          path = Path("/root/uzstock/app/.env")
+          lines = path.read_text(encoding="utf-8").splitlines()
+          remaining = [line for line in lines if line.split("=", 1)[0] not in values]
+          path.write_text("\n".join([*remaining, *(f"{key}={value}" for key, value in values.items())]) + "\n", encoding="utf-8")
+          PY
+          REMOTE
 
       - name: Update VPS
         env:
