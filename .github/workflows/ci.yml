@@ -397,6 +397,9 @@ jobs:
           set -euo pipefail
           cd /root/uzstock/app
           git pull --ff-only origin API
+          # A deployment replaces the collector image too.  Do not make the
+          # fresh collection wait on a rate-limited run from the prior image.
+          systemctl stop uzstock-intraday.service >/dev/null 2>&1 || true
           docker build -t uzstock-web:latest .
           docker rm -f uzstock-web >/dev/null 2>&1 || true
           docker run -d \
@@ -429,7 +432,7 @@ jobs:
 
           [Service]
           Type=oneshot
-          TimeoutStartSec=20min
+          TimeoutStartSec=30min
           # Docker on this VPS is installed through Snap, so systemd must use
           # its explicit executable path (its default PATH omits /snap/bin).
           ExecStartPre=-/snap/bin/docker rm -f uzstock-intraday
