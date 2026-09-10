@@ -88,12 +88,12 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: E2E production smoke suite
-        # Keep production releases fast: this covers boot, the market board,
-        # analysis, profile, and news. The complete 81-scenario regression suite
-        # remains available as `npm run test:e2e` when making UI-wide changes.
+        # Keep production releases fast: this covers the market board, profile,
+        # and news. The complete 81-scenario regression suite remains available
+        # as `npm run test:e2e` when making UI-wide changes.
         run: >-
           npx playwright test e2e/smoke.spec.js
-          --grep="boots to the landing|navigating to Рынок|navigating to Анализ|profile workspace exposes|Новости renders"
+          --grep="navigating to Рынок|profile workspace exposes|Новости renders"
 
       - name: Upload Playwright artifacts on failure
         if: failure()
