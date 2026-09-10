@@ -545,14 +545,12 @@ jobs:
 
           marker = "# UZStock Netdata monitoring\n    include /etc/nginx/snippets/uzstock-monitor.conf;"
           candidates = sorted(Path("/etc/nginx/sites-enabled").glob("*")) + sorted(Path("/etc/nginx/conf.d").glob("*.conf"))
+          matched = False
           for path in candidates:
               if not path.is_file():
                   continue
               text = path.read_text(encoding="utf-8")
-              if marker in text:
-                  print(path)
-                  Path(sys.argv[1]).write_text("", encoding="utf-8")
-                  raise SystemExit(0)
+              insert_at = []
               for match in re.finditer(r"\bserver\s*\{", text):
                   start = match.start()
                   depth = 0
@@ -572,12 +570,23 @@ jobs:
                       continue
                   if not re.search(r"\blisten\s+(?:\[::\]:)?443\b", block):
                       continue
-                  Path(sys.argv[1]).write_text(text, encoding="utf-8")
-                  updated = text[:end] + "\n    " + marker + "\n" + text[end:]
-                  path.write_text(updated, encoding="utf-8")
-                  print(path)
-                  raise SystemExit(0)
-          raise SystemExit("Could not find the HTTPS Nginx server block for uzstock.uz")
+                  matched = True
+                  if marker not in block:
+                      insert_at.append(end)
+              if not insert_at:
+                  continue
+              # One config file is the active site on this VPS.  Preserve it
+              # before editing, then add the route to every matching TLS block
+              # (there can be a separate IPv4/IPv6 block).
+              Path(sys.argv[1]).write_text(text, encoding="utf-8")
+              for end in reversed(insert_at):
+                  text = text[:end] + "\n    " + marker + "\n" + text[end:]
+              path.write_text(text, encoding="utf-8")
+              print(path)
+              raise SystemExit(0)
+          if not matched:
+              raise SystemExit("Could not find the HTTPS Nginx server block for uzstock.uz")
+          Path(sys.argv[1]).write_text("", encoding="utf-8")
           PY
           if ! nginx -t; then
             if [ -s "$nginx_site_backup" ]; then
@@ -597,6 +606,11 @@ jobs:
           fi
           rm -f "$nginx_site_backup"
           systemctl reload nginx
+          unauthenticated_monitor_status="$(curl -ksS -o /dev/null -w '%{http_code}' -H 'Host: uzstock.uz' https://127.0.0.1/monitor/)"
+          if [ "$unauthenticated_monitor_status" != "401" ]; then
+            echo "Expected /monitor/ to require authentication; got HTTP $unauthenticated_monitor_status." >&2
+            exit 1
+          fi
           /snap/bin/docker pull netdata/netdata:stable >/dev/null
           /snap/bin/docker rm -f uzstock-monitor >/dev/null 2>&1 || true
           /snap/bin/docker run -d \
