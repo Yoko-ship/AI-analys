@@ -164,7 +164,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
             -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
-            'ps -eo pid,comm,args | grep -E "[n]ginx|[o]penresty" || true; systemctl is-active nginx || true; systemctl is-active openresty || true; command -v openresty || true'
+            'ps -eo pid,comm,args | grep -E "[n]ginx|[o]penresty" || true; ss -ltnp "sport = :443" || true; docker ps --format "{{.Names}} {{.Image}} {{.Ports}}" || true; systemctl is-active nginx || true; systemctl is-active openresty || true; command -v openresty || true'
 
       - name: Synchronize Google OAuth configuration
         # OAuth credentials live only in GitHub Secrets and the production .env;
