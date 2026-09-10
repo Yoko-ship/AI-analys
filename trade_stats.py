@@ -387,12 +387,27 @@ def fetch_trade_stats(max_pages: int = 400, session: requests.Session | None = N
     reachable = complete = False
 
     for page in range(1, max_pages + 1):
-        try:
-            resp = s.get(UZSE_TRADE_URL, headers=headers, params={"page": page}, timeout=30)
-            res = resp.json().get("results") or []
-            reachable = True
-        except Exception:
-            logger.exception("trade feed page %d failed", page)
+        # A busy trading day has hundreds of pages.  UZSE can answer a burst
+        # with an HTML throttle page *and still use HTTP 200*.  Retrying that
+        # page (rather than abandoning the whole session) and pacing normal
+        # requests keeps a complete intraday series possible on such days.
+        res = None
+        for attempt in range(1, 4):
+            try:
+                resp = s.get(UZSE_TRADE_URL, headers=headers,
+                             params={"page": page}, timeout=30)
+                payload = resp.json()
+                if not isinstance(payload, dict):
+                    raise ValueError("trade feed returned a non-object payload")
+                res = payload.get("results") or []
+                reachable = True
+                break
+            except Exception:
+                logger.warning("trade feed page %d attempt %d/3 failed",
+                               page, attempt, exc_info=True)
+                if attempt < 3:
+                    time.sleep(2 * attempt)
+        if res is None:
             break
         if not res:
             complete = True
@@ -415,6 +430,9 @@ def fetch_trade_stats(max_pages: int = 400, session: requests.Session | None = N
         if reached_older or added == 0:
             complete = True
             break
+        # Do not burst hundreds of page requests at the exchange.  This adds
+        # only seconds to a normal run and avoids its silent HTML rate limit.
+        time.sleep(0.15)
 
     by: dict[str, list] = defaultdict(list)
     for x in trades:
