@@ -153,6 +153,19 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+      - name: Inspect active HTTPS proxy
+        # The VPS has both Nginx and OpenResty installed. Keep the active
+        # listener visible in deployment logs so protected routes are always
+        # configured in the process actually serving uzstock.uz.
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
+            'ps -eo pid,comm,args | grep -E "[n]ginx|[o]penresty" || true; systemctl is-active nginx || true; systemctl is-active openresty || true; command -v openresty || true'
+
       - name: Synchronize Google OAuth configuration
         # OAuth credentials live only in GitHub Secrets and the production .env;
         # they are never committed to this repository or printed in CI logs.
