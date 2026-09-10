@@ -459,10 +459,11 @@ jobs:
           PY
           systemctl daemon-reload
           systemctl enable --now uzstock-intraday.timer
-          if ! systemctl start uzstock-intraday.service; then
-            journalctl -u uzstock-intraday.service --no-pager -n 100 >&2
-            exit 1
-          fi
+          # The first exchange walk can take several minutes on a busy day.
+          # Start it under systemd and let the deployment finish; otherwise an
+          # SSH idle timeout can falsely mark a healthy VPS deployment failed.
+          systemctl start --no-block uzstock-intraday.service
+          systemctl is-active --quiet uzstock-intraday.timer
           docker exec uzstock-web python - <<'PY'
           from reports_catalog import get_catalog_conn
 
