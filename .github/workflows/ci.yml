@@ -566,9 +566,9 @@ jobs:
                   if end is None:
                       continue
                   block = text[start:end + 1]
-                  if not re.search(r"\bserver_name\b[^;]*\buzstock\.uz\b", block):
-                      continue
-                  if not re.search(r"\blisten\s+(?:\[::\]:)?443\b", block):
+                  is_uzstock_host = bool(re.search(r"\bserver_name\b[^;]*\buzstock\.uz\b", block))
+                  is_tls_default = bool(re.search(r"\blisten\s+(?:\[::\]:)?443\b[^;]*\bdefault_server\b", block))
+                  if not (is_uzstock_host or is_tls_default):
                       continue
                   matched = True
                   if marker not in block:
