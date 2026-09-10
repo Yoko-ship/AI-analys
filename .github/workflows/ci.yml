@@ -504,6 +504,7 @@ jobs:
           install -d -m 755 /etc/nginx/snippets
           umask 077
           printf 'netdata:%s\n' "$(openssl passwd -apr1 -in "$netdata_password_file")" > /etc/nginx/.htpasswd-uzstock-monitor
+          chown root:www-data /etc/nginx/.htpasswd-uzstock-monitor
           chmod 640 /etc/nginx/.htpasswd-uzstock-monitor
           python3 - <<'PY'
           from pathlib import Path
