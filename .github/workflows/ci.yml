@@ -272,6 +272,27 @@ jobs:
             -P "$PROD_PORT" "$secret_file" \
             "$PROD_USER@$PROD_HOST:/root/uzstock/.codex-auth-b64"
 
+      - name: Synchronize Netdata dashboard password
+        # The monitoring UI is intentionally not public.  Its password stays a
+        # GitHub deployment secret and is used only to build Nginx's htpasswd
+        # file on the VPS.
+        env:
+          NETDATA_PASSWORD: ${{ secrets.NETDATA_PASSWORD }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          if [ -z "$NETDATA_PASSWORD" ]; then
+            echo "Netdata dashboard password is not configured." >&2
+            exit 1
+          fi
+          secret_file="$(mktemp)"
+          trap 'shred -u "$secret_file"' EXIT
+          printf '%s' "$NETDATA_PASSWORD" > "$secret_file"
+          scp -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -P "$PROD_PORT" "$secret_file" \
+            "$PROD_USER@$PROD_HOST:/root/uzstock/.netdata-password"
+
       - name: Migrate selected administrator accounts
         # This is intentionally one-time and narrowly scoped: the payload contains
         # only the two explicitly configured administrators and their OAuth links.
@@ -458,6 +479,138 @@ jobs:
             docker logs --tail 100 uzstock-web >&2
             exit 1
           fi
+          netdata_password_file=/root/uzstock/.netdata-password
+          if [ ! -s "$netdata_password_file" ]; then
+            echo "Netdata dashboard password was not uploaded." >&2
+            exit 1
+          fi
+          if ! grep -qE '^[^[:space:]]+$' "$netdata_password_file" || [ "$(wc -l < "$netdata_password_file")" -ne 0 ]; then
+            echo "Netdata dashboard password must be one non-empty line." >&2
+            exit 1
+          fi
+          install -d -m 755 /etc/nginx/snippets
+          umask 077
+          printf 'netdata:%s\n' "$(openssl passwd -apr1 -in "$netdata_password_file")" > /etc/nginx/.htpasswd-uzstock-monitor
+          chmod 640 /etc/nginx/.htpasswd-uzstock-monitor
+          python3 - <<'PY'
+          from pathlib import Path
+
+          Path("/etc/nginx/snippets/uzstock-monitor.conf").write_text("""# The Netdata container is bound to localhost only. This proxy is the
+          # sole externally reachable route and requires HTTP Basic auth.
+          location = /monitor {
+              return 301 /monitor/;
+          }
+
+          location ~ ^/monitor/(?<ndpath>.*)$ {
+              auth_basic "UZStock server monitoring";
+              auth_basic_user_file /etc/nginx/.htpasswd-uzstock-monitor;
+
+              proxy_redirect off;
+              proxy_set_header Host $host;
+              proxy_set_header X-Forwarded-Host $host;
+              proxy_set_header X-Forwarded-Server $host;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_http_version 1.1;
+              proxy_pass_request_headers on;
+              proxy_set_header Connection "keep-alive";
+              proxy_store off;
+              proxy_pass http://127.0.0.1:19999/$ndpath$is_args$args;
+              gzip on;
+              gzip_proxied any;
+              gzip_types *;
+          }
+          """, encoding="utf-8")
+          PY
+          nginx_site_backup="$(mktemp)"
+          python3 - "$nginx_site_backup" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          marker = "# UZStock Netdata monitoring\n    include /etc/nginx/snippets/uzstock-monitor.conf;"
+          candidates = sorted(Path("/etc/nginx/sites-enabled").glob("*")) + sorted(Path("/etc/nginx/conf.d").glob("*.conf"))
+          for path in candidates:
+              if not path.is_file():
+                  continue
+              text = path.read_text(encoding="utf-8")
+              if marker in text:
+                  print(path)
+                  Path(sys.argv[1]).write_text("", encoding="utf-8")
+                  raise SystemExit(0)
+              for match in re.finditer(r"\bserver\s*\{", text):
+                  start = match.start()
+                  depth = 0
+                  end = None
+                  for index in range(match.end() - 1, len(text)):
+                      if text[index] == "{":
+                          depth += 1
+                      elif text[index] == "}":
+                          depth -= 1
+                          if depth == 0:
+                              end = index
+                              break
+                  if end is None:
+                      continue
+                  block = text[start:end + 1]
+                  if not re.search(r"\bserver_name\b[^;]*\buzstock\.uz\b", block):
+                      continue
+                  if not re.search(r"\blisten\s+(?:\[::\]:)?443\b", block):
+                      continue
+                  Path(sys.argv[1]).write_text(text, encoding="utf-8")
+                  updated = text[:end] + "\n    " + marker + "\n" + text[end:]
+                  path.write_text(updated, encoding="utf-8")
+                  print(path)
+                  raise SystemExit(0)
+          raise SystemExit("Could not find the HTTPS Nginx server block for uzstock.uz")
+          PY
+          if ! nginx -t; then
+            if [ -s "$nginx_site_backup" ]; then
+              nginx_site_path="$(python3 - <<'PY'
+          from pathlib import Path
+          marker = "# UZStock Netdata monitoring\n    include /etc/nginx/snippets/uzstock-monitor.conf;"
+          for path in sorted(Path('/etc/nginx/sites-enabled').glob('*')) + sorted(Path('/etc/nginx/conf.d').glob('*.conf')):
+              if path.is_file() and marker in path.read_text(encoding='utf-8'):
+                  print(path)
+                  break
+          PY
+          )"
+              cp "$nginx_site_backup" "$nginx_site_path"
+            fi
+            nginx -t >&2 || true
+            exit 1
+          fi
+          rm -f "$nginx_site_backup"
+          systemctl reload nginx
+          /snap/bin/docker pull netdata/netdata:stable >/dev/null
+          /snap/bin/docker rm -f uzstock-monitor >/dev/null 2>&1 || true
+          /snap/bin/docker run -d \
+            --name uzstock-monitor \
+            --restart unless-stopped \
+            --pid=host \
+            -p 127.0.0.1:19999:19999 \
+            -e DO_NOT_TRACK=1 \
+            -v netdataconfig:/etc/netdata \
+            -v netdatalib:/var/lib/netdata \
+            -v netdatacache:/var/cache/netdata \
+            -v /etc/passwd:/host/etc/passwd:ro \
+            -v /etc/group:/host/etc/group:ro \
+            -v /proc:/host/proc:ro \
+            -v /sys:/host/sys:ro \
+            -v /etc/os-release:/host/etc/os-release:ro \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro \
+            netdata/netdata:stable
+          for attempt in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:19999/api/v1/info >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          if ! curl -fsS http://127.0.0.1:19999/api/v1/info >/dev/null; then
+            /snap/bin/docker logs --tail 100 uzstock-monitor >&2
+            exit 1
+          fi
+          shred -u "$netdata_password_file"
           codex_auth_file=/root/uzstock/.codex-auth-b64
           if [ ! -s "$codex_auth_file" ]; then
             echo "Codex news credential was not uploaded." >&2
