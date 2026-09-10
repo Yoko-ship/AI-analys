@@ -430,8 +430,10 @@ jobs:
           [Service]
           Type=oneshot
           TimeoutStartSec=20min
-          ExecStartPre=-/usr/bin/docker rm -f uzstock-intraday
-          ExecStart=/usr/bin/docker run --rm --name uzstock-intraday --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web:latest python collector_financials.py --trades-only
+          # Docker on this VPS is installed through Snap, so systemd must use
+          # its explicit executable path (its default PATH omits /snap/bin).
+          ExecStartPre=-/snap/bin/docker rm -f uzstock-intraday
+          ExecStart=/snap/bin/docker run --rm --name uzstock-intraday --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web:latest python collector_financials.py --trades-only
           """,
               "/etc/systemd/system/uzstock-intraday.timer": """[Unit]
           Description=Run the UZStock intraday trade collector hourly
@@ -452,7 +454,10 @@ jobs:
           PY
           systemctl daemon-reload
           systemctl enable --now uzstock-intraday.timer
-          systemctl start uzstock-intraday.service
+          if ! systemctl start uzstock-intraday.service; then
+            journalctl -u uzstock-intraday.service --no-pager -n 100 >&2
+            exit 1
+          fi
           docker exec uzstock-web python - <<'PY'
           from reports_catalog import get_catalog_conn
 
