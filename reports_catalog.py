@@ -104,7 +104,6 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             reviewed_at     TEXT,
             sync_status     TEXT,
             sync_error      TEXT,
-            catalog_visible INTEGER NOT NULL DEFAULT 1,
             discovered_at   TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
         );
