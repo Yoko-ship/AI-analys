@@ -436,7 +436,7 @@ jobs:
           # Docker on this VPS is installed through Snap, so systemd must use
           # its explicit executable path (its default PATH omits /snap/bin).
           ExecStartPre=-/snap/bin/docker rm -f uzstock-intraday
-          ExecStart=/snap/bin/docker run --rm --name uzstock-intraday --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web:latest python collector_financials.py --trades-only
+          ExecStart=/snap/bin/docker run --rm --name uzstock-intraday --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web:latest python collector_financials.py --trades-only --no-quotes
           """,
               "/etc/systemd/system/uzstock-intraday.timer": """[Unit]
           Description=Run the UZStock intraday trade collector hourly
