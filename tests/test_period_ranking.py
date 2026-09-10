@@ -7,7 +7,7 @@ lived, and until now they had no test coverage at all.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -65,6 +65,13 @@ class TestPrematureAnnuals:
         # An issuer whose ONLY datum is the placeholder should show it, not nothing.
         current = datetime.now(timezone.utc).year
         assert rc._fact_period_rank(str(current)) > rc._fact_period_rank("2025Q7")
+
+    def test_completed_annual_yields_to_a_newer_quarter_after_freshness_window(self, monkeypatch) -> None:
+        monkeypatch.setattr(rc, "FINANCIALS_ANNUAL_FRESH_DAYS", 210)
+        last_fy = rc._latest_complete_fiscal_year()
+
+        assert rc._completed_annual_is_recent(last_fy, today=date(last_fy + 1, 6, 30))
+        assert not rc._completed_annual_is_recent(last_fy, today=date(last_fy + 1, 9, 10))
 
 
 class TestFinancialsPeriodSelectionSql:

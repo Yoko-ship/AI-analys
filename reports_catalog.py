@@ -39,6 +39,9 @@ _SYNC_LOCK = threading.Lock()
 _FIN_LOCK = threading.Lock()
 FINANCIALS_TTL_DAYS = int(os.getenv("FINANCIALS_TTL_DAYS", "14"))
 FINANCIALS_BATCH = int(os.getenv("FINANCIALS_BATCH", "12"))
+# A completed annual filing is normally the best basis for analysis, but it
+# must not hide a much newer interim filing for most of the next year.
+FINANCIALS_ANNUAL_FRESH_DAYS = int(os.getenv("FINANCIALS_ANNUAL_FRESH_DAYS", "210"))
 # How many not-yet-catalogued companies the financials warmup syncs per call, so a
 # fresh backend self-populates progressively without a manual full catalog sync.
 FINANCIALS_SYNC_BATCH = int(os.getenv("FINANCIALS_SYNC_BATCH", "8"))
@@ -725,6 +728,19 @@ def _latest_complete_fiscal_year() -> int:
 def _is_premature_annual_year(year: int | None) -> bool:
     """True for an annual report whose fiscal year has not yet ended."""
     return year is not None and year > _latest_complete_fiscal_year()
+
+
+def _completed_annual_is_recent(year: int | None, *, today: date | None = None) -> bool:
+    """Whether a completed calendar-year annual is still a current analysis base.
+
+    Annual filings remain preferable to their own quarters, but after the
+    configured window a newer quarterly filing is more informative than a
+    year-end balance that is already well into the past.
+    """
+    if year is None or int(year) != _latest_complete_fiscal_year():
+        return False
+    today = today or datetime.now(timezone.utc).date()
+    return (today - date(int(year), 12, 31)).days <= FINANCIALS_ANNUAL_FRESH_DAYS
 
 
 def _is_premature_annual_period(period: str | None) -> bool:
@@ -4290,8 +4306,10 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
 
       * a premature annual (fiscal year not yet ended — openinfo's current-year
         placeholder) is never a candidate;
-      * the annual for the most recent *completed* fiscal year wins outright — it
-        is the honest full-year figure, preferred over any fresher partial quarter;
+      * a recent annual for the most recent *completed* fiscal year wins outright —
+        it is the honest full-year figure, preferred over any fresher partial quarter;
+      * once that annual has aged beyond ``FINANCIALS_ANNUAL_FRESH_DAYS``, a newer
+        quarterly filing wins, rather than leaving the analysis a year behind;
       * otherwise the freshest report wins (a newer quarter beats an older annual),
         so an issuer whose latest completed annual is missing (it filed only IFRS
         that year, or files only quarterly like GRBK) still shows current figures
@@ -4312,6 +4330,7 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
         FROM catalog_reports r
         LEFT JOIN catalog_financials f
           ON f.ticker = r.ticker AND f.form = r.report_form
+         AND f.year = r.year AND f.quarter = COALESCE(r.quarter, 0)
          AND f.updated_at >= datetime('now', ?)
         WHERE r.report_form = ? AND r.excel_url IS NOT NULL
           AND r.year IS NOT NULL {ticker_filter}
@@ -4328,8 +4347,8 @@ def _fin_candidates(conn: sqlite3.Connection, form: str, ttl_days: int,
         is_annual = r["period_type"] == "annual"
         if is_annual and year is not None and year > last_fy:
             continue  # premature placeholder annual — never a candidate
-        if is_annual and year == last_fy:
-            key = (2, year, 1, 0)  # most-recent completed annual: outranks partial quarters
+        if is_annual and year == last_fy and _completed_annual_is_recent(year):
+            key = (2, year, 1, 0)  # recent completed annual: outranks partial quarters
         else:
             key = (1, year or 0, 1 if is_annual else 0, quarter)  # else freshest wins
         if t not in best or key > best[t][0]:
