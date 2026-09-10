@@ -118,3 +118,57 @@ jobs:
               sys.exit('MISSING in the server image: ' + ', '.join(missing))
           print('all collector dependencies present')
           "
+
+  deploy-production:
+    name: Deploy production
+    needs: [backend, frontend, docker]
+    # Production is updated only from the deployment branch, and only after the
+    # full test/build suite above has passed.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/API'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Update VPS
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /root/uzstock/app
+          git pull --ff-only origin API
+          docker build -t uzstock-web:latest .
+          docker rm -f uzstock-web >/dev/null 2>&1 || true
+          docker run -d \
+            --name uzstock-web \
+            --restart unless-stopped \
+            --network uzstock-internal \
+            --env-file /root/uzstock/app/.env \
+            -p 127.0.0.1:8000:8000 \
+            -v uzstock_data:/app/data \
+            uzstock-web:latest \
+            sh -c 'exec uvicorn api:app --host 0.0.0.0 --port 8000'
+          for attempt in $(seq 1 15); do
+            if curl -fsS -H 'Host: uzstock.uz' http://127.0.0.1/ >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 100 uzstock-web >&2
+          exit 1
+          REMOTE
