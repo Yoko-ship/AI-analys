@@ -251,6 +251,27 @@ jobs:
           PY
           REMOTE
 
+      - name: Synchronize Codex news credentials
+        # The news worker authenticates with the already configured Codex
+        # subscription profile.  It is seeded into the Docker volume below,
+        # never committed or put in the application environment file.
+        env:
+          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          if [ -z "$CODEX_AUTH_JSON_B64" ]; then
+            echo "Codex news credential is not configured."
+            exit 1
+          fi
+          secret_file="$(mktemp)"
+          trap 'shred -u "$secret_file"' EXIT
+          printf '%s' "$CODEX_AUTH_JSON_B64" > "$secret_file"
+          scp -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -P "$PROD_PORT" "$secret_file" \
+            "$PROD_USER@$PROD_HOST:/root/uzstock/.codex-auth-b64"
+
       - name: Migrate selected administrator accounts
         # This is intentionally one-time and narrowly scoped: the payload contains
         # only the two explicitly configured administrators and their OAuth links.
@@ -399,9 +420,23 @@ jobs:
           set -euo pipefail
           cd /root/uzstock/app
           git pull --ff-only origin API
-          # A deployment replaces the collector image too.  Do not make the
-          # fresh collection wait on a rate-limited run from the prior image.
-          systemctl stop uzstock-intraday.service >/dev/null 2>&1 || true
+          # A deployment replaces every scheduled worker image.  Stop a
+          # currently running one before replacing it; timers are re-enabled
+          # below and do not double-run a Railway-era command.
+          for timer in \
+            uzstock-intraday.timer uzstock-collector.timer \
+            uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
+            uzstock-quotes-2130.timer uzstock-reports-watch.timer \
+            uzstock-bank-fx.timer uzstock-news-collector.timer; do
+            systemctl stop "$timer" >/dev/null 2>&1 || true
+          done
+          for service in \
+            uzstock-intraday.service uzstock-collector.service \
+            uzstock-quotes-1300.service uzstock-quotes-1610.service \
+            uzstock-quotes-2130.service uzstock-reports-watch.service \
+            uzstock-bank-fx.service uzstock-news-collector.service; do
+            systemctl stop "$service" >/dev/null 2>&1 || true
+          done
           docker build -t uzstock-web:latest .
           docker rm -f uzstock-web >/dev/null 2>&1 || true
           docker run -d \
@@ -423,23 +458,55 @@ jobs:
             docker logs --tail 100 uzstock-web >&2
             exit 1
           fi
+          codex_auth_file=/root/uzstock/.codex-auth-b64
+          if [ ! -s "$codex_auth_file" ]; then
+            echo "Codex news credential was not uploaded." >&2
+            exit 1
+          fi
+          # docker-entrypoint.sh accepts only this fixed CODEX_HOME, decodes
+          # the one-time seed with mode 0600, then drops privileges to appuser.
+          /snap/bin/docker run --rm --network none \
+            -v uzstock_data:/app/data \
+            -e CODEX_HOME=/app/data/codex-home \
+            -e CODEX_AUTH_JSON_B64="$(tr -d '\r\n' < "$codex_auth_file")" \
+            uzstock-web:latest codex login status >/dev/null
+          shred -u "$codex_auth_file"
           python3 - <<'PY'
           from pathlib import Path
 
-          units = {
-              "/etc/systemd/system/uzstock-intraday.service": """[Unit]
-          Description=UZStock intraday trade collector
+          def worker(name: str, description: str, command: str, *, timeout: str = "30min",
+                     data_volume: bool = False, extra_env: tuple[str, ...] = ()) -> str:
+              volume = " -v uzstock_data:/app/data" if data_volume else ""
+              env = "".join(f" -e {value}" for value in extra_env)
+              return f"""[Unit]
+          Description={description}
           Wants=network-online.target
-          After=docker.service network-online.target
+          After=network-online.target
 
           [Service]
           Type=oneshot
-          TimeoutStartSec=30min
-          # Docker on this VPS is installed through Snap, so systemd must use
-          # its explicit executable path (its default PATH omits /snap/bin).
-          ExecStartPre=-/snap/bin/docker rm -f uzstock-intraday
-          ExecStart=/snap/bin/docker run --rm --name uzstock-intraday --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web:latest python collector_financials.py --trades-only --no-quotes
-          """,
+          TimeoutStartSec={timeout}
+          ExecStartPre=-/snap/bin/docker rm -f {name}
+          ExecStart=/snap/bin/docker run --rm --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz{volume}{env} uzstock-web:latest {command}
+          """
+
+          def timer(description: str, calendar: str) -> str:
+              return f"""[Unit]
+          Description={description}
+
+          [Timer]
+          OnCalendar={calendar}
+          Persistent=true
+          AccuracySec=1min
+
+          [Install]
+          WantedBy=timers.target
+          """
+
+          units = {
+              "/etc/systemd/system/uzstock-intraday.service": worker(
+                  "uzstock-intraday", "UZStock hourly intraday trade collector",
+                  "python collector_financials.py --trades-only --no-quotes"),
               "/etc/systemd/system/uzstock-intraday.timer": """[Unit]
           Description=Run the UZStock intraday trade collector hourly
 
@@ -453,12 +520,68 @@ jobs:
           [Install]
           WantedBy=timers.target
           """,
+              # The schedules below preserve Railway's currently active UTC cron
+              # expressions.  The system clock on this VPS is UTC.
+              "/etc/systemd/system/uzstock-collector.service": worker(
+                  "uzstock-collector", "UZStock full financial data collector",
+                  "python collector_financials.py", timeout="90min"),
+              "/etc/systemd/system/uzstock-collector.timer": timer(
+                  "Run UZStock full data collector on weekdays", "Mon..Fri *-*-* 03:00:00"),
+              "/etc/systemd/system/uzstock-quotes-1300.service": worker(
+                  "uzstock-quotes-1300", "UZStock mid-session quotes collector",
+                  "python collector_financials.py --trades-only"),
+              "/etc/systemd/system/uzstock-quotes-1300.timer": timer(
+                  "Run UZStock 13:00 local quotes collector", "Tue..Sat *-*-* 08:00:00"),
+              "/etc/systemd/system/uzstock-quotes-1610.service": worker(
+                  "uzstock-quotes-1610", "UZStock post-close quotes collector",
+                  "python collector_financials.py --trades-only"),
+              "/etc/systemd/system/uzstock-quotes-1610.timer": timer(
+                  "Run UZStock 16:10 local quotes collector", "Mon..Sat *-*-* 11:10:00"),
+              "/etc/systemd/system/uzstock-quotes-2130.service": worker(
+                  "uzstock-quotes-2130", "UZStock final-session quotes collector",
+                  "python collector_financials.py --trades-only"),
+              "/etc/systemd/system/uzstock-quotes-2130.timer": timer(
+                  "Run UZStock 21:30 local quotes collector", "Mon..Sat *-*-* 16:30:00"),
+              "/etc/systemd/system/uzstock-reports-watch.service": worker(
+                  "uzstock-reports-watch", "UZStock newly filed reports watcher",
+                  "python collector_financials.py --watch-filings"),
+              "/etc/systemd/system/uzstock-reports-watch.timer": timer(
+                  "Run UZStock reports watcher", "Mon..Sat *-*-* 18:00:00"),
+              "/etc/systemd/system/uzstock-bank-fx.service": worker(
+                  "uzstock-bank-fx", "UZStock commercial bank FX collector",
+                  "python collector_financials.py --bank-fx-only"),
+              "/etc/systemd/system/uzstock-bank-fx.timer": timer(
+                  "Run UZStock bank FX collector", "*-*-* 06:10:00"),
+              "/etc/systemd/system/uzstock-news-collector.service": worker(
+                  "uzstock-news-collector", "UZStock Codex news collector",
+                  "python news_collector.py", timeout="60min", data_volume=True,
+                  extra_env=(
+                      "CODEX_HOME=/app/data/codex-home",
+                      "CODEX_EXECUTABLE=codex",
+                      "NEWS_CLASSIFIER_PROVIDER=codex",
+                      "NEWS_CODEX_MODEL=gpt-5.6-luna",
+                      "NEWS_CODEX_FALLBACK_MODEL=gpt-5.6-terra",
+                      "NEWS_CODEX_REASONING=low",
+                      "NEWS_CODEX_TIMEOUT=180",
+                      "NEWS_OG_MAX_FETCH=40",
+                      "NEWS_PUSH_URL=https://uzstock.uz",
+                      "TZ=Asia/Tashkent",
+                  )),
+              "/etc/systemd/system/uzstock-news-collector.timer": timer(
+                  "Run UZStock Codex news collector", "*-*-* 11:10:00"),
           }
           for name, content in units.items():
               Path(name).write_text(content, encoding="utf-8")
           PY
           systemctl daemon-reload
-          systemctl enable --now uzstock-intraday.timer
+          for timer in \
+            uzstock-intraday.timer uzstock-collector.timer \
+            uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
+            uzstock-quotes-2130.timer uzstock-reports-watch.timer \
+            uzstock-bank-fx.timer uzstock-news-collector.timer; do
+            systemctl enable --now "$timer"
+            systemctl is-active --quiet "$timer"
+          done
           # The first exchange walk can take several minutes on a busy day.
           # Start it under systemd and let the deployment finish; otherwise an
           # SSH idle timeout can falsely mark a healthy VPS deployment failed.
