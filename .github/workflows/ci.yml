@@ -544,7 +544,7 @@ jobs:
           from pathlib import Path
 
           marker = "# UZStock Netdata monitoring\n    include /etc/nginx/snippets/uzstock-monitor.conf;"
-          candidates = sorted(Path("/etc/nginx/sites-enabled").glob("*")) + sorted(Path("/etc/nginx/conf.d").glob("*.conf"))
+          candidates = [Path("/etc/nginx/nginx.conf")] + sorted(Path("/etc/nginx/sites-enabled").glob("*")) + sorted(Path("/etc/nginx/conf.d").glob("*.conf"))
           matched = False
           for path in candidates:
               if not path.is_file():
@@ -606,7 +606,7 @@ jobs:
           fi
           rm -f "$nginx_site_backup"
           systemctl reload nginx
-          unauthenticated_monitor_status="$(curl -ksS -o /dev/null -w '%{http_code}' -H 'Host: uzstock.uz' https://127.0.0.1/monitor/)"
+          unauthenticated_monitor_status="$(curl -ksS --resolve uzstock.uz:443:127.0.0.1 -o /dev/null -w '%{http_code}' https://uzstock.uz/monitor/)"
           if [ "$unauthenticated_monitor_status" != "401" ]; then
             echo "Expected /monitor/ to require authentication; got HTTP $unauthenticated_monitor_status." >&2
             exit 1
