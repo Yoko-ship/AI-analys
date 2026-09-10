@@ -209,6 +209,47 @@ jobs:
           PY
           REMOTE
 
+      - name: Synchronize intraday collector credentials
+        # The collection credential is a deploy secret, never source code.  The
+        # host uses it only for the collector's authenticated write endpoints.
+        env:
+          ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          if [ -z "$ADMIN_API_SECRET" ]; then
+            echo "Collector credential is not configured; skipping synchronization."
+            exit 0
+          fi
+          secret_file="$(mktemp)"
+          trap 'shred -u "$secret_file"' EXIT
+          printf '%s' "$ADMIN_API_SECRET" > "$secret_file"
+          scp -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -P "$PROD_PORT" "$secret_file" \
+            "$PROD_USER@$PROD_HOST:/root/uzstock/.collector-secret"
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          secret_file=/root/uzstock/.collector-secret
+          trap 'shred -u "$secret_file"' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+
+          secret = Path("/root/uzstock/.collector-secret").read_text(encoding="utf-8")
+          if not secret or "\n" in secret or "\r" in secret:
+              raise ValueError("collector credential must be a single non-empty line")
+          values = {
+              "ADMIN_API_SECRET": secret,
+              "FINANCIALS_PUSH_URL": "https://uzstock.uz",
+          }
+          path = Path("/root/uzstock/app/.env")
+          lines = path.read_text(encoding="utf-8").splitlines()
+          remaining = [line for line in lines if line.split("=", 1)[0] not in values]
+          path.write_text("\n".join([*remaining, *(f"{key}={value}" for key, value in values.items())]) + "\n", encoding="utf-8")
+          PY
+          REMOTE
+
       - name: Migrate selected administrator accounts
         # This is intentionally one-time and narrowly scoped: the payload contains
         # only the two explicitly configured administrators and their OAuth links.
@@ -369,10 +410,59 @@ jobs:
             sh -c 'exec uvicorn api:app --host 0.0.0.0 --port 8000'
           for attempt in $(seq 1 15); do
             if curl -fsS -H 'Host: uzstock.uz' http://127.0.0.1/ >/dev/null; then
-              exit 0
+              break
             fi
             sleep 2
           done
-          docker logs --tail 100 uzstock-web >&2
-          exit 1
+          if ! curl -fsS -H 'Host: uzstock.uz' http://127.0.0.1/ >/dev/null; then
+            docker logs --tail 100 uzstock-web >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+
+          units = {
+              "/etc/systemd/system/uzstock-intraday.service": """[Unit]
+          Description=UZStock intraday trade collector
+          Wants=network-online.target
+          After=docker.service network-online.target
+
+          [Service]
+          Type=oneshot
+          TimeoutStartSec=20min
+          ExecStartPre=-/usr/bin/docker rm -f uzstock-intraday
+          ExecStart=/usr/bin/docker run --rm --name uzstock-intraday --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web:latest python collector_financials.py --trades-only
+          """,
+              "/etc/systemd/system/uzstock-intraday.timer": """[Unit]
+          Description=Run the UZStock intraday trade collector hourly
+
+          [Timer]
+          OnBootSec=5min
+          OnUnitActiveSec=1h
+          RandomizedDelaySec=2min
+          Persistent=true
+          Unit=uzstock-intraday.service
+
+          [Install]
+          WantedBy=timers.target
+          """,
+          }
+          for name, content in units.items():
+              Path(name).write_text(content, encoding="utf-8")
+          PY
+          systemctl daemon-reload
+          systemctl enable --now uzstock-intraday.timer
+          systemctl start uzstock-intraday.service
+          docker exec uzstock-web python - <<'PY'
+          from reports_catalog import get_catalog_conn
+
+          conn = get_catalog_conn()
+          try:
+              count = conn.execute("SELECT COUNT(*) FROM catalog_intraday_history").fetchone()[0]
+          finally:
+              conn.close()
+          if count < 1:
+              raise SystemExit("intraday collector completed without storing any hourly bars")
+          print(f"intraday_bars_stored={count}")
+          PY
           REMOTE
