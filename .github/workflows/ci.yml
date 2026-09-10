@@ -184,6 +184,7 @@ jobs:
             -P "$PROD_PORT" "$oauth_file" \
             "$PROD_USER@$PROD_HOST:/root/uzstock/.google-oauth.json"
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
             -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           oauth_file=/root/uzstock/.google-oauth.json
@@ -393,6 +394,7 @@ jobs:
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
             -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           cd /root/uzstock/app
