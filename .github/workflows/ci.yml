@@ -156,7 +156,6 @@ jobs:
       - name: Synchronize Google OAuth configuration
         # OAuth credentials live only in GitHub Secrets and the production .env;
         # they are never committed to this repository or printed in CI logs.
-        if: ${{ secrets.GOOGLE_CLIENT_ID != '' && secrets.GOOGLE_CLIENT_SECRET != '' }}
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
@@ -164,6 +163,10 @@ jobs:
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
+          if [ -z "$GOOGLE_CLIENT_ID" ] || [ -z "$GOOGLE_CLIENT_SECRET" ]; then
+            echo "Google OAuth secrets are not configured; skipping synchronization."
+            exit 0
+          fi
           oauth_file="$(mktemp)"
           trap 'rm -f "$oauth_file"' EXIT
           python3 - "$oauth_file" <<'PY'
