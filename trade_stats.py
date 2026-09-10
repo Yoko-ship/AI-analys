@@ -430,9 +430,10 @@ def fetch_trade_stats(max_pages: int = 400, session: requests.Session | None = N
         if reached_older or added == 0:
             complete = True
             break
-        # Do not burst hundreds of page requests at the exchange.  This adds
-        # only seconds to a normal run and avoids its silent HTML rate limit.
-        time.sleep(0.15)
+        # Do not burst hundreds of page requests at the exchange.  On the
+        # busiest sessions this adds a few minutes, but avoids its silent HTML
+        # rate limit and a five-minute retry of the entire session.
+        time.sleep(0.5)
 
     by: dict[str, list] = defaultdict(list)
     for x in trades:
