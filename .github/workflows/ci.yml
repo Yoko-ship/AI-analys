@@ -209,6 +209,142 @@ jobs:
           PY
           REMOTE
 
+      - name: Migrate selected administrator accounts
+        # This is intentionally one-time and narrowly scoped: the payload contains
+        # only the two explicitly configured administrators and their OAuth links.
+        # It is supplied through a temporary GitHub secret, never committed or logged.
+        env:
+          ADMIN_MIGRATION_PAYLOAD: ${{ secrets.ADMIN_MIGRATION_PAYLOAD }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          if [ -z "$ADMIN_MIGRATION_PAYLOAD" ]; then
+            echo "No administrator migration payload is configured; skipping."
+            exit 0
+          fi
+          admin_file="$(mktemp)"
+          trap 'shred -u "$admin_file"' EXIT
+          printf '%s' "$ADMIN_MIGRATION_PAYLOAD" > "$admin_file"
+          python3 - "$admin_file" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if len(payload.get("admin_emails", [])) != 2 or len(payload.get("users", [])) != 2:
+              raise ValueError("administrator migration must contain exactly two accounts")
+          if len(payload.get("oauth", [])) != 2:
+              raise ValueError("administrator migration must contain exactly two OAuth links")
+          PY
+          scp -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -P "$PROD_PORT" "$admin_file" \
+            "$PROD_USER@$PROD_HOST:/root/uzstock/.admin-migration.json"
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          admin_file=/root/uzstock/.admin-migration.json
+          trap 'shred -u "$admin_file"' EXIT
+          docker cp "$admin_file" uzstock-web:/tmp/admin-migration.json
+          docker exec -i uzstock-web python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          import psycopg
+
+          payload_path = Path("/tmp/admin-migration.json")
+          payload = json.loads(payload_path.read_text(encoding="utf-8"))
+          emails = payload["admin_emails"]
+          users = payload["users"]
+          oauth_accounts = payload["oauth"]
+          if len(emails) != 2 or len(users) != 2 or len(oauth_accounts) != 2:
+              raise ValueError("expected exactly two administrator accounts and OAuth links")
+
+          user_ids = {}
+          with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+              with conn.cursor() as cur:
+                  for user in users:
+                      cur.execute(
+                          """
+                          INSERT INTO web_users (
+                              email, full_name, password_hash, is_active, email_verified,
+                              tier, subscription_until, created_at, last_login_at
+                          ) VALUES (
+                              %(email)s, %(full_name)s, %(password_hash)s, %(is_active)s,
+                              %(email_verified)s, %(tier)s, %(subscription_until)s,
+                              %(created_at)s, %(last_login_at)s
+                          )
+                          ON CONFLICT (email) DO UPDATE SET
+                              full_name = EXCLUDED.full_name,
+                              password_hash = EXCLUDED.password_hash,
+                              is_active = EXCLUDED.is_active,
+                              email_verified = EXCLUDED.email_verified,
+                              tier = EXCLUDED.tier,
+                              subscription_until = EXCLUDED.subscription_until,
+                              last_login_at = COALESCE(EXCLUDED.last_login_at, web_users.last_login_at)
+                          RETURNING id, email
+                          """,
+                          user,
+                      )
+                      user_id, email = cur.fetchone()
+                      user_ids[email.lower()] = user_id
+
+                  for account in oauth_accounts:
+                      email = account["email"].lower()
+                      user_id = user_ids[email]
+                      cur.execute(
+                          """
+                          DELETE FROM web_oauth_accounts
+                          WHERE user_id = %s AND provider = %s AND provider_user_id <> %s
+                          """,
+                          (user_id, account["provider"], account["provider_user_id"]),
+                      )
+                      cur.execute(
+                          """
+                          INSERT INTO web_oauth_accounts (
+                              user_id, provider, provider_user_id, provider_email
+                          ) VALUES (%s, %s, %s, %s)
+                          ON CONFLICT (provider, provider_user_id) DO UPDATE SET
+                              user_id = EXCLUDED.user_id,
+                              provider_email = EXCLUDED.provider_email
+                          """,
+                          (user_id, account["provider"], account["provider_user_id"], account.get("provider_email")),
+                      )
+              conn.commit()
+
+          values = {
+              "ADMIN_EMAILS": ",".join(emails),
+              "ADMIN_ROLES": json.dumps(payload.get("admin_roles", {}), separators=(",", ":")),
+          }
+          if any("\n" in value or "\r" in value for value in values.values()):
+              raise ValueError("administrator configuration must not contain line breaks")
+          env_path = Path("/app/.env")
+          # The host file is mounted only through --env-file, so update it below
+          # after the database transaction is committed.
+          Path("/tmp/admin-migration-result.json").write_text(
+              json.dumps({"users_migrated": len(users), "oauth_links_migrated": len(oauth_accounts), "values": values}),
+              encoding="utf-8",
+          )
+          print(f"migrated_users={len(users)} migrated_oauth_links={len(oauth_accounts)}")
+          PY
+          docker cp uzstock-web:/tmp/admin-migration-result.json /root/uzstock/.admin-migration-result.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/root/uzstock/.admin-migration-result.json").read_text(encoding="utf-8"))
+          values = payload["values"]
+          path = Path("/root/uzstock/app/.env")
+          lines = path.read_text(encoding="utf-8").splitlines()
+          remaining = [line for line in lines if line.split("=", 1)[0] not in values]
+          path.write_text("\n".join([*remaining, *(f"{key}={value}" for key, value in values.items())]) + "\n", encoding="utf-8")
+          print(f"configured_admin_accounts={len(values['ADMIN_EMAILS'].split(','))}")
+          PY
+          shred -u /root/uzstock/.admin-migration-result.json
+          docker exec uzstock-web shred -u /tmp/admin-migration.json /tmp/admin-migration-result.json
+          REMOTE
+
       - name: Update VPS
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
