@@ -23473,8 +23473,9 @@ function App() {
   );
 }
 
-// Floating sponsor unit — the format the reference used: a small player that
-// sits over the page, starts muted on its own, counts down, and can be closed.
+// Floating sponsor unit. The still poster is light enough for the first visit;
+// the 2.6 MB video itself waits for an explicit play action so it cannot delay
+// the market page on a slow connection.
 //
 // Rules it keeps, because an ad that breaks them is a bug: sound never starts
 // on its own (browsers refuse it anyway, and it is rude); the close control
@@ -23482,10 +23483,9 @@ function App() {
 // gone for the rest of the session; and a reader who asked the OS for reduced
 // motion gets the poster with a play button instead of a moving picture.
 //
-// What the countdown promises is the first SPONSOR_CLOSE_AFTER seconds of the
-// clip, not fifteen seconds of a frozen first frame — so while it runs the unit
-// cannot be stopped. A click may still START it, and the sound toggle stays
-// live; only the pause is withheld, and only until the × arrives.
+// The close countdown begins when the promotion appears. A reader can start
+// the video at any point; no media is transferred merely because the page was
+// opened.
 const SPONSOR_SEEN_KEY = "uz_sponsor_seen";
 const SPONSOR_DELAY_MS = 2500;   // let the page settle before anything moves
 const SPONSOR_CLOSE_AFTER = 15;  // seconds before the × replaces the countdown
@@ -23517,19 +23517,8 @@ function SponsorOverlay({ language }) {
     try { sessionStorage.setItem(SPONSOR_SEEN_KEY, "1"); } catch (e) { /* ignore */ }
   };
 
-  // Muted autoplay is the only autoplay a browser allows. If it is refused
-  // anyway (some mobile data-saver modes), fall back to the poster and a play
-  // button rather than leaving a dead black rectangle on the page.
-  useEffect(() => {
-    if (!open || reduced) return;
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = true;
-    v.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-  }, [open, reduced]);
-
-  // The countdown runs on the wall clock, not on playback: a clip that never
-  // starts must still become closable.
+  // The countdown runs on the wall clock, whether or not the reader chooses
+  // to play the optional video.
   useEffect(() => {
     if (!open) return undefined;
     setLeft(SPONSOR_CLOSE_AFTER);
@@ -23600,7 +23589,7 @@ function SponsorOverlay({ language }) {
           poster={promoPoster}
           muted={muted}
           playsInline
-          preload="auto"
+          preload="none"
           className={locked && playing ? "is-locked" : undefined}
           onClick={togglePlay}
           onTimeUpdate={(e) => {
