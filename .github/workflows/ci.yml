@@ -843,7 +843,7 @@ jobs:
               exit 1
             fi
           fi
-          docker exec uzstock-web python - <<'PY'
+          docker exec -i uzstock-web python - <<'PY'
           import json
           from reports_catalog import get_catalog_conn
 
