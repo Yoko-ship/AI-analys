@@ -17,6 +17,11 @@ on:
         required: false
         type: boolean
         default: false
+      backfill_financial_ticker:
+        description: Parse and publish one issuer's historical annual financials (for example UZTL)
+        required: false
+        type: string
+        default: ""
 
 # A push that supersedes an in-flight run cancels it — CI feedback should be about
 # the current head, not a queue of stale ones.
@@ -876,5 +881,57 @@ jobs:
           if row is None:
               raise SystemExit("No persisted news usage record was found")
           print("NEWS_USAGE_REPORT=" + json.dumps(dict(row), ensure_ascii=False, sort_keys=True))
+          PY
+          REMOTE
+
+  backfill-company-financials:
+    name: Backfill one company's financial history
+    needs: deploy-production
+    # Opt-in because this downloads and parses the issuer's published workbooks.
+    # A single ticker makes a visible company-page repair without creating a
+    # full-market collection job during an ordinary deployment.
+    if: github.event_name == 'workflow_dispatch' && inputs.backfill_financial_ticker != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Parse and publish issuer history
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          BACKFILL_TICKER: ${{ inputs.backfill_financial_ticker }}
+        run: |
+          case "$BACKFILL_TICKER" in
+            ""|*[!A-Za-z0-9]*) echo "Ticker must contain letters and numbers only." >&2; exit 2 ;;
+          esac
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
+            "BACKFILL_TICKER=$BACKFILL_TICKER bash -s" <<'REMOTE'
+          set -euo pipefail
+          docker exec -i -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web \
+            python collector_financials.py --backfill-company-financials "$BACKFILL_TICKER"
+          docker exec -i uzstock-web python - "$BACKFILL_TICKER" <<'PY'
+          import json
+          import sys
+          from reports_catalog import get_financials_series
+
+          ticker = sys.argv[1]
+          series = get_financials_series(ticker)
+          print("FINANCIAL_HISTORY_BACKFILL=" + json.dumps({
+              "ticker": ticker,
+              "periods": sorted(series, reverse=True),
+          }, ensure_ascii=False))
           PY
           REMOTE
