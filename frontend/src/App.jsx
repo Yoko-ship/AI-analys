@@ -12110,7 +12110,10 @@ const FIN_DASHBOARDS = [
   { key: "bar", label: ["Столбчатый", "Ustunli", "Bars"] },
   { key: "table", label: ["Таблица", "Jadval", "Table"] },
 ];
-const FIN_DASHBOARD_KEY = "uz_fin_dashboard";
+// v2 resets the old table-first preference after historical series were
+// restored. The financial page should open with its trend visible; a reader's
+// later choice of bars or table is still remembered under this new key.
+const FIN_DASHBOARD_KEY = "uz_fin_dashboard_v2";
 
 // The «Сплиты» sub-tab: the corporate-actions register every price series on
 // the site is back-adjusted by, shown as its own record. uzse.uz keeps the
@@ -12292,7 +12295,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
       const saved = localStorage.getItem(FIN_DASHBOARD_KEY);
       if (FIN_DASHBOARDS.some((d) => d.key === saved)) return saved;
     } catch (e) { /* ignore */ }
-    return "table";
+    return "line";
   });
   React.useEffect(() => {
     try { localStorage.setItem(FIN_DASHBOARD_KEY, dashboard); } catch (e) { /* ignore */ }
