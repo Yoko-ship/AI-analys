@@ -139,6 +139,53 @@ def test_support_request_is_attached_to_current_user(monkeypatch) -> None:
     assert captured["user_id"] == 7
 
 
+def test_admin_receives_open_feedback_in_notification_bell(monkeypatch) -> None:
+    admin = _user()
+    admin.email = "admin@example.com"
+    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: admin if token == "token" else None)
+    monkeypatch.setattr("admin_control.service.role_for", lambda _email: "administrator")
+    monkeypatch.setattr(
+        api.web_auth_store,
+        "list_support_requests",
+        lambda status, limit: {"items": [{
+            "id": 32,
+            "full_name": "Feedback sender",
+            "subject": "Please add an export",
+            "created_at": "2026-09-11T10:15:00+00:00",
+        }]},
+    )
+    monkeypatch.setattr(api.web_auth_store, "notification_states", lambda _user_id: {})
+
+    response = TestClient(api.app).get("/api/notifications", headers={"Authorization": "Bearer token"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    assert payload["items"][0]["kind"] == "feedback"
+    assert payload["items"][0]["href"] == "/admin/feedback"
+
+
+def test_admin_can_mark_feedback_notification_read_without_pro(monkeypatch) -> None:
+    admin = _user()
+    admin.email = "admin@example.com"
+    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: admin if token == "token" else None)
+    captured = {}
+
+    def mark_read(user_id, ids, *, dismissed=False):
+        captured.update(user_id=user_id, ids=ids, dismissed=dismissed)
+        return len(ids)
+
+    monkeypatch.setattr(api.web_auth_store, "set_notification_state", mark_read)
+    response = TestClient(api.app).post(
+        "/api/notifications/read",
+        headers={"Authorization": "Bearer token"},
+        json={"ids": ["feedback-32"]},
+    )
+
+    assert response.status_code == 200
+    assert captured == {"user_id": 7, "ids": ["feedback-32"], "dismissed": False}
+
+
 def test_new_profile_routes_are_available_under_v2() -> None:
     paths = {route.path for route in api.app.routes}
     for path in (

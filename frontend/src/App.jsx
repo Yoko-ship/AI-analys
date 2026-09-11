@@ -21089,7 +21089,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!token || !Boolean(profile?.user?.pro_access ?? user?.pro_access)) { setNotifCount(0); setNotifItems([]); return; }
+    const isAdmin = Boolean(user?.is_admin || user?.admin_role === "administrator");
+    if (!token || (!Boolean(profile?.user?.pro_access ?? user?.pro_access) && !isAdmin)) { setNotifCount(0); setNotifItems([]); return; }
     const fetchNotifs = () => {
       apiFetch("/api/notifications")
         .then((r) => r.json())
@@ -21097,9 +21098,11 @@ function App() {
         .catch(() => {});
     };
     fetchNotifs();
-    const id = setInterval(fetchNotifs, 5 * 60 * 1000);
+    // Feedback is an operational inbox: administrators should see a new
+    // message promptly, while investment alerts keep their lighter cadence.
+    const id = setInterval(fetchNotifs, isAdmin ? 60 * 1000 : 5 * 60 * 1000);
     return () => clearInterval(id);
-  }, [token, profile?.user?.pro_access, user?.pro_access]);
+  }, [token, profile?.user?.pro_access, user?.pro_access, user?.is_admin, user?.admin_role]);
 
   // The company page reads the board too — price, previous close, the day's
   // OHLC, turnover, capitalisation and share count all come from it. Opening
@@ -21907,6 +21910,15 @@ function App() {
     }
   };
 
+  const openNotification = (notification) => {
+    updateNotificationState([notification.id]);
+    setNotifOpen(false);
+    if (notification.kind === "feedback" && (user?.is_admin || user?.admin_role === "administrator")) {
+      setAdminSection("feedback");
+      setActiveView("admin");
+    }
+  };
+
   const moveProfileFavorite = async (index, delta) => {
     const target = index + delta;
     if (target < 0 || target >= profileFavorites.length) return;
@@ -22088,8 +22100,10 @@ function App() {
                     <ul className="notif-list">
                       {notifItems.map((n, i) => (
                         <li key={n.id || i} className={`notif-item${n.read ? " is-read" : ""}`}>
-                          <button className="notif-item-main" type="button" onClick={() => updateNotificationState([n.id])}>
-                            <div className="notif-item-title">{n.ticker} · {n.report_form} · {n.year || "—"}{n.quarter > 0 ? ` Q${n.quarter}` : ""}</div>
+                          <button className="notif-item-main" type="button" onClick={() => openNotification(n)}>
+                            <div className="notif-item-title">{n.kind === "feedback"
+                              ? (language === "en" ? "New feedback" : language === "uz" ? "Yangi fikr-mulohaza" : "Новая обратная связь")
+                              : `${n.ticker} · ${n.report_form} · ${n.year || "—"}${n.quarter > 0 ? ` Q${n.quarter}` : ""}`}</div>
                             <div className="notif-item-sub muted">{n.title || clg(language, "notifNewReport")} · {n.detected_at?.slice(0, 10)}</div>
                           </button>
                           <button className="notif-item-dismiss" type="button" onClick={() => updateNotificationState([n.id], true)} aria-label={language === "en" ? "Dismiss" : language === "uz" ? "O'chirish" : "Удалить"}>×</button>
