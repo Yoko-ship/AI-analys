@@ -1593,14 +1593,17 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     feed_tickers = {str(s.get("ticker") or "").upper() for s in stocks_list}
     feed_isins = {str(s.get("isin") or "").upper() for s in stocks_list if s.get("isin")}
     try:
-        listings = get_all_listings()
+        # These are SQLite-backed cache reads. Never perform them on the
+        # event-loop thread: a collector holding the database lock otherwise
+        # freezes every route (including /health), not just the market page.
+        listings = await loop.run_in_executor(None, get_all_listings)
     except Exception:
         logger.exception("market/stocks: listings merge read failed")
         listings = {}
     catalog: dict[str, dict] = {}
     if listings:
         try:
-            catalog = get_securities_map()
+            catalog = await loop.run_in_executor(None, get_securities_map)
         except Exception:
             logger.exception("market/stocks: securities catalog read failed")
 
@@ -1674,7 +1677,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     # missing (KFSKP, EQQU) or priced from a week-old registry row (UQEQ shown at
     # 32 000 from 24.07 while the exchange closed it at 30 720, +20%).
     try:
-        quotes = get_all_quotes()
+        quotes = await loop.run_in_executor(None, get_all_quotes)
     except Exception:
         logger.exception("market/stocks: quote cache read failed")
         quotes = {}
@@ -1722,7 +1725,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     # it is the everything board and they now say on it what they are.
     _retype_registered_bonds(merged)
     if security_type == "stock":
-        bond_isins = _registered_bond_isins()
+        bond_isins = await loop.run_in_executor(None, _registered_bond_isins)
         if bond_isins:
             merged = [r for r in merged
                       if str(r.get("isin") or "").upper() not in bond_isins]
@@ -2014,6 +2017,31 @@ async def _market_inputs() -> dict[str, Any]:
             trade_date = day
     return {"board": board, "securities": securities, "financials": financials,
             "ratios": ratios, "listings": listings, "stats": stats,
+            "trade_date": trade_date.isoformat() if trade_date else None}
+
+
+async def _heatmap_inputs() -> dict[str, Any]:
+    """The small, bounded data set a heatmap actually needs.
+
+    The map previously reused ``_market_inputs`` and therefore loaded every
+    financial statement, ratio and listing merely to draw price tiles. Besides
+    delaying the first paint, those extra SQLite reads could block the single
+    web worker during a collector write. Keep the map independent: board,
+    security metadata and today's trade statistics are its whole contract.
+    """
+    loop = asyncio.get_running_loop()
+    shares, bonds = await asyncio.gather(_build_board("stock"), _build_board("bond"))
+    securities, stats = await asyncio.gather(
+        loop.run_in_executor(None, get_securities_map),
+        loop.run_in_executor(None, get_all_trade_stats),
+    )
+    board = list(shares.get("stocks") or []) + list(bonds.get("stocks") or [])
+    trade_date = None
+    for row in board:
+        day = instruments._norm_day(row.get("last_trade_date"))
+        if day and (trade_date is None or day > trade_date):
+            trade_date = day
+    return {"board": board, "securities": securities, "stats": stats,
             "trade_date": trade_date.isoformat() if trade_date else None}
 
 
@@ -2588,7 +2616,7 @@ async def api_heatmap(request: Request) -> Response:
     """The market map: tiles, sectors and metadata in ONE response (ТЗ §9)."""
     trace = obs.Trace(endpoint="heatmap")
     try:
-        inputs = await _market_inputs()
+        inputs = await _heatmap_inputs()
         payload = heatmap.build_heatmap(inputs["board"], inputs["securities"],
                                         inputs["stats"], inputs["trade_date"])
         trace.step("tiles", **payload["counts"])
