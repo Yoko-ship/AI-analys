@@ -13312,7 +13312,6 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
     ...(securityType !== "bond" ? [{ key: "dividends", label: lang === "ru" ? "Дивиденды" : lang === "uz" ? "Dividendlar" : "Dividends" }] : []),
     { key: "reports", label: lang === "ru" ? "Отчёты" : lang === "uz" ? "Hisobotlar" : "Reports" },
     { key: "financials", label: lang === "ru" ? "Финансы" : lang === "uz" ? "Moliya" : "Financials" },
-    ...(securityType !== "bond" ? [{ key: "forecast", label: lang === "ru" ? "Прогноз" : lang === "uz" ? "Prognoz" : "Forecast" }] : []),
   ];
   return (
     <div className="company-page">
@@ -13454,10 +13453,6 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
               ? (finQLoading && finQSeries === null)
               : (finLoading && finSeries === null)}
             freq={finFreq} onFreqChange={setFinFreq} splits={splits} />
-        )}
-        {tab === "forecast" && (
-          <CompanyForecastTab ticker={ticker} language={language} apiFetch={apiFetch}
-            signedIn={signedIn} hasProAccess={hasProAccess} onUpgrade={onUpgrade} />
         )}
         {insightOpen && insightReport && (
           <CompanyInsightDialog report={insightReport} ticker={ticker} companyName={displayName} lang={lang} onClose={closeInsight} />
