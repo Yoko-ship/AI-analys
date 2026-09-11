@@ -648,6 +648,14 @@ jobs:
           fi
           rm -f "$nginx_site_backup"
           systemctl reload nginx
+          asset_probe_path="$(curl -ksS --resolve uzstock.uz:443:127.0.0.1 https://uzstock.uz/ | sed -n 's/.*src="\([^"?]*\/assets\/[^"?]*\.js\)".*/\1/p' | head -n 1)"
+          if [ -n "$asset_probe_path" ]; then
+            echo "Asset compression probe (directly against this VPS):"
+            curl -ksS --resolve uzstock.uz:443:127.0.0.1 \
+              -H 'Accept-Encoding: gzip' -D - -o /dev/null \
+              "https://uzstock.uz${asset_probe_path}" | \
+              grep -Ei '^(HTTP/|content-(encoding|length):|vary:)' || true
+          fi
           unauthenticated_monitor_status="$(curl -ksS --resolve uzstock.uz:443:127.0.0.1 -o /dev/null -w '%{http_code}' https://uzstock.uz/monitor/)"
           if [ "$unauthenticated_monitor_status" != "401" ]; then
             echo "Expected /monitor/ to require authentication; got HTTP $unauthenticated_monitor_status." >&2
