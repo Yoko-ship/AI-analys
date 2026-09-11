@@ -552,7 +552,9 @@ def fetch_available_periods(
             annual_years.append(yr)
     annual_years.sort(reverse=True)
 
-    # Parse quarterly periods from "period" string: "Q1 2026" → {year:2026, quarter:1}
+    # Parse quarterly periods from "period" string: "Q1 2026" → {year:2026, quarter:1}.
+    # This endpoint deliberately exposes only its ten most recent records;
+    # historical periods are supplemented from the unified filings feed below.
     quarterly: list[dict[str, int]] = []
     seen_q: set[tuple[int, int]] = set()
     for r in quarter_records:
@@ -567,6 +569,52 @@ def fetch_available_periods(
                     quarterly.append({"year": y, "quarter": q})
             except ValueError:
                 continue
+
+    # The accounting endpoint cannot be paginated: ``page``, ``page_size`` and
+    # ``limit`` are ignored upstream.  Its ten-record response had therefore
+    # made the quarter selector start at 2023 even for issuers with reports back
+    # to 2016.  The unified feed contains the complete filing history.  It does
+    # not state a quarterly period, so infer it from the publication date only
+    # for records that are absent from the structured response.  A quarterly
+    # filing can only be published after the period closes; January--March is a
+    # late Q3 filing for the preceding year (there is no standalone Q4 filing).
+    publication_quarter = {
+        1: 3, 2: 3, 3: 3,
+        4: 1, 5: 1, 6: 1,
+        7: 2, 8: 2, 9: 2,
+        10: 3, 11: 3, 12: 3,
+    }
+    quarter_end_month = {1: 3, 2: 6, 3: 9}
+    for page in range(1, 6):
+        try:
+            payload = _json_get(
+                client,
+                "/reports/unified-financial-reports/",
+                {"format": "json", "page": page, "page_size": 200, "organization": org_id},
+            )
+        except Exception:  # The recent structured periods remain usable.
+            break
+        results = list(payload.get("results") or []) if isinstance(payload, dict) else []
+        for record in results:
+            properties = record.get("properties") or {}
+            if str(record.get("report_type") or "") != "NSBU":
+                continue
+            if str(properties.get("report_type") or "").lower() != "quarter":
+                continue
+            match = re.match(r"^(\d{4})-(\d{2})-", str(record.get("pub_date") or ""))
+            if not match:
+                continue
+            published_year, published_month = (int(part) for part in match.groups())
+            quarter = publication_quarter.get(published_month)
+            if not quarter:
+                continue
+            year = published_year if published_month > quarter_end_month[quarter] else published_year - 1
+            if year < 2000 or (year, quarter) in seen_q:
+                continue
+            seen_q.add((year, quarter))
+            quarterly.append({"year": year, "quarter": quarter})
+        if len(results) < 200 or not (isinstance(payload, dict) and payload.get("next")):
+            break
     quarterly.sort(key=lambda x: (x["year"], x["quarter"]), reverse=True)
 
     return {
