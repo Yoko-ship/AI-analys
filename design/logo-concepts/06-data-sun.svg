@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Data sun">
+  <circle cx="50" cy="50" r="45" fill="#062D5F"/>
+  <g stroke="#F7FBFF" stroke-linecap="round" stroke-width="6"><path d="M50 23v9"/><path d="m31 31 7 7"/><path d="M23 50h9"/><path d="m31 69 7-7"/></g>
+  <g stroke="#7AF0B1" stroke-linecap="round" stroke-width="6"><path d="m69 31-7 7"/><path d="M77 50h-9"/><path d="m69 69-7-7"/></g>
+  <circle cx="50" cy="50" r="13" fill="#7AF0B1"/>
+</svg>

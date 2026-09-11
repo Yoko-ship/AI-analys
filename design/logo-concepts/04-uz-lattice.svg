@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="UZ lattice">
+  <rect x="5" y="5" width="90" height="90" rx="24" fill="#062D5F"/>
+  <path d="M25 29v27c0 12 7 18 17 18s17-6 17-18V29" fill="none" stroke="#F7FBFF" stroke-linecap="round" stroke-width="8"/>
+  <path d="M72 28H57l16 0-17 45h18" fill="none" stroke="#7AF0B1" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
+</svg>
