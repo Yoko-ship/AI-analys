@@ -22,11 +22,20 @@ ANTHROPIC_API_KEY=...
 FEEDBACK_USERNAME=@your_username
 ```
 
-## 3. Start bot
+## 3. Start the server stack
 
 ```bash
 docker compose up -d --build
 ```
+
+This starts the API, Telegram bot, and the financial-data collector. The
+collector waits for the local API and posts to `http://api:8000`, so it cannot
+silently refresh Railway while this server remains empty. It runs a full sync at
+startup and then repeats it every 24 hours (`COLLECTOR_INTERVAL_SECONDS`).
+
+`ADMIN_API_SECRET` must be set in `.env`; it is the shared credential the local
+collector uses to write to the local API. Keep it different from credentials in
+another environment.
 
 ## 4. Check logs
 
@@ -57,6 +66,12 @@ Railway volume mount when one is attached — see below):
 
 All of these resolve under `APP_DATA_DIR`, so a single mounted volume persists
 everything across deploys.
+
+The VPS bind mount is `./data:/app/data`. It is not Railway's Volume and it is
+not copied during a deployment. To retain existing Railway history, restore a
+backup of that data into the VPS `data` directory before the first start; never
+replace a live directory without making a backup. New or missing market data is
+then filled by the local collector.
 
 ## Recommended VPS
 

@@ -1,9 +1,16 @@
 #!/bin/sh
 set -eu
 
-# Railway mounts volumes after the image is built, usually as root. Codex must be able
-# to refresh auth.json in place, so prepare only the two explicitly supported auth paths
-# before dropping privileges. No other environment-controlled path is ever chowned.
+# Railway volumes and VPS bind mounts can both replace /app/data after the image
+# is built.  The application runs as appuser, so make this one fixed runtime
+# location writable before dropping privileges.  Do not chown arbitrary
+# environment-controlled paths.
+mkdir -p /app/data
+chown -R appuser:appuser /app/data
+
+# Codex must be able to refresh auth.json in place, so prepare only the two
+# explicitly supported auth paths before dropping privileges. No other
+# environment-controlled path is ever chowned.
 if [ -n "${CODEX_HOME:-}" ]; then
     case "$CODEX_HOME" in
         /home/appuser/.codex|/app/data/codex-home)
