@@ -520,7 +520,17 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          Path("/etc/nginx/snippets/uzstock-monitor.conf").write_text("""# The Netdata container is bound to localhost only. This proxy is the
+          Path("/etc/nginx/snippets/uzstock-monitor.conf").write_text("""# Compress the Vite bundles at the proxy that serves them.  The React
+          # application is 1.5 MB before compression on a cold visit; mobile
+          # clients should not have to download that raw payload.
+          gzip on;
+          gzip_vary on;
+          gzip_proxied any;
+          gzip_comp_level 5;
+          gzip_min_length 1024;
+          gzip_types text/plain text/css application/javascript application/json application/xml image/svg+xml;
+
+          # The Netdata container is bound to localhost only. This proxy is the
           # sole externally reachable route and requires HTTP Basic auth.
           location = /monitor {
               return 301 /monitor/;
