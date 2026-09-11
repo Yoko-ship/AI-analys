@@ -21,7 +21,6 @@ import requests
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -184,10 +183,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# The browser's first visit must download the React bundle and stylesheets.
-# Static assets are content-hashed, so compression is safe and substantially
-# reduces the 1.5 MB cold-load transfer on mobile connections.
-app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
 app.include_router(issuer_analysis_v1_router)
 
 WEB_SOURCE_DIR = Path(__file__).with_name("web")
