@@ -428,6 +428,16 @@ def test_rollback_does_not_make_an_old_filing_current(monkeypatch, tmp_path):
     assert restored["last_successful_report"]["period"] == "2025Q2"
 
 
+def test_stale_but_traceable_filing_keeps_its_analysis_visible():
+    report = core.make_report(snapshot(period="2025Q2"), ISSUER, today=TODAY)
+
+    assert report["status"] == "stale"
+    assert report["sections"]
+    assert report["replacement_blocks"]
+    assert report["ratios"]
+    assert report["availability"]["last_successful_period"] == "2025Q2"
+
+
 def test_worker_retries_then_deduplicates_incident(monkeypatch, tmp_path):
     import sector_report_service
     import issuer_analysis_api
