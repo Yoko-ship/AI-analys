@@ -21892,7 +21892,7 @@ function App() {
   };
 
   return (
-    <div className={`app-shell-wrap view-${activeView}`}>
+    <div className={`app-shell-wrap view-${activeView}`} data-build="2026-09-11.2">
       <div className="bg-glow bg-glow-a" />
       <div className="bg-glow bg-glow-b" />
 
