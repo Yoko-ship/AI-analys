@@ -76,6 +76,10 @@ const VIEW_PATHS = {
   bankfx: "/currency",
   profile: "/profile",
   auth: "/login",
+  // The company-card CTA opens this workspace with the selected ticker already
+  // populated. It must be a real route so the URL synchronisation effect does
+  // not replace the view with the landing page.
+  analysis: "/analysis",
   // Internal, reached by direct link, not from the nav: the admin panel lives at
   // /admin/{section}. The old secret-in-a-field audit screen used to own
   // /admin/audit, so that path is kept and now opens the panel's Аудит section.
@@ -85,7 +89,9 @@ const VIEW_PATHS = {
 // These workspaces are currently unavailable in the public interface. Keeping
 // this rule beside the route table makes old bookmarks land safely on the home
 // page and prevents in-app callbacks from reopening a hidden workspace.
-const HIDDEN_VIEWS = new Set(["analysis", "compare", "portfolio"]);
+// Analysis is public in-app functionality and deliberately is not included:
+// the company-card "Run analysis" CTA navigates there.
+const HIDDEN_VIEWS = new Set(["compare", "portfolio"]);
 
 function viewToPath(view, ticker, newsId, adminSection) {
   if (HIDDEN_VIEWS.has(view)) return "/";
