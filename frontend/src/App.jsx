@@ -76,10 +76,6 @@ const VIEW_PATHS = {
   bankfx: "/currency",
   profile: "/profile",
   auth: "/login",
-  // The company-card CTA opens this workspace with the selected ticker already
-  // populated. It must be a real route so the URL synchronisation effect does
-  // not replace the view with the landing page.
-  analysis: "/analysis",
   // Internal, reached by direct link, not from the nav: the admin panel lives at
   // /admin/{section}. The old secret-in-a-field audit screen used to own
   // /admin/audit, so that path is kept and now opens the panel's Аудит section.
@@ -89,9 +85,7 @@ const VIEW_PATHS = {
 // These workspaces are currently unavailable in the public interface. Keeping
 // this rule beside the route table makes old bookmarks land safely on the home
 // page and prevents in-app callbacks from reopening a hidden workspace.
-// Analysis is public in-app functionality and deliberately is not included:
-// the company-card "Run analysis" CTA navigates there.
-const HIDDEN_VIEWS = new Set(["compare", "portfolio"]);
+const HIDDEN_VIEWS = new Set(["analysis", "compare", "portfolio"]);
 
 function viewToPath(view, ticker, newsId, adminSection) {
   if (HIDDEN_VIEWS.has(view)) return "/";
@@ -12995,7 +12989,7 @@ function CompanyForecastTab({ ticker, language, apiFetch, signedIn, hasProAccess
   );
 }
 
-function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpenCompany, onOpenChart, marketRows, financials, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch, onUpgrade }) {
+function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, onOpenChart, marketRows, financials, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch, onUpgrade }) {
   const lang = normalizeLanguage(language);
   const [tab, setTab] = React.useState("overview");
 
@@ -13070,6 +13064,16 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
     setInsightOpen(false);
     window.requestAnimationFrame(() => insightTriggerRef.current?.focus());
   }, []);
+  const openInsight = React.useCallback(() => {
+    // The Finam-style issuer analysis belongs to this company page.  The
+    // report is loaded from the issuer endpoint below; opening it here avoids
+    // falling through to the retired generic /analysis workspace.
+    if (insightReport) {
+      setInsightOpen(true);
+    } else if (!insightLoading) {
+      setInsightRetry((value) => value + 1);
+    }
+  }, [insightReport, insightLoading]);
 
   // Every board row, reconciled against the stored day statistics exactly as the
   // market table does it — the watch rail quotes other securities and must quote
@@ -13419,8 +13423,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onAnalyze, onOpe
             ) : (
               <div className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Нет данных" : "No data"}</div>
             )}
-            <button className="primary-btn" type="button" style={{ marginTop: 8 }} onClick={() => onAnalyze(ticker)}>
-              {lang === "ru" ? "Запустить анализ" : lang === "uz" ? "Tahlil qilish" : "Run Analysis"}
+            <button className="primary-btn" type="button" style={{ marginTop: 8 }} onClick={openInsight} disabled={insightLoading}>
+              {insightLoading
+                ? (lang === "ru" ? "Загрузка анализа…" : lang === "uz" ? "Tahlil yuklanmoqda…" : "Loading analysis…")
+                : (lang === "ru" ? "Открыть анализ" : lang === "uz" ? "Tahlilni ochish" : "Open Analysis")}
             </button>
           </div>
         </div>
@@ -22321,7 +22327,6 @@ function App() {
               onOpenCompany={openCompanyPage}
               onOpenChart={openChartPage}
               onBack={() => setActiveView(prevView || "market")}
-              onAnalyze={(t) => { setAnalysisCompany(t); setActiveView("analysis"); }}
             />
           )}
 
