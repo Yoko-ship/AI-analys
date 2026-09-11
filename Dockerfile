@@ -27,7 +27,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Pin the CLI so production behavior does not change underneath a scheduled run.
-RUN npm install --global --omit=dev @openai/codex@0.151.0 \
+RUN npm install --global --omit=dev @openai/codex@0.154.0 \
     && npm cache clean --force
 
 COPY requirements-server.txt /app/
