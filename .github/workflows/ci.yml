@@ -508,6 +508,19 @@ jobs:
             docker logs --tail 100 uzstock-web >&2
             exit 1
           fi
+          # The home page is static and can answer while the API event loop is
+          # stalled. Verify the actual API before declaring a deploy healthy.
+          for attempt in $(seq 1 15); do
+            if curl --max-time 5 -fsS http://127.0.0.1:8000/health >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          if ! curl --max-time 5 -fsS http://127.0.0.1:8000/health >/dev/null; then
+            echo "UZStock API readiness check failed." >&2
+            docker logs --tail 160 uzstock-web >&2
+            exit 1
+          fi
           netdata_password_file=/root/uzstock/.netdata-password
           if [ ! -s "$netdata_password_file" ]; then
             echo "Netdata dashboard password was not uploaded." >&2

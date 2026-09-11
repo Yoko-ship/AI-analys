@@ -7407,7 +7407,19 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const isBond = (row) => row.type === "bond" || securitiesMap?.[row.ticker]?.type === "bond";
   const allowBonds = type === "bond";
   const isNeutralRow = (row) => row.inactive === true || !Number.isFinite(row.changePercent);
-  const tradedRows = rows.filter((row) => allowBonds || !isBond(row));
+  const tradedRows = (Array.isArray(rows) ? rows : []).filter((row) => allowBonds || !isBond(row));
+
+  // A request failure used to leave this panel as a featureless dark rectangle.
+  // Say plainly when the market-board request has not produced any rows instead
+  // of making a missing response look like a blank exchange session.
+  if (tradedRows.length === 0) {
+    const message = lang === "uz"
+      ? "Bozor xaritasini chizish uchun ma'lumot hozircha mavjud emas. Sahifani yangilang."
+      : lang === "en"
+        ? "Market data is not available to draw the map yet. Refresh the page to try again."
+        : "Пока нет данных, чтобы построить карту рынка. Обновите страницу и попробуйте ещё раз.";
+    return <p className="market-empty-cell heatmap-empty-state" role="status">{message}</p>;
+  }
 
   // Area answers the same question as colour: how strongly did this security
   // move over the selected period? Direction belongs to colour; magnitude
@@ -12710,6 +12722,13 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
                   colorOf={colorOf} onToggle={toggleChartField} />
               : <FinancialsChart fields={chartFields} series={series} periods={cols} lang={lang}
                   colorOf={colorOf} onToggle={toggleChartField} />}
+            {dashboard === "line" && cols.length === 1 && chartFields.length > 0 && (
+              <p className="fin-note muted" style={{ textAlign: "center" }}>
+                {t("Линейный график появится, когда будет как минимум два отчётных периода. Сейчас доступен 1 период — его можно посмотреть в таблице или на столбчатом графике.",
+                   "Chiziqli grafik kamida ikki hisobot davri bo'lganda paydo bo'ladi. Hozir 1 davr mavjud — uni jadvalda yoki ustunli grafikda ko'ring.",
+                   "A line chart needs at least two reporting periods. One period is currently available; view it in the table or bar chart.")}
+              </p>
+            )}
             {chartFields.length === 0 && (
               <p className="fin-note muted" style={{ textAlign: "center" }}>
                 {t("Выберите показатель выше, чтобы построить график",

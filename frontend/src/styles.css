@@ -9599,6 +9599,15 @@ body[data-theme="dark"] .market-view-toggle button.active {
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.025), 0 18px 38px rgba(0, 0, 0, 0.12);
 }
 
+.heatmap-empty-state {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 28px;
+  text-align: center;
+}
+
 .heatmap-tree-label {
   position: absolute;
   z-index: 4;
