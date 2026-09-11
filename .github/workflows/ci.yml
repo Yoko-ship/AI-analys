@@ -6,6 +6,12 @@ on:
       - "**"
   pull_request:
   workflow_dispatch:
+    inputs:
+      run_news_now:
+        description: Run the production Codex news collector after deployment
+        required: false
+        type: boolean
+        default: false
 
 # A push that supersedes an in-flight run cancels it — CI feedback should be about
 # the current head, not a queue of stale ones.
@@ -782,4 +788,51 @@ jobs:
               raise SystemExit("intraday collector completed without storing any hourly bars")
           print(f"intraday_bars_stored={count}")
           PY
+          REMOTE
+
+  test-news-collector:
+    name: Test production news collector
+    needs: deploy-production
+    # This is deliberately opt-in. Normal deployments leave the scheduled
+    # collector alone; a manual run captures its Codex limit before/after.
+    if: github.event_name == 'workflow_dispatch' && inputs.run_news_now
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run and report production Codex news collection
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=150 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          # `systemctl start` waits for this Type=oneshot service, so the log
+          # below belongs to this manual invocation rather than a timer run.
+          started_at="$(date --iso-8601=seconds)"
+          print_log() {
+            journalctl -u uzstock-news-collector.service --since "$started_at" \
+              --no-pager -o cat || true
+          }
+          trap print_log EXIT
+          systemctl start uzstock-news-collector.service
+          result="$(systemctl show --property=Result --value uzstock-news-collector.service)"
+          if [ "$result" != "success" ]; then
+            echo "News collector systemd result: $result" >&2
+            exit 1
+          fi
+          echo "News collector completed; its JSON report includes codex_limit_used_before_pct, codex_limit_used_after_pct, and codex_limit_delta_pct."
           REMOTE
