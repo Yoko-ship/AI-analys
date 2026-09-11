@@ -555,7 +555,11 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
     end = date(year, quarter * 3, (31, 30, 30, 31)[quarter - 1])
     if status == "available" and (today - end).days > snapshot.get("max_age_days", 550 if standard == "ifrs" else 210):
         status = "stale"
-    publishable = status == "available"
+    # An issuer that has stopped filing is still analyzable from its last
+    # traceable statement.  Keep the distinct ``stale`` status and date so it
+    # can never be mistaken for current information, but do not turn a valid
+    # historical report into an empty screen.
+    publishable = status in {"available", "stale"}
     ratios = computed_ratios if publishable else []
     if template == "commodity_exchange" and any(values.get(k) is None for k in ("own_cash", "client_cash", "settlement_liabilities")):
         ratios = [r for r in ratios if r["metric"].startswith("P")]
@@ -1304,8 +1308,8 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
               "verdict": {"status": verdict_status, "headline": headline if publishable else None, "evidence_signal_ids": [s["id"] for s in signals] if verdict_status != "no_signal" else [], "period_end": end.isoformat()},
               "data_quality": data_quality, "balance_check": balance, "financial_as_of": end.isoformat() if period else None,
               "market_as_of": None, "sources": [source] if source_url else [],
-              "availability": {"reason_code": status, "last_source_period": period, "last_successful_period": None,
-                               "next_action": tr(lang, "Мы проверим данные снова после обновления источника.", "Manba yangilangach ma’lumotlarni yana tekshiramiz.", "We will check the data again after the source is updated.") if not publishable else None},
+              "availability": {"reason_code": status, "last_source_period": period, "last_successful_period": period if publishable else None,
+                               "next_action": tr(lang, "Мы проверим данные снова после обновления источника.", "Manba yangilangach ma’lumotlarni yana tekshiramiz.", "We will check the data again after the source is updated.") if status == "stale" or not publishable else None},
               "source_snapshot_hash": digest([issuer["id"], standard, period, values, previous, opening, lines, source]),
               "generated_at": snapshot.get("generated_at")}
     report["control_rule_versions"] = snapshot.get("control_rule_versions", [])

@@ -31,7 +31,7 @@ const compactNumber = (value, lang) => value == null ? "—" : Number(value).toL
 );
 
 export function ReportAvailability({ report, lang = "ru" }) {
-  if (!report || report.status === "available") return null;
+  if (!report || ["available", "stale"].includes(report.status)) return null;
   const mappingFailed = report.status === "mapping_failed"
     || (report.data_quality || []).some((item) => item.code === "SOURCE_MAPPING_FAILED");
   const heading = mappingFailed
@@ -59,7 +59,7 @@ export function ReportAvailability({ report, lang = "ru" }) {
 
 export default function VerifiedReport({ report, lang = "ru", narrative = false, hideMeta = false }) {
   if (!report) return null;
-  if (report.status !== "available") return <ReportAvailability report={report} lang={lang} />;
+  if (!["available", "stale"].includes(report.status)) return <ReportAvailability report={report} lang={lang} />;
   const t = (ru, uz, en) => pick(lang, ru, uz, en);
   const divisor = report.display_divisor || 1;
   const money = (value) => fmt(value == null ? null : value / divisor, lang);
@@ -77,6 +77,11 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false,
       <span>{t("Финансовая дата", "Moliyaviy sana", "Financial date")}: {report.financial_as_of || "—"}</span>
       <span>{t("Дата рынка", "Bozor sanasi", "Market date")}: {report.market_as_of || "—"}</span>
     </div>}
+    {report.status === "stale" && <p className="verified-note">
+      {t(`Анализ построен по последней доступной отчётности (${report.period_label || report.period}); более свежий отчёт источник пока не опубликовал.`,
+        `Tahlil oxirgi mavjud hisobot (${report.period_label || report.period}) asosida tuzilgan; manba hali yangiroq hisobotni e’lon qilmagan.`,
+        `This analysis uses the latest available filing (${report.period_label || report.period}); the source has not published a newer filing yet.`)}
+    </p>}
     {report.publication_restored && <p className="verified-note">{t("Восстановлена предыдущая проверенная публикация. Дата финансовых данных сохранена.", "Oldingi tekshirilgan nashr tiklangan. Moliyaviy sana saqlangan.", "A previous verified publication has been restored with its original financial date.")}</p>}
     {narrative && (report.paragraphs || []).map((p, i) => <p key={i}>{p}</p>)}
     {report.nav && <section className="verified-ratios" aria-label={t("Стоимость активов фонда", "Fond aktivlari qiymati", "Fund asset valuation")}>

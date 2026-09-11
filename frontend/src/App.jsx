@@ -11538,13 +11538,14 @@ function companyInsightTeaser(report, lang) {
 function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef, lang }) {
   const tx = COMPANY_INSIGHT_TX[lang] || COMPANY_INSIGHT_TX.ru;
   const teaser = companyInsightTeaser(report, lang);
+  const isReadable = report && ["available", "stale"].includes(report.status);
   return (
     <section className={`company-insight-card tone-${report?.headline_tone || "neutral"}`} data-testid="company-insight-card" aria-live="polite" aria-busy={loading ? "true" : "false"}>
       <CompanyInsightIcon />
       <div className="company-insight-card-copy">
         {loading ? (
           <div className="company-insight-loading" aria-label={tx.loading}><span /><span /></div>
-        ) : report?.status && report.status !== "available" && !error ? (
+        ) : report?.status && !isReadable && !error ? (
           <Suspense fallback={null}><ReportAvailability report={report} lang={lang} /></Suspense>
         ) : (
           <p>{error ? tx.unavailable : teaser}</p>
@@ -11553,7 +11554,7 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
       {!loading && error && (
         <button className="company-insight-action" type="button" onClick={onRetry}>{tx.retry}</button>
       )}
-      {!loading && !error && report && (!report.status || report.status === "available") && report.paragraphs?.length > 0 && (
+      {!loading && !error && isReadable && report.paragraphs?.length > 0 && (
         <button ref={buttonRef} className="company-insight-action" type="button" onClick={onOpen}>{tx.details}</button>
       )}
     </section>
