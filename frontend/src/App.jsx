@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 // ТЗ §10.7: rounding lives in lib/format.js and thresholds come from the
 // server via lib/flags.js, so a label cannot claim a window the calculation
@@ -52,17 +52,17 @@ import { localizedCalendarTitle } from "./lib/calendarTitle.js";
 // marker in the interface read the same entries, so a term cannot be explained
 // two different ways depending on where the reader met it.
 import { termFor } from "./lib/glossary.js";
-// The admin panel is a screen of its own, with its own token layer — see
-// admin/admin.css for why it deliberately does not inherit the site's theme.
-import AdminPanel from "./admin/ControlPanel.jsx";
-import { SectorMonitorPage } from "./admin/AnalysisMonitor.jsx";
-import VerifiedReport, { ReportAvailability } from "./analysis/VerifiedReport.jsx";
-import {
-  ProfileAccountCenter,
-  ProfileFavoriteEditor,
-  ProfileNoteEditor,
-  ProfileResearchEditor,
-} from "./ProfileAccountCenter.jsx";
+// These tools are not needed for the public landing page. Splitting them out
+// keeps a first visit focused on the market rather than downloading internal
+// administration and account-editor code up front.
+const AdminPanel = lazy(() => import("./admin/ControlPanel.jsx"));
+const SectorMonitorPage = lazy(() => import("./admin/AnalysisMonitor.jsx").then((module) => ({ default: module.SectorMonitorPage })));
+const VerifiedReport = lazy(() => import("./analysis/VerifiedReport.jsx"));
+const ReportAvailability = lazy(() => import("./analysis/VerifiedReport.jsx").then((module) => ({ default: module.ReportAvailability })));
+const ProfileAccountCenter = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileAccountCenter })));
+const ProfileFavoriteEditor = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileFavoriteEditor })));
+const ProfileNoteEditor = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileNoteEditor })));
+const ProfileResearchEditor = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileResearchEditor })));
 // The visit beacon: one fire-and-forget POST per page view, read back by the
 // admin panel's «Аудитория». Admin pages themselves are not counted.
 import { setTrackedUser, trackPageview } from "./lib/track.js";
@@ -5944,7 +5944,7 @@ function StructuredReportBlocks({ blocks = [], keyPrefix = "article" }) {
 
 function ReportArticleView({ analysisResult, language = "ru" }) {
   if (analysisResult?.sector_report) {
-    return <article className="panel"><VerifiedReport report={analysisResult.sector_report} lang={language} narrative /></article>;
+    return <article className="panel"><Suspense fallback={null}><VerifiedReport report={analysisResult.sector_report} lang={language} narrative /></Suspense></article>;
   }
   const articleReport = analysisResult?.article_report?.sections?.length ? analysisResult.article_report : null;
   const sections = analysisResult?.sections || {};
@@ -8718,7 +8718,7 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
 
       {bond.issuer_report && <details className="verified-block">
         <summary>{t("Финансовый профиль эмитента", "Emitentning moliyaviy profili", "Issuer financial profile")} · {bond.financial_as_of || "—"}</summary>
-        <div className="verified-note"><VerifiedReport report={bond.issuer_report} lang={lang} narrative /></div>
+        <div className="verified-note"><Suspense fallback={null}><VerifiedReport report={bond.issuer_report} lang={lang} narrative /></Suspense></div>
       </details>}
       {!bond.issuer_report && bond.issuer_link_status && <p className="verified-note">{t("Финансовый профиль эмитента пока не подтверждён.", "Emitent moliyaviy profili hali tasdiqlanmagan.", "Issuer fundamentals are not yet verified.")} ({bond.issuer_link_status})</p>}
       <div className="bondsec-summary">
@@ -11482,7 +11482,7 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
         {loading ? (
           <div className="company-insight-loading" aria-label={tx.loading}><span /><span /></div>
         ) : report?.status && report.status !== "available" && !error ? (
-          <ReportAvailability report={report} lang={lang} />
+          <Suspense fallback={null}><ReportAvailability report={report} lang={lang} /></Suspense>
         ) : (
           <p>{error ? tx.unavailable : teaser}</p>
         )}
@@ -11580,7 +11580,7 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
             </section>
           ))}
         </div>
-        <VerifiedReport report={report} lang={lang} />
+        <Suspense fallback={null}><VerifiedReport report={report} lang={lang} /></Suspense>
         <footer className="company-insight-dialog-foot">
           <span><CompanyInsightIcon small />{tx.generated}</span>
           <p>{tx.disclaimer}</p>
@@ -22166,14 +22166,14 @@ function App() {
               reads as a bug, and the page is not secret — its data is guarded on
               the server, where guarding belongs. */}
           {activeView === "admin" && (
-            user && adminSection === "sector-analysis" ? <SectorMonitorPage apiFetch={apiFetch} language={language} /> : (user?.is_admin || user?.admin_role) ? (
-              <AdminPanel
+            user && adminSection === "sector-analysis" ? <Suspense fallback={<div className="panel">Loading…</div>}><SectorMonitorPage apiFetch={apiFetch} language={language} /></Suspense> : (user?.is_admin || user?.admin_role) ? (
+              <Suspense fallback={<div className="panel">Loading…</div>}><AdminPanel
                 apiFetch={apiFetch}
                 language={language}
                 section={adminSection}
                 onSectionChange={setAdminSection}
                 user={user}
-              />
+              /></Suspense>
             ) : (
               <div className="panel" style={{ textAlign: "center", padding: 48 }}>
                 <div className="panel-label">
@@ -22748,7 +22748,7 @@ function App() {
                 )}
 
               {profileUser ? (
-                <ProfileAccountCenter
+                <Suspense fallback={null}><ProfileAccountCenter
                   open={showProfileEdit}
                   initialTab={profileSettingsTab}
                   profile={profile}
@@ -22788,11 +22788,13 @@ function App() {
                       </div>
                     </form>
                   )}
-                />
+                /></Suspense>
               ) : null}
-              <ProfileResearchEditor item={profileResearchEditor} language={language} apiFetch={apiFetch} onClose={() => setProfileResearchEditor(null)} onRefresh={loadProfile} onRepeat={handleRepeatAnalysis} />
-              <ProfileFavoriteEditor item={profileFavoriteEditor} language={language} apiFetch={apiFetch} onClose={() => setProfileFavoriteEditor(null)} onRefresh={loadProfile} onRemove={async (item) => { await handleToggleFavorite(item.ticker, item.company_name); setProfileFavoriteEditor(null); }} />
-              {profileNoteEditor.open ? <ProfileNoteEditor note={profileNoteEditor.note} analyses={profileHistory} language={language} apiFetch={apiFetch} onClose={() => setProfileNoteEditor({ open: false, note: null })} onRefresh={loadProfile} /> : null}
+              <Suspense fallback={null}>
+                <ProfileResearchEditor item={profileResearchEditor} language={language} apiFetch={apiFetch} onClose={() => setProfileResearchEditor(null)} onRefresh={loadProfile} onRepeat={handleRepeatAnalysis} />
+                <ProfileFavoriteEditor item={profileFavoriteEditor} language={language} apiFetch={apiFetch} onClose={() => setProfileFavoriteEditor(null)} onRefresh={loadProfile} onRemove={async (item) => { await handleToggleFavorite(item.ticker, item.company_name); setProfileFavoriteEditor(null); }} />
+                {profileNoteEditor.open ? <ProfileNoteEditor note={profileNoteEditor.note} analyses={profileHistory} language={language} apiFetch={apiFetch} onClose={() => setProfileNoteEditor({ open: false, note: null })} onRefresh={loadProfile} /> : null}
+              </Suspense>
             </section>
           )}
 
