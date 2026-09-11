@@ -53,6 +53,29 @@ def _normalize_key(value: str | None) -> str:
     return "".join(ch.lower() for ch in (value or "") if ch.isalnum())
 
 
+def _catalog_name_for_ticker(value: str) -> str | None:
+    """Return the OpenInfo-searchable issuer name for a known exchange ticker.
+
+    Company pages and the analysis picker hand the API a ticker (``YGSY``),
+    whereas OpenInfo's autofill indexes the legal issuer name
+    (``"Yuggazstroy" AJ``).  Resolve that translation before attempting a
+    fuzzy upstream lookup; otherwise opening analysis from a company page
+    reliably fails even though the issuer is in our own catalog.
+    """
+    ticker = str(value or "").strip().upper()
+    if not ticker:
+        return None
+    try:
+        from company_catalog import COMPANY_CATALOG
+        return next(
+            (name for name, listed_ticker in COMPANY_CATALOG.items()
+             if str(listed_ticker).strip().upper() == ticker),
+            None,
+        )
+    except Exception:  # The direct user-supplied name path remains available.
+        return None
+
+
 def _fix_mojibake(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _fix_mojibake(item) for key, item in value.items()}
@@ -191,9 +214,11 @@ def _set_excel_cache(url: str, payload: dict[str, Any]) -> None:
 
 
 def resolve_company(query: str, session: requests.Session | None = None) -> dict[str, Any]:
-    query = (query or "").strip()
-    if not query:
+    input_query = (query or "").strip()
+    if not input_query:
         raise ValueError("company query cannot be empty")
+    catalog_name = _catalog_name_for_ticker(input_query)
+    query = catalog_name or input_query
 
     client = session or _make_session()
 
@@ -210,24 +235,36 @@ def resolve_company(query: str, session: requests.Session | None = None) -> dict
         # another company's data. Accept only an exact or substring match on the
         # normalized name; anything weaker falls through to the fuzzy chain
         # below, which has its own confidence floor.
-        normalized_query = _normalize_key(query)
+        normalized_queries = {_normalize_key(query)}
+        if catalog_name:
+            # The catalog uses the short legal suffix (AJ/ATB), while OpenInfo
+            # expands it ("aksiyadorlik jamiyati").  The issuer's distinctive
+            # name is still an identity floor; the legal-form word is not.
+            brand = re.sub(
+                r"\s+(?:aj|atb|atib|chakb|xk|uk|mchj|ooo)(?:\s*\([^)]*\))?\s*$",
+                "",
+                catalog_name,
+                flags=re.IGNORECASE,
+            )
+            normalized_brand = _normalize_key(brand)
+            if normalized_brand:
+                normalized_queries.add(normalized_brand)
         scored: list[tuple[int, dict[str, Any]]] = []
         for item in items:
             name = str(item.get("full_name_text") or "")
             score = 0
-            if normalized_query:
-                normalized_name = _normalize_key(name)
-                if normalized_query == normalized_name:
-                    score += 100
-                elif normalized_query and normalized_query in normalized_name:
-                    score += 20
+            normalized_name = _normalize_key(name)
+            if any(candidate and candidate == normalized_name for candidate in normalized_queries):
+                score += 100
+            elif any(candidate and candidate in normalized_name for candidate in normalized_queries):
+                score += 20
             scored.append((score, item))
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
         if scored and scored[0][0] >= 20:
             best = scored[0][1]
             return {
-                "input": query,
+                "input": input_query,
                 "org_id": str(best.get("id")),
                 "company_name": best.get("full_name_text") or "",
                 "logo": best.get("logo"),
@@ -253,14 +290,14 @@ def resolve_company(query: str, session: requests.Session | None = None) -> dict
         except requests.RequestException:
             pass
         return {
-            "input": query,
+            "input": input_query,
             "org_id": str(org_id),
             "company_name": company_name,
             "logo": logo,
             "source_url": f"{OPENINFO_API_BASE}/home/autofill/?{urlencode({'name': query})}",
         }
 
-    raise LookupError(f"OpenInfo company was not found for {query!r}")
+    raise LookupError(f"OpenInfo company was not found for {input_query!r}")
 
 
 def fetch_stock_screener(

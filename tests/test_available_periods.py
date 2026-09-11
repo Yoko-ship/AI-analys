@@ -4,6 +4,27 @@ from __future__ import annotations
 import openinfo_collector as collector
 
 
+def test_known_ticker_resolves_through_its_catalogue_name(monkeypatch):
+    """The company-page action sends YGSY, while OpenInfo indexes its name."""
+    seen = []
+
+    def fake_get(_session, path, params=None):
+        seen.append({"path": path, "params": params})
+        return [{
+            "id": 482,
+            "full_name_text": '"Yuggazstroy" aksiyadorlik jamiyati',
+            "logo": "https://openinfo.uz/logo.png",
+        }]
+
+    monkeypatch.setattr(collector, "_json_get", fake_get)
+
+    resolved = collector.resolve_company("YGSY", session=object())
+
+    assert seen == [{"path": "/home/autofill/", "params": {"name": '"Yuggazstroy" AJ'}}]
+    assert resolved["input"] == "YGSY"
+    assert resolved["org_id"] == "482"
+
+
 def test_available_periods_merges_quarters_older_than_structured_window(monkeypatch):
     """The structured endpoint has only ten records; unified retains 2016."""
     def fake_get(_session, path, params=None):
