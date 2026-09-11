@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-labelledby="title desc">
   <title id="title">UZStock</title>
-  <desc id="desc">A clean UZ monogram for UZStock.</desc>
-  <rect x="5" y="5" width="90" height="90" rx="25" fill="#081F3C"/>
-  <path d="M23 27v25c0 14.5 6.5 23 16.5 23S56 66.5 56 52V27" fill="none" stroke="#F4F8FF" stroke-linecap="round" stroke-width="9"/>
-  <path d="M80 28H58l22 44H58" fill="none" stroke="#51E0A0" stroke-linecap="round" stroke-linejoin="round" stroke-width="9"/>
+  <desc id="desc">A U-shaped market curve that rises into an arrow.</desc>
+  <rect x="5" y="5" width="90" height="90" rx="24" fill="#062D5F"/>
+  <path d="M28 28v24c0 13.2 8 21 19 21 8.5 0 14.5-4.5 17-12.2" fill="none" stroke="#F7FBFF" stroke-linecap="round" stroke-width="9"/>
+  <path d="M54 61.5 76 32" fill="none" stroke="#65E6A2" stroke-linecap="round" stroke-width="9"/>
+  <path d="m64.5 32 11.5 0 0 11.5" fill="none" stroke="#65E6A2" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
 </svg>
