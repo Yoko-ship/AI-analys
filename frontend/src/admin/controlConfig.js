@@ -27,6 +27,7 @@ export const NAVIGATION = [
   { title: ["Управление", "Boshqaruv", "Management"], items: [
     ["audit", "list", "Аудит", "Audit", "Audit trail"],
     ["access", "lock", "Пользователи и роли", "Foydalanuvchilar va rollar", "Access & roles"],
+    ["feedback", "news", "Обратная связь", "Fikr-mulohaza", "Feedback"],
     ["system", "sliders", "Система", "Tizim", "System"],
   ] },
 ];
