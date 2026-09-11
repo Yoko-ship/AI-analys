@@ -2399,7 +2399,7 @@ const Icons = {
 
 const TEXTS = {
   ru: {
-    pageTitle: "UZ Stock Analyzer",
+    pageTitle: "UZStock — фондовый рынок Узбекистана",
     brand: "UZ Stock Analyzer",
     subtitle: "Платформа для анализа компаний Узбекистана",
     nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ", catalog: "Каталог", news: "Новости" },
@@ -2741,7 +2741,7 @@ const TEXTS = {
     },
   },
   en: {
-    pageTitle: "UZ Stock Analyzer",
+    pageTitle: "UZStock — Uzbekistan Stock Market",
     brand: "UZ Stock Analyzer",
     subtitle: "Company analysis platform for Uzbekistan",
     nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis", catalog: "Catalog", news: "News" },
@@ -3082,7 +3082,7 @@ const TEXTS = {
     },
   },
   uz: {
-    pageTitle: "UZ Stock Analyzer",
+    pageTitle: "UZStock — O‘zbekiston fond bozori",
     brand: "UZ Stock Analyzer",
     subtitle: "O'zbekiston kompaniyalarini tahlil qilish platformasi",
     nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil", catalog: "Katalog", news: "Yangiliklar" },
