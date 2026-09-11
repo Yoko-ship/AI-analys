@@ -54,6 +54,32 @@ def _feed(**over) -> dict:
     return data
 
 
+def test_company_quarter_history_backfill_pushes_only_recovered_periods(monkeypatch, pushed) -> None:
+    """A visible old quarter is repaired on demand, not by a market-wide sweep."""
+    called: dict[str, object] = {}
+
+    def harvest(ticker, *, limit):
+        called.update({"ticker": ticker, "limit": limit})
+        return {
+            "rows": [
+                {"ticker": "YGSY", "year": 2016, "quarter": 1, "revenue": 12.0},
+                {"ticker": "YGSY", "year": 2016, "quarter": 2, "revenue": 24.0},
+            ],
+            "errors": [],
+        }
+
+    monkeypatch.setattr(rc, "harvest_historical_quarters", harvest)
+
+    assert cf.backfill_company_quarter_history("ygsy") == 0
+    assert called == {"ticker": "YGSY", "limit": 40}
+    assert pushed == [("/api/admin/financials", {
+        "form": "NSBU", "mode": "upsert", "rows": [
+            {"ticker": "YGSY", "year": 2016, "quarter": 1, "revenue": 12.0},
+            {"ticker": "YGSY", "year": 2016, "quarter": 2, "revenue": 24.0},
+        ],
+    })]
+
+
 class TestAnEmptySessionIsNotAFailure:
     def test_a_feed_window_with_no_trading_days_in_it(self, monkeypatch, pushed) -> None:
         """Monday 08:00 reads Saturday + Sunday."""
