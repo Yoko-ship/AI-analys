@@ -24,7 +24,7 @@ import {
 } from "./lib/indicators.js";
 import promoVideo from "./assets/promo.mp4";
 import promoPoster from "./assets/promo-poster.jpg";
-const logoIcon = "/uzstock-mark.svg";
+import logoIcon from "./assets/uzstock-mark.svg";
 // Pure, unit-tested helpers. Valuation multiples and period labels live in one
 // module so the market table and the company page cannot compute them differently
 // (see frontend/src/lib/valuation.js and tests/valuation.test.js).
