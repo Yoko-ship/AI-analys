@@ -607,6 +607,40 @@ def backfill_quarter_history(limit_per_ticker: int = 40) -> int:
     return status
 
 
+def backfill_company_quarter_history(ticker: str, limit: int = 40) -> int:
+    """Publish the pre-window quarterly filings for one issuer.
+
+    This is deliberately separate from :func:`backfill_quarter_history`: the
+    latter walks the whole market and is suitable for a planned maintenance
+    pass, whereas a missing company page must be repairable immediately.  The
+    unified OpenInfo feed holds the old filing ids and URLs, but a normal daily
+    sync sees only the source's ten newest quarters.  Harvesting one issuer
+    both catalogues those documents and pushes their extracted figures to the
+    production API.
+    """
+    requested = str(ticker or "").strip().upper()
+    if not requested or not requested.isalnum():
+        raise ValueError("ticker must contain letters and numbers only")
+    result = rc.harvest_historical_quarters(requested, limit=max(1, limit))
+    errors = result.get("errors") or []
+    if errors:
+        log.warning("quarter-history backfill for %s: %s", requested, "; ".join(errors[:4]))
+    rows = result.get("rows") or []
+    if not rows:
+        # Idempotency matters: a rerun after a successful repair should not be
+        # reported as a failed production action merely because every filing is
+        # already catalogued.
+        return 0
+    status = 0
+    for start in range(0, len(rows), 500):
+        status = _post("/api/admin/financials", {
+            "form": "NSBU",
+            "mode": "upsert",
+            "rows": rows[start:start + 500],
+        }) or status
+    return status
+
+
 def backfill_intraday(days: int = 30) -> int:
     """One-off: bank hourly bars for the last ``days`` calendar days.
 
@@ -1400,6 +1434,8 @@ def main() -> int:
                     metavar="PER_TICKER",
                     help="one-off: harvest the quarterly filings that fell out of openinfo's "
                          "ten-quarter window (default 40 workbooks per issuer)")
+    ap.add_argument("--backfill-company-quarter-history", metavar="TICKER",
+                    help="one-off: harvest and publish one issuer's historical quarterly filings")
     ap.add_argument("--backfill-current-section", type=int, nargs="?", const=2, default=None,
                     metavar="PERIODS",
                     help="one-off: re-parse the newest filings for the balance's current "
@@ -1452,6 +1488,13 @@ def main() -> int:
             return backfill_quarter_history(args.backfill_quarter_history)
         except Exception:
             log.exception("quarter-history backfill failed")
+            return 1
+
+    if args.backfill_company_quarter_history:
+        try:
+            return backfill_company_quarter_history(args.backfill_company_quarter_history)
+        except Exception:
+            log.exception("company quarter-history backfill failed")
             return 1
 
     if args.backfill_current_section is not None:

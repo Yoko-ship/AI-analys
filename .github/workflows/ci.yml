@@ -22,6 +22,11 @@ on:
         required: false
         type: string
         default: ""
+      backfill_quarter_history_ticker:
+        description: Recover one issuer's quarterly filings older than OpenInfo's ten-report window (for example YGSY)
+        required: false
+        type: string
+        default: ""
 
 # A push that supersedes an in-flight run cancels it — CI feedback should be about
 # the current head, not a queue of stale ones.
@@ -906,7 +911,7 @@ jobs:
     # Opt-in because this downloads and parses the issuer's published workbooks.
     # A single ticker makes a visible company-page repair without creating a
     # full-market collection job during an ordinary deployment.
-    if: github.event_name == 'workflow_dispatch' && inputs.backfill_financial_ticker != ''
+    if: github.event_name == 'workflow_dispatch' && (inputs.backfill_financial_ticker != '' || inputs.backfill_quarter_history_ticker != '')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -927,27 +932,47 @@ jobs:
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
           BACKFILL_TICKER: ${{ inputs.backfill_financial_ticker }}
+          BACKFILL_QUARTER_HISTORY_TICKER: ${{ inputs.backfill_quarter_history_ticker }}
         run: |
-          case "$BACKFILL_TICKER" in
+          if [ -n "$BACKFILL_TICKER" ] && [ -n "$BACKFILL_QUARTER_HISTORY_TICKER" ]; then
+            echo "Choose either annual or quarterly history backfill, not both." >&2
+            exit 2
+          fi
+          target="${BACKFILL_TICKER:-$BACKFILL_QUARTER_HISTORY_TICKER}"
+          case "$target" in
             ""|*[!A-Za-z0-9]*) echo "Ticker must contain letters and numbers only." >&2; exit 2 ;;
           esac
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
             -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
-            "BACKFILL_TICKER=$BACKFILL_TICKER bash -s" <<'REMOTE'
+            "BACKFILL_TICKER=$target BACKFILL_QUARTER_HISTORY_TICKER=$BACKFILL_QUARTER_HISTORY_TICKER bash -s" <<'REMOTE'
           set -euo pipefail
-          docker exec -i -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web \
-            python collector_financials.py --backfill-company-financials "$BACKFILL_TICKER"
+          if [ -n "$BACKFILL_QUARTER_HISTORY_TICKER" ]; then
+            docker exec -i -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web \
+              python collector_financials.py --backfill-company-quarter-history "$BACKFILL_TICKER"
+          else
+            docker exec -i -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web \
+              python collector_financials.py --backfill-company-financials "$BACKFILL_TICKER"
+          fi
           docker exec -i uzstock-web python - "$BACKFILL_TICKER" <<'PY'
           import json
           import sys
-          from reports_catalog import get_financials_series
+          from reports_catalog import get_company_reports, get_financials_series, get_financials_series_quarterly
 
           ticker = sys.argv[1]
           series = get_financials_series(ticker)
+          quarterly = get_financials_series_quarterly(ticker)
+          reports = get_company_reports(ticker)
           print("FINANCIAL_HISTORY_BACKFILL=" + json.dumps({
               "ticker": ticker,
               "periods": sorted(series, reverse=True),
+              "quarterly_periods": sorted(quarterly, reverse=True),
+              "quarterly_reports": sorted(
+                  [f"{r['year']}Q{r['quarter']}" for r in reports
+                   if r.get("report_form") == "NSBU" and r.get("period_type") == "quarter"
+                   and r.get("year") and r.get("quarter")],
+                  reverse=True,
+              ),
           }, ensure_ascii=False))
           PY
           REMOTE
