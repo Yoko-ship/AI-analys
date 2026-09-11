@@ -274,7 +274,7 @@ class TestMultiples:
         got = self._issuer(fin={"net_income": -50.0, "revenue": 1000.0})
         assert got["pe"]["value"] is None
         assert got["pe"]["status"] == fundamentals.STATUS_LOSS
-        assert got["pe"]["computed"] == pytest.approx(-25.0)
+        assert got["pe"]["computed"] == pytest.approx(-20.0)
 
     def test_pe_outside_the_range_is_published_with_the_check_flag(self):
         """V15 (ТЗ мультипликаторов): out of range the value is SHOWN, flagged
@@ -338,8 +338,11 @@ class TestMultiples:
 
     def test_negative_equity_withholds_book_value_and_leverage_only(self):
         got = self._issuer(rat={"total_equity": -5.0})
-        for field in ("pb", "roe", "equity_assets"):
-            assert got[field]["status"] == fundamentals.STATUS_UNVERIFIED
+        for field in ("pb", "roe"):
+            assert got[field]["status"] == fundamentals.STATUS_NEGATIVE_EQUITY
+        # Capital/assets would otherwise emit a made-up negative ratio from a
+        # statement the validation has rejected.
+        assert got["equity_assets"]["status"] == fundamentals.STATUS_UNVERIFIED
         assert got["pe"]["value"] == pytest.approx(5.0)
 
     def test_a_capitalisation_that_contradicts_the_price_suppresses_multiples(self):

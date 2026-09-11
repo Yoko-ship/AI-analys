@@ -25,11 +25,8 @@ import {
 import promoVideo from "./assets/promo.mp4";
 import promoPoster from "./assets/promo-poster.jpg";
 import logoIcon from "./assets/uzstock-mark.svg";
-// Pure, unit-tested helpers. Valuation multiples and period labels live in one
-// module so the market table and the company page cannot compute them differently
-// (see frontend/src/lib/valuation.js and tests/valuation.test.js).
+// Pure, unit-tested helpers for reporting-period labels and market rows.
 import {
-  finEarnings,
   finFieldCoverage,
   finFieldPeriod,
   finPeriodCoverage,
@@ -38,7 +35,6 @@ import {
   normalizeMarketDay,
   previousClose,
   tradeStatsApply,
-  valuationRatios,
 } from "./lib/valuation.js";
 import {
   allowDownloads,
@@ -10893,6 +10889,8 @@ const MULTIPLE_STATUS_TEXT = {
   stale_period: ["нет свежего отчёта", "yangi hisobot yo'q", "no recent report"],
   negative_equity: ["отрицательный капитал", "salbiy kapital", "negative equity"],
   not_applicable: ["н/п", "t/e", "n/a"],
+  loading: ["загрузка", "yuklanmoqda", "loading"],
+  unavailable: ["недоступно", "mavjud emas", "unavailable"],
 };
 
 function multipleStatusText(status, lang) {
@@ -16620,6 +16618,7 @@ function MarketView({
   // validation arrives with its multiples already suppressed and the reason
   // attached, so nothing here has to decide what is publishable.
   const [multiples, setMultiples] = useState({});
+  const [multiplesStatus, setMultiplesStatus] = useState("loading");
   const [marketSummary, setMarketSummary] = useState(null);
   const [mapData, setMapData] = useState(null);
   const [instruments, setInstruments] = useState({});
@@ -16635,15 +16634,22 @@ function MarketView({
   const [inactiveOnly, setInactiveOnly] = useState(false);
   useEffect(() => {
     let alive = true;
+    setMultiplesStatus("loading");
+    setMultiples({});
     fetch("/api/market/multiples")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("multiples request failed");
+        return r.json();
+      })
       .then((d) => {
-        if (!alive || !d || !d.ok) return;
+        if (!d || !d.ok) throw new Error("multiples payload unavailable");
+        if (!alive) return;
         const byTicker = {};
         (d.items || []).forEach((it) => { byTicker[it.ticker] = it; });
         setMultiples(byTicker);
+        setMultiplesStatus("ready");
       })
-      .catch(() => {});
+      .catch(() => { if (alive) setMultiplesStatus("unavailable"); });
     fetch("/api/market/summary")
       .then((r) => r.json())
       .then((d) => { if (alive && d && d.ok) setMarketSummary(d); })
@@ -17145,33 +17151,23 @@ function MarketView({
     ? periodMapRows.filter((r) => rowSector(r) === activeSector)
     : periodMapRows;
 
-  // §3.8 multipliers. Inputs are gathered here; the arithmetic lives in the one
-  // shared valuationRatios() so this table and the company page cannot disagree.
+  // §3.8 multipliers are calculated and validated only by the server.  A
+  // client-side fallback would divide a single share class by issuer-level
+  // earnings and can therefore produce a false P/E or P/B for preferred shares.
   const ratioOf = (ticker) => ratios[ticker] || ratios[String(ticker || "").toUpperCase()] || null;
   const mktCapOf = (r) => (Number.isFinite(r.marketCap) ? r.marketCap : null);
-  // Earnings for the multiples: the last complete fiscal year when the issuer's
-  // latest filing is a cumulative quarter, so P/E means the same thing in every
-  // row. Without it the column silently mixes 3-, 6- and 12-month profits.
-  const earningsOf = (r) => finEarnings(finOf(r.ticker));
-  // ТЗ §8: the server owns this arithmetic. `valuationRatios` remains only as a
-  // fallback for the moment before /api/market/multiples answers — it computes
-  // at CLASS level and is therefore wrong for a two-class issuer, so it must
-  // never outlive the response.
   const multiplesOf = (r) => multiples[String(r.ticker || "").toUpperCase()] || null;
+  const unavailableMultiple = () => ({
+    value: null,
+    status: multiplesStatus === "loading" ? "loading" : "unavailable",
+  });
+  const multipleOf = (r, field) => multiplesOf(r)?.[field] || unavailableMultiple();
   const valuationOf = (r) => {
     const server = multiplesOf(r);
-    if (server) return { pe: server.pe, pb: server.pb, server: true };
-    const rat = ratioOf(r.ticker) || {};
-    const local = valuationRatios({
-      marketCap: mktCapOf(r),
-      netIncome: earningsOf(r).netIncome,
-      equity: rat.total_equity,
-      roePercent: rat.roe,
-    });
     return {
-      pe: { value: local.pe, status: local.pe == null ? "no_financials" : "ok" },
-      pb: { value: local.pb, status: local.pb == null ? "no_financials" : "ok" },
-      server: false,
+      pe: server?.pe || unavailableMultiple(),
+      pb: server?.pb || unavailableMultiple(),
+      server: Boolean(server),
     };
   };
   // An out-of-range multiple sorts (and exports) as absent: a P/E column
@@ -17395,11 +17391,11 @@ function MarketView({
     // indicator feed. Sorting on the feed while rendering the envelope put a
     // withheld value's ghost in the ordering (ТЗ мультипликаторов, лист 05:
     // «сортировка по марже выдаёт бессмысленный порядок»).
-    ps: (r) => multiplesOf(r)?.ps?.value ?? null,
-    roe: (r) => multiplesOf(r)?.roe?.value ?? ratioOf(r.ticker)?.roe,
-    roa: (r) => multiplesOf(r)?.roa?.value ?? ratioOf(r.ticker)?.roa,
-    netMargin: (r) => multiplesOf(r)?.net_margin?.value ?? ratioOf(r.ticker)?.net_profit_margin,
-    eqAssets: (r) => multiplesOf(r)?.equity_assets?.value ?? null,
+    ps: (r) => multipleOf(r, "ps").value,
+    roe: (r) => multipleOf(r, "roe").value,
+    roa: (r) => multipleOf(r, "roa").value,
+    netMargin: (r) => multipleOf(r, "net_margin").value,
+    eqAssets: (r) => multipleOf(r, "equity_assets").value,
     // The published coefficients sort on what they show. Unlike the financials
     // columns there is nothing to annualise: a liquidity ratio is a position on
     // a date, and a turnover is already a full year's revenue over assets.
@@ -17636,7 +17632,6 @@ function MarketView({
 
     for (const row of visibleRows) {
       const sec = smap[row.ticker] || {};
-      const rat = ratioOf(row.ticker) || {};
       const fin = finOf(row.ticker) || null;
       const period = finRowPeriod(fin);
       const share = (stats.boardDay && marketRowDay(row) !== stats.boardDay) ? 0
@@ -17662,11 +17657,11 @@ function MarketView({
         money(fin?.revenue), money(fin?.gross_profit), money(fin?.operating_income),
         money(fin?.net_income), money(fin?.cash), money(fin?.total_liabilities),
         money(mktCapOf(row)), round(peOf(row), 2), round(pbOf(row), 2),
-        round(multiplesOf(row)?.ps?.value, 2),
-        round(multiplesOf(row)?.roe?.value ?? rat.roe, 2),
-        round(multiplesOf(row)?.roa?.value ?? rat.roa, 2),
-        round(multiplesOf(row)?.net_margin?.value ?? rat.net_profit_margin, 2),
-        round(multiplesOf(row)?.equity_assets?.value, 2),
+        round(multipleOf(row, "ps").value, 2),
+        round(multipleOf(row, "roe").value, 2),
+        round(multipleOf(row, "roa").value, 2),
+        round(multipleOf(row, "net_margin").value, 2),
+        round(multipleOf(row, "equity_assets").value, 2),
       ].map(cell).join(sep));
     }
 
@@ -17977,8 +17972,8 @@ function MarketView({
       if (m?.value == null || m.status === "out_of_range") return multipleCell(row, m, 2);
       // Name the earnings period on the cell: this is the one multiple whose
       // denominator can come from a different filing than the row's own figures.
-      const period = m.base_period || earningsOf(row).period;
-      const months = m.base_months || earningsOf(row).months;
+      const period = m.base_period;
+      const months = m.base_months;
       return (
         <td className="num" title={period ? `${lang === "ru" ? "прибыль за" : lang === "uz" ? "foyda" : "earnings for"} ${period}${months ? ` · ${months} ${lang === "ru" ? "мес." : lang === "uz" ? "oy" : "months"}` : ""}` : undefined}>
           <strong>{formatRatio(m.value, 2, lang)}×</strong>
@@ -17991,22 +17986,11 @@ function MarketView({
       );
     },
     pb: (row) => multipleCell(row, valuationOf(row).pb, 2),
-    ps: (row) => multipleCell(row, multiplesOf(row)?.ps, 2),
-    roe: (row) => multipleCell(row, multiplesOf(row)?.roe
-      ?? { value: ratioOf(row.ticker)?.roe, status: "ok" }, 1, "%"),
-    roa: (row) => multipleCell(row, multiplesOf(row)?.roa
-      ?? { value: ratioOf(row.ticker)?.roa, status: "ok" }, 1, "%"),
-    netMargin: (row) => {
-      const server = multiplesOf(row)?.net_margin;
-      if (server) return multipleCell(row, server, 1, "%");
-      const v = ratioOf(row.ticker)?.net_profit_margin;
-      if (v != null) return <td className="num">{formatRatio(v, 1, lang)}%</td>;
-      // Margin is undefined at zero revenue (e.g. the National Investment
-      // Fund) — say so instead of showing an ambiguous dash.
-      if (finOf(row.ticker)?.revenue === 0) return <td className="num">{naLabel()}</td>;
-      return <td className="num">—</td>;
-    },
-    eqAssets: (row) => multipleCell(row, multiplesOf(row)?.equity_assets, 1, "%"),
+    ps: (row) => multipleCell(row, multipleOf(row, "ps"), 2),
+    roe: (row) => multipleCell(row, multipleOf(row, "roe"), 1, "%"),
+    roa: (row) => multipleCell(row, multipleOf(row, "roa"), 1, "%"),
+    netMargin: (row) => multipleCell(row, multipleOf(row, "net_margin"), 1, "%"),
+    eqAssets: (row) => multipleCell(row, multipleOf(row, "equity_assets"), 1, "%"),
     currentRatio: (row) => ratioCell(row, "current_ratio"),
     quickRatio: (row) => ratioCell(row, "quick_ratio"),
     debtAssets: (row) => ratioCell(row, "debt_ratio", { digits: 1, suffix: "%" }),
