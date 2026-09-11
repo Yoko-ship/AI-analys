@@ -23473,9 +23473,8 @@ function App() {
   );
 }
 
-// Floating sponsor unit. The still poster is light enough for the first visit;
-// the 2.6 MB video itself waits for an explicit play action so it cannot delay
-// the market page on a slow connection.
+// Floating sponsor unit. Its 2.6 MB video waits until the page's load event,
+// so it cannot compete with the first market-page render on a slow connection.
 //
 // Rules it keeps, because an ad that breaks them is a bug: sound never starts
 // on its own (browsers refuse it anyway, and it is rude); the close control
@@ -23483,9 +23482,8 @@ function App() {
 // gone for the rest of the session; and a reader who asked the OS for reduced
 // motion gets the poster with a play button instead of a moving picture.
 //
-// The close countdown begins when the promotion appears. A reader can start
-// the video at any point; no media is transferred merely because the page was
-// opened.
+// The close countdown begins when the promotion appears, shortly after the
+// page load event. A reader can also start the video manually at any point.
 const SPONSOR_SEEN_KEY = "uz_sponsor_seen";
 const SPONSOR_DELAY_MS = 2500;   // let the page settle before anything moves
 const SPONSOR_CLOSE_AFTER = 15;  // seconds before the × replaces the countdown
@@ -23508,8 +23506,14 @@ function SponsorOverlay({ language }) {
 
   useEffect(() => {
     try { if (sessionStorage.getItem(SPONSOR_SEEN_KEY)) return undefined; } catch (e) { /* ignore */ }
-    const id = setTimeout(() => setOpen(true), SPONSOR_DELAY_MS);
-    return () => clearTimeout(id);
+    let id = null;
+    const showAfterLoad = () => { id = window.setTimeout(() => setOpen(true), SPONSOR_DELAY_MS); };
+    if (document.readyState === "complete") showAfterLoad();
+    else window.addEventListener("load", showAfterLoad, { once: true });
+    return () => {
+      if (id !== null) window.clearTimeout(id);
+      window.removeEventListener("load", showAfterLoad);
+    };
   }, []);
 
   const dismiss = () => {
@@ -23517,8 +23521,17 @@ function SponsorOverlay({ language }) {
     try { sessionStorage.setItem(SPONSOR_SEEN_KEY, "1"); } catch (e) { /* ignore */ }
   };
 
-  // The countdown runs on the wall clock, whether or not the reader chooses
-  // to play the optional video.
+  // Start muted only after the document has completed loading and the player
+  // is allowed to appear. If a browser refuses autoplay, keep the play button.
+  useEffect(() => {
+    if (!open || reduced) return;
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    v.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+  }, [open, reduced]);
+
+  // The countdown runs on the wall clock once the promotion is visible.
   useEffect(() => {
     if (!open) return undefined;
     setLeft(SPONSOR_CLOSE_AFTER);
