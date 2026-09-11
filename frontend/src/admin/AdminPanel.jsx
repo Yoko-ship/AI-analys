@@ -138,6 +138,8 @@ const SECTIONS = [
     title: ["AI-анализ", "AI-tahlil", "AI analysis"] },
   { key: "users", icon: "users",
     title: ["Пользователи", "Foydalanuvchilar", "Users"] },
+  { key: "feedback", icon: "news",
+    title: ["Обратная связь", "Fikr-mulohaza", "Feedback"] },
   { key: "system", icon: "sliders",
     title: ["Система", "Tizim", "System"] },
 ];
@@ -451,6 +453,9 @@ export default function AdminPanel({
   const [usersOnly, setUsersOnly] = useState("");
   const [userDetail, setUserDetail] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null); // {id, action}
+  const [feedbackData, setFeedbackData] = useState(null);
+  const [feedbackFilter, setFeedbackFilter] = useState("");
+  const [feedbackBusy, setFeedbackBusy] = useState(0);
 
   /* operations half */
   const [overview, setOverview] = useState(null);
@@ -529,6 +534,28 @@ export default function AdminPanel({
     ]);
     if (alive.current) { setUsersData(list); setFunnel(fun); setAdminLog(log); }
   }, [readJson]);
+
+  const loadFeedback = useCallback(async (status = feedbackFilter) => {
+    const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+    const data = await readJson(`/api/admin/feedback${suffix}`);
+    if (alive.current) setFeedbackData(data);
+  }, [feedbackFilter, readJson]);
+
+  const updateFeedbackStatus = useCallback(async (id, status) => {
+    setFeedbackBusy(id);
+    setError("");
+    try {
+      await readJson(`/api/admin/feedback/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      await loadFeedback(feedbackFilter);
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      if (alive.current) setFeedbackBusy(0);
+    }
+  }, [feedbackFilter, loadFeedback, readJson]);
 
   const openUser = useCallback(async (id) => {
     const data = await readJson(`/api/admin/users/${id}`);
@@ -772,6 +799,8 @@ export default function AdminPanel({
       jobs.push(loadAnalysis(rangeDays));
     } else if (section === "users") {
       jobs.push(loadUsers(usersQuery, usersOnly));
+    } else if (section === "feedback") {
+      jobs.push(loadFeedback(feedbackFilter));
     }
     Promise.all(jobs)
       .catch((e) => { if (!cancelled) setError(String(e.message || e)); })
@@ -782,7 +811,7 @@ export default function AdminPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, rangeDays, usersOnly, isSystem, loadOverview, loadFindings, loadIntake,
       loadRuleBook, loadSource, loadCompanyImports, companyFilter,
-      loadMetrics, loadAudience, loadEngagement, loadAnalysis]);
+      loadMetrics, loadAudience, loadEngagement, loadAnalysis, loadFeedback, feedbackFilter]);
 
   const runAudit = async () => {
     setBusy(true);
@@ -868,6 +897,10 @@ export default function AdminPanel({
       "Зарегистрированные: список, воронка от визита до возврата, безопасные действия поддержки и их постоянный журнал.",
       "Ro'yxatdan o'tganlar: ro'yxat, voronka, xavfsiz amallar va ularning jurnali.",
       "Registered users: the visit-to-return funnel, safe support actions and their durable audit trail."),
+    feedback: t(
+      "Отзывы и обращения пользователей. Сообщения видны только администраторам и остаются привязанными к аккаунту для ответа.",
+      "Foydalanuvchi fikrlari va murojaatlari. Xabarlarni faqat administratorlar ko'radi.",
+      "User feedback and support requests. Messages are visible only to administrators and remain linked to an account for follow-up."),
     system: t(
       "Состояние данных: что собрано, что требует решения. Служебная половина панели — один взгляд, когда карточка крона красная.",
       "Ma'lumotlar holati: nima yig'ilgan, nima qaror kutmoqda.",
@@ -2499,12 +2532,54 @@ export default function AdminPanel({
     </div>
   );
 
+  const feedbackRows = feedbackData?.items || [];
+  const feedbackStatusLabel = (status) => ({
+    open: t("Новое", "Yangi", "New"),
+    in_progress: t("В работе", "Jarayonda", "In progress"),
+    resolved: t("Закрыто", "Yopilgan", "Resolved"),
+  }[status] || status);
+  const feedbackBody = (
+    <div className="admin-section">
+      <div className="panel">
+        <div className="admin-panel-head">
+          <div><h2>{t("Входящие сообщения", "Kiruvchi xabarlar", "Incoming messages")}</h2>
+            <p className="admin-muted" style={{ margin: "4px 0 0" }}>{t("Отзывы, идеи и обращения из формы «Обратная связь».", "Fikrlar, g'oyalar va murojaatlar.", "Feedback, ideas, and requests sent through the Feedback form.")}</p></div>
+          <div className="admin-seg">
+            {[["", t("Все", "Barchasi", "All")], ["open", t("Новые", "Yangi", "New")], ["in_progress", t("В работе", "Jarayonda", "In progress")], ["resolved", t("Закрытые", "Yopilgan", "Resolved")]].map(([key, label]) => (
+              <button key={key || "all"} type="button" aria-selected={feedbackFilter === key}
+                onClick={() => setFeedbackFilter(key)}>{label}</button>
+            ))}
+          </div>
+        </div>
+        {!feedbackRows.length ? <div className="admin-empty">{t("Сообщений пока нет.", "Hozircha xabarlar yo'q.", "No feedback yet.")}</div> : (
+          <div className="admin-scroll"><table><thead><tr>
+            <th style={{ width: 155 }}>{t("Когда", "Vaqt", "When")}</th>
+            <th style={{ width: 220 }}>{t("Пользователь", "Foydalanuvchi", "User")}</th>
+            <th>{t("Сообщение", "Xabar", "Message")}</th>
+            <th style={{ width: 160 }}>{t("Статус", "Holat", "Status")}</th>
+          </tr></thead><tbody>{feedbackRows.map((item) => <tr key={item.id}>
+            <td className="admin-num">{fmtStamp(item.created_at)}</td>
+            <td><b>{item.full_name || t("Без имени", "Ismsiz", "No name")}</b><div className="admin-sub">{item.email}</div></td>
+            <td><b>{item.subject}</b><div style={{ marginTop: 6, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>{item.message}</div></td>
+            <td><span className="admin-pill"><span className={`admin-dot ${item.status === "resolved" ? "ok" : item.status === "open" ? "warn" : ""}`} />{feedbackStatusLabel(item.status)}</span>
+              <select aria-label={t("Изменить статус", "Holatni o'zgartirish", "Change status")} value={item.status}
+                disabled={feedbackBusy === item.id} onChange={(event) => updateFeedbackStatus(item.id, event.target.value)}
+                style={{ display: "block", marginTop: 8, width: "100%" }}>
+                <option value="open">{feedbackStatusLabel("open")}</option><option value="in_progress">{feedbackStatusLabel("in_progress")}</option><option value="resolved">{feedbackStatusLabel("resolved")}</option>
+              </select></td>
+          </tr>)}</tbody></table></div>
+        )}
+      </div>
+    </div>
+  );
+
   const bodyBySection = {
     overview: overviewBody,
     audience: audienceBody,
     engagement: engagementBody,
     analysis: analysisBody,
     users: usersBody,
+    feedback: feedbackBody,
     system: dataBody,
     railway: <RailwayPanel readJson={readJson} t={t} />,
     companies: companiesBody,

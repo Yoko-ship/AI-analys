@@ -74,6 +74,7 @@ const VIEW_PATHS = {
   heatmap: "/heatmap",
   catalog: "/catalog",
   news: "/news",
+  feedback: "/feedback",
   // Commercial-bank exchange rates — reached from the «Рынок» drop-down and
   // the CBU strip on the board, not from the top-level nav row.
   bankfx: "/currency",
@@ -145,6 +146,58 @@ function pathToView(pathname) {
   }
   const found = Object.entries(VIEW_PATHS).find(([, p]) => p === clean);
   return { view: found ? found[0] : "main", ticker: null, newsId: null };
+}
+
+function FeedbackPage({ language, signedIn, apiFetch, onSignIn }) {
+  const tx = (ru, uz, en) => language === "uz" ? uz : language === "en" ? en : ru;
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setSending(true);
+    setNotice("");
+    try {
+      const response = await apiFetch("/api/profile/support", {
+        method: "POST",
+        body: JSON.stringify({ subject: tx("Обратная связь", "Fikr-mulohaza", "Feedback"), message }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || tx("Не удалось отправить сообщение.", "Xabar yuborilmadi.", "Could not send the message."));
+      setMessage("");
+      setNotice(tx("Спасибо! Ваше сообщение отправлено.", "Rahmat! Xabaringiz yuborildi.", "Thank you! Your feedback was sent."));
+    } catch (error) {
+      setNotice(error.message || tx("Не удалось отправить сообщение.", "Xabar yuborilmadi.", "Could not send the message."));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return <section className="feedback-page" style={{ maxWidth: 720, margin: "0 auto", padding: "42px 0" }}>
+    <article className="panel" style={{ padding: "clamp(24px, 5vw, 44px)" }}>
+      <div className="panel-label">UZSTOCK</div>
+      <h1 style={{ margin: "8px 0 10px" }}>{tx("Обратная связь", "Fikr-mulohaza", "Feedback")}</h1>
+      <p className="muted" style={{ maxWidth: "60ch", lineHeight: 1.55 }}>
+        {tx("Расскажите, что стоит улучшить, чего вам не хватает или что работает особенно хорошо. Мы читаем все сообщения.", "Nimani yaxshilash kerakligi, nima yetishmasligi yoki nima ayniqsa yaxshi ishlashi haqida yozing. Biz barcha xabarlarni o'qiymiz.", "Tell us what to improve, what is missing, or what works especially well. We read every message.")}
+      </p>
+      {!signedIn ? <div style={{ marginTop: 24 }}>
+        <p>{tx("Чтобы отправить отзыв и при необходимости получить ответ, войдите в аккаунт.", "Fikr yuborish va zarur bo'lsa javob olish uchun hisobga kiring.", "Sign in to send feedback and receive a reply if needed.")}</p>
+        <button className="primary-btn" type="button" onClick={onSignIn}>{tx("Войти", "Kirish", "Sign in")}</button>
+      </div> : <form onSubmit={submit} style={{ marginTop: 24 }}>
+        <label className="field" style={{ display: "block" }}>
+          <span>{tx("Ваше сообщение", "Xabaringiz", "Your message")}</span>
+          <textarea rows="7" value={message} onChange={(event) => setMessage(event.target.value)} minLength="5" maxLength="6000" required
+            placeholder={tx("Например: какую функцию вы хотели бы увидеть?", "Masalan: qaysi funksiyani ko'rishni xohlaysiz?", "For example: which feature would you like to see?")}
+            style={{ width: "100%", marginTop: 8, resize: "vertical" }} />
+        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 18 }}>
+          <button className="primary-btn" type="submit" disabled={sending}>{sending ? tx("Отправляем…", "Yuborilmoqda…", "Sending…") : tx("Отправить", "Yuborish", "Send feedback")}</button>
+          {notice && <span className="muted" role="status">{notice}</span>}
+        </div>
+      </form>}
+    </article>
+  </section>;
 }
 
 function newsArticlePath(item) {
@@ -21753,8 +21806,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "catalog", "news", "profile"]
-    : ["main", "market", "catalog", "news", "auth"];
+    ? ["main", "market", "catalog", "news", "feedback", "profile"]
+    : ["main", "market", "catalog", "news", "feedback", "auth"];
 
   // The «Рынок» item carries a Finam-style drop-down (sections with their own
   // headers). Hover-driven on desktop; the drawer shows the extra destinations
@@ -22001,6 +22054,7 @@ function App() {
                   </span>
                 ) : key === "compare" ? ct(language, "nav")
                   : key === "portfolio" ? (language === "en" ? "Portfolio" : language === "uz" ? "Portfel" : "Портфель")
+                    : key === "feedback" ? (language === "en" ? "Feedback" : language === "uz" ? "Fikr-mulohaza" : "Обратная связь")
                     : t(language, `nav.${key}`)}
               </button>
             ))}
@@ -22319,6 +22373,11 @@ function App() {
           )}
 
           {activeView === "bankfx" && <BankFxPage language={language} />}
+
+          {activeView === "feedback" && (
+            <FeedbackPage language={language} signedIn={Boolean(token)} apiFetch={apiFetch}
+              onSignIn={() => setActiveView("auth")} />
+          )}
 
           {activeView === "auth" && (
             <section className="auth-hub-page" aria-labelledby="auth-page-title">

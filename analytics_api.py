@@ -118,6 +118,33 @@ async def api_admin_audit_log(limit: int = 50, offset: int = 0) -> dict[str, Any
     return await _run(web_analytics.admin_audit_log, limit=limit, offset=offset)
 
 
+@admin_router.get("/api/admin/feedback")
+async def api_admin_feedback(status: str = "", limit: int = 100) -> dict[str, Any]:
+    """Human-admin inbox for account-linked feedback and support messages."""
+    try:
+        return await _run(web_auth_store.list_support_requests, status=status, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@admin_router.patch("/api/admin/feedback/{request_id}")
+async def api_admin_feedback_status(request_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        item = await _run(
+            web_auth_store.update_support_request_status,
+            request_id,
+            (payload or {}).get("status"),
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        raise HTTPException(status_code=404 if "not found" in detail.lower() else 400, detail=detail) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "feedback": item}
+
+
 @admin_router.get("/api/admin/users/{user_id}")
 async def api_admin_user_detail(user_id: int) -> dict[str, Any]:
     result = await _run(web_analytics.user_detail, user_id)
