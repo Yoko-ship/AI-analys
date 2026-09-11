@@ -2400,7 +2400,7 @@ const Icons = {
 const TEXTS = {
   ru: {
     pageTitle: "UZStock — фондовый рынок Узбекистана",
-    brand: "UZ Stock Analyzer",
+    brand: "UZStock",
     subtitle: "Платформа для анализа компаний Узбекистана",
     nav: { main: "Главная", about: "О проекте", auth: "Вход", profile: "Профиль", analysis: "Анализ", catalog: "Каталог", news: "Новости" },
     catalog: {
@@ -2742,7 +2742,7 @@ const TEXTS = {
   },
   en: {
     pageTitle: "UZStock — Uzbekistan Stock Market",
-    brand: "UZ Stock Analyzer",
+    brand: "UZStock",
     subtitle: "Company analysis platform for Uzbekistan",
     nav: { main: "Main", about: "About", auth: "Sign in", profile: "Profile", analysis: "Analysis", catalog: "Catalog", news: "News" },
     catalog: {
@@ -3083,7 +3083,7 @@ const TEXTS = {
   },
   uz: {
     pageTitle: "UZStock — O‘zbekiston fond bozori",
-    brand: "UZ Stock Analyzer",
+    brand: "UZStock",
     subtitle: "O'zbekiston kompaniyalarini tahlil qilish platformasi",
     nav: { main: "Bosh sahifa", about: "Loyiha haqida", auth: "Kirish", profile: "Profil", analysis: "Tahlil", catalog: "Katalog", news: "Yangiliklar" },
     catalog: {
@@ -21908,7 +21908,7 @@ function App() {
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
           <div className="topbar-brand">
-            <img src={logoIcon} alt="UZ Stock Analyzer" className="brand-icon" />
+            <img src={logoIcon} alt="UZStock" className="brand-icon" />
             <div className="brand-copy">
               <div className="brand-title">{t(language, "brand")}</div>
               <div className="brand-subtitle">{t(language, "subtitle")}</div>
