@@ -7124,19 +7124,25 @@ async def api_company_reports(ticker: str) -> dict[str, Any]:
 
 
 @app.get("/api/notifications")
-async def api_notifications(current_user: WebUser = Depends(_require_pro)) -> dict[str, Any]:
-    """PRO alerts: new filings and user-defined price thresholds."""
+async def api_notifications(current_user: WebUser = Depends(_require_user)) -> dict[str, Any]:
+    """Personal PRO alerts plus unread feedback alerts for human admins."""
     try:
         loop = asyncio.get_running_loop()
+        # Keep investment notifications a paid feature, while allowing an
+        # administrator to use the same bell for operational feedback even if
+        # their account's consumer subscription has expired.
+        has_pro_access = bool(getattr(current_user, "has_pro_access", False))
+        from admin_control.service import role_for
+        is_human_admin = role_for(current_user.email) == "administrator"
         favorites = await loop.run_in_executor(
-            None, partial(web_auth_store.list_favorites, current_user.id))
+            None, partial(web_auth_store.list_favorites, current_user.id)) if has_pro_access else []
         preferences = await loop.run_in_executor(
-            None, partial(web_auth_store.get_preferences, current_user.id))
+            None, partial(web_auth_store.get_preferences, current_user.id)) if has_pro_access else {}
         tickers = [f["ticker"] for f in favorites if f.get("report_alert_enabled", True)] \
             if preferences.get("notify_reports", True) else []
         items = (await loop.run_in_executor(None, partial(get_new_reports_for_tickers, tickers, 7))) \
             if tickers else []
-        listings = await loop.run_in_executor(None, get_all_listings)
+        listings = await loop.run_in_executor(None, get_all_listings) if favorites else {}
         for favorite in favorites if preferences.get("notify_price", True) else []:
             ticker = str(favorite.get("ticker") or "").upper()
             if not ticker:
@@ -7154,6 +7160,21 @@ async def api_notifications(current_user: WebUser = Depends(_require_pro)) -> di
                               "title": f"Price {price:g} reached threshold {threshold:g}",
                               "detected_at": (listings.get(ticker) or {}).get("updated_at"),
                               "kind": "price_threshold", "price": price, "threshold": threshold})
+        if is_human_admin:
+            feedback = await loop.run_in_executor(
+                None, partial(web_auth_store.list_support_requests, status="open", limit=100))
+            for request in feedback.get("items", []):
+                items.append({
+                    "ticker": "ADMIN",
+                    "report_form": "FEEDBACK",
+                    "year": None,
+                    "quarter": 0,
+                    "title": f"{request.get('full_name') or 'User'}: {request.get('subject') or 'Feedback'}",
+                    "detected_at": request.get("created_at"),
+                    "kind": "feedback",
+                    "feedback_id": request.get("id"),
+                    "href": "/admin/feedback",
+                })
         states = await loop.run_in_executor(
             None, partial(web_auth_store.notification_states, current_user.id))
         visible: list[dict[str, Any]] = []
@@ -7177,7 +7198,7 @@ async def api_notifications(current_user: WebUser = Depends(_require_pro)) -> di
 @app.post("/api/notifications/read")
 async def api_notifications_read(
     payload: NotificationStateRequest,
-    current_user: WebUser = Depends(_require_pro),
+    current_user: WebUser = Depends(_require_user),
 ) -> dict[str, Any]:
     try:
         count = await asyncio.get_running_loop().run_in_executor(
@@ -7192,7 +7213,7 @@ async def api_notifications_read(
 @app.post("/api/notifications/clear")
 async def api_notifications_clear(
     payload: NotificationStateRequest,
-    current_user: WebUser = Depends(_require_pro),
+    current_user: WebUser = Depends(_require_user),
 ) -> dict[str, Any]:
     try:
         count = await asyncio.get_running_loop().run_in_executor(
