@@ -77,9 +77,6 @@ const VIEW_PATHS = {
   // Commercial-bank exchange rates — reached from the «Рынок» drop-down and
   // the CBU strip on the board, not from the top-level nav row.
   bankfx: "/currency",
-  analysis: "/analysis",
-  compare: "/compare",
-  portfolio: "/portfolio",
   profile: "/profile",
   auth: "/login",
   // Internal, reached by direct link, not from the nav: the admin panel lives at
@@ -88,7 +85,13 @@ const VIEW_PATHS = {
   admin: "/admin",
 };
 
+// These workspaces are currently unavailable in the public interface. Keeping
+// this rule beside the route table makes old bookmarks land safely on the home
+// page and prevents in-app callbacks from reopening a hidden workspace.
+const HIDDEN_VIEWS = new Set(["analysis", "compare", "portfolio"]);
+
 function viewToPath(view, ticker, newsId, adminSection) {
+  if (HIDDEN_VIEWS.has(view)) return "/";
   if (view === "company" && ticker) return `/company/${encodeURIComponent(ticker)}`;
   // The advanced chart is a page, not a tab: it has its own toolbar state and
   // that state lives in the query string, so the view has to be linkable.
@@ -20763,7 +20766,10 @@ function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [companies, setCompanies] = useState([]);
-  const [activeView, setActiveView] = useState(() => pathToView(window.location.pathname).view);
+  const [activeView, setActiveViewState] = useState(() => pathToView(window.location.pathname).view);
+  const setActiveView = React.useCallback((nextView) => {
+    setActiveViewState(HIDDEN_VIEWS.has(nextView) ? "main" : nextView);
+  }, []);
   const [notifCount, setNotifCount] = useState(0);
   const [notifItems, setNotifItems] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -21749,8 +21755,8 @@ function App() {
   const compareQuickCompanies = companies.slice(0, 18);
 
   const navItems = token
-    ? ["main", "market", "catalog", "news", "portfolio", "profile", "analysis", "compare"]
-    : ["main", "market", "catalog", "news", "auth", "analysis", "compare"];
+    ? ["main", "market", "catalog", "news", "profile"]
+    : ["main", "market", "catalog", "news", "auth"];
 
   // The «Рынок» item carries a Finam-style drop-down (sections with their own
   // headers). Hover-driven on desktop; the drawer shows the extra destinations
