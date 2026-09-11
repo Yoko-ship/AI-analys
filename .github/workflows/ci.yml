@@ -712,7 +712,10 @@ jobs:
           Type=oneshot
           TimeoutStartSec={timeout}
           ExecStartPre=-/snap/bin/docker rm -f {name}
-          ExecStart=/snap/bin/docker run --rm --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz{volume}{env} uzstock-web:latest {command}
+          # A collector can parse a large exchange response immediately after a
+          # deploy. Keep half a CPU free for the public web container so an
+          # initial collection cannot stall /health, heatmap or finance routes.
+          ExecStart=/snap/bin/docker run --rm --cpus 0.50 --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz{volume}{env} uzstock-web:latest {command}
           """
 
           def timer(description: str, calendar: str) -> str:
