@@ -43,15 +43,20 @@ def _history(days: int = 420) -> dict:
 
 @pytest.fixture()
 def client(monkeypatch):
+    requested_months = []
+
     async def fake_resolve(ticker: str):
         return "UZ0000000001"
 
     async def fake_history(isin: str, months: int = 60):
+        requested_months.append(months)
         return _history()
 
     monkeypatch.setattr(api, "_resolve_isin", fake_resolve)
     monkeypatch.setattr(api, "_full_history", fake_history)
-    return TestClient(api.app)
+    app_client = TestClient(api.app)
+    app_client.requested_history_months = requested_months
+    return app_client
 
 
 def test_returns_the_three_blocks(client):
@@ -59,6 +64,7 @@ def test_returns_the_three_blocks(client):
     assert body["ok"] is True
     assert set(("window", "absolute", "quality", "ma_windows")) <= set(body)
     assert body["as_of"]
+    assert client.requested_history_months == [240]
 
 
 def test_every_metric_carries_a_status(client):

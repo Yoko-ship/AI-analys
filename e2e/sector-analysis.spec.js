@@ -89,6 +89,11 @@ test("company page defers the full analysis until the reader opens it", async ({
   await api(page);
   let summaryCalls = 0;
   let fullCalls = 0;
+  const requested = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/")) requested.push(`${url.pathname}${url.search}`);
+  });
   await page.route("**/api/v1/issuers/*/ai-report**", (route) => {
     const url = new URL(route.request().url());
     const isSummary = url.searchParams.get("summary") === "true";
@@ -115,10 +120,20 @@ test("company page defers the full analysis until the reader opens it", async ({
   await expect(card).toContainText("Компания сохраняет прибыльность");
   expect(summaryCalls).toBe(1);
   expect(fullCalls).toBe(0);
+  expect(requested.filter((path) => path.startsWith("/api/company/UZMK/metrics"))).toHaveLength(1);
+  expect(requested.some((path) => path.startsWith("/api/intraday/UZMK"))).toBe(false);
+  expect(requested.some((path) => path.startsWith("/api/catalog/company/UZMK/reports"))).toBe(false);
+  expect(requested.some((path) => path.startsWith("/api/market/financials"))).toBe(false);
 
   await card.getByRole("button", { name: "Открыть полный анализ" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(fullCalls).toBe(1);
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "1Н", exact: true }).click();
+  await expect.poll(() => requested.some((path) => path.startsWith("/api/intraday/UZMK"))).toBe(true);
+  await page.getByRole("button", { name: "Отчёты", exact: true }).click();
+  await expect.poll(() => requested.some((path) => path.startsWith("/api/catalog/company/UZMK/reports"))).toBe(true);
 });
 
 test("blocked reports keep a dated prior report and never open empty details", async ({ page }) => {

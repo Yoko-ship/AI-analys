@@ -11544,7 +11544,7 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
       <CompanyInsightIcon />
       <div className="company-insight-card-copy">
         {loading ? (
-          <div className="company-insight-loading" aria-label={tx.loading}><span /><span /></div>
+          <p className="muted">{tx.loading}</p>
         ) : report?.status && !isReadable && !error ? (
           <Suspense fallback={null}><ReportAvailability report={report} lang={lang} /></Suspense>
         ) : (
@@ -11654,7 +11654,7 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
   ), document.body);
 }
 
-function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, intraday, priceRange, onRangeChange, companyData, financials, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
+function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, intraday, priceRange, onRangeChange, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
 
   return (
@@ -12990,7 +12990,7 @@ function CompanyForecastTab({ ticker, language, apiFetch, signedIn, hasProAccess
   );
 }
 
-function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, onOpenChart, marketRows, financials, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch, onUpgrade }) {
+function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, onOpenChart, marketRows, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch, onUpgrade }) {
   const lang = normalizeLanguage(language);
   const [tab, setTab] = React.useState("overview");
 
@@ -13002,17 +13002,16 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   }, [ticker]);
   // Issuer-level multiples, straight from the endpoint the market board reads.
   const [mult, setMult] = React.useState(null);
-  // A SECOND metrics call, pinned to twelve months. The main one follows the
-  // period button by design (ТЗ §5), so reading the 52-week range off it would
-  // relabel a one-month high as a yearly one the moment somebody pressed «1М».
+  // A twelve-month snapshot pinned for the 52-week rail. The initial 1Y metrics
+  // response fills it, so opening the page does not issue the same call twice.
   const [metrics12, setMetrics12] = React.useState(null);
   const [priceHistory, setPriceHistory] = React.useState(null);
   // Non-empty only for a series that spans a split or a bonus issue — the chart has to
   // say the older prices were restated, or they read as wrong against uzse.uz.
   const [priceAdjustments, setPriceAdjustments] = React.useState([]);
   // Hourly bars from the exchange's executions log (/api/intraday) — what 1Д
-  // draws and what 1Н mixes with daily closes. Fetched once per ticker, not per
-  // range: the whole answer is a week of bars.
+  // draws and what 1Н mixes with daily closes. They stay lazy until one of
+  // those ranges is selected; the default annual chart cannot use them.
   const [intraday, setIntraday] = React.useState(null);
   // The button's identity, not a month count: 1Н and 1М both fetch one month,
   // and YTD's month count moves through the year. `chartRangeMonths` turns it
@@ -13172,7 +13171,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   }, [ticker, priceArchiveMonths, priceRetry]);
 
   React.useEffect(() => {
-    if (!ticker) return undefined;
+    if (!ticker || !["1d", "1w"].includes(priceRange)) return undefined;
     let alive = true;
     setIntraday(null);
     // Failure degrades, never blocks: with no bars the 1Н button draws daily
@@ -13182,7 +13181,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
       .then((d) => { if (alive) setIntraday(d.ok ? (d.points || []) : []); })
       .catch(() => { if (alive) setIntraday([]); });
     return () => { alive = false; };
-  }, [ticker]);
+  }, [ticker, priceRange]);
 
   // Metrics are the server's job (ТЗ §3, second principle: one calc layer, and
   // the screen is not one of its implementations). The page reads `quality`
@@ -13195,10 +13194,29 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     let alive = true;
     fetch(`/api/company/${encodeURIComponent(ticker)}/metrics?months=${priceMonths}${chartRangeWindowQuery(priceRange)}`)
       .then((r) => r.json())
-      .then((d) => { if (alive) setMetrics(d.ok ? d : null); })
+      .then((d) => {
+        if (!alive) return;
+        const next = d.ok ? d : null;
+        setMetrics(next);
+        // The initial range is already twelve months. Reuse this response for
+        // the fixed 52-week rail instead of issuing the same request twice.
+        if (priceRange === "1y") setMetrics12(next);
+      })
       .catch(() => { if (alive) setMetrics(null); });
     return () => { alive = false; };
   }, [ticker, priceMonths, priceRange, priceRetry]);
+
+  // Only a reader who changes range before the initial 1Y response finishes
+  // needs a separate fixed-year snapshot.
+  React.useEffect(() => {
+    if (!ticker || metrics12 || priceRange === "1y") return undefined;
+    let alive = true;
+    fetch(`/api/company/${encodeURIComponent(ticker)}/metrics?months=12`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setMetrics12(d.ok ? d : null); })
+      .catch(() => { if (alive) setMetrics12(null); });
+    return () => { alive = false; };
+  }, [ticker, metrics12, priceRange, priceRetry]);
 
   // Dividends are no longer lazy: the key-stats rail states the last payout and
   // its yield on the Обзор tab, so waiting for the Дивиденды tab to be opened
@@ -13274,16 +13292,6 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     return () => { alive = false; };
   }, [ticker]);
 
-  React.useEffect(() => {
-    if (!ticker) return undefined;
-    let alive = true;
-    fetch(`/api/company/${encodeURIComponent(ticker)}/metrics?months=12`)
-      .then((r) => r.json())
-      .then((d) => { if (alive) setMetrics12(d.ok ? d : null); })
-      .catch(() => { if (alive) setMetrics12(null); });
-    return () => { alive = false; };
-  }, [ticker, priceRetry]);
-
   // One request for every sparkline in the watch rail. Keyed on the ticker LIST,
   // so it refetches when the lists change and not when a price ticks — the whole
   // reason this data is stored rather than fetched per row is to keep a list of
@@ -13293,11 +13301,15 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   React.useEffect(() => {
     if (!railKey) return undefined;
     let alive = true;
-    fetch(`/api/quotes/series?tickers=${encodeURIComponent(railKey)}&days=30`)
-      .then((r) => r.json())
-      .then((d) => { if (alive && d && d.ok) setRailSeries(d.series || {}); })
-      .catch(() => {});
-    return () => { alive = false; };
+    // Sparklines are decorative support for the peer rail. Let the issuer's
+    // own chart, metrics and teaser take the first network slots.
+    const timer = window.setTimeout(() => {
+      fetch(`/api/quotes/series?tickers=${encodeURIComponent(railKey)}&days=30`)
+        .then((r) => r.json())
+        .then((d) => { if (alive && d && d.ok) setRailSeries(d.series || {}); })
+        .catch(() => {});
+    }, 700);
+    return () => { alive = false; window.clearTimeout(timer); };
   }, [railKey]);
 
   React.useEffect(() => {
@@ -13324,7 +13336,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   }, [ticker, lang]);
 
   React.useEffect(() => {
-    if (!ticker) return undefined;
+    if (!ticker || !["reports", "financials"].includes(tab) || companyData) return undefined;
     let alive = true;
     setCompanyDataError(false);
     fetch(`/api/catalog/company/${encodeURIComponent(ticker)}/reports`)
@@ -13336,7 +13348,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
       })
       .catch(() => { if (alive) setCompanyDataError(true); });
     return () => { alive = false; };
-  }, [ticker, companyDataRetry]);
+  }, [ticker, tab, companyData, companyDataRetry]);
 
   // Fetch only the compact, traceable teaser for the page itself. The full
   // sector report stays deferred until the reader presses «Подробнее».
@@ -13366,11 +13378,6 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   // previousClose() exists to prevent — see applyTradeStats.
   const marketRow = preparedRows.find((r) => (r.ticker || "").toUpperCase() === ticker.toUpperCase()) || null;
   // Company-level financials for P/E and P/B; mirror the preferred-sibling fallback (TKDM <-> TKDMP).
-  const companyFin = (() => {
-    const f = financials || {};
-    const up = ticker.toUpperCase();
-    return f[up] || f[up.endsWith("P") ? up.slice(0, -1) : `${up}P`] || null;
-  })();
   // A zero is not a quote: the board mirror fills never-traded listings (MXUS)
   // with literal 0s, and the header was announcing «0 сум» as if it were a price.
   const posPrice = (v) => (Number.isFinite(v) && v > 0 ? v : null);
@@ -13509,7 +13516,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               : null}
             priceRange={priceRange} onRangeChange={setPriceRange}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
-            marketRow={marketRow} companyData={companyData} financials={companyFin} lang={lang} infoLoading={infoLoading}
+            marketRow={marketRow} lang={lang} infoLoading={infoLoading}
             priceMetrics={metrics}
             metrics12={metrics12} mult={mult} dividends={dividends} lastPrice={lastPrice}
             watchRail={
@@ -21219,16 +21226,6 @@ function App() {
       .catch(() => {});
   }, [activeView, marketRows.length, marketLoading]);
 
-  // Company pages use these headline figures in their key-stat rail even before
-  // the reader opens the detailed financials tab.
-  useEffect(() => {
-    if (activeView !== "company" || !marketRows.length || marketLoading) return;
-    fetch(`/api/market/financials?ticker=${encodeURIComponent(companyTicker || "")}`)
-      .then((r) => r.json())
-      .then((d) => { if (d.ok && d.financials) setMarketFinancials(d.financials); })
-      .catch(() => {});
-  }, [activeView, companyTicker, marketRows.length, marketLoading]);
-
   // Fetch available periods whenever the analysis company changes
   useEffect(() => {
     const query = analysisCompany.trim();
@@ -22379,7 +22376,6 @@ function App() {
               securitiesMap={securitiesMap}
               language={language}
               marketRows={marketRows}
-              financials={marketFinancials}
               tradeStats={marketTradeStats}
               favoriteTickers={favoriteTickers}
               onToggleFavorite={handleToggleFavorite}

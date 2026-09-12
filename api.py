@@ -6983,24 +6983,35 @@ async def _resolve_isin(ticker: str) -> str | None:
 _HISTORY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _HISTORY_CACHE_TTL = 600.0
 _HISTORY_CACHE_MAX = 256
+_HISTORY_LOCKS: dict[str, asyncio.Lock] = {}
 
 
 async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
     """Full price history for an ISIN, memoised for _HISTORY_CACHE_TTL seconds."""
     from openinfo_collector import fetch_price_history
 
+    # Requests for the same archive can arrive together (the company chart and
+    # metrics do this on first paint). Let the first fetch populate the cache
+    # while the others wait for and reuse that result.
     key = f"{isin}:{months}"
     now = time.time()
     hit = _HISTORY_CACHE.get(key)
     if hit and now - hit[0] < _HISTORY_CACHE_TTL:
         return hit[1]
-    loop = asyncio.get_running_loop()
-    data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, months))
-    if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
-        oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
-        _HISTORY_CACHE.pop(oldest, None)
-    _HISTORY_CACHE[key] = (now, data)
-    return data
+    lock = _HISTORY_LOCKS.setdefault(key, asyncio.Lock())
+    async with lock:
+        hit = _HISTORY_CACHE.get(key)
+        if hit and time.time() - hit[0] < _HISTORY_CACHE_TTL:
+            return hit[1]
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(
+            None, partial(fetch_price_history, isin, None, months),
+        )
+        if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
+            oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
+            _HISTORY_CACHE.pop(oldest, None)
+        _HISTORY_CACHE[key] = (time.time(), data)
+        return data
 
 
 # Names for the day-based windows. formulas.WINDOW_LABELS_RU is keyed by month
@@ -7045,7 +7056,9 @@ async def api_company_metrics(ticker: str, months: int = 12,
             return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found",
                                  "trace_id": trace.trace_id}, status_code=404)
         trace.step("resolve_isin", out={"isin": isin})
-        data = await _full_history(isin)
+        # Match the company's default chart archive so first paint shares one
+        # upstream fetch instead of downloading separate 5- and 20-year series.
+        data = await _full_history(isin, months=240)
         points = data.get("points") or []
         trace.step("history_fetch", out={"points": len(points)})
         metrics = formulas.company_metrics(points, months=months, days=days,
@@ -7084,7 +7097,6 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
     """
     ticker = ticker.upper()
     months = max(1, min(months, 240))
-    loop = asyncio.get_running_loop()
     try:
         isin = await _resolve_isin(ticker)
         if not isin:
@@ -7093,8 +7105,7 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
             # could tell a fault from a normal answer.
             return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found",
                                  "points": []}, status_code=404)
-        from openinfo_collector import fetch_price_history
-        data = await loop.run_in_executor(None, partial(fetch_price_history, isin, None, months))
+        data = await _full_history(isin, months=months)
         points = [
             {
                 "date": p.get("date"),
