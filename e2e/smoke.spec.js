@@ -349,6 +349,75 @@ test("navigating to Рынок shows the market board", async ({ page }) => {
   await expect(page.getByText("AGBA Bank").first()).toBeVisible();
 });
 
+test("default market defers optional analytics until they are used", async ({ page }) => {
+  let releaseStocks;
+  const stocksGate = new Promise((resolve) => { releaseStocks = resolve; });
+  const secondaryPaths = new Set([
+    "/api/market/financials",
+    "/api/market/trade-stats",
+    "/api/market/ratios",
+    "/api/market/changes",
+    "/api/market/multiples",
+    "/api/market/summary",
+    "/api/heatmap",
+    "/api/instruments",
+  ]);
+  const requested = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (secondaryPaths.has(path)) requested.push(path);
+  });
+  await page.route("**/api/market/stocks**", async (route) => {
+    await stocksGate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(STOCKS),
+    });
+  });
+
+  await page.goto("/market", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".market-table-wrap .market-empty-cell")).toBeVisible();
+  await page.waitForTimeout(150);
+  expect(requested).toEqual([]);
+
+  releaseStocks();
+  await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
+  await expect.poll(() => new Set(requested).size).toBe(3);
+  expect(new Set(requested)).toEqual(new Set([
+    "/api/market/trade-stats",
+    "/api/market/changes",
+    "/api/instruments",
+  ]));
+
+  await page.getByRole("button", { name: "Карта", exact: true }).click();
+  await expect.poll(() => requested.includes("/api/market/summary")).toBe(true);
+  await expect.poll(() => requested.includes("/api/heatmap")).toBe(true);
+});
+
+test("saved optional market columns request only their supporting datasets", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("uz_market_cols_v3", JSON.stringify([
+      "change", "finRevenue", "currentRatio", "pe",
+    ]));
+  });
+  const optional = new Set([
+    "/api/market/financials",
+    "/api/market/ratios",
+    "/api/market/multiples",
+  ]);
+  const requested = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (optional.has(path)) requested.push(path);
+  });
+
+  await page.goto("/market");
+  await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
+  await expect.poll(() => new Set(requested).size).toBe(3);
+  expect(new Set(requested)).toEqual(optional);
+});
+
 test("market financial cells show numeric candidates instead of status prose", async ({ page }) => {
   await page.setViewportSize({ width: 1900, height: 1000 });
   await page.addInitScript(() => {

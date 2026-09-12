@@ -229,36 +229,28 @@ BOARD_DENYLIST = DELISTED_TICKERS | frozenset(
 
 
 async def _populate_securities_on_startup() -> None:
-    """Seed the securities table after a (re)deploy.
+    """Warm both market boards and seed the securities table after a deploy.
 
     The catalog table is otherwise only filled as a side effect of
     ``/api/market/stocks`` (i.e. when the Market view is opened). On Railway the
     SQLite file is ephemeral, so it is empty on every boot — which makes every
     ``/company/<ticker>`` page 404 ("no information") until someone loads Market.
-    Pull the stock and bond lists once at startup so the catalog is ready
-    immediately. Runs in the background and swallows errors so a slow or
-    unreachable UZSE API never blocks (or crashes) boot.
+    Build the stock and bond boards once in the background so both the catalog
+    and the short-lived response cache are ready before the first reader arrives.
+    The same single-flight cache collapses a visitor racing this warm-up into the
+    in-progress build. Errors remain isolated so an unreachable mirror never
+    blocks (or crashes) boot.
     """
-    loop = asyncio.get_running_loop()
-    logos = _load_logos()
-    for security_type in (None, "bond"):
-        try:
-            params = {"type": security_type} if security_type else None
-            resp = await loop.run_in_executor(
-                None, partial(requests.get, f"{UZSE_STOCK_API_BASE}/stocks", params=params, timeout=20)
-            )
-            resp.raise_for_status()
-            payload = resp.json()
-            stocks = payload.get("stocks") if isinstance(payload, dict) else []
-            stocks_list = stocks if isinstance(stocks, list) else []
-            if stocks_list:
-                _fill_names(stocks_list, await loop.run_in_executor(None, _issuer_names))
-                _fill_source_urls(stocks_list)
-                count = await loop.run_in_executor(None, partial(sync_securities, stocks_list, logos))
-                await loop.run_in_executor(None, partial(record_volume, stocks_list))
-                logger.info("startup securities sync (%s): %d rows", security_type or "all", count)
-        except Exception:
-            logger.exception("startup securities sync failed for type=%s", security_type)
+    kinds = ("stock", "bond")
+    results = await asyncio.gather(
+        *(_cached_market_board(kind, refresh=True) for kind in kinds),
+        return_exceptions=True,
+    )
+    for kind, result in zip(kinds, results):
+        if isinstance(result, Exception):
+            logger.error("startup market warm-up failed for type=%s: %s", kind, result)
+        else:
+            logger.info("startup market warm-up (%s): %d rows", kind, result.get("count", 0))
 
 
 # The report catalog keeps itself current. Nothing did before: `sync_all` runs in
@@ -372,6 +364,9 @@ async def _news_calendar_watch_loop() -> None:
 
 @app.on_event("startup")
 async def _on_startup() -> None:
+    # In-process market snapshots belong to this worker lifetime. Clearing them
+    # here also prevents a test/dev app restart from inheriting an old board.
+    _reset_market_board_cache()
     # ТЗ §10.10: migrations are applied before deploy, so a process that has just
     # started serves a shape it recognises. Additive and idempotent, so a boot
     # with nothing pending costs one query; a failure leaves /ready answering 503
@@ -1749,12 +1744,55 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     })
 
 
+MARKET_BOARD_CACHE_TTL_SEC = max(
+    0, int(os.getenv("MARKET_BOARD_CACHE_TTL_SEC", "60")),
+)
+MARKET_BOARD_BROWSER_TTL_SEC = max(
+    0, int(os.getenv("MARKET_BOARD_BROWSER_TTL_SEC", "15")),
+)
+_MARKET_BOARD_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_MARKET_BOARD_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def _reset_market_board_cache() -> None:
+    """Drop process-local board snapshots and loop-bound locks."""
+    _MARKET_BOARD_CACHE.clear()
+    _MARKET_BOARD_LOCKS.clear()
+
+
+async def _cached_market_board(security_type: str, *, refresh: bool = False) -> dict[str, Any]:
+    """Reuse a recently assembled board and collapse concurrent cold requests."""
+    now = time.monotonic()
+    cached = _MARKET_BOARD_CACHE.get(security_type)
+    if not refresh and cached and now - cached[0] < MARKET_BOARD_CACHE_TTL_SEC:
+        return cached[1]
+
+    observed_at = cached[0] if cached else None
+    lock = _MARKET_BOARD_LOCKS.setdefault(security_type, asyncio.Lock())
+    async with lock:
+        current = _MARKET_BOARD_CACHE.get(security_type)
+        if current and (observed_at is None or current[0] > observed_at):
+            return current[1]
+        if not refresh and current and time.monotonic() - current[0] < MARKET_BOARD_CACHE_TTL_SEC:
+            return current[1]
+
+        payload = await _build_board(security_type)
+        _MARKET_BOARD_CACHE[security_type] = (time.monotonic(), payload)
+        return payload
+
+
 @app.get("/api/market/stocks")
-async def api_market_stocks(type: str | None = None) -> dict[str, Any]:
+async def api_market_stocks(request: Request, type: str | None = None,
+                            refresh: bool = False) -> Response:
     security_type = (type or "").strip().lower()
     if security_type and security_type not in {"stock", "bond"}:
         raise HTTPException(status_code=400, detail="type must be stock or bond")
-    return await _build_board(security_type)
+    payload = await _cached_market_board(security_type, refresh=refresh)
+    return _etag_json(
+        request,
+        payload,
+        max_age=0 if refresh else MARKET_BOARD_BROWSER_TTL_SEC,
+    )
 
 
 @app.get("/api/market/audit")
