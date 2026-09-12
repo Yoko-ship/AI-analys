@@ -15,6 +15,26 @@ _REPORT_CACHE = {}
 _CACHE_LOCK = RLock()
 
 
+def _verified_catalog_fallback(snapshot):
+    """Whether normalized catalog facts can safely outlive workbook enrichment.
+
+    Workbook rows add line-level detail, but the public catalog snapshot is an
+    independent verified source. A transient workbook failure must not erase a
+    report when all core facts are traceable and its balance still reconciles.
+    """
+    quality = snapshot.get("quality") or {}
+    values = snapshot.get("current_values") or {}
+    core = ("revenue", "net_income", "total_assets", "total_equity", "total_liabilities")
+    source = snapshot.get("source") or {}
+    return (
+        quality.get("traceable") is True
+        and quality.get("verification_status") == "verified"
+        and bool(source.get("url"))
+        and all(engine.decimal(values.get(key)) is not None for key in core)
+        and engine.balance_gate(values, snapshot.get("rounding_unit", 1)).get("status") == "passed"
+    )
+
+
 def public_report(report):
     """Return the public contract without internal-only liquidity ratios.
 
@@ -101,7 +121,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
                 raise ValueError("source workbook unavailable")
             workbook = deepcopy(workbook)
             for form, url in (("income", doc.get("excel_url")), ("balance", doc.get("excel_url_form1") or doc.get("excel_url"))):
-                if workbook.get(form) and url:
+                if isinstance(workbook.get(form), dict) and url:
                     workbook[form]["source_url"] = url
             snapshot["parser_version"] = "+".join(sorted({
                 str((workbook.get(form) or {}).get("parser_version")) for form in ("balance", "income")
@@ -125,12 +145,28 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
                                                            "message": "Source documents contain conflicting OKED codes."})
             if org in {"bank", "microfinance_bank", "microfinance", "insurance"}:
                 map_special_lines(snapshot, workbook, org)
-        except Exception:
-            # Internal exceptions never become public prose.
-            snapshot["quality"]["data_quality"].append({
-                "code": "SOURCE_MAPPING_FAILED", "severity": "blocking",
-                "message": engine.tr(lang, "Данные найдены, но их пока не удалось подготовить для анализа.", "Ma’lumotlar topildi, ammo hozircha tahlil uchun tayyorlanmadi.", "The data was found but is not ready for analysis yet."),
-            })
+        except Exception as exc:
+            logger.warning("Workbook enrichment failed for %s %s", issuer.get("ticker"), selected,
+                           exc_info=True)
+            # Internal exceptions never become public prose. Keep a verified,
+            # reconciled catalog snapshot publishable and disclose only that
+            # its optional line-level enrichment is unavailable. If those
+            # independent facts are not sufficient, retain the hard gate.
+            if _verified_catalog_fallback(snapshot):
+                snapshot["quality"]["data_quality"].append({
+                    "code": "SOURCE_ENRICHMENT_UNAVAILABLE", "severity": "warning",
+                    "message": engine.tr(
+                        lang,
+                        "Детализация строк источника временно недоступна; анализ построен по проверенным показателям каталога.",
+                        "Manba satrlari tafsiloti vaqtincha mavjud emas; tahlil katalogdagi tekshirilgan ko‘rsatkichlarga asoslangan.",
+                        "Source-line detail is temporarily unavailable; the analysis uses verified catalog metrics.",
+                    ),
+                })
+            else:
+                snapshot["quality"]["data_quality"].append({
+                    "code": "SOURCE_MAPPING_FAILED", "severity": "blocking",
+                    "message": engine.tr(lang, "Данные найдены, но их пока не удалось подготовить для анализа.", "Ma’lumotlar topildi, ammo hozircha tahlil uchun tayyorlanmadi.", "The data was found but is not ready for analysis yet."),
+                })
     from admin_control.rules import apply_snapshot, runtime_rules
     snapshot = apply_snapshot(snapshot, issuer, workbook, runtime_rules(rule_override))
     snapshot["generated_at"] = api._now().isoformat()

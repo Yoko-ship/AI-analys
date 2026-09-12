@@ -5439,17 +5439,24 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int) -> 
             errors.append(f"income/main: {exc}")
 
     if urls.get("excel_url_form1"):
-        doc1 = {"excel_url": urls["excel_url_form1"], "id": None, "object_id": None,
-                "published_at": urls.get("published_at"), "period_type": urls.get("period_type"),
-                "report_form": form, "title": urls.get("title")}
-        try:
-            parsed1 = parse_excel_report_document(session, doc1)
-            if parsed1.get("ok"):
-                balance = parsed1
-            else:
-                errors.append(f"balance: {parsed1.get('error')}")
-        except Exception as exc:
-            errors.append(f"balance: {exc}")
+        # OpenInfo commonly puts both NSBU forms in one workbook and publishes
+        # the same URL for the income and balance links. Reuse the successful
+        # parse: downloading it twice made a single transient second request
+        # turn an otherwise valid filing into a partial workbook.
+        if urls["excel_url_form1"] == urls.get("excel_url") and income is not None:
+            balance = income
+        else:
+            doc1 = {"excel_url": urls["excel_url_form1"], "id": None, "object_id": None,
+                    "published_at": urls.get("published_at"), "period_type": urls.get("period_type"),
+                    "report_form": form, "title": urls.get("title")}
+            try:
+                parsed1 = parse_excel_report_document(session, doc1)
+                if parsed1.get("ok"):
+                    balance = parsed1
+                else:
+                    errors.append(f"balance: {parsed1.get('error')}")
+            except Exception as exc:
+                errors.append(f"balance: {exc}")
 
     ok = income is not None or balance is not None
     return {
