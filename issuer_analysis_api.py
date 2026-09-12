@@ -1245,8 +1245,43 @@ def issuer_ai_report(
     period: str | None = Query(default=None, pattern=r"^\d{4}(?:Q[1-4])?$"),
     scope: Literal["separate", "consolidated"] = "separate",
     lang: Literal["ru", "uz", "en"] = "ru",
+    summary: bool = False,
 ) -> dict[str, Any]:
-    return _sector_ai_report(_resolve_issuer(issuer_id), standard, period, scope, lang)
+    issuer = _resolve_issuer(issuer_id)
+    if not summary:
+        return _sector_ai_report(issuer, standard, period, scope, lang)
+
+    # The company page only needs one sentence until the reader asks to open
+    # the report. Building the complete sector report here used to fetch and
+    # map source workbooks, run the regression gate, persist monitoring state,
+    # and send a large response that stayed hidden behind a button.
+    snapshot = _financial_snapshot(issuer, standard, period, scope)
+    values = {item["metric"]: item for item in snapshot["observations"]}
+    normalized = {
+        key: item["normalized"] for key, item in values.items()
+        if item["normalized"] is not None
+    }
+    required = {"revenue", "net_income", "net_margin_pct", "debt_ratio_pct", "roe_pct"}
+    available = len(required & set(normalized)) >= 4
+    headline, headline_tone = _ai_report_headline(issuer, normalized, available, lang)
+    return {
+        "ok": True,
+        "issuer": {key: issuer[key] for key in ("id", "ticker", "name")},
+        "standard": standard,
+        "period": snapshot.get("period"),
+        "period_label": _period_label(snapshot.get("period"), lang),
+        "scope": scope,
+        "language": lang,
+        "status": "available" if available else "quality_blocked",
+        "content_status": "complete" if available else "shortened",
+        "headline": headline,
+        "headline_tone": headline_tone,
+        "card_text": headline,
+        "short_summary": headline,
+        "card_word_count": len(str(headline or "").split()),
+        "deferred_full_report": available,
+        "source_snapshot_hash": snapshot.get("source_snapshot_hash"),
+    }
 
 
 @router.get("/issuers/{issuer_id}/credit-profile")
