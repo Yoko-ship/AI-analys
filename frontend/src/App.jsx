@@ -16524,14 +16524,7 @@ function MarketView({
   // Per-ticker financial ratios & equity (facts store) for P/E, P/B and the
   // §3.8 ratio-coefficient columns. Fetched once; keyed by ticker.
   const [ratios, setRatios] = useState({});
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/market/ratios")
-      .then((r) => r.json())
-      .then((d) => { if (alive && d && d.ok) setRatios(d.ratios || {}); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, []);
+  const ratiosRequested = useRef(false);
 
   // Price change over a WEEK, a MONTH, a quarter, half a year, a year and
   // year-to-date, per security, off the same stored closes the charts draw
@@ -16545,13 +16538,14 @@ function MarketView({
   // comparing the week against the month needs both at once.
   const [changes, setChanges] = useState({});
   useEffect(() => {
+    if (!rows.length || loading) return undefined;
     let alive = true;
     fetch("/api/market/changes")
       .then((r) => r.json())
       .then((d) => { if (alive && d && d.ok) setChanges(d.changes || {}); })
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [rows.length, loading]);
   // Which of the exchange's two boards is on screen. Not persisted: MAIN is the
   // market, NEGO is a handful of deals on a given day, and a reader who returns
   // tomorrow to a five-row board they do not remember choosing would read it as
@@ -16631,7 +16625,10 @@ function MarketView({
   // validation arrives with its multiples already suppressed and the reason
   // attached, so nothing here has to decide what is publishable.
   const [multiples, setMultiples] = useState({});
-  const [multiplesStatus, setMultiplesStatus] = useState("loading");
+  const [multiplesStatus, setMultiplesStatus] = useState("idle");
+  const [onDemandFinancials, setOnDemandFinancials] = useState({});
+  const financialsRequested = useRef(false);
+  const multiplesRequested = useRef(false);
   const [marketSummary, setMarketSummary] = useState(null);
   const [mapData, setMapData] = useState(null);
   const [instruments, setInstruments] = useState({});
@@ -16646,34 +16643,8 @@ function MarketView({
   // eleven, which is the question the chip's name asks.
   const [inactiveOnly, setInactiveOnly] = useState(false);
   useEffect(() => {
+    if (!rows.length || loading) return undefined;
     let alive = true;
-    setMultiplesStatus("loading");
-    setMultiples({});
-    fetch("/api/market/multiples")
-      .then((r) => {
-        if (!r.ok) throw new Error("multiples request failed");
-        return r.json();
-      })
-      .then((d) => {
-        if (!d || !d.ok) throw new Error("multiples payload unavailable");
-        if (!alive) return;
-        const byTicker = {};
-        (d.items || []).forEach((it) => { byTicker[it.ticker] = it; });
-        setMultiples(byTicker);
-        setMultiplesStatus("ready");
-      })
-      .catch(() => { if (alive) setMultiplesStatus("unavailable"); });
-    fetch("/api/market/summary")
-      .then((r) => r.json())
-      .then((d) => { if (alive && d && d.ok) setMarketSummary(d); })
-      .catch(() => {});
-    // The market map in ONE request (ТЗ §9): tiles, sector aggregates and the
-    // counts behind them. It used to be stitched together on the client from
-    // endpoints with different instrument universes.
-    fetch("/api/heatmap")
-      .then((r) => r.json())
-      .then((d) => { if (alive && d && d.ok) setMapData(d); })
-      .catch(() => {});
     // The single instrument universe (ТЗ §4). `is_active` here follows TRADING —
     // ninety days without an execution — rather than a registry flag, which is
     // what the "показать неактивные" switch below actually filters on.
@@ -16687,7 +16658,24 @@ function MarketView({
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [rows.length, loading]);
+
+  useEffect(() => {
+    if (viewMode !== "heatmap" || !rows.length || loading) return undefined;
+    let alive = true;
+    fetch("/api/market/summary")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setMarketSummary(d); })
+      .catch(() => {});
+    // The market map in ONE request (ТЗ §9): tiles, sector aggregates and the
+    // counts behind them. It used to be stitched together on the client from
+    // endpoints with different instrument universes.
+    fetch("/api/heatmap")
+      .then((r) => r.json())
+      .then((d) => { if (alive && d && d.ok) setMapData(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [viewMode, rows.length, loading]);
 
   // Column sorting, as an ORDERED chain of keys. An empty chain falls back to the
   // default (date desc, then |change|) — which is itself two-level, and used to be
@@ -16839,6 +16827,56 @@ function MarketView({
     return new Set(["change", "change1w", "change1m", "nominal",
                     "open", "high", "low", "volume", "date", "source"]);
   });
+  const needsFinancials = ["finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating"]
+    .some((key) => visibleCols.has(key));
+  const needsRatios = ["currentRatio", "quickRatio", "debtAssets", "assetTurnover", "roce"]
+    .some((key) => visibleCols.has(key));
+  const needsMultiples = ["pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets"]
+    .some((key) => visibleCols.has(key));
+  const suppliedFinancials = Object.keys(financials || {}).length > 0;
+  const secondaryEquityReady = Boolean(rows.length && !loading && type !== "bond");
+
+  useEffect(() => {
+    if (!needsFinancials || suppliedFinancials || financialsRequested.current || !secondaryEquityReady) return;
+    financialsRequested.current = true;
+    fetch("/api/market/financials")
+      .then((r) => r.json())
+      .then((d) => {
+        setOnDemandFinancials(d.ok && d.financials ? d.financials : {});
+      })
+      .catch(() => {});
+  }, [needsFinancials, suppliedFinancials, secondaryEquityReady]);
+
+  useEffect(() => {
+    if (!needsRatios || ratiosRequested.current || !secondaryEquityReady) return;
+    ratiosRequested.current = true;
+    fetch("/api/market/ratios")
+      .then((r) => r.json())
+      .then((d) => {
+        setRatios(d.ok && d.ratios ? d.ratios : {});
+      })
+      .catch(() => {});
+  }, [needsRatios, secondaryEquityReady]);
+
+  useEffect(() => {
+    if (!needsMultiples || multiplesRequested.current || !secondaryEquityReady) return;
+    multiplesRequested.current = true;
+    setMultiplesStatus("loading");
+    fetch("/api/market/multiples")
+      .then((r) => {
+        if (!r.ok) throw new Error("multiples request failed");
+        return r.json();
+      })
+      .then((d) => {
+        if (!d || !d.ok) throw new Error("multiples payload unavailable");
+        const byTicker = {};
+        (d.items || []).forEach((it) => { byTicker[it.ticker] = it; });
+        setMultiples(byTicker);
+        setMultiplesStatus("ready");
+      })
+      .catch(() => { setMultiplesStatus("unavailable"); });
+  }, [needsMultiples, secondaryEquityReady]);
+
   const [colsOpen, setColsOpen] = useState(false);
   const colsBtnRef = useRef(null); // the popover is portaled — it anchors off this
   const [colsSearch, setColsSearch] = useState("");
@@ -16992,7 +17030,7 @@ function MarketView({
     (companies || []).forEach((c) => { if (c?.ticker) by[c.ticker] = c; });
     return by;
   }, [companies]);
-  const fmap = financials || {};
+  const fmap = suppliedFinancials ? financials : onDemandFinancials;
   // Financials are company-level, so a preferred share shares its common
   // sibling's figures (and vice versa) — mirror the logo sibling fallback
   // (TKDM <-> TKDMP) so both halves of a pair show data from one cached row.
@@ -21145,18 +21183,17 @@ function App() {
       .catch(() => {});
   }, []);
 
-  // NSBU headline indicators (cached, all companies). Refetched when entering the
-  // market view so the progressively-filled cache stays reasonably current.
+  // Per-trade statistics are used by the default board and landing movers, so
+  // they follow the quote rows immediately. Financial statements are not part of
+  // the default market table and are loaded inside MarketView only when one of
+  // those optional columns is enabled.
   useEffect(() => {
     // "main" for the same reason as the stocks load above: the landing must
     // restate its rows against the same per-trade day statistics as /market.
     if (activeView !== "market" && activeView !== "heatmap"
       && activeView !== "company" && activeView !== "chart" && activeView !== "main") return;
-    apiFetch("/api/market/financials")
-      .then((r) => r.json())
-      .then((d) => { if (d.ok && d.financials) setMarketFinancials(d.financials); })
-      .catch(() => {});
-    apiFetch("/api/market/trade-stats")
+    if (!marketRows.length || marketLoading) return;
+    fetch("/api/market/trade-stats")
       .then((r) => r.json())
       .then((d) => {
         if (!d.ok) return;
@@ -21166,7 +21203,17 @@ function App() {
         setMarketMeta((prev) => ({ ...prev, refreshed_at: d.refreshed_at || null, trade_date: d.trade_date || null }));
       })
       .catch(() => {});
-  }, [activeView]);
+  }, [activeView, marketRows.length, marketLoading]);
+
+  // Company pages use these headline figures in their key-stat rail even before
+  // the reader opens the detailed financials tab.
+  useEffect(() => {
+    if (activeView !== "company" || !marketRows.length || marketLoading) return;
+    fetch("/api/market/financials")
+      .then((r) => r.json())
+      .then((d) => { if (d.ok && d.financials) setMarketFinancials(d.financials); })
+      .catch(() => {});
+  }, [activeView, marketRows.length, marketLoading]);
 
   // Fetch available periods whenever the analysis company changes
   useEffect(() => {
@@ -21292,7 +21339,7 @@ function App() {
     setActiveView("news");
   };
 
-  const loadMarketStocks = async (typeOverride = null) => {
+  const loadMarketStocks = async (typeOverride = null, { refresh = false } = {}) => {
     setMarketLoading(true);
     setMarketMessage(mt(language, "loading"));
     try {
@@ -21302,6 +21349,7 @@ function App() {
       const requestedType = typeof typeOverride === "string" ? typeOverride : marketType;
       const apiType = (requestedType === "preferred" || requestedType === "ordinary") ? "stock" : requestedType;
       params.set("type", apiType);
+      if (refresh) params.set("refresh", "true");
       const res = await apiFetch(`/api/market/stocks${params.toString() ? `?${params}` : ""}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Could not load stock prices");
@@ -22380,7 +22428,7 @@ function App() {
               onQueryChange={setMarketQuery}
               type={marketType}
               onTypeChange={setMarketType}
-              onRefresh={() => { loadMarketStocks().catch((error) => addToast(error.message, "error")); }}
+              onRefresh={() => { loadMarketStocks(null, { refresh: true }).catch((error) => addToast(error.message, "error")); }}
               onAnalyze={(ticker) => {
                 setAnalysisCompany(ticker || "");
                 setActiveView("analysis");
