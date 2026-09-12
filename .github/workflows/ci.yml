@@ -474,7 +474,18 @@ jobs:
             -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           cd /root/uzstock/app
-          git pull --ff-only origin API
+          git fetch origin API
+          # Emergency fixes have occasionally been applied directly on the VPS.
+          # Preserve them before advancing the deployment checkout: the stash is
+          # recoverable for comparison or reapplication, while the running image
+          # is always built from the reviewed API branch rather than an unknown
+          # mixture of branch and host-only files.
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            backup_label="pre-deploy-$(date -u +%Y%m%dT%H%M%SZ)"
+            git stash push --include-untracked -m "$backup_label"
+            echo "Preserved VPS checkout changes in $(git rev-parse --short refs/stash) ($backup_label)."
+          fi
+          git merge --ff-only origin/API
           # A deployment replaces every scheduled worker image.  Stop a
           # currently running one before replacing it; timers are re-enabled
           # below and do not double-run a Railway-era command.
