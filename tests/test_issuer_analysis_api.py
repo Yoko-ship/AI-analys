@@ -184,6 +184,19 @@ def test_complete_ai_report_meets_length_and_traceability_contract(client, lang)
     assert "buy" not in body["text"].lower()
 
 
+def test_ai_report_summary_defers_the_full_report(client):
+    body = client.get(
+        "/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2&lang=ru&summary=true"
+    ).json()
+
+    assert body["status"] == "available"
+    assert body["deferred_full_report"] is True
+    assert body["headline"] == body["card_text"] == body["short_summary"]
+    assert body["card_word_count"] <= 40
+    assert "sections" not in body
+    assert "number_references" not in body
+
+
 def test_mixed_sector_metric_is_blocked_before_ranking(client):
     response = client.post("/api/v1/comparisons", json={
         "object_type": "issuer",

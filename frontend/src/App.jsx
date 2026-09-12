@@ -11554,7 +11554,7 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
       {!loading && error && (
         <button className="company-insight-action" type="button" onClick={onRetry}>{tx.retry}</button>
       )}
-      {!loading && !error && isReadable && report.paragraphs?.length > 0 && (
+      {!loading && !error && isReadable && (report.deferred_full_report || report.paragraphs?.length > 0) && (
         <button ref={buttonRef} className="company-insight-action" type="button" onClick={onOpen}>{tx.details}</button>
       )}
     </section>
@@ -13057,6 +13057,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   const [companyDataRetry, setCompanyDataRetry] = React.useState(0);
   const [insightReport, setInsightReport] = React.useState(null);
   const [insightLoading, setInsightLoading] = React.useState(true);
+  const [insightDetailLoading, setInsightDetailLoading] = React.useState(false);
   const [insightError, setInsightError] = React.useState(false);
   const [insightRetry, setInsightRetry] = React.useState(0);
   const [insightOpen, setInsightOpen] = React.useState(false);
@@ -13069,12 +13070,26 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     // The Finam-style issuer analysis belongs to this company page.  The
     // report is loaded from the issuer endpoint below; opening it here avoids
     // falling through to the retired generic /analysis workspace.
-    if (insightReport) {
+    if (insightReport && !insightReport.deferred_full_report) {
       setInsightOpen(true);
-    } else if (!insightLoading) {
+    } else if (insightReport && !insightLoading && !insightDetailLoading) {
+      setInsightDetailLoading(true);
+      fetch(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=nsbu&scope=separate&lang=${lang}`)
+        .then(async (response) => {
+          const body = await response.json().catch(() => null);
+          if (!response.ok || !body?.ok || !body?.headline) throw new Error("company insight unavailable");
+          return body;
+        })
+        .then((body) => {
+          setInsightReport(body);
+          setInsightOpen(true);
+        })
+        .catch(() => setInsightError(true))
+        .finally(() => setInsightDetailLoading(false));
+    } else if (!insightLoading && !insightDetailLoading) {
       setInsightRetry((value) => value + 1);
     }
-  }, [insightReport, insightLoading]);
+  }, [insightReport, insightLoading, insightDetailLoading, ticker, lang]);
 
   // Every board row, reconciled against the stored day statistics exactly as the
   // market table does it — the watch rail quotes other securities and must quote
@@ -13248,7 +13263,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   // simply omits the valuation rows — it never falls back to computing them.
   React.useEffect(() => {
     let alive = true;
-    fetch("/api/market/multiples")
+    fetch(`/api/market/multiples?ticker=${encodeURIComponent(ticker)}`)
       .then((r) => r.json())
       .then((d) => {
         if (!alive || !d || !d.ok) return;
@@ -13323,9 +13338,8 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     return () => { alive = false; };
   }, [ticker, companyDataRetry]);
 
-  // The profile teaser and its full report are one response: the concise
-  // headline is derived from the same traceable observations as the dialog,
-  // so opening «Подробнее» cannot reveal a contradictory assessment.
+  // Fetch only the compact, traceable teaser for the page itself. The full
+  // sector report stays deferred until the reader presses «Подробнее».
   React.useEffect(() => {
     if (!ticker) return undefined;
     let alive = true;
@@ -13333,7 +13347,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     setInsightError(false);
     setInsightReport(null);
     setInsightOpen(false);
-    fetch(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=nsbu&scope=separate&lang=${lang}`)
+    fetch(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=nsbu&scope=separate&lang=${lang}&summary=true`)
       .then(async (response) => {
         const body = await response.json().catch(() => null);
         if (!response.ok || !body?.ok || !body?.headline) throw new Error("company insight unavailable");
@@ -13424,8 +13438,8 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
             ) : (
               <div className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Нет данных" : "No data"}</div>
             )}
-            <button className="primary-btn" type="button" style={{ marginTop: 8 }} onClick={openInsight} disabled={insightLoading}>
-              {insightLoading
+            <button className="primary-btn" type="button" style={{ marginTop: 8 }} onClick={openInsight} disabled={insightLoading || insightDetailLoading}>
+              {insightLoading || insightDetailLoading
                 ? (lang === "ru" ? "Загрузка анализа…" : lang === "uz" ? "Tahlil yuklanmoqda…" : "Loading analysis…")
                 : (lang === "ru" ? "Открыть анализ" : lang === "uz" ? "Tahlilni ochish" : "Open Analysis")}
             </button>
@@ -13447,7 +13461,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
             report={insightReport}
             loading={insightLoading}
             error={insightError}
-            onOpen={() => setInsightOpen(true)}
+            onOpen={openInsight}
             onRetry={() => setInsightRetry((value) => value + 1)}
             buttonRef={insightTriggerRef}
             lang={lang}
@@ -21209,11 +21223,11 @@ function App() {
   // the reader opens the detailed financials tab.
   useEffect(() => {
     if (activeView !== "company" || !marketRows.length || marketLoading) return;
-    fetch("/api/market/financials")
+    fetch(`/api/market/financials?ticker=${encodeURIComponent(companyTicker || "")}`)
       .then((r) => r.json())
       .then((d) => { if (d.ok && d.financials) setMarketFinancials(d.financials); })
       .catch(() => {});
-  }, [activeView, marketRows.length, marketLoading]);
+  }, [activeView, companyTicker, marketRows.length, marketLoading]);
 
   // Fetch available periods whenever the analysis company changes
   useEffect(() => {

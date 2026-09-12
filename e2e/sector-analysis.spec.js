@@ -85,6 +85,42 @@ test("sector report opens from the company card and exposes sourced formulas", a
   expect(errors).toEqual([]);
 });
 
+test("company page defers the full analysis until the reader opens it", async ({ page }) => {
+  await api(page);
+  let summaryCalls = 0;
+  let fullCalls = 0;
+  await page.route("**/api/v1/issuers/*/ai-report**", (route) => {
+    const url = new URL(route.request().url());
+    const isSummary = url.searchParams.get("summary") === "true";
+    if (isSummary) summaryCalls += 1;
+    else fullCalls += 1;
+    const body = isSummary ? {
+      ok: true,
+      issuer: PUBLIC_REPORT.issuer,
+      standard: "nsbu",
+      period: PUBLIC_REPORT.period,
+      status: "available",
+      content_status: "complete",
+      headline: "Компания сохраняет прибыльность, а выручка продолжает расти.",
+      headline_tone: "positive",
+      card_text: "Компания сохраняет прибыльность, а выручка продолжает расти.",
+      short_summary: "Компания сохраняет прибыльность, а выручка продолжает расти.",
+      deferred_full_report: true,
+    } : PUBLIC_REPORT;
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+
+  await page.goto("/company/UZMK");
+  const card = page.getByTestId("company-insight-card");
+  await expect(card).toContainText("Компания сохраняет прибыльность");
+  expect(summaryCalls).toBe(1);
+  expect(fullCalls).toBe(0);
+
+  await card.getByRole("button", { name: "Открыть полный анализ" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(fullCalls).toBe(1);
+});
+
 test("blocked reports keep a dated prior report and never open empty details", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await api(page, { ...REPORT, status: "quality_blocked", headline: "Анализ временно недоступен: данные не прошли сверку.",

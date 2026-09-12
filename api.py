@@ -1886,7 +1886,7 @@ async def api_market_trades() -> dict[str, Any]:
 
 
 @app.get("/api/market/financials")
-async def api_market_financials() -> dict[str, Any]:
+async def api_market_financials(ticker: str | None = None) -> dict[str, Any]:
     """Return cached NSBU headline indicators per ticker: {ticker: {...}}.
 
     Reads the pre-computed cache instantly and kicks a fire-and-forget background
@@ -1923,6 +1923,13 @@ async def api_market_financials() -> dict[str, Any]:
         return out
 
     financials = {ticker: _with_companions(row) for ticker, row in financials.items()}
+    if ticker:
+        requested = ticker.strip().upper()
+        sibling = requested[:-1] if requested.endswith("P") else f"{requested}P"
+        financials = {
+            key: value for key, value in financials.items()
+            if str(key).upper() in {requested, sibling}
+        }
     return _json_safe({
         "ok": True,
         "count": len(financials),
@@ -2005,11 +2012,19 @@ def _etag_json(request: Request, payload: dict[str, Any], max_age: int) -> Respo
 # selection is no longer a caller's choice.
 
 
-async def _market_inputs() -> dict[str, Any]:
+async def _market_inputs(ticker: str | None = None) -> dict[str, Any]:
     """Board, catalog, statements and ratios — fetched once, shared by every
     screen below so they cannot disagree about what exists."""
     loop = asyncio.get_running_loop()
-    shares, bonds = await asyncio.gather(_build_board("stock"), _build_board("bond"))
+    requested = str(ticker or "").strip().upper()
+    if requested:
+        # A company page needs one equity issuer, not a fresh rebuild of both
+        # market boards. The stock board is already warmed on startup and its
+        # short cache is the same snapshot the page header reads.
+        shares = await _cached_market_board("stock")
+        bonds = {"stocks": []}
+    else:
+        shares, bonds = await asyncio.gather(_build_board("stock"), _build_board("bond"))
     securities, financials, ratios, listings, stats = await asyncio.gather(
         loop.run_in_executor(None, get_securities_map),
         loop.run_in_executor(None, get_all_financials),
@@ -2053,6 +2068,28 @@ async def _market_inputs() -> dict[str, Any]:
         day = instruments._norm_day(row.get("last_trade_date"))
         if day and (trade_date is None or day > trade_date):
             trade_date = day
+    if requested:
+        catalog_rows = [
+            {"ticker": str(key).upper(), **(value or {})}
+            for key, value in securities.items()
+        ]
+        issuer_tickers = next((
+            {str(row.get("ticker") or "").upper() for row in rows}
+            for rows in fundamentals.group_by_issuer(catalog_rows).values()
+            if any(str(row.get("ticker") or "").upper() == requested for row in rows)
+        ), {requested})
+        board = [row for row in board
+                 if str(row.get("ticker") or "").upper() in issuer_tickers]
+        securities = {key: value for key, value in securities.items()
+                      if str(key).upper() in issuer_tickers}
+        financials = {key: value for key, value in financials.items()
+                      if str(key).upper() in issuer_tickers}
+        ratios = {key: value for key, value in ratios.items()
+                  if str(key).upper() in issuer_tickers}
+        listings = {key: value for key, value in listings.items()
+                    if str(key).upper() in issuer_tickers}
+        stats = {key: value for key, value in stats.items()
+                 if str(key).upper() in issuer_tickers}
     return {"board": board, "securities": securities, "financials": financials,
             "ratios": ratios, "listings": listings, "stats": stats,
             "trade_date": trade_date.isoformat() if trade_date else None}
@@ -2212,7 +2249,7 @@ def _apply_audit_blocks(rows: list[dict[str, Any]]) -> int:
 
 
 @app.get("/api/market/multiples")
-async def api_market_multiples(request: Request) -> Response:
+async def api_market_multiples(request: Request, ticker: str | None = None) -> Response:
     """P/E, P/B, ROE, ROA, margin and D/E — computed once, per ISSUER.
 
     Both classes of an issuer receive identical values by construction; only
@@ -2221,16 +2258,31 @@ async def api_market_multiples(request: Request) -> Response:
     """
     trace = obs.Trace(endpoint="market/multiples")
     try:
-        inputs = await _market_inputs()
+        requested = str(ticker or "").strip().upper() or None
+        inputs = await _market_inputs(requested)
         trace.step("inputs", instruments=len(inputs["board"]),
                    financials=len(inputs["financials"]), ratios=len(inputs["ratios"]))
         # The session date alone is insufficient: a corrected statement or
         # share count can arrive before the next trade.  The dependency hash
         # makes that correction miss the old cache immediately.
         input_version = public_contract.market_inputs_version(inputs)
-        cache_key = cache_layer.key("market:multiples", inputs["trade_date"] or "none",
+        cache_key = cache_layer.key(f"market:multiples:{requested or 'all'}", inputs["trade_date"] or "none",
                                     input_version)
         payload = cache_layer.cached(cache_key, lambda: _multiples_payload(inputs))
+        if requested:
+            selected = [row for row in payload["items"]
+                        if str(row.get("ticker") or "").upper() == requested]
+            issuer_keys = {row.get("issuer") for row in selected}
+            payload = {
+                **payload,
+                "count": len(selected),
+                "issuers": len(issuer_keys),
+                "items": selected,
+                "by_issuer": {
+                    key: value for key, value in payload.get("by_issuer", {}).items()
+                    if key in issuer_keys
+                },
+            }
         suppressed = sum(1 for r in payload["items"]
                          if not (r.get("validation") or {}).get("valid", True))
         trace.step("multiples", issuers=payload["issuers"], suppressed=suppressed)
