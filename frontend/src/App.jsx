@@ -19521,7 +19521,9 @@ function CatalogRatioTable({ result, language }) {
   return (
     <div className="catalog-result-body">
       <div className="catalog-ratio-grid">
-        {Object.entries(metrics).map(([k, v]) => renderCard(k, v))}
+        {Object.entries(metrics)
+          .filter(([, v]) => result.data_source !== "verified_cache" || (v !== null && v !== undefined))
+          .map(([k, v]) => renderCard(k, v))}
       </div>
       <table className="catalog-source-table">
         <tbody>
@@ -19642,6 +19644,17 @@ function CatalogCompareTable({ result, language }) {
     if (a === null || b === null || a === undefined || b === undefined) return null;
     return Math.round((a - b) * 100) / 100;
   };
+  const valueKeys = Object.keys({ ...v1, ...v2 }).filter((key) => (
+    result.data_source !== "verified_cache"
+    || v1[key] !== null && v1[key] !== undefined
+    || v2[key] !== null && v2[key] !== undefined
+  ));
+  const metricKeys = result.data_source === "verified_cache"
+    ? Object.keys({ ...m1, ...m2 }).filter((key) => (
+      m1[key] !== null && m1[key] !== undefined
+      || m2[key] !== null && m2[key] !== undefined
+    ))
+    : Object.keys(ratioLabels);
   return (
     <div className="catalog-result-body">
       <div className="catalog-table-wrap">
@@ -19655,7 +19668,7 @@ function CatalogCompareTable({ result, language }) {
             </tr>
           </thead>
           <tbody>
-            {Object.keys({ ...v1, ...v2 }).map((k) => (
+            {valueKeys.map((k) => (
               <tr key={k}>
                 <td>{valLabels[k] || k}<TermInfo termId={FIN_TERM_OF[k]} lang={normalizeLanguage(language)} label={valLabels[k]} /></td>
                 <td className="num">{fmtN(v1[k])}</td>
@@ -19665,7 +19678,7 @@ function CatalogCompareTable({ result, language }) {
                 </td>
               </tr>
             ))}
-            {Object.entries(ratioLabels).map(([k]) => (
+            {metricKeys.map((k) => (
               <tr key={`r-${k}`}>
                 <td>{ratioLabels[k]}</td>
                 <td className="num">{fmt(m1[k], k !== "debt_to_equity")}</td>
@@ -20200,7 +20213,10 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                       <span>{clg(lang, "compareWith")}</span>
                       <select value={compareTicker} onChange={(e) => setCompareTicker(e.target.value)}>
                         <option value="">—</option>
-                        {filteredComps.filter((c) => c.ticker !== ticker).map((c) => (
+                        {filteredComps.filter((c) => (
+                          c.ticker !== ticker
+                          && ((index?.sector || selectedCompany?.sector) === "finance" || c.sector !== "finance")
+                        )).map((c) => (
                           <option key={c.ticker} value={c.ticker}>{c.ticker} — {c.company_name}</option>
                         ))}
                       </select>
