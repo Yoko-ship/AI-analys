@@ -6199,3 +6199,154 @@ def build_dynamics_data(ticker: str, form: str = "NSBU") -> dict[str, Any]:
 
     return {"ticker": ticker, "form": form, "years": years, "series": series,
             "quarterly": quarterly, "seasonality": seasonality}
+
+
+# ---------------------------------------------------------------------------
+# Catalog analysis from the verified local filing cache
+# ---------------------------------------------------------------------------
+
+_CATALOG_ANALYSIS_VALUE_KEYS = (
+    "revenue", "net_income", "total_assets", "total_equity",
+    "total_liabilities", "gross_profit", "operating_income", "cash",
+    "current_assets", "current_liabilities", "inventories",
+)
+
+
+def _cached_catalog_ratio_payload(row: dict[str, Any] | None) -> dict[str, Any]:
+    """Build the legacy catalog ratio shape from one cached filing row.
+
+    The catalog UI predates the filing cache and expects ``metrics`` plus
+    ``source_values``.  Keeping that response contract lets analysis use the
+    already-collected, source-linked figures instead of downloading the same
+    OpenInfo workbook on every button click (which is blocked from production
+    datacenter IPs).
+    """
+    row = dict(row or {})
+    values = {key: _financials_num(row.get(key)) for key in _CATALOG_ANALYSIS_VALUE_KEYS}
+    balance = row.get("balance") if isinstance(row.get("balance"), dict) else {}
+    assets = values.get("total_assets")
+    equity = values.get("total_equity")
+    liabilities = values.get("total_liabilities")
+    if assets is None:
+        assets = _financials_num(balance.get("assets_end"))
+    if equity is None:
+        equity = _financials_num(balance.get("equity_end"))
+    if equity is None and assets is not None and liabilities is not None:
+        equity = assets - liabilities
+    if liabilities is None and assets is not None and equity is not None:
+        liabilities = assets - equity
+    values["total_assets"] = assets
+    values["total_equity"] = equity
+    values["total_liabilities"] = liabilities
+
+    def pct(numerator: float | None, denominator: float | None) -> float | None:
+        if numerator is None or denominator in (None, 0):
+            return None
+        return round(numerator / denominator * 100, 2)
+
+    def multiple(numerator: float | None, denominator: float | None) -> float | None:
+        if numerator is None or denominator in (None, 0):
+            return None
+        return round(numerator / denominator, 4)
+
+    net_income = values.get("net_income")
+    revenue = values.get("revenue")
+    metrics = {
+        "ROA": _financials_num(row.get("roa")) if row.get("roa") is not None else pct(net_income, assets),
+        "ROE": _financials_num(row.get("roe")) if row.get("roe") is not None else pct(net_income, equity),
+        "net_margin": pct(net_income, revenue),
+        "debt_ratio": (_financials_num(row.get("debt_ratio"))
+                       if row.get("debt_ratio") is not None else pct(liabilities, assets)),
+        "debt_to_equity": (_financials_num(row.get("debt_to_equity"))
+                           if row.get("debt_to_equity") is not None else multiple(liabilities, equity)),
+    }
+    source_values = {
+        "revenue": revenue,
+        "net_income": net_income,
+        "total_assets": assets,
+        "equity": equity,
+        "total_liabilities": liabilities,
+    }
+    return {"metrics": metrics, "source_values": source_values,
+            "all_values": values, "has_data": any(value is not None for value in values.values())}
+
+
+def get_cached_catalog_period(ticker: str, form: str, year: int,
+                              quarter: int = 0) -> dict[str, Any]:
+    """Return one exact filing period from the local financial cache."""
+    if form not in {"NSBU", "MSFO"}:
+        return {"metrics": {}, "source_values": {}, "all_values": {}, "has_data": False}
+    period = f"{int(year)}Q{int(quarter)}" if quarter else str(int(year))
+    series = (get_financials_series_quarterly(ticker, form)
+              if quarter else get_financials_series(ticker, form))
+    return {"period": period, **_cached_catalog_ratio_payload(series.get(period))}
+
+
+def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, Any]:
+    """Build annual and quarterly catalog dynamics without upstream I/O."""
+    if form not in {"NSBU", "MSFO"}:
+        return {"ticker": ticker, "form": form, "years": [], "series": {},
+                "quarterly": [], "seasonality": {"metric": "revenue", "years_covered": 0,
+                                                     "insufficient": True, "quarter_avg": {}}}
+    annual_source = get_financials_series(ticker, form)
+    annual_items = sorted(
+        ((int(year), _cached_catalog_ratio_payload(row))
+         for year, row in annual_source.items() if str(year).isdigit()),
+        key=lambda item: item[0],
+    )
+    annual_items = [(year, payload) for year, payload in annual_items if payload["has_data"]]
+    years = [year for year, _ in annual_items]
+    series = {
+        key: [payload["source_values"].get(key) for _, payload in annual_items]
+        for key in ("revenue", "net_income", "total_assets", "equity", "total_liabilities")
+    }
+
+    quarterly_source = get_financials_series_quarterly(ticker, form)
+    parsed_quarters: list[tuple[int, int, dict[str, Any]]] = []
+    for period, row in quarterly_source.items():
+        match = re.fullmatch(r"(\d{4})Q([1-4])", str(period))
+        if not match:
+            continue
+        payload = _cached_catalog_ratio_payload(row)
+        if payload["has_data"]:
+            parsed_quarters.append((int(match.group(1)), int(match.group(2)), payload))
+    parsed_quarters.sort(key=lambda item: (item[0], item[1]))
+    parsed_quarters = parsed_quarters[-16:]
+    quarterly: list[dict[str, Any]] = []
+    ytd: dict[tuple[int, int], dict[str, float | None]] = {}
+    for year, quarter, payload in parsed_quarters:
+        values = payload["source_values"]
+        entry: dict[str, Any] = {"label": f"Q{quarter} {year}", "year": year, "quarter": quarter}
+        for key in ("revenue", "net_income", "total_assets", "equity", "total_liabilities"):
+            entry[key] = values.get(key)
+        for key in ("revenue", "net_income"):
+            entry[f"{key}_ytd"] = entry.get(key)
+        ytd[(year, quarter)] = {key: entry.get(f"{key}_ytd") for key in ("revenue", "net_income")}
+        quarterly.append(entry)
+    for entry in quarterly:
+        for key in ("revenue", "net_income"):
+            value = entry.get(f"{key}_ytd")
+            if not isinstance(value, (int, float)):
+                entry[key] = None
+            elif entry["quarter"] > 1:
+                prior = ytd.get((entry["year"], entry["quarter"] - 1), {}).get(key)
+                entry[key] = round(value - prior, 2) if isinstance(prior, (int, float)) else None
+
+    by_quarter: dict[int, list[float]] = {1: [], 2: [], 3: [], 4: []}
+    covered_years: set[int] = set()
+    for entry in quarterly:
+        value = entry.get("revenue")
+        if isinstance(value, (int, float)):
+            by_quarter[entry["quarter"]].append(float(value))
+            covered_years.add(entry["year"])
+    seasonality = {
+        "metric": "revenue",
+        "years_covered": len(covered_years),
+        "insufficient": len(covered_years) < 3,
+        "quarter_avg": {
+            quarter: (round(sum(values) / len(values), 2) if values else None)
+            for quarter, values in by_quarter.items()
+        },
+    }
+    return {"ticker": ticker, "form": form, "years": years, "series": series,
+            "quarterly": quarterly, "seasonality": seasonality}
