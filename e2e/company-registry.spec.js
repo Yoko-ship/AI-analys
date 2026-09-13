@@ -52,6 +52,7 @@ const REGISTRY = {
 
 test("Soliq registry is loaded only for the opened company and renders the full record", async ({ page }, testInfo) => {
   let registryRequests = 0;
+  let verifiedLocation = null;
   const runtimeErrors = [];
   page.on("pageerror", (error) => runtimeErrors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()); });
@@ -69,7 +70,7 @@ test("Soliq registry is loaded only for the opened company and renders the full 
     if (path === "/api/market/stocks") return json({ stocks: [SECURITY] });
     if (path === `/api/company/${TICKER}/registry`) {
       registryRequests += 1;
-      return json({ ok: true, ticker: TICKER, tin: "200833833", org_id: "667", type: "full", registry: REGISTRY });
+      return json({ ok: true, ticker: TICKER, tin: "200833833", org_id: "667", type: "full", registry: REGISTRY, location: verifiedLocation });
     }
     if (path === `/api/securities/${TICKER}/info`) return json({ ok: true, security: SECURITY, wiki: {} });
     if (path === `/api/price-history/${TICKER}`) return json({ ok: true, points: [], adjustments: [] });
@@ -98,8 +99,14 @@ test("Soliq registry is loaded only for the opened company and renders the full 
   await expect(card).not.toContainText("Дата прекращения деятельности");
   await expect(card).not.toContainText("—");
   const map = card.locator('iframe[title="Расположение компании"]');
+  await expect(map).toHaveCount(0);
+
+  verifiedLocation = { latitude: 41.311081, longitude: 69.240562 };
+  await page.reload();
+  await expect.poll(() => registryRequests).toBe(2);
   await expect(map).toBeVisible();
-  await expect(map).toHaveAttribute("src", /google\.com\/maps\?q=.*Yunusabad.*Uzbekistan.*output=embed/);
+  await expect(map).toHaveAttribute("src", "https://www.google.com/maps?q=41.311081,69.240562&z=17&output=embed");
+  await expect(map).not.toHaveAttribute("src", /Yunusabad|Oloy|Uzbekistan/);
 
   const desktopShot = testInfo.outputPath("company-registry-desktop.png");
   await card.screenshot({ path: desktopShot });

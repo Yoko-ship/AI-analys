@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import math
 from typing import Any
 
 import requests
@@ -87,6 +88,41 @@ def resolve_company_tin(ticker: str) -> dict[str, str]:
     return {"ticker": normalised, "tin": tin, "org_id": str(org_id or "")}
 
 
+def _registry_location(payload: dict[str, Any]) -> dict[str, float] | None:
+    """Return only coordinates supplied by the authoritative registry.
+
+    A postal address is not a coordinate.  In particular, do not silently turn
+    it into a Google Maps search: an ambiguous search renders unrelated pins.
+    The aliases below cover common coordinate spellings should Soliq add them
+    to either its address or location object.
+    """
+    candidates: list[Any] = [
+        payload.get("location"),
+        payload.get("geoLocation"),
+        payload.get("coordinates"),
+        payload.get("companyBillingAddress"),
+        payload.get("company"),
+    ]
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        latitude = next((candidate.get(key) for key in ("latitude", "lat") if candidate.get(key) not in (None, "")), None)
+        longitude = next((candidate.get(key) for key in ("longitude", "lon", "lng") if candidate.get(key) not in (None, "")), None)
+        try:
+            latitude = float(latitude)
+            longitude = float(longitude)
+        except (TypeError, ValueError):
+            continue
+        if not (math.isfinite(latitude) and math.isfinite(longitude)):
+            continue
+        # A legal entity returned by Soliq should be located in Uzbekistan.
+        # Reject swapped, placeholder, and unrelated coordinates instead of
+        # displaying a confident-looking but incorrect marker.
+        if 37.0 <= latitude <= 46.0 and 55.0 <= longitude <= 74.0:
+            return {"latitude": latitude, "longitude": longitude}
+    return None
+
+
 def fetch_company_registry(ticker: str) -> dict[str, Any]:
     """Fetch the full Soliq record for exactly one company page request."""
     api_key = os.getenv("SOLIQ_API_KEY", "").strip()
@@ -135,4 +171,5 @@ def fetch_company_registry(ticker: str) -> dict[str, Any]:
         **identity,
         "type": "full",
         "registry": payload,
+        "location": _registry_location(payload),
     }

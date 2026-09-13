@@ -11780,12 +11780,15 @@ function CompanyRegistryCard({ data, loading, error, onRetry, lang }) {
       </div>
     );
   };
-  const mapQuery = [registryAddress(payload, "en"), "Uzbekistan"].filter(Boolean).join(", ");
-  const locationMap = address ? (
+  const latitude = Number(data.location?.latitude);
+  const longitude = Number(data.location?.longitude);
+  const hasLocation = Number.isFinite(latitude) && Number.isFinite(longitude)
+    && latitude >= 37 && latitude <= 46 && longitude >= 55 && longitude <= 74;
+  const locationMap = hasLocation ? (
     <div className="company-registry-map">
       <iframe
         title={tx.map}
-        src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`}
+        src={`https://www.google.com/maps?q=${latitude},${longitude}&z=17&output=embed`}
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
         allowFullScreen
