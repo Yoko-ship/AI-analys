@@ -109,6 +109,7 @@ import bond_registry  # noqa: E402
 import bonds  # noqa: E402
 import provenance  # noqa: E402
 import public_contract  # noqa: E402
+import soliq_company  # noqa: E402 — server-only Soliq company registry client
 from issuer_analysis_api import router as issuer_analysis_v1_router  # noqa: E402
 
 # ТЗ §11.6: each change ships behind a flag so it can be turned off without a
@@ -5746,6 +5747,29 @@ async def api_company_splits(ticker: str) -> dict[str, Any]:
         for action in corporate_actions.actions_for(ticker)
     ]
     return {"ok": True, "ticker": ticker, "items": items}
+
+
+@app.get("/api/company/{ticker}/registry")
+async def api_company_registry(ticker: str) -> dict[str, Any]:
+    """Resolve the ticker through OpenInfo and fetch its full Soliq record.
+
+    This route is intentionally per company rather than part of the market or
+    securities catalog responses: the upstream request happens only when a
+    visitor opens that issuer's page. The Soliq key remains server-side.
+    """
+    ticker = ticker.strip().upper()
+    loop = asyncio.get_running_loop()
+    try:
+        result = await loop.run_in_executor(None, soliq_company.fetch_company_registry, ticker)
+    except soliq_company.SoliqConfigurationError as exc:
+        logger.error("company registry configuration error: %s", exc)
+        raise HTTPException(status_code=503, detail="Company registry is not configured") from exc
+    except soliq_company.CompanyIdentityNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except soliq_company.SoliqUpstreamError as exc:
+        logger.warning("Soliq company registry failed for %s: %s", ticker, exc)
+        raise HTTPException(status_code=502, detail="Company registry is temporarily unavailable") from exc
+    return _json_safe({"ok": True, **result})
 
 
 @app.get("/api/securities/{ticker}/info")

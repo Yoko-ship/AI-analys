@@ -11671,7 +11671,143 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
   ), document.body);
 }
 
-function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, intraday, priceRange, onRangeChange, lang, infoLoading, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
+function registryDetailName(detail, lang) {
+  if (!detail) return null;
+  if (lang === "ru") return detail.name_ru || detail.name_uz_latn || detail.name_uz_cyrl || detail.name;
+  if (lang === "uz") return detail.name_uz_latn || detail.name_uz_cyrl || detail.name_ru || detail.name;
+  return detail.name || detail.name_uz_latn || detail.name_ru || detail.name_uz_cyrl;
+}
+
+function registryPerson(person) {
+  if (!person) return null;
+  return [person.lastName, person.firstName, person.middleName].filter(Boolean).join(" ");
+}
+
+function registryAddress(payload, lang) {
+  const address = payload?.companyBillingAddress;
+  const company = payload?.company || {};
+  if (!address) return company.streetName || null;
+  const region = registryDetailName(address.region, lang);
+  const district = registryDetailName(address.district, lang);
+  const street = address.streetName || company.streetName;
+  const house = address.house ? `${lang === "ru" ? "д." : lang === "uz" ? "uy" : "house"} ${address.house}` : null;
+  const flat = address.flat ? `${lang === "ru" ? "кв." : lang === "uz" ? "xonadon" : "apt."} ${address.flat}` : null;
+  return [address.postcode, region, district, street, house, flat].filter(Boolean).join(", ") || null;
+}
+
+function CompanyRegistryCard({ data, loading, error, onRetry, lang }) {
+  const tx = lang === "ru" ? {
+    heading: "Регистрационные данные", source: "Реестр Налогового комитета",
+    fullName: "Полное наименование", shortName: "Краткое наименование", tin: "ИНН",
+    status: "Статус", statusUpdated: "Дата изменения статуса", opf: "Организационно-правовая форма",
+    oked: "Вид деятельности (ОКЭД)", soato: "Код территории (СОАТО)", soogu: "Орган управления (СООГУ)",
+    registrator: "Код регистрирующего органа", taxpayerType: "Тип налогоплательщика", kfs: "Форма собственности (КФС)",
+    registrationDate: "Дата регистрации", registrationNumber: "Регистрационный номер", reregistrationDate: "Дата перерегистрации",
+    liquidationDate: "Дата прекращения деятельности", taxMode: "Налоговый режим", vatNumber: "Номер свидетельства НДС",
+    businessFund: "Размер уставного фонда", address: "Юридический адрес", director: "Руководитель", accountant: "Бухгалтер",
+    identity: "Регистрация", classification: "Классификация и налоги", contacts: "Адрес и руководство",
+    retry: "Повторить", unavailable: "Регистрационные данные временно недоступны.", loading: "Загрузка регистрационных данных…",
+  } : lang === "uz" ? {
+    heading: "Ro‘yxatdan o‘tish ma’lumotlari", source: "Soliq qo‘mitasi reyestri",
+    fullName: "To‘liq nomi", shortName: "Qisqa nomi", tin: "STIR",
+    status: "Holati", statusUpdated: "Holat o‘zgargan sana", opf: "Tashkiliy-huquqiy shakl",
+    oked: "Faoliyat turi (IFUT)", soato: "Hudud kodi (SOATO)", soogu: "Boshqaruv organi (SOOGU)",
+    registrator: "Ro‘yxatdan o‘tkazuvchi organ kodi", taxpayerType: "Soliq to‘lovchi turi", kfs: "Mulkchilik shakli (KFS)",
+    registrationDate: "Ro‘yxatdan o‘tgan sana", registrationNumber: "Ro‘yxat raqami", reregistrationDate: "Qayta ro‘yxatdan o‘tgan sana",
+    liquidationDate: "Faoliyat tugatilgan sana", taxMode: "Soliq rejimi", vatNumber: "QQS guvohnomasi raqami",
+    businessFund: "Ustav fondi", address: "Yuridik manzil", director: "Rahbar", accountant: "Buxgalter",
+    identity: "Ro‘yxatdan o‘tish", classification: "Tasnif va soliqlar", contacts: "Manzil va rahbariyat",
+    retry: "Qayta urinish", unavailable: "Ro‘yxat ma’lumotlari vaqtincha mavjud emas.", loading: "Ro‘yxat ma’lumotlari yuklanmoqda…",
+  } : {
+    heading: "Company registry", source: "Tax Committee registry",
+    fullName: "Full name", shortName: "Short name", tin: "TIN",
+    status: "Status", statusUpdated: "Status updated", opf: "Legal form",
+    oked: "Activity (OKED)", soato: "Territory code (SOATO)", soogu: "Governing authority (SOOGU)",
+    registrator: "Registration authority code", taxpayerType: "Taxpayer type", kfs: "Ownership form (KFS)",
+    registrationDate: "Registration date", registrationNumber: "Registration number", reregistrationDate: "Re-registration date",
+    liquidationDate: "Liquidation date", taxMode: "Tax regime", vatNumber: "VAT certificate number",
+    businessFund: "Charter capital", address: "Legal address", director: "Director", accountant: "Accountant",
+    identity: "Registration", classification: "Classification and taxes", contacts: "Address and management",
+    retry: "Retry", unavailable: "Company registry data is temporarily unavailable.", loading: "Loading company registry data…",
+  };
+
+  if (loading) return (
+    <section className="company-registry" aria-label={tx.heading} aria-busy="true">
+      <div className="company-registry-head"><h3 className="co-heading">{tx.heading}</h3><span>{tx.loading}</span></div>
+      <div className="company-registry-skeleton" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <span key={i} />)}</div>
+    </section>
+  );
+  if (error || !data?.registry?.company) return (
+    <section className="company-registry" aria-label={tx.heading}>
+      <div className="company-registry-head"><h3 className="co-heading">{tx.heading}</h3></div>
+      <div className="company-registry-error" role="status"><span>{tx.unavailable}</span><button type="button" onClick={onRetry}>{tx.retry}</button></div>
+    </section>
+  );
+
+  const payload = data.registry;
+  const company = payload.company;
+  const field = (label, value, wide = false) => (
+    <div className={`company-registry-field${wide ? " is-wide" : ""}`} key={label}>
+      <span>{label}</span><strong>{value === null || value === undefined || value === "" ? "—" : value}</strong>
+    </div>
+  );
+  const detail = (object, code) => {
+    const name = registryDetailName(object, lang);
+    return [code, name].filter((value) => value !== null && value !== undefined && value !== "").join(" · ") || null;
+  };
+  const fund = Number.isFinite(Number(company.businessFund))
+    ? `${new Intl.NumberFormat(lang === "uz" ? "uz-UZ" : lang === "en" ? "en-US" : "ru-RU").format(Number(company.businessFund))} UZS`
+    : null;
+  const taxMode = company.taxMode === 1 ? `1 · ${lang === "ru" ? "НДС" : lang === "uz" ? "QQS" : "VAT"}` : company.taxMode;
+
+  return (
+    <section className="company-registry" aria-label={tx.heading} data-testid="company-registry">
+      <div className="company-registry-head">
+        <div><h3 className="co-heading">{tx.heading}</h3><span>{tx.source}</span></div>
+        <span className={`company-registry-status ${company.statusDetail?.group === "ACTIVE" ? "is-active" : ""}`}>{registryDetailName(company.statusDetail, lang) || company.status}</span>
+      </div>
+      <div className="company-registry-section">
+        <h4>{tx.identity}</h4>
+        <div className="company-registry-grid">
+          {field(tx.fullName, company.name, true)}
+          {field(tx.shortName, company.shortName, true)}
+          {field(tx.tin, company.tin || data.tin)}
+          {field(tx.status, detail(company.statusDetail, company.status))}
+          {field(tx.statusUpdated, company.statusUpdated)}
+          {field(tx.registrationDate, company.registrationDate)}
+          {field(tx.registrationNumber, company.registrationNumber)}
+          {field(tx.reregistrationDate, company.reregistrationDate)}
+          {field(tx.liquidationDate, company.liquidationDate)}
+          {field(tx.registrator, company.sooguRegistrator)}
+        </div>
+      </div>
+      <div className="company-registry-section">
+        <h4>{tx.classification}</h4>
+        <div className="company-registry-grid">
+          {field(tx.opf, detail(company.opfDetail, company.opf), true)}
+          {field(tx.oked, detail(company.okedDetail, company.oked), true)}
+          {field(tx.soogu, detail(company.sooguDetail, company.soogu), true)}
+          {field(tx.soato, company.soato)}
+          {field(tx.kfs, company.kfs)}
+          {field(tx.taxpayerType, company.taxpayerType)}
+          {field(tx.taxMode, taxMode)}
+          {field(tx.vatNumber, company.vatNumber)}
+          {field(tx.businessFund, fund)}
+        </div>
+      </div>
+      <div className="company-registry-section">
+        <h4>{tx.contacts}</h4>
+        <div className="company-registry-grid">
+          {field(tx.address, registryAddress(payload, lang), true)}
+          {field(tx.director, registryPerson(payload.director), true)}
+          {field(tx.accountant, registryPerson(payload.accountant), true)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, intraday, priceRange, onRangeChange, lang, infoLoading, registryData, registryLoading, registryError, onRegistryRetry, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
 
   return (
@@ -11720,6 +11856,7 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
             ) : (
               <p className="muted" style={{ fontSize: 14 }}>{lang === "ru" ? "Информация о компании недоступна." : lang === "uz" ? "Kompaniya haqida ma'lumot mavjud emas." : "Company information is currently unavailable."}</p>
             )}
+            <CompanyRegistryCard data={registryData} loading={registryLoading} error={registryError} onRetry={onRegistryRetry} lang={lang} />
           </div>
         </div>
 
@@ -13045,6 +13182,12 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   const [secInfo, setSecInfo] = React.useState((securitiesMap || {})[ticker] || null);
   const [infoLoading, setInfoLoading] = React.useState(false);
   const [companyData, setCompanyData] = React.useState(null);
+  // Legal and tax data is intentionally page-lazy. It is not included in the
+  // market/catalog payloads and is requested only after this issuer route opens.
+  const [registryData, setRegistryData] = React.useState(null);
+  const [registryLoading, setRegistryLoading] = React.useState(true);
+  const [registryError, setRegistryError] = React.useState(false);
+  const [registryRetry, setRegistryRetry] = React.useState(0);
   const [dividends, setDividends] = React.useState(null);
   // The issuer's annual series (fact store). Lazy: only the Финансы tab
   // reads it, and most visits never open that tab.
@@ -13353,6 +13496,24 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   }, [ticker, lang]);
 
   React.useEffect(() => {
+    if (!ticker) return undefined;
+    let alive = true;
+    setRegistryData(null);
+    setRegistryLoading(true);
+    setRegistryError(false);
+    fetch(`/api/company/${encodeURIComponent(ticker)}/registry`)
+      .then(async (response) => {
+        const body = await response.json().catch(() => null);
+        if (!response.ok || !body?.ok || !body?.registry?.company) throw new Error("company registry unavailable");
+        return body;
+      })
+      .then((body) => { if (alive) setRegistryData(body); })
+      .catch(() => { if (alive) setRegistryError(true); })
+      .finally(() => { if (alive) setRegistryLoading(false); });
+    return () => { alive = false; };
+  }, [ticker, registryRetry]);
+
+  React.useEffect(() => {
     if (!ticker || !["reports", "financials"].includes(tab) || companyData) return undefined;
     let alive = true;
     setCompanyDataError(false);
@@ -13534,6 +13695,8 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
             priceRange={priceRange} onRangeChange={setPriceRange}
             securityType={securityType} isPreferred={isPreferred} industry={industry}
             marketRow={marketRow} lang={lang} infoLoading={infoLoading}
+            registryData={registryData} registryLoading={registryLoading} registryError={registryError}
+            onRegistryRetry={() => setRegistryRetry((value) => value + 1)}
             priceMetrics={metrics}
             metrics12={metrics12} mult={mult} dividends={dividends} lastPrice={lastPrice}
             watchRail={
