@@ -40,11 +40,41 @@ def test_resolves_inn_and_calls_full_soliq_only_for_requested_ticker(monkeypatch
     assert result["tin"] == "200833833"
     assert result["type"] == "full"
     assert result["registry"]["company"]["tin"] == "200833833"
+    assert result["location"] is None
     assert len(calls) == 1
     url, options = calls[0]
     assert url.endswith("/company/info/200833833")
     assert options["params"] == {"type": "full"}
     assert options["headers"]["X-API-KEY"] == "server-secret"
+
+
+def test_registry_coordinates_are_normalised_without_geocoding(monkeypatch):
+    monkeypatch.setenv("SOLIQ_API_KEY", "server-secret")
+    monkeypatch.setattr(soliq_company, "get_org_index", lambda force=False: _index())
+
+    class _LocatedResponse(_Response):
+        def json(self):
+            return {
+                "company": {"tin": "200833833", "name": "O'ZBEKISTON POCHTASI AJ"},
+                "companyBillingAddress": {"lat": "41.311081", "lng": "69.240562"},
+            }
+
+    monkeypatch.setattr(soliq_company.requests, "get", lambda *args, **kwargs: _LocatedResponse())
+    result = soliq_company.fetch_company_registry("UPOS")
+
+    assert result["location"] == {"latitude": 41.311081, "longitude": 69.240562}
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        {"latitude": 0, "longitude": 0},
+        {"latitude": 69.240562, "longitude": 41.311081},
+        {"latitude": "not-a-number", "longitude": 69.240562},
+    ],
+)
+def test_untrusted_registry_coordinates_are_rejected(address):
+    assert soliq_company._registry_location({"companyBillingAddress": address}) is None
 
 
 def test_preferred_share_uses_the_same_issuer_inn(monkeypatch):
