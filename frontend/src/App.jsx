@@ -24,7 +24,6 @@ import {
 } from "./lib/indicators.js";
 import promoVideo from "./assets/promo.mp4";
 import promoPoster from "./assets/promo-poster.jpg";
-import logoIcon from "./assets/uzstock-mark.svg";
 // Pure, unit-tested helpers for reporting-period labels and market rows.
 import {
   finFieldCoverage,
@@ -62,6 +61,10 @@ const ProfileResearchEditor = lazy(() => import("./ProfileAccountCenter.jsx").th
 // The visit beacon: one fire-and-forget POST per page view, read back by the
 // admin panel's «Аудитория». Admin pages themselves are not counted.
 import { setTrackedUser, trackPageview } from "./lib/track.js";
+
+// Keep the header and favicon on one stable public URL instead of coupling the
+// brand mark to a generated asset hash at every deployment.
+const logoIcon = "/uzstock-mark.svg";
 
 // --- Client-side routing: each view maps to a real URL path ------------------
 const VIEW_PATHS = {
