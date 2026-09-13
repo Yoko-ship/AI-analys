@@ -43,6 +43,7 @@ import {
 } from "./lib/translate.js";
 import { pickLeadIndex } from "./lib/newsfeed.js";
 import { localizedCalendarTitle } from "./lib/calendarTitle.js";
+import { companyReportPresentation, reportFormLabel } from "./lib/reportPresentation.js";
 // ТЗ §3.2: one glossary for the whole site. The /reference page and every ⓘ
 // marker in the interface read the same entries, so a term cannot be explained
 // two different ways depending on where the reader met it.
@@ -318,7 +319,7 @@ const NEWS_TX = {
     },
     emptyInstrument: "За месяц таких сообщений не было.",
     cat: { report: "Отчётность", listing: "Листинг", delisting: "Делистинг" },
-    forms: { NAS: "НСБУ", NSBU: "НСБУ", IFRS: "МСФО", MSFO: "МСФО", Audit: "Аудит", Audition: "Аудит" },
+    forms: { NAS: "НСБУ", NSBU: "НСБУ", IFRS: "МСФО", MSFO: "МСФО", Audit: "Аудиторское заключение", Audition: "Аудиторское заключение" },
   },
   en: {
     eyebrow: "Market · Analytical feed", title: "Market News",
@@ -347,7 +348,7 @@ const NEWS_TX = {
     },
     emptyInstrument: "No such filing in the past month.",
     cat: { report: "Filing", listing: "Listing", delisting: "Delisting" },
-    forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
+    forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Auditor's report", Audition: "Auditor's report" },
   },
   uz: {
     eyebrow: "Bozor · Tahliliy lenta", title: "Bozor yangiliklari",
@@ -376,7 +377,7 @@ const NEWS_TX = {
     },
     emptyInstrument: "Bir oy ichida bunday xabar bo'lmagan.",
     cat: { report: "Hisobot", listing: "Listing", delisting: "Delisting" },
-    forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Audit", Audition: "Audit" },
+    forms: { NAS: "NAS", NSBU: "NAS", IFRS: "IFRS", MSFO: "IFRS", Audit: "Auditor xulosasi", Audition: "Auditor xulosasi" },
   },
 };
 
@@ -2487,7 +2488,7 @@ const TEXTS = {
       companies: "компаний",
       totalReports: "отчётов в базе",
       lastSync: "Последнее обновление",
-      forms: { NSBU: "НСБУ", MSFO: "МСФО", Audition: "Аудит" },
+      forms: { NSBU: "НСБУ", MSFO: "МСФО", Audition: "Аудиторское заключение" },
       periods: { annual: "Годовой", q1: "Q1", q2: "Q2", q3: "Q3" },
       analysisLabel: "Тип аналитики",
       runAnalysis: "Запустить анализ",
@@ -2829,7 +2830,7 @@ const TEXTS = {
       companies: "companies",
       totalReports: "reports in database",
       lastSync: "Last updated",
-      forms: { NSBU: "NAS", MSFO: "IFRS", Audition: "Audit" },
+      forms: { NSBU: "NAS", MSFO: "IFRS", Audition: "Auditor's report" },
       periods: { annual: "Annual", q1: "Q1", q2: "Q2", q3: "Q3" },
       analysisLabel: "Analysis type",
       runAnalysis: "Run analysis",
@@ -3170,7 +3171,7 @@ const TEXTS = {
       companies: "kompaniya",
       totalReports: "bazadagi hisobotlar",
       lastSync: "Oxirgi yangilanish",
-      forms: { NSBU: "NSBU", MSFO: "MHXS", Audition: "Audit" },
+      forms: { NSBU: "NSBU", MSFO: "MHXS", Audition: "Auditor xulosasi" },
       periods: { annual: "Yillik", q1: "Q1", q2: "Q2", q3: "Q3" },
       analysisLabel: "Tahlil turi",
       runAnalysis: "Tahlilni ishga tushirish",
@@ -11938,13 +11939,12 @@ function CompanyReportsTab({ reports, lang }) {
     if (forms.length > 0 && !forms.includes(form)) setForm(forms[0]);
   }, [formsKey]);
   const visible = form ? reports.filter((r) => r.report_form === form) : reports;
-  const FORM_LABELS = { NSBU: "НСБУ", MSFO: "МСФО", Audition: lang === "ru" ? "Аудит" : "Audit" };
   return (
     <div>
       {forms.length > 1 && (
         <div className="company-chart-ranges" style={{ marginBottom: 12 }}>
           {forms.map((f) => (
-            <button key={f} type="button" className={`range-btn ${form === f ? "active" : ""}`} onClick={() => setForm(f)}>{FORM_LABELS[f] || f}</button>
+            <button key={f} type="button" className={`range-btn ${form === f ? "active" : ""}`} onClick={() => setForm(f)}>{reportFormLabel(f, lang)}</button>
           ))}
         </div>
       )}
@@ -11954,21 +11954,25 @@ function CompanyReportsTab({ reports, lang }) {
         </div>
       ) : (
         <div className="company-reports-list">
-          {visible.map((r, i) => (
-            <div key={i} className="company-report-row panel">
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{r.title || `${r.report_form} ${r.year || ""} ${r.quarter ? `Q${r.quarter}` : ""}`}</div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {r.period_type} · {r.year}{r.quarter ? ` Q${r.quarter}` : ""} · {r.report_form}
+          {visible.map((r, i) => {
+            const presentation = companyReportPresentation(r, lang);
+            return (
+              <div key={i} className="company-report-row panel">
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{presentation.title}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {presentation.periodType} · {r.year}{r.quarter ? ` Q${r.quarter}` : ""} · {presentation.formLabel}
+                  </div>
+                  {presentation.description && <div className="company-report-description">{presentation.description}</div>}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {r.excel_url && <a href={r.excel_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>Excel →</a>}
+                  {r.excel_url_form1 && r.excel_url_form1 !== r.excel_url && <a href={r.excel_url_form1} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>{lang === "ru" ? "Баланс →" : lang === "uz" ? "Balans →" : "Balance →"}</a>}
+                  {r.pdf_url && !r.pdf_url.includes("/reports/to_pdf") && <a href={r.pdf_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>PDF →</a>}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                {r.excel_url && <a href={r.excel_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>Excel →</a>}
-                {r.excel_url_form1 && r.excel_url_form1 !== r.excel_url && <a href={r.excel_url_form1} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>{lang === "ru" ? "Баланс →" : lang === "uz" ? "Balans →" : "Balance →"}</a>}
-                {r.pdf_url && !r.pdf_url.includes("/reports/to_pdf") && <a href={r.pdf_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>PDF →</a>}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -16443,9 +16447,9 @@ function MarketEventsFeed({ lang, onOpenCompany }) {
 
   // The filing's form, in the reader's language — the headline and the event's
   // own detail must not disagree over whether it is «НСБУ» or «NSBU».
-  const formLabel = (raw) => (raw === "NSBU" ? t("НСБУ", "NSBU", "NAS")
-    : raw === "MSFO" ? t("МСФО", "MSFO", "IFRS")
-    : raw === "Audition" ? t("Аудит", "Audit", "Audit") : raw);
+  const formLabel = (raw) => (["NSBU", "MSFO", "Audition"].includes(raw)
+    ? reportFormLabel(raw, lang)
+    : raw === "Audit" ? t("Аудиторское заключение", "Auditor xulosasi", "Auditor's report") : raw);
   const headline = (i) => {
     if (i.type === "report") {
       return `${t("Опубликована отчётность", "Hisobot e'lon qilindi", "Filing published")} · ${formLabel(i.report_form)}`;

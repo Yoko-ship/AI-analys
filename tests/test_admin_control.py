@@ -355,6 +355,21 @@ def test_metadata_only_update_retains_old_original_in_history():
         assert not revised["parsed"] and revised["checksum"] is None
 
 
+def test_catalog_adapter_does_not_classify_audit_opinion_as_ifrs():
+    audit = adapters.catalog_document({
+        "ticker": "FACT", "report_form": "Audition", "year": 2025,
+        "quarter": 0, "title": "Отчет независимых аудиторов",
+        "pdf_url": "https://openinfo.uz/audit.pdf",
+    })
+    statements = adapters.catalog_document({
+        "ticker": "FACT", "report_form": "MSFO", "year": 2025,
+        "quarter": 0, "title": "Consolidated financial statements",
+        "pdf_url": "https://openinfo.uz/ifrs.pdf",
+    })
+    assert audit["standard"] == "AUDIT"
+    assert statements["standard"] == "IFRS"
+
+
 @pytest.mark.parametrize("configured", ["[]", '"administrator"', "invalid", '{"owner@example.test":[]}', '{"owner@example.test":null}'])
 def test_malformed_role_configuration_fails_closed(monkeypatch, configured):
     monkeypatch.setenv("ADMIN_EMAILS", ADMIN["email"])
