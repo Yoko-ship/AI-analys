@@ -140,12 +140,13 @@ test("blocked reports keep a dated prior report and never open empty details", a
   await page.setViewportSize({ width: 390, height: 844 });
   await api(page, { ...REPORT, status: "quality_blocked", headline: "Анализ временно недоступен: данные не прошли сверку.",
     data_quality: [{ code: "BALANCE_IDENTITY_FAILED", message: "Баланс не сходится" }],
-    availability: { last_source_period: "2026Q2", next_action: "Повтор после обновления источника" },
+    availability: {},
     last_successful_report: { period: "2026Q1", paragraphs: ["Проверенный отчёт за I квартал 2026 года."] },
   });
   await page.goto("/company/UZMK");
   const card = page.getByTestId("company-insight-card");
   await expect(card).toContainText("Баланс не сходится");
+  await expect(card).toContainText("Доступный период: 2026Q2");
   await expect(card).not.toContainText("BALANCE_IDENTITY_FAILED");
   await expect(card.getByRole("button", { name: "Открыть полный анализ" })).toHaveCount(0);
   await card.getByText(/Последний проверенный анализ/).click();

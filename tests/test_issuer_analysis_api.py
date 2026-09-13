@@ -197,6 +197,19 @@ def test_ai_report_summary_defers_the_full_report(client):
     assert "number_references" not in body
 
 
+def test_bank_ai_report_summary_uses_bank_metrics_and_keeps_period(client):
+    body = client.get(
+        "/api/v1/issuers/BANK/ai-report?standard=nsbu&period=2026Q2&lang=ru&summary=true"
+    ).json()
+
+    assert body["status"] == "available"
+    assert body["content_status"] == "complete"
+    assert body["deferred_full_report"] is True
+    assert body["period"] == "2026Q2"
+    assert body["availability"]["last_source_period"] == "2026Q2"
+    assert "недостаточно" not in body["headline"].lower()
+
+
 def test_mixed_sector_metric_is_blocked_before_ranking(client):
     response = client.post("/api/v1/comparisons", json={
         "object_type": "issuer",

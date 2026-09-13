@@ -45,7 +45,7 @@ export function ReportAvailability({ report, lang = "ru" }) {
     : item.message;
   return <div className="verified-availability" role="status">
     <strong>{heading}</strong>
-    <p>{pick(lang, "Доступный период", "Mavjud davr", "Available period")}: {report.availability?.last_source_period || "—"}</p>
+    <p>{pick(lang, "Доступный период", "Mavjud davr", "Available period")}: {report.availability?.last_source_period || report.period || "—"}</p>
     {(report.data_quality || []).map((item) => <p key={item.code}>{qualityMessage(item)}</p>)}
     {report.availability?.next_action && <p>{mappingFailed
       ? pick(lang, "Мы проверим данные снова после обновления источника.", "Manba yangilangach ma’lumotlarni yana tekshiramiz.", "We will check the data again after the source is updated.")

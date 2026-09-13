@@ -1261,8 +1261,22 @@ def issuer_ai_report(
         key: item["normalized"] for key, item in values.items()
         if item["normalized"] is not None
     }
-    required = {"revenue", "net_income", "net_margin_pct", "debt_ratio_pct", "roe_pct"}
-    available = len(required & set(normalized)) >= 4
+    organization_type = snapshot.get("organization_type")
+    if organization_type in {"bank", "microfinance_bank", "microfinance"}:
+        # Bank statements do not define the industrial margin and liquidity
+        # fields used below for ordinary companies.  Requiring those fields made
+        # every healthy bank summary fail before its bank-specific report was
+        # even opened.
+        required = {"revenue", "net_income", "total_assets", "total_equity"}
+        available = required.issubset(normalized)
+    else:
+        required = {"revenue", "net_income", "net_margin_pct", "debt_ratio_pct", "roe_pct"}
+        available = len(required & set(normalized)) >= 4
+    available = (
+        bool(snapshot.get("period"))
+        and available
+        and snapshot.get("quality", {}).get("verification_status") != "blocked"
+    )
     headline, headline_tone = _ai_report_headline(issuer, normalized, available, lang)
     return {
         "ok": True,
@@ -1280,6 +1294,12 @@ def issuer_ai_report(
         "short_summary": headline,
         "card_word_count": len(str(headline or "").split()),
         "deferred_full_report": available,
+        "availability": {
+            "reason_code": "available" if available else "quality_blocked",
+            "last_source_period": snapshot.get("period"),
+            "last_successful_period": snapshot.get("period") if available else None,
+            "next_action": None,
+        },
         "source_snapshot_hash": snapshot.get("source_snapshot_hash"),
     }
 
