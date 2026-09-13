@@ -64,7 +64,7 @@ import { setTrackedUser, trackPageview } from "./lib/track.js";
 
 // Keep the header and favicon on one stable public URL instead of coupling the
 // brand mark to a generated asset hash at every deployment.
-const logoIcon = "/uzstock-mark.svg";
+const logoIcon = "/assets/uzstock-mark.svg";
 
 // --- Client-side routing: each view maps to a real URL path ------------------
 const VIEW_PATHS = {
