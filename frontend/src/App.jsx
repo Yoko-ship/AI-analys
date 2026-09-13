@@ -62,9 +62,23 @@ const ProfileResearchEditor = lazy(() => import("./ProfileAccountCenter.jsx").th
 // admin panel's «Аудитория». Admin pages themselves are not counted.
 import { setTrackedUser, trackPageview } from "./lib/track.js";
 
-// Keep the header and favicon on one stable public URL instead of coupling the
-// brand mark to a generated asset hash at every deployment.
-const logoIcon = "/assets/uzstock-mark.svg";
+function BrandIcon({ className = "brand-icon", decorative = false }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 100 100"
+      role={decorative ? undefined : "img"}
+      aria-label={decorative ? undefined : "UZStock"}
+      aria-hidden={decorative ? "true" : undefined}
+      focusable="false"
+    >
+      <rect x="5" y="5" width="90" height="90" rx="24" fill="#062D5F" />
+      <path d="M28 28v24c0 13.2 8 21 19 21 8.5 0 14.5-4.5 17-12.2" fill="none" stroke="#F7FBFF" strokeLinecap="round" strokeWidth="9" />
+      <path d="M54 61.5 76 32" fill="none" stroke="#65E6A2" strokeLinecap="round" strokeWidth="9" />
+      <path d="m64.5 32 11.5 0 0 11.5" fill="none" stroke="#65E6A2" strokeLinecap="round" strokeLinejoin="round" strokeWidth="8" />
+    </svg>
+  );
+}
 
 // --- Client-side routing: each view maps to a real URL path ------------------
 const VIEW_PATHS = {
@@ -22049,7 +22063,7 @@ function App() {
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
           <div className="topbar-brand">
-            <img src={logoIcon} alt="UZStock" className="brand-icon" />
+            <BrandIcon />
             <div className="brand-copy">
               <div className="brand-title">{t(language, "brand")}</div>
               <div className="brand-subtitle">{t(language, "subtitle")}</div>
@@ -22486,7 +22500,7 @@ function App() {
               </div>
 
               <article className="auth-hub-card">
-                <img src={logoIcon} alt="" className="auth-hub-logo" aria-hidden="true" />
+                <BrandIcon className="auth-hub-logo" decorative />
 
                 {token && profileUser ? (
                   <div className="auth-signed-in">
