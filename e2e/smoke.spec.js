@@ -107,7 +107,7 @@ const NEWS_ITEMS = [
 
 const CALENDAR_MEETINGS = [
   {
-    announcement_id: "meeting-uz",
+    announcement_id: "21349",
     organization: '"Sinov kompaniyasi" AJ',
     ticker: "AGBA",
     title: "Акциядорларнинг навбатдан ташқари умумий йиғилишини ўтказиш тўғрисида",
@@ -115,7 +115,7 @@ const CALENDAR_MEETINGS = [
     pub_date: "2026-08-20T09:00:00",
   },
   {
-    announcement_id: "meeting-ru",
+    announcement_id: "21350",
     organization: 'АО "Проверка"',
     ticker: null,
     title: "Сообщение о проведении годового общего собрания акционеров",
@@ -123,6 +123,23 @@ const CALENDAR_MEETINGS = [
     pub_date: "2026-08-21T09:00:00",
   },
 ];
+const CALENDAR_ANNOUNCEMENT = {
+  announcement_id: "21349",
+  language: "ru",
+  title: "Проведение внеочередного общего собрания акционеров",
+  organization: '"Sinov kompaniyasi" AJ',
+  metadata: [
+    { label: "Дата публикации", value: "20.08.2026 09:00" },
+    { label: "Дата собрания", value: "26.08.2026 10:00" },
+  ],
+  content: [
+    { kind: "paragraph", text: "Полный текст объявления на странице." },
+    { kind: "list_item", text: "Первый вопрос повестки дня." },
+  ],
+  organization_details: [{ label: "ИНН", value: "200000001" }],
+  pdf_url: "https://openinfo.uz/ru/announce/to_pdf/21349/",
+  source_url: "https://openinfo.uz/ru/announce/21349",
+};
 
 // What the price did around story 11 — two dated closes, as `formulas.price_reaction`
 // returns them. Never a claim that the story moved the price.
@@ -167,6 +184,7 @@ async function mockApi(page) {
     if (p === "/api/news/feed") return j({ ok: true, count: NEWS_ITEMS.length, items: NEWS_ITEMS, disclaimer: NEWS_DISCLAIMER });
     if (p === "/api/news/calendar/meetings") return j({ ok: true, count: CALENDAR_MEETINGS.length, items: CALENDAR_MEETINGS });
     if (p === "/api/news/calendar/announcements") return j({ ok: true, count: CALENDAR_MEETINGS.length, items: CALENDAR_MEETINGS });
+    if (p === "/api/news/calendar/announcements/21349") return j({ ok: true, item: CALENDAR_ANNOUNCEMENT });
     if (p === "/api/news/calendar/dividends") return j({ ok: true, count: 0, items: [] });
     if (p.startsWith("/api/news/ticker/")) {
       const tk = p.slice("/api/news/ticker/".length);
@@ -245,8 +263,8 @@ test("calendar meeting headlines follow the selected interface language", async 
   await expect(titles.nth(0)).toHaveText("Внеочередное общее собрание акционеров");
   await expect(titles.nth(0)).toHaveAttribute("title", CALENDAR_MEETINGS[0].title);
   await expect(page.locator("a.newscal-news-row").first())
-    .toHaveAttribute("href", "https://openinfo.uz/ru/announce/meeting-uz");
-  await expect(page.locator("a.newscal-news-row").first()).toHaveAttribute("target", "_blank");
+    .toHaveAttribute("href", "/news/announcement/21349");
+  await expect(page.locator("a.newscal-news-row").first()).not.toHaveAttribute("target", "_blank");
   await expect(titles.nth(1)).toHaveText(CALENDAR_MEETINGS[1].title);
 
   await page.locator("#languageSelect").selectOption("en");
@@ -261,24 +279,19 @@ test("calendar meeting headlines follow the selected interface language", async 
   await page.getByRole("button", { name: "Объявления", exact: true }).click();
   await expect(page.locator(".newscal-anntitle").first()).toHaveText("Внеочередное общее собрание акционеров");
   await expect(page.locator(".newscal-anntitle a").first())
-    .toHaveAttribute("href", "https://openinfo.uz/ru/announce/meeting-uz");
+    .toHaveAttribute("href", "/news/announcement/21349");
 });
 
-test("clicking a calendar meeting opens its OpenInfo announcement", async ({ page, context }) => {
-  await context.route("https://openinfo.uz/**", (route) => route.fulfill({
-    status: 200,
-    contentType: "text/html",
-    body: "<title>OpenInfo announcement</title>",
-  }));
+test("clicking a calendar meeting opens the announcement on our site", async ({ page }) => {
   await page.goto("/news?tab=calendar");
 
-  const [source] = await Promise.all([
-    page.waitForEvent("popup"),
-    page.locator("a.newscal-news-row").first().click(),
-  ]);
+  await page.locator("a.newscal-news-row").first().click();
 
-  await expect(source).toHaveURL("https://openinfo.uz/ru/announce/meeting-uz");
-  await source.close();
+  await expect(page).toHaveURL(/\/news\/announcement\/21349$/);
+  await expect(page.getByRole("heading", { name: CALENDAR_ANNOUNCEMENT.title })).toBeVisible();
+  await expect(page.getByText("Полный текст объявления на странице.")).toBeVisible();
+  await expect(page.getByText("Первый вопрос повестки дня.")).toBeVisible();
+  await expect(page.getByText("200000001")).toBeVisible();
 });
 
 test("an open calendar refetches when the tab regains focus", async ({ page }) => {
