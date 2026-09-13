@@ -125,12 +125,33 @@ test("the company overview chart zooms, pans through history, and resets", async
   await chart.click({ position: { x: boxForDrawing.width * 0.30, y: boxForDrawing.height * 0.40 } });
   await chart.click({ position: { x: boxForDrawing.width * 0.65, y: boxForDrawing.height * 0.58 } });
   await expect(page.locator(".cpc-drawing-line")).toBeVisible();
-  await page.getByRole("button", { name: "Очистить" }).click();
+  await page.getByRole("button", { name: "Очистить", exact: true }).click();
   await expect(page.locator(".cpc-drawing-line")).toHaveCount(0);
 
   await page.getByTestId("company-chart-indicators").click();
   await page.getByRole("menuitemcheckbox", { name: /MA20/ }).click();
   await expect(page.locator(".cpc-ma20")).toBeVisible();
+
+  // "Clear all" removes every additive overlay in one action: comparison,
+  // moving averages and the user-drawn trend line. View/range preferences are
+  // deliberately not part of this reset.
+  await page.getByTestId("company-chart-compare").click();
+  await peer.click();
+  await expect(page.locator(".cpc-compare-path")).toBeVisible();
+  await page.getByTestId("company-chart-draw").click();
+  await chart.click({ position: { x: boxForDrawing.width * 0.25, y: boxForDrawing.height * 0.35 } });
+  await chart.click({ position: { x: boxForDrawing.width * 0.70, y: boxForDrawing.height * 0.62 } });
+  await expect(page.locator(".cpc-drawing-line")).toBeVisible();
+  const clearAllShot = testInfo.outputPath("company-chart-clear-all.png");
+  await page.screenshot({ path: clearAllShot, fullPage: false });
+  await testInfo.attach("company-chart-clear-all", { path: clearAllShot, contentType: "image/png" });
+  await page.getByTestId("company-chart-clear-all").click();
+  await expect(page.locator(".cpc-compare-path")).toHaveCount(0);
+  await expect(page.locator(".cpc-ma20")).toHaveCount(0);
+  await expect(page.locator(".cpc-drawing-line")).toHaveCount(0);
+  await expect(page.getByTestId("company-chart-clear-all")).toHaveCount(0);
+  await expect(chart).toHaveAttribute("data-chart-interval", "D");
+  await expect(chart).toHaveAttribute("data-chart-type", "area");
 
   await page.getByTestId("company-chart-settings").click();
   const menuShot = testInfo.outputPath("company-chart-toolbar-menu.png");

@@ -12774,6 +12774,8 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
 .cpc-settings-menu input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
 .cpc-draw-status { display: flex; align-items: center; gap: 12px; margin: 6px 0 0; color: var(--accent); font-size: 11.5px; font-weight: 600; }
 .cpc-draw-status button { appearance: none; border: 0; padding: 0; background: none; color: var(--text-muted); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.cpc-draw-status button.cpc-clear-all { color: var(--accent); font-weight: 700; }
+.cpc-draw-status button.cpc-clear-all:hover { color: var(--text-primary); }
 .cpc-drawing-line, .cpc-drawing-point { pointer-events: none; }
 .chart-opt-btn { padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border); background: none; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
 .chart-opt-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
