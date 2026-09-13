@@ -21,7 +21,11 @@ def catalog_document(row):
     url = row.get("excel_url") or row.get("pdf_url") or row.get("excel_url_form1")
     declared = "XLSX" if row.get("excel_url") or row.get("excel_url_form1") else "PDF" if row.get("pdf_url") else None
     # Extensions are hints, not evidence that MIME sniffing has happened.
-    standard = {"MSFO": "IFRS", "Audition": "IFRS"}.get(row.get("report_form"), row.get("report_form"))
+    # An audit opinion is a document kind, not an accounting standard. Keeping
+    # it under IFRS made the control plane offer standalone auditor reports as
+    # IFRS statements. Full audited IFRS packages already arrive as MSFO and
+    # remain IFRS; the separate Audition feed gets its own unambiguous class.
+    standard = {"MSFO": "IFRS", "Audition": "AUDIT"}.get(row.get("report_form"), row.get("report_form"))
     identity = [row.get("ticker"), row.get("report_form"), year, quarter, row.get("period_type")]
     return classify({"id": "doc_" + s.digest(identity)[:24], "ticker": row.get("ticker"), "title": row.get("title"),
               "standard": standard, "period": f"{year}" + (f"Q{quarter}" if not annual else ""),
