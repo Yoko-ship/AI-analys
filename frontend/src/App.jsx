@@ -10370,6 +10370,16 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     return i < 0 ? null : { x: xs(i), y: ys(point.value) };
   }).filter(Boolean);
   const selectedCompare = new Set(compareTools?.selected || []);
+  const hasDrawing = drawMode || drawingPoints.length > 0;
+  const hasChartOverlays = hasDrawing || maOn.ma20 || maOn.ma50 || selectedCompare.size > 0;
+  const clearAllOverlays = () => {
+    setDrawingPoints([]);
+    setDrawMode(false);
+    setMaOn({ ma20: false, ma50: false });
+    compareTools?.onClear?.();
+    setToolMenu(null);
+    setHover(null);
+  };
 
   return (
     <div className="company-chart-wrap">
@@ -10728,15 +10738,23 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         )}
       </svg>
 
-      {(drawMode || drawingPoints.length > 0) && (
+      {hasChartOverlays && (
         <p className="cpc-draw-status" role="status">
-          <span>{drawMode
-            ? (drawingPoints.length === 0
-                ? t("Линия тренда: выберите первую точку", "Trend chizig'i: birinchi nuqtani tanlang", "Trend line: choose the first point")
-                : t("Линия тренда: выберите вторую точку", "Trend chizig'i: ikkinchi nuqtani tanlang", "Trend line: choose the second point"))
-            : t("Линия тренда добавлена", "Trend chizig'i qo'shildi", "Trend line added")}</span>
-          <button type="button" onClick={() => { setDrawingPoints([]); setDrawMode(false); }}>
-            {t("Очистить", "Tozalash", "Clear")}
+          <span>{hasDrawing
+            ? (drawMode
+                ? (drawingPoints.length === 0
+                    ? t("Линия тренда: выберите первую точку", "Trend chizig'i: birinchi nuqtani tanlang", "Trend line: choose the first point")
+                    : t("Линия тренда: выберите вторую точку", "Trend chizig'i: ikkinchi nuqtani tanlang", "Trend line: choose the second point"))
+                : t("Линия тренда добавлена", "Trend chizig'i qo'shildi", "Trend line added"))
+            : t("На график добавлены элементы", "Grafikka elementlar qo'shildi", "Chart overlays added")}</span>
+          {hasDrawing && (
+            <button type="button" onClick={() => { setDrawingPoints([]); setDrawMode(false); }}>
+              {t("Очистить", "Tozalash", "Clear")}
+            </button>
+          )}
+          <button type="button" className="cpc-clear-all" data-testid="company-chart-clear-all"
+            onClick={clearAllOverlays}>
+            {t("Очистить всё", "Hammasini tozalash", "Clear all")}
           </button>
         </p>
       )}
@@ -13316,6 +13334,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
       ? cur.filter((x) => x !== up)
       : cur.length >= QC_MAX ? cur : [...cur, up]));
   }, []);
+  const clearCompare = React.useCallback(() => {
+    setCompareTickers([]);
+    setCompareLoading(false);
+  }, []);
   // The same stored-close endpoint the watch rail's sparklines read — one
   // request for the whole selection, not one per line. `days` is a count of
   // SESSIONS, not calendar days, so ask for everything the store holds and let
@@ -13714,7 +13736,8 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
             priceAdjustments={priceAdjustments} intraday={intraday}
             compare={{
               peers: comparePeers, securitiesMap, selected: compareTickers,
-              onToggle: toggleCompare, series: compareLines, loading: compareLoading,
+              onToggle: toggleCompare, onClear: clearCompare,
+              series: compareLines, loading: compareLoading,
             }}
             onExpandChart={onOpenChart
               // The advanced chart draws the daily archive and offers no 1Д —
@@ -13742,7 +13765,8 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={setPriceRange} lang={lang}
               intraday={intraday} quality={metrics?.quality} metricsWindows={metrics?.ma_windows}
               ticker={ticker} compare={compareLines} compareLoading={compareLoading}
-              compareTools={{ peers: comparePeers, securitiesMap, selected: compareTickers, onToggle: toggleCompare }}
+              compareTools={{ peers: comparePeers, securitiesMap, selected: compareTickers,
+                              onToggle: toggleCompare, onClear: clearCompare }}
               onExpand={onOpenChart
                 ? () => onOpenChart(ticker, { range: priceRange === "1d" ? "1w" : priceRange,
                                               type: "line", compare: compareTickers,
