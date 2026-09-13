@@ -56,6 +56,11 @@ test("Soliq registry is loaded only for the opened company and renders the full 
   page.on("pageerror", (error) => runtimeErrors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()); });
 
+  await page.route("https://www.google.com/maps?**", (route) => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: "<!doctype html><title>Map fixture</title>",
+  }));
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -89,6 +94,12 @@ test("Soliq registry is loaded only for the opened company and renders the full 
   await expect(card).toContainText("Юнусабадский район");
   await expect(card).toContainText("FAYZULLAYEV ALISHER NASIBULLAYEVICH");
   await expect(card).toContainText(/52.563.506.760 UZS/);
+  await expect(card).not.toContainText("Дата изменения статуса");
+  await expect(card).not.toContainText("Дата прекращения деятельности");
+  await expect(card).not.toContainText("—");
+  const map = card.locator('iframe[title="Расположение компании"]');
+  await expect(map).toBeVisible();
+  await expect(map).toHaveAttribute("src", /google\.com\/maps\?q=.*Yunusabad.*Uzbekistan.*output=embed/);
 
   const desktopShot = testInfo.outputPath("company-registry-desktop.png");
   await card.screenshot({ path: desktopShot });

@@ -11704,7 +11704,7 @@ function CompanyRegistryCard({ data, loading, error, onRetry, lang }) {
     registrator: "Код регистрирующего органа", taxpayerType: "Тип налогоплательщика", kfs: "Форма собственности (КФС)",
     registrationDate: "Дата регистрации", registrationNumber: "Регистрационный номер", reregistrationDate: "Дата перерегистрации",
     liquidationDate: "Дата прекращения деятельности", taxMode: "Налоговый режим", vatNumber: "Номер свидетельства НДС",
-    businessFund: "Размер уставного фонда", address: "Юридический адрес", director: "Руководитель", accountant: "Бухгалтер",
+    businessFund: "Размер уставного фонда", address: "Юридический адрес", director: "Руководитель", accountant: "Бухгалтер", map: "Расположение компании",
     identity: "Регистрация", classification: "Классификация и налоги", contacts: "Адрес и руководство",
     retry: "Повторить", unavailable: "Регистрационные данные временно недоступны.", loading: "Загрузка регистрационных данных…",
   } : lang === "uz" ? {
@@ -11715,7 +11715,7 @@ function CompanyRegistryCard({ data, loading, error, onRetry, lang }) {
     registrator: "Ro‘yxatdan o‘tkazuvchi organ kodi", taxpayerType: "Soliq to‘lovchi turi", kfs: "Mulkchilik shakli (KFS)",
     registrationDate: "Ro‘yxatdan o‘tgan sana", registrationNumber: "Ro‘yxat raqami", reregistrationDate: "Qayta ro‘yxatdan o‘tgan sana",
     liquidationDate: "Faoliyat tugatilgan sana", taxMode: "Soliq rejimi", vatNumber: "QQS guvohnomasi raqami",
-    businessFund: "Ustav fondi", address: "Yuridik manzil", director: "Rahbar", accountant: "Buxgalter",
+    businessFund: "Ustav fondi", address: "Yuridik manzil", director: "Rahbar", accountant: "Buxgalter", map: "Kompaniya joylashuvi",
     identity: "Ro‘yxatdan o‘tish", classification: "Tasnif va soliqlar", contacts: "Manzil va rahbariyat",
     retry: "Qayta urinish", unavailable: "Ro‘yxat ma’lumotlari vaqtincha mavjud emas.", loading: "Ro‘yxat ma’lumotlari yuklanmoqda…",
   } : {
@@ -11726,7 +11726,7 @@ function CompanyRegistryCard({ data, loading, error, onRetry, lang }) {
     registrator: "Registration authority code", taxpayerType: "Taxpayer type", kfs: "Ownership form (KFS)",
     registrationDate: "Registration date", registrationNumber: "Registration number", reregistrationDate: "Re-registration date",
     liquidationDate: "Liquidation date", taxMode: "Tax regime", vatNumber: "VAT certificate number",
-    businessFund: "Charter capital", address: "Legal address", director: "Director", accountant: "Accountant",
+    businessFund: "Charter capital", address: "Legal address", director: "Director", accountant: "Accountant", map: "Company location",
     identity: "Registration", classification: "Classification and taxes", contacts: "Address and management",
     retry: "Retry", unavailable: "Company registry data is temporarily unavailable.", loading: "Loading company registry data…",
   };
@@ -11746,63 +11746,87 @@ function CompanyRegistryCard({ data, loading, error, onRetry, lang }) {
 
   const payload = data.registry;
   const company = payload.company;
+  const hasValue = (value) => value !== null && value !== undefined && value !== "";
   const field = (label, value, wide = false) => (
     <div className={`company-registry-field${wide ? " is-wide" : ""}`} key={label}>
-      <span>{label}</span><strong>{value === null || value === undefined || value === "" ? "—" : value}</strong>
+      <span>{label}</span><strong>{value}</strong>
     </div>
   );
   const detail = (object, code) => {
     const name = registryDetailName(object, lang);
     return [code, name].filter((value) => value !== null && value !== undefined && value !== "").join(" · ") || null;
   };
-  const fund = Number.isFinite(Number(company.businessFund))
+  const fund = hasValue(company.businessFund) && Number.isFinite(Number(company.businessFund))
     ? `${new Intl.NumberFormat(lang === "uz" ? "uz-UZ" : lang === "en" ? "en-US" : "ru-RU").format(Number(company.businessFund))} UZS`
     : null;
   const taxMode = company.taxMode === 1 ? `1 · ${lang === "ru" ? "НДС" : lang === "uz" ? "QQS" : "VAT"}` : company.taxMode;
+  const address = registryAddress(payload, lang);
+  const director = registryPerson(payload.director);
+  const accountant = registryPerson(payload.accountant);
+  const statusName = registryDetailName(company.statusDetail, lang);
+  const statusText = hasValue(statusName) ? statusName : company.status;
+  const section = (title, rows, extra = null) => {
+    const visibleRows = rows.filter(([, value]) => hasValue(value));
+    if (!visibleRows.length && !extra) return null;
+    return (
+      <div className="company-registry-section">
+        <h4>{title}</h4>
+        {visibleRows.length > 0 && (
+          <div className="company-registry-grid">
+            {visibleRows.map(([label, value, wide]) => field(label, value, wide))}
+          </div>
+        )}
+        {extra}
+      </div>
+    );
+  };
+  const mapQuery = [registryAddress(payload, "en"), "Uzbekistan"].filter(Boolean).join(", ");
+  const locationMap = address ? (
+    <div className="company-registry-map">
+      <iframe
+        title={tx.map}
+        src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`}
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        allowFullScreen
+      />
+    </div>
+  ) : null;
 
   return (
     <section className="company-registry" aria-label={tx.heading} data-testid="company-registry">
       <div className="company-registry-head">
         <div><h3 className="co-heading">{tx.heading}</h3><span>{tx.source}</span></div>
-        <span className={`company-registry-status ${company.statusDetail?.group === "ACTIVE" ? "is-active" : ""}`}>{registryDetailName(company.statusDetail, lang) || company.status}</span>
+        {hasValue(statusText) && <span className={`company-registry-status ${company.statusDetail?.group === "ACTIVE" ? "is-active" : ""}`}>{statusText}</span>}
       </div>
-      <div className="company-registry-section">
-        <h4>{tx.identity}</h4>
-        <div className="company-registry-grid">
-          {field(tx.fullName, company.name, true)}
-          {field(tx.shortName, company.shortName, true)}
-          {field(tx.tin, company.tin || data.tin)}
-          {field(tx.status, detail(company.statusDetail, company.status))}
-          {field(tx.statusUpdated, company.statusUpdated)}
-          {field(tx.registrationDate, company.registrationDate)}
-          {field(tx.registrationNumber, company.registrationNumber)}
-          {field(tx.reregistrationDate, company.reregistrationDate)}
-          {field(tx.liquidationDate, company.liquidationDate)}
-          {field(tx.registrator, company.sooguRegistrator)}
-        </div>
-      </div>
-      <div className="company-registry-section">
-        <h4>{tx.classification}</h4>
-        <div className="company-registry-grid">
-          {field(tx.opf, detail(company.opfDetail, company.opf), true)}
-          {field(tx.oked, detail(company.okedDetail, company.oked), true)}
-          {field(tx.soogu, detail(company.sooguDetail, company.soogu), true)}
-          {field(tx.soato, company.soato)}
-          {field(tx.kfs, company.kfs)}
-          {field(tx.taxpayerType, company.taxpayerType)}
-          {field(tx.taxMode, taxMode)}
-          {field(tx.vatNumber, company.vatNumber)}
-          {field(tx.businessFund, fund)}
-        </div>
-      </div>
-      <div className="company-registry-section">
-        <h4>{tx.contacts}</h4>
-        <div className="company-registry-grid">
-          {field(tx.address, registryAddress(payload, lang), true)}
-          {field(tx.director, registryPerson(payload.director), true)}
-          {field(tx.accountant, registryPerson(payload.accountant), true)}
-        </div>
-      </div>
+      {section(tx.identity, [
+        [tx.fullName, company.name, true],
+        [tx.shortName, company.shortName, true],
+        [tx.tin, company.tin || data.tin],
+        [tx.status, detail(company.statusDetail, company.status)],
+        [tx.statusUpdated, company.statusUpdated],
+        [tx.registrationDate, company.registrationDate],
+        [tx.registrationNumber, company.registrationNumber],
+        [tx.reregistrationDate, company.reregistrationDate],
+        [tx.liquidationDate, company.liquidationDate],
+        [tx.registrator, company.sooguRegistrator],
+      ])}
+      {section(tx.classification, [
+        [tx.opf, detail(company.opfDetail, company.opf), true],
+        [tx.oked, detail(company.okedDetail, company.oked), true],
+        [tx.soogu, detail(company.sooguDetail, company.soogu), true],
+        [tx.soato, company.soato],
+        [tx.kfs, company.kfs],
+        [tx.taxpayerType, company.taxpayerType],
+        [tx.taxMode, taxMode],
+        [tx.vatNumber, company.vatNumber],
+        [tx.businessFund, fund],
+      ])}
+      {section(tx.contacts, [
+        [tx.address, address, true],
+        [tx.director, director, true],
+        [tx.accountant, accountant, true],
+      ], locationMap)}
     </section>
   );
 }
