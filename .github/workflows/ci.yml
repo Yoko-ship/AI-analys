@@ -244,6 +244,43 @@ jobs:
           PY
           REMOTE
 
+      - name: Synchronize Soliq company registry credential
+        # The Soliq credential is server-only. The browser calls our API, and
+        # the production container reads the key from the VPS environment.
+        env:
+          SOLIQ_API_KEY: ${{ secrets.SOLIQ_API_KEY }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          if [ -z "$SOLIQ_API_KEY" ]; then
+            echo "Soliq credential is not configured; skipping synchronization."
+            exit 0
+          fi
+          secret_file="$(mktemp)"
+          trap 'shred -u "$secret_file"' EXIT
+          printf '%s' "$SOLIQ_API_KEY" > "$secret_file"
+          scp -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -P "$PROD_PORT" "$secret_file" \
+            "$PROD_USER@$PROD_HOST:/root/uzstock/.soliq-secret"
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          secret_file=/root/uzstock/.soliq-secret
+          trap 'shred -u "$secret_file"' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+
+          secret = Path("/root/uzstock/.soliq-secret").read_text(encoding="utf-8")
+          if not secret or "\n" in secret or "\r" in secret:
+              raise ValueError("Soliq credential must be a single non-empty line")
+          path = Path("/root/uzstock/app/.env")
+          lines = path.read_text(encoding="utf-8").splitlines()
+          lines = [line for line in lines if line.split("=", 1)[0] != "SOLIQ_API_KEY"]
+          path.write_text("\n".join([*lines, f"SOLIQ_API_KEY={secret}"]) + "\n", encoding="utf-8")
+          PY
+          REMOTE
+
       - name: Synchronize intraday collector credentials
         # The collection credential is a deploy secret, never source code.  The
         # host uses it only for the collector's authenticated write endpoints.
