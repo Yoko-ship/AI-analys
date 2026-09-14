@@ -12109,14 +12109,37 @@ const FIN_FIELD_TERMS = {
 // selection — toggling a line on or off must not repaint the others.
 const FIN_CHART_COLORS = ["#38bdf8", "#f59e0b", "#a855f7", "#34d399", "#f472b6",
                           "#facc15", "#60a5fa", "#fb7185", "#4ade80", "#c084fc"];
+const FIN_CHART_COMPACT_MEDIA = "(max-width: 620px)";
 
 // The section's headline lines over time. Deliberately not the price chart: no
 // range buttons, no hover — this is a shape, and the table underneath is the data.
+function useFinancialChartFrame() {
+  const [compact, setCompact] = React.useState(() => (
+    typeof window !== "undefined" && window.matchMedia(FIN_CHART_COMPACT_MEDIA).matches
+  ));
+
+  React.useEffect(() => {
+    const media = window.matchMedia(FIN_CHART_COMPACT_MEDIA);
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  // A desktop-shaped 820×210 viewBox is only ~90px tall on a phone.  Give the
+  // compact plot its own frame so a reader can see the actual series, rather
+  // than a flattened strip of axis labels.
+  return compact
+    ? { W: 380, H: 230, PAD: { t: 12, r: 10, b: 30, l: 52 } }
+    : { W: 820, H: 210, PAD: { t: 12, r: 14, b: 26, l: 70 } };
+}
+
 function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
   // A chart nobody can interrogate is a picture. This one had no hover at all:
   // pointing at a year gave nothing, which is what «no info» meant.
   const [hover, setHover] = React.useState(null);
   const [hoverY, setHoverY] = React.useState(0);
+  const { W, H, PAD } = useFinancialChartFrame();
   const cols = periods;               // already oldest → newest, left → right
   const drawn = fields
     .map((f, i) => ({ f, color: colorOf ? colorOf(f) : FIN_CHART_COLORS[i % FIN_CHART_COLORS.length], s: series[f] }))
@@ -12128,7 +12151,6 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
   // turns a three-percent move into a cliff.
   const max = Math.max(...all, 0), min = Math.min(...all, 0);
   const span = max - min || 1;
-  const W = 820, H = 210, PAD = { t: 12, r: 14, b: 26, l: 70 };
   const x = (i) => PAD.l + (i / Math.max(1, cols.length - 1)) * (W - PAD.l - PAD.r);
   const y = (v) => PAD.t + (1 - (v - min) / span) * (H - PAD.t - PAD.b);
   const money = drawn[0].s.money;
@@ -12243,6 +12265,7 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
 function FinancialsBars({ fields, series, periods, lang, colorOf, onToggle }) {
   const [hover, setHover] = React.useState(null);
   const [hoverY, setHoverY] = React.useState(0);
+  const { W, H, PAD } = useFinancialChartFrame();
   const cols = periods;
   const drawn = fields
     .map((f, i) => ({ f, color: colorOf ? colorOf(f) : FIN_CHART_COLORS[i % FIN_CHART_COLORS.length], s: series[f] }))
@@ -12252,7 +12275,6 @@ function FinancialsBars({ fields, series, periods, lang, colorOf, onToggle }) {
   const all = drawn.flatMap((d) => cols.map((c) => d.s.values[c]).filter(Number.isFinite));
   const max = Math.max(...all, 0), min = Math.min(...all, 0);
   const span = max - min || 1;
-  const W = 820, H = 210, PAD = { t: 12, r: 14, b: 26, l: 70 };
   const plot = W - PAD.l - PAD.r;
   const y = (v) => PAD.t + (1 - (v - min) / span) * (H - PAD.t - PAD.b);
   const zero = y(0);
