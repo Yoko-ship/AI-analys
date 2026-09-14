@@ -17,9 +17,10 @@ from typing import Any
 
 
 CORRECTIONS_PATH = Path(__file__).with_name("financial-organizations-corrections-v3.csv")
-EXPECTED_CORRECTION_COUNT = 459
+EXPECTED_CORRECTION_COUNT = 460
 
 FIELD_NAMES = {
+    "Чистая выручка": "net_revenue",
     "Денежные средства": "cash",
     "Итого активов": "total_assets",
     "Итого обязательств": "total_liabilities",
