@@ -70,6 +70,27 @@ def test_concurrent_cold_requests_share_one_board_build(monkeypatch) -> None:
     assert all(result is results[0] for result in results)
 
 
+def test_market_inputs_reuse_the_coalesced_boards(monkeypatch) -> None:
+    """Homepage endpoints must not each fetch the upstream board again."""
+    calls: list[str] = []
+
+    async def cached(kind: str, *, refresh: bool = False):
+        calls.append(kind)
+        return {"ok": True, "type": kind, "stocks": []}
+
+    monkeypatch.setattr(api, "_cached_market_board", cached)
+    monkeypatch.setattr(api, "get_securities_map", lambda: {})
+    monkeypatch.setattr(api, "get_all_financials", lambda: {})
+    monkeypatch.setattr(api, "get_all_ratios", lambda: {})
+    monkeypatch.setattr(api, "get_all_listings", lambda: {})
+    monkeypatch.setattr(api, "get_all_trade_stats", lambda: {})
+
+    result = asyncio.run(api._market_inputs())
+
+    assert calls == ["stock", "bond"]
+    assert result["board"] == []
+
+
 def test_market_response_is_browser_cacheable_but_refresh_is_not(monkeypatch) -> None:
     async def cached(kind: str, *, refresh: bool = False):
         return {"ok": True, "type": kind, "refresh": refresh, "stocks": []}

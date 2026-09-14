@@ -2027,7 +2027,15 @@ async def _market_inputs(ticker: str | None = None) -> dict[str, Any]:
         shares = await _cached_market_board("stock")
         bonds = {"stocks": []}
     else:
-        shares, bonds = await asyncio.gather(_build_board("stock"), _build_board("bond"))
+        # The market landing page requests several dependent endpoints in
+        # parallel (instruments, summary and multiples).  Sending each one to
+        # _build_board made a single first visit issue six identical remote
+        # /stocks calls, which could exhaust the proxy timeout when the feed or
+        # SQLite was briefly slow.  The board cache is lock-coalesced, so all
+        # readers now share the same stock and bond snapshots for its short TTL.
+        shares, bonds = await asyncio.gather(
+            _cached_market_board("stock"), _cached_market_board("bond"),
+        )
     securities, financials, ratios, listings, stats = await asyncio.gather(
         loop.run_in_executor(None, get_securities_map),
         loop.run_in_executor(None, get_all_financials),
@@ -2108,7 +2116,11 @@ async def _heatmap_inputs() -> dict[str, Any]:
     security metadata and today's trade statistics are its whole contract.
     """
     loop = asyncio.get_running_loop()
-    shares, bonds = await asyncio.gather(_build_board("stock"), _build_board("bond"))
+    # Keep the heatmap in the same coalesced board snapshot as the rest of the
+    # landing page.  Its small SQLite input set remains deliberately separate.
+    shares, bonds = await asyncio.gather(
+        _cached_market_board("stock"), _cached_market_board("bond"),
+    )
     securities, stats = await asyncio.gather(
         loop.run_in_executor(None, get_securities_map),
         loop.run_in_executor(None, get_all_trade_stats),
