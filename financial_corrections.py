@@ -20,7 +20,9 @@ CORRECTIONS_PATH = Path(__file__).with_name("financial-organizations-corrections
 EXPECTED_CORRECTION_COUNT = 460
 
 FIELD_NAMES = {
-    "Чистая выручка": "net_revenue",
+    # The catalog keeps the filed line under ``revenue``; the public API later
+    # maps it to its reader-facing ``net_revenue`` series name.
+    "Чистая выручка": "revenue",
     "Денежные средства": "cash",
     "Итого активов": "total_assets",
     "Итого обязательств": "total_liabilities",
