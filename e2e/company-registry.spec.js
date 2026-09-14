@@ -20,19 +20,13 @@ const REGISTRY = {
     status: 0,
     statusUpdated: null,
     opf: 153,
-    kfs: 100,
     oked: "53100",
-    soato: 1726266,
     soogu: "03593",
     sooguRegistrator: "07294",
-    taxpayerType: 3,
     registrationDate: "25.08.2003",
     registrationNumber: "10-001310",
     reregistrationDate: "16.07.2026",
     liquidationDate: null,
-    taxMode: 1,
-    vatNumber: 326030013813,
-    businessFund: 52563506760,
     opfDetail: { code: "153", name_ru: "АКЦИОНЕРНОЕ ОБЩЕСТВО", name_uz_latn: "AKSIYADORLIK JAMIYATI" },
     sooguDetail: { code: "03593", name: "Ministry of Digital Technologies", name_ru: "Министерство цифровых технологий", name_uz_latn: "Raqamli texnologiyalar vazirligi" },
     statusDetail: { code: "0", name: "Active with Tax Liabilities", name_ru: "Действующее и имеющее налоговые обязательства", name_uz_latn: "Faoliyat ko'rsatayotgan", group: "ACTIVE" },
@@ -94,7 +88,12 @@ test("Soliq registry is loaded only for the opened company and renders the full 
   await expect(card).toContainText("ПОЧТОВЫЕ УСЛУГИ");
   await expect(card).toContainText("Юнусабадский район");
   await expect(card).toContainText("FAYZULLAYEV ALISHER NASIBULLAYEVICH");
-  await expect(card).toContainText(/52.563.506.760 UZS/);
+  await expect(card).not.toContainText("Код территории (СОАТО)");
+  await expect(card).not.toContainText("Форма собственности (КФС)");
+  await expect(card).not.toContainText("Тип налогоплательщика");
+  await expect(card).not.toContainText("Налоговый режим");
+  await expect(card).not.toContainText("Номер свидетельства НДС");
+  await expect(card).not.toContainText("Размер уставного фонда");
   await expect(card).not.toContainText("Дата изменения статуса");
   await expect(card).not.toContainText("Дата прекращения деятельности");
   await expect(card).not.toContainText("—");

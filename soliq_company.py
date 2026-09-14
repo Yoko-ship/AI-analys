@@ -18,6 +18,17 @@ from entity_resolver import ORG_OVERRIDES, get_org_index
 
 
 _TICKER_RE = re.compile(r"^[A-Z0-9.-]{2,40}$")
+# These fields are present in Soliq's full record but have been determined
+# unreliable for UZStock.  Remove them before the record reaches any API
+# consumer; hiding them only in the browser would still expose bad data.
+_UNRELIABLE_COMPANY_FIELDS = frozenset({
+    "soato",
+    "kfs",
+    "taxpayerType",
+    "taxMode",
+    "vatNumber",
+    "businessFund",
+})
 
 
 class SoliqConfigurationError(RuntimeError):
@@ -123,6 +134,18 @@ def _registry_location(payload: dict[str, Any]) -> dict[str, float] | None:
     return None
 
 
+def _public_registry_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Copy the upstream record and exclude fields we do not publish."""
+    result = dict(payload)
+    company = payload.get("company")
+    if isinstance(company, dict):
+        result["company"] = {
+            key: value for key, value in company.items()
+            if key not in _UNRELIABLE_COMPANY_FIELDS
+        }
+    return result
+
+
 def fetch_company_registry(ticker: str) -> dict[str, Any]:
     """Fetch the full Soliq record for exactly one company page request."""
     api_key = os.getenv("SOLIQ_API_KEY", "").strip()
@@ -170,6 +193,6 @@ def fetch_company_registry(ticker: str) -> dict[str, Any]:
     return {
         **identity,
         "type": "full",
-        "registry": payload,
+        "registry": _public_registry_payload(payload),
         "location": _registry_location(payload),
     }
