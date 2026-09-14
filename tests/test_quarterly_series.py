@@ -34,6 +34,17 @@ class TestFlowsAreDifferenced:
 
         assert series["net_revenue"] == {"2024Q1": 100.0, "2024Q2": 150.0, "2024Q3": 50.0}
 
+    def test_filed_period_expenses_are_differenced_like_other_income_statement_flows(self):
+        periods, series = api.derive_quarterly_series(
+            {"2026Q1": {"revenue": 100.0, "operating_expenses": 74.424438},
+             "2026Q2": {"revenue": 250.0, "operating_expenses": 151.604589}}, {})
+
+        assert periods == ["2026Q2", "2026Q1"]
+        assert series["operating_expenses"] == {
+            "2026Q1": 74.424438,
+            "2026Q2": 77.180151,
+        }
+
     def test_a_missing_predecessor_yields_no_figure_not_a_running_total(self):
         """A six-month sum in a column of quarters is the «full year beside a
         quarter» defect — absence is the honest answer."""

@@ -5094,7 +5094,8 @@ def duplicate_filed_years(series: dict[str, Any], periods: Any,
 # The distinction decides everything below: flows are differenced into
 # three-month figures, stocks are served as filed.
 QUARTER_FLOW_FIELDS = {"revenue": "net_revenue", "gross_profit": "gross_profit",
-                       "operating_income": "operating_income", "net_income": "net_profit"}
+                       "operating_income": "operating_income", "operating_expenses": "operating_expenses",
+                       "net_income": "net_profit"}
 QUARTER_STOCK_FIELDS = {"cash": "cash", "total_liabilities": "total_liabilities",
                         "total_assets": "total_assets", "total_equity": "total_equity"}
 
@@ -5345,14 +5346,23 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                 name: {"unit": "UZS", "money": True,
                        "values": {p: v * NSBU_THOUSANDS_UZS for p, v in values.items()}}
                 for name, values in raw.items()}
-            # Operating expenses and net margin, derived per QUARTER — the same
-            # two lines the annual table carries, formed from the same fields.
+            # A commercial NSBU form names its expenses directly at line 040
+            # («Расходы периода, всего»). When a verified filing supplies that
+            # line, retain it through the cumulative-to-quarterly conversion.
+            # The gross-profit-minus-operating-income proxy remains a fallback
+            # for forms without a comparable line (notably banks); it is wrong
+            # when line 090 other operating income is material.
             gp = raw.get("gross_profit") or {}
             oi = raw.get("operating_income") or {}
-            opex = {p: (gp[p] - oi[p]) * NSBU_THOUSANDS_UZS for p in gp if p in oi}
+            reported_opex = raw.get("operating_expenses") or {}
+            fallback_opex = {p: gp[p] - oi[p] for p in gp if p in oi}
+            opex = {**fallback_opex, **reported_opex}
             if opex:
                 series["operating_expenses"] = {"unit": "UZS", "money": True,
-                                                "derived": True, "values": opex}
+                                                "derived": bool(fallback_opex),
+                                                "filed": bool(reported_opex),
+                                                "values": {p: v * NSBU_THOUSANDS_UZS
+                                                           for p, v in opex.items()}}
             rev = raw.get("net_revenue") or {}
             prof = raw.get("net_profit") or {}
             margin = {p: round(prof[p] / rev[p] * 100.0, 4)

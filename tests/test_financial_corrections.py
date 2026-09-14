@@ -14,8 +14,8 @@ api = importlib.import_module("api")
 
 def test_v3_register_is_complete_unique_and_converted_to_catalog_units():
     rows = fc.financial_corrections()
-    assert len(rows) == 457
-    assert len({(r.ticker, r.period, r.field) for r in rows}) == 457
+    assert len(rows) == 459
+    assert len({(r.ticker, r.period, r.field) for r in rows}) == 459
 
     agba = fc.corrections_for("agba", "2016q4")
     assert agba["total_assets"].value_thousands_uzs == 3_949_374_649.0
@@ -117,6 +117,13 @@ def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_pa
         body = responses[(correction.ticker, "annual" if annual else "quarterly")]
         period = correction.period[:4] if annual else correction.period
         assert period in body["periods"], (correction.ticker, correction.period)
+        expected = correction.value_thousands_uzs
+        # Income-statement corrections are filed year-to-date and the public
+        # quarterly API deliberately presents a standalone three-month result.
+        if correction.field == "operating_expenses" and correction.period[-1] != "1":
+            prior = fc.corrections_for(
+                correction.ticker, f"{correction.period[:4]}Q{int(correction.period[-1]) - 1}")
+            expected -= prior["operating_expenses"].value_thousands_uzs
         assert body["series"][correction.field]["values"][period] == pytest.approx(
-            correction.value_thousands_uzs * rc.NSBU_THOUSANDS_UZS
+            expected * rc.NSBU_THOUSANDS_UZS
         ), (correction.ticker, correction.period, correction.field)
