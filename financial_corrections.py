@@ -1,4 +1,4 @@
-"""Verified OpenInfo corrections for financial-organization balance sheets.
+"""Verified OpenInfo corrections for issuer financial statements.
 
 The source register is a reviewed, addressable list: one ticker, period and
 field per row.  Values in the register are full UZS, while the financials
@@ -17,13 +17,14 @@ from typing import Any
 
 
 CORRECTIONS_PATH = Path(__file__).with_name("financial-organizations-corrections-v3.csv")
-EXPECTED_CORRECTION_COUNT = 457
+EXPECTED_CORRECTION_COUNT = 459
 
 FIELD_NAMES = {
     "Денежные средства": "cash",
     "Итого активов": "total_assets",
     "Итого обязательств": "total_liabilities",
     "Итого капитала": "total_equity",
+    "Расходы периода": "operating_expenses",
 }
 
 _REQUIRED_COLUMNS = {
