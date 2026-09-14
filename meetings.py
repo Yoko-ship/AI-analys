@@ -59,6 +59,24 @@ class AnnouncementSourceError(RuntimeError):
     """OpenInfo returned a page that cannot be used as an announcement."""
 
 
+# OpenInfo currently returns these registry fields in a generic organization
+# card, but they are not reliable enough to republish.  Keep this boundary in
+# the API parser so cached pages, direct API consumers, and the web UI all get
+# the same safe payload.
+_UNRELIABLE_ORGANIZATION_FIELDS = frozenset({
+    "код территории (соато)",
+    "форма собственности (кфс)",
+    "тип налогоплательщика",
+    "налоговый режим",
+    "номер свидетельства ндс",
+    "размер уставного фонда",
+})
+
+
+def _normalized_label(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().casefold()
+
+
 # ---------------------------------------------------------------------------
 # Source
 # ---------------------------------------------------------------------------
@@ -133,8 +151,11 @@ def _announcement_page(html: str, announcement_id: str, language: str) -> dict[s
             parts = [_node_text(node) for node in cell.find_all("p", recursive=False)]
             parts = [part for part in parts if part]
             if len(parts) >= 2:
+                label = parts[0].rstrip(":").strip()
+                if _normalized_label(label) in _UNRELIABLE_ORGANIZATION_FIELDS:
+                    continue
                 organization_details.append({
-                    "label": parts[0].rstrip(":").strip(),
+                    "label": label,
                     "value": " ".join(parts[1:]).strip(),
                 })
 
