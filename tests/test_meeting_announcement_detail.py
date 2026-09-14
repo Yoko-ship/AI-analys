@@ -121,3 +121,23 @@ def test_announcement_api_returns_the_parsed_item(monkeypatch) -> None:
 def test_announcement_detail_rejects_unsupported_languages(language: str) -> None:
     with pytest.raises(ValueError, match="language"):
         meetings.announcement_detail(21211, language, session=FakeSession(FakeResponse("")))
+
+
+def test_announcement_detail_excludes_unreliable_organization_fields() -> None:
+    html = ANNOUNCEMENT_HTML.replace(
+        '<div><p class="font-medium">Короткое название:</p><p>SINOV AJ</p></div>',
+        """<div><p class=\"font-medium\">Короткое название:</p><p>SINOV AJ</p></div>
+        <div><p>Код территории (СОАТО)</p><p>1726269</p></div>
+        <div><p>Форма собственности (КФС)</p><p>100</p></div>
+        <div><p>Тип налогоплательщика</p><p>3</p></div>
+        <div><p>Налоговый режим</p><p>1 · НДС</p></div>
+        <div><p>Номер свидетельства НДС</p><p>326020005438</p></div>
+        <div><p>Размер уставного фонда</p><p>3 163 843 598 548,2 UZS</p></div>""",
+    )
+
+    item = meetings.announcement_detail(21211, "ru", session=FakeSession(FakeResponse(html)))
+
+    assert item["organization_details"] == [
+        {"label": "ИНН", "value": "200000001"},
+        {"label": "Короткое название", "value": "SINOV AJ"},
+    ]
