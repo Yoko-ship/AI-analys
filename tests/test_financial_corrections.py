@@ -27,7 +27,7 @@ def test_v3_register_is_complete_unique_and_converted_to_catalog_units():
     )
     # OpenInfo's FY2017 KVTS revenue is missing three zeroes.  Its FY2018
     # comparative reports the same figure at the correct statement scale.
-    assert fc.corrections_for("KVTS", "2017Q4")["net_revenue"].value_thousands_uzs == 299_064_000.0
+    assert fc.corrections_for("KVTS", "2017Q4")["revenue"].value_thousands_uzs == 299_064_000.0
 
 
 def test_unknown_ticker_or_period_has_no_overlay():
