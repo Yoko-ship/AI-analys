@@ -14,7 +14,11 @@ class _Response:
 
     def json(self):
         return {
-            "company": {"tin": "200833833", "name": "O'ZBEKISTON POCHTASI AJ"},
+            "company": {
+                "tin": "200833833", "name": "O'ZBEKISTON POCHTASI AJ",
+                "soato": 1726269, "kfs": 100, "taxpayerType": 3,
+                "taxMode": 1, "vatNumber": 326020005438, "businessFund": 3163843598548.2,
+            },
             "director": {"firstName": "ALISHER"},
         }
 
@@ -40,6 +44,7 @@ def test_resolves_inn_and_calls_full_soliq_only_for_requested_ticker(monkeypatch
     assert result["tin"] == "200833833"
     assert result["type"] == "full"
     assert result["registry"]["company"]["tin"] == "200833833"
+    assert not set(soliq_company._UNRELIABLE_COMPANY_FIELDS) & set(result["registry"]["company"])
     assert result["location"] is None
     assert len(calls) == 1
     url, options = calls[0]

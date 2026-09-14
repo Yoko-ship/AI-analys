@@ -11719,33 +11719,30 @@ function CompanyRegistryCard({ data, loading, error, onRetry, lang }) {
     heading: "Регистрационные данные", source: "Реестр Налогового комитета",
     fullName: "Полное наименование", shortName: "Краткое наименование", tin: "ИНН",
     status: "Статус", statusUpdated: "Дата изменения статуса", opf: "Организационно-правовая форма",
-    oked: "Вид деятельности (ОКЭД)", soato: "Код территории (СОАТО)", soogu: "Орган управления (СООГУ)",
-    registrator: "Код регистрирующего органа", taxpayerType: "Тип налогоплательщика", kfs: "Форма собственности (КФС)",
+    oked: "Вид деятельности (ОКЭД)", soogu: "Орган управления (СООГУ)",
+    registrator: "Код регистрирующего органа",
     registrationDate: "Дата регистрации", registrationNumber: "Регистрационный номер", reregistrationDate: "Дата перерегистрации",
-    liquidationDate: "Дата прекращения деятельности", taxMode: "Налоговый режим", vatNumber: "Номер свидетельства НДС",
-    businessFund: "Размер уставного фонда", address: "Юридический адрес", director: "Руководитель", accountant: "Бухгалтер", map: "Расположение компании",
+    liquidationDate: "Дата прекращения деятельности", address: "Юридический адрес", director: "Руководитель", accountant: "Бухгалтер", map: "Расположение компании",
     identity: "Регистрация", classification: "Классификация и налоги", contacts: "Адрес и руководство",
     retry: "Повторить", unavailable: "Регистрационные данные временно недоступны.", loading: "Загрузка регистрационных данных…",
   } : lang === "uz" ? {
     heading: "Ro‘yxatdan o‘tish ma’lumotlari", source: "Soliq qo‘mitasi reyestri",
     fullName: "To‘liq nomi", shortName: "Qisqa nomi", tin: "STIR",
     status: "Holati", statusUpdated: "Holat o‘zgargan sana", opf: "Tashkiliy-huquqiy shakl",
-    oked: "Faoliyat turi (IFUT)", soato: "Hudud kodi (SOATO)", soogu: "Boshqaruv organi (SOOGU)",
-    registrator: "Ro‘yxatdan o‘tkazuvchi organ kodi", taxpayerType: "Soliq to‘lovchi turi", kfs: "Mulkchilik shakli (KFS)",
+    oked: "Faoliyat turi (IFUT)", soogu: "Boshqaruv organi (SOOGU)",
+    registrator: "Ro‘yxatdan o‘tkazuvchi organ kodi",
     registrationDate: "Ro‘yxatdan o‘tgan sana", registrationNumber: "Ro‘yxat raqami", reregistrationDate: "Qayta ro‘yxatdan o‘tgan sana",
-    liquidationDate: "Faoliyat tugatilgan sana", taxMode: "Soliq rejimi", vatNumber: "QQS guvohnomasi raqami",
-    businessFund: "Ustav fondi", address: "Yuridik manzil", director: "Rahbar", accountant: "Buxgalter", map: "Kompaniya joylashuvi",
+    liquidationDate: "Faoliyat tugatilgan sana", address: "Yuridik manzil", director: "Rahbar", accountant: "Buxgalter", map: "Kompaniya joylashuvi",
     identity: "Ro‘yxatdan o‘tish", classification: "Tasnif va soliqlar", contacts: "Manzil va rahbariyat",
     retry: "Qayta urinish", unavailable: "Ro‘yxat ma’lumotlari vaqtincha mavjud emas.", loading: "Ro‘yxat ma’lumotlari yuklanmoqda…",
   } : {
     heading: "Company registry", source: "Tax Committee registry",
     fullName: "Full name", shortName: "Short name", tin: "TIN",
     status: "Status", statusUpdated: "Status updated", opf: "Legal form",
-    oked: "Activity (OKED)", soato: "Territory code (SOATO)", soogu: "Governing authority (SOOGU)",
-    registrator: "Registration authority code", taxpayerType: "Taxpayer type", kfs: "Ownership form (KFS)",
+    oked: "Activity (OKED)", soogu: "Governing authority (SOOGU)",
+    registrator: "Registration authority code",
     registrationDate: "Registration date", registrationNumber: "Registration number", reregistrationDate: "Re-registration date",
-    liquidationDate: "Liquidation date", taxMode: "Tax regime", vatNumber: "VAT certificate number",
-    businessFund: "Charter capital", address: "Legal address", director: "Director", accountant: "Accountant", map: "Company location",
+    liquidationDate: "Liquidation date", address: "Legal address", director: "Director", accountant: "Accountant", map: "Company location",
     identity: "Registration", classification: "Classification and taxes", contacts: "Address and management",
     retry: "Retry", unavailable: "Company registry data is temporarily unavailable.", loading: "Loading company registry data…",
   };
@@ -11775,10 +11772,6 @@ function CompanyRegistryCard({ data, loading, error, onRetry, lang }) {
     const name = registryDetailName(object, lang);
     return [code, name].filter((value) => value !== null && value !== undefined && value !== "").join(" · ") || null;
   };
-  const fund = hasValue(company.businessFund) && Number.isFinite(Number(company.businessFund))
-    ? `${new Intl.NumberFormat(lang === "uz" ? "uz-UZ" : lang === "en" ? "en-US" : "ru-RU").format(Number(company.businessFund))} UZS`
-    : null;
-  const taxMode = company.taxMode === 1 ? `1 · ${lang === "ru" ? "НДС" : lang === "uz" ? "QQS" : "VAT"}` : company.taxMode;
   const address = registryAddress(payload, lang);
   const director = registryPerson(payload.director);
   const accountant = registryPerson(payload.accountant);
@@ -11837,12 +11830,6 @@ function CompanyRegistryCard({ data, loading, error, onRetry, lang }) {
         [tx.opf, detail(company.opfDetail, company.opf), true],
         [tx.oked, detail(company.okedDetail, company.oked), true],
         [tx.soogu, detail(company.sooguDetail, company.soogu), true],
-        [tx.soato, company.soato],
-        [tx.kfs, company.kfs],
-        [tx.taxpayerType, company.taxpayerType],
-        [tx.taxMode, taxMode],
-        [tx.vatNumber, company.vatNumber],
-        [tx.businessFund, fund],
       ])}
       {section(tx.contacts, [
         [tx.address, address, true],
