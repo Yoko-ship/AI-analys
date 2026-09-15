@@ -479,6 +479,7 @@ export default function AdminPanel({
   const [qualityCorrections, setQualityCorrections] = useState(null);
   const [qualityBusy, setQualityBusy] = useState("");
   const [qualityDraft, setQualityDraft] = useState(null);
+  const [qualityTicker, setQualityTicker] = useState("");
   const [selected, setSelected] = useState(() => new Set());
 
   const [error, setError] = useState("");
@@ -626,6 +627,19 @@ export default function AdminPanel({
     catch (e) { setError(String(e.message || e)); }
     finally { if (alive.current) setQualityBusy(""); }
   }, [loadQuality, readJson]);
+
+  const scanQualityCompany = useCallback(async (ticker) => {
+    const normalized = String(ticker || "").trim().toUpperCase();
+    if (!normalized) { setError(t("Введите тикер компании.", "Kompaniya tikerini kiriting.", "Enter a company ticker.")); return; }
+    const busyKey = `analysis:${normalized}`;
+    setQualityBusy(busyKey); setError("");
+    try {
+      await readJson(`/api/admin/data-quality/analysis/${encodeURIComponent(normalized)}/scan`, { method: "POST" });
+      setQualityTicker(normalized);
+      await loadQuality();
+    } catch (e) { setError(String(e.message || e)); }
+    finally { if (alive.current) setQualityBusy(""); }
+  }, [loadQuality, readJson, t]);
 
   const submitQualityCorrection = useCallback(async (event) => {
     event.preventDefault();
@@ -2651,7 +2665,8 @@ export default function AdminPanel({
       <div className="panel admin-panel-head">
         <div><h2>{t("Очередь качества данных", "Ma'lumotlar sifati navbati", "Data-quality queue")}</h2>
           <p className="admin-muted" style={{ margin: "4px 0 0" }}>{t("Сканирование только фиксирует пробелы. Исходные данные не изменяются.", "Skanerlash faqat bo'shliqlarni qayd etadi. Asl ma'lumotlar o'zgarmaydi.", "Scanning records gaps only; it never changes source data.")}</p></div>
-        <div className="admin-head-actions"><button type="button" className="admin-btn" onClick={() => beginCorrection()}>{t("Новое исправление", "Yangi tuzatish", "New correction")}</button>
+        <div className="admin-head-actions"><input className="admin-input" style={{ width: 118 }} value={qualityTicker} onChange={e => setQualityTicker(e.target.value.toUpperCase())} placeholder={t("Тикер", "Tiker", "Ticker")} />
+          <button type="button" className="admin-btn" disabled={qualityBusy === `analysis:${qualityTicker.trim().toUpperCase()}`} onClick={() => scanQualityCompany(qualityTicker)}>{qualityBusy === `analysis:${qualityTicker.trim().toUpperCase()}` ? t("Проверка…", "Tekshirilmoqda…", "Checking…") : t("Проверить компанию", "Kompaniyani tekshirish", "Check company")}</button><button type="button" className="admin-btn" onClick={() => beginCorrection()}>{t("Новое исправление", "Yangi tuzatish", "New correction")}</button>
           <button type="button" className="admin-btn accent" disabled={qualityBusy === "scan"} onClick={scanQuality}>{qualityBusy === "scan" ? t("Сканирование…", "Skanerlanmoqda…", "Scanning…") : t("Сканировать", "Skanerlash", "Run scan")}</button></div>
       </div>
 
@@ -2663,7 +2678,7 @@ export default function AdminPanel({
       </form>}
 
       <div className="panel"><h3>{t("Открытые проверки", "Ochiq tekshiruvlar", "Open checks")} <span className="admin-muted">· {fmtInt(qualityIssues.length)}</span></h3>
-        {!qualityIssues.length ? <div className="admin-empty"><b>{t("Очередь пуста", "Navbat bo'sh", "The queue is empty")}</b>{t("Запустите сканирование после синхронизации каталога.", "Katalog sinxronlangach skanerlashni ishga tushiring.", "Run a scan after catalog synchronization.")}</div> : <div className="admin-scroll"><table><thead><tr><th>{t("Эмитент / тикеры", "Emitent / tikerlar", "Issuer / tickers")}</th><th>{t("Период", "Davr", "Period")}</th><th>{t("Проверка", "Tekshiruv", "Check")}</th><th>{t("Что не так", "Nima noto'g'ri", "What is wrong")}</th><th>{t("Поле", "Maydon", "Field")}</th><th>{t("Приоритет", "Ustuvorlik", "Severity")}</th><th /></tr></thead><tbody>{qualityIssues.map(issue => <tr key={issue.id}><td><b>{issue.issuer_name || issue.ticker}</b><div className="admin-muted">{(issue.issuer_tickers || [issue.ticker]).join(" · ")}</div></td><td>{issue.year ? `${issue.year}Q${issue.quarter || 4}` : DASH}</td><td>{issue.rule_code}</td><td className="admin-muted">{qualityIssueExplanation(issue)}</td><td>{issue.field || DASH}</td><td><span className="admin-pill"><span className={`admin-dot ${issue.severity === 'blocking' ? 'err' : 'warn'}`} />{issue.severity}</span></td><td className="admin-company-row-actions"><a className="admin-btn" href={qualityCompanyUrl(issue)} target="_blank" rel="noreferrer">{t("Открыть на сайте", "Saytda ochish", "Open on site")}</a>{issue.dataset === 'financials' && <button type="button" className="admin-btn accent" disabled={qualityBusy === `apply:${issue.id}`} onClick={() => autoApplyQualityIssue(issue)}>{qualityBusy === `apply:${issue.id}` ? t("Исправление…", "Tuzatilmoqda…", "Applying…") : t("Исправить", "Tuzatish", "Correct")}</button>}<button type="button" className="admin-btn" onClick={() => onSectionChange && onSectionChange('companies')}>{t("Проверить компанию", "Kompaniyani tekshirish", "Review company")}</button></td></tr>)}</tbody></table></div>}
+        {!qualityIssues.length ? <div className="admin-empty"><b>{t("Очередь пуста", "Navbat bo'sh", "The queue is empty")}</b>{t("Запустите сканирование после синхронизации каталога.", "Katalog sinxronlangach skanerlashni ishga tushiring.", "Run a scan after catalog synchronization.")}</div> : <div className="admin-scroll"><table><thead><tr><th>{t("Эмитент / тикеры", "Emitent / tikerlar", "Issuer / tickers")}</th><th>{t("Период", "Davr", "Period")}</th><th>{t("Проверка", "Tekshiruv", "Check")}</th><th>{t("Что не так", "Nima noto'g'ri", "What is wrong")}</th><th>{t("Поле", "Maydon", "Field")}</th><th>{t("Приоритет", "Ustuvorlik", "Severity")}</th><th /></tr></thead><tbody>{qualityIssues.map(issue => <tr key={issue.id}><td><b>{issue.issuer_name || issue.ticker}</b><div className="admin-muted">{(issue.issuer_tickers || [issue.ticker]).join(" · ")}</div></td><td>{issue.year ? `${issue.year}Q${issue.quarter || 4}` : DASH}</td><td>{issue.rule_code}</td><td className="admin-muted">{qualityIssueExplanation(issue)}</td><td>{issue.field || DASH}</td><td><span className="admin-pill"><span className={`admin-dot ${issue.severity === 'blocking' ? 'err' : 'warn'}`} />{issue.severity}</span></td><td className="admin-company-row-actions">{issue.details?.source_url && <a className="admin-btn" href={issue.details.source_url} target="_blank" rel="noreferrer">{t("Исходный отчёт", "Asl hisobot", "Source report")}</a>}<a className="admin-btn" href={qualityCompanyUrl(issue)} target="_blank" rel="noreferrer">{t("Открыть на сайте", "Saytda ochish", "Open on site")}</a>{issue.dataset === 'financials' && <button type="button" className="admin-btn accent" disabled={qualityBusy === `apply:${issue.id}`} onClick={() => autoApplyQualityIssue(issue)}>{qualityBusy === `apply:${issue.id}` ? t("Исправление…", "Tuzatilmoqda…", "Applying…") : t("Исправить", "Tuzatish", "Correct")}</button>}<button type="button" className="admin-btn" disabled={qualityBusy === `analysis:${issue.ticker}`} onClick={() => scanQualityCompany(issue.ticker)}>{qualityBusy === `analysis:${issue.ticker}` ? t("Проверка…", "Tekshirilmoqda…", "Checking…") : t("Проверить компанию", "Kompaniyani tekshirish", "Check company")}</button></td></tr>)}</tbody></table></div>}
       </div>
 
       <div className="panel"><h3>{t("Журнал исправлений", "Tuzatishlar jurnali", "Correction history")}</h3>
