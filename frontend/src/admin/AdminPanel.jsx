@@ -480,6 +480,10 @@ export default function AdminPanel({
   const [qualityBusy, setQualityBusy] = useState("");
   const [qualityDraft, setQualityDraft] = useState(null);
   const [qualityTicker, setQualityTicker] = useState("");
+  const [qualitySelectedTicker, setQualitySelectedTicker] = useState("");
+  const [qualitySuggestions, setQualitySuggestions] = useState([]);
+  const [qualitySuggestionsOpen, setQualitySuggestionsOpen] = useState(false);
+  const [qualitySearchLoading, setQualitySearchLoading] = useState(false);
   const [selected, setSelected] = useState(() => new Set());
 
   const [error, setError] = useState("");
@@ -629,10 +633,36 @@ export default function AdminPanel({
     try {
       await readJson(`/api/admin/data-quality/analysis/${encodeURIComponent(normalized)}/scan`, { method: "POST" });
       setQualityTicker(normalized);
+      setQualitySelectedTicker(normalized);
       await loadQuality();
     } catch (e) { setError(String(e.message || e)); }
     finally { if (alive.current) setQualityBusy(""); }
   }, [loadQuality, readJson, t]);
+
+  // The queue may have no finding for a company yet, so the picker searches
+  // the complete known-issuer catalog rather than only filtering open rows.
+  useEffect(() => {
+    const query = qualityTicker.trim();
+    if (!query) {
+      setQualitySuggestions([]);
+      setQualitySuggestionsOpen(false);
+      setQualitySearchLoading(false);
+      return undefined;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setQualitySearchLoading(true);
+      readJson(`/api/admin/companies/search?q=${encodeURIComponent(query)}&limit=12`)
+        .then((data) => {
+          if (!active) return;
+          setQualitySuggestions(data.items || []);
+          if (!qualitySelectedTicker) setQualitySuggestionsOpen(true);
+        })
+        .catch(() => { if (active) setQualitySuggestions([]); })
+        .finally(() => { if (active) setQualitySearchLoading(false); });
+    }, 180);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [qualityTicker, qualitySelectedTicker, readJson]);
 
   const submitQualityCorrection = useCallback(async (event) => {
     event.preventDefault();
@@ -2697,8 +2727,9 @@ export default function AdminPanel({
       <div className="panel admin-panel-head">
         <div><h2>{t("Очередь качества данных", "Ma'lumotlar sifati navbati", "Data-quality queue")}</h2>
           <p className="admin-muted" style={{ margin: "4px 0 0" }}>{t("Введите тикер, чтобы проверить конкретную компанию. Исходные данные не изменяются без применения исправления.", "Muayyan kompaniyani tekshirish uchun tikerni kiriting. Tuzatish qo'llanmaguncha asl ma'lumotlar o'zgarmaydi.", "Enter a ticker to check one company. Source data is unchanged until a correction is applied.")}</p></div>
-        <div className="admin-head-actions"><input className="admin-input" style={{ width: 118 }} value={qualityTicker} onChange={e => setQualityTicker(e.target.value.toUpperCase())} placeholder={t("Тикер", "Tiker", "Ticker")} />
-          <button type="button" className="admin-btn" disabled={qualityBusy === `analysis:${qualityTicker.trim().toUpperCase()}`} onClick={() => scanQualityCompany(qualityTicker)}>{qualityBusy === `analysis:${qualityTicker.trim().toUpperCase()}` ? t("Проверка…", "Tekshirilmoqda…", "Checking…") : t("Проверить компанию", "Kompaniyani tekshirish", "Check company")}</button><button type="button" className="admin-btn" onClick={() => beginCorrection()}>{t("Новое исправление", "Yangi tuzatish", "New correction")}</button>
+        <div className="admin-head-actions"><div className="admin-quality-picker"><input className="admin-input" value={qualityTicker} onChange={e => { setQualityTicker(e.target.value); setQualitySelectedTicker(""); setQualitySuggestionsOpen(true); }} onFocus={() => qualityTicker.trim() && setQualitySuggestionsOpen(true)} onKeyDown={(event) => { if (event.key === "Enter" && qualitySuggestions[0]) { event.preventDefault(); const match = qualitySuggestions[0]; setQualityTicker(match.ticker); setQualitySelectedTicker(match.ticker); setQualitySuggestionsOpen(false); } }} placeholder={t("Тикер или компания", "Tiker yoki kompaniya", "Ticker or company")} aria-label={t("Поиск компании", "Kompaniya qidiruvi", "Company search")} autoComplete="off" />
+          {qualitySuggestionsOpen && (qualitySearchLoading || qualitySuggestions.length > 0) && <div className="admin-quality-suggestions" role="listbox">{qualitySearchLoading && <div className="admin-quality-search-state">{t("Поиск…", "Qidirilmoqda…", "Searching…")}</div>}{qualitySuggestions.map(company => <button type="button" role="option" key={company.ticker} onMouseDown={event => event.preventDefault()} onClick={() => { setQualityTicker(company.ticker); setQualitySelectedTicker(company.ticker); setQualitySuggestionsOpen(false); }}><b>{company.ticker}</b><span>{company.company_name || company.ticker}</span></button>)}</div>}</div>
+          <button type="button" className="admin-btn" disabled={!qualitySelectedTicker || qualityBusy === `analysis:${qualitySelectedTicker}`} onClick={() => scanQualityCompany(qualitySelectedTicker)}>{qualityBusy === `analysis:${qualitySelectedTicker}` ? t("Проверка…", "Tekshirilmoqda…", "Checking…") : t("Проверить компанию", "Kompaniyani tekshirish", "Check company")}</button><button type="button" className="admin-btn" onClick={() => beginCorrection()}>{t("Новое исправление", "Yangi tuzatish", "New correction")}</button>
         </div>
       </div>
 
