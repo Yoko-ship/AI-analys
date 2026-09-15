@@ -215,6 +215,57 @@ def scan_financial_issues() -> dict[str, Any]:
         conn.close()
 
 
+def scan_analysis_issue(ticker: str) -> dict[str, Any]:
+    """Evaluate the same sector-quality gate shown on one public company page.
+
+    This deliberately scans one issuer at a time: workbook enrichment can be
+    expensive, while an administrator normally arrives here from a specific
+    blocked company card and needs an answer immediately.
+    """
+    ticker = str(ticker or "").strip().upper()
+    if not _TICKER_RE.fullmatch(ticker):
+        raise DataQualityError("Ticker must contain 2-40 Latin letters or digits")
+    try:
+        from issuer_analysis_api import _resolve_issuer
+        from sector_report_service import sector_report
+        report = sector_report(_resolve_issuer(ticker), "nsbu", None, "separate", "ru", persist=False)
+    except Exception as exc:
+        raise DataQualityError(f"Company analysis could not be checked: {exc}") from None
+
+    period = str(report.get("period") or "")
+    match = re.fullmatch(r"(\d{4})(?:Q([1-4]))?", period)
+    year, quarter = (int(match.group(1)), int(match.group(2) or 0)) if match else (None, 0)
+    sources = report.get("sources") or []
+    source = sources[0] if sources and isinstance(sources[0], dict) else {}
+    source_url = str(source.get("url") or "")
+    blockers = [item for item in report.get("data_quality") or []
+                if isinstance(item, dict) and item.get("severity") == "blocking"]
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        created = 0
+        now = _now()
+        with conn:
+            for finding in blockers:
+                code = str(finding.get("code") or "ANALYSIS_QUALITY_BLOCKED").upper()
+                created += _upsert_issue(
+                    conn, source_key=_issue_key("analysis", ticker, period, code), dataset="analysis",
+                    ticker=ticker, form="NSBU", year=year, quarter=quarter, field=None,
+                    rule_code=code, severity="blocking", original_value=None,
+                    details={"message": str(finding.get("message") or code), "analysis_status": report.get("status"),
+                             "source_url": source_url, "source_document_id": source.get("document_id"),
+                             "period": period, "finding": finding})
+            if not blockers and year:
+                conn.execute("""UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                             resolved_by='analysis recheck', updated_at=?
+                             WHERE dataset='analysis' AND ticker=? AND year=? AND quarter=? AND status='open'""",
+                             (now, now, ticker, year, quarter))
+        return {"ok": True, "ticker": ticker, "period": period or None, "status": report.get("status"),
+                "blocking": len(blockers), "created": created, "source_url": source_url}
+    finally:
+        conn.close()
+
+
 def list_issues(status: str | None = None, limit: int = 300) -> dict[str, Any]:
     conn = _conn()
     try:

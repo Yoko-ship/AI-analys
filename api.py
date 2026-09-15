@@ -4586,6 +4586,20 @@ async def api_data_quality_scan(
         None, data_quality.scan_financial_issues))
 
 
+@app.post("/api/admin/data-quality/analysis/{ticker}/scan")
+async def api_data_quality_analysis_scan(
+    ticker: str,
+    _: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Run the public company analysis gate for one issuer and persist blockers."""
+    import data_quality
+    try:
+        return _json_safe(await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.scan_analysis_issue, ticker)))
+    except data_quality.DataQualityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 @app.get("/api/admin/data-quality/corrections")
 async def api_data_quality_corrections(
     ticker: str | None = None,
