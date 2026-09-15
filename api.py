@@ -4640,6 +4640,21 @@ async def api_data_quality_apply_issue(
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
+@app.post("/api/admin/data-quality/issues/{issue_id}/apply-unit-scale")
+async def api_data_quality_apply_unit_scale(
+    issue_id: str,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Apply the verified 1,000× Form-2 unit conversion and recheck it."""
+    import data_quality
+    try:
+        result = await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.auto_apply_unit_scale_issue, issue_id, current_user.email))
+        return _json_safe(result)
+    except data_quality.DataQualityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 @app.post("/api/admin/data-quality/corrections")
 async def api_data_quality_create_correction(
     payload: DataCorrectionRequest,

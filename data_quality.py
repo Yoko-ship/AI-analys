@@ -261,7 +261,8 @@ def scan_analysis_issue(ticker: str) -> dict[str, Any]:
                              WHERE dataset='analysis' AND ticker=? AND year=? AND quarter=? AND status='open'""",
                              (now, now, ticker, year, quarter))
         return {"ok": True, "ticker": ticker, "period": period or None, "status": report.get("status"),
-                "blocking": len(blockers), "created": created, "source_url": source_url}
+                "blocking": len(blockers), "blocker_codes": [str(item.get("code") or "") for item in blockers],
+                "created": created, "source_url": source_url}
     finally:
         conn.close()
 
@@ -593,6 +594,70 @@ def auto_apply_issue(issue_id: str, actor: str) -> dict[str, Any]:
         "reason": proposal["reason"],
     }
     return apply_correction(payload, actor, issue_id)
+
+
+def auto_apply_unit_scale_issue(issue_id: str, actor: str) -> dict[str, Any]:
+    """Correct an income statement that is 1,000× larger than its balanced form 1.
+
+    The gate only offers this action for the unambiguous case: form-1 assets
+    already reconcile, while form-2 net income is over one hundred times assets.
+    The four form-2 monetary lines are converted together and the sector gate is
+    run again; all corrections are reverted if that exact blocker remains.
+    """
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        row = conn.execute("SELECT * FROM data_quality_issues WHERE id=?", (issue_id,)).fetchone()
+        if not row:
+            raise DataQualityError("Data-quality issue not found")
+        issue = _public(dict(row))
+        if issue["status"] != "open" or issue["rule_code"] != "BLOCKED_UNIT_MISMATCH":
+            raise DataQualityError("This is not an open unit-scale mismatch")
+        source = conn.execute("""SELECT revenue, gross_profit, net_income, operating_income, total_assets
+                                 FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=?""",
+                              (issue["ticker"], issue["form"], issue["year"], issue["quarter"])).fetchone()
+        if not source or source["total_assets"] in (None, 0) or source["net_income"] is None:
+            raise DataQualityError("The financial source row is incomplete")
+        ratio_to_assets = abs(float(source["net_income"])) / abs(float(source["total_assets"]))
+        if ratio_to_assets <= 100:
+            raise DataQualityError("The mismatch is not an unambiguous 1,000× income-statement scale error")
+        details = issue.get("details") if isinstance(issue.get("details"), dict) else {}
+        source_url = str(details.get("source_url") or "")
+        if not source_url:
+            raise DataQualityError("No linked official report is available")
+        source_reference = f"{issue['ticker']} NSBU {issue['year']}Q{issue['quarter'] or 4}; Form 2"
+    finally:
+        conn.close()
+
+    records = []
+    for field in ("revenue", "gross_profit", "net_income", "operating_income"):
+        value = source[field]
+        if value is None:
+            continue
+        records.append(apply_correction({
+            "ticker": issue["ticker"], "form": issue["form"], "year": issue["year"],
+            "quarter": issue["quarter"], "field": field, "value_thousands_uzs": float(value) / 1000,
+            "source_url": source_url, "source_reference": source_reference,
+            "reason": "Автоматическое приведение строк формы №2 из UZS к тысячам UZS; подтверждено проверкой масштаба.",
+        }, actor))
+    if not records:
+        raise DataQualityError("No Form 2 monetary values are available to scale")
+    recheck = scan_analysis_issue(issue["ticker"])
+    if "blocked_unit_mismatch" in {code.lower() for code in recheck.get("blocker_codes") or []}:
+        for record in records:
+            review_correction(record["id"], "reverted", actor, "Automatic scale correction did not pass recheck")
+        raise DataQualityError("The automatic scale correction did not pass recheck and was reverted")
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        now = _now()
+        with conn:
+            conn.execute("""UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                         resolved_by=?, updated_at=? WHERE id=? AND status='open'""",
+                         (now, actor, now, issue_id))
+    finally:
+        conn.close()
+    return {"ok": True, "corrections": records, "recheck": recheck}
 
 
 def approved_corrections_for(ticker: str, form: str, year: int, quarter: int) -> dict[str, float]:
