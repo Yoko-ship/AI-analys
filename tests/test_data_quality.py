@@ -108,6 +108,11 @@ def test_balance_suggestion_is_editable_proposal_not_a_write(monkeypatch, tmp_pa
     assert proposal["reason"].startswith("Автоматическая подсказка")
     assert dq.list_corrections()["items"] == []
 
+    applied = dq.auto_apply_issue(issue["id"], "admin@example.test")
+    assert applied["status"] == "approved"
+    assert dq.approved_corrections_for("TSTQ", "NSBU", 2024, 3) == {"total_assets": 80.0}
+    assert next(item for item in dq.list_issues()["items"] if item["id"] == issue["id"])["status"] == "resolved"
+
 
 def test_missing_balance_component_can_be_suggested(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
