@@ -621,13 +621,6 @@ export default function AdminPanel({
     if (alive.current) { setQuality(issues); setQualityCorrections(corrections); }
   }, [readJson]);
 
-  const scanQuality = useCallback(async () => {
-    setQualityBusy("scan"); setError("");
-    try { await readJson("/api/admin/data-quality/scan", { method: "POST" }); await loadQuality(); }
-    catch (e) { setError(String(e.message || e)); }
-    finally { if (alive.current) setQualityBusy(""); }
-  }, [loadQuality, readJson]);
-
   const scanQualityCompany = useCallback(async (ticker) => {
     const normalized = String(ticker || "").trim().toUpperCase();
     if (!normalized) { setError(t("Введите тикер компании.", "Kompaniya tikerini kiriting.", "Enter a company ticker.")); return; }
@@ -2691,10 +2684,10 @@ export default function AdminPanel({
     <div className="admin-section">
       <div className="panel admin-panel-head">
         <div><h2>{t("Очередь качества данных", "Ma'lumotlar sifati navbati", "Data-quality queue")}</h2>
-          <p className="admin-muted" style={{ margin: "4px 0 0" }}>{t("Сканирование только фиксирует пробелы. Исходные данные не изменяются.", "Skanerlash faqat bo'shliqlarni qayd etadi. Asl ma'lumotlar o'zgarmaydi.", "Scanning records gaps only; it never changes source data.")}</p></div>
+          <p className="admin-muted" style={{ margin: "4px 0 0" }}>{t("Введите тикер, чтобы проверить конкретную компанию. Исходные данные не изменяются без применения исправления.", "Muayyan kompaniyani tekshirish uchun tikerni kiriting. Tuzatish qo'llanmaguncha asl ma'lumotlar o'zgarmaydi.", "Enter a ticker to check one company. Source data is unchanged until a correction is applied.")}</p></div>
         <div className="admin-head-actions"><input className="admin-input" style={{ width: 118 }} value={qualityTicker} onChange={e => setQualityTicker(e.target.value.toUpperCase())} placeholder={t("Тикер", "Tiker", "Ticker")} />
           <button type="button" className="admin-btn" disabled={qualityBusy === `analysis:${qualityTicker.trim().toUpperCase()}`} onClick={() => scanQualityCompany(qualityTicker)}>{qualityBusy === `analysis:${qualityTicker.trim().toUpperCase()}` ? t("Проверка…", "Tekshirilmoqda…", "Checking…") : t("Проверить компанию", "Kompaniyani tekshirish", "Check company")}</button><button type="button" className="admin-btn" onClick={() => beginCorrection()}>{t("Новое исправление", "Yangi tuzatish", "New correction")}</button>
-          <button type="button" className="admin-btn accent" disabled={qualityBusy === "scan"} onClick={scanQuality}>{qualityBusy === "scan" ? t("Сканирование…", "Skanerlanmoqda…", "Scanning…") : t("Сканировать", "Skanerlash", "Run scan")}</button></div>
+        </div>
       </div>
 
       {qualityDraft && <form className="panel admin-company-form" onSubmit={submitQualityCorrection}>
