@@ -466,6 +466,55 @@ def review_correction(record_id: str, status: str, actor: str, note: str | None 
         conn.close()
 
 
+def apply_correction(payload: dict[str, Any], actor: str, issue_id: str | None = None) -> dict[str, Any]:
+    """Create and approve a correction in one audited operation."""
+    created = create_correction(payload, actor)
+    approved = review_correction(created["id"], "approved", actor, "Applied immediately by administrator")
+    if issue_id:
+        conn = _conn()
+        try:
+            _ensure_schema(conn)
+            now = _now()
+            with conn:
+                conn.execute("""UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                             resolved_by=?, updated_at=? WHERE id=? AND status='open'""",
+                             (now, actor, now, issue_id))
+        finally:
+            conn.close()
+    return approved
+
+
+def auto_apply_issue(issue_id: str, actor: str) -> dict[str, Any]:
+    """Apply the deterministic proposal for an open finding with linked evidence."""
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        row = conn.execute("SELECT * FROM data_quality_issues WHERE id=?", (issue_id,)).fetchone()
+        if not row:
+            raise DataQualityError("Data-quality issue not found")
+        issue = dict(row)
+        if issue["status"] != "open":
+            raise DataQualityError("This finding is no longer open")
+    finally:
+        conn.close()
+
+    proposal = suggest_correction(issue_id)
+    recommended = proposal.get("recommended")
+    evidence = proposal.get("evidence") or {}
+    if not recommended:
+        raise DataQualityError("No reliable automatic value is available; use manual correction")
+    if not evidence.get("available"):
+        raise DataQualityError("No linked official report is available; add evidence manually")
+    payload = {
+        "ticker": issue["ticker"], "form": issue["form"], "year": issue["year"],
+        "quarter": issue["quarter"], "field": recommended["field"],
+        "value_thousands_uzs": recommended["value_thousands_uzs"],
+        "source_url": evidence["source_url"], "source_reference": evidence["source_reference"],
+        "reason": proposal["reason"],
+    }
+    return apply_correction(payload, actor, issue_id)
+
+
 def approved_corrections_for(ticker: str, form: str, year: int, quarter: int) -> dict[str, float]:
     """Return database-approved values in catalog units (thousands of UZS)."""
     conn = _conn()

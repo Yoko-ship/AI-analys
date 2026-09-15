@@ -4611,6 +4611,21 @@ async def api_data_quality_suggestion(
         raise HTTPException(status_code=404, detail=str(exc)) from None
 
 
+@app.post("/api/admin/data-quality/issues/{issue_id}/apply")
+async def api_data_quality_apply_issue(
+    issue_id: str,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Apply the calculated correction and its linked report evidence in one click."""
+    import data_quality
+    try:
+        record = await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.auto_apply_issue, issue_id, current_user.email))
+        return _json_safe({"ok": True, "correction": record})
+    except data_quality.DataQualityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 @app.post("/api/admin/data-quality/corrections")
 async def api_data_quality_create_correction(
     payload: DataCorrectionRequest,
@@ -4620,6 +4635,21 @@ async def api_data_quality_create_correction(
     try:
         record = await asyncio.get_running_loop().run_in_executor(
             None, partial(data_quality.create_correction, payload.model_dump(), current_user.email))
+        return _json_safe({"ok": True, "correction": record})
+    except data_quality.DataQualityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@app.post("/api/admin/data-quality/corrections/apply")
+async def api_data_quality_apply_correction(
+    payload: DataCorrectionRequest,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Apply a manually edited correction immediately, retaining the audit record."""
+    import data_quality
+    try:
+        record = await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.apply_correction, payload.model_dump(), current_user.email))
         return _json_safe({"ok": True, "correction": record})
     except data_quality.DataQualityError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
