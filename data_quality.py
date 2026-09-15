@@ -227,6 +227,35 @@ def list_issues(status: str | None = None, limit: int = 300) -> dict[str, Any]:
         sql += " ORDER BY CASE severity WHEN 'blocking' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, updated_at DESC LIMIT ?"
         params.append(max(1, min(limit, 1000)))
         items = [_public(dict(r)) for r in conn.execute(sql, params).fetchall()]
+        # One legal issuer can have ordinary/preferred (and other) tickers.
+        # Present that relationship instead of making the queue look like two
+        # unrelated companies with identical filings.
+        companies = {str(row["ticker"]).upper(): dict(row) for row in conn.execute(
+            "SELECT ticker, company_name, org_id FROM catalog_companies").fetchall()}
+        issuer_members: dict[str, list[tuple[str, str]]] = {}
+        for ticker, company in companies.items():
+            name = str(company.get("company_name") or "").strip()
+            group_key = (str(company.get("org_id") or "").strip()
+                         or (f"name:{name.casefold()}" if name else f"ticker:{ticker}"))
+            issuer_members.setdefault(group_key, []).append((ticker, name))
+        issuer_tickers = {key: [ticker for ticker, _ in sorted(members)]
+                          for key, members in issuer_members.items()}
+        # The alphabetically first ticker is normally the ordinary share; using
+        # its name prevents a preferred-share suffix from becoming the issuer's
+        # headline for every row in the group.
+        issuer_names = {key: next((name for _, name in sorted(members) if name), "")
+                        for key, members in issuer_members.items()}
+        for item in items:
+            company = companies.get(str(item["ticker"]).upper())
+            if not company:
+                item["issuer_name"] = item["ticker"]
+                item["issuer_tickers"] = [item["ticker"]]
+                continue
+            name = str(company.get("company_name") or item["ticker"]).strip()
+            group_key = (str(company.get("org_id") or "").strip()
+                         or (f"name:{name.casefold()}" if name else f"ticker:{item['ticker']}"))
+            item["issuer_name"] = issuer_names.get(group_key) or name
+            item["issuer_tickers"] = issuer_tickers.get(group_key, [item["ticker"]])
         # Old findings predate the structured balance details above. Enrich the
         # response from the current source row so an operator can see the exact
         # discrepancy immediately, without running a scan or changing a record.
