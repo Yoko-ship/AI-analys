@@ -2591,6 +2591,14 @@ export default function AdminPanel({
     quarter: issue.quarter || 0, field: issue.field || "total_assets", value_thousands_uzs: "",
     source_url: "", source_reference: "", reason: "",
   });
+  const qualityCompanyUrl = (issue) => {
+    const params = new URLSearchParams({
+      tab: "financials", freq: "quarterly", qualityIssue: String(issue.rule_code || ""),
+      qualityPeriod: issue.year ? `${issue.year}Q${issue.quarter || 4}` : "",
+      qualityField: String(issue.field || ""),
+    });
+    return `/company/${encodeURIComponent(issue.ticker)}?${params.toString()}`;
+  };
   const qualityBody = (
     <div className="admin-section">
       <div className="panel admin-panel-head">
@@ -2607,7 +2615,7 @@ export default function AdminPanel({
       </form>}
 
       <div className="panel"><h3>{t("Открытые проверки", "Ochiq tekshiruvlar", "Open checks")} <span className="admin-muted">· {fmtInt(qualityIssues.length)}</span></h3>
-        {!qualityIssues.length ? <div className="admin-empty"><b>{t("Очередь пуста", "Navbat bo'sh", "The queue is empty")}</b>{t("Запустите сканирование после синхронизации каталога.", "Katalog sinxronlangach skanerlashni ishga tushiring.", "Run a scan after catalog synchronization.")}</div> : <div className="admin-scroll"><table><thead><tr><th>{t("Эмитент", "Emitent", "Ticker")}</th><th>{t("Период", "Davr", "Period")}</th><th>{t("Проверка", "Tekshiruv", "Check")}</th><th>{t("Поле", "Maydon", "Field")}</th><th>{t("Приоритет", "Ustuvorlik", "Severity")}</th><th /></tr></thead><tbody>{qualityIssues.map(issue => <tr key={issue.id}><td>{issue.ticker}</td><td>{issue.year ? `${issue.year}Q${issue.quarter || 4}` : DASH}</td><td>{issue.rule_code}</td><td>{issue.field || DASH}</td><td><span className="admin-pill"><span className={`admin-dot ${issue.severity === 'blocking' ? 'err' : 'warn'}`} />{issue.severity}</span></td><td>{issue.dataset === 'financials' && issue.field ? <button type="button" className="admin-btn" onClick={() => beginCorrection(issue)}>{t("Исправить", "Tuzatish", "Correct")}</button> : <button type="button" className="admin-btn" onClick={() => onSectionChange && onSectionChange('companies')}>{t("Проверить компанию", "Kompaniyani tekshirish", "Review company")}</button>}</td></tr>)}</tbody></table></div>}
+        {!qualityIssues.length ? <div className="admin-empty"><b>{t("Очередь пуста", "Navbat bo'sh", "The queue is empty")}</b>{t("Запустите сканирование после синхронизации каталога.", "Katalog sinxronlangach skanerlashni ishga tushiring.", "Run a scan after catalog synchronization.")}</div> : <div className="admin-scroll"><table><thead><tr><th>{t("Эмитент", "Emitent", "Ticker")}</th><th>{t("Период", "Davr", "Period")}</th><th>{t("Проверка", "Tekshiruv", "Check")}</th><th>{t("Поле", "Maydon", "Field")}</th><th>{t("Приоритет", "Ustuvorlik", "Severity")}</th><th /></tr></thead><tbody>{qualityIssues.map(issue => <tr key={issue.id}><td>{issue.ticker}</td><td>{issue.year ? `${issue.year}Q${issue.quarter || 4}` : DASH}</td><td>{issue.rule_code}</td><td>{issue.field || DASH}</td><td><span className="admin-pill"><span className={`admin-dot ${issue.severity === 'blocking' ? 'err' : 'warn'}`} />{issue.severity}</span></td><td className="admin-company-row-actions"><a className="admin-btn" href={qualityCompanyUrl(issue)} target="_blank" rel="noreferrer">{t("Открыть на сайте", "Saytda ochish", "Open on site")}</a>{issue.dataset === 'financials' && issue.field ? <button type="button" className="admin-btn accent" onClick={() => beginCorrection(issue)}>{t("Исправить", "Tuzatish", "Correct")}</button> : <button type="button" className="admin-btn" onClick={() => onSectionChange && onSectionChange('companies')}>{t("Проверить компанию", "Kompaniyani tekshirish", "Review company")}</button>}</td></tr>)}</tbody></table></div>}
       </div>
 
       <div className="panel"><h3>{t("Журнал исправлений", "Tuzatishlar jurnali", "Correction history")}</h3>

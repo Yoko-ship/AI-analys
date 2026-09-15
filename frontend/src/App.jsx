@@ -13204,7 +13204,14 @@ function CompanyForecastTab({ ticker, language, apiFetch, signedIn, hasProAccess
 
 function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, onOpenChart, marketRows, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch, onUpgrade }) {
   const lang = normalizeLanguage(language);
-  const [tab, setTab] = React.useState("overview");
+  // A data-quality row can link an administrator directly to the affected
+  // financial view. Normal company links carry no query and still open обзор.
+  const companyQuery = new URLSearchParams(window.location.search);
+  const qualityIssue = companyQuery.get("qualityIssue") || "";
+  const qualityPeriod = companyQuery.get("qualityPeriod") || "";
+  const qualityField = companyQuery.get("qualityField") || "";
+  const requestedTab = companyQuery.get("tab");
+  const [tab, setTab] = React.useState(requestedTab === "financials" ? "financials" : "overview");
 
   // A company is a new page, even though the SPA swaps it into the same
   // document. Reset the previous view's scroll offset before paint so opening
@@ -13257,7 +13264,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   const [finStandard, setFinStandard] = React.useState("NSBU");
   // The Финансы tab's period switch. The quarterly series is its own request
   // and its own cache: nobody pays for quarters they never open.
-  const [finFreq, setFinFreq] = React.useState("annual");
+  const [finFreq, setFinFreq] = React.useState(companyQuery.get("freq") === "quarterly" ? "quarterly" : "annual");
   const [finQSeries, setFinQSeries] = React.useState(null);
   const [finQLoading, setFinQLoading] = React.useState(false);
   // The splits register for the «Сплиты» sub-tab. Lazy with the rest of the
@@ -13793,14 +13800,20 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
           <CompanyReportsTab reports={companyData?.reports || []} lang={lang} />
         )}
         {tab === "financials" && (
-          <CompanyFinancialsTab ticker={ticker} ratios={companyData?.ratios || {}} lang={lang}
-            standard={finStandard} onStandardChange={setFinStandard}
-            series={(finFreq === "quarterly" ? finQSeries?.series : finSeries?.series) || {}}
-            periods={(finFreq === "quarterly" ? finQSeries?.periods : finSeries?.periods) || []}
-            loading={finFreq === "quarterly"
-              ? (finQLoading && finQSeries === null)
-              : (finLoading && finSeries === null)}
-            freq={finFreq} onFreqChange={setFinFreq} splits={splits} />
+          <>
+            {qualityIssue && <div className="panel" style={{ padding: "12px 16px", marginBottom: 12, border: "1px solid rgba(220, 80, 80, 0.5)" }}>
+              <strong>{lang === "ru" ? "Административная проверка" : lang === "uz" ? "Ma'muriy tekshiruv" : "Administrative review"}: {qualityIssue}</strong>
+              <span className="muted" style={{ marginLeft: 8 }}>{[qualityPeriod, qualityField].filter(Boolean).join(" · ")}</span>
+            </div>}
+            <CompanyFinancialsTab ticker={ticker} ratios={companyData?.ratios || {}} lang={lang}
+              standard={finStandard} onStandardChange={setFinStandard}
+              series={(finFreq === "quarterly" ? finQSeries?.series : finSeries?.series) || {}}
+              periods={(finFreq === "quarterly" ? finQSeries?.periods : finSeries?.periods) || []}
+              loading={finFreq === "quarterly"
+                ? (finQLoading && finQSeries === null)
+                : (finLoading && finSeries === null)}
+              freq={finFreq} onFreqChange={setFinFreq} splits={splits} />
+          </>
         )}
         {insightOpen && insightReport && (
           <CompanyInsightDialog report={insightReport} ticker={ticker} companyName={displayName} lang={lang} onClose={closeInsight} />
