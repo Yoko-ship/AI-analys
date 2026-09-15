@@ -128,3 +128,44 @@ def test_missing_balance_component_can_be_suggested(monkeypatch, tmp_path):
     assert proposal["recommended"]["field"] == "total_assets"
     assert proposal["recommended"]["value_thousands_uzs"] == 100
     assert proposal["recommended"]["confidence"] == "medium"
+
+
+def test_admin_official_refresh_reparses_one_company_and_records_outcome(monkeypatch, tmp_path):
+    """The quality-panel action is a source refresh, never a guessed correction."""
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
+    conn = rc.get_catalog_conn()
+    try:
+        with conn:
+            conn.execute("""INSERT INTO catalog_companies
+                            (ticker, company_name, org_id, last_synced_at)
+                         VALUES ('TSTQ', 'Test issuer', '42', '2026-01-01')""")
+    finally:
+        conn.close()
+    rc.upsert_financials_cache("TSTQ", "NSBU", 2026, 2, {
+        "revenue": 100, "net_income": 10, "total_assets": 80,
+        "total_equity": 50, "total_liabilities": 30,
+    })
+
+    calls = []
+    monkeypatch.setattr(rc, "sync_company", lambda *args, **kwargs: (
+        calls.append((args, kwargs)) or {"ticker": "TSTQ", "org_id": "42", "added": 2, "errors": []}
+    ))
+    monkeypatch.setattr(rc, "refresh_financials_cache", lambda *args, **kwargs: {
+        "ok": True, "processed": 1, "filled": 1, "candidates": 1,
+    })
+    monkeypatch.setattr(rc, "invalidate_ratios_cache", lambda: None)
+
+    result = dq.refresh_company_reporting("tstq", "admin@example.test")
+
+    assert result["status"] == "complete"
+    assert result["latest_period"] == "2026Q2"
+    assert result["reports_added"] == 2
+    assert result["financials_updated"] == 1
+    assert calls and calls[0][1]["force"] is True
+    assert dq.list_corrections()["items"] == []
+    conn = rc.get_catalog_conn()
+    try:
+        row = conn.execute("SELECT status, latest_period, requested_by FROM data_quality_refreshes").fetchone()
+        assert tuple(row) == ("complete", "2026Q2", "admin@example.test")
+    finally:
+        conn.close()

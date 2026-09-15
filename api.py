@@ -4596,6 +4596,21 @@ async def api_data_quality_scan(
         None, data_quality.scan_financial_issues))
 
 
+@app.post("/api/admin/data-quality/companies/{ticker}/refresh")
+async def api_data_quality_refresh_company_reporting(
+    ticker: str,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Re-import one issuer's official filings and re-parse its latest NSBU data."""
+    import data_quality
+    try:
+        result = await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.refresh_company_reporting, ticker, current_user.email))
+        return _json_safe(result)
+    except data_quality.DataQualityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 @app.post("/api/admin/data-quality/analysis/{ticker}/scan")
 async def api_data_quality_analysis_scan(
     ticker: str,
