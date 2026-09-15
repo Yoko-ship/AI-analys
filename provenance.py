@@ -867,8 +867,15 @@ def sync_from_catalog() -> dict[str, int]:
                 }
                 continue
             for field in ("pdf_url", "excel_url", "source_published_at", "title"):
-                if row[field] is not None:
-                    item[field] = row[field]
+                # The catalogue names this column ``published_at``; the
+                # provenance registry intentionally calls it
+                # ``source_published_at``.  Reading the registry name from a
+                # catalogue row raised KeyError as soon as an issuer had two
+                # share classes or a revised report, which made every
+                # admin-triggered refresh log a noisy failure.
+                value = row["published_at"] if field == "source_published_at" else row[field]
+                if value is not None:
+                    item[field] = value
 
         updates, inserts = [], []
         now = _now()
