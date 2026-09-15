@@ -2,6 +2,7 @@ export const NAVIGATION = [
   { title: ["Операции", "Operatsiyalar", "Operations"], items: [
     ["overview", "dashboard", "Обзор", "Umumiy", "Overview"],
     ["incidents", "alert", "Инциденты", "Hodisalar", "Incidents"],
+    ["quality", "alert", "Качество данных", "Ma'lumotlar sifati", "Data quality"],
     ["jobs", "clock", "Задания", "Vazifalar", "Jobs"],
   ] },
   { title: ["Каталог", "Katalog", "Catalog"], items: [
@@ -31,7 +32,7 @@ export const NAVIGATION = [
     ["system", "sliders", "Система", "Tizim", "System"],
   ] },
 ];
-export const LEGACY = ["audience", "engagement", "analysis", "users", "feedback", "railway", "companies", "streams", "findings", "intake", "issuer", "rules", "source", "product-overview"];
+export const LEGACY = ["audience", "engagement", "analysis", "users", "feedback", "railway", "companies", "streams", "findings", "intake", "issuer", "rules", "source", "quality", "product-overview"];
 export const RULE_TYPES = { mappings: "mapping", formulas: "formula", templates: "template", signals: "signal" };
 export const COLLECTION = { "catalog-coverage": "coverage", "rules-workspace": "rules", ...Object.fromEntries(Object.keys(RULE_TYPES).map(k => [k, "rules"])) };
 export const DEFAULT_RULES = {

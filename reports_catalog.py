@@ -3232,6 +3232,7 @@ def _financials_enrich_enabled() -> bool:
 _CORRECTION_BALANCE_KEYS = {
     "total_assets": "assets_end",
     "total_equity": "equity_end",
+    "total_liabilities": "liabilities_end",
 }
 
 
@@ -3260,14 +3261,35 @@ def _apply_registered_financial_corrections(
     if not period:
         return row
     registered = corrections_for(ticker, period)
-    if not registered:
-        return row
     for field, correction in registered.items():
         row[field] = correction.value_thousands_uzs
         balance_key = _CORRECTION_BALANCE_KEYS.get(field)
         if balance_key:
             balance = dict(row.get("balance") or {})
             balance[balance_key] = correction.value_thousands_uzs
+            row["balance"] = balance
+        field_periods = row.get("field_periods")
+        if isinstance(field_periods, dict):
+            field_periods.pop(field, None)
+    # The bundled register is the baseline for corrections already reviewed
+    # before the admin workflow existed. New approvals live in the catalogue
+    # database and intentionally win, while the raw imported row remains
+    # untouched in both cases.
+    try:
+        import data_quality
+        year, display_quarter = int(period[:4]), int(period[-1])
+        stored_quarter = 0 if display_quarter == 4 and int(row.get("quarter") or 0) == 0 else display_quarter
+        approved = data_quality.approved_corrections_for(
+            ticker, str(row.get("form") or "NSBU"), year, stored_quarter)
+    except Exception:  # a quality overlay must never make a financial read fail
+        logger.exception("financial corrections: quality overlay lookup failed for %s %s", ticker, period)
+        approved = {}
+    for field, value in approved.items():
+        row[field] = value
+        balance_key = _CORRECTION_BALANCE_KEYS.get(field)
+        if balance_key:
+            balance = dict(row.get("balance") or {})
+            balance[balance_key] = value
             row["balance"] = balance
         field_periods = row.get("field_periods")
         if isinstance(field_periods, dict):

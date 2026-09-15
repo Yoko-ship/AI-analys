@@ -659,6 +659,24 @@ class AdminFinancialsRequest(BaseModel):
     mode: Literal["upsert", "replace"] = "upsert"
 
 
+class DataCorrectionRequest(BaseModel):
+    """A financial correction expressed in the catalogue's thousands-of-UZS unit."""
+    ticker: str = Field(..., min_length=2, max_length=40)
+    form: Literal["NSBU", "MSFO", "Audition"] = "NSBU"
+    year: int = Field(..., ge=2000, le=2100)
+    quarter: int = Field(default=0, ge=0, le=4)
+    field: str = Field(..., min_length=1, max_length=80)
+    value_thousands_uzs: float
+    source_url: str = Field(..., min_length=8, max_length=2000)
+    source_reference: str = Field(..., min_length=1, max_length=500)
+    reason: str = Field(..., min_length=1, max_length=2000)
+
+
+class DataCorrectionReviewRequest(BaseModel):
+    status: Literal["approved", "rejected", "reverted"]
+    note: str | None = Field(default=None, max_length=2000)
+
+
 class AdminTradeStatsRequest(BaseModel):
     trade_date: str | None = Field(default=None, max_length=16)
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
@@ -4545,6 +4563,67 @@ def _require_admin_user(current_user: WebUser = Depends(_require_user)) -> WebUs
     if role_for(current_user.email) != "administrator":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+
+@app.get("/api/admin/data-quality/issues")
+async def api_data_quality_issues(
+    status: Literal["open", "resolved", "ignored"] | None = None,
+    _: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Persisted review queue; reading it never alters source financial rows."""
+    import data_quality
+    return _json_safe(await asyncio.get_running_loop().run_in_executor(
+        None, partial(data_quality.list_issues, status)))
+
+
+@app.post("/api/admin/data-quality/scan")
+async def api_data_quality_scan(
+    _: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Run the deterministic financial completeness/balance checks on demand."""
+    import data_quality
+    return _json_safe(await asyncio.get_running_loop().run_in_executor(
+        None, data_quality.scan_financial_issues))
+
+
+@app.get("/api/admin/data-quality/corrections")
+async def api_data_quality_corrections(
+    ticker: str | None = None,
+    _: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    import data_quality
+    return _json_safe(await asyncio.get_running_loop().run_in_executor(
+        None, partial(data_quality.list_corrections, ticker)))
+
+
+@app.post("/api/admin/data-quality/corrections")
+async def api_data_quality_create_correction(
+    payload: DataCorrectionRequest,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    import data_quality
+    try:
+        record = await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.create_correction, payload.model_dump(), current_user.email))
+        return _json_safe({"ok": True, "correction": record})
+    except data_quality.DataQualityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@app.post("/api/admin/data-quality/corrections/{correction_id}/review")
+async def api_data_quality_review_correction(
+    correction_id: str,
+    payload: DataCorrectionReviewRequest,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    import data_quality
+    try:
+        record = await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.review_correction, correction_id, payload.status,
+                          current_user.email, payload.note))
+        return _json_safe({"ok": True, "correction": record})
+    except data_quality.DataQualityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 _admin_company_syncs: set[str] = set()
