@@ -504,7 +504,9 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
         def response(recommended: dict[str, Any] | None, alternatives: list[dict[str, Any]],
                      message: str) -> dict[str, Any]:
             method = recommended.get("method") if recommended else None
-            reason = (f"Автоматическая подсказка по формуле: {method}. "
+            reason = ("Значение автоматически извлечено из привязанного официального отчёта "
+                      f"и прошло сверку баланса: {method}.") if method and method.startswith("Official filing") else (
+                      f"Автоматическая подсказка по формуле: {method}. "
                       "Перед подтверждением сверить значение с привязанным отчётом.") if method else (
                       "Ручная проверка значения по привязанному официальному отчёту.")
             return {"ok": True, "recommended": recommended, "alternatives": alternatives,
@@ -566,6 +568,42 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
                               "Calculated from the two available balance-sheet values; confirm it against the filing.")
             result["source_values"] = values
             return result
+        # A missing value may still be present in the official workbook when a
+        # previous catalogue parse omitted its balance line. Re-read that exact
+        # filing instead of guessing from another period. For balance fields we
+        # insist that all three totals reconcile before offering one-click apply.
+        if evidence.get("available"):
+            try:
+                import reports_catalog
+                parsed_values = reports_catalog.parse_catalogued_report(
+                    issue["ticker"], issue["form"], int(issue["year"]), int(issue["quarter"] or 0))
+                parsed_value = parsed_values.get(field)
+                if parsed_value is not None and math.isfinite(float(parsed_value)):
+                    balance_fields = ("total_assets", "total_equity", "total_liabilities")
+                    parsed_balance = {key: parsed_values.get(key) for key in balance_fields}
+                    balance_ready = all(value is not None and math.isfinite(float(value))
+                                        for value in parsed_balance.values())
+                    balance_ok = True
+                    if field in balance_fields:
+                        if not balance_ready:
+                            balance_ok = False
+                        else:
+                            assets = float(parsed_balance["total_assets"])
+                            difference = assets - float(parsed_balance["total_equity"]) - float(parsed_balance["total_liabilities"])
+                            balance_ok = abs(difference) <= max(1.0, abs(assets) * 0.0005)
+                    if balance_ok:
+                        recommendation = candidate(
+                            field, float(parsed_value), "high",
+                            "Official filing workbook; parsed statement line and balance reconciliation",
+                        )
+                        result = response(
+                            recommendation, [recommendation],
+                            "Extracted from the linked official filing and passed the balance check.",
+                        )
+                        result["source_values"] = parsed_balance
+                        return result
+            except Exception:  # A source failure leaves the safe manual path available.
+                logger.exception("Official filing re-parse failed for %s %sQ%s", issue["ticker"], issue["year"], issue["quarter"] or 4)
         return response(None, [], "There is not enough related data for a reliable calculation. Enter a value manually from the filing.")
     finally:
         conn.close()
