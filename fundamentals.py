@@ -258,20 +258,38 @@ def base_report_age(fin: dict[str, Any] | None,
     anchored to, so it is judged alongside the row: an issuer that has stopped
     filing annuals is out of date however punctually it files its quarters.
 
-    The annual companion is the newest complete twelve months the issuer has
-    (a filed annual, or the Q4 cumulative that stands in for one), attached by
-    the read path whether or not the arithmetic ends up using it. Where none is
-    attached the issuer has never filed one and the row answers for itself.
+    The annual companion is included only when it is the immediately preceding
+    completed year the current interim actually uses.  The reader deliberately
+    keeps an older annual attached for context, but a 2021 annual cannot be a
+    denominator for a 2026 half-year: :func:`twelve_month_flows` annualises that
+    half-year and marks it an estimate.  Counting the unrelated old annual here
+    would then hide a fresh official filing behind a misleading ``stale_period``
+    message (the KSCM 2026Q2 case).
 
     Returns ``(period_label, age_days)`` for whichever period is older.
     """
     candidates = []
-    for row in (fin, (fin or {}).get("annual")):
-        if not row:
-            continue
-        age = report_age_days(row, today)
+    if fin:
+        age = report_age_days(fin, today)
         if age is not None:
-            candidates.append((age, period_label(row)))
+            candidates.append((age, period_label(fin)))
+
+    annual = (fin or {}).get("annual") if fin else None
+    current_year = _num((fin or {}).get("year"))
+    current_quarter = int(_num((fin or {}).get("quarter")) or 0)
+    annual_year = _num((annual or {}).get("year")) if isinstance(annual, dict) else None
+    annual_is_complete = bool(isinstance(annual, dict) and (period_months(annual) or 0) >= 12)
+    annual_is_ttm_base = bool(
+        current_quarter
+        and current_year is not None
+        and annual_year is not None
+        and int(annual_year) == int(current_year) - 1
+        and annual_is_complete
+    )
+    if annual_is_ttm_base:
+        age = report_age_days(annual, today)
+        if age is not None:
+            candidates.append((age, period_label(annual)))
     if not candidates:
         return (period_label(fin), None)
     age, label = max(candidates)
