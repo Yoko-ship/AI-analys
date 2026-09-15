@@ -3294,6 +3294,10 @@ def _apply_registered_financial_corrections(
         field_periods = row.get("field_periods")
         if isinstance(field_periods, dict):
             field_periods.pop(field, None)
+    if approved:
+        # Internal marker: a corrected P&L line means the comparative column
+        # parsed from that same workbook can carry the same unit defect.
+        row["_reviewed_correction_fields"] = sorted(approved)
     return row
 
 
@@ -3403,6 +3407,20 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         if isinstance(annual, dict):
             _apply_registered_financial_corrections(
                 ticker, _correction_period(annual), annual)
+    # Corrections are overlaid after the first companion attachment. Re-run it
+    # so a corrected statement can replace a stale embedded comparative before
+    # TTM, ROE and ROA are assembled.
+    _attach_prior_interim_companion(conn, out, form)
+    for ticker, row in out.items():
+        prior = row.get("prior")
+        if isinstance(prior, dict):
+            _apply_registered_financial_corrections(
+                ticker, _correction_period(prior), prior)
+        # Implementation details must never escape as public financial fields.
+        row.pop("_reviewed_correction_fields", None)
+        for nested in (row.get("annual"), prior):
+            if isinstance(nested, dict):
+                nested.pop("_reviewed_correction_fields", None)
     conn.close()
     return out
 
@@ -3495,7 +3513,9 @@ def _attach_prior_interim_companion(conn: sqlite3.Connection, out: dict[str, dic
         ticker: (int(row["year"]) - 1, int(row["quarter"]))
         for ticker, row in out.items()
         if row.get("quarter") and row.get("year")
-        and not _prior_matches(row.get("prior"), int(row["year"]) - 1, int(row["quarter"]))
+        and (not _prior_matches(row.get("prior"), int(row["year"]) - 1, int(row["quarter"]))
+             or bool(set(row.get("_reviewed_correction_fields") or ())
+                     & set(_TTM_COMPANION_KEYS)))
     }
     if not targets:
         return
@@ -3512,7 +3532,11 @@ def _attach_prior_interim_companion(conn: sqlite3.Connection, out: dict[str, dic
     ).fetchall()
     stored = {(r["ticker"], r["year"], r["quarter"]): r for r in rows}
     for ticker, (year, quarter) in targets.items():
-        r = stored.get((ticker, year, quarter))
+        # A filing may have been collected under another listed class of the
+        # same issuer. The requested ticker wins, then its dynamic siblings.
+        candidates = [ticker, *[s for s in _org_siblings(conn, ticker) if s != ticker]]
+        r = next((stored.get((candidate, year, quarter)) for candidate in candidates
+                  if stored.get((candidate, year, quarter)) is not None), None)
         if r is None:
             continue
         prior = {"year": year, "quarter": quarter, "is_ytd": True,
