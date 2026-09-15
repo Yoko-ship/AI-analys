@@ -245,6 +245,87 @@ def list_corrections(ticker: str | None = None, limit: int = 300) -> dict[str, A
         conn.close()
 
 
+def suggest_correction(issue_id: str) -> dict[str, Any]:
+    """Return an editable, deterministic correction proposal for one finding.
+
+    A balance equation can prove that *one or more* values disagree, but cannot
+    prove which input was mistyped.  We therefore expose every algebraic answer
+    and choose the smallest relative edit merely as a starting point.  The
+    caller must still attach the primary-source evidence before approval.
+    """
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        issue_row = conn.execute("SELECT * FROM data_quality_issues WHERE id=?", (issue_id,)).fetchone()
+        if not issue_row:
+            raise DataQualityError("Data-quality issue not found")
+        issue = _public(dict(issue_row))
+        if issue["dataset"] != "financials" or not issue.get("year"):
+            return {"ok": True, "recommended": None, "alternatives": [],
+                    "message": "This finding has no deterministic financial correction."}
+
+        row = conn.execute("""SELECT total_assets, total_equity, total_liabilities
+                              FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=?""",
+                           (issue["ticker"], issue["form"], issue["year"], issue["quarter"])).fetchone()
+        if not row:
+            return {"ok": True, "recommended": None, "alternatives": [],
+                    "message": "The source financial row is not available any more."}
+        values = {key: (None if row[key] is None else float(row[key]))
+                  for key in ("total_assets", "total_equity", "total_liabilities")}
+        if any(value is not None and not math.isfinite(value) for value in values.values()):
+            return {"ok": True, "recommended": None, "alternatives": [],
+                    "message": "The source row contains a non-finite value."}
+
+        def candidate(field: str, value: float, confidence: str, method: str) -> dict[str, Any]:
+            current = values.get(field)
+            delta = None if current is None else abs(value - current)
+            relative_delta = None if delta is None else delta / max(abs(current), abs(value), 1.0)
+            return {"field": field, "value_thousands_uzs": value,
+                    "current_value_thousands_uzs": current, "relative_delta": relative_delta,
+                    "confidence": confidence, "method": method}
+
+        alternatives: list[dict[str, Any]] = []
+        if issue["rule_code"] == "BALANCE_MISMATCH":
+            assets, equity, liabilities = (values["total_assets"], values["total_equity"],
+                                            values["total_liabilities"])
+            if all(value is not None for value in (assets, equity, liabilities)):
+                alternatives = [
+                    candidate("total_assets", equity + liabilities, "low",
+                              "Assets = equity + liabilities"),
+                    candidate("total_equity", assets - liabilities, "low",
+                              "Equity = assets − liabilities"),
+                    candidate("total_liabilities", assets - equity, "low",
+                              "Liabilities = assets − equity"),
+                ]
+                alternatives.sort(key=lambda item: float(item["relative_delta"] or 0))
+                return {"ok": True, "recommended": alternatives[0], "alternatives": alternatives,
+                        "message": ("The first option changes the recorded value least. "
+                                    "A balance equation alone cannot identify the wrong field; "
+                                    "confirm it against the filing or select/edit another option."),
+                        "source_values": values}
+
+        # A missing balance-sheet component is safely derivable only when the
+        # other two components are present. Net income has no such identity.
+        field = issue.get("field")
+        if field == "total_assets" and values["total_equity"] is not None and values["total_liabilities"] is not None:
+            alternatives = [candidate("total_assets", values["total_equity"] + values["total_liabilities"],
+                                      "medium", "Assets = equity + liabilities")]
+        elif field == "total_equity" and values["total_assets"] is not None and values["total_liabilities"] is not None:
+            alternatives = [candidate("total_equity", values["total_assets"] - values["total_liabilities"],
+                                      "medium", "Equity = assets − liabilities")]
+        elif field == "total_liabilities" and values["total_assets"] is not None and values["total_equity"] is not None:
+            alternatives = [candidate("total_liabilities", values["total_assets"] - values["total_equity"],
+                                      "medium", "Liabilities = assets − equity")]
+        if alternatives:
+            return {"ok": True, "recommended": alternatives[0], "alternatives": alternatives,
+                    "message": "Calculated from the two available balance-sheet values; confirm it against the filing.",
+                    "source_values": values}
+        return {"ok": True, "recommended": None, "alternatives": [],
+                "message": "There is not enough related data for a reliable calculation. Enter a value manually from the filing."}
+    finally:
+        conn.close()
+
+
 def _validate(payload: dict[str, Any]) -> dict[str, Any]:
     ticker = str(payload.get("ticker") or "").strip().upper()
     field, form = str(payload.get("field") or "").strip(), str(payload.get("form") or "NSBU").strip()

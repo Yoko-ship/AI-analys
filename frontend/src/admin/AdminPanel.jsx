@@ -632,11 +632,12 @@ export default function AdminPanel({
     if (!qualityDraft) return;
     setQualityBusy("create"); setError("");
     try {
+      const { suggestion, alternatives, ...correction } = qualityDraft;
       const data = await readJson("/api/admin/data-quality/corrections", {
         method: "POST", body: JSON.stringify({
-          ...qualityDraft,
-          year: Number(qualityDraft.year), quarter: Number(qualityDraft.quarter || 0),
-          value_thousands_uzs: Number(qualityDraft.value_thousands_uzs),
+          ...correction,
+          year: Number(correction.year), quarter: Number(correction.quarter || 0),
+          value_thousands_uzs: Number(correction.value_thousands_uzs),
         }),
       });
       setQualityDraft(null);
@@ -2591,6 +2592,22 @@ export default function AdminPanel({
     quarter: issue.quarter || 0, field: issue.field || "", value_thousands_uzs: "",
     source_url: "", source_reference: "", reason: "",
   });
+  const openSuggestedCorrection = async (issue) => {
+    const busyKey = `suggest:${issue.id}`;
+    setQualityBusy(busyKey); setError("");
+    try {
+      const proposal = await readJson(`/api/admin/data-quality/issues/${encodeURIComponent(issue.id)}/suggestion`);
+      const recommended = proposal.recommended;
+      setQualityDraft({
+        ticker: issue.ticker || "", form: issue.form || "NSBU", year: issue.year || new Date().getFullYear(),
+        quarter: issue.quarter || 0, field: recommended?.field || issue.field || "",
+        value_thousands_uzs: recommended ? String(recommended.value_thousands_uzs) : "",
+        source_url: "", source_reference: "", reason: "", suggestion: proposal.message || "",
+        alternatives: proposal.alternatives || [],
+      });
+    } catch (e) { setError(String(e.message || e)); }
+    finally { if (alive.current) setQualityBusy(""); }
+  };
   const qualityCompanyUrl = (issue) => {
     const params = new URLSearchParams({
       tab: "financials", freq: "quarterly", qualityIssue: String(issue.rule_code || ""),
@@ -2610,12 +2627,13 @@ export default function AdminPanel({
 
       {qualityDraft && <form className="panel admin-company-form" onSubmit={submitQualityCorrection}>
         <div className="admin-panel-head"><div><h2>{t("Черновик исправления", "Tuzatish qoralamasi", "Correction draft")}</h2><p className="admin-muted">{t("Значение указывается в тысячах UZS; ссылка и строка источника обязательны.", "Qiymat ming UZS da; manba havolasi va qatori majburiy.", "Enter the value in thousands of UZS; evidence link and source line are required.")}</p></div><button type="button" className="admin-btn" onClick={() => setQualityDraft(null)}>{t("Закрыть", "Yopish", "Close")}</button></div>
+        {qualityDraft.suggestion && <div className="admin-note"><b>{t("Автоподсказка — требуется подтверждение", "Avto-taklif — tasdiqlash kerak", "Automatic proposal — confirmation required")}</b><br />{qualityDraft.suggestion}<br /><span className="admin-muted">{t("Поле и значение ниже можно изменить вручную. Официальный источник обязателен.", "Quyidagi maydon va qiymatni qo'lda o'zgartirish mumkin. Rasmiy manba majburiy.", "You can edit the field and value below. Official evidence is still required.")}</span>{qualityDraft.alternatives?.length > 1 && <div className="admin-company-row-actions" style={{ marginTop: 10 }}>{qualityDraft.alternatives.map(option => <button type="button" className="admin-btn" key={option.field} onClick={() => setQualityDraft(old => ({ ...old, field: option.field, value_thousands_uzs: String(option.value_thousands_uzs) }))}>{option.field}: {fmtNum(option.value_thousands_uzs)}</button>)}</div>}</div>}
         {[['ticker', t("Тикер", "Tiker", "Ticker")], ['year', t("Год", "Yil", "Year")], ['quarter', t("Квартал (0=годовой)", "Chorak (0=yillik)", "Quarter (0=annual)")], ['field', t("Поле", "Maydon", "Field")], ['value_thousands_uzs', t("Значение, тыс. UZS", "Qiymat, ming UZS", "Value, thousand UZS")], ['source_url', t("Ссылка на источник", "Manba havolasi", "Evidence URL")], ['source_reference', t("Строка / страница источника", "Manba qatori / sahifasi", "Source line / page")], ['reason', t("Причина", "Sabab", "Reason")]].map(([key, label]) => <label className={['source_url', 'source_reference', 'reason'].includes(key) ? 'wide' : ''} key={key}><span>{label}</span>{key === 'field' ? <select required value={qualityDraft.field} onChange={e => setQualityDraft(old => ({ ...old, field: e.target.value }))}><option value="" disabled>{t("Выберите поле", "Maydonni tanlang", "Choose field")}</option>{['revenue', 'gross_profit', 'cash', 'total_liabilities', 'net_income', 'operating_income', 'total_assets', 'total_equity', 'current_assets', 'current_liabilities', 'inventories'].map(field => <option key={field}>{field}</option>)}</select> : key === 'reason' ? <textarea required value={qualityDraft[key]} onChange={e => setQualityDraft(old => ({ ...old, [key]: e.target.value }))} /> : <input required={key !== 'quarter'} type={['year', 'quarter', 'value_thousands_uzs'].includes(key) ? 'number' : key === 'source_url' ? 'url' : 'text'} step={key === 'value_thousands_uzs' ? 'any' : undefined} value={qualityDraft[key]} onChange={e => setQualityDraft(old => ({ ...old, [key]: e.target.value }))} />}</label>)}
         <div className="admin-company-actions"><button className="admin-btn accent" disabled={qualityBusy === 'create'}>{qualityBusy === 'create' ? t("Сохранение…", "Saqlanmoqda…", "Saving…") : t("Сохранить черновик", "Qoralamani saqlash", "Save draft")}</button></div>
       </form>}
 
       <div className="panel"><h3>{t("Открытые проверки", "Ochiq tekshiruvlar", "Open checks")} <span className="admin-muted">· {fmtInt(qualityIssues.length)}</span></h3>
-        {!qualityIssues.length ? <div className="admin-empty"><b>{t("Очередь пуста", "Navbat bo'sh", "The queue is empty")}</b>{t("Запустите сканирование после синхронизации каталога.", "Katalog sinxronlangach skanerlashni ishga tushiring.", "Run a scan after catalog synchronization.")}</div> : <div className="admin-scroll"><table><thead><tr><th>{t("Эмитент", "Emitent", "Ticker")}</th><th>{t("Период", "Davr", "Period")}</th><th>{t("Проверка", "Tekshiruv", "Check")}</th><th>{t("Поле", "Maydon", "Field")}</th><th>{t("Приоритет", "Ustuvorlik", "Severity")}</th><th /></tr></thead><tbody>{qualityIssues.map(issue => <tr key={issue.id}><td>{issue.ticker}</td><td>{issue.year ? `${issue.year}Q${issue.quarter || 4}` : DASH}</td><td>{issue.rule_code}</td><td>{issue.field || DASH}</td><td><span className="admin-pill"><span className={`admin-dot ${issue.severity === 'blocking' ? 'err' : 'warn'}`} />{issue.severity}</span></td><td className="admin-company-row-actions"><a className="admin-btn" href={qualityCompanyUrl(issue)} target="_blank" rel="noreferrer">{t("Открыть на сайте", "Saytda ochish", "Open on site")}</a>{issue.dataset === 'financials' && <button type="button" className="admin-btn accent" onClick={() => beginCorrection(issue)}>{t("Исправить", "Tuzatish", "Correct")}</button>}<button type="button" className="admin-btn" onClick={() => onSectionChange && onSectionChange('companies')}>{t("Проверить компанию", "Kompaniyani tekshirish", "Review company")}</button></td></tr>)}</tbody></table></div>}
+        {!qualityIssues.length ? <div className="admin-empty"><b>{t("Очередь пуста", "Navbat bo'sh", "The queue is empty")}</b>{t("Запустите сканирование после синхронизации каталога.", "Katalog sinxronlangach skanerlashni ishga tushiring.", "Run a scan after catalog synchronization.")}</div> : <div className="admin-scroll"><table><thead><tr><th>{t("Эмитент", "Emitent", "Ticker")}</th><th>{t("Период", "Davr", "Period")}</th><th>{t("Проверка", "Tekshiruv", "Check")}</th><th>{t("Поле", "Maydon", "Field")}</th><th>{t("Приоритет", "Ustuvorlik", "Severity")}</th><th /></tr></thead><tbody>{qualityIssues.map(issue => <tr key={issue.id}><td>{issue.ticker}</td><td>{issue.year ? `${issue.year}Q${issue.quarter || 4}` : DASH}</td><td>{issue.rule_code}</td><td>{issue.field || DASH}</td><td><span className="admin-pill"><span className={`admin-dot ${issue.severity === 'blocking' ? 'err' : 'warn'}`} />{issue.severity}</span></td><td className="admin-company-row-actions"><a className="admin-btn" href={qualityCompanyUrl(issue)} target="_blank" rel="noreferrer">{t("Открыть на сайте", "Saytda ochish", "Open on site")}</a>{issue.dataset === 'financials' && <button type="button" className="admin-btn accent" disabled={qualityBusy === `suggest:${issue.id}`} onClick={() => openSuggestedCorrection(issue)}>{qualityBusy === `suggest:${issue.id}` ? t("Расчёт…", "Hisoblanmoqda…", "Calculating…") : t("Исправить", "Tuzatish", "Correct")}</button>}<button type="button" className="admin-btn" onClick={() => onSectionChange && onSectionChange('companies')}>{t("Проверить компанию", "Kompaniyani tekshirish", "Review company")}</button></td></tr>)}</tbody></table></div>}
       </div>
 
       <div className="panel"><h3>{t("Журнал исправлений", "Tuzatishlar jurnali", "Correction history")}</h3>
