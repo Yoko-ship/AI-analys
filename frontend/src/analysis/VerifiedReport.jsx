@@ -34,7 +34,17 @@ export function ReportAvailability({ report, lang = "ru" }) {
   if (!report || ["available", "stale"].includes(report.status)) return null;
   const mappingFailed = report.status === "mapping_failed"
     || (report.data_quality || []).some((item) => item.code === "SOURCE_MAPPING_FAILED");
-  const heading = mappingFailed
+  const comparativeUnitConflict = (report.data_quality || []).some(
+    (item) => item.code === "COMPARATIVE_VALUES_UNIT_MISMATCH",
+  );
+  const heading = comparativeUnitConflict
+    ? pick(
+      lang,
+      "Данные требуют подтверждения: расхождение сравнительных значений и единиц измерения",
+      "Ma’lumotlar tasdiqlanishi kerak: taqqoslama qiymatlar va o‘lchov birliklari mos emas",
+      "Data requires confirmation: comparative values and units of measure conflict",
+    )
+    : mappingFailed
     ? pick(lang, "Отчёт пока готовится", "Hisobot hozir tayyorlanmoqda", "The report is being prepared")
     : report.headline;
   const qualityMessage = (item) => item.code === "SOURCE_MAPPING_FAILED"
@@ -46,7 +56,9 @@ export function ReportAvailability({ report, lang = "ru" }) {
   return <div className="verified-availability" role="status">
     <strong>{heading}</strong>
     <p>{pick(lang, "Доступный период", "Mavjud davr", "Available period")}: {report.availability?.last_source_period || report.period || "—"}</p>
-    {(report.data_quality || []).map((item) => <p key={item.code}>{qualityMessage(item)}</p>)}
+    {(report.data_quality || [])
+      .filter((item) => !(comparativeUnitConflict && item.code === "COMPARATIVE_VALUES_UNIT_MISMATCH"))
+      .map((item) => <p key={item.code}>{qualityMessage(item)}</p>)}
     {report.availability?.next_action && <p>{mappingFailed
       ? pick(lang, "Мы проверим данные снова после обновления источника.", "Manba yangilangach ma’lumotlarni yana tekshiramiz.", "We will check the data again after the source is updated.")
       : report.availability.next_action}</p>}

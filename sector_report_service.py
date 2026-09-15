@@ -14,6 +14,53 @@ logger = logging.getLogger(__name__)
 _REPORT_CACHE = {}
 _CACHE_LOCK = RLock()
 
+_FLOW_FIELDS = frozenset(engine.FORM2.values())
+
+
+def _scale_gap(left, right):
+    """Return the absolute multiplicative gap, ignoring unusable values."""
+    left, right = engine.decimal(left), engine.decimal(right)
+    if left is None or right is None or left == 0 or right == 0:
+        return None
+    ratio = abs(left / right)
+    return max(ratio, 1 / ratio)
+
+
+def _has_comparative_unit_conflict(snapshot, workbook):
+    """Detect a corrected current form that conflicts with its PDF comparison.
+
+    A reviewed correction can normalize a Form №2 value, but it must not make
+    the comparative column in the original filing look trustworthy. Flag the
+    case only when both conditions are present: the corrected current value
+    differs from the source by a clear unit scale, and the source comparative
+    value disagrees materially with the verified comparable filing. This is
+    deliberately data-driven; it is not tied to any issuer or ticker.
+    """
+    reviewed = set(snapshot.get("reviewed_correction_fields") or ()) & _FLOW_FIELDS
+    if not reviewed or not isinstance(workbook, dict):
+        return False
+    source_lines = engine.source_line_pairs(workbook.get("income") or {}, "form2")
+    values = snapshot.get("current_values") or {}
+    previous = snapshot.get("previous_values") or {}
+    has_unit_scale = False
+    has_comparative_conflict = False
+    for code, field in engine.FORM2.items():
+        if field not in reviewed:
+            continue
+        line = source_lines.get(code) or {}
+        current_gap = _scale_gap(line.get("raw_current"), values.get(field))
+        if current_gap is not None and current_gap >= 100:
+            has_unit_scale = True
+        previous_gap = _scale_gap(line.get("raw_previous"), previous.get(field))
+        raw_previous = engine.decimal(line.get("raw_previous"))
+        verified_previous = engine.decimal(previous.get(field))
+        if (previous_gap is not None and previous_gap >= 10) or (
+            raw_previous is not None and verified_previous is not None
+            and raw_previous * verified_previous < 0
+        ):
+            has_comparative_conflict = True
+    return has_unit_scale and has_comparative_conflict
+
 
 def _verified_catalog_fallback(snapshot):
     """Whether normalized catalog facts can safely outlive workbook enrichment.
@@ -167,6 +214,17 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
                     "code": "SOURCE_MAPPING_FAILED", "severity": "blocking",
                     "message": engine.tr(lang, "Данные найдены, но их пока не удалось подготовить для анализа.", "Ma’lumotlar topildi, ammo hozircha tahlil uchun tayyorlanmadi.", "The data was found but is not ready for analysis yet."),
                 })
+    if _has_comparative_unit_conflict(snapshot, workbook):
+        snapshot["quality"]["data_quality"].append({
+            "code": "COMPARATIVE_VALUES_UNIT_MISMATCH",
+            "severity": "blocking",
+            "message": engine.tr(
+                lang,
+                "Данные требуют подтверждения: расхождение сравнительных значений и единиц измерения",
+                "Ma’lumotlar tasdiqlanishi kerak: taqqoslama qiymatlar va o‘lchov birliklari mos emas",
+                "Data requires confirmation: comparative values and units of measure conflict",
+            ),
+        })
     from admin_control.rules import apply_snapshot, runtime_rules
     snapshot = apply_snapshot(snapshot, issuer, workbook, runtime_rules(rule_override))
     snapshot["generated_at"] = api._now().isoformat()
