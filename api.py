@@ -677,6 +677,16 @@ class DataCorrectionReviewRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class PublicationHoldRequest(BaseModel):
+    """An admin-controlled pause for one public filing period."""
+    ticker: str = Field(..., min_length=2, max_length=40)
+    form: Literal["NSBU", "MSFO", "Audition"] = "NSBU"
+    year: int = Field(..., ge=2000, le=2100)
+    quarter: int = Field(default=0, ge=0, le=4)
+    active: bool = True
+    reason: str = Field(..., min_length=1, max_length=2000)
+
+
 class AdminTradeStatsRequest(BaseModel):
     trade_date: str | None = Field(default=None, max_length=16)
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
@@ -4610,6 +4620,21 @@ async def api_data_quality_corrections(
         None, partial(data_quality.list_corrections, ticker)))
 
 
+@app.post("/api/admin/data-quality/publication-holds")
+async def api_data_quality_publication_hold(
+    payload: PublicationHoldRequest,
+    current_user: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Temporarily hide a filing from public report and quarterly-finance tabs."""
+    import data_quality
+    try:
+        result = await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.set_publication_hold, **payload.model_dump(), actor=current_user.email))
+        return _json_safe(result)
+    except data_quality.DataQualityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 @app.get("/api/admin/data-quality/issues/{issue_id}/suggestion")
 async def api_data_quality_suggestion(
     issue_id: str,
@@ -5513,6 +5538,14 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                     merged.update(annual.get(period) or {})
                     annual[period] = merged
             q_periods, raw = derive_quarterly_series(cumulative, annual)
+            import data_quality
+            held_periods = await loop.run_in_executor(
+                None, partial(data_quality.held_public_periods, ticker, standard))
+            if held_periods:
+                q_periods = [period for period in q_periods if period not in held_periods]
+                raw = {name: {period: value for period, value in values.items()
+                              if period not in held_periods}
+                       for name, values in raw.items()}
             series: dict[str, dict[str, Any]] = {
                 name: {"unit": "UZS", "money": True,
                        "values": {p: v * NSBU_THOUSANDS_UZS for p, v in values.items()}}
@@ -7849,6 +7882,14 @@ async def api_company_reports(ticker: str) -> dict[str, Any]:
     ticker = ticker.upper()
     loop = asyncio.get_running_loop()
     reports = await loop.run_in_executor(None, partial(get_company_reports, ticker))
+    import data_quality
+    held_by_form = {
+        form: await loop.run_in_executor(None, partial(data_quality.held_public_periods, ticker, form))
+        for form in {str(report.get("report_form") or "NSBU").upper() for report in reports}
+    }
+    reports = [report for report in reports if (
+        f"{report.get('year')}Q{report.get('quarter')}" if report.get("quarter") else str(report.get("year"))
+    ) not in held_by_form.get(str(report.get("report_form") or "NSBU").upper(), set())]
     ratios = await loop.run_in_executor(None, partial(get_company_ratios_cached, ticker))
     reports = public_contract.catalog_report_contract(reports)
     return _json_safe({"ok": True, "ticker": ticker,

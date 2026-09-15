@@ -85,6 +85,23 @@ def _ensure_schema(conn: Any) -> None:
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_dq_corrections_lookup "
                  "ON data_corrections(ticker, dataset, form, year, quarter, field, status)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS data_publication_holds (
+            ticker TEXT NOT NULL,
+            form TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            quarter INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'active',
+            reason TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            released_by TEXT,
+            released_at TEXT,
+            PRIMARY KEY (ticker, form, year, quarter)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dq_publication_holds "
+                 "ON data_publication_holds(ticker, form, status)")
 
 
 def _public(row: dict[str, Any]) -> dict[str, Any]:
@@ -100,6 +117,54 @@ def _public(row: dict[str, Any]) -> dict[str, Any]:
 
 def _issue_key(*parts: Any) -> str:
     return ":".join("" if p is None else str(p) for p in parts)
+
+
+def held_public_periods(ticker: str, form: str = "NSBU") -> set[str]:
+    """Periods deliberately withheld from the public site, not from admin."""
+    ticker, form = str(ticker or "").upper(), str(form or "").upper()
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        rows = conn.execute("""SELECT year, quarter FROM data_publication_holds
+                            WHERE ticker=? AND form=? AND status='active'""",
+                            (ticker, form)).fetchall()
+        return {f"{row['year']}Q{row['quarter']}" if row["quarter"] else str(row["year"])
+                for row in rows}
+    finally:
+        conn.close()
+
+
+def set_publication_hold(ticker: str, form: str, year: int, quarter: int,
+                         active: bool, reason: str, actor: str) -> dict[str, Any]:
+    """Pause or restore one public report period while preserving its source."""
+    ticker, form = str(ticker or "").strip().upper(), str(form or "").strip().upper()
+    if not _TICKER_RE.fullmatch(ticker) or not _FORM_RE.fullmatch(form):
+        raise DataQualityError("Invalid ticker or report form")
+    if not 2000 <= int(year) <= 2100 or not 0 <= int(quarter) <= 4:
+        raise DataQualityError("Invalid report period")
+    now = _now()
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        with conn:
+            if active:
+                conn.execute("""INSERT INTO data_publication_holds
+                              (ticker, form, year, quarter, status, reason, created_by, created_at)
+                              VALUES (?,?,?,?,?,?,?,?)
+                              ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
+                                status='active', reason=excluded.reason, created_by=excluded.created_by,
+                                created_at=excluded.created_at, released_by=NULL, released_at=NULL""",
+                             (ticker, form, int(year), int(quarter), "active", str(reason).strip() or "Administrative review", actor, now))
+            else:
+                conn.execute("""UPDATE data_publication_holds
+                              SET status='released', released_by=?, released_at=?
+                              WHERE ticker=? AND form=? AND year=? AND quarter=?""",
+                             (actor, now, ticker, form, int(year), int(quarter)))
+        return {"ok": True, "ticker": ticker, "form": form,
+                "period": f"{year}Q{quarter}" if quarter else str(year),
+                "status": "active" if active else "released"}
+    finally:
+        conn.close()
 
 
 def _upsert_issue(conn: Any, *, source_key: str, dataset: str, ticker: str,
