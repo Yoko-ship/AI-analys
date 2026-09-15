@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -22,6 +23,8 @@ FINANCIAL_FIELDS = frozenset({
 _FORM_RE = re.compile(r"^(NSBU|MSFO|Audition)$")
 _TICKER_RE = re.compile(r"^[A-Z0-9]{2,40}$")
 _STATUS = {"draft", "approved", "rejected", "reverted"}
+_REPORTING_REFRESH_LOCK = threading.Lock()
+_REPORTING_REFRESHING: set[str] = set()
 
 
 class DataQualityError(ValueError):
@@ -102,6 +105,26 @@ def _ensure_schema(conn: Any) -> None:
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_dq_publication_holds "
                  "ON data_publication_holds(ticker, form, status)")
+    # A source refresh is not a manual correction: it re-imports an official
+    # filing and re-parses it. Keep this operational action separately so an
+    # administrator can tell the difference and see the actual outcome later.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS data_quality_refreshes (
+            id TEXT PRIMARY KEY,
+            ticker TEXT NOT NULL,
+            status TEXT NOT NULL,
+            latest_period TEXT,
+            reports_added INTEGER NOT NULL DEFAULT 0,
+            financials_updated INTEGER NOT NULL DEFAULT 0,
+            resolved_issues INTEGER NOT NULL DEFAULT 0,
+            details TEXT,
+            requested_by TEXT NOT NULL,
+            requested_at TEXT NOT NULL,
+            completed_at TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dq_refreshes_ticker "
+                 "ON data_quality_refreshes(ticker, requested_at DESC)")
 
 
 def _public(row: dict[str, Any]) -> dict[str, Any]:
@@ -165,6 +188,170 @@ def set_publication_hold(ticker: str, form: str, year: int, quarter: int,
                 "status": "active" if active else "released"}
     finally:
         conn.close()
+
+
+def _record_reporting_refresh(refresh_id: str, ticker: str, actor: str, *,
+                              status: str, latest_period: str | None = None,
+                              reports_added: int = 0, financials_updated: int = 0,
+                              resolved_issues: int = 0,
+                              details: dict[str, Any] | None = None,
+                              completed: bool = False) -> None:
+    """Persist one admin-triggered filing refresh without touching corrections."""
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        now = _now()
+        with conn:
+            conn.execute(
+                """INSERT INTO data_quality_refreshes
+                       (id,ticker,status,latest_period,reports_added,financials_updated,
+                        resolved_issues,details,requested_by,requested_at,completed_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     status=excluded.status, latest_period=excluded.latest_period,
+                     reports_added=excluded.reports_added,
+                     financials_updated=excluded.financials_updated,
+                     resolved_issues=excluded.resolved_issues, details=excluded.details,
+                     completed_at=excluded.completed_at""",
+                (refresh_id, ticker, status, latest_period, int(reports_added),
+                 int(financials_updated), int(resolved_issues),
+                 json.dumps(details or {}, ensure_ascii=False), actor, now,
+                 now if completed else None),
+            )
+    finally:
+        conn.close()
+
+
+def _resolve_rechecked_issues(ticker: str, actor: str) -> int:
+    """Close only findings demonstrably cleared by a fresh official import."""
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        issues = conn.execute(
+            "SELECT * FROM data_quality_issues WHERE ticker=? AND status='open'", (ticker,)
+        ).fetchall()
+        rows = conn.execute(
+            """SELECT form, year, quarter, revenue, net_income, total_assets,
+                      total_equity, total_liabilities
+                 FROM catalog_financials WHERE ticker=? AND form='NSBU'""", (ticker,)
+        ).fetchall()
+        financials = {(str(row["form"]), int(row["year"]), int(row["quarter"] or 0)): dict(row)
+                      for row in rows}
+        report_exists = bool(conn.execute(
+            "SELECT 1 FROM catalog_reports WHERE ticker=? LIMIT 1", (ticker,)
+        ).fetchone())
+        company = conn.execute(
+            "SELECT org_id, sync_error FROM catalog_companies WHERE ticker=?", (ticker,)
+        ).fetchone()
+        now, resolved = _now(), 0
+        with conn:
+            for raw in issues:
+                issue = _public(dict(raw))
+                row = financials.get((str(issue.get("form") or "NSBU"),
+                                      int(issue.get("year") or 0),
+                                      int(issue.get("quarter") or 0)))
+                fixed = False
+                if issue["rule_code"] == "MISSING_FINANCIAL_FIELD":
+                    fixed = bool(row and row.get(str(issue.get("field") or "")) is not None)
+                elif issue["rule_code"] == "BALANCE_MISMATCH" and row and row.get("total_assets"):
+                    assets, equity, liabilities = (row.get("total_assets"), row.get("total_equity"),
+                                                    row.get("total_liabilities"))
+                    fixed = all(value is not None for value in (assets, equity, liabilities)) and (
+                        abs(float(assets) - float(equity) - float(liabilities)) <= abs(float(assets)) * 0.001)
+                elif issue["rule_code"] == "MISSING_FINANCIAL_COVERAGE":
+                    fixed = bool(rows)
+                elif issue["rule_code"] == "MISSING_REPORT_COVERAGE":
+                    fixed = report_exists
+                elif issue["rule_code"] == "SOURCE_SYNC_FAILED":
+                    fixed = bool(company and not company["sync_error"])
+                elif issue["rule_code"] == "UNRESOLVED_ISSUER":
+                    fixed = bool(company and str(company["org_id"] or "").strip())
+                if fixed:
+                    conn.execute(
+                        """UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                               resolved_by=?, updated_at=? WHERE id=? AND status='open'""",
+                        (now, f"official refresh by {actor}", now, issue["id"]),
+                    )
+                    resolved += 1
+        return resolved
+    finally:
+        conn.close()
+
+
+def refresh_company_reporting(ticker: str, actor: str) -> dict[str, Any]:
+    """Re-import and re-parse one issuer's newest official reports.
+
+    This is the data-quality panel's safe operational fix for "no fresh
+    report" and parser-coverage findings. It never writes a guessed value or
+    creates a correction: only the source collector is run, then the current
+    cached statement is re-read and compatible queue findings are closed.
+    """
+    ticker = str(ticker or "").strip().upper()
+    if not _TICKER_RE.fullmatch(ticker):
+        raise DataQualityError("Ticker must contain 2-40 Latin letters or digits")
+    with _REPORTING_REFRESH_LOCK:
+        if ticker in _REPORTING_REFRESHING:
+            raise DataQualityError("Official-report refresh is already running for this company")
+        _REPORTING_REFRESHING.add(ticker)
+    refresh_id = str(uuid.uuid4())
+    _record_reporting_refresh(refresh_id, ticker, actor, status="running")
+    try:
+        import reports_catalog
+
+        conn = _conn()
+        try:
+            company = conn.execute(
+                "SELECT company_name, org_id FROM catalog_companies WHERE ticker=?", (ticker,)
+            ).fetchone()
+        finally:
+            conn.close()
+        if not company:
+            raise DataQualityError("Company is not catalogued; approve or map the issuer first")
+
+        sync = reports_catalog.sync_company(
+            ticker, str(company["company_name"] or ticker), force=True,
+            org_id=str(company["org_id"] or "") or None,
+        )
+        errors = list(sync.get("errors") or []) if isinstance(sync, dict) else []
+        if errors:
+            raise DataQualityError("; ".join(str(error) for error in errors))
+
+        # ttl_days=0 deliberately makes this an explicit re-parse even when a
+        # scheduled collector filled the cache earlier today.
+        refreshed = reports_catalog.refresh_financials_cache(
+            [ticker], form="NSBU", limit=1, ttl_days=0, sync_missing=False,
+        )
+        reports_catalog.invalidate_ratios_cache()
+        latest = reports_catalog.get_all_financials().get(ticker) or {}
+        year, quarter = latest.get("year"), latest.get("quarter")
+        latest_period = (f"{year}Q{quarter}" if year and quarter else str(year) if year else None)
+        resolved = _resolve_rechecked_issues(ticker, actor)
+        details = {
+            "catalog_sync": {"added": int(sync.get("added") or 0), "org_id": sync.get("org_id")},
+            "financial_refresh": {key: refreshed.get(key) for key in ("processed", "filled", "candidates")},
+        }
+        _record_reporting_refresh(
+            refresh_id, ticker, actor, status="complete", latest_period=latest_period,
+            reports_added=int(sync.get("added") or 0),
+            financials_updated=int(refreshed.get("filled") or 0),
+            resolved_issues=resolved, details=details, completed=True,
+        )
+        return {"ok": True, "id": refresh_id, "ticker": ticker,
+                "status": "complete", "latest_period": latest_period,
+                "reports_added": int(sync.get("added") or 0),
+                "financials_updated": int(refreshed.get("filled") or 0),
+                "resolved_issues": resolved, "details": details}
+    except DataQualityError as exc:
+        _record_reporting_refresh(refresh_id, ticker, actor, status="failed",
+                                  details={"error": str(exc)}, completed=True)
+        raise
+    except Exception as exc:  # noqa: BLE001 - transformed into a clear admin result
+        _record_reporting_refresh(refresh_id, ticker, actor, status="failed",
+                                  details={"error": str(exc)}, completed=True)
+        raise DataQualityError(f"Official-report refresh failed: {exc}") from None
+    finally:
+        with _REPORTING_REFRESH_LOCK:
+            _REPORTING_REFRESHING.discard(ticker)
 
 
 def _upsert_issue(conn: Any, *, source_key: str, dataset: str, ticker: str,
