@@ -350,6 +350,49 @@ def list_corrections(ticker: str | None = None, limit: int = 300) -> dict[str, A
         conn.close()
 
 
+def _official_report_evidence(conn: sqlite3.Connection, issue: dict[str, Any]) -> dict[str, Any]:
+    """Find the official filing for this security or any share class of its issuer.
+
+    OpenInfo filings belong to a legal issuer, whereas this cache is keyed by
+    traded security.  An ordinary and preferred share can therefore point at
+    the same financial row while the document is stored under only one ticker.
+    Evidence lookup must follow that relationship dynamically; a correction is
+    never allowed to rely on a hard-coded issuer or URL.
+    """
+    report = conn.execute(
+        """WITH issuer AS (
+                 SELECT NULLIF(TRIM(org_id), '') AS org_id
+                   FROM catalog_companies WHERE ticker=?
+             )
+             SELECT r.ticker, r.title, r.pdf_url, r.excel_url, r.excel_url_form1,
+                    r.published_at, r.openinfo_report_id
+               FROM catalog_reports r
+              WHERE r.report_form=? AND r.year=? AND r.quarter=?
+                AND (r.ticker=? OR EXISTS (
+                    SELECT 1 FROM catalog_companies sibling, issuer
+                     WHERE sibling.ticker=r.ticker
+                       AND sibling.org_id=issuer.org_id
+                       AND issuer.org_id IS NOT NULL
+                ))
+              ORDER BY CASE WHEN r.ticker=? THEN 0 ELSE 1 END,
+                       CASE WHEN r.pdf_url IS NOT NULL AND r.pdf_url != '' THEN 0 ELSE 1 END,
+                       CASE WHEN r.excel_url IS NOT NULL AND r.excel_url != '' THEN 0 ELSE 1 END
+              LIMIT 1""",
+        (issue["ticker"], issue["form"], issue["year"], issue["quarter"],
+         issue["ticker"], issue["ticker"]),
+    ).fetchone()
+    if not report:
+        return {"source_url": "", "source_reference": "", "available": False}
+    report = dict(report)
+    source_url = report.get("pdf_url") or report.get("excel_url") or report.get("excel_url_form1") or ""
+    period = f"{issue['form']} {issue['year']}Q{issue['quarter'] or 4}"
+    label = str(report.get("title") or f"{report['ticker']} {period}").strip()
+    if report.get("published_at"):
+        label = f"{label}; опубликован {report['published_at']}"
+    return {"source_url": source_url, "source_reference": label[:500],
+            "available": bool(source_url), "source_ticker": report["ticker"]}
+
+
 def suggest_correction(issue_id: str) -> dict[str, Any]:
     """Return an editable, deterministic correction proposal for one finding.
 
@@ -369,24 +412,7 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
             return {"ok": True, "recommended": None, "alternatives": [],
                     "message": "This finding has no deterministic financial correction."}
 
-        report = conn.execute("""SELECT title, pdf_url, excel_url, excel_url_form1, published_at,
-                                      openinfo_report_id
-                                 FROM catalog_reports
-                                WHERE ticker=? AND report_form=? AND year=? AND quarter=?
-                                ORDER BY CASE WHEN pdf_url IS NOT NULL AND pdf_url != '' THEN 0 ELSE 1 END,
-                                         CASE WHEN excel_url IS NOT NULL AND excel_url != '' THEN 0 ELSE 1 END
-                                LIMIT 1""",
-                              (issue["ticker"], issue["form"], issue["year"], issue["quarter"])).fetchone()
-        evidence: dict[str, Any] = {"source_url": "", "source_reference": "", "available": False}
-        if report:
-            report = dict(report)
-            source_url = report.get("pdf_url") or report.get("excel_url") or report.get("excel_url_form1") or ""
-            period = f"{issue['form']} {issue['year']}Q{issue['quarter'] or 4}"
-            label = str(report.get("title") or period).strip()
-            if report.get("published_at"):
-                label = f"{label}; опубликован {report['published_at']}"
-            evidence = {"source_url": source_url, "source_reference": label[:500],
-                        "available": bool(source_url)}
+        evidence = _official_report_evidence(conn, issue)
 
         def response(recommended: dict[str, Any] | None, alternatives: list[dict[str, Any]],
                      message: str) -> dict[str, Any]:
