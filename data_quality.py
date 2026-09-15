@@ -350,6 +350,28 @@ def list_corrections(ticker: str | None = None, limit: int = 300) -> dict[str, A
         conn.close()
 
 
+def resolve_issuer_mapping_issue(ticker: str, actor: str) -> dict[str, Any]:
+    """Close the issuer-mapping finding once an admin has verified its org ID."""
+    ticker = str(ticker or "").strip().upper()
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        company = conn.execute(
+            "SELECT org_id FROM catalog_companies WHERE ticker=?", (ticker,)
+        ).fetchone()
+        if not company or not str(company["org_id"] or "").strip():
+            raise DataQualityError("A verified OpenInfo organization ID is required")
+        now = _now()
+        with conn:
+            cursor = conn.execute("""UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                                resolved_by=?, updated_at=?
+                             WHERE dataset='catalog' AND ticker=? AND rule_code='UNRESOLVED_ISSUER'
+                               AND status='open'""", (now, actor, now, ticker))
+        return {"ok": True, "ticker": ticker, "resolved": cursor.rowcount}
+    finally:
+        conn.close()
+
+
 def _official_report_evidence(conn: sqlite3.Connection, issue: dict[str, Any]) -> dict[str, Any]:
     """Find the official filing for this security or any share class of its issuer.
 

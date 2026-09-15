@@ -4806,6 +4806,12 @@ async def api_admin_company_approve(
                     payload.model_dump(exclude={"sync"}, exclude_none=True),
                     actor=current_user.email),
         )
+        # An approved OpenInfo org ID directly resolves the corresponding
+        # data-quality mapping finding; the document sync may continue in the
+        # background without keeping a now-fixed mapping marked as open.
+        import data_quality
+        await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.resolve_issuer_mapping_issue, ticker, current_user.email))
         started = _schedule_company_sync(ticker) if payload.sync else False
         return _json_safe({"ok": True, "company": company,
                            "sync_started": started, "sync_requested": payload.sync})
