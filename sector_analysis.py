@@ -477,6 +477,7 @@ def prepare_inputs(snapshot, workbook=None):
     previous = dict(snapshot.get("previous_values") or {})
     opening = dict(snapshot.get("opening_values") or {})
     lines = dict(snapshot.get("source_lines") or {})
+    reviewed = {str(field) for field in snapshot.get("reviewed_correction_fields") or []}
     org = snapshot.get("organization_type")
     if workbook and org == "non_financial" and not snapshot.get("control_lines_prepared"):
         for form, table in (("form1", workbook.get("balance")), ("form2", workbook.get("income"))):
@@ -485,7 +486,12 @@ def prepare_inputs(snapshot, workbook=None):
         for code, key in mapping.items():
             row = lines.get(f"{form}:{code}")
             if row is not None and org == "non_financial":
-                values[key] = row.get("raw_current", row.get("current"))
+                # A confirmed catalogue correction is the authority over the
+                # parsed workbook line.  Without this guard the analysis
+                # recheck would see the original bad number and reject a
+                # correction that the public financial data already uses.
+                if key not in reviewed:
+                    values[key] = row.get("raw_current", row.get("current"))
                 (opening if form == "form1" else previous)[key] = row.get("raw_previous", row.get("previous"))
     return values, previous, opening, lines
 

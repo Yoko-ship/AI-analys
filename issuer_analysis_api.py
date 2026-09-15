@@ -444,6 +444,20 @@ def _financial_snapshot(
     selected = selected or (available[0] if available else None)
     reported_values = dict((series or {}).get(selected) or {}) if selected else {}
     values = dict(reported_values)
+    # The catalogue reader already overlays reviewed corrections.  Keep an
+    # explicit marker so the sector layer does not replace one with the raw
+    # workbook line while enriching a report for display or re-validation.
+    reviewed_correction_fields: set[str] = set()
+    if selected:
+        try:
+            import data_quality
+            correction_year, correction_quarter = _period_key(selected)
+            reviewed_correction_fields = set(data_quality.approved_corrections_for(
+                ticker, form, correction_year, correction_quarter))
+        except Exception:
+            # Read errors must not make the public analysis unavailable; the
+            # normal raw-workbook reconciliation remains the fallback.
+            reviewed_correction_fields = set()
     previous_period = _period_before(selected) if selected else None
     previous_reported = dict((series or {}).get(previous_period) or {}) if previous_period else {}
     previous = dict(previous_reported)
@@ -598,6 +612,7 @@ def _financial_snapshot(
         "current_values": values,
         "previous_values": previous,
         "opening_values": {},
+        "reviewed_correction_fields": sorted(reviewed_correction_fields),
         "scope_verified": (source_doc or {}).get("scope") == scope,
         "audited": (source_doc or {}).get("audited") is True,
     }
