@@ -492,7 +492,8 @@ def prepare_inputs(snapshot, workbook=None):
                 # correction that the public financial data already uses.
                 if key not in reviewed:
                     values[key] = row.get("raw_current", row.get("current"))
-                (opening if form == "form1" else previous)[key] = row.get("raw_previous", row.get("previous"))
+                if form == "form1" or key not in reviewed:
+                    (opening if form == "form1" else previous)[key] = row.get("raw_previous", row.get("previous"))
     return values, previous, opening, lines
 
 

@@ -99,7 +99,7 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false,
           <caption>{units}. {report.comparison_status === "not_available_first_reporting_period"
             ? t("Первый отчётный период; сопоставимой базы нет.", "Birinchi hisobot davri; taqqoslash bazasi yo‘q.", "First reporting period; no comparable prior period.")
             : t("Баланс — к началу года, результаты — к тому же периоду прошлого года.", "Balans yil boshiga, natijalar o‘tgan yilning shu davriga.", "Balance changes since year-start; income changes against the same prior-year period.")}</caption>
-          <thead><tr><th>{t("Показатель", "Ko‘rsatkich", "Metric")}</th><th>{t("База", "Baza", "Prior")}</th><th>{t("Текущее", "Joriy", "Current")}</th><th>Δ</th><th>Δ %</th><th>{t("Источник", "Manba", "Source")}</th></tr></thead>
+          <thead><tr><th>{t("Показатель", "Ko‘rsatkich", "Metric")}</th><th>{t("За соответствующий период прошлого года", "O‘tgan yilning mos davri", "Same period last year")}</th><th>{t("За текущий отчётный период", "Joriy hisobot davri", "Current reporting period")}</th><th>{t("Изменение", "O‘zgarish", "Change")}</th><th>{t("Изменение, %", "O‘zgarish, %", "Change, %")}</th><th>{t("Источник", "Manba", "Source")}</th></tr></thead>
           <tbody>{rows.map((fact) => <tr key={fact.metric_code || fact.metric}>
             <th scope="row">{fact.label || fact.metric_code}</th>
             <td>{money(fact.previous)}</td><td>{money(fact.value)}</td>
