@@ -166,6 +166,10 @@ def scan_financial_issues() -> dict[str, Any]:
                             quarter=quarter, field=None, rule_code="BALANCE_MISMATCH",
                             severity="blocking", original_value=None,
                             details={"variance": variance, "report_id": row.get("report_id"),
+                                     "observed_values": {"total_assets": float(assets),
+                                                         "total_equity": float(equity),
+                                                         "total_liabilities": float(liabilities)},
+                                     "difference_thousands_uzs": float(assets) - float(equity) - float(liabilities),
                                      "message": "Assets do not equal equity plus liabilities."})
             # A board instrument can be missing from catalog_companies while it
             # is already present in listings. Include both so the queue sees the
@@ -223,6 +227,26 @@ def list_issues(status: str | None = None, limit: int = 300) -> dict[str, Any]:
         sql += " ORDER BY CASE severity WHEN 'blocking' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, updated_at DESC LIMIT ?"
         params.append(max(1, min(limit, 1000)))
         items = [_public(dict(r)) for r in conn.execute(sql, params).fetchall()]
+        # Old findings predate the structured balance details above. Enrich the
+        # response from the current source row so an operator can see the exact
+        # discrepancy immediately, without running a scan or changing a record.
+        for item in items:
+            if item["dataset"] != "financials" or not item.get("year"):
+                continue
+            source = conn.execute("""SELECT total_assets, total_equity, total_liabilities
+                                     FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=?""",
+                                  (item["ticker"], item["form"], item["year"], item["quarter"])).fetchone()
+            if not source:
+                continue
+            raw_details = item.get("details")
+            details = dict(raw_details) if isinstance(raw_details, dict) else {}
+            values = {key: (None if source[key] is None else float(source[key]))
+                      for key in ("total_assets", "total_equity", "total_liabilities")}
+            details["observed_values"] = values
+            if item["rule_code"] == "BALANCE_MISMATCH" and all(value is not None for value in values.values()):
+                details["difference_thousands_uzs"] = (values["total_assets"] - values["total_equity"]
+                                                         - values["total_liabilities"])
+            item["details"] = details
         counts = {r["status"]: r["count"] for r in conn.execute(
             "SELECT status, COUNT(*) AS count FROM data_quality_issues GROUP BY status").fetchall()}
         return {"ok": True, "items": items, "counts": counts}
