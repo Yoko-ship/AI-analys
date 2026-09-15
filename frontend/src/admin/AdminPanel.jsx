@@ -155,6 +155,7 @@ const SYSTEM_SECTIONS = [
   { key: "issuer", title: ["Эмитент", "Emitent", "Issuer"] },
   { key: "rules", title: ["Правила", "Qoidalar", "Rules"] },
   { key: "source", title: ["Источник", "Manba", "Source"] },
+  { key: "quality", title: ["Качество данных", "Ma'lumotlar sifati", "Data quality"] },
 ];
 
 const SYSTEM_KEYS = SYSTEM_SECTIONS.map((s) => s.key);
@@ -474,6 +475,10 @@ export default function AdminPanel({
   const [companyDraft, setCompanyDraft] = useState(null);
   const [companyNotice, setCompanyNotice] = useState("");
   const [companyBusy, setCompanyBusy] = useState("");
+  const [quality, setQuality] = useState(null);
+  const [qualityCorrections, setQualityCorrections] = useState(null);
+  const [qualityBusy, setQualityBusy] = useState("");
+  const [qualityDraft, setQualityDraft] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
 
   const [error, setError] = useState("");
@@ -606,6 +611,51 @@ export default function AdminPanel({
     const data = await readJson("/api/admin/source");
     if (alive.current) setSource(data);
   }, [readJson]);
+
+  const loadQuality = useCallback(async () => {
+    const [issues, corrections] = await Promise.all([
+      readJson("/api/admin/data-quality/issues"),
+      readJson("/api/admin/data-quality/corrections"),
+    ]);
+    if (alive.current) { setQuality(issues); setQualityCorrections(corrections); }
+  }, [readJson]);
+
+  const scanQuality = useCallback(async () => {
+    setQualityBusy("scan"); setError("");
+    try { await readJson("/api/admin/data-quality/scan", { method: "POST" }); await loadQuality(); }
+    catch (e) { setError(String(e.message || e)); }
+    finally { if (alive.current) setQualityBusy(""); }
+  }, [loadQuality, readJson]);
+
+  const submitQualityCorrection = useCallback(async (event) => {
+    event.preventDefault();
+    if (!qualityDraft) return;
+    setQualityBusy("create"); setError("");
+    try {
+      const data = await readJson("/api/admin/data-quality/corrections", {
+        method: "POST", body: JSON.stringify({
+          ...qualityDraft,
+          year: Number(qualityDraft.year), quarter: Number(qualityDraft.quarter || 0),
+          value_thousands_uzs: Number(qualityDraft.value_thousands_uzs),
+        }),
+      });
+      setQualityDraft(null);
+      await loadQuality();
+      return data;
+    } catch (e) { setError(String(e.message || e)); return null; }
+    finally { if (alive.current) setQualityBusy(""); }
+  }, [loadQuality, qualityDraft, readJson]);
+
+  const reviewQualityCorrection = useCallback(async (id, status) => {
+    setQualityBusy(id); setError("");
+    try {
+      await readJson(`/api/admin/data-quality/corrections/${encodeURIComponent(id)}/review`, {
+        method: "POST", body: JSON.stringify({ status }),
+      });
+      await loadQuality();
+    } catch (e) { setError(String(e.message || e)); }
+    finally { if (alive.current) setQualityBusy(""); }
+  }, [loadQuality, readJson]);
 
   const loadCompanyImports = useCallback(async (status = companyFilter) => {
     const suffix = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
@@ -789,6 +839,7 @@ export default function AdminPanel({
       else if (section === "intake") jobs.push(loadIntake());
       else if (section === "rules") jobs.push(loadRuleBook());
       else if (section === "source") jobs.push(loadSource());
+      else if (section === "quality") jobs.push(loadQuality());
     } else if (section === "overview") {
       jobs.push(loadMetrics());
     } else if (section === "audience") {
@@ -810,7 +861,7 @@ export default function AdminPanel({
     // filter click, not on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, rangeDays, usersOnly, isSystem, loadOverview, loadFindings, loadIntake,
-      loadRuleBook, loadSource, loadCompanyImports, companyFilter,
+      loadRuleBook, loadSource, loadQuality, loadCompanyImports, companyFilter,
       loadMetrics, loadAudience, loadEngagement, loadAnalysis, loadFeedback, feedbackFilter]);
 
   const runAudit = async () => {
@@ -2532,6 +2583,39 @@ export default function AdminPanel({
     </div>
   );
 
+  /* ── Система · Качество данных ─────────────────────────────────────────── */
+  const qualityIssues = quality?.items || [];
+  const qualityCorrectionsRows = qualityCorrections?.items || [];
+  const beginCorrection = (issue = {}) => setQualityDraft({
+    ticker: issue.ticker || "", form: issue.form || "NSBU", year: issue.year || new Date().getFullYear(),
+    quarter: issue.quarter || 0, field: issue.field || "total_assets", value_thousands_uzs: "",
+    source_url: "", source_reference: "", reason: "",
+  });
+  const qualityBody = (
+    <div className="admin-section">
+      <div className="panel admin-panel-head">
+        <div><h2>{t("Очередь качества данных", "Ma'lumotlar sifati navbati", "Data-quality queue")}</h2>
+          <p className="admin-muted" style={{ margin: "4px 0 0" }}>{t("Сканирование только фиксирует пробелы. Исходные данные не изменяются.", "Skanerlash faqat bo'shliqlarni qayd etadi. Asl ma'lumotlar o'zgarmaydi.", "Scanning records gaps only; it never changes source data.")}</p></div>
+        <div className="admin-head-actions"><button type="button" className="admin-btn" onClick={() => beginCorrection()}>{t("Новое исправление", "Yangi tuzatish", "New correction")}</button>
+          <button type="button" className="admin-btn accent" disabled={qualityBusy === "scan"} onClick={scanQuality}>{qualityBusy === "scan" ? t("Сканирование…", "Skanerlanmoqda…", "Scanning…") : t("Сканировать", "Skanerlash", "Run scan")}</button></div>
+      </div>
+
+      {qualityDraft && <form className="panel admin-company-form" onSubmit={submitQualityCorrection}>
+        <div className="admin-panel-head"><div><h2>{t("Черновик исправления", "Tuzatish qoralamasi", "Correction draft")}</h2><p className="admin-muted">{t("Значение указывается в тысячах UZS; ссылка и строка источника обязательны.", "Qiymat ming UZS da; manba havolasi va qatori majburiy.", "Enter the value in thousands of UZS; evidence link and source line are required.")}</p></div><button type="button" className="admin-btn" onClick={() => setQualityDraft(null)}>{t("Закрыть", "Yopish", "Close")}</button></div>
+        {[['ticker', t("Тикер", "Tiker", "Ticker")], ['year', t("Год", "Yil", "Year")], ['quarter', t("Квартал (0=годовой)", "Chorak (0=yillik)", "Quarter (0=annual)")], ['field', t("Поле", "Maydon", "Field")], ['value_thousands_uzs', t("Значение, тыс. UZS", "Qiymat, ming UZS", "Value, thousand UZS")], ['source_url', t("Ссылка на источник", "Manba havolasi", "Evidence URL")], ['source_reference', t("Строка / страница источника", "Manba qatori / sahifasi", "Source line / page")], ['reason', t("Причина", "Sabab", "Reason")]].map(([key, label]) => <label className={['source_url', 'source_reference', 'reason'].includes(key) ? 'wide' : ''} key={key}><span>{label}</span>{key === 'field' ? <select value={qualityDraft.field} onChange={e => setQualityDraft(old => ({ ...old, field: e.target.value }))}>{['revenue', 'gross_profit', 'cash', 'total_liabilities', 'net_income', 'operating_income', 'total_assets', 'total_equity', 'current_assets', 'current_liabilities', 'inventories'].map(field => <option key={field}>{field}</option>)}</select> : key === 'reason' ? <textarea required value={qualityDraft[key]} onChange={e => setQualityDraft(old => ({ ...old, [key]: e.target.value }))} /> : <input required={key !== 'quarter'} type={['year', 'quarter', 'value_thousands_uzs'].includes(key) ? 'number' : key === 'source_url' ? 'url' : 'text'} step={key === 'value_thousands_uzs' ? 'any' : undefined} value={qualityDraft[key]} onChange={e => setQualityDraft(old => ({ ...old, [key]: e.target.value }))} />}</label>)}
+        <div className="admin-company-actions"><button className="admin-btn accent" disabled={qualityBusy === 'create'}>{qualityBusy === 'create' ? t("Сохранение…", "Saqlanmoqda…", "Saving…") : t("Сохранить черновик", "Qoralamani saqlash", "Save draft")}</button></div>
+      </form>}
+
+      <div className="panel"><h3>{t("Открытые проверки", "Ochiq tekshiruvlar", "Open checks")} <span className="admin-muted">· {fmtInt(qualityIssues.length)}</span></h3>
+        {!qualityIssues.length ? <div className="admin-empty"><b>{t("Очередь пуста", "Navbat bo'sh", "The queue is empty")}</b>{t("Запустите сканирование после синхронизации каталога.", "Katalog sinxronlangach skanerlashni ishga tushiring.", "Run a scan after catalog synchronization.")}</div> : <div className="admin-scroll"><table><thead><tr><th>{t("Эмитент", "Emitent", "Ticker")}</th><th>{t("Период", "Davr", "Period")}</th><th>{t("Проверка", "Tekshiruv", "Check")}</th><th>{t("Поле", "Maydon", "Field")}</th><th>{t("Приоритет", "Ustuvorlik", "Severity")}</th><th /></tr></thead><tbody>{qualityIssues.map(issue => <tr key={issue.id}><td>{issue.ticker}</td><td>{issue.year ? `${issue.year}Q${issue.quarter || 4}` : DASH}</td><td>{issue.rule_code}</td><td>{issue.field || DASH}</td><td><span className="admin-pill"><span className={`admin-dot ${issue.severity === 'blocking' ? 'err' : 'warn'}`} />{issue.severity}</span></td><td>{issue.dataset === 'financials' && issue.field ? <button type="button" className="admin-btn" onClick={() => beginCorrection(issue)}>{t("Исправить", "Tuzatish", "Correct")}</button> : <button type="button" className="admin-btn" onClick={() => onSectionChange && onSectionChange('companies')}>{t("Проверить компанию", "Kompaniyani tekshirish", "Review company")}</button>}</td></tr>)}</tbody></table></div>}
+      </div>
+
+      <div className="panel"><h3>{t("Журнал исправлений", "Tuzatishlar jurnali", "Correction history")}</h3>
+        {!qualityCorrectionsRows.length ? <p className="admin-muted">{t("Пока нет исправлений.", "Hali tuzatishlar yo'q.", "No corrections yet.")}</p> : <div className="admin-scroll"><table><thead><tr><th>{t("Эмитент", "Emitent", "Ticker")}</th><th>{t("Период", "Davr", "Period")}</th><th>{t("Поле", "Maydon", "Field")}</th><th>{t("Статус", "Holat", "Status")}</th><th>{t("Источник", "Manba", "Evidence")}</th><th /></tr></thead><tbody>{qualityCorrectionsRows.map(record => <tr key={record.id}><td>{record.ticker}</td><td>{record.year}Q{record.quarter || 4}</td><td>{record.field}</td><td>{record.status}</td><td><a className="admin-link" href={record.source_url} target="_blank" rel="noreferrer">{record.source_reference}</a></td><td className="admin-company-row-actions">{record.status === 'draft' && <><button className="admin-btn accent" disabled={qualityBusy === record.id} onClick={() => reviewQualityCorrection(record.id, 'approved')}>{t("Подтвердить", "Tasdiqlash", "Approve")}</button><button className="admin-btn" disabled={qualityBusy === record.id} onClick={() => reviewQualityCorrection(record.id, 'rejected')}>{t("Отклонить", "Rad etish", "Reject")}</button></>}{record.status === 'approved' && <button className="admin-btn danger" disabled={qualityBusy === record.id} onClick={() => reviewQualityCorrection(record.id, 'reverted')}>{t("Отменить", "Bekor qilish", "Revert")}</button>}</td></tr>)}</tbody></table></div>}
+      </div>
+    </div>
+  );
+
   const feedbackRows = feedbackData?.items || [];
   const feedbackStatusLabel = (status) => ({
     open: t("Новое", "Yangi", "New"),
@@ -2589,6 +2673,7 @@ export default function AdminPanel({
     issuer: issuerBody,
     rules: rulesBody,
     source: sourceBody,
+    quality: qualityBody,
   };
 
   return (
