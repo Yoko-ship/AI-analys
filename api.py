@@ -4779,6 +4779,17 @@ async def api_admin_companies(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+@app.get("/api/admin/companies/search")
+async def api_admin_companies_search(
+    q: str,
+    limit: int = 12,
+    _: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Small, live issuer lookup used by operational admin controls."""
+    return _json_safe({"ok": True, "items": await asyncio.get_running_loop().run_in_executor(
+        None, partial(company_imports.search_companies, q, limit))})
+
+
 @app.post("/api/admin/companies/discover")
 async def api_admin_companies_discover(
     force: bool = False,

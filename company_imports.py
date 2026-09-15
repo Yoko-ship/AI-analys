@@ -330,6 +330,37 @@ def list_imports(status: str | None = None) -> dict[str, Any]:
     }
 
 
+def search_companies(query: str, limit: int = 12) -> list[dict[str, Any]]:
+    """Find known issuers by ticker or legal name for admin pickers."""
+    needle = str(query or "").strip()
+    if not needle:
+        return []
+    needle = needle[:100]
+    pattern = f"%{needle}%"
+    conn = _conn()
+    try:
+        rows = conn.execute("""
+            SELECT c.ticker, COALESCE(i.company_name, c.company_name) AS company_name,
+                   c.org_id, COALESCE(i.status, 'catalog') AS status
+            FROM catalog_companies c
+            LEFT JOIN catalog_company_imports i ON i.ticker = c.ticker
+            WHERE c.ticker LIKE ? COLLATE NOCASE
+               OR c.company_name LIKE ? COLLATE NOCASE
+               OR i.company_name LIKE ? COLLATE NOCASE
+            ORDER BY CASE
+                WHEN c.ticker = ? COLLATE NOCASE THEN 0
+                WHEN c.ticker LIKE ? COLLATE NOCASE THEN 1
+                WHEN COALESCE(i.company_name, c.company_name) LIKE ? COLLATE NOCASE THEN 2
+                ELSE 3 END,
+                c.ticker
+            LIMIT ?
+        """, (pattern, pattern, pattern, needle, f"{needle}%", f"{needle}%",
+              max(1, min(int(limit), 25)))).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def approve_import(ticker: str, values: dict[str, Any], *, actor: str) -> dict[str, Any]:
     ticker = _clean_ticker(ticker)
     conn = _conn()
