@@ -82,6 +82,15 @@ def test_balance_suggestion_is_editable_proposal_not_a_write(monkeypatch, tmp_pa
         "revenue": 10, "net_income": 2, "total_assets": 100, "total_equity": 30,
         "total_liabilities": 50,
     })
+    conn = rc.get_catalog_conn()
+    try:
+        with conn:
+            rc._upsert_report(conn, "TSTQ", report_form="NSBU", period_type="quarter", year=2024,
+                              quarter=3, title="NSBU report", published_at="2024-11-01",
+                              pdf_url="https://example.test/report.pdf", excel_url=None,
+                              excel_url_form1=None, openinfo_report_id="123", object_id=None)
+    finally:
+        conn.close()
     dq.scan_financial_issues()
     issue = next(item for item in dq.list_issues()["items"] if item["rule_code"] == "BALANCE_MISMATCH")
 
@@ -91,6 +100,12 @@ def test_balance_suggestion_is_editable_proposal_not_a_write(monkeypatch, tmp_pa
     assert proposal["recommended"]["value_thousands_uzs"] == 80
     assert {item["field"] for item in proposal["alternatives"]} == {
         "total_assets", "total_equity", "total_liabilities"}
+    assert proposal["evidence"] == {
+        "source_url": "https://example.test/report.pdf",
+        "source_reference": "NSBU report; опубликован 2024-11-01",
+        "available": True,
+    }
+    assert proposal["reason"].startswith("Автоматическая подсказка")
     assert dq.list_corrections()["items"] == []
 
 
