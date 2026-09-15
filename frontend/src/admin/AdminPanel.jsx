@@ -632,7 +632,7 @@ export default function AdminPanel({
     if (!qualityDraft) return;
     setQualityBusy("create"); setError("");
     try {
-      const { suggestion, alternatives, ...correction } = qualityDraft;
+      const { suggestion, alternatives, evidenceMissing, ...correction } = qualityDraft;
       const data = await readJson("/api/admin/data-quality/corrections", {
         method: "POST", body: JSON.stringify({
           ...correction,
@@ -2608,7 +2608,7 @@ export default function AdminPanel({
   const beginCorrection = (issue = {}) => setQualityDraft({
     ticker: issue.ticker || "", form: issue.form || "NSBU", year: issue.year || new Date().getFullYear(),
     quarter: issue.quarter || 0, field: issue.field || "", value_thousands_uzs: "",
-    source_url: "", source_reference: "", reason: "",
+    source_url: "", source_reference: "", reason: "", evidenceMissing: true,
   });
   const openSuggestedCorrection = async (issue) => {
     const busyKey = `suggest:${issue.id}`;
@@ -2616,11 +2616,13 @@ export default function AdminPanel({
     try {
       const proposal = await readJson(`/api/admin/data-quality/issues/${encodeURIComponent(issue.id)}/suggestion`);
       const recommended = proposal.recommended;
+      const evidence = proposal.evidence || {};
       setQualityDraft({
         ticker: issue.ticker || "", form: issue.form || "NSBU", year: issue.year || new Date().getFullYear(),
         quarter: issue.quarter || 0, field: recommended?.field || issue.field || "",
         value_thousands_uzs: recommended ? String(recommended.value_thousands_uzs) : "",
-        source_url: "", source_reference: "", reason: "", suggestion: proposal.message || "",
+        source_url: evidence.source_url || "", source_reference: evidence.source_reference || "",
+        reason: proposal.reason || "", suggestion: proposal.message || "", evidenceMissing: !evidence.available,
         alternatives: proposal.alternatives || [],
       });
     } catch (e) { setError(String(e.message || e)); }
@@ -2644,7 +2646,7 @@ export default function AdminPanel({
       </div>
 
       {qualityDraft && <form className="panel admin-company-form" onSubmit={submitQualityCorrection}>
-        <div className="admin-panel-head"><div><h2>{t("Черновик исправления", "Tuzatish qoralamasi", "Correction draft")}</h2><p className="admin-muted">{t("Значение указывается в тысячах UZS; ссылка и строка источника обязательны.", "Qiymat ming UZS da; manba havolasi va qatori majburiy.", "Enter the value in thousands of UZS; evidence link and source line are required.")}</p></div><button type="button" className="admin-btn" onClick={() => setQualityDraft(null)}>{t("Закрыть", "Yopish", "Close")}</button></div>
+        <div className="admin-panel-head"><div><h2>{t("Черновик исправления", "Tuzatish qoralamasi", "Correction draft")}</h2><p className="admin-muted">{qualityDraft.evidenceMissing ? t("Для этого периода в каталоге нет ссылки на официальный отчёт — добавьте её вручную.", "Bu davr uchun katalogda rasmiy hisobot havolasi yo'q — uni qo'lda qo'shing.", "No official-report link is stored for this period; add one manually.") : t("Значение, источник и обоснование подставлены автоматически. При необходимости их можно изменить.", "Qiymat, manba va asos avtomatik to'ldirildi. Zarur bo'lsa, o'zgartirish mumkin.", "Value, source and rationale were filled automatically. You can edit them if needed.")}</p></div><button type="button" className="admin-btn" onClick={() => setQualityDraft(null)}>{t("Закрыть", "Yopish", "Close")}</button></div>
         {qualityDraft.suggestion && <div className="admin-note"><b>{t("Автоподсказка — требуется подтверждение", "Avto-taklif — tasdiqlash kerak", "Automatic proposal — confirmation required")}</b><br />{qualityDraft.suggestion}<br /><span className="admin-muted">{t("Поле и значение ниже можно изменить вручную. Официальный источник обязателен.", "Quyidagi maydon va qiymatni qo'lda o'zgartirish mumkin. Rasmiy manba majburiy.", "You can edit the field and value below. Official evidence is still required.")}</span>{qualityDraft.alternatives?.length > 1 && <div className="admin-company-row-actions" style={{ marginTop: 10 }}>{qualityDraft.alternatives.map(option => <button type="button" className="admin-btn" key={option.field} onClick={() => setQualityDraft(old => ({ ...old, field: option.field, value_thousands_uzs: String(option.value_thousands_uzs) }))}>{option.field}: {fmtNum(option.value_thousands_uzs)}</button>)}</div>}</div>}
         {[['ticker', t("Тикер", "Tiker", "Ticker")], ['year', t("Год", "Yil", "Year")], ['quarter', t("Квартал (0=годовой)", "Chorak (0=yillik)", "Quarter (0=annual)")], ['field', t("Поле", "Maydon", "Field")], ['value_thousands_uzs', t("Значение, тыс. UZS", "Qiymat, ming UZS", "Value, thousand UZS")], ['source_url', t("Ссылка на источник", "Manba havolasi", "Evidence URL")], ['source_reference', t("Строка / страница источника", "Manba qatori / sahifasi", "Source line / page")], ['reason', t("Причина", "Sabab", "Reason")]].map(([key, label]) => <label className={['source_url', 'source_reference', 'reason'].includes(key) ? 'wide' : ''} key={key}><span>{label}</span>{key === 'field' ? <select required value={qualityDraft.field} onChange={e => setQualityDraft(old => ({ ...old, field: e.target.value }))}><option value="" disabled>{t("Выберите поле", "Maydonni tanlang", "Choose field")}</option>{['revenue', 'gross_profit', 'cash', 'total_liabilities', 'net_income', 'operating_income', 'total_assets', 'total_equity', 'current_assets', 'current_liabilities', 'inventories'].map(field => <option key={field}>{field}</option>)}</select> : key === 'reason' ? <textarea required value={qualityDraft[key]} onChange={e => setQualityDraft(old => ({ ...old, [key]: e.target.value }))} /> : <input required={key !== 'quarter'} type={['year', 'quarter', 'value_thousands_uzs'].includes(key) ? 'number' : key === 'source_url' ? 'url' : 'text'} step={key === 'value_thousands_uzs' ? 'any' : undefined} value={qualityDraft[key]} onChange={e => setQualityDraft(old => ({ ...old, [key]: e.target.value }))} />}</label>)}
         <div className="admin-company-actions"><button className="admin-btn accent" disabled={qualityBusy === 'create'}>{qualityBusy === 'create' ? t("Сохранение…", "Saqlanmoqda…", "Saving…") : t("Сохранить черновик", "Qoralamani saqlash", "Save draft")}</button></div>

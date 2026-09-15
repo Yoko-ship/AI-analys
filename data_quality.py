@@ -288,17 +288,43 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
             return {"ok": True, "recommended": None, "alternatives": [],
                     "message": "This finding has no deterministic financial correction."}
 
+        report = conn.execute("""SELECT title, pdf_url, excel_url, excel_url_form1, published_at,
+                                      openinfo_report_id
+                                 FROM catalog_reports
+                                WHERE ticker=? AND report_form=? AND year=? AND quarter=?
+                                ORDER BY CASE WHEN pdf_url IS NOT NULL AND pdf_url != '' THEN 0 ELSE 1 END,
+                                         CASE WHEN excel_url IS NOT NULL AND excel_url != '' THEN 0 ELSE 1 END
+                                LIMIT 1""",
+                              (issue["ticker"], issue["form"], issue["year"], issue["quarter"])).fetchone()
+        evidence: dict[str, Any] = {"source_url": "", "source_reference": "", "available": False}
+        if report:
+            report = dict(report)
+            source_url = report.get("pdf_url") or report.get("excel_url") or report.get("excel_url_form1") or ""
+            period = f"{issue['form']} {issue['year']}Q{issue['quarter'] or 4}"
+            label = str(report.get("title") or period).strip()
+            if report.get("published_at"):
+                label = f"{label}; опубликован {report['published_at']}"
+            evidence = {"source_url": source_url, "source_reference": label[:500],
+                        "available": bool(source_url)}
+
+        def response(recommended: dict[str, Any] | None, alternatives: list[dict[str, Any]],
+                     message: str) -> dict[str, Any]:
+            method = recommended.get("method") if recommended else None
+            reason = (f"Автоматическая подсказка по формуле: {method}. "
+                      "Перед подтверждением сверить значение с привязанным отчётом.") if method else (
+                      "Ручная проверка значения по привязанному официальному отчёту.")
+            return {"ok": True, "recommended": recommended, "alternatives": alternatives,
+                    "message": message, "evidence": evidence, "reason": reason}
+
         row = conn.execute("""SELECT total_assets, total_equity, total_liabilities
                               FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=?""",
                            (issue["ticker"], issue["form"], issue["year"], issue["quarter"])).fetchone()
         if not row:
-            return {"ok": True, "recommended": None, "alternatives": [],
-                    "message": "The source financial row is not available any more."}
+            return response(None, [], "The source financial row is not available any more.")
         values = {key: (None if row[key] is None else float(row[key]))
                   for key in ("total_assets", "total_equity", "total_liabilities")}
         if any(value is not None and not math.isfinite(value) for value in values.values()):
-            return {"ok": True, "recommended": None, "alternatives": [],
-                    "message": "The source row contains a non-finite value."}
+            return response(None, [], "The source row contains a non-finite value.")
 
         def candidate(field: str, value: float, confidence: str, method: str) -> dict[str, Any]:
             current = values.get(field)
@@ -322,11 +348,12 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
                               "Liabilities = assets − equity"),
                 ]
                 alternatives.sort(key=lambda item: float(item["relative_delta"] or 0))
-                return {"ok": True, "recommended": alternatives[0], "alternatives": alternatives,
-                        "message": ("The first option changes the recorded value least. "
-                                    "A balance equation alone cannot identify the wrong field; "
-                                    "confirm it against the filing or select/edit another option."),
-                        "source_values": values}
+                result = response(alternatives[0], alternatives,
+                                  "The first option changes the recorded value least. "
+                                  "A balance equation alone cannot identify the wrong field; "
+                                  "confirm it against the filing or select/edit another option.")
+                result["source_values"] = values
+                return result
 
         # A missing balance-sheet component is safely derivable only when the
         # other two components are present. Net income has no such identity.
@@ -341,11 +368,11 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
             alternatives = [candidate("total_liabilities", values["total_assets"] - values["total_equity"],
                                       "medium", "Liabilities = assets − equity")]
         if alternatives:
-            return {"ok": True, "recommended": alternatives[0], "alternatives": alternatives,
-                    "message": "Calculated from the two available balance-sheet values; confirm it against the filing.",
-                    "source_values": values}
-        return {"ok": True, "recommended": None, "alternatives": [],
-                "message": "There is not enough related data for a reliable calculation. Enter a value manually from the filing."}
+            result = response(alternatives[0], alternatives,
+                              "Calculated from the two available balance-sheet values; confirm it against the filing.")
+            result["source_values"] = values
+            return result
+        return response(None, [], "There is not enough related data for a reliable calculation. Enter a value manually from the filing.")
     finally:
         conn.close()
 
