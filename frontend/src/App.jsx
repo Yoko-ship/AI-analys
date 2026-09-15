@@ -10934,6 +10934,59 @@ function multipleStatusText(status, lang) {
   return words ? words[lang === "uz" ? 1 : lang === "en" ? 2 : 0] : null;
 }
 
+// P/E, P/B and P/S belong to an issuer, whereas the visible market-cap column
+// belongs to one share class.  Do not call an ordinary class "without market
+// cap" merely because another class has no current price: that is misleading
+// for KSCM/KSCMP and for every other multi-class issuer.  The API supplies the
+// class inputs, so this explanation is derived from live data rather than a
+// ticker-specific exception.
+function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
+  if (metric?.status !== "no_market_cap" || issuerCap?.status !== "incomplete") return null;
+
+  const inputs = Array.isArray(issuerCap.class_inputs) ? issuerCap.class_inputs : [];
+  const missing = Array.isArray(issuerCap.missing_classes) ? issuerCap.missing_classes : [];
+  const unavailable = inputs.filter((item) => item?.usable_for_issuer_cap === false);
+  const unavailableTickers = unavailable.map((item) => String(item?.ticker || "").toUpperCase()).filter(Boolean);
+  const classNames = missing.length ? missing : unavailableTickers;
+  if (!classNames.length) return null;
+
+  const currentTicker = String(ticker || "").toUpperCase();
+  const ownInput = inputs.find((item) => String(item?.ticker || "").toUpperCase() === currentTicker);
+  const ownCapAvailable = ownInput?.usable_for_issuer_cap === true
+    && Number.isFinite(Number(ownInput?.market_cap));
+  const details = unavailable.map((item) => {
+    const name = String(item?.ticker || "").toUpperCase() || "—";
+    const date = item?.price_as_of ? String(item.price_as_of) : null;
+    const age = Number.isFinite(Number(item?.price_age_days)) ? Number(item.price_age_days) : null;
+    const maximum = Number.isFinite(Number(item?.max_price_age_days)) ? Number(item.max_price_age_days) : null;
+    const ageText = age != null
+      ? (lang === "ru" ? `${age} дн.` : lang === "uz" ? `${age} kun` : `${age} days`)
+      : null;
+    const limitText = maximum != null
+      ? (lang === "ru" ? `лимит ${maximum} дн.` : lang === "uz" ? `limit ${maximum} kun` : `limit ${maximum} days`)
+      : null;
+    return [name, date, [ageText, limitText].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+  });
+  const classes = details.length ? details.join("; ") : classNames.join(", ");
+
+  if (lang === "uz") {
+    return {
+      label: "emitent kapitalizatsiyasi to'liq emas",
+      title: `${ownCapAvailable ? `${currentTicker} kapitalizatsiyasi mavjud. ` : ""}Emitentning P/E, P/B va P/S ko'rsatkichlari uchun ${classes} bo'yicha yangiroq narx kerak.`,
+    };
+  }
+  if (lang === "en") {
+    return {
+      label: "issuer market cap incomplete",
+      title: `${ownCapAvailable ? `${currentTicker} market cap is available. ` : ""}A current price for ${classes} is required to calculate issuer P/E, P/B and P/S.`,
+    };
+  }
+  return {
+    label: "неполная капитализация эмитента",
+    title: `${ownCapAvailable ? `Капитализация ${currentTicker} доступна. ` : ""}Для расчёта P/E, P/B и P/S эмитента нужна свежая цена ${classes}.`,
+  };
+}
+
 // Terminal practice (Bloomberg, MSN): a multiple outside its plausible band
 // prints «n/m» — not meaningful — instead of the raw figure. A P/E of 2 816×
 // is arithmetic, not a valuation: it only says the denominator is near zero.
@@ -11176,9 +11229,12 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
     } else if (metric.value != null) {
       node = <>{formatRatio(metric.value, digits, lang)}{suffix}</>;
     } else {
-      const words = multipleStatusText(metric.status, lang);
+      const issuerCapGap = incompleteIssuerCapAvailability(
+        metric, mult?.market_cap_issuer, row?.ticker, lang,
+      );
+      const words = issuerCapGap?.label || multipleStatusText(metric.status, lang);
       if (!words) return;
-      const why = (metric.reasons || []).join("; ") || metric.note || "";
+      const why = issuerCapGap?.title || (metric.reasons || []).join("; ") || metric.note || "";
       node = <span className="cell-status" title={why || undefined}>{words}</span>;
     }
     rows.push(
@@ -17550,7 +17606,10 @@ function MarketView({
         </td>
       );
     }
-    const label = statusText(metric?.status);
+    const issuerCapGap = incompleteIssuerCapAvailability(
+      metric, multiplesOf(row)?.market_cap_issuer, row?.ticker, lang,
+    );
+    const label = issuerCapGap?.label || statusText(metric?.status);
     if (!label) return <td className="num">{noSecLabel(row)}</td>;
     if (metric?.computed != null && ["unverified", "loss_making"].includes(metric.status)) {
       const period = metric?.base_period ? ` · ${metric.base_period}` : "";
@@ -17562,7 +17621,7 @@ function MarketView({
         </td>
       );
     }
-    const reasons = (metric?.reasons || []).join("; ")
+    const reasons = issuerCapGap?.title || (metric?.reasons || []).join("; ")
       || (metric?.computed != null
         ? `${formatRatio(metric.computed, digits, lang)}${suffix} ∉ [${metric.allowed?.join(", ")}]`
         : metric?.note || "");
