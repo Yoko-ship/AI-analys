@@ -74,3 +74,37 @@ def test_correction_requires_evidence_and_supported_field(monkeypatch, tmp_path)
         assert "Unsupported" in str(exc)
     else:
         raise AssertionError("unsupported-field validation")
+
+
+def test_balance_suggestion_is_editable_proposal_not_a_write(monkeypatch, tmp_path):
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
+    rc.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
+        "revenue": 10, "net_income": 2, "total_assets": 100, "total_equity": 30,
+        "total_liabilities": 50,
+    })
+    dq.scan_financial_issues()
+    issue = next(item for item in dq.list_issues()["items"] if item["rule_code"] == "BALANCE_MISMATCH")
+
+    proposal = dq.suggest_correction(issue["id"])
+
+    assert proposal["recommended"]["field"] == "total_assets"
+    assert proposal["recommended"]["value_thousands_uzs"] == 80
+    assert {item["field"] for item in proposal["alternatives"]} == {
+        "total_assets", "total_equity", "total_liabilities"}
+    assert dq.list_corrections()["items"] == []
+
+
+def test_missing_balance_component_can_be_suggested(monkeypatch, tmp_path):
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
+    rc.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
+        "revenue": 10, "net_income": 2, "total_assets": None, "total_equity": 40,
+        "total_liabilities": 60,
+    })
+    dq.scan_financial_issues()
+    issue = next(item for item in dq.list_issues()["items"] if item["field"] == "total_assets")
+
+    proposal = dq.suggest_correction(issue["id"])
+
+    assert proposal["recommended"]["field"] == "total_assets"
+    assert proposal["recommended"]["value_thousands_uzs"] == 100
+    assert proposal["recommended"]["confidence"] == "medium"

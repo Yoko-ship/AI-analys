@@ -4596,6 +4596,21 @@ async def api_data_quality_corrections(
         None, partial(data_quality.list_corrections, ticker)))
 
 
+@app.get("/api/admin/data-quality/issues/{issue_id}/suggestion")
+async def api_data_quality_suggestion(
+    issue_id: str,
+    _: WebUser = Depends(_require_admin_user),
+) -> dict[str, Any]:
+    """Calculate an editable proposal; it never writes or approves a correction."""
+    import data_quality
+    try:
+        result = await asyncio.get_running_loop().run_in_executor(
+            None, partial(data_quality.suggest_correction, issue_id))
+        return _json_safe(result)
+    except data_quality.DataQualityError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+
+
 @app.post("/api/admin/data-quality/corrections")
 async def api_data_quality_create_correction(
     payload: DataCorrectionRequest,
