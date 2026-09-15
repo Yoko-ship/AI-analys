@@ -398,6 +398,16 @@
 /* ── the calculation console: intake, ledger, rule book ───────────────────── */
 .admin-muted { color: var(--muted); }
 .admin-note { font-size: 0.8rem; line-height: 1.6; margin: 10px 0 0; }
+.admin-quality-fixed {
+  border: 1px solid color-mix(in srgb, var(--success, #22a06b) 52%, var(--border));
+  background: color-mix(in srgb, var(--success, #22a06b) 10%, var(--surface));
+  border-radius: var(--radius, 14px);
+  padding: 14px 16px;
+  color: var(--text);
+}
+.admin-quality-fixed-title { color: var(--success, #22a06b); font-weight: 750; margin-bottom: 8px; }
+.admin-quality-fixed-list { display: grid; gap: 9px; font-size: 0.84rem; line-height: 1.55; }
+.admin-quality-fixed-item + .admin-quality-fixed-item { border-top: 1px solid var(--border); padding-top: 9px; }
 .admin-flagbar { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 14px; }
 .admin-filters {
   display: flex;
