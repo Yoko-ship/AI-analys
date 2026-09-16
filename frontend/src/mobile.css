@@ -1,0 +1,1386 @@
+/* ============================================================================
+   mobile.css — phone/tablet adaptation layer
+   ----------------------------------------------------------------------------
+   Imported LAST (after styles.css and theme.css) so it wins without having to
+   raise specificity across a 10k-line stylesheet.
+
+   Three things this file is responsible for:
+
+   1. Killing horizontal page scroll. The shell lays out with CSS grid, and a
+      grid item's automatic minimum size is its *min-content* width — so one
+      wide table or one `white-space: nowrap` row was stretching `.content`'s
+      only child past the viewport on every page. `min-width: 0` on the shell's
+      grid/flex items is the single fix for that class of bug.
+   2. Giving each dense desktop layout a phone form: the quotes board, the
+      catalog, the company page, comparison — all of them are column-heavy and
+      need a deliberate small-screen shape, not just a narrower one.
+   3. Touch ergonomics: 44px targets, 16px form text (below that iOS zooms the
+      whole page on focus), and safe-area padding for notched devices.
+
+   Breakpoints: 1460px and 1180px are the two the topbar measured out to (§2);
+   900px and 760px are the tablet/phone values styles.css already uses, and 380px
+   is the small-phone tail. 460px joined them on 2026-08-19, measured: it is the
+   width below which the topbar's dollar readout leaves the wordmark too little
+   room to be a word. No other values are introduced.
+   ========================================================================== */
+
+/* ── 1. Structural guards (all viewports) ────────────────────────────────── */
+
+/* A grid/flex item defaults to `min-width: auto`, which refuses to shrink below
+   its content's min-content width. Every page renders as a single child of
+   `.content`, so without this one long word, wide table or nowrap row makes the
+   whole page wider than the screen. */
+.app-shell > *,
+.content > *,
+.content > * > * {
+  min-width: 0;
+}
+
+/* Media should never be the thing that widens a layout. */
+img,
+svg,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+}
+
+/* Long tickers, ISINs and URLs have no break opportunities. */
+.company-description-text,
+.news-lead-dek,
+.news-card-dek,
+.co-sidebar-block,
+.company-metric-row,
+.market-empty-cell {
+  overflow-wrap: anywhere;
+}
+
+/* Safety net: if some future panel still overhangs, clip it instead of adding a
+   document-level horizontal scrollbar. `clip` (unlike `hidden`) does not create
+   a scroll container, so the sticky topbar keeps working. */
+.app-shell-wrap {
+  overflow-x: clip;
+}
+
+/* Auto-fill tracks with a fixed minimum overflow once the viewport is narrower
+   than that minimum. `min(Xpx, 100%)` lets the last track collapse instead. */
+.analysis-companies-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+}
+
+.analysis-company-chip {
+  max-width: 100%;
+}
+
+/* Same min-content trap one level deeper: the catalog's two-column body already
+   collapses to one column at 900px, but its own children still refused to
+   shrink and ran ~280px past the screen. */
+.catalog-body > *,
+.company-overview-grid > *,
+.market-layout > * {
+  min-width: 0;
+}
+
+/* ── 2. Topbar ───────────────────────────────────────────────────────────── */
+
+/* The full inline topbar has an intrinsic width of ~1445px (248 brand + 909 nav
+   + 128 controls + gaps + padding), so between the old 860px drawer breakpoint
+   and a 1440p laptop the nav and the language/theme controls simply ran off the
+   right edge. Two bands fix that: below 1180px the drawer takes over
+   (theme.css), and above it this block compacts the inline nav enough to fit.
+
+   No lower bound here on purpose — Chrome evaluates media queries against a
+   fractional viewport width, so pairing `max-width: 1180px` with
+   `min-width: 1181px` left a hairline band (innerWidth 1181, clientWidth 1173)
+   where neither matched and the topbar snapped back to its 1445px layout. The
+   drawer block below is later in the cascade and overrides what it needs. */
+/* The desktop topbar has no slack: measured on prod at a 1526px window, its
+   contents came to 1518px — so ANY control added to it pushed the theme toggle
+   clean off the right edge, and the text-size group did exactly that. The band
+   where the nav goes compact therefore starts at 1700px, not 1460: below that
+   width the row is sized to its contents rather than to a hope. */
+@media (max-width: 1700px) {
+  .topbar {
+    gap: 10px;
+    padding: 0 14px;
+  }
+
+  .topbar-nav {
+    min-width: 0;
+    /* Label widths differ per language; if some translation still overruns, the
+       nav scrolls rather than hiding items under the edge. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .topbar-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .topbar-nav-btn {
+    flex: 0 0 auto;
+    padding: 10px 9px;
+    font-size: 0.86rem;
+    white-space: nowrap;
+  }
+
+  /* The dollar readout gives up its padding first — the nav beside it is the
+     part that scrolls, and every pixel here is a nav label kept on screen. */
+  .topbar-fx {
+    gap: 6px;
+    padding: 4px 6px;
+  }
+}
+
+/* Drawer band. styles.css also had pre-drawer rules that stretched
+   `.topbar-meta`/`.topbar-controls` to `width: 100%` inside a flex row — that
+   alone pushed the language select and theme toggle ~340px off the right edge
+   of every single page below 760px. */
+@media (max-width: 1180px) {
+  .topbar {
+    gap: 10px;
+    height: 60px;
+    padding: 0 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .topbar-brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .brand-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+  }
+
+  .brand-copy {
+    min-width: 0;
+  }
+
+  .brand-title {
+    font-size: 1.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* The drawer is a positioned child of `.topbar`, so it painted over the
+     burger and left the scrim as the only way out. Lifting the burger above it
+     keeps the open/close control in one place, under the thumb. */
+  .topbar-burger {
+    position: relative;
+    z-index: 70;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  /* The drawer owns the header background while it is open. Lift the brand
+     into the same masthead layer as the close button so the logo does not sit
+     invisibly underneath the drawer. It is decorative here, so it must not
+     intercept taps meant for the navigation surface. */
+  .topbar.is-nav-open .topbar-brand {
+    position: relative;
+    z-index: 70;
+    pointer-events: none;
+  }
+
+  /* Back to a compact inline cluster, sized to its content. */
+  .topbar-meta,
+  .topbar-controls {
+    width: auto;
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .topbar-language,
+  .topbar-auth-chip {
+    width: auto;
+    min-width: 0;
+  }
+
+  .topbar-language .select-field {
+    width: auto;
+    min-width: 0;
+    height: 40px;
+    padding: 0 6px;
+    /* 16px keeps iOS from zooming the page when the select is focused. */
+    font-size: 16px;
+  }
+
+  .theme-toggle {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+
+  /* The topbar on a 360px phone already carries the burger, the language and the
+     theme. The percentage readout is the part a reader does not need to TOUCH —
+     A− and A+ stay, at a real touch size, and stepping down from 115 % to 100 %
+     is the same gesture the readout offered. */
+  .topbar-textsize {
+    flex-shrink: 0;
+  }
+
+  .topbar-textsize-now {
+    display: none;
+  }
+
+  .topbar-textsize button {
+    min-width: 34px;
+    height: 40px;
+  }
+
+  /* The rate stays on the phone — it is the reason a good part of the traffic
+     opens the site at all, and the market strip no longer carries it. What
+     goes is the wording around it: «Доллар США» is what the flag already
+     says, so the row collapses to flag + number + day change. */
+  .topbar-fx {
+    flex: 0 0 auto;
+    padding: 4px 4px;
+    gap: 6px;
+  }
+
+  .topbar-fx-name {
+    display: none;
+  }
+
+  .topbar-fx-body {
+    gap: 0;
+  }
+
+  /* The cycle indicator is desktop-only: 26px of header for a hint that the
+     rotation itself already gives away, in a row that has none to spare. */
+  .topbar-fx-dots {
+    display: none;
+  }
+
+  /* The rate is a fixed-width block now, and the brand is the flexible one —
+     without this the icon itself was squeezed out of existence at 390px and
+     the header lost its only mark of whose site this is. The wordmark still
+     truncates; the icon no longer can. */
+  .brand-icon {
+    flex: none;
+  }
+
+  /* Drawer items are the primary navigation on a phone — give them a real touch
+     target and room for the notch. The band above turned the nav into a
+     horizontal scroller; as a drawer it scrolls vertically instead. */
+  .topbar .topbar-nav {
+    padding-top: max(72px, env(safe-area-inset-top));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    overflow-x: hidden;
+  }
+
+  .topbar .topbar-nav .topbar-nav-btn {
+    min-height: 46px;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .brand-title {
+    font-size: 1.02rem;
+  }
+}
+
+/* Phone width: the last thing to go before the rate itself is the day change.
+   The number is the answer a reader came for; the delta is context, and it is
+   still one tap away on /currency. Measured at 390px — with the change in, the
+   header ran 17px over and took the brand with it. The slide narrows with what
+   is left inside it: its width is fixed so a rotation cannot shove the
+   controls beside it sideways, which means each band has to restate it. */
+@media (max-width: 900px) {
+  .topbar-fx-diff {
+    display: none;
+  }
+
+  .topbar-fx-slide {
+    width: 88px;
+  }
+}
+
+/* Under ~460px the wordmark is the flexible item in a row that no longer has
+   slack, so it renders as a 2-4px sliver of a letter — worse than absent.
+   Dropping it outright gives the icon its full 34px back; the icon is what
+   identifies the site at this width, and the tab title still spells it. */
+@media (max-width: 460px) {
+  .brand-copy {
+    display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  /* The wordmark is the first thing that may go; the icon still identifies the
+     site and the space buys the language + theme controls their full size. */
+  .brand-title {
+    font-size: 0.94rem;
+  }
+
+  /* Measured at 360px: burger + icon + rate + language + A−/A+ + theme came to
+     366px in a 336px row, and the one item that can give — the brand — was
+     squeezing the icon down to 14px. Tightening the row's own gaps and dropping
+     the flag pays the 30px back. The flag is the redundant part: the button's
+     title still names the currency, and it opens the rates page. */
+  .topbar {
+    gap: 6px;
+  }
+
+  .topbar-fx {
+    padding: 4px 2px;
+    gap: 4px;
+  }
+
+  .topbar-fx-flag,
+  .topbar-fx-code {
+    display: none;
+  }
+
+  .topbar-fx-slide {
+    width: 62px;
+  }
+
+  /* The euro is the widest of the three («13 788,05») and at 13.5px it ran
+     6px past the slide into the language select. There is no width left to
+     give it at 360px, so the number gives instead. */
+  .topbar-fx-rate {
+    font-size: 12px;
+  }
+}
+
+/* ── 3. Page shell + rhythm ──────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .app-shell {
+    width: 100%;
+    padding: 0 0 32px;
+  }
+
+  .content {
+    gap: 18px;
+    padding: 18px 20px;
+  }
+}
+
+@media (max-width: 760px) {
+  .content {
+    gap: 14px;
+    padding: 14px 14px 28px;
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+
+  /* Desktop panel padding (26–64px) eats a third of a phone screen. */
+  .panel,
+  .hero-panel,
+  .company-overview-main,
+  .market-hero-panel,
+  .catalog-layout {
+    padding: 18px 16px;
+  }
+
+  .co-sidebar-block {
+    padding: 14px 14px;
+  }
+
+  section > h2,
+  .section-header h2 {
+    font-size: 1.35rem;
+  }
+}
+
+/* ── 4. Landing hero ─────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .hero-panel {
+    gap: 24px;
+    border-radius: 18px;
+  }
+
+  /* The hero art is decorative and costs ~350px of vertical space before the
+     first real content — on a phone it pushes the CTAs below the fold. */
+  .hero-image {
+    min-height: 0;
+    aspect-ratio: 16 / 10;
+    height: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .hero-panel h1 {
+    font-size: clamp(1.6rem, 7.4vw, 2.2rem);
+    line-height: 1.15;
+  }
+
+  .hero-panel p {
+    font-size: 0.98rem;
+    line-height: 1.55;
+  }
+
+  .hero-actions {
+    margin-top: 16px;
+    gap: 10px;
+  }
+
+  /* styles.css stretched each badge to `width: 100%`, so three decorative
+     capability labels read as three more buttons stacked under the two real
+     CTAs. They are chips — size them to their text. */
+  .hero-badges span {
+    width: auto;
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 0.82rem;
+  }
+
+  .hero-image {
+    display: none;
+  }
+}
+
+/* ── 5. Quotes board ─────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .market-hero-panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* The compact market summary keeps its monetary metrics in two columns. */
+  .market-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .market-stat-card {
+    min-height: 0;
+    padding: 12px 12px 14px;
+  }
+
+  .market-stat-card strong {
+    font-size: 1.25rem;
+  }
+
+  .market-stat-card span {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+  }
+
+  .market-board-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 14px 14px;
+  }
+
+  /* "Все / Обыкновенные / Привилегированные" is 368px of pill on a 383px
+     screen — let it break onto a second line instead of overhanging. */
+  .segmented-control {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    border-radius: 14px;
+  }
+
+  .segmented-control button {
+    flex: 1 1 auto;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 0.84rem;
+    border-radius: 10px;
+  }
+
+  /* The filter bar is pinned to the top of the screen on a phone too, so every
+     pixel it spends is a pixel of table the reader loses. Two rows: the class
+     pills on one line (scrolled sideways if a translation overruns), then
+     search + the icon buttons. */
+  .market-controls {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  /* "Акции Облигации" + "Все Обыкновенные Привилегированные" is 492px of pill;
+     no phone is that wide. It scrolls sideways rather than wrapping (a second
+     line is 40px of pinned bar), and keeps a 4px scrollbar so the reader can
+     see there is more to the right — the native bar shows up only when the row
+     actually overflows, which a permanent fade could not manage. */
+  .market-controls .market-type-levels {
+    flex: 1 0 100%;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    /* The standard properties win in Chrome 121+ (they switch it to the
+       arrow-less overlay bar and make it ignore the ::-webkit- rules below,
+       which are here for the WebKit versions that only understand those). */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) transparent;
+  }
+
+  .market-controls .market-type-levels::-webkit-scrollbar {
+    display: block;
+    height: 4px;
+  }
+
+  .market-controls .market-type-levels::-webkit-scrollbar-thumb {
+    background: var(--border-hover);
+    border-radius: 2px;
+  }
+
+  /* Desktop Chrome answers a styled ::-webkit-scrollbar with the classic bar —
+     track, end arrows and all. Only the thumb should show. */
+  .market-controls .market-type-levels::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .market-controls .market-type-levels::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .market-controls .segmented-control {
+    flex-wrap: nowrap;
+    padding: 3px;
+  }
+
+  .market-controls .segmented-control button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 7px 11px;
+    font-size: 0.79rem;
+  }
+
+  .market-controls .market-search {
+    flex: 1 1 110px;
+    min-width: 0;
+  }
+
+  .market-controls .market-search input {
+    height: 38px;
+  }
+
+  /* Icon-only: the labels cost ~200px of a 383px row and both buttons keep
+     their `title`, which is what a screen reader falls back to. */
+  .market-controls .market-cols-wrap {
+    flex: 0 0 auto;
+  }
+
+  .market-controls .market-fav-filter,
+  .market-controls .market-cols-btn {
+    flex: 0 0 auto;
+    height: 38px;
+    width: 38px;
+    /* The desktop rule gives the labelled button a 42px floor; without this the
+       floor would win over the width above and the icon-only button would sit
+       4px wider than the star beside it. */
+    min-width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .market-btn-label {
+    display: none;
+  }
+
+  .market-filterbar .market-sector-filter {
+    padding: 7px 12px;
+  }
+
+  .market-filterbar .sector-chip {
+    padding: 5px 12px;
+    font-size: 0.82rem;
+  }
+
+  /* The board table stays a table — traders read it by column — but on a phone
+     the identity column pins to the left edge so a row never loses its ticker
+     while the numbers scroll. Scoped to `.market-table-wrap` because the
+     catalog reuses `.market-table` with a different column set. */
+  .market-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .market-table-wrap::-webkit-scrollbar {
+    display: block;
+    height: 6px;
+  }
+
+  .market-table-wrap::-webkit-scrollbar-thumb {
+    background: var(--border-hover);
+    border-radius: 3px;
+  }
+
+  .market-table-wrap > .market-table {
+    min-width: 620px;
+  }
+
+  .market-table-wrap > .market-table th,
+  .market-table-wrap > .market-table td {
+    padding: 9px 8px;
+  }
+
+  .market-table-wrap > .market-table td {
+    font-size: 13px;
+  }
+
+  /* Company name + ISIN: redundant next to the ticker, and 272px wide. */
+  .market-table-wrap > .market-table thead th:nth-child(2),
+  .market-table-wrap > .market-table tbody td:nth-child(2) {
+    display: none;
+  }
+
+  .market-table-wrap > .market-table th:first-child,
+  .market-table-wrap > .market-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  .market-table-wrap > .market-table td:first-child {
+    background: var(--panel);
+  }
+
+  .market-table-wrap > .market-table th:first-child {
+    background: var(--bg-2, var(--panel));
+  }
+
+  .market-ticker-cell {
+    gap: 6px;
+  }
+
+  .market-ticker-cell .market-ticker-btn {
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 13px;
+  }
+
+  /* `max-width` on a `td` is ignored under auto table layout, so the cap has to
+     live on the inner box — otherwise "привилегированный" alone sets the
+     column to ~176px and pushes the change column off-screen. */
+  .market-ticker-info {
+    max-width: 78px;
+  }
+
+  /* `.market-table td span` (0,1,2) outranked the old `.market-ticker-info span`
+     (0,1,1), so this rule had never once applied — the share class kept its
+     12px and held the identity column at 130px of a 330px screen. */
+  .market-table-wrap .market-ticker-info span {
+    font-size: 9.5px;
+    white-space: normal;
+    line-height: 1.15;
+    letter-spacing: 0;
+  }
+
+  .market-fav-btn {
+    padding: 6px 2px;
+    font-size: 1.15rem;
+  }
+
+  /* A 120px floor plus "+60 000 · +20%" on one line made the change column
+     wider than the price column. Let the badge wrap so ticker, last price and
+     change all land inside the first screen. */
+  .market-table-wrap .market-change-badge {
+    min-width: 0;
+    padding: 5px 7px;
+    font-size: 12px;
+    white-space: normal;
+  }
+
+  /* Keep issuer details reachable on phones. The control is compact enough to
+     live beside the ticker and opens the bottom sheet defined below. */
+  .market-info-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+  }
+
+  /* A drag-handle scrollbar pinned over the bottom of a phone screen covers
+     content and can't be grabbed with a thumb — the table scrolls by swipe. */
+  .market-float-scroll {
+    display: none;
+  }
+
+  /* The pinned header mirrors the real one, so it has to be compacted the same
+     way — it sits over the columns, and 16px of padding would shift every label
+     off its own column. Same for the pinned identity column: the mirrored row
+     lives in its own (overflow: hidden) scroller, so `sticky` holds there too. */
+  .market-sticky-head__table th {
+    padding: 9px 8px;
+  }
+
+  /* This cell has to be OPAQUE: it stays put while the rest of the header
+     scrolls under it, so a see-through background stacks two column labels on
+     top of each other. `body[data-theme="dark"] .market-table th` (0,2,2) was
+     outranking the plain `.market-sticky-head__table th:first-child` (0,2,1)
+     and handing it `rgba(255,255,255,.04)` — which is why this only ever went
+     wrong in the dark theme. The extra class puts it back at (0,3,1).
+     The real table's own first column was already safe: its selector carries
+     `.market-table-wrap >` and was heavy enough. */
+  .market-sticky-head .market-sticky-head__table th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--bg-2, var(--panel));
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  .market-sector-filter,
+  .sector-filter {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+
+  .market-sector-filter::-webkit-scrollbar,
+  .sector-filter::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sector-chip {
+    flex: 0 0 auto;
+  }
+
+  .market-top-movers {
+    gap: 10px;
+  }
+}
+
+/* ── 6. Catalog ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .catalog-header {
+    padding: 16px 14px;
+    gap: 12px;
+  }
+
+  .catalog-body {
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .catalog-main {
+    padding: 16px 14px;
+  }
+
+  /* The company list is a nested scroller stacked above the report pane. A
+     fixed 640px box would fill a phone screen and hide the fact that the
+     selected company's data is right below it. */
+  .catalog-company-list {
+    max-height: 46vh;
+  }
+
+  .catalog-company-item {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  /* A bare <input> with no padding renders 24px tall — half a fingertip, and
+     the catalog's only way to find a company. */
+  .catalog-sidebar .search-input {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+  }
+
+  /* Logos rendered at 110px+ per row pushed the ticker and report badges off
+     the right edge. */
+  .catalog-company-item img,
+  .catalog-company-item .chip-logo,
+  .catalog-company-item .chip-logo-fallback {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+
+  .catalog-table-wrap,
+  .compare-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── 7. Company page ─────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .company-page-hero {
+    gap: 12px;
+    padding-bottom: 14px;
+  }
+
+  .company-page-hero .chip-logo,
+  .company-page-hero .chip-logo-fallback {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+  }
+
+  .company-page-hero .chip-logo-fallback {
+    font-size: 1.35rem;
+  }
+
+  /* Stay on the logo's line — forcing a wrap here left the logo stranded on a
+     row of its own with the name underneath. */
+  .company-page-title {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .company-page-title h1 {
+    font-size: 21px;
+  }
+
+  /* Price + "analyze" button: full width under the name rather than a
+     right-aligned column squeezed to nothing. */
+  .company-page-price {
+    flex: 1 1 100%;
+    text-align: left;
+  }
+
+  .company-page-price .primary-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* Five tabs never fit across a phone — scroll them horizontally and snap. */
+  .company-page-tabs {
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .company-page-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .company-tab-btn {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    padding: 12px 14px;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  .company-metric-row {
+    gap: 12px;
+  }
+
+  .company-metric-row .company-metric-val {
+    text-align: right;
+  }
+
+  .company-chart-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Line / candles / weekly / MA20 / MA50 in one nowrap row runs off a 320px
+     screen; the range chips above it need the same treatment. */
+  .company-chart-opts,
+  .company-chart-ranges {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chart-opt-btn,
+  .range-btn {
+    min-height: 32px;
+    padding: 5px 10px;
+  }
+}
+
+/* ── 7b. Profile ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  /* Four 242px-tall cards in one column pushed the actual profile a full
+     screen and a half down. Two up, with a shorter sparkline. */
+  .profile-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .profile-stats-grid .dashboard-metric-card {
+    padding: 14px 12px;
+    gap: 8px;
+  }
+
+  .profile-stats-grid .dashboard-metric-card svg {
+    height: 44px;
+  }
+
+  .profile-stats-grid .dashboard-metric-card .metric-label,
+  .profile-stats-grid .dashboard-metric-card > span:first-child {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+
+  .profile-header-content {
+    gap: 12px;
+  }
+}
+
+/* ── 8. News ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .news-view {
+    padding: 0 0 20px;
+  }
+
+  .news-lead {
+    padding: 18px 16px;
+  }
+
+  .news-card {
+    padding: 16px 14px;
+  }
+
+  .news-lead-title {
+    font-size: 20px;
+  }
+
+  .news-lead-dek,
+  .news-card-dek {
+    font-size: 14px;
+  }
+}
+
+/* ── 9. Forms, dialogs, touch targets ────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  /* Anything below 16px makes mobile Safari zoom the viewport on focus and
+     leave the user scrolled sideways on a page that no longer fits. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Inside a flex label a checkbox is a shrinkable item: next to two lines of
+     wrapped text it collapsed into a 4px-wide sliver that is impossible to
+     hit. Pin the box and align it to the first line. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    align-self: flex-start;
+    margin-top: 1px;
+  }
+
+  .primary-btn,
+  .ghost-btn,
+  .oauth-btn {
+    min-height: 44px;
+  }
+
+  /* Stacked, full-width actions read better than a wrapped row of half-buttons. */
+  .form-actions,
+  .compare-export-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-actions > * {
+    width: 100%;
+  }
+
+  .form-grid,
+  .analysis-form {
+    grid-template-columns: 1fr;
+  }
+
+  /* On a phone the viewport-level drawer becomes a bottom sheet: the company
+     header and close control stay visible even when it was opened from a row
+     far down the market table. */
+  .company-panel-overlay {
+    align-items: flex-end;
+    padding-top: max(12vh, env(safe-area-inset-top));
+  }
+
+  .company-info-panel {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 88dvh;
+    overflow-y: auto;
+    padding: 24px 18px max(24px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    border-left: 0;
+    border-radius: 20px 20px 0 0;
+  }
+}
+
+/* ── 10. Disclaimer ──────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .disclaimer-note {
+    padding: 14px;
+    font-size: 12.5px;
+  }
+}
+
+/* ── 11. Phone: getting to the board ─────────────────────────────────────── */
+
+/* Measured on the device registry, 320–480px: the first price sat **1761px**
+   down the page (1845px at 320) — two and a half screens of hero, seven stat
+   cards and the two movers panels before the thing the page exists for. None of
+   the blocks below change shape; they lose the decoration a phone cannot afford
+   and the movers move under the board. */
+@media (max-width: 760px) {
+  /* The kicker says "Рынок" directly above an h1 that says "Цены акций UZSE",
+     under a topbar whose active tab already says "Рынок". The subtitle is
+     another 77px explaining what a price table is. */
+  .market-hero-panel {
+    gap: 10px;
+    padding: 14px 14px;
+  }
+
+  .market-hero-panel .panel-label,
+  .market-hero-copy p {
+    display: none;
+  }
+
+  .market-hero-panel h1 {
+    font-size: 1.35rem;
+    line-height: 1.2;
+  }
+
+  .market-hero-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* The numbers stay the same size the eye needs; the surrounding padding does not. */
+  .market-stat-card {
+    gap: 3px;
+    min-height: 0;
+    padding: 10px 11px 12px;
+  }
+
+  .market-stat-card strong {
+    font-size: 1.2rem;
+  }
+
+  .market-stat-card em {
+    font-size: 11px;
+  }
+
+  /* The top movers stay where the markup puts them — above the board — because
+     that is where the eye looks first and what the page is asked about. They
+     were moved below it only for the height they cost (two full-width panels,
+     ~500px on a 360px screen); the fix is to make them cheap instead of late.
+     styles.css collapses the pair to one column under 720px; a phone restores
+     the two, at half width, so both lists read side by side for ~215–230px
+     total (measured 320–430px), not the ~500 two stacked panels cost. */
+  .market-top-movers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  /* Ликвидность is the third panel and it must not cost a third of the screen.
+     styles.css already gives it the full width and lays its five rows two
+     abreast (a «1,2B» will not share a 142px column with a ticker the way a
+     percent does); here the gap between those two only comes down to phone
+     scale. Measured at 390px: the whole block is 352px — the pair above it
+     keeps the position §11 put it in, and the board still starts on screen. */
+  .market-movers-col.vol .market-movers-list {
+    column-gap: 6px;
+  }
+
+  .market-movers-col {
+    padding: 10px 10px 8px;
+  }
+
+  .market-movers-head {
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .market-movers-head h3 {
+    font-size: 0.8rem;
+    letter-spacing: -0.01em;
+  }
+
+
+  .market-movers-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  /* A half-width column carries logo + ticker + signed percent on ONE line at
+     360px with ~20px to spare. Rows measure 33–36px: dense enough that five of
+     them fit under the fold, and at the 34px floor §11 holds every other board
+     control to — tall enough to hit with a thumb. */
+  .market-movers-item {
+    gap: 6px;
+    padding: 9px 4px;
+  }
+
+  .market-movers-tk {
+    gap: 6px;
+  }
+
+  .market-movers-tk .chip-logo,
+  .market-movers-tk .chip-logo-fallback {
+    width: 24px;
+    height: 22px;
+    font-size: 9.5px;
+  }
+
+  .market-movers-name,
+  .market-movers-chg {
+    font-size: 0.8rem;
+  }
+
+  /* The percentage must never be the thing that ellipsises — it is the number
+     the list is sorted by. The ticker gives way first (it never has to: see the
+     380px tail, where the logo goes instead). */
+  .market-movers-chg {
+    flex: none;
+  }
+
+  /* Section 1 gives every `.panel` 16px of side padding. The board is a table
+     that already scrolls sideways — 32px of it was padding, not data. */
+  .market-board {
+    padding: 0;
+  }
+
+  /* Same duplicate-kicker problem as the hero, plus a 1.25rem heading and the
+     row count each on a line of their own. */
+  .market-board-head {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px 10px;
+    padding: 12px 14px;
+  }
+
+  .market-board-head .panel-label {
+    display: none;
+  }
+
+  .market-board-head h2 {
+    font-size: 1.05rem;
+  }
+
+  /* The title and the toggle+count cluster need 439px between them, so on a
+     phone the cluster always wraps. `margin-left: auto` then absorbed the free
+     space and parked it in the middle of its own line. */
+  .market-board-head-right {
+    flex: 0 0 auto;
+    margin-left: 0;
+    gap: 8px;
+  }
+
+  /* ── Touch targets. The audit found the board full of 27–32px controls. ── */
+  .market-view-toggle button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .sector-chip {
+    min-height: 34px;
+    padding: 6px 14px;
+  }
+
+  .market-table-wrap .market-fav-btn {
+    min-width: 30px;
+    min-height: 34px;
+  }
+
+  /* The only way into a company page from the board. */
+  .market-table-wrap .market-ticker-btn {
+    min-height: 34px;
+  }
+
+  .market-source-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+  }
+}
+
+/* A movers column is ~142px wide at 320px, and "ALKBP  +29,41%" already asks
+   for 98 of them — the monogram tile and its gap want 24 more than the column
+   has to give. The logo is the one part of the row that carries no reading:
+   the ticker names the issuer and the percent is why the row is in the list.
+   The cut is at 340px, not the file's usual 380: a 360px phone (the Galaxy A
+   width, the commonest screen on this market) measures 32px of slack WITH the
+   logo — 24px at 344, the narrowest screen above the cut — and the mark is the
+   row's only colour that is not a sign. */
+@media (max-width: 340px) {
+  .market-movers-tk .chip-logo,
+  .market-movers-tk .chip-logo-fallback {
+    display: none;
+  }
+
+  .market-movers-col {
+    padding: 10px 8px 8px;
+  }
+
+  .market-movers-item {
+    padding: 9px 3px;
+  }
+}
+
+/* At 320px the wordmark is ellipsised mid-word ("UZ Stock Anal…"). */
+@media (max-width: 340px) {
+  .brand-title {
+    font-size: 0.8rem;
+  }
+}
+
+/* ── Быстрое сравнение on a phone ────────────────────────────────────────────
+   The strip already scrolls sideways, which is the one layout that survives a
+   360px screen without stacking eight cards down the page. What has to give is
+   the card: 152px shows two and a sliver, and the sliver is what tells a reader
+   there is more to the right — 126px shows two and a half of the next. The
+   arrows go: a thumb swipes the strip, and a 24px circle over the first card is
+   in the way of doing so. */
+@media (max-width: 760px) {
+  .qc-card {
+    width: 126px;
+    padding: 8px 9px;
+  }
+
+  .qc-card-price {
+    font-size: 13px;
+  }
+
+  .qc-arrow {
+    display: none;
+  }
+}
+
+/* ── Расширенный график on a phone ───────────────────────────────────────────
+   The rail goes first: 232px of watchlist next to a chart leaves the chart
+   ~120px on a 360px screen, and the reader came here for the chart. It is
+   still reachable — the ‹ tab overlays it as a drawer instead of splitting the
+   row. The toolbar keeps every control; it wraps onto three lines, which is
+   cheaper than hiding a period behind a menu. */
+@media (max-width: 900px) {
+  .advanced-chart.rail-open .ac-body {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .advanced-chart.rail-open .ac-rail-wrap {
+    position: absolute;
+    z-index: 6;
+    top: 0;
+    left: 0;
+    width: min(260px, 78vw);
+    max-height: 100%;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .advanced-chart.rail-open .ac-rail-toggle {
+    left: min(260px, 78vw);
+  }
+
+  .ac-quote {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .ac-menus {
+    margin-left: 0;
+  }
+
+  .ac-menu {
+    right: auto;
+    left: 0;
+    min-width: min(280px, 86vw);
+  }
+}
+
+@media (max-width: 620px) {
+  .ac-fullscreen-btn {
+    width: 34px;
+    padding: 0;
+  }
+
+  .ac-fullscreen-label {
+    display: none;
+  }
+
+  .advanced-chart.is-fullscreen {
+    padding: 8px;
+  }
+
+  .ac-head h1 {
+    font-size: 16px;
+  }
+
+  .ac-price {
+    font-size: 18px;
+  }
+
+  /* A 66px right gutter is a fifth of a 360px screen. The axis still needs
+     room for "12 000", so the labels shrink rather than the gutter. */
+  .ac-toolbar {
+    gap: 8px;
+    padding: 7px 8px;
+  }
+
+  .ac-range-btn,
+  .ac-type-btn,
+  .ac-menu-btn {
+    padding: 4px 8px;
+    font-size: 11.5px;
+  }
+
+  .ac-type-btn {
+    padding: 0;
+  }
+}
+
+/* «Сравнить с» on a phone: the label keeps its line, the cards get their own.
+   Side by side, a 178px search box and a scroller share 360px and neither is
+   usable. */
+@media (max-width: 620px) {
+  .ac-compare {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .ac-compare-input {
+    width: auto;
+    flex: 1 1 140px;
+  }
+
+  .ac-compare-scroll {
+    flex: 1 1 100%;
+  }
+
+  .ac-compare-arrow {
+    display: none;
+  }
+}

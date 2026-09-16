@@ -1,0 +1,542 @@
+{
+  "_comment": "News source registry for the §3.11 editorial-news module. Each source is fetched by news_collector.py, classified by news_classifier.py, and stored via POST /api/admin/news. Legal rule (see NEWS_MODULE.md): we store headline + our own LLM summary + link + source + timestamp only, NEVER the source's full article body. 'coverage_weight' feeds the source-weighted tone aggregation required by TZ §3.3.",
+  "_legend": {
+    "type": "rss | openinfo | html | telegram — the fetcher to use",
+    "content": "full = feed ships whole article (we still store snippet only); snippet = title+summary+link; none = no feed, scrape sitemap",
+    "legal": "safe = reuse with attribution/link-back OK; caution = snippet+link only, respect crawl rules; avoid_fulltext = ToS bars reproduction, headline+link only",
+    "coverage_weight": "0..1 relative audience/authority weight for tone aggregation",
+    "crawl_delay_s": "minimum seconds between requests to this host",
+    "max_items": "per-source cap on items fetched per run, tighter than the CLI --limit (which still applies as the ceiling). Use it on whole-site feeds whose extra volume is mostly non-market news.",
+    "page_image": "true = feed ships no image, so read the article page's own og:image preview tag (head only, image URL only). Omit/false when the feed already carries media:*/enclosure images, or when the page's og:image is one site-wide share card that would repeat down the feed.",
+    "feed_image": "false = do NOT use even the image the feed ships (source ToS bars reuse of its media). Defaults to true.",
+    "image_upgrade": "{from, to} regex rewrite from the small derivative a feed ships to the full-size original the CMS keeps one filename away. The candidate is verified (HEAD, must be 200 and an image/*) before it replaces anything, so a renamed derivative degrades to the thumbnail.",
+    "url_filter": "regex over the URL, applied at fetch time — ahead of the prefilter, the triage gate and any model call. Required on a sitemap source, whose stream is global.",
+    "title_filter": "the same gate applied to the publisher's own <news:title> instead of the URL, for a news sitemap whose <loc> is a numeric id with no slug in it (S&P Global). A sitemap source must declare url_filter or title_filter.",
+    "headers": "extra request headers for this source, merged over the User-Agent. For an edge that answers 403 to anything not shaped like a browser navigation (S&P Global rejects a bare UA — ours and a Chrome string alike — while its robots.txt advertises the very sitemap we read).",
+    "skip_triage_filter": "the per-item form of skip_triage: a regex over title+snippet+url, for a source whose stream is mostly other countries' news but whose matching items must not be judged by the cheap gate.",
+    "article_body": "false = the article page carries no readable body (a paywall, a registration wall, an SPA shell), so the story-page detail pass skips this source instead of spending its daily cap on it. Omit for sources whose pages can be read.",
+    "origin": "'international' = an English-language wire or a foreign desk; anything else (the default) is a local outlet. The feed read balances the two so the local firehose, which outpublishes them ten to one, cannot bury them — see NEWS_INTERNATIONAL_SHARE in news_store.py.",
+    "title_case": "'title' = the publisher lower-cases its slugs, so re-case the headline read out of the URL. Omit for slugs that carry their own capitals (Moody's).",
+    "skip_triage": "true = the item's relevance was established before any model saw it (a url_filter match on one of our issuers), so send it straight to the full classification. Triage rejections are stored permanently, so a wrong one is not retried.",
+    "paywall": "true = the article page asks the reader for money, so the card's only action is one the reader cannot take. Hidden at READ time (news_store.hidden_source_ids) and never collected.",
+    "hidden": "true = the outlet is off the site by the customer's decision, with nothing wrong with its pages. Same read-time suppression as paywall: the stored rows are kept, so flipping the flag back brings the source's history with it."
+  },
+  "sources": [
+    {
+      "id": "openinfo_facts",
+      "name": "openinfo.uz — material facts",
+      "type": "openinfo",
+      "url": "https://new-api.openinfo.uz/api/v2",
+      "lang": [
+        "ru",
+        "uz"
+      ],
+      "content": "full",
+      "coverage_weight": 1.0,
+      "legal": "safe",
+      "attribution": "openinfo.uz",
+      "enabled": true,
+      "crawl_delay_s": 2,
+      "max_items": 30,
+      "notes": "Primary issuer channel, LIVE since 2026-07-25: GET /disclosure/facts/ (newest-first, 64k+ filings, ~21/day across all ~790 filers, of which ~7/day are our listed issuers). Attributed by openinfo organization id via catalog_companies.org_id — 68 of 93 tickers have one; filings from unmapped issuers are logged and skipped, so backfilling those org_ids widens coverage. Same-issuer/same-fact-type/same-day filings are grouped into one card. Facts are marked always_relevant (skip prefilter + triage) with their tickers and §3.11 class taken from the filing itself. Covers dividends (42/50), profit-distribution recommendations (49), issuance (25/26), listing/delisting (46/47), large and affiliate deals (20-22), ownership crossings (51-53), management changes (8/9), bankruptcy (34). Reuse permitted with link-back."
+    },
+    {
+      "id": "cbu",
+      "name": "Central Bank of Uzbekistan",
+      "type": "html_list",
+      "url": "https://cbu.uz/ru/press_center/news/",
+      "lang": [
+        "ru",
+        "en"
+      ],
+      "content": "full",
+      "coverage_weight": 0.95,
+      "legal": "safe",
+      "attribution": "Central Bank of Uzbekistan (cbu.uz)",
+      "enabled": true,
+      "crawl_delay_s": 5,
+      "page_image": false,
+      "notes": "Policy-rate decisions and FX policy. Read from the press-centre listing, not the RSS: verified 2026-07-25 the feed carries a SINGLE entry (all three language variants), so a second release published between runs is lost, while the page lists ten. The listing renders an empty news__text and the article pages have no og:description, so CBU items are title-only by the publisher - do not chase a blurb. Per-article thumbnails do come from the listing; page_image stays false because its og:image is one site-wide social.jpg.",
+      "list_selectors": {
+        "item": "a.news",
+        "title": ".news__title",
+        "date": ".news__date span",
+        "image": ".news__image img",
+        "text": ".news__text"
+      }
+    },
+    {
+      "id": "cbu_policy",
+      "name": "Central Bank of Uzbekistan — monetary policy",
+      "type": "html_list",
+      "url": "https://cbu.uz/ru/monetary-policy/publications/press-releases/",
+      "lang": [
+        "ru"
+      ],
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "safe",
+      "attribution": "Central Bank of Uzbekistan (cbu.uz)",
+      "enabled": true,
+      "crawl_delay_s": 5,
+      "max_items": 10,
+      "page_image": false,
+      "notes": "THE POLICY-RATE CHANNEL — the single most market-moving thing the CBU publishes, and it was NOT being read: added 2026-08-10 after measuring that the `cbu` press-centre listing carries none of it. The rate decisions live on their own page under /monetary-policy/, in DIFFERENT markup from the press centre (no a.news at all — `.item.has-date` with the headline in `.desc h3 a` and the date in a bare `.item-date` span), which is why one set of selectors could never have covered both. Verified 2026-08-10: 20 entries reaching back to Dec 2024, newest «Правление… 29 июля 2026 года приняло решение сохранить основную ставку на уровне 14% годовых» — roughly one meeting every 6-8 weeks, so most runs see nothing new and the ones that do see the decision itself. The listing ships NO image (there is no news__image node here) and no blurb, and the page's og:image is the site-wide social.jpg, so page_image stays false exactly as on `cbu`. Article pages ARE readable (3.7k chars of prose measured on the July release), so the story-page long read works — do not add article_body:false. robots.txt (checked 2026-08-10) blocks only /bitrix/, */index.php and auth/query params; no AI-bot rule, no crawl-delay.",
+      "list_selectors": {
+        "item": ".item.has-date",
+        "title": ".desc h3 a",
+        "date": ".item-date"
+      }
+    },
+    {
+      "id": "cbu_releases",
+      "name": "Central Bank of Uzbekistan — press releases",
+      "type": "html_list",
+      "url": "https://cbu.uz/ru/press_center/releases/",
+      "lang": [
+        "ru",
+        "en"
+      ],
+      "content": "full",
+      "coverage_weight": 0.85,
+      "legal": "safe",
+      "attribution": "Central Bank of Uzbekistan (cbu.uz)",
+      "enabled": true,
+      "crawl_delay_s": 5,
+      "max_items": 10,
+      "page_image": false,
+      "notes": "The press centre's OTHER listing, and the live one: added 2026-08-10 when the `cbu` source turned out to be nearly dormant — /press_center/news/ held 10 items spanning 28 Apr to 17 Jul 2026, i.e. usually nothing inside the 30-day window, while /press_center/releases/ was publishing on 4 Aug. Same «Пресс-релизы» label as the sections under /monetary-policy/ and /financial-stability/ but a different feed; all three are separate paths, so nothing double-counts. Identical a.news markup to `cbu`, and unlike it this listing DOES render per-article thumbnails on every row. Mixed register — bank supervision and payment-system decisions alongside anti-corruption monitoring and internal appointments — so it is deliberately NOT exempt from the relevance floor, like napp. Article pages are readable (1.8k chars measured), og:image is per-article here but the listing thumbnail is already the same picture, so no page fetch is needed. ONE OVERLAP, left in on purpose: the bank cross-posts each rate decision here as well as to cbu_policy, under a different id (…/releases/4256857 vs …/press-releases/4256870), so both rows are stored and both are classified — about eight extra calls a year. The reader never sees two cards: verified 2026-08-10 on the 29 July decision, the titles are character-identical, Jaccard 1.000 against a 0.62 threshold inside the 48h window, and _dedupe_stories collapses them at read time keeping whichever ranked higher. Suppressing the section instead would mean guessing which of the two paths the bank will use next time.",
+      "list_selectors": {
+        "item": "a.news",
+        "title": ".news__title",
+        "date": ".news__date span",
+        "image": ".news__image img",
+        "text": ".news__text"
+      }
+    },
+    {
+      "id": "cbu_finstab",
+      "name": "Central Bank of Uzbekistan — financial stability",
+      "type": "html_list",
+      "url": "https://cbu.uz/ru/financial-stability/press-releases/",
+      "lang": [
+        "ru"
+      ],
+      "content": "none",
+      "coverage_weight": 0.9,
+      "legal": "safe",
+      "attribution": "Central Bank of Uzbekistan (cbu.uz)",
+      "enabled": true,
+      "crawl_delay_s": 5,
+      "max_items": 10,
+      "page_image": false,
+      "notes": "Macroprudential decisions — the countercyclical capital buffer, systemic-bank designations, risk-weight changes: regulation that lands directly on the twelve listed banks. Same markup as cbu_policy (`.item.has-date`), no image, no blurb, readable article pages (1.5k chars measured). Verified 2026-08-10: 12 entries, newest 26 Dec 2025 — a few items a YEAR, so most runs fetch one page, find everything older than NEWS_MAX_AGE_DAYS and stop before any model call. That is the point: it costs one GET to not miss the buffer decision.",
+      "list_selectors": {
+        "item": ".item.has-date",
+        "title": ".desc h3 a",
+        "date": ".item-date"
+      }
+    },
+    {
+      "id": "uzse",
+      "name": "Republican Stock Exchange Toshkent (UZSE)",
+      "type": "html",
+      "url": "https://uzse.uz/sitemap.xml",
+      "lang": [
+        "ru",
+        "uz",
+        "en"
+      ],
+      "content": "none",
+      "coverage_weight": 0.9,
+      "legal": "caution",
+      "attribution": "uzse.uz",
+      "enabled": true,
+      "crawl_delay_s": 60,
+      "user_agent": "Mozilla/5.0 (compatible; UZSE-Analytics-NewsBot/1.0)",
+      "notes": "Exchange news: listings, suspensions, new members. robots.txt bans AI-labelled UAs (GPTBot etc.) and requires a 60s crawl-delay; send a browser-style UA, never an AI-labelled one."
+    },
+    {
+      "id": "kursiv",
+      "name": "Kursiv Media Uzbekistan",
+      "type": "rss",
+      "url": "https://uz.kursiv.media/feed",
+      "lang": [
+        "ru"
+      ],
+      "content": "full",
+      "coverage_weight": 0.8,
+      "legal": "caution",
+      "attribution": "Kursiv Uzbekistan (uz.kursiv.media)",
+      "enabled": false,
+      "hidden": true,
+      "crawl_delay_s": 10,
+      "max_items": 25,
+      "page_image": true,
+      "notes": "Off the site 2026-08-11 by the customer's decision: not collected any more, and the rows already stored are hidden at read time. Nothing was wrong with the feed — keep the entry as-is so clearing 'hidden' + 'enabled' brings the source and its history straight back. Whole-site feed (100 entries, ~79h deep): sports/entertainment/horoscopes alongside business, ~14-23 new items/day. Capped at 25 per run — raised from 15 when the schedule went to once daily, since one run now has to cover a full day's output rather than half of it. Feed ships full text; store snippet only. No featured image in the feed, but each article page exposes a real per-article og:image."
+    },
+    {
+      "id": "spot",
+      "name": "Spot.uz",
+      "type": "rss",
+      "url": "https://www.spot.uz/rss/",
+      "lang": [
+        "ru",
+        "uz"
+      ],
+      "content": "snippet",
+      "coverage_weight": 0.75,
+      "legal": "caution",
+      "attribution": "Spot.uz",
+      "enabled": true,
+      "crawl_delay_s": 10,
+      "image_upgrade": {
+        "from": "_b(\\.[a-z]{3,4})$",
+        "to": "_l\\1"
+      },
+      "notes": "OOO Afisha Media, registered e-media #1207 (2019). Business focus. Feed ships its own images as rel=enclosure links (verified 2026-07-25: 10/10 items), so no page fetch is needed — but the enclosure is the '_b' derivative at 680x453, and the same file named '_l' is 1200x800. Measured 2026-08-08 over every spot image in the live feed: 6 of 6 upgraded, .jpg and .webp alike."
+    },
+    {
+      "id": "kun",
+      "name": "Kun.uz",
+      "type": "rss",
+      "url": "https://kun.uz/api/rss?lang=ru",
+      "lang": [
+        "ru",
+        "uz",
+        "en"
+      ],
+      "content": "snippet",
+      "coverage_weight": 0.8,
+      "legal": "caution",
+      "attribution": "Kun.uz",
+      "enabled": true,
+      "crawl_delay_s": 10,
+      "page_image": true,
+      "notes": "Largest general-news audience. Feed carries no image; the article page has an og:image. RUSSIAN feed since 2026-07-29: kun.uz was the only enabled source publishing in Uzbek, and its Uzbek headlines were the bulk of the foreign-language cards on a Russian-first feed. The language is a QUERY PARAM, not a path — /ru/news/rss and /ru/api/rss both serve the Next.js HTML page (feedparser gets 0 entries, which is what made this look impossible on 2026-07-25), while /api/rss?lang=ru returns proper XML: same 16 stories as the Uzbek feed, Russian titles, /ru/ links. Prefer the publisher's own translation over anything we could do downstream. The old /news/ URLs stay in the store as separate rows and simply age out of the 30-day window; while they are still in it they render through summary_ru like any foreign item."
+    },
+    {
+      "id": "uzdaily",
+      "name": "UzDaily.uz",
+      "type": "rss",
+      "url": "https://uzdaily.uz/rss",
+      "lang": [
+        "ru",
+        "en",
+        "uz"
+      ],
+      "content": "snippet",
+      "coverage_weight": 0.6,
+      "legal": "caution",
+      "attribution": "UzDaily.uz",
+      "enabled": true,
+      "crawl_delay_s": 10,
+      "notes": "Business daily. Enabled 2026-07-25: /rss serves Russian items, 20/20 with their own image, 20/20 dated, clean titles/snippets, and a high share of market news (bank assets, mortgage volumes, IMF missions, stablecoin rules) — denser signal than kursiv's whole-site feed. robots.txt explicitly allows ClaudeBot/GPTBot."
+    },
+    {
+      "id": "review",
+      "name": "Review.uz",
+      "type": "rss",
+      "url": "https://review.uz/rss",
+      "lang": [
+        "ru"
+      ],
+      "content": "full",
+      "coverage_weight": 0.55,
+      "legal": "caution",
+      "attribution": "Review.uz",
+      "enabled": false,
+      "crawl_delay_s": 10,
+      "notes": "Analytical journal, carries CERR pieces. Deferred."
+    },
+    {
+      "id": "podrobno",
+      "name": "Podrobno.uz",
+      "type": "rss",
+      "url": "https://podrobno.uz/rss/",
+      "lang": [
+        "ru"
+      ],
+      "content": "full",
+      "coverage_weight": 0.5,
+      "legal": "caution",
+      "attribution": "Podrobno.uz",
+      "enabled": false,
+      "crawl_delay_s": 10,
+      "notes": "News agency, economics + politics. Deferred."
+    },
+    {
+      "id": "uza",
+      "name": "UzA — National News Agency (English)",
+      "type": "rss",
+      "url": "https://uza.uz/en/rss",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "snippet",
+      "coverage_weight": 0.7,
+      "legal": "safe",
+      "attribution": "UzA (uza.uz)",
+      "enabled": true,
+      "crawl_delay_s": 10,
+      "max_items": 12,
+      "image_upgrade": {
+        "from": "_small(\\.[a-z]{3,4})$",
+        "to": "_normal\\1"
+      },
+      "notes": "Its RSS ships the 320px '_small' derivative — the picture a reader reported as blurry, stretched across a 950px article column. The same file named '_normal' is 1024px: measured 2026-08-08, 3 of 3 upgraded (320x213 to 1024x682, 320x229 to 1024x733, 320x200 to 1024x640). State news agency — authoritative for decrees. Enabled 2026-08-07 on the ENGLISH edition, as part of raising the international half of the feed: /en/rss serves 20 dated entries over ~30h, 16 of them Uzbekistan, each with its own image, and robots.txt is 22 bytes with no rule in it. Counted as `international` because it is the English-language wire, not because the newsroom is foreign — the balance the feed serves is a LANGUAGE balance. Its output is protocol-heavy (presidential meetings, delegations), so it is capped at 12 per run and deliberately faces the full relevance gate: the classifier is told that diplomacy carrying no economic decision is not market news."
+    },
+    {
+      "id": "trend",
+      "name": "Trend News Agency — Central Asia (English)",
+      "type": "rss",
+      "url": "https://en.trend.az/feeds/casia.rss",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "snippet",
+      "coverage_weight": 0.65,
+      "legal": "caution",
+      "attribution": "Trend News Agency (en.trend.az)",
+      "enabled": false,
+      "crawl_delay_s": 15,
+      "max_items": 25,
+      "feed_image": false,
+      "article_body": false,
+      "notes": "REMOVED FROM THE FEED 2026-08-09 BY THE CUSTOMER (paywall: true, enabled: false). They opened /news/875 and asked for «paid news» off the site. What a trend card actually offered a reader: an empty snippet (the feed ships no description at all), a one-line summary, no long read possible, and a «read the source» link that leads to the payment demand quoted below. The 2026-08-07 judgement was that the headline and the link were still worth having; the customer decided they are not. Suppression is at READ time (news_store.paywalled_source_ids), so clearing these two fields brings the source and its stored history straight back — nothing is deleted.\n\nPAYWALLED ARTICLE PAGES — verified 2026-08-07: the page behind a headline answers 200 with 165KB of shell whose only body paragraph is «Get access to all paid news on Trend — just $1», so the story-page detail pass is switched off for this source (article_body: false) rather than spending its daily cap on pages that can never yield one. The headline and the link are what this source gives us, and they are worth having. The densest English-language business wire on this market: verified 2026-08-07, the CENTRAL ASIA feed (/feeds/casia.rss, not /feeds/index.rss which is the whole agency) carried 25 entries over 10.5h with 12 of them Uzbekistan — company results, MoUs, trade and investment (Biznes Finans profit, TMK green-hydrogen MoU, Samara region ties). Every entry dated. Two things to know: the feed ships NO description at all (0-char summaries), so the classifier judges the headline alone, exactly as it does for the rating agencies; and although every entry carries a media image, feed_image is false — this is a news agency whose photos are its product, and we do not need them. robots.txt bans AI-labelled crawlers BY NAME (ClaudeBot, GPTBot, anthropic-ai, CCBot, Google-Extended, Perplexity, Applebot-Extended, Amazonbot, Bytespider) and disallows /index.php, /registration.php and *Desktop/ — none of which is the feed. Same stance as thediplomat: our DEFAULT_UA is neutral and must stay that way, we never train on it, and we store headline + link + our own summary only.",
+      "paywall": true
+    },
+    {
+      "id": "timesca",
+      "name": "The Times of Central Asia — Uzbekistan",
+      "type": "rss",
+      "url": "https://timesca.com/category/news/uzbekistan/feed/",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "full",
+      "coverage_weight": 0.6,
+      "legal": "caution",
+      "attribution": "The Times of Central Asia (timesca.com)",
+      "enabled": true,
+      "crawl_delay_s": 15,
+      "max_items": 10,
+      "page_image": true,
+      "notes": "English-language regional daily with a dedicated UZBEKISTAN category feed — verified 2026-08-07: /category/news/uzbekistan/feed/ returns 10 dated entries over ~50h (the site-wide /feed/ is Central Asia at large and would spend gates on Kyrgyz elections). ~5 items/day. It ships content:encoded, i.e. the whole article — we keep the legal invariant and store the teaser only. No image in the feed, so the article page's own og:image is read (page_image). robots.txt is 120 bytes: Crawl-delay 5, one Disallow for a WordPress import directory, and no AI-bot rule at all. General-interest mix (chess olympiad and football alongside the AI economy and power demand), so it faces the full relevance gate like any outlet."
+    },
+    {
+      "id": "gazeta",
+      "name": "Gazeta.uz",
+      "type": "rss",
+      "url": "https://www.gazeta.uz/ru/rss/",
+      "lang": [
+        "ru",
+        "uz",
+        "en"
+      ],
+      "content": "snippet",
+      "coverage_weight": 0.85,
+      "legal": "avoid_fulltext",
+      "attribution": "Gazeta.uz",
+      "enabled": false,
+      "crawl_delay_s": 15,
+      "feed_image": false,
+      "notes": "Major outlet. ToS: 'Materials may not be reproduced or distributed without prior written permission.' Headline + link + attribution ONLY, never store any article text. Feed does ship images (10/10), but under this ToS do not display them without permission — keep page_image off and treat the feed image as unusable too. Deferred."
+    },
+    {
+      "id": "daryo",
+      "name": "Daryo.uz",
+      "type": "html",
+      "url": "https://daryo.uz/sitemap.xml",
+      "lang": [
+        "uz"
+      ],
+      "content": "none",
+      "coverage_weight": 0.6,
+      "legal": "caution",
+      "attribution": "Daryo.uz",
+      "enabled": false,
+      "crawl_delay_s": 15,
+      "notes": "No RSS; permissive robots (only /preview/ blocked). Needs an HTML scraper. Deferred."
+    },
+    {
+      "id": "tg_corpinfo",
+      "name": "КорпИнфо (Telegram)",
+      "type": "telegram",
+      "url": "https://t.me/s/CorpInfo",
+      "lang": [
+        "ru"
+      ],
+      "content": "snippet",
+      "coverage_weight": 0.4,
+      "legal": "caution",
+      "attribution": "@CorpInfo (Telegram)",
+      "enabled": false,
+      "crawl_delay_s": 20,
+      "notes": "~8.3K subs, Uzbekistan capital-market wire. Read-only via public web mirror t.me/s/. Treat as a LEAD source: confirm against an openinfo fact or outlet feed before showing to users. Deferred."
+    },
+    {
+      "id": "moodys",
+      "name": "Moody's Ratings",
+      "type": "sitemap",
+      "url": "https://www.moodys.com/ratingsnewsmap.xml",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "caution",
+      "attribution": "Moody's Ratings (moodys.com)",
+      "enabled": true,
+      "crawl_delay_s": 30,
+      "feed_image": false,
+      "url_filter": "uzbek|hamkor|ipoteka|agrobank|alo[kq]abank|kapitalbank|asaka|uzpromstroy|sanoat[- ]?qurilish|qishloq|mikrokredit|turonbank|trustbank|ipak[- ]?yuli|infinbank|xalq|uzagroexport|uzauto|navoi|almalyk|uztransgaz|uzkimyo|tashkent|toshkent|orient[- ]?finans|davr[- ]?bank|anor[- ]?bank",
+      "title_from": "slug",
+      "slug_strip": "-{1,2}PR_\\d+$",
+      "skip_triage": true,
+      "notes": "NO ARTICLE BODY (article_body: false), on the strength of the verification below — read exactly like fitch, whose pages were measured empty on 2026-08-09. Stated explicitly rather than inferred from content:\"none\", which describes the listing. Rating actions on Uzbek issuers and the sovereign. Verified 2026-07-25: Moody's publishes no usable feed, but ratingsnewsmap.xml is a rolling window of ~183 GLOBAL actions with the headline in the URL slug, and robots.txt permits it. url_filter is applied before any model call, so the ~99% naming no issuer of ours costs one shared HTTP request and nothing more. Headline only - the article pages return a 2.7KB SPA shell, and no page is opened anyway. No lastmod on these entries, so items arrive undated (kept by _is_recent, right for a window of current actions). Expect roughly one hit a week or two. Of the sister agencies, S&P stays unreachable (see the spglobal entry); Fitch turned out to BE reachable - see the fitch entry, the /page-data/ JSON its robots.txt disallows is only needed to read article pages, and we open none. skip_triage since 2026-07-29, for the same reason as fitch: an item that cleared the url_filter has had its relevance established before any model saw it, and a stored triage rejection is permanent.",
+      "article_body": false
+    },
+    {
+      "id": "fitch",
+      "name": "Fitch Ratings",
+      "type": "sitemap",
+      "url": "https://www.fitchratings.com/sitemap-research.xml",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "caution",
+      "attribution": "Fitch Ratings (fitchratings.com)",
+      "enabled": true,
+      "crawl_delay_s": 30,
+      "feed_image": false,
+      "url_filter": "uzbek|toshkent|tashkent|hamkor|ipoteka|agrobank|asaka|aloqabank|kapitalbank|turonbank|trustbank|ipak[- ]?yuli|infinbank|xalq|mikrokredit|qishloq|sanoat[- ]?qurilish|uzpromstroy|uzauto|uzavto|navoi|almalyk|uztransgaz|uzsuvenergo|uzagroexport|orient[- ]?finans|davr[- ]?bank|anor[- ]?bank",
+      "title_from": "slug",
+      "slug_strip": "-\\d{2}-\\d{2}-\\d{4}$",
+      "slug_date": {
+        "pattern": "(\\d{2}-\\d{2}-\\d{4})$",
+        "format": "%d-%m-%Y"
+      },
+      "title_case": "title",
+      "skip_triage": true,
+      "notes": "NO ARTICLE BODY, measured 2026-08-09: a research URL answers 200 with 1.16 MB that contains neither the article, nor an og:description, nor even its own headline (0 hits for the title's own words). A full browser header set changes nothing — the text is loaded client-side and gated. article_body is now stated explicitly rather than being inferred from content:\"none\", which describes the LISTING and not the page. The second rating agency, read exactly like moodys. Verified 2026-07-28: /rss/press-releases and /rss/news are dead (both bounce to the /redirect/ SPA shell), but sitemap-research.xml is a live rolling set - 502 URLs the day it was checked, headline in the slug, date as a -dd-mm-yyyy suffix - and robots.txt disallows only /page-data/, /search, /redirect and /user-settings, none of which we touch since no article page is opened. Fitch does rate our market: its entity sitemap carries Asaka Bank, and the sovereign plus the state banks are all Fitch-rated, so url_filter is the same trick as moodys - the ~99.8% of global research naming nobody of ours costs one shared request. slug_date is required here: every entry's lastmod is the sitemap's own generation timestamp, so without it a five-day-old rating action would be published to readers as today's news. Two more source-level knobs, both added 2026-07-29 after the first live run: title_case (Fitch lower-cases every research slug, so 'jsc uzbek metallurgical plant' would sit in the feed among properly cased headlines looking broken) and skip_triage (the url_filter already established that this URL names one of our issuers, which is what makes the source authoritative in news_store; a snippet-less entity name put to the cheap 'could this plausibly matter?' gate can be rejected, and triage rejections ARE stored, so one wrong verdict would bury a rating action for good).",
+      "article_body": false
+    },
+    {
+      "id": "napp",
+      "name": "NAPP (capital-market regulator)",
+      "type": "html_list",
+      "url": "https://napp.uz/ru/category/yangiliklar",
+      "lang": [
+        "ru"
+      ],
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "safe",
+      "attribution": "Национальное агентство перспективных проектов (napp.uz)",
+      "enabled": true,
+      "crawl_delay_s": 10,
+      "list_selectors": {
+        "item": ".info-in",
+        "title": ".info-title-text",
+        "date": ".date span",
+        "image": "a img"
+      },
+      "notes": "ARTICLE PAGES ARE READABLE — measured 2026-08-09 (756/1449/1084 chars of prose). content:\"none\" here means the LISTING ships no snippet, NOT that the story page is empty; until the detail pass stopped conflating those two, every napp item was written off as bodyless. Do not add article_body:false. Uzbekistan capital-market regulator: licensing, the regulatory sandbox, crypto-asset and stablecoin rules, repo regulations - the primary source for the regulatory class, and it names our issuers directly (Ipak Yo'li AITB, Avesta Investment Group). Verified 2026-07-25: robots.txt is Disallow: with an EMPTY value, i.e. crawling is allowed; there is no RSS and no sitemap (every feed path returns the same catch-all HTML), so the listing page is the only machine-readable route. Titles on /ru are Russian even though the slugs are Uzbek. Publishes routine exam notices and seminars alongside real regulation, so it is deliberately NOT exempt from the relevance floor - unlike moodys, let the classifier sort it."
+    },
+    {
+      "id": "thediplomat",
+      "name": "The Diplomat — Central Asia",
+      "type": "rss",
+      "url": "https://thediplomat.com/regions/central-asia/feed/",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "snippet",
+      "coverage_weight": 0.5,
+      "legal": "caution",
+      "attribution": "The Diplomat (thediplomat.com)",
+      "enabled": true,
+      "crawl_delay_s": 15,
+      "max_items": 15,
+      "skip_triage_filter": "uzbek|tashkent|toshkent|uzse|central[- ]asian? (economy|market|bank|energy|rail)",
+      "notes": "Regional context the local outlets do not write: reform politics, the China-Kyrgyzstan-Uzbekistan railway, energy and crypto policy. Verified 2026-07-28 - the REGION feed, not thediplomat.com/feed: both ship 96 entries, but the site-wide one is Asia-Pacific (3 mentions of Uzbekistan against 72 here) and would burn triage calls on Vietnamese AI law. Every entry is dated, carries its own image, and ships a 70-160 char teaser with no content:encoded, so snippet-only holds by construction. Volume is ~10 items per 18 days, most of them Kazakh/Kyrgyz - deliberately NOT exempt from the relevance floor, and at that rate the classifier calls are noise. robots.txt allows * everywhere but /wp-admin, while banning AI-labelled crawlers BY NAME (ClaudeBot, GPTBot, anthropic-ai, CCBot, Google-Extended, Bytespider) and setting Content-Signal ai-train=no, use=reference: our DEFAULT_UA is neutral and must stay that way, we never train on it, and we store headline + link + our own summary only. skip_triage_filter added 2026-08-07: measured over the whole live window, the source had published NOTHING to the feed since it was enabled — 15 of 15 items stored as irrelevant, and among them 'Uzbekistan's Nuclear Power Plant Project Advances' (0.2), the tax-free crypto-mining zone and the China-Kyrgyzstan-Uzbekistan railway. Its Kazakh and Mongolian pieces should keep facing the cheap gate; the ones that name Uzbekistan go straight to the full classification, which reads the issuer universe and is the right place to judge a national energy or tax story."
+    },
+    {
+      "id": "imf",
+      "name": "IMF — press releases",
+      "type": "rss",
+      "url": "https://www.imf.org/en/News/RSS?language=eng",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "snippet",
+      "coverage_weight": 0.9,
+      "legal": "caution",
+      "attribution": "International Monetary Fund (imf.org)",
+      "enabled": false,
+      "crawl_delay_s": 20,
+      "notes": "Article IV consultations, mission statements and WEO updates on Uzbekistan - a handful a year, but authoritative for the macro class. NOT deferred, blocked, and 2026-08-07 established WHY, which closes the question the earlier note left open. It is not our IP and not our headers: every /en/ path answers 403 to python-requests with a bare UA and with the full Chrome header set alike, while REAL Chrome on the very same machine and network fetches https://www.imf.org/en/News/RSS?language=eng at 200 with 56KB, cookies omitted. The discriminator is therefore the TLS/HTTP2 client fingerprint (Akamai bot management), which no header can change and which a Railway egress would not change either - re-running the probe from a datacenter IP would only make it worse. The legacy /external/ tree is not an escape hatch: /external/rss/feeds.aspx returns 200 with an F5 JavaScript challenge page ('Please enable JavaScript... Your support ID is'), not a feed. And even past the wall there is no feed to read: /en/News/RSS?language=eng is an HTML shell titled 'RSS' with zero <item> elements, and the Uzbekistan country page (/en/Countries/UZB, 405KB) loads its document list from a client-side search call, not from __NEXT_DATA__. So enabling this needs a real browser engine on the collector (Chromium via Playwright) or a fingerprint-impersonating HTTP client, for about six Uzbekistan items a year. Deliberately not built. IMF news about Uzbekistan reaches the feed second-hand through uzdaily and kursiv, which we already read, and the Layer-B search agent can be pointed at it on demand."
+    },
+    {
+      "id": "intellinews",
+      "name": "bne IntelliNews",
+      "type": "rss",
+      "url": "https://www.intellinews.com/feed/",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "snippet",
+      "coverage_weight": 0.7,
+      "legal": "caution",
+      "attribution": "bne IntelliNews (intellinews.com)",
+      "enabled": false,
+      "crawl_delay_s": 15,
+      "notes": "Emerging-markets business wire, and the obvious fourth English source. NOT deferred, NOT unreachable — refused by robots.txt: checked 2026-08-07, https://www.intellinews.com/feed/ returns 22 dated entries at HTTP 200, and the site's robots.txt disallows `/feed` outright (alongside /search, /podcasts, /user/ and binary types). It answers us; we are asked not to read it, so we do not. Its Uzbekistan rate was 1 of 22 entries in a 10-hour window anyway. Do not enable without a licence or an explicitly permitted path."
+    },
+    {
+      "id": "spglobal",
+      "name": "S&P Global Ratings",
+      "type": "sitemap",
+      "url": "https://www.spglobal.com/ratings/sitemaps/news-sitemap.xml",
+      "lang": [
+        "en"
+      ],
+      "origin": "international",
+      "content": "none",
+      "coverage_weight": 0.95,
+      "legal": "caution",
+      "attribution": "S&P Global Ratings (spglobal.com)",
+      "enabled": true,
+      "crawl_delay_s": 30,
+      "feed_image": false,
+      "title_filter": "uzbek|toshkent|tashkent|hamkor|ipoteka|agrobank|asaka|aloqabank|kapitalbank|turonbank|trustbank|ipak[- ]?yuli|infinbank|xalq[- ]?bank|mikrokredit|qishloq|sanoat[- ]?qurilish|uzpromstroy|uzauto|uzavto|navoi|almalyk|uztransgaz|uzsuvenergo|uzagroexport|orient[- ]?finans|davr[- ]?bank|anor[- ]?bank",
+      "skip_triage": true,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+      "headers": {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "sec-ch-ua": "\"Chromium\";v=\"139\", \"Not=A?Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "Upgrade-Insecure-Requests": "1"
+      },
+      "notes": "NO ARTICLE BODY (article_body: false) — the notes below already record the pages as paywalled behind a registration wall. Stated explicitly rather than inferred from content:\"none\", which describes the sitemap listing and not the page. The third agency, LIVE since 2026-08-07 — the earlier 'no route at all' reading was measured with a bare User-Agent and is wrong. The edge (Akamai) rejects a lone UA header, ours and a Chrome string alike, but answers 200 to the ordinary browser navigation header set: robots.txt (9.9KB), the ratings sitemaps and the ratings-actions page all come back. And robots.txt ITSELF advertises this file - it lists /ratings/sitemaps/news-sitemap.xml among its Sitemap: directives, disallows only the search and identifier-lookup paths (none of which we touch), and gives even GPTBot a plain Crawl-delay: 10 rather than a ban. So this is a header shape the edge insists on, not a permission we are working around. The file is a Google-news sitemap: ~218 entries the day it was checked, each with the publisher's OWN <news:title> and <news:publication_date> - better than Moody's and Fitch, whose headline has to be read out of a URL slug. The <loc> is a numeric sourceId with no words in it, which is why the gate here is title_filter rather than url_filter. No article page is opened (they are paywalled behind a registration wall anyway); headline + link + our own summary only. S&P rates the sovereign and several of our banks, so expect the same rate as the other two - roughly one hit every week or two - and the same window caveat as moodys: the file is a rolling ~1-2 days, so a once-daily run is the floor, not a margin. press.spglobal.com answers 200 but serves an HTML press page with no feed; disclosure.spglobal.com redirects into www.",
+      "article_body": false
+    }
+  ]
+}

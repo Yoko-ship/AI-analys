@@ -1,3 +1,4 @@
+import os
 import re
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
@@ -7,14 +8,20 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from urllib3.exceptions import InsecureRequestWarning
+
+from numeric_parse import parse_decimal
 
 BASE_URL = "https://uzse.uz/trade_results"
 DATE_FORMAT = "%d.%m.%Y"
 DAYS_BACK = 30
 TIMEOUT = 30
 
-requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+# TLS verification ON by default for exchange data (uzse.uz serves a valid
+# certificate); UZSE_VERIFY_SSL=0 is a temporary escape hatch only.
+VERIFY_SSL = os.getenv("UZSE_VERIFY_SSL", "1").strip().lower() not in {"0", "false", "no"}
+if not VERIFY_SSL:
+    from urllib3.exceptions import InsecureRequestWarning
+    requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 
 def _normalize_name(value: str) -> str:
@@ -26,35 +33,13 @@ def _normalize_name(value: str) -> str:
 
 
 def _parse_number(text: str) -> float | None:
-    if not text:
-        return None
+    """One uzse.uz board cell as a number.
 
-    cleaned = re.sub(r"[^\d.,]", "", str(text).strip())
-    if not cleaned:
-        return None
-
-    if "," in cleaned and "." in cleaned:
-        last_sep = max(cleaned.rfind(","), cleaned.rfind("."))
-        integer_part = re.sub(r"[.,]", "", cleaned[:last_sep])
-        decimal_part = re.sub(r"[.,]", "", cleaned[last_sep + 1:])
-        cleaned = f"{integer_part}.{decimal_part}" if decimal_part else integer_part
-    elif "," in cleaned:
-        parts = cleaned.split(",")
-        if len(parts) > 1 and all(len(part) == 3 for part in parts[1:]):
-            cleaned = "".join(parts)
-        else:
-            cleaned = cleaned.replace(",", ".")
-    elif cleaned.count(".") > 1:
-        parts = cleaned.split(".")
-        if all(len(part) == 3 for part in parts[1:]):
-            cleaned = "".join(parts)
-        else:
-            cleaned = "".join(parts[:-1]) + "." + parts[-1]
-
-    try:
-        return float(cleaned)
-    except ValueError:
-        return None
+    Lenient about surrounding text because these are HTML cells that carry
+    currency marks and unit suffixes; the separator rules themselves live in the
+    shared parser so this path and the openinfo path cannot drift apart again.
+    """
+    return parse_decimal(text, group_sep=",", strip_non_numeric=True)
 
 
 def _build_url() -> str:
@@ -98,7 +83,7 @@ def _load_isu_directory() -> tuple[dict, ...]:
         "https://uzse.uz/isu_infos/names",
         params={"mkt_id": "STK"},
         headers=headers,
-        verify=False,
+        verify=VERIFY_SSL,
         timeout=TIMEOUT,
     )
     response.raise_for_status()
@@ -221,7 +206,7 @@ def get_trade_data(query: str, company_name: str | None = None, verbose: bool = 
     url = _update_query_params(_build_url(), search_key=security["isu_code"], mkt_id="STK")
     session = requests.Session()
     session.headers.update({"User-Agent": "Mozilla/5.0"})
-    session.verify = False
+    session.verify = VERIFY_SSL
 
     first_page = session.get(_build_page_url(url, 1), timeout=TIMEOUT)
     first_page.raise_for_status()

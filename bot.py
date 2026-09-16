@@ -795,7 +795,9 @@ async def _start_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE,
         result = await run_full_analysis(company, update_progress)
 
         # Сохраняем в кэш, историю пользователя и в chat_data
-        analysis_cache.set(company, result)
+        # Telegram's HTML download is the only consumer that needs the rendered
+        # document in cache.  Web analyses keep only structured JSON.
+        analysis_cache.set(company, result, store_html=True)
         user_db.record_analysis(tg_user.id, result["company_name"],
                                 cost=result["cost"], from_cache=False)
         context.chat_data["last_result"] = result
@@ -1030,6 +1032,17 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 # ─────────────────────────────────────────────────────────
 
 def main():
+    # ── DECOMMISSIONED — ТЗ compliance (product decision 2026-07-09) ──────────
+    # This Telegram bot emitted buy/sell/hold recommendations, stop-loss levels and
+    # valuation verdicts that the ТЗ forbids ("Купить/Продать/Держать" запрещено даже
+    # в закрытом контуре). It is retired: it no longer starts or serves analysis.
+    # No code is deleted (analyzer.py compute helpers are still used by the web path);
+    # set BOT_ENABLED=1 only to run the legacy bot locally for debugging.
+    if os.getenv("BOT_ENABLED", "0") != "1":
+        print("⛔ Telegram bot decommissioned for ТЗ compliance — not starting. "
+              "Set BOT_ENABLED=1 to override (legacy/debug only).")
+        return
+
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
     async def post_init(application):

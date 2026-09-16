@@ -1,0 +1,667 @@
+[
+  {
+    "ticker": "UZNF",
+    "issuer": "UzMIJ> AJ",
+    "status": "no_org_id",
+    "in_catalog": false
+  },
+  {
+    "ticker": "IPTBP",
+    "issuer": "Ipoteka-bank> ATIB",
+    "canonical_name": "\"Ipoteka-bank\" aksiyadorlik tijorat ipoteka banki",
+    "org_id": "17",
+    "logo": "https://openinfo.uz/media/organization_logos/187e497e-6990-4d08-946a-269d8519b334.jpg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "CBSK",
+    "issuer": "Chilonzor buyum savdo kompleksi> AJ",
+    "canonical_name": "\"Chilonzor buyum savdo kompleksi\" aksiyadorlik jamiyati",
+    "org_id": "633",
+    "logo": "https://openinfo.uz/media/organization_logos/chilonzor-buyum.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "BTRL",
+    "issuer": "Boshtransloyiha> AJ",
+    "canonical_name": "«BOSHTRANSLOYIHA» Транспорт бўйича бош лойиҳа-қидирув институти акциядорлик жамияти",
+    "org_id": "540",
+    "logo": "https://openinfo.uz/media/organization_logos/transloyiha.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UZMKP",
+    "issuer": "O'zmetkombinat> AJ",
+    "canonical_name": "“O‘zbekiston metallurgiya kombinati” aksiyadorlik jamiyati",
+    "org_id": "383",
+    "logo": "https://openinfo.uz/media/organization_logos/Logo_UMK_V_EN.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UZTLP",
+    "issuer": "O'zbektelekom> AK",
+    "canonical_name": "\"O'zbektelekom\" aksiyadorlik kompaniyasi",
+    "org_id": "666",
+    "logo": "https://openinfo.uz/media/organization_logos/uztelecom_square_blue.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "UZGFP",
+    "issuer": "O'zbekgeofizika> AJ",
+    "canonical_name": "\"O'zbekgeofizika\" aksiyadorlik jamiyati",
+    "org_id": "399",
+    "logo": "https://openinfo.uz/media/organization_logos/ozgeofizika.svg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "ALKB",
+    "issuer": "AT <Aloqabank",
+    "canonical_name": "Аksiyadorlik tijorat \"Aloqabank\"",
+    "org_id": "10",
+    "logo": "https://openinfo.uz/media/organization_logos/Aloqabank.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "SQBN",
+    "issuer": "O'zsanoatqurilishbank> ATB",
+    "canonical_name": "\"O'zbekiston sanoat - qurilish banki\" aksiyadorlik tijorat banki",
+    "org_id": "30",
+    "logo": "https://openinfo.uz/media/organization_logos/SQB_.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "KASU",
+    "issuer": "Kapital sug'urta> AJ",
+    "canonical_name": "\"KAPITAL SUG’URTA\" aksiyadorlik jamiyati",
+    "org_id": "34",
+    "logo": "https://openinfo.uz/media/organization_logos/Kapital.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "BRBN",
+    "issuer": "Biznesni rivojlantirish banki> ATB",
+    "canonical_name": "\"Biznesni rivojlantirish banki\" aksiyadorlik tijorat banki",
+    "org_id": "23",
+    "logo": "https://openinfo.uz/media/organization_logos/brb.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "QATT",
+    "issuer": "Qashqadaryo texnologik transport> AJ",
+    "canonical_name": "\"Qashqadaryo texnologik transport\" aksiyadorlik jamiyati",
+    "org_id": "195",
+    "logo": "",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "UZNGP",
+    "issuer": "O'zbekneftgaz> AJ",
+    "canonical_name": "\"O'zbekneftgaz\" Aksiyadorlik jamiyati",
+    "org_id": "735",
+    "logo": "https://openinfo.uz/media/organization_logos/Uzbekneftregaz-logo.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UVGT",
+    "issuer": "O'ZVAGONTA'MIR> AJ",
+    "status": "no_org_id",
+    "in_catalog": false
+  },
+  {
+    "ticker": "HMKB",
+    "issuer": "Hamkorbank> ATB",
+    "canonical_name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+    "org_id": "8",
+    "logo": "https://openinfo.uz/media/organization_logos/logo.jpg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "SQBNP",
+    "issuer": "O'zsanoatqurilishbank> ATB",
+    "canonical_name": "\"O'zbekiston sanoat - qurilish banki\" aksiyadorlik tijorat banki",
+    "org_id": "30",
+    "logo": "https://openinfo.uz/media/organization_logos/SQB_.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "KASUP",
+    "issuer": "Kapital sug'urta> AJ",
+    "canonical_name": "\"KAPITAL SUG’URTA\" aksiyadorlik jamiyati",
+    "org_id": "34",
+    "logo": "https://openinfo.uz/media/organization_logos/Kapital.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "AGMKP",
+    "issuer": "Olmaliq KMK> AJ",
+    "canonical_name": "\"Olmaliq kon-metallurgiya kombinati\" aksiyadorlik jamiyati",
+    "org_id": "372",
+    "logo": "https://openinfo.uz/media/organization_logos/Olmaliq_kon_metallurgiya.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "URTS",
+    "issuer": "O'zRTXB> AJ",
+    "canonical_name": "\"O'zbekiston respublika tovar-xomashyo birjasi\" aksiyadorlik jamiyati",
+    "org_id": "717",
+    "logo": "https://openinfo.uz/media/organization_logos/uzex.svg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "TNBN",
+    "issuer": "Turonbank> ATB",
+    "canonical_name": "\"Turonbank\" aksiyadorlik tijorat banki",
+    "org_id": "22",
+    "logo": "https://openinfo.uz/media/organization_logos/Turon_Bank-01.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "KVTS",
+    "issuer": "Kvarts> AJ",
+    "canonical_name": "Акционерное общество   «Кварц»",
+    "org_id": "445",
+    "logo": "https://openinfo.uz/media/organization_logos/kvarts_logo.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "IPTB",
+    "issuer": "Ipoteka-bank> ATIB",
+    "canonical_name": "\"Ipoteka-bank\" aksiyadorlik tijorat ipoteka banki",
+    "org_id": "17",
+    "logo": "https://openinfo.uz/media/organization_logos/187e497e-6990-4d08-946a-269d8519b334.jpg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UZINP",
+    "issuer": "O'zbekinvest> EISK AJ",
+    "status": "no_org_id",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UZTL",
+    "issuer": "O'zbektelekom> AK",
+    "canonical_name": "\"O'zbektelekom\" aksiyadorlik kompaniyasi",
+    "org_id": "666",
+    "logo": "https://openinfo.uz/media/organization_logos/uztelecom_square_blue.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "ALKBP",
+    "issuer": "AT <Aloqabank",
+    "canonical_name": "Аksiyadorlik tijorat \"Aloqabank\"",
+    "org_id": "10",
+    "logo": "https://openinfo.uz/media/organization_logos/Aloqabank.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UZMK",
+    "issuer": "O'zmetkombinat> AJ",
+    "canonical_name": "“O‘zbekiston metallurgiya kombinati” aksiyadorlik jamiyati",
+    "org_id": "383",
+    "logo": "https://openinfo.uz/media/organization_logos/Logo_UMK_V_EN.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "TMYS",
+    "issuer": "TEMIRYO'L-SUG'URTA> AJ",
+    "canonical_name": "Акционерное общество \"TEMIRYO'L-SUG'URTA\"",
+    "org_id": "888",
+    "logo": "https://openinfo.uz/media/organization_logos/tys.svg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "TRSB",
+    "issuer": "Trastbank> XAB",
+    "canonical_name": "\"Trastbank\" xususiy aksiyadorlik banki",
+    "org_id": "24",
+    "logo": "https://openinfo.uz/media/organization_logos/TrastBank.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "BRBNP",
+    "issuer": "Biznesni rivojlantirish banki> ATB",
+    "canonical_name": "\"Biznesni rivojlantirish banki\" aksiyadorlik tijorat banki",
+    "org_id": "23",
+    "logo": "https://openinfo.uz/media/organization_logos/brb.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "DORI",
+    "issuer": "DORI-DARMON> AK",
+    "canonical_name": "\"Andijon dori-darmon\" aksiyadorlik jamiyati",
+    "org_id": "79",
+    "logo": "https://openinfo.uz/media/organization_logos/add.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "HMKBP",
+    "issuer": "Hamkorbank> ATB",
+    "canonical_name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+    "org_id": "8",
+    "logo": "https://openinfo.uz/media/organization_logos/logo.jpg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "AGBA",
+    "issuer": "Agrobank> ATB",
+    "canonical_name": "\"Agrobank\" aksiyadorlik tijorat banki",
+    "org_id": "19",
+    "logo": "https://openinfo.uz/media/organization_logos/agrobank.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "BIOK",
+    "issuer": "Biokimyo> AJ",
+    "canonical_name": "\"Andijon biokimyo zavodi\" aksiyadorlik jamiyati",
+    "org_id": "78",
+    "logo": "https://openinfo.uz/media/organization_logos/abz.jpg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "IPKY",
+    "issuer": "AITB <Ipak Yo'li",
+    "canonical_name": "\"Ipak Yo'li\" aksiyadorlik innovatsiya tijorat banki",
+    "org_id": "28",
+    "logo": "https://openinfo.uz/media/organization_logos/2.webp",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "MCBA",
+    "issuer": "Mikrokreditbank> ATB",
+    "canonical_name": "\"Mikrokreditbank\" aksiyadorlik-tijorat banki",
+    "org_id": "20",
+    "logo": "https://openinfo.uz/media/organization_logos/MKBANK.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "QZSM",
+    "issuer": "Qizilqumsement> AJ",
+    "canonical_name": "\"Qizilqumsement\" aksiyadorlik jamiyati",
+    "org_id": "238",
+    "logo": "https://openinfo.uz/media/organization_logos/logo.svg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "GRBK",
+    "issuer": "GARANT BANK> AJ",
+    "canonical_name": "“Garant bank” aksiyadorlik jamiyati",
+    "org_id": "11",
+    "logo": "https://openinfo.uz/media/organization_logos/garantbank2.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "TNBNP",
+    "issuer": "Turonbank> ATB",
+    "canonical_name": "\"Turonbank\" aksiyadorlik tijorat banki",
+    "org_id": "22",
+    "logo": "https://openinfo.uz/media/organization_logos/Turon_Bank-01.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "ALSMP",
+    "issuer": "ALSKOM SUG'URTA KOMPANIYASI> AJ",
+    "canonical_name": "\"Alskom sug'urta kompaniyasi\" aksiyadorlik jamiyati",
+    "org_id": "683",
+    "logo": "https://openinfo.uz/media/organization_logos/alskom.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "BNGP",
+    "issuer": "Buxoroneftgazparmalash> AJ",
+    "canonical_name": "\"Buxoroneftgazparmalash\" aksiyadorlik jamiyati",
+    "org_id": "153",
+    "logo": "https://openinfo.uz/media/organization_logos/bnng.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UNVB",
+    "issuer": "ATB <Universal bank",
+    "canonical_name": "Aksiyadorlik-tijorat banki \"Universal bank\"",
+    "org_id": "9",
+    "logo": "https://openinfo.uz/media/organization_logos/unviersal_bank.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UZIR",
+    "issuer": "O'zbekko'mir> AJ",
+    "canonical_name": "\"O'zbekko'mir\" aksiyadorlik jamiyati",
+    "org_id": "374",
+    "logo": "https://openinfo.uz/media/organization_logos/uzbekkomit.jpeg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UZIRP",
+    "issuer": "O'zbekko'mir> AJ",
+    "canonical_name": "\"O'zbekko'mir\" aksiyadorlik jamiyati",
+    "org_id": "374",
+    "logo": "https://openinfo.uz/media/organization_logos/uzbekkomit.jpeg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "UPOS",
+    "issuer": "O'zbekiston pochtasi> AJ",
+    "canonical_name": "\"O'zbekiston pochtasi\" aksiyadorlik jamiyati",
+    "org_id": "667",
+    "logo": "https://openinfo.uz/media/organization_logos/uzpost.svg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "ALSM",
+    "issuer": "ALSKOM SUG'URTA KOMPANIYASI> AJ",
+    "canonical_name": "\"Alskom sug'urta kompaniyasi\" aksiyadorlik jamiyati",
+    "org_id": "683",
+    "logo": "https://openinfo.uz/media/organization_logos/alskom.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "UPOSP",
+    "issuer": "O'zbekiston pochtasi> AJ",
+    "status": "no_org_id",
+    "in_catalog": false
+  },
+  {
+    "ticker": "UTGAP",
+    "issuer": "O'ztransgaz> AJ",
+    "canonical_name": "\"O'ztransgaz\" aksiyadorlik jamiyati",
+    "org_id": "702",
+    "logo": "https://openinfo.uz/media/organization_logos/utg.svg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "PLST",
+    "issuer": "Portlatishsanoat> AJ",
+    "canonical_name": "\"Portlatishsanoat\" aksiyadorlik jamiyati",
+    "org_id": "690",
+    "logo": "https://openinfo.uz/media/organization_logos/58780ce8-fc75-4fe8-a1ba-a3f9c9578f55.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "UZMT",
+    "issuer": "UzAuto Motors> AJ",
+    "canonical_name": "\"UzAuto Motors\" aksiyadorlik jamiyati",
+    "org_id": "102",
+    "logo": "https://openinfo.uz/media/organization_logos/uzauto.jpg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true
+  },
+  {
+    "ticker": "SANE",
+    "issuer": "Sarbon-Neftegaz> AJ",
+    "canonical_name": "\"Sarbon-Neftegaz\" aksiyadorlik jamiyati",
+    "org_id": "736",
+    "logo": "",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "UZHM",
+    "issuer": "O'ZBEKKIMYOMASH ZAVODI> AJ",
+    "canonical_name": "\"O'zbekkimyomash zavodi\" Aksiyadorlik jamiyati",
+    "org_id": "391",
+    "logo": "",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": false
+  },
+  {
+    "ticker": "TKDM",
+    "issuer": "TDM> AJ",
+    "status": "no_org_id",
+    "in_catalog": false
+  },
+  {
+    "ticker": "AGBAP",
+    "issuer": "Agrobank",
+    "canonical_name": "\"Agrobank\" aksiyadorlik tijorat banki",
+    "org_id": "19",
+    "logo": "https://openinfo.uz/media/organization_logos/agrobank.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "TRSBP",
+    "issuer": "Trastbank",
+    "canonical_name": "\"Trastbank\" xususiy aksiyadorlik banki",
+    "org_id": "24",
+    "logo": "https://openinfo.uz/media/organization_logos/TrastBank.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "MCBAP",
+    "issuer": "Mikrokreditbank",
+    "canonical_name": "\"Mikrokreditbank\" aksiyadorlik-tijorat banki",
+    "org_id": "20",
+    "logo": "https://openinfo.uz/media/organization_logos/MKBANK.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "OCBK",
+    "issuer": "Oktobank",
+    "canonical_name": "«Octobank» aksiyadorlik jamiyati",
+    "org_id": "27",
+    "logo": "https://openinfo.uz/media/organization_logos/octobank_606x606.jpg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "BRNBP",
+    "issuer": "Biznesni rivojlantirish banki",
+    "canonical_name": "\"Biznesni rivojlantirish banki\" aksiyadorlik tijorat banki",
+    "org_id": "23",
+    "logo": "https://openinfo.uz/media/organization_logos/brb.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "KPBA",
+    "issuer": "Kapitalbank",
+    "canonical_name": "\"Kapitalbank\" aksiyadorlik tijorat banki",
+    "org_id": "29",
+    "logo": "https://openinfo.uz/media/organization_logos/kapitalbank.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "TNGB",
+    "issuer": "Tenge Bank",
+    "canonical_name": "\"Tenge Bank\" aksiyadorlik tijorat banki",
+    "org_id": "815",
+    "logo": "https://openinfo.uz/media/organization_logos/tenge_bank.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "BECM",
+    "issuer": "Bekobodsement",
+    "canonical_name": "\"Bekobodsement\" Aksiyadorlik jamiyati",
+    "org_id": "382",
+    "logo": "https://openinfo.uz/media/organization_logos/bekabod_sement.jpeg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "BECMP",
+    "issuer": "Bekobodsement",
+    "canonical_name": "\"Bekobodsement\" Aksiyadorlik jamiyati",
+    "org_id": "382",
+    "logo": "https://openinfo.uz/media/organization_logos/bekabod_sement.jpeg",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "BNGPP",
+    "issuer": "Buxoroneftgazparmalash",
+    "canonical_name": "\"Buxoroneftgazparmalash\" aksiyadorlik jamiyati",
+    "org_id": "153",
+    "logo": "https://openinfo.uz/media/organization_logos/bnng.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "MNGM",
+    "issuer": "Mubarekneftgazmontaj",
+    "canonical_name": "\"Muborakneftgazmontaj\" aksiyadorlik jamiyati",
+    "org_id": "226",
+    "logo": "",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "NGQS",
+    "issuer": "Neft va gaz quduqlarini sinash",
+    "canonical_name": "\"Neft va gaz quduqlarini sinash\" aksiyadorlik jamiyati",
+    "org_id": "220",
+    "logo": "",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "JASM",
+    "issuer": "JSM",
+    "canonical_name": "\"Janubsanoatmontaj\" aksiyadorlik jamiyati",
+    "org_id": "246",
+    "logo": "",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "ORGS",
+    "issuer": "ORGRES",
+    "canonical_name": "\"Orgres\" aksiyadorlik jamiyati",
+    "org_id": "611",
+    "logo": "https://openinfo.uz/media/organization_logos/orgres.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  },
+  {
+    "ticker": "TKDMP",
+    "issuer": "TDM",
+    "canonical_name": "\"Toshkentdonmahsulotlari\" aksiyadorlik jamiyati",
+    "org_id": "726",
+    "logo": "https://openinfo.uz/media/organization_logos/tdm.png",
+    "has_data": true,
+    "status": "has_data",
+    "in_catalog": true,
+    "in_uzse": false
+  }
+]

@@ -788,6 +788,10 @@ button {
   min-height: 100%;
 }
 
+.sections-panel {
+  grid-column: 1 / -1;
+}
+
 .result-hero {
   display: grid;
   gap: 16px;
@@ -968,6 +972,11 @@ button {
   stroke-dasharray: 6 5;
 }
 
+.chart-line-debt {
+  stroke: var(--danger);
+  stroke-dasharray: 3 4;
+}
+
 .chart-dot {
   stroke: rgba(7, 17, 31, 0.95);
   stroke-width: 2;
@@ -980,6 +989,10 @@ button {
 
 .chart-dot-profit {
   fill: var(--accent);
+}
+
+.chart-dot-debt {
+  fill: var(--danger);
 }
 
 .chart-legend {
@@ -1040,6 +1053,11 @@ button {
 .legend-swatch-profit {
   background: var(--accent);
   box-shadow: 0 0 0 4px rgba(245, 184, 77, 0.12);
+}
+
+.legend-swatch-debt {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
 }
 
 .chart-axis-note {

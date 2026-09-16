@@ -1,0 +1,676 @@
+"""dbx.py — one database interface over SQLite and PostgreSQL.
+
+The project speaks SQLite: `?` placeholders, `datetime('now')`, `IFNULL`,
+`AUTOINCREMENT`, `PRAGMA table_info`. There are roughly a hundred such sites
+across seventy-three connection points, and hand-editing every one of them is a
+hundred chances to break a query in a way no test notices — a `WHERE` clause
+that quietly matches nothing looks exactly like a day with no data.
+
+So the dialect is translated in ONE place, at execution, and that place is
+tested. Two rules govern the translation:
+
+**It never touches a string literal.** A `?` inside quotes is data, and
+rewriting it changes what the query means. The scanner walks the statement
+character by character tracking quote state, rather than running a regex over
+it, because a regex cannot know the difference.
+
+**It only translates what is provably equivalent.** Anything ambiguous is left
+alone and fails loudly on the other backend, where it can be fixed deliberately.
+A translation layer that guesses is worse than no translation layer.
+
+Connections are pooled. On SQLite that is a convenience; on PostgreSQL it is the
+difference between a request and a stall — the code opens a connection per call
+in places, which costs microseconds in-process and a network round trip over the
+wire.
+"""
+from __future__ import annotations
+
+import logging
+import os
+import queue
+import re
+import sqlite3
+import threading
+from decimal import Decimal
+from contextlib import contextmanager
+from typing import Any, Iterable, Iterator, Sequence
+
+logger = logging.getLogger(__name__)
+
+SQLITE = "sqlite"
+POSTGRES = "postgres"
+
+
+def backend() -> str:
+    """Which database this process talks to.
+
+    `DATABASE_BACKEND` is the switch, and it is deliberately explicit: deriving
+    it from the presence of `DATABASE_URL` would flip the whole application the
+    moment somebody attached a database for something else — which is exactly
+    what happened here, where PostgreSQL has been connected for web auth alone.
+    """
+    value = os.getenv("DATABASE_BACKEND", SQLITE).strip().lower()
+    return POSTGRES if value in {"postgres", "postgresql", "pg"} else SQLITE
+
+
+def postgres_url() -> str:
+    return (os.getenv("DATABASE_URL") or os.getenv("DATABASE_PUBLIC_URL") or "").strip()
+
+
+def postgres_schema() -> str:
+    """Which schema this process reads and writes.
+
+    Defaults to `public`. Setting `DATABASE_SCHEMA` is how the whole application
+    can be pointed at an isolated copy — to run the test suite against the real
+    PostgreSQL without touching what it serves, or to rehearse a cutover beside
+    live data rather than on top of it.
+    """
+    return (os.getenv("DATABASE_SCHEMA") or "public").strip() or "public"
+
+
+# ---------------------------------------------------------------------------
+# Dialect translation
+# ---------------------------------------------------------------------------
+
+# Idioms that CONTAIN a string literal, so a fragment-wise pass can never see
+# them whole. These are applied to the ENTIRE statement, which is safe for this
+# shape and only this shape: inside a SQL literal every quote is doubled, so a
+# `datetime(''now'')` appearing in quoted text cannot match a pattern written
+# with single quotes. That property is the whole licence for a whole-string
+# substitution here — anything without it goes in _FUNCTION_MAP below.
+#
+# The clock renders as TEXT, in the exact format SQLite's own `datetime()` writes.
+# That is not a stylistic choice: every DATETIME column crossed into PostgreSQL as
+# TEXT (see `pg_migrate._TYPE_MAP`), and PostgreSQL dropped the implicit casts to
+# text in 8.3 — so `published_at >= now()` does not compare, it raises. Rendering
+# the clock as the same string the stored rows are written in keeps one comparison
+# working on both backends, and keeps what we write in one format rather than two.
+_PG_UTC = "now() AT TIME ZONE 'UTC'"
+_PG_NOW = f"to_char({_PG_UTC}, 'YYYY-MM-DD HH24:MI:SS')"
+# `datetime('now', ?)` — the window is a bound parameter (`-30 days`), which is why
+# this cannot be spelled with a literal interval. The placeholder count is unchanged
+# by the rewrite, so parameter binding is unaffected.
+_PG_NOW_OFFSET = f"to_char(({_PG_UTC}) + (?)::interval, 'YYYY-MM-DD HH24:MI:SS')"
+
+_LITERAL_SPANNING: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bdatetime\s*\(\s*'now'\s*,\s*\?\s*\)", re.I), _PG_NOW_OFFSET),
+    (re.compile(r"\bdatetime\s*\(\s*'now'\s*\)", re.I), _PG_NOW),
+    (re.compile(r"\bdate\s*\(\s*'now'\s*\)", re.I),
+     f"to_char({_PG_UTC}, 'YYYY-MM-DD')"),
+)
+
+# Substitutions safe in any position OUTSIDE a string literal. Ordered: longer
+# patterns first, so a prefix never shadows the pattern it belongs to.
+_FUNCTION_MAP: tuple[tuple[re.Pattern[str], str], ...] = (
+    # `col IS ?` is SQLite's null-safe equality — the way to ask "same value,
+    # and NULL counts as the same as NULL". PostgreSQL spells it
+    # `IS NOT DISTINCT FROM`; its `IS` takes only NULL/TRUE/FALSE/UNKNOWN, so a
+    # parameter after it is a SYNTAX ERROR, not a mismatch — the statement never
+    # runs. That is what silently stopped every catalog sync after the Postgres
+    # cutover: `... AND year IS $4 ...` in the report upsert. Matched after the
+    # placeholder rewrite, so it is `%s` here, and `IS NULL` / `IS NOT NULL`
+    # cannot match. The two forms are exactly equivalent on both backends.
+    (re.compile(r"\bIS\s+NOT\s+%s", re.I), "IS DISTINCT FROM %s"),
+    (re.compile(r"\bIS\s+%s", re.I), "IS NOT DISTINCT FROM %s"),
+    (re.compile(r"\bIFNULL\s*\(", re.I), "COALESCE("),
+    (re.compile(r"\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b", re.I),
+     "BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY"),
+    (re.compile(r"\bAUTOINCREMENT\b", re.I), ""),
+    # SQLite stores everything as REAL; §10.1 forbids float for money, and
+    # PostgreSQL is the first backend that can honour that.
+    (re.compile(r"\bREAL\b"), "NUMERIC"),
+    (re.compile(r"\bjulianday\s*\(", re.I), "extract(epoch from "),
+    # Only the one-argument form over a plain column, which is provably
+    # `string_agg(col, ',')` — SQLite's default separator IS a comma. A call with
+    # its own separator, DISTINCT, ORDER BY or an expression inside is left alone
+    # and fails loudly on PostgreSQL, where it can be rewritten deliberately.
+    (re.compile(r"\bGROUP_CONCAT\s*\(\s*([A-Za-z_][\w.]*)\s*\)", re.I),
+     r"string_agg(\1, ',')"),
+)
+
+
+def _split_literals(sql: str) -> list[tuple[str, bool]]:
+    """Break a statement into (fragment, inert) parts.
+
+    Inert means "not code": a string literal or a comment. Both must survive
+    untouched, and for the same reason — a `?` inside either is not a
+    placeholder. Getting this wrong is not cosmetic: psycopg binds by counting
+    `%s`, so one introduced inside a comment shifts every parameter after it.
+
+    Quote and comment state are tracked by scanning, not matched by pattern:
+    `'it''s'` and `-- why? because` both defeat any regex that tries.
+    """
+    parts: list[tuple[str, bool]] = []
+    buf: list[str] = []
+    quote: str | None = None
+    i = 0
+    while i < len(sql):
+        ch = sql[i]
+        if quote:
+            buf.append(ch)
+            if ch == quote:
+                # Doubled quote is an escaped quote, not the end of the literal.
+                if i + 1 < len(sql) and sql[i + 1] == quote:
+                    buf.append(sql[i + 1])
+                    i += 2
+                    continue
+                parts.append(("".join(buf), True))
+                buf = []
+                quote = None
+            i += 1
+            continue
+        if ch == "-" and sql[i:i + 2] == "--":
+            if buf:
+                parts.append(("".join(buf), False))
+                buf = []
+            end = sql.find("\n", i)
+            end = len(sql) if end == -1 else end
+            parts.append((sql[i:end], True))
+            i = end
+            continue
+        if ch == "/" and sql[i:i + 2] == "/*":
+            if buf:
+                parts.append(("".join(buf), False))
+                buf = []
+            end = sql.find("*/", i + 2)
+            end = len(sql) if end == -1 else end + 2
+            parts.append((sql[i:end], True))
+            i = end
+            continue
+        if ch in ("'", '"'):
+            if buf:
+                parts.append(("".join(buf), False))
+                buf = []
+            quote = ch
+            buf.append(ch)
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    if buf:
+        parts.append(("".join(buf), quote is not None))
+    return parts
+
+
+def escape_percent(sql: str, target: str) -> str:
+    """Double every `%` that is NOT a placeholder, for a parameterised statement.
+
+    psycopg scans the whole query string for `%` whenever a params argument is
+    present, so one inside a string literal reads as a malformed placeholder and
+    the statement raises before it runs — «only '%s', '%b', '%t' are allowed as
+    placeholders, got '%''». That is what `published_at LIKE '____-__-__%'` did to
+    the market-events feed: HTTP 500 on every request.
+
+    Only INERT fragments are touched — string literals and comments — because the
+    `%s` placeholders live in the code fragments and doubling those would unbind
+    every parameter. And this is applied ONLY on the parameterised path: psycopg
+    does no unescaping when it is given no params, so a doubled `%%` in a bare
+    statement would reach the database literally and `LIKE 'sqlite_%%'` matches a
+    different set of tables than `LIKE 'sqlite_%'`.
+    """
+    if target != POSTGRES or "%" not in sql:
+        return sql
+    return "".join(fragment.replace("%", "%%") if is_literal else fragment
+                   for fragment, is_literal in _split_literals(sql))
+
+
+def translate(sql: str, target: str) -> str:
+    """Rewrite a SQLite statement for `target`. A no-op for SQLite."""
+    if target != POSTGRES:
+        return sql
+    for pattern, replacement in _LITERAL_SPANNING:
+        sql = pattern.sub(replacement, sql)
+    out: list[str] = []
+    for fragment, is_literal in _split_literals(sql):
+        if is_literal:
+            out.append(fragment)
+            continue
+        piece = fragment.replace("?", "%s")
+        for pattern, replacement in _FUNCTION_MAP:
+            piece = pattern.sub(replacement, piece)
+        out.append(piece)
+    return "".join(out)
+
+
+# `:name` outside a literal — SQLite's named placeholder, PostgreSQL's is
+# `%(name)s`. The negative lookbehind keeps `::cast` and `a:b` out of it.
+_NAMED = re.compile(r"(?<![:\w]):([a-zA-Z_]\w*)")
+_NAMED_REPLACEMENT = "%(" + chr(92) + "1)s"
+
+
+class UnsupportedStatement(RuntimeError):
+    """A statement that cannot be translated safely and must be rewritten."""
+
+
+_REFUSED = (
+    (re.compile(r"\bINSERT\s+OR\s+REPLACE\b", re.I),
+     "INSERT OR REPLACE has no equivalent — use INSERT ... ON CONFLICT DO UPDATE"),
+    # Appending ON CONFLICT DO NOTHING to the end of the statement would be the
+    # obvious translation, and it is wrong the moment a statement ends in RETURNING
+    # or already carries a conflict clause. Both backends accept the explicit form,
+    # so the call site writes it rather than the layer guessing at it.
+    (re.compile(r"\bINSERT\s+OR\s+IGNORE\b", re.I),
+     "INSERT OR IGNORE has no equivalent — use INSERT ... ON CONFLICT DO NOTHING"),
+    (re.compile(r"\bPRAGMA\b", re.I),
+     "PRAGMA is SQLite-only — use dbx.columns()/dbx.tables()"),
+)
+
+
+def _code_only(sql: str) -> str:
+    """The statement with literals and comments removed."""
+    return "".join(f for f, inert in _split_literals(sql) if not inert)
+
+
+def check_supported(sql: str) -> None:
+    """Refuse what cannot be translated — judged on the CODE.
+
+    Scanning the raw text made a statement illegal for explaining itself: a
+    comment reading "ON CONFLICT rather than INSERT OR REPLACE" tripped the very
+    rule it was documenting.
+    """
+    code = _code_only(sql)
+    for pattern, message in _REFUSED:
+        if pattern.search(code):
+            raise UnsupportedStatement(f"{message}: {sql.strip()[:120]}")
+
+
+# ---------------------------------------------------------------------------
+# Rows
+# ---------------------------------------------------------------------------
+
+def _py(value: Any) -> Any:
+    """A driver value in the type the application already works with.
+
+    PostgreSQL NUMERIC arrives as `decimal.Decimal`, and Python refuses to mix
+    Decimal with float — `net_income / roe * 100.0` raises rather than computes.
+    Every arithmetic site in the project consumes floats, so conversion happens
+    here, once, rather than at a hundred call sites.
+
+    What that costs, stated plainly: exactness ends at this boundary. The value
+    is STORED exactly, round-trips exactly, and sums exactly in SQL — which is
+    what removed 3 894 float artefacts and what §10.1 asks for. Arithmetic done
+    in Python is still float arithmetic. Carrying Decimal all the way through
+    the calculation layer is a further, separate change; doing it implicitly
+    here would mean every formula silently changing type mid-migration.
+    """
+    return float(value) if isinstance(value, Decimal) else value
+
+
+class Row(dict):
+    """A row addressable by name AND by index, as `sqlite3.Row` is.
+
+    Existing code reads `row["ticker"]` in some places and `row[0]` in others;
+    a migration that forced one style would touch every call site for no gain.
+    """
+
+    __slots__ = ("_order",)
+
+    def __init__(self, columns: Sequence[str], values: Sequence[Any]) -> None:
+        super().__init__(zip(columns, (_py(v) for v in values)))
+        self._order = list(columns)
+
+    def __getitem__(self, key: Any) -> Any:
+        if isinstance(key, int):
+            return super().__getitem__(self._order[key])
+        return super().__getitem__(key)
+
+    def keys(self) -> list[str]:  # type: ignore[override]
+        return list(self._order)
+
+
+# ---------------------------------------------------------------------------
+# Cursor / connection wrappers
+# ---------------------------------------------------------------------------
+
+class Cursor:
+    def __init__(self, raw: Any, target: str) -> None:
+        self._raw = raw
+        self._target = target
+
+    def execute(self, sql: str, params: Any = None) -> "Cursor":
+        """Positional or NAMED parameters — the codebase uses both.
+
+        A dict must reach the driver as a dict; wrapping it in `tuple()` yields
+        the keys and binds nonsense.
+        """
+        check_supported(sql)
+        statement = translate(sql, self._target)
+        if isinstance(params, dict):
+            if self._target == POSTGRES:
+                statement = _NAMED.sub(_NAMED_REPLACEMENT, statement)
+            self._raw.execute(escape_percent(statement, self._target), params)
+        elif params:
+            self._raw.execute(escape_percent(statement, self._target), tuple(params))
+        else:
+            # No parameters means no parameter PARSING. psycopg scans for `%`
+            # whenever a params argument is present -- even an empty tuple --
+            # and the schema DDL is full of `LIKE 'sqlite_%'`, which then reads
+            # as an incomplete placeholder. Passing nothing is not an
+            # optimisation; it is the difference between running and raising.
+            self._raw.execute(statement)
+        return self
+
+    def executemany(self, sql: str, seq: Iterable[Sequence[Any]]) -> "Cursor":
+        check_supported(sql)
+        # Always parameterised, so a literal `%` always needs doubling here.
+        self._raw.executemany(escape_percent(translate(sql, self._target), self._target),
+                              [tuple(p) for p in seq])
+        return self
+
+    def _columns(self) -> list[str]:
+        return [d[0] for d in (self._raw.description or [])]
+
+    def fetchone(self) -> Row | None:
+        row = self._raw.fetchone()
+        return Row(self._columns(), row) if row is not None else None
+
+    def fetchall(self) -> list[Row]:
+        cols = self._columns()
+        return [Row(cols, r) for r in self._raw.fetchall()]
+
+    def __iter__(self) -> Iterator[Row]:
+        cols = self._columns()
+        for row in self._raw:
+            yield Row(cols, row)
+
+    @property
+    def lastrowid(self) -> Any:
+        return getattr(self._raw, "lastrowid", None)
+
+    @property
+    def rowcount(self) -> int:
+        return self._raw.rowcount
+
+    def close(self) -> None:
+        self._raw.close()
+
+
+class Connection:
+    """The interface the application sees, identical on both backends."""
+
+    def __init__(self, raw: Any, target: str, pool: "Pool | None" = None) -> None:
+        self._raw = raw
+        self._target = target
+        self._pool = pool
+        self._schemas: set[str] = set()
+        self.row_factory = None            # accepted and ignored: rows are Rows
+
+    @property
+    def target(self) -> str:
+        return self._target
+
+    def ensure_schema(self, key: str, initializer: Any) -> None:
+        """Run a schema initializer ONCE per physical connection.
+
+        `CREATE TABLE IF NOT EXISTS` costs nothing on SQLite and a network round
+        trip per statement on PostgreSQL. Call sites here open a connection per
+        operation, so the catalog's 22-statement schema was replayed on every
+        acquire — thousands of times inside one request, which is what pushed
+        /api/admin/catalog/register past the collector's 120s timeout. Because
+        connections are pooled and reused, once-per-connection caps the replays
+        at `pool_size` for the life of the process; a connection that dies is
+        rebuilt with an empty set and re-initialises itself.
+        """
+        if key in self._schemas:
+            return
+        if self._target == POSTGRES:
+            # Different Railway replicas have separate Python locks but share
+            # PostgreSQL. Serialize idempotent DDL across those processes so
+            # concurrent CREATE/DROP/UPSERT statements cannot deadlock during
+            # a rolling start. The transaction-scoped lock is released by the
+            # initializer's commit (or by the caller's rollback on failure).
+            self.execute("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", (key,))
+        initializer(self)
+        self._schemas.add(key)
+
+    def cursor(self) -> Cursor:
+        return Cursor(self._raw.cursor(), self._target)
+
+    def execute(self, sql: str, params: Sequence[Any] | None = None) -> Cursor:
+        return self.cursor().execute(sql, params)
+
+    def executemany(self, sql: str, seq: Iterable[Sequence[Any]]) -> Cursor:
+        return self.cursor().executemany(sql, seq)
+
+    def executescript(self, script: str) -> None:
+        """Statements separated by `;`, run one at a time.
+
+        PostgreSQL has no `executescript`, and splitting must respect string
+        literals — a `;` inside quotes is data.
+        """
+        if self._target == SQLITE:
+            self._raw.executescript(script)
+            return
+        statement: list[str] = []
+        for fragment, is_literal in _split_literals(script):
+            if is_literal:
+                statement.append(fragment)
+                continue
+            pieces = fragment.split(";")
+            for piece in pieces[:-1]:
+                statement.append(piece)
+                text = "".join(statement).strip()
+                if text:
+                    self.execute(text)
+                statement = []
+            statement.append(pieces[-1])
+        tail = "".join(statement).strip()
+        if tail:
+            self.execute(tail)
+
+    def commit(self) -> None:
+        self._raw.commit()
+
+    def rollback(self) -> None:
+        self._raw.rollback()
+
+    def close(self) -> None:
+        """Return to the pool rather than actually closing.
+
+        Call sites open and close a connection per operation; on PostgreSQL a
+        real close per call would spend a network round trip on nothing.
+        """
+        if self._pool is not None:
+            self._pool.release(self)
+            return
+        self._raw.close()
+
+    def _really_close(self) -> None:
+        try:
+            self._raw.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+    def __enter__(self) -> "Connection":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if exc_type is None:
+            self.commit()
+        else:
+            self.rollback()
+
+
+# ---------------------------------------------------------------------------
+# Pool
+# ---------------------------------------------------------------------------
+
+class Pool:
+    """A small connection pool. Idle connections are reused, not reopened."""
+
+    def __init__(self, factory: Any, size: int = 8) -> None:
+        self._factory = factory
+        self._idle: "queue.LifoQueue[Connection]" = queue.LifoQueue()
+        self._size = size
+        self._lock = threading.Lock()
+        self._created = 0
+
+    def acquire(self) -> Connection:
+        try:
+            conn = self._idle.get_nowait()
+            if self._alive(conn):
+                return conn
+            conn._really_close()
+        except queue.Empty:
+            pass
+        with self._lock:
+            self._created += 1
+        return self._factory(self)
+
+    def release(self, conn: Connection) -> None:
+        if self._idle.qsize() >= self._size:
+            conn._really_close()
+            return
+        try:
+            conn.rollback()          # never hand over an open transaction
+        except Exception:  # noqa: BLE001
+            conn._really_close()
+            return
+        self._idle.put(conn)
+
+    @staticmethod
+    def _alive(conn: Connection) -> bool:
+        try:
+            conn._raw.cursor().execute("SELECT 1")
+            return True
+        except Exception:  # noqa: BLE001 — a dropped connection is not an error
+            return False
+
+    def drain(self) -> None:
+        while True:
+            try:
+                self._idle.get_nowait()._really_close()
+            except queue.Empty:
+                return
+
+    @property
+    def created(self) -> int:
+        return self._created
+
+
+_pools: dict[str, Pool] = {}
+_pools_lock = threading.Lock()
+
+
+def connect(sqlite_path: str, *, pool_size: int = 8) -> Connection:
+    """A connection to whichever backend is configured.
+
+    ``sqlite_path`` still identifies WHICH database is wanted even under
+    PostgreSQL — the project keeps several SQLite files, and their tables land
+    in one PostgreSQL database, so the path is the pool key and nothing more.
+    """
+    target = backend()
+    key = f"{target}:{sqlite_path}"
+    with _pools_lock:
+        pool = _pools.get(key)
+        if pool is None:
+            pool = Pool(_factory_for(target, sqlite_path), size=pool_size)
+            _pools[key] = pool
+    return pool.acquire()
+
+
+def _factory_for(target: str, sqlite_path: str) -> Any:
+    if target == POSTGRES:
+        url = postgres_url()
+        if not url:
+            raise RuntimeError("DATABASE_BACKEND=postgres but DATABASE_URL is not set")
+
+        def make_pg(pool: Pool) -> Connection:
+            import psycopg
+
+            raw = psycopg.connect(url, autocommit=False, connect_timeout=15)
+            schema = postgres_schema()
+            if schema != "public":
+                # `public` stays on the path so shared extensions still resolve.
+                raw.execute(f'SET search_path TO "{schema}", public')
+                raw.commit()
+            return Connection(raw, POSTGRES, pool)
+
+        return make_pg
+
+    def make_sqlite(pool: Pool) -> Connection:
+        raw = sqlite3.connect(sqlite_path, timeout=30, check_same_thread=False)
+        raw.execute("PRAGMA journal_mode = WAL")
+        raw.execute("PRAGMA busy_timeout = 30000")
+        raw.execute("PRAGMA foreign_keys = ON")
+        return Connection(raw, SQLITE, pool)
+
+    return make_sqlite
+
+
+@contextmanager
+def session(sqlite_path: str) -> Iterator[Connection]:
+    conn = connect(sqlite_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def reset_pools() -> None:
+    with _pools_lock:
+        for pool in _pools.values():
+            pool.drain()
+        _pools.clear()
+
+
+def ensure_schema(conn: Any, key: str, initializer: Any) -> None:
+    """Apply a schema initializer once per connection, whatever the connection is.
+
+    A raw DB-API connection has no memo, so it pays the initializer every time —
+    exactly the old behaviour, which is what migrations and the odd test want.
+    """
+    hook = getattr(conn, "ensure_schema", None)
+    if hook is None:
+        initializer(conn)
+        return
+    hook(key, initializer)
+
+
+# ---------------------------------------------------------------------------
+# Introspection — the portable replacement for PRAGMA
+# ---------------------------------------------------------------------------
+
+def _target_of(conn: Any) -> str:
+    """The backend a connection speaks.
+
+    Accepts a raw DB-API connection as well as a `dbx.Connection`: migrations
+    and one-off scripts are handed either, and guessing wrong here silently
+    returns "no columns", which reads as "the column is missing" and produces a
+    duplicate-column error two lines later.
+    """
+    return getattr(conn, "target", SQLITE)
+
+
+def _raw_of(conn: Any) -> Any:
+    return getattr(conn, "_raw", conn)
+
+
+def tables(conn: Any) -> list[str]:
+    if _target_of(conn) == POSTGRES:
+        # The CONFIGURED schema, not a hard-coded 'public'. Asking the wrong
+        # schema returns "no columns", which every caller reads as "the column
+        # is missing" and then fails adding one that is already there.
+        rows = conn.execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = ? ORDER BY table_name",
+            (postgres_schema(),)).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY name").fetchall()
+    return [r[0] for r in rows]
+
+
+def columns(conn: Any, table: str) -> list[str]:
+    if _target_of(conn) == POSTGRES:
+        rows = conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = ? AND table_name = ? "
+            "ORDER BY ordinal_position", (postgres_schema(), table)).fetchall()
+        return [r[0] for r in rows]
+    # Straight to the driver: `check_supported` refuses PRAGMA in application
+    # SQL, and this function is the sanctioned replacement for it.
+    raw = _raw_of(conn).cursor()
+    raw.execute(f"PRAGMA table_info({table})")
+    return [r[1] for r in raw.fetchall()]

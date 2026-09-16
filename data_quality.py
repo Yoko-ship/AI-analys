@@ -1,0 +1,1012 @@
+"""Evidence-backed data-quality queue and correction overlay.
+
+The collector-owned catalog remains the record of what a source supplied.  This
+module stores a separate, append-only review trail for gaps and corrections;
+only an approved correction is allowed to alter a value returned to readers.
+"""
+from __future__ import annotations
+
+import json
+import math
+import re
+import threading
+import uuid
+from datetime import datetime, timezone
+from typing import Any
+from urllib.parse import urlparse
+
+FINANCIAL_FIELDS = frozenset({
+    "revenue", "gross_profit", "cash", "total_liabilities", "net_income",
+    "operating_income", "total_assets", "total_equity", "current_assets",
+    "current_liabilities", "inventories", "noninterest_income",
+})
+_FORM_RE = re.compile(r"^(NSBU|MSFO|Audition)$")
+_TICKER_RE = re.compile(r"^[A-Z0-9]{2,40}$")
+_STATUS = {"draft", "approved", "rejected", "reverted"}
+_REPORTING_REFRESH_LOCK = threading.Lock()
+_REPORTING_REFRESHING: set[str] = set()
+
+
+class DataQualityError(ValueError):
+    """A validation/state error suitable for an admin-facing 4xx response."""
+
+
+def _conn():
+    import reports_catalog
+    return reports_catalog.get_catalog_conn()
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _ensure_schema(conn: Any) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS data_quality_issues (
+            id TEXT PRIMARY KEY,
+            source_key TEXT NOT NULL UNIQUE,
+            dataset TEXT NOT NULL,
+            ticker TEXT NOT NULL,
+            form TEXT,
+            year INTEGER,
+            quarter INTEGER NOT NULL DEFAULT 0,
+            field TEXT,
+            rule_code TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            original_value REAL,
+            details TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            resolved_at TEXT,
+            resolved_by TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dq_issues_status "
+                 "ON data_quality_issues(status, severity, updated_at)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS data_corrections (
+            id TEXT PRIMARY KEY,
+            ticker TEXT NOT NULL,
+            dataset TEXT NOT NULL,
+            form TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            quarter INTEGER NOT NULL DEFAULT 0,
+            field TEXT NOT NULL,
+            value_thousands_uzs REAL NOT NULL,
+            source_url TEXT NOT NULL,
+            source_reference TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'draft',
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            reviewed_by TEXT,
+            reviewed_at TEXT,
+            review_note TEXT,
+            supersedes_id TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dq_corrections_lookup "
+                 "ON data_corrections(ticker, dataset, form, year, quarter, field, status)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS data_publication_holds (
+            ticker TEXT NOT NULL,
+            form TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            quarter INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'active',
+            reason TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            released_by TEXT,
+            released_at TEXT,
+            PRIMARY KEY (ticker, form, year, quarter)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dq_publication_holds "
+                 "ON data_publication_holds(ticker, form, status)")
+    # A source refresh is not a manual correction: it re-imports an official
+    # filing and re-parses it. Keep this operational action separately so an
+    # administrator can tell the difference and see the actual outcome later.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS data_quality_refreshes (
+            id TEXT PRIMARY KEY,
+            ticker TEXT NOT NULL,
+            status TEXT NOT NULL,
+            latest_period TEXT,
+            reports_added INTEGER NOT NULL DEFAULT 0,
+            financials_updated INTEGER NOT NULL DEFAULT 0,
+            resolved_issues INTEGER NOT NULL DEFAULT 0,
+            details TEXT,
+            requested_by TEXT NOT NULL,
+            requested_at TEXT NOT NULL,
+            completed_at TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dq_refreshes_ticker "
+                 "ON data_quality_refreshes(ticker, requested_at DESC)")
+
+
+def _public(row: dict[str, Any]) -> dict[str, Any]:
+    row = dict(row)
+    for key in ("details",):
+        if isinstance(row.get(key), str):
+            try:
+                row[key] = json.loads(row[key])
+            except ValueError:
+                pass
+    return row
+
+
+def _issue_key(*parts: Any) -> str:
+    return ":".join("" if p is None else str(p) for p in parts)
+
+
+def held_public_periods(ticker: str, form: str = "NSBU") -> set[str]:
+    """Periods deliberately withheld from the public site, not from admin."""
+    ticker, form = str(ticker or "").upper(), str(form or "").upper()
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        rows = conn.execute("""SELECT year, quarter FROM data_publication_holds
+                            WHERE ticker=? AND form=? AND status='active'""",
+                            (ticker, form)).fetchall()
+        return {f"{row['year']}Q{row['quarter']}" if row["quarter"] else str(row["year"])
+                for row in rows}
+    finally:
+        conn.close()
+
+
+def set_publication_hold(ticker: str, form: str, year: int, quarter: int,
+                         active: bool, reason: str, actor: str) -> dict[str, Any]:
+    """Pause or restore one public report period while preserving its source."""
+    ticker, form = str(ticker or "").strip().upper(), str(form or "").strip().upper()
+    if not _TICKER_RE.fullmatch(ticker) or not _FORM_RE.fullmatch(form):
+        raise DataQualityError("Invalid ticker or report form")
+    if not 2000 <= int(year) <= 2100 or not 0 <= int(quarter) <= 4:
+        raise DataQualityError("Invalid report period")
+    now = _now()
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        with conn:
+            if active:
+                conn.execute("""INSERT INTO data_publication_holds
+                              (ticker, form, year, quarter, status, reason, created_by, created_at)
+                              VALUES (?,?,?,?,?,?,?,?)
+                              ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
+                                status='active', reason=excluded.reason, created_by=excluded.created_by,
+                                created_at=excluded.created_at, released_by=NULL, released_at=NULL""",
+                             (ticker, form, int(year), int(quarter), "active", str(reason).strip() or "Administrative review", actor, now))
+            else:
+                conn.execute("""UPDATE data_publication_holds
+                              SET status='released', released_by=?, released_at=?
+                              WHERE ticker=? AND form=? AND year=? AND quarter=?""",
+                             (actor, now, ticker, form, int(year), int(quarter)))
+        return {"ok": True, "ticker": ticker, "form": form,
+                "period": f"{year}Q{quarter}" if quarter else str(year),
+                "status": "active" if active else "released"}
+    finally:
+        conn.close()
+
+
+def _record_reporting_refresh(refresh_id: str, ticker: str, actor: str, *,
+                              status: str, latest_period: str | None = None,
+                              reports_added: int = 0, financials_updated: int = 0,
+                              resolved_issues: int = 0,
+                              details: dict[str, Any] | None = None,
+                              completed: bool = False) -> None:
+    """Persist one admin-triggered filing refresh without touching corrections."""
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        now = _now()
+        with conn:
+            conn.execute(
+                """INSERT INTO data_quality_refreshes
+                       (id,ticker,status,latest_period,reports_added,financials_updated,
+                        resolved_issues,details,requested_by,requested_at,completed_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     status=excluded.status, latest_period=excluded.latest_period,
+                     reports_added=excluded.reports_added,
+                     financials_updated=excluded.financials_updated,
+                     resolved_issues=excluded.resolved_issues, details=excluded.details,
+                     completed_at=excluded.completed_at""",
+                (refresh_id, ticker, status, latest_period, int(reports_added),
+                 int(financials_updated), int(resolved_issues),
+                 json.dumps(details or {}, ensure_ascii=False), actor, now,
+                 now if completed else None),
+            )
+    finally:
+        conn.close()
+
+
+def _resolve_rechecked_issues(ticker: str, actor: str) -> int:
+    """Close only findings demonstrably cleared by a fresh official import."""
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        issues = conn.execute(
+            "SELECT * FROM data_quality_issues WHERE ticker=? AND status='open'", (ticker,)
+        ).fetchall()
+        rows = conn.execute(
+            """SELECT form, year, quarter, revenue, net_income, total_assets,
+                      total_equity, total_liabilities
+                 FROM catalog_financials WHERE ticker=? AND form='NSBU'""", (ticker,)
+        ).fetchall()
+        financials = {(str(row["form"]), int(row["year"]), int(row["quarter"] or 0)): dict(row)
+                      for row in rows}
+        report_exists = bool(conn.execute(
+            "SELECT 1 FROM catalog_reports WHERE ticker=? LIMIT 1", (ticker,)
+        ).fetchone())
+        company = conn.execute(
+            "SELECT org_id, sync_error FROM catalog_companies WHERE ticker=?", (ticker,)
+        ).fetchone()
+        now, resolved = _now(), 0
+        with conn:
+            for raw in issues:
+                issue = _public(dict(raw))
+                row = financials.get((str(issue.get("form") or "NSBU"),
+                                      int(issue.get("year") or 0),
+                                      int(issue.get("quarter") or 0)))
+                fixed = False
+                if issue["rule_code"] == "MISSING_FINANCIAL_FIELD":
+                    fixed = bool(row and row.get(str(issue.get("field") or "")) is not None)
+                elif issue["rule_code"] == "BALANCE_MISMATCH" and row and row.get("total_assets"):
+                    assets, equity, liabilities = (row.get("total_assets"), row.get("total_equity"),
+                                                    row.get("total_liabilities"))
+                    fixed = all(value is not None for value in (assets, equity, liabilities)) and (
+                        abs(float(assets) - float(equity) - float(liabilities)) <= abs(float(assets)) * 0.001)
+                elif issue["rule_code"] == "MISSING_FINANCIAL_COVERAGE":
+                    fixed = bool(rows)
+                elif issue["rule_code"] == "MISSING_REPORT_COVERAGE":
+                    fixed = report_exists
+                elif issue["rule_code"] == "SOURCE_SYNC_FAILED":
+                    fixed = bool(company and not company["sync_error"])
+                elif issue["rule_code"] == "UNRESOLVED_ISSUER":
+                    fixed = bool(company and str(company["org_id"] or "").strip())
+                if fixed:
+                    conn.execute(
+                        """UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                               resolved_by=?, updated_at=? WHERE id=? AND status='open'""",
+                        (now, f"official refresh by {actor}", now, issue["id"]),
+                    )
+                    resolved += 1
+        return resolved
+    finally:
+        conn.close()
+
+
+def refresh_company_reporting(ticker: str, actor: str) -> dict[str, Any]:
+    """Re-import and re-parse one issuer's newest official reports.
+
+    This is the data-quality panel's safe operational fix for "no fresh
+    report" and parser-coverage findings. It never writes a guessed value or
+    creates a correction: only the source collector is run, then the current
+    cached statement is re-read and compatible queue findings are closed.
+    """
+    ticker = str(ticker or "").strip().upper()
+    if not _TICKER_RE.fullmatch(ticker):
+        raise DataQualityError("Ticker must contain 2-40 Latin letters or digits")
+    with _REPORTING_REFRESH_LOCK:
+        if ticker in _REPORTING_REFRESHING:
+            raise DataQualityError("Official-report refresh is already running for this company")
+        _REPORTING_REFRESHING.add(ticker)
+    refresh_id = str(uuid.uuid4())
+    _record_reporting_refresh(refresh_id, ticker, actor, status="running")
+    try:
+        import reports_catalog
+
+        conn = _conn()
+        try:
+            company = conn.execute(
+                "SELECT company_name, org_id FROM catalog_companies WHERE ticker=?", (ticker,)
+            ).fetchone()
+        finally:
+            conn.close()
+        if not company:
+            raise DataQualityError("Company is not catalogued; approve or map the issuer first")
+
+        sync = reports_catalog.sync_company(
+            ticker, str(company["company_name"] or ticker), force=True,
+            org_id=str(company["org_id"] or "") or None,
+        )
+        errors = list(sync.get("errors") or []) if isinstance(sync, dict) else []
+        if errors:
+            raise DataQualityError("; ".join(str(error) for error in errors))
+
+        # ttl_days=0 deliberately makes this an explicit re-parse even when a
+        # scheduled collector filled the cache earlier today.
+        refreshed = reports_catalog.refresh_financials_cache(
+            [ticker], form="NSBU", limit=1, ttl_days=0, sync_missing=False,
+        )
+        reports_catalog.invalidate_ratios_cache()
+        latest = reports_catalog.get_all_financials().get(ticker) or {}
+        year, quarter = latest.get("year"), latest.get("quarter")
+        latest_period = (f"{year}Q{quarter}" if year and quarter else str(year) if year else None)
+        resolved = _resolve_rechecked_issues(ticker, actor)
+        details = {
+            "catalog_sync": {"added": int(sync.get("added") or 0), "org_id": sync.get("org_id")},
+            "financial_refresh": {key: refreshed.get(key) for key in ("processed", "filled", "candidates")},
+        }
+        _record_reporting_refresh(
+            refresh_id, ticker, actor, status="complete", latest_period=latest_period,
+            reports_added=int(sync.get("added") or 0),
+            financials_updated=int(refreshed.get("filled") or 0),
+            resolved_issues=resolved, details=details, completed=True,
+        )
+        return {"ok": True, "id": refresh_id, "ticker": ticker,
+                "status": "complete", "latest_period": latest_period,
+                "reports_added": int(sync.get("added") or 0),
+                "financials_updated": int(refreshed.get("filled") or 0),
+                "resolved_issues": resolved, "details": details}
+    except DataQualityError as exc:
+        _record_reporting_refresh(refresh_id, ticker, actor, status="failed",
+                                  details={"error": str(exc)}, completed=True)
+        raise
+    except Exception as exc:  # noqa: BLE001 - transformed into a clear admin result
+        _record_reporting_refresh(refresh_id, ticker, actor, status="failed",
+                                  details={"error": str(exc)}, completed=True)
+        raise DataQualityError(f"Official-report refresh failed: {exc}") from None
+    finally:
+        with _REPORTING_REFRESH_LOCK:
+            _REPORTING_REFRESHING.discard(ticker)
+
+
+def _upsert_issue(conn: Any, *, source_key: str, dataset: str, ticker: str,
+                  form: str | None, year: int | None, quarter: int, field: str | None,
+                  rule_code: str, severity: str, original_value: float | None,
+                  details: dict[str, Any]) -> bool:
+    existing = conn.execute("SELECT id, status FROM data_quality_issues WHERE source_key=?",
+                            (source_key,)).fetchone()
+    now = _now()
+    if existing:
+        # A reviewer may have resolved/ignored an issue intentionally. A scan
+        # updates the observation but must not silently reopen that decision.
+        conn.execute("""UPDATE data_quality_issues
+                     SET original_value=?, details=?, severity=?, updated_at=?
+                     WHERE source_key=?""",
+                     (original_value, json.dumps(details, ensure_ascii=False), severity, now, source_key))
+        return False
+    conn.execute("""INSERT INTO data_quality_issues
+                 (id,source_key,dataset,ticker,form,year,quarter,field,rule_code,
+                  severity,status,original_value,details,created_at,updated_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 (str(uuid.uuid4()), source_key, dataset, ticker, form, year, quarter,
+                  field, rule_code, severity, "open", original_value,
+                  json.dumps(details, ensure_ascii=False), now, now))
+    return True
+
+
+def scan_financial_issues() -> dict[str, Any]:
+    """Persist financial and catalogue-coverage gaps without changing source rows."""
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        rows = conn.execute("""SELECT ticker, form, year, quarter, revenue, net_income,
+                            total_assets, total_equity, total_liabilities, report_id
+                            FROM catalog_financials WHERE form='NSBU'""").fetchall()
+        created = 0
+        with conn:
+            for source in rows:
+                row = dict(source)
+                ticker, form = str(row["ticker"]).upper(), str(row["form"])
+                year, quarter = int(row["year"]), int(row["quarter"] or 0)
+                # The bundled correction register is already an approved
+                # baseline. It should not flood a new queue with historical
+                # gaps that the served read path has already repaired.
+                from financial_corrections import corrections_for
+                baseline = corrections_for(ticker, f"{year}Q{quarter or 4}")
+                for field in ("net_income", "total_assets", "total_equity"):
+                    if row.get(field) is None and field not in baseline:
+                        created += _upsert_issue(
+                            conn, source_key=_issue_key("missing", ticker, form, year, quarter, field),
+                            dataset="financials", ticker=ticker, form=form, year=year,
+                            quarter=quarter, field=field, rule_code="MISSING_FINANCIAL_FIELD",
+                            severity="warning", original_value=None,
+                            details={"message": "The parsed filing has no value for this required field.",
+                                     "report_id": row.get("report_id")})
+                assets, equity, liabilities = (row.get("total_assets"), row.get("total_equity"),
+                                                row.get("total_liabilities"))
+                if all(v is not None for v in (assets, equity, liabilities)) and assets:
+                    variance = abs(float(assets) - float(equity) - float(liabilities)) / abs(float(assets))
+                    if variance > 0.001:
+                        created += _upsert_issue(
+                            conn, source_key=_issue_key("balance", ticker, form, year, quarter),
+                            dataset="financials", ticker=ticker, form=form, year=year,
+                            quarter=quarter, field=None, rule_code="BALANCE_MISMATCH",
+                            severity="blocking", original_value=None,
+                            details={"variance": variance, "report_id": row.get("report_id"),
+                                     "observed_values": {"total_assets": float(assets),
+                                                         "total_equity": float(equity),
+                                                         "total_liabilities": float(liabilities)},
+                                     "difference_thousands_uzs": float(assets) - float(equity) - float(liabilities),
+                                     "message": "Assets do not equal equity plus liabilities."})
+            # A board instrument can be missing from catalog_companies while it
+            # is already present in listings. Include both so the queue sees the
+            # exact class of gaps reported by /api/coverage.
+            catalog = {
+                str(r["ticker"]).upper(): dict(r)
+                for r in conn.execute("SELECT ticker, org_id, sync_error FROM catalog_companies").fetchall()
+            }
+            listed = {str(r["ticker"]).upper() for r in conn.execute(
+                "SELECT ticker FROM catalog_listings WHERE ticker IS NOT NULL").fetchall()}
+            financial_tickers = {str(r["ticker"]).upper() for r in conn.execute(
+                "SELECT DISTINCT ticker FROM catalog_financials WHERE form='NSBU'").fetchall()}
+            report_counts = {str(r["ticker"]).upper(): int(r["count"]) for r in conn.execute(
+                "SELECT ticker, COUNT(*) AS count FROM catalog_reports GROUP BY ticker").fetchall()}
+            for ticker in set(catalog) | listed:
+                company = catalog.get(ticker, {})
+                if not company.get("org_id"):
+                    created += _upsert_issue(
+                        conn, source_key=_issue_key("unresolved", ticker), dataset="catalog",
+                        ticker=ticker, form=None, year=None, quarter=0, field=None,
+                        rule_code="UNRESOLVED_ISSUER", severity="blocking", original_value=None,
+                        details={"message": "No issuer mapping is available for this security."})
+                if ticker not in financial_tickers:
+                    created += _upsert_issue(
+                        conn, source_key=_issue_key("coverage", ticker, "financials"), dataset="coverage",
+                        ticker=ticker, form="NSBU", year=None, quarter=0, field=None,
+                        rule_code="MISSING_FINANCIAL_COVERAGE", severity="warning", original_value=None,
+                        details={"message": "No NSBU financial record is available for this security."})
+                if not report_counts.get(ticker):
+                    created += _upsert_issue(
+                        conn, source_key=_issue_key("coverage", ticker, "reports"), dataset="coverage",
+                        ticker=ticker, form="NSBU", year=None, quarter=0, field=None,
+                        rule_code="MISSING_REPORT_COVERAGE", severity="info", original_value=None,
+                        details={"message": "No linked source report is available for this security."})
+                if company.get("sync_error"):
+                    created += _upsert_issue(
+                        conn, source_key=_issue_key("sync", ticker), dataset="catalog", ticker=ticker,
+                        form=None, year=None, quarter=0, field=None, rule_code="SOURCE_SYNC_FAILED",
+                        severity="warning", original_value=None,
+                        details={"message": str(company["sync_error"])[:2000]})
+        return {"ok": True, "scanned": len(rows) + len(set(catalog) | listed), "created": created}
+    finally:
+        conn.close()
+
+
+def scan_analysis_issue(ticker: str) -> dict[str, Any]:
+    """Evaluate the same sector-quality gate shown on one public company page.
+
+    This deliberately scans one issuer at a time: workbook enrichment can be
+    expensive, while an administrator normally arrives here from a specific
+    blocked company card and needs an answer immediately.
+    """
+    ticker = str(ticker or "").strip().upper()
+    if not _TICKER_RE.fullmatch(ticker):
+        raise DataQualityError("Ticker must contain 2-40 Latin letters or digits")
+    try:
+        from issuer_analysis_api import _resolve_issuer
+        from sector_report_service import sector_report
+        report = sector_report(_resolve_issuer(ticker), "nsbu", None, "separate", "ru", persist=False)
+    except Exception as exc:
+        raise DataQualityError(f"Company analysis could not be checked: {exc}") from None
+
+    period = str(report.get("period") or "")
+    match = re.fullmatch(r"(\d{4})(?:Q([1-4]))?", period)
+    year, quarter = (int(match.group(1)), int(match.group(2) or 0)) if match else (None, 0)
+    sources = report.get("sources") or []
+    source = sources[0] if sources and isinstance(sources[0], dict) else {}
+    source_url = str(source.get("url") or "")
+    blockers = [item for item in report.get("data_quality") or []
+                if isinstance(item, dict) and item.get("severity") == "blocking"]
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        created = 0
+        now = _now()
+        with conn:
+            for finding in blockers:
+                code = str(finding.get("code") or "ANALYSIS_QUALITY_BLOCKED").upper()
+                created += _upsert_issue(
+                    conn, source_key=_issue_key("analysis", ticker, period, code), dataset="analysis",
+                    ticker=ticker, form="NSBU", year=year, quarter=quarter, field=None,
+                    rule_code=code, severity="blocking", original_value=None,
+                    details={"message": str(finding.get("message") or code), "analysis_status": report.get("status"),
+                             "source_url": source_url, "source_document_id": source.get("document_id"),
+                             "period": period, "finding": finding})
+            if not blockers and year:
+                conn.execute("""UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                             resolved_by='analysis recheck', updated_at=?
+                             WHERE dataset='analysis' AND ticker=? AND year=? AND quarter=? AND status='open'""",
+                             (now, now, ticker, year, quarter))
+        return {"ok": True, "ticker": ticker, "period": period or None, "status": report.get("status"),
+                "blocking": len(blockers), "blocker_codes": [str(item.get("code") or "") for item in blockers],
+                "created": created, "source_url": source_url}
+    finally:
+        conn.close()
+
+
+def list_issues(status: str | None = None, limit: int = 300) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        sql = "SELECT * FROM data_quality_issues"
+        params: list[Any] = []
+        if status:
+            sql += " WHERE status=?"
+            params.append(status)
+        sql += " ORDER BY CASE severity WHEN 'blocking' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, updated_at DESC LIMIT ?"
+        params.append(max(1, min(limit, 1000)))
+        items = [_public(dict(r)) for r in conn.execute(sql, params).fetchall()]
+        # One legal issuer can have ordinary/preferred (and other) tickers.
+        # Present that relationship instead of making the queue look like two
+        # unrelated companies with identical filings.
+        companies = {str(row["ticker"]).upper(): dict(row) for row in conn.execute(
+            "SELECT ticker, company_name, org_id FROM catalog_companies").fetchall()}
+        issuer_members: dict[str, list[tuple[str, str]]] = {}
+        for ticker, company in companies.items():
+            name = str(company.get("company_name") or "").strip()
+            group_key = (str(company.get("org_id") or "").strip()
+                         or (f"name:{name.casefold()}" if name else f"ticker:{ticker}"))
+            issuer_members.setdefault(group_key, []).append((ticker, name))
+        issuer_tickers = {key: [ticker for ticker, _ in sorted(members)]
+                          for key, members in issuer_members.items()}
+        # The alphabetically first ticker is normally the ordinary share; using
+        # its name prevents a preferred-share suffix from becoming the issuer's
+        # headline for every row in the group.
+        issuer_names = {key: next((name for _, name in sorted(members) if name), "")
+                        for key, members in issuer_members.items()}
+        for item in items:
+            company = companies.get(str(item["ticker"]).upper())
+            if not company:
+                item["issuer_name"] = item["ticker"]
+                item["issuer_tickers"] = [item["ticker"]]
+                continue
+            name = str(company.get("company_name") or item["ticker"]).strip()
+            group_key = (str(company.get("org_id") or "").strip()
+                         or (f"name:{name.casefold()}" if name else f"ticker:{item['ticker']}"))
+            item["issuer_name"] = issuer_names.get(group_key) or name
+            item["issuer_tickers"] = issuer_tickers.get(group_key, [item["ticker"]])
+        # Old findings predate the structured balance details above. Enrich the
+        # response from the current source row so an operator can see the exact
+        # discrepancy immediately, without running a scan or changing a record.
+        for item in items:
+            if item["dataset"] != "financials" or not item.get("year"):
+                continue
+            source = conn.execute("""SELECT total_assets, total_equity, total_liabilities
+                                     FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=?""",
+                                  (item["ticker"], item["form"], item["year"], item["quarter"])).fetchone()
+            if not source:
+                continue
+            raw_details = item.get("details")
+            details = dict(raw_details) if isinstance(raw_details, dict) else {}
+            values = {key: (None if source[key] is None else float(source[key]))
+                      for key in ("total_assets", "total_equity", "total_liabilities")}
+            details["observed_values"] = values
+            if item["rule_code"] == "BALANCE_MISMATCH" and all(value is not None for value in values.values()):
+                details["difference_thousands_uzs"] = (values["total_assets"] - values["total_equity"]
+                                                         - values["total_liabilities"])
+            item["details"] = details
+        counts = {r["status"]: r["count"] for r in conn.execute(
+            "SELECT status, COUNT(*) AS count FROM data_quality_issues GROUP BY status").fetchall()}
+        return {"ok": True, "items": items, "counts": counts}
+    finally:
+        conn.close()
+
+
+def list_corrections(ticker: str | None = None, limit: int = 300) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        sql, params = "SELECT * FROM data_corrections", []
+        if ticker:
+            sql += " WHERE ticker=?"
+            params.append(str(ticker).upper())
+        sql += " ORDER BY created_at DESC LIMIT ?"
+        params.append(max(1, min(limit, 1000)))
+        return {"ok": True, "items": [dict(r) for r in conn.execute(sql, params).fetchall()]}
+    finally:
+        conn.close()
+
+
+def resolve_issuer_mapping_issue(ticker: str, actor: str) -> dict[str, Any]:
+    """Close the issuer-mapping finding once an admin has verified its org ID."""
+    ticker = str(ticker or "").strip().upper()
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        company = conn.execute(
+            "SELECT org_id FROM catalog_companies WHERE ticker=?", (ticker,)
+        ).fetchone()
+        if not company or not str(company["org_id"] or "").strip():
+            raise DataQualityError("A verified OpenInfo organization ID is required")
+        now = _now()
+        with conn:
+            cursor = conn.execute("""UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                                resolved_by=?, updated_at=?
+                             WHERE dataset='catalog' AND ticker=? AND rule_code='UNRESOLVED_ISSUER'
+                               AND status='open'""", (now, actor, now, ticker))
+        return {"ok": True, "ticker": ticker, "resolved": cursor.rowcount}
+    finally:
+        conn.close()
+
+
+def _official_report_evidence(conn: sqlite3.Connection, issue: dict[str, Any]) -> dict[str, Any]:
+    """Find the official filing for this security or any share class of its issuer.
+
+    OpenInfo filings belong to a legal issuer, whereas this cache is keyed by
+    traded security.  An ordinary and preferred share can therefore point at
+    the same financial row while the document is stored under only one ticker.
+    Evidence lookup must follow that relationship dynamically; a correction is
+    never allowed to rely on a hard-coded issuer or URL.
+    """
+    report = conn.execute(
+        """WITH issuer AS (
+                 SELECT NULLIF(TRIM(org_id), '') AS org_id
+                   FROM catalog_companies WHERE ticker=?
+             )
+             SELECT r.ticker, r.title, r.pdf_url, r.excel_url, r.excel_url_form1,
+                    r.published_at, r.openinfo_report_id
+               FROM catalog_reports r
+              WHERE r.report_form=? AND r.year=? AND r.quarter=?
+                AND (r.ticker=? OR EXISTS (
+                    SELECT 1 FROM catalog_companies sibling, issuer
+                     WHERE sibling.ticker=r.ticker
+                       AND sibling.org_id=issuer.org_id
+                       AND issuer.org_id IS NOT NULL
+                ))
+              ORDER BY CASE WHEN r.ticker=? THEN 0 ELSE 1 END,
+                       CASE WHEN r.pdf_url IS NOT NULL AND r.pdf_url != '' THEN 0 ELSE 1 END,
+                       CASE WHEN r.excel_url IS NOT NULL AND r.excel_url != '' THEN 0 ELSE 1 END
+              LIMIT 1""",
+        (issue["ticker"], issue["form"], issue["year"], issue["quarter"],
+         issue["ticker"], issue["ticker"]),
+    ).fetchone()
+    if not report:
+        return {"source_url": "", "source_reference": "", "available": False}
+    report = dict(report)
+    source_url = report.get("pdf_url") or report.get("excel_url") or report.get("excel_url_form1") or ""
+    period = f"{issue['form']} {issue['year']}Q{issue['quarter'] or 4}"
+    label = str(report.get("title") or f"{report['ticker']} {period}").strip()
+    if report.get("published_at"):
+        label = f"{label}; опубликован {report['published_at']}"
+    return {"source_url": source_url, "source_reference": label[:500],
+            "available": bool(source_url), "source_ticker": report["ticker"]}
+
+
+def suggest_correction(issue_id: str) -> dict[str, Any]:
+    """Return an editable, deterministic correction proposal for one finding.
+
+    A balance equation can prove that *one or more* values disagree, but cannot
+    prove which input was mistyped.  We therefore expose every algebraic answer
+    and choose the smallest relative edit merely as a starting point.  The
+    caller must still attach the primary-source evidence before approval.
+    """
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        issue_row = conn.execute("SELECT * FROM data_quality_issues WHERE id=?", (issue_id,)).fetchone()
+        if not issue_row:
+            raise DataQualityError("Data-quality issue not found")
+        issue = _public(dict(issue_row))
+        if issue["dataset"] != "financials" or not issue.get("year"):
+            return {"ok": True, "recommended": None, "alternatives": [],
+                    "message": "This finding has no deterministic financial correction."}
+
+        evidence = _official_report_evidence(conn, issue)
+
+        def response(recommended: dict[str, Any] | None, alternatives: list[dict[str, Any]],
+                     message: str) -> dict[str, Any]:
+            method = recommended.get("method") if recommended else None
+            reason = ("Значение автоматически извлечено из привязанного официального отчёта "
+                      f"и прошло сверку баланса: {method}.") if method and method.startswith("Official filing") else (
+                      f"Автоматическая подсказка по формуле: {method}. "
+                      "Перед подтверждением сверить значение с привязанным отчётом.") if method else (
+                      "Ручная проверка значения по привязанному официальному отчёту.")
+            return {"ok": True, "recommended": recommended, "alternatives": alternatives,
+                    "message": message, "evidence": evidence, "reason": reason}
+
+        row = conn.execute("""SELECT total_assets, total_equity, total_liabilities
+                              FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=?""",
+                           (issue["ticker"], issue["form"], issue["year"], issue["quarter"])).fetchone()
+        if not row:
+            return response(None, [], "The source financial row is not available any more.")
+        values = {key: (None if row[key] is None else float(row[key]))
+                  for key in ("total_assets", "total_equity", "total_liabilities")}
+        if any(value is not None and not math.isfinite(value) for value in values.values()):
+            return response(None, [], "The source row contains a non-finite value.")
+
+        def candidate(field: str, value: float, confidence: str, method: str) -> dict[str, Any]:
+            current = values.get(field)
+            delta = None if current is None else abs(value - current)
+            relative_delta = None if delta is None else delta / max(abs(current), abs(value), 1.0)
+            return {"field": field, "value_thousands_uzs": value,
+                    "current_value_thousands_uzs": current, "relative_delta": relative_delta,
+                    "confidence": confidence, "method": method}
+
+        alternatives: list[dict[str, Any]] = []
+        if issue["rule_code"] == "BALANCE_MISMATCH":
+            assets, equity, liabilities = (values["total_assets"], values["total_equity"],
+                                            values["total_liabilities"])
+            if all(value is not None for value in (assets, equity, liabilities)):
+                alternatives = [
+                    candidate("total_assets", equity + liabilities, "low",
+                              "Assets = equity + liabilities"),
+                    candidate("total_equity", assets - liabilities, "low",
+                              "Equity = assets − liabilities"),
+                    candidate("total_liabilities", assets - equity, "low",
+                              "Liabilities = assets − equity"),
+                ]
+                alternatives.sort(key=lambda item: float(item["relative_delta"] or 0))
+                result = response(alternatives[0], alternatives,
+                                  "The first option changes the recorded value least. "
+                                  "A balance equation alone cannot identify the wrong field; "
+                                  "confirm it against the filing or select/edit another option.")
+                result["source_values"] = values
+                return result
+
+        # A missing balance-sheet component is safely derivable only when the
+        # other two components are present. Net income has no such identity.
+        field = issue.get("field")
+        if field == "total_assets" and values["total_equity"] is not None and values["total_liabilities"] is not None:
+            alternatives = [candidate("total_assets", values["total_equity"] + values["total_liabilities"],
+                                      "medium", "Assets = equity + liabilities")]
+        elif field == "total_equity" and values["total_assets"] is not None and values["total_liabilities"] is not None:
+            alternatives = [candidate("total_equity", values["total_assets"] - values["total_liabilities"],
+                                      "medium", "Equity = assets − liabilities")]
+        elif field == "total_liabilities" and values["total_assets"] is not None and values["total_equity"] is not None:
+            alternatives = [candidate("total_liabilities", values["total_assets"] - values["total_equity"],
+                                      "medium", "Liabilities = assets − equity")]
+        if alternatives:
+            result = response(alternatives[0], alternatives,
+                              "Calculated from the two available balance-sheet values; confirm it against the filing.")
+            result["source_values"] = values
+            return result
+        # A missing value may still be present in the official workbook when a
+        # previous catalogue parse omitted its balance line. Re-read that exact
+        # filing instead of guessing from another period. For balance fields we
+        # insist that all three totals reconcile before offering one-click apply.
+        if evidence.get("available"):
+            try:
+                import reports_catalog
+                parsed_values = reports_catalog.parse_catalogued_report(
+                    issue["ticker"], issue["form"], int(issue["year"]), int(issue["quarter"] or 0))
+                parsed_value = parsed_values.get(field)
+                if parsed_value is not None and math.isfinite(float(parsed_value)):
+                    balance_fields = ("total_assets", "total_equity", "total_liabilities")
+                    parsed_balance = {key: parsed_values.get(key) for key in balance_fields}
+                    balance_ready = all(value is not None and math.isfinite(float(value))
+                                        for value in parsed_balance.values())
+                    balance_ok = True
+                    if field in balance_fields:
+                        if not balance_ready:
+                            balance_ok = False
+                        else:
+                            assets = float(parsed_balance["total_assets"])
+                            difference = assets - float(parsed_balance["total_equity"]) - float(parsed_balance["total_liabilities"])
+                            balance_ok = abs(difference) <= max(1.0, abs(assets) * 0.0005)
+                    if balance_ok:
+                        recommendation = candidate(
+                            field, float(parsed_value), "high",
+                            "Official filing workbook; parsed statement line and balance reconciliation",
+                        )
+                        result = response(
+                            recommendation, [recommendation],
+                            "Extracted from the linked official filing and passed the balance check.",
+                        )
+                        result["source_values"] = parsed_balance
+                        return result
+            except Exception:  # A source failure leaves the safe manual path available.
+                logger.exception("Official filing re-parse failed for %s %sQ%s", issue["ticker"], issue["year"], issue["quarter"] or 4)
+        return response(None, [], "There is not enough related data for a reliable calculation. Enter a value manually from the filing.")
+    finally:
+        conn.close()
+
+
+def _validate(payload: dict[str, Any]) -> dict[str, Any]:
+    ticker = str(payload.get("ticker") or "").strip().upper()
+    field, form = str(payload.get("field") or "").strip(), str(payload.get("form") or "NSBU").strip()
+    if not _TICKER_RE.fullmatch(ticker):
+        raise DataQualityError("Ticker must contain 2-40 Latin letters or digits")
+    if field not in FINANCIAL_FIELDS:
+        raise DataQualityError("Unsupported financial field")
+    if not _FORM_RE.fullmatch(form):
+        raise DataQualityError("Unsupported report form")
+    try:
+        year, quarter = int(payload.get("year")), int(payload.get("quarter") or 0)
+        value = float(payload.get("value_thousands_uzs"))
+    except (TypeError, ValueError):
+        raise DataQualityError("Year, quarter and value must be numeric") from None
+    if not 2000 <= year <= 2100 or not 0 <= quarter <= 4 or not math.isfinite(value):
+        raise DataQualityError("Invalid period or correction value")
+    source_url = str(payload.get("source_url") or "").strip()
+    parsed = urlparse(source_url)
+    if parsed.scheme not in {"https", "http"} or not parsed.netloc:
+        raise DataQualityError("A valid evidence URL is required")
+    source_reference = str(payload.get("source_reference") or "").strip()
+    reason = str(payload.get("reason") or "").strip()
+    if not source_reference or not reason:
+        raise DataQualityError("Source reference and reason are required")
+    return {"ticker": ticker, "form": form, "year": year, "quarter": quarter,
+            "field": field, "value_thousands_uzs": value, "source_url": source_url,
+            "source_reference": source_reference[:500], "reason": reason[:2000]}
+
+
+def create_correction(payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    data = _validate(payload)
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        now, record_id = _now(), str(uuid.uuid4())
+        with conn:
+            conn.execute("""INSERT INTO data_corrections
+                         (id,ticker,dataset,form,year,quarter,field,value_thousands_uzs,
+                          source_url,source_reference,reason,status,created_by,created_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                         (record_id, data["ticker"], "financials", data["form"], data["year"],
+                          data["quarter"], data["field"], data["value_thousands_uzs"],
+                          data["source_url"], data["source_reference"], data["reason"],
+                          "draft", actor, now))
+        row = conn.execute("SELECT * FROM data_corrections WHERE id=?", (record_id,)).fetchone()
+        return dict(row)
+    finally:
+        conn.close()
+
+
+def review_correction(record_id: str, status: str, actor: str, note: str | None = None) -> dict[str, Any]:
+    if status not in {"approved", "rejected", "reverted"}:
+        raise DataQualityError("Review status must be approved, rejected or reverted")
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        record = conn.execute("SELECT * FROM data_corrections WHERE id=?", (record_id,)).fetchone()
+        if not record:
+            raise DataQualityError("Correction not found")
+        record = dict(record)
+        if record["status"] != "draft" and status != "reverted":
+            raise DataQualityError("Only a draft correction can be approved or rejected")
+        if status == "reverted" and record["status"] != "approved":
+            raise DataQualityError("Only an approved correction can be reverted")
+        now = _now()
+        with conn:
+            if status == "approved":
+                # One active answer per exact data point. Earlier approved records
+                # remain auditable but cease to be served.
+                conn.execute("""UPDATE data_corrections SET status='reverted', reviewed_by=?,
+                             reviewed_at=?, review_note='Superseded by a newer approved correction'
+                             WHERE ticker=? AND dataset='financials' AND form=? AND year=?
+                             AND quarter=? AND field=? AND status='approved'""",
+                             (actor, now, record["ticker"], record["form"], record["year"],
+                              record["quarter"], record["field"]))
+            conn.execute("""UPDATE data_corrections SET status=?, reviewed_by=?, reviewed_at=?,
+                         review_note=? WHERE id=?""", (status, actor, now, (note or "")[:2000], record_id))
+            if status == "approved":
+                conn.execute("""UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                             resolved_by=?, updated_at=? WHERE dataset='financials' AND ticker=?
+                             AND form=? AND year=? AND quarter=? AND field=? AND status='open'""",
+                             (now, actor, now, record["ticker"], record["form"], record["year"],
+                              record["quarter"], record["field"]))
+        row = conn.execute("SELECT * FROM data_corrections WHERE id=?", (record_id,)).fetchone()
+        return dict(row)
+    finally:
+        conn.close()
+
+
+def apply_correction(payload: dict[str, Any], actor: str, issue_id: str | None = None) -> dict[str, Any]:
+    """Create and approve a correction in one audited operation."""
+    created = create_correction(payload, actor)
+    approved = review_correction(created["id"], "approved", actor, "Applied immediately by administrator")
+    if issue_id:
+        conn = _conn()
+        try:
+            _ensure_schema(conn)
+            now = _now()
+            with conn:
+                conn.execute("""UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                             resolved_by=?, updated_at=? WHERE id=? AND status='open'""",
+                             (now, actor, now, issue_id))
+        finally:
+            conn.close()
+    return approved
+
+
+def auto_apply_issue(issue_id: str, actor: str) -> dict[str, Any]:
+    """Apply the deterministic proposal for an open finding with linked evidence."""
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        row = conn.execute("SELECT * FROM data_quality_issues WHERE id=?", (issue_id,)).fetchone()
+        if not row:
+            raise DataQualityError("Data-quality issue not found")
+        issue = dict(row)
+        if issue["status"] != "open":
+            raise DataQualityError("This finding is no longer open")
+    finally:
+        conn.close()
+
+    proposal = suggest_correction(issue_id)
+    recommended = proposal.get("recommended")
+    evidence = proposal.get("evidence") or {}
+    if not recommended:
+        raise DataQualityError("No reliable automatic value is available; use manual correction")
+    if not evidence.get("available"):
+        raise DataQualityError("No linked official report is available; add evidence manually")
+    payload = {
+        "ticker": issue["ticker"], "form": issue["form"], "year": issue["year"],
+        "quarter": issue["quarter"], "field": recommended["field"],
+        "value_thousands_uzs": recommended["value_thousands_uzs"],
+        "source_url": evidence["source_url"], "source_reference": evidence["source_reference"],
+        "reason": proposal["reason"],
+    }
+    return apply_correction(payload, actor, issue_id)
+
+
+def auto_apply_unit_scale_issue(issue_id: str, actor: str) -> dict[str, Any]:
+    """Correct an income statement that is 1,000× larger than its balanced form 1.
+
+    The gate only offers this action for the unambiguous case: form-1 assets
+    already reconcile, while form-2 net income is over one hundred times assets.
+    The four form-2 monetary lines are converted together and the sector gate is
+    run again; all corrections are reverted if that exact blocker remains.
+    """
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        row = conn.execute("SELECT * FROM data_quality_issues WHERE id=?", (issue_id,)).fetchone()
+        if not row:
+            raise DataQualityError("Data-quality issue not found")
+        issue = _public(dict(row))
+        if issue["status"] != "open" or issue["rule_code"] != "BLOCKED_UNIT_MISMATCH":
+            raise DataQualityError("This is not an open unit-scale mismatch")
+        source = conn.execute("""SELECT revenue, gross_profit, net_income, operating_income, total_assets
+                                 FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=?""",
+                              (issue["ticker"], issue["form"], issue["year"], issue["quarter"])).fetchone()
+        if not source or source["total_assets"] in (None, 0) or source["net_income"] is None:
+            raise DataQualityError("The financial source row is incomplete")
+        ratio_to_assets = abs(float(source["net_income"])) / abs(float(source["total_assets"]))
+        if ratio_to_assets <= 100:
+            raise DataQualityError("The mismatch is not an unambiguous 1,000× income-statement scale error")
+        details = issue.get("details") if isinstance(issue.get("details"), dict) else {}
+        source_url = str(details.get("source_url") or "")
+        if not source_url:
+            raise DataQualityError("No linked official report is available")
+        source_reference = f"{issue['ticker']} NSBU {issue['year']}Q{issue['quarter'] or 4}; Form 2"
+    finally:
+        conn.close()
+
+    records = []
+    for field in ("revenue", "gross_profit", "net_income", "operating_income"):
+        value = source[field]
+        if value is None:
+            continue
+        records.append(apply_correction({
+            "ticker": issue["ticker"], "form": issue["form"], "year": issue["year"],
+            "quarter": issue["quarter"], "field": field, "value_thousands_uzs": float(value) / 1000,
+            "source_url": source_url, "source_reference": source_reference,
+            "reason": "Автоматическое приведение строк формы №2 из UZS к тысячам UZS; подтверждено проверкой масштаба.",
+        }, actor))
+    if not records:
+        raise DataQualityError("No Form 2 monetary values are available to scale")
+    recheck = scan_analysis_issue(issue["ticker"])
+    if "blocked_unit_mismatch" in {code.lower() for code in recheck.get("blocker_codes") or []}:
+        for record in records:
+            review_correction(record["id"], "reverted", actor, "Automatic scale correction did not pass recheck")
+        raise DataQualityError("The automatic scale correction did not pass recheck and was reverted")
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        now = _now()
+        with conn:
+            conn.execute("""UPDATE data_quality_issues SET status='resolved', resolved_at=?,
+                         resolved_by=?, updated_at=? WHERE id=? AND status='open'""",
+                         (now, actor, now, issue_id))
+    finally:
+        conn.close()
+    return {"ok": True, "corrections": records, "recheck": recheck}
+
+
+def approved_corrections_for(ticker: str, form: str, year: int, quarter: int) -> dict[str, float]:
+    """Return database-approved values in catalog units (thousands of UZS)."""
+    conn = _conn()
+    try:
+        _ensure_schema(conn)
+        rows = conn.execute("""SELECT field, value_thousands_uzs FROM data_corrections
+                             WHERE ticker=? AND dataset='financials' AND form=? AND year=?
+                             AND quarter=? AND status='approved'""",
+                            (str(ticker).upper(), form, year, quarter)).fetchall()
+        return {str(r["field"]): float(r["value_thousands_uzs"]) for r in rows}
+    finally:
+        conn.close()

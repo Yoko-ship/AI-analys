@@ -1,0 +1,11 @@
+{
+  "version": "issuer-activity-2026-08-30",
+  "records": [{
+    "issuer_id": "383",
+    "ticker": "UZMK",
+    "template": "metallurgy",
+    "evidence_source": "https://www.uzbeksteel.uz/579/p?lang=ru",
+    "reason_code": "Issuer confirms steel production as principal activity; old NSBU export contains OKONH rather than OKED.",
+    "verified_on": "2026-08-30"
+  }]
+}

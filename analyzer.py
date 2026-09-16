@@ -83,6 +83,7 @@ def api_call_with_retry(fn, max_retries=6):
 # МАППИНГ ПОЛЕЙ
 # ─────────────────────────────────────────────────────────
 
+# Standard industrial company field mappings
 KEEP_TITLES = {
     "Чистая выручка от реализации продукции (товаров, работ и услуг)":                                   "revenue",
     "Себестоимость реализованной продукции (товаров, работ и услуг)":                                    "cogs",
@@ -108,6 +109,111 @@ KEEP_TITLES = {
     "Задолженность поставщикам и подрядчикам (6000)":                                                    "accounts_payable",
 }
 
+# Bank-specific field mappings (banks use different report format in Uzbekistan)
+BANK_TITLES = {
+    # Income Statement (Form 2 for banks)
+    "Процентные доходы":                                                    "revenue",
+    "Процентные доходы, всего":                                             "revenue",
+    "Итого процентных доходов":                                             "revenue",
+    "Процентные расходы":                                                   "interest_expense",
+    "Процентные расходы, всего":                                            "interest_expense",
+    "Чистые процентные доходы":                                             "gross_profit",
+    "Чистый процентный доход":                                              "gross_profit",
+    "Комиссионные доходы":                                                  "commission_income",
+    "Комиссионные расходы":                                                 "commission_expense",
+    "Чистые комиссионные доходы":                                           "net_commission_income",
+    "Операционные расходы":                                                 "operating_expenses",
+    "Операционные расходы, всего":                                          "operating_expenses",
+    "Административные и прочие операционные расходы":                       "admin_expenses",
+    "Прибыль до налогообложения":                                           "ebt",
+    "Прибыль (убыток) до налогообложения":                                  "ebt",
+    "Налог на прибыль":                                                     "income_tax",
+    "Расходы по налогу на прибыль":                                         "income_tax",
+    "Чистая прибыль":                                                       "net_income",
+    "Чистая прибыль (убыток)":                                              "net_income",
+    "Чистая прибыль за период":                                             "net_income",
+    "Итого совокупный доход за период":                                     "net_income",
+
+    # Balance Sheet (Form 1 for banks)
+    "Всего активов":                                                        "total_assets",
+    "ИТОГО АКТИВОВ":                                                        "total_assets",
+    "Итого активы":                                                         "total_assets",
+    "Денежные средства и их эквиваленты":                                   "cash",
+    "Денежные средства":                                                    "cash",
+    "Средства в Центральном банке":                                         "central_bank_deposits",
+    "Кредиты и авансы клиентам":                                            "loans_to_customers",
+    "Кредиты клиентам":                                                     "loans_to_customers",
+    "Чистые кредиты клиентам":                                              "loans_to_customers",
+    "Средства клиентов":                                                    "customer_deposits",
+    "Депозиты клиентов":                                                    "customer_deposits",
+    "Вклады клиентов":                                                      "customer_deposits",
+    "Средства других банков":                                               "interbank_deposits",
+    "Всего обязательств":                                                   "total_liabilities",
+    "ИТОГО ОБЯЗАТЕЛЬСТВ":                                                   "total_liabilities",
+    "Итого обязательства":                                                  "total_liabilities",
+    "Всего капитала":                                                       "equity",
+    "ИТОГО КАПИТАЛ":                                                        "equity",
+    "Итого капитал":                                                        "equity",
+    "Итого собственный капитал":                                            "equity",
+    "Собственный капитал":                                                  "equity",
+    "Уставный капитал":                                                     "share_capital",
+    "Нераспределенная прибыль":                                             "retained_earnings",
+    "Резервный капитал":                                                    "reserves",
+    "Резервы":                                                              "reserves",
+
+    # Alternative field names that may appear
+    "Доходы от процентов":                                                  "revenue",
+    "Расходы по процентам":                                                 "interest_expense",
+    "Прибыль от операционной деятельности":                                 "ebit",
+    "Операционная прибыль":                                                 "ebit",
+
+    # Real titles from the openinfo PnL/Balance Form2/Form1 banking template
+    "ЧИСТАЯ ПРИБЫЛЬ (УБЫТКИ)":                                              "net_income",
+    "Чистая прибыль (убытки)":                                              "net_income",
+    "ЧИСТАЯ ПРИБЫЛЬ ДО УПЛАТЫ НАЛОГОВ И ДРУГИХ ПОПРАВОК":                   "ebt",
+    "ДОХОД ДО ВВЕДЕНИЯ ПОПРАВОК":                                           "ebt",
+    "ЧИСТЫЙ ДОХОД ДО ОПЕРАЦИОННЫХ РАСХОДОВ":                                "gross_profit",
+    "ЧИСТЫЕ ПРОЦЕНТНЫЕ ДОХОДЫ ДО ОЦЕНКИ ВОЗМОЖНЫХ УБЫТКОВ ПО КРЕДИТАМ И ЛИЗИНГУ": "gross_profit",
+    "ОПЕРАЦИОННЫЕ РАСХОДЫ":                                                 "operating_expenses",
+    "Итого операционных расходов":                                          "operating_expenses",
+    "Итого процентных расходов":                                            "interest_expense",
+    "Итого процентных доходов":                                             "revenue",
+    "Итого активов":                                                        "total_assets",
+    "Итого обязательств":                                                   "total_liabilities",
+    "Итого собственного капитала":                                          "equity",
+    "Кредиты и лизинговые операции":                                        "loans_to_customers",
+    "Кредиты и лизинговые операции, чистые":                                "loans_to_customers",
+    "Кассовая наличность и другие платежные документы":                     "cash",
+    "Срочные депозиты":                                                     "customer_deposits",
+    "Депозиты до востребования":                                            "customer_deposits",
+}
+
+
+# Removes leading numbering like "14.", "л.", "      а." (numeric or single
+# Cyrillic/Latin letter followed by . or )). Repeats up to twice for items
+# such as "5   а. Инвестиции" which carry double numbering.
+_TITLE_NUMBERING_RE = re.compile(r'^\s*(?:\d+|[a-zа-яёўқғҳ])\s*[.\)]\s*', re.IGNORECASE)
+
+
+def _normalize_title(title) -> str:
+    if not title:
+        return ""
+    text = str(title).strip()
+    for _ in range(2):
+        cleaned = _TITLE_NUMBERING_RE.sub('', text, count=1).strip()
+        if cleaned == text:
+            break
+        text = cleaned
+    return re.sub(r'\s+', ' ', text).lower()
+
+
+_NORMALIZED_FIELD_MAP = {
+    _normalize_title(key): value
+    for source in (KEEP_TITLES, BANK_TITLES)
+    for key, value in source.items()
+    if _normalize_title(key)
+}
+
 ANNUAL_RATIOS = [
     "net_profit_margin", "return_on_equity", "return_on_assets",
     "debt_ratio", "debt_to_equity_ratio", "current_ratio",
@@ -119,6 +225,35 @@ ANNUAL_RATIOS = [
 # DataFrame → структурированные списки
 # ─────────────────────────────────────────────────────────
 
+def _get_field_mapping(title: str) -> str | None:
+    """Get the field mapping from title, checking both standard and bank formats.
+
+    Falls back to a normalized lookup so that titles arriving from openinfo as
+    '14. Итого активов' / '      л. Итого процентных доходов' still match the
+    plain-form keys we keep in KEEP_TITLES / BANK_TITLES.
+    """
+    if title in KEEP_TITLES:
+        return KEEP_TITLES[title]
+    if title in BANK_TITLES:
+        return BANK_TITLES[title]
+    normalized = _normalize_title(title)
+    if normalized:
+        mapped = _NORMALIZED_FIELD_MAP.get(normalized)
+        if mapped:
+            return mapped
+    # Depreciation & amortization *expense* (a P&L / cash-flow flow) → used to
+    # derive EBITDA. Require an expense context and exclude balance-sheet
+    # accumulated depreciation ("накопленный износ", "остаточная стоимость"),
+    # which is a stock, not the period charge.
+    if isinstance(title, str):
+        low = title.lower()
+        if (("амортизац" in low) or ("износ" in low)) \
+           and any(w in low for w in ("расход", "начисл", "деятельн", "себестоим")) \
+           and not any(w in low for w in ("накопл", "остаточн", "первоначальн")):
+            return "depreciation"
+    return None
+
+
 def df_to_annual(annual_df: pd.DataFrame) -> list:
     data = defaultdict(lambda: {"financials": {}, "ratios": {}})
     for _, row in annual_df.iterrows():
@@ -128,8 +263,11 @@ def df_to_annual(annual_df: pd.DataFrame) -> list:
         if pd.isna(year):
             continue
         year = int(year)
-        if title in KEEP_TITLES:
-            data[year]["financials"][KEEP_TITLES[title]] = value
+        field_name = _get_field_mapping(title)
+        if field_name:
+            # Don't overwrite if already set (prefer first match)
+            if field_name not in data[year]["financials"]:
+                data[year]["financials"][field_name] = value
         if not data[year]["ratios"]:
             for ratio in ANNUAL_RATIOS:
                 if ratio in row.index and pd.notna(row[ratio]):
@@ -168,8 +306,11 @@ def df_to_quarterly(quarter_df: pd.DataFrame) -> list:
         if pd.isna(year) or pd.isna(quarter):
             continue
         year, quarter = int(year), int(quarter)
-        if title in KEEP_TITLES:
-            data[(year, quarter)][KEEP_TITLES[title]] = value
+        field_name = _get_field_mapping(title)
+        if field_name:
+            # Don't overwrite if already set
+            if field_name not in data[(year, quarter)]:
+                data[(year, quarter)][field_name] = value
 
     keys = sorted(data.keys())
     result = []
@@ -383,10 +524,19 @@ def detect_industry(company_name: str, web_research: str = "", profile: str = ""
     return {"sector": best, **INDUSTRY_BENCHMARKS[best]}
 
 
+# 4-level debt-load indicator (ТЗ Блок 2: Низкая / Умеренная / Высокая / Критическая)
+DEBT_BURDEN_LEVELS = {
+    "good":     {"ru": "Низкая",     "en": "Low",      "uz": "Past"},
+    "ok":       {"ru": "Умеренная",  "en": "Moderate", "uz": "O'rtacha"},
+    "weak":     {"ru": "Высокая",    "en": "High",     "uz": "Yuqori"},
+    "critical": {"ru": "Критическая","en": "Critical", "uz": "Kritik"},
+}
+
+
 def compare_to_industry(metrics: dict, industry: dict) -> dict:
     """
     Сравнивает ключевые метрики компании с отраслевыми бенчмарками.
-    Возвращает dict с оценкой каждого показателя: weak / ok / good.
+    Возвращает dict с оценкой каждого показателя: weak / ok / good / critical (долг).
     """
     latest = {}
     # Из piotroski details берём roa approx через altman components
@@ -411,8 +561,13 @@ def compare_to_industry(metrics: dict, industry: dict) -> dict:
     de     = parse_pct(de_str)
     growth = parse_pct(growth_str)
 
-    def rate(val, bench, higher_is_better=True):
-        """Оцениваем показатель относительно бенчмарков."""
+    def rate(val, bench, higher_is_better=True, four_level=False):
+        """Оцениваем показатель относительно бенчмарков.
+
+        four_level=True добавляет уровень "critical" для долговой нагрузки
+        (ТЗ Блок 2: Низкая / Умеренная / Высокая / Критическая), используя
+        отраслевой порог bench["weak"] как границу критической зоны.
+        """
         if higher_is_better:
             if val >= bench["good"]: return "good"
             if val >= bench["ok"]:   return "ok"
@@ -420,13 +575,15 @@ def compare_to_industry(metrics: dict, industry: dict) -> dict:
         else:  # для долга — чем меньше, тем лучше
             if val <= bench["good"]: return "good"
             if val <= bench["ok"]:   return "ok"
+            if four_level and val > bench["weak"]: return "critical"
             return "weak"
 
+    debt_rating = rate(de, industry["debt_equity"], higher_is_better=False, four_level=True)
     ratings = {
         "net_margin":     {"value": round(margin,1), "rating": rate(margin, industry["net_margin"])},
         "roe":            {"value": round(roe,1),    "rating": rate(roe,    industry["roe"])},
         "roa":            {"value": round(roa*100,1),"rating": rate(roa*100, industry["roa"])},
-        "debt_equity":    {"value": round(de,2),     "rating": rate(de,    industry["debt_equity"], higher_is_better=False)},
+        "debt_equity":    {"value": round(de,2),     "rating": debt_rating, "burden": DEBT_BURDEN_LEVELS.get(debt_rating, DEBT_BURDEN_LEVELS["weak"])},
         "revenue_growth": {"value": round(growth,1), "rating": rate(growth, industry["revenue_growth"])},
     }
 
@@ -713,6 +870,454 @@ def compute_metrics(annual_data: list, quarterly_data: list = None) -> dict:
                 else "Риск — могут быть проблемы с долгами"
             ),
         }
+
+    # ── EFFICIENCY METRICS (NEW) ─────────────────────────
+    # Оборачиваемость и эффективность использования активов
+    cogs = get(latest, "cogs", 0) or 0
+    accounts_pay = get(latest, "accounts_payable", 0) or 0
+    prev_inventory = get(prev, "inventory", 0) or 0
+    prev_accounts_rec = get(prev, "accounts_receivable", 0) or 0
+    prev_accounts_pay = get(prev, "accounts_payable", 0) or 0
+
+    efficiency = {}
+
+    # Inventory Turnover (оборачиваемость запасов)
+    avg_inventory = (inventory + prev_inventory) / 2 if prev_inventory else inventory
+    if avg_inventory and cogs:
+        inv_turnover = cogs / avg_inventory
+        inv_days = 365 / inv_turnover if inv_turnover > 0 else 0
+        efficiency["inventory_turnover"] = {
+            "ratio": round(inv_turnover, 2),
+            "days": round(inv_days, 0),
+            "verdict": (
+                "Отлично — быстрая оборачиваемость" if inv_days < 60
+                else "Нормально" if inv_days < 120
+                else "Медленно — деньги заморожены в запасах"
+            ),
+        }
+
+    # Receivable Days (дни дебиторской задолженности)
+    avg_receivables = (accounts_rec + prev_accounts_rec) / 2 if prev_accounts_rec else accounts_rec
+    if avg_receivables and revenue:
+        rec_turnover = revenue / avg_receivables
+        rec_days = 365 / rec_turnover if rec_turnover > 0 else 0
+        efficiency["receivable_days"] = {
+            "ratio": round(rec_turnover, 2),
+            "days": round(rec_days, 0),
+            "verdict": (
+                "Отлично — быстро собирают деньги" if rec_days < 30
+                else "Нормально" if rec_days < 60
+                else "Медленно — деньги застряли у клиентов"
+            ),
+        }
+
+    # Payable Days (дни кредиторской задолженности)
+    avg_payables = (accounts_pay + prev_accounts_pay) / 2 if prev_accounts_pay else accounts_pay
+    if avg_payables and cogs:
+        pay_turnover = cogs / avg_payables
+        pay_days = 365 / pay_turnover if pay_turnover > 0 else 0
+        efficiency["payable_days"] = {
+            "ratio": round(pay_turnover, 2),
+            "days": round(pay_days, 0),
+            "verdict": (
+                "Хорошо — используют деньги поставщиков" if pay_days > 45
+                else "Нормально" if pay_days > 20
+                else "Платят слишком быстро"
+            ),
+        }
+
+    # Cash Conversion Cycle (цикл конвертации денег)
+    inv_days_val = efficiency.get("inventory_turnover", {}).get("days", 0) or 0
+    rec_days_val = efficiency.get("receivable_days", {}).get("days", 0) or 0
+    pay_days_val = efficiency.get("payable_days", {}).get("days", 0) or 0
+    if inv_days_val or rec_days_val:
+        ccc = inv_days_val + rec_days_val - pay_days_val
+        efficiency["cash_conversion_cycle"] = {
+            "days": round(ccc, 0),
+            "verdict": (
+                "Отрицательный CCC — бизнес генерирует кеш" if ccc < 0
+                else "Отлично" if ccc < 30
+                else "Нормально" if ccc < 60
+                else "Долгий цикл — много денег заморожено"
+            ),
+            "interpretation": (
+                f"От покупки товара до получения денег: {round(ccc, 0)} дней"
+            ),
+        }
+
+    if efficiency:
+        metrics["efficiency"] = efficiency
+
+    # ── DUPONT ANALYSIS (ROE Decomposition) ──────────────
+    # ROE = Net Margin × Asset Turnover × Equity Multiplier
+    if revenue and total_assets and equity and equity > 0:
+        net_margin_pct = (net_income / revenue) * 100 if revenue else 0
+        asset_turnover = revenue / total_assets
+        equity_multiplier = total_assets / equity
+        roe_dupont = (net_income / revenue) * (revenue / total_assets) * (total_assets / equity) * 100
+
+        # Определяем драйверы ROE
+        drivers = []
+        if net_margin_pct > 10:
+            drivers.append("высокая маржа")
+        elif net_margin_pct < 3:
+            drivers.append("низкая маржа тянет вниз")
+
+        if asset_turnover > 1.5:
+            drivers.append("эффективное использование активов")
+        elif asset_turnover < 0.5:
+            drivers.append("активы работают неэффективно")
+
+        if equity_multiplier > 3:
+            drivers.append("высокий leverage (риск)")
+        elif equity_multiplier < 1.5:
+            drivers.append("консервативная структура капитала")
+
+        metrics["dupont_analysis"] = {
+            "roe_pct": round(roe_dupont, 2),
+            "components": {
+                "net_margin_pct": round(net_margin_pct, 2),
+                "asset_turnover": round(asset_turnover, 3),
+                "equity_multiplier": round(equity_multiplier, 2),
+            },
+            "drivers": drivers if drivers else ["сбалансированный профиль"],
+            "interpretation": (
+                f"ROE {round(roe_dupont, 1)}% = "
+                f"маржа {round(net_margin_pct, 1)}% × "
+                f"оборачиваемость {round(asset_turnover, 2)}x × "
+                f"leverage {round(equity_multiplier, 1)}x"
+            ),
+        }
+
+    # ── WORKING CAPITAL ANALYSIS ─────────────────────────
+    working_capital = current_assets - current_liab
+    prev_working_cap = get(prev, "current_assets", 0) - get(prev, "current_liabilities", 0)
+
+    wc_change = working_capital - prev_working_cap if prev_working_cap else 0
+    wc_to_revenue = (working_capital / revenue * 100) if revenue else 0
+
+    # Quick Ratio (без запасов)
+    quick_assets = current_assets - inventory
+    quick_ratio = quick_assets / current_liab if current_liab else 0
+
+    # Cash Ratio (только деньги)
+    cash_ratio = cash / current_liab if current_liab else 0
+
+    metrics["working_capital"] = {
+        "amount": round(working_capital, 0),
+        "change_yoy": round(wc_change, 0),
+        "pct_of_revenue": round(wc_to_revenue, 1),
+        "current_ratio": round(curr_ratio, 2),
+        "quick_ratio": round(quick_ratio, 2),
+        "cash_ratio": round(cash_ratio, 2),
+        "verdict": (
+            "Отлично — избыток ликвидности" if curr_ratio > 2.5 and quick_ratio > 1.5
+            else "Хорошо — здоровая ликвидность" if curr_ratio > 1.5 and quick_ratio > 1.0
+            else "Нормально — достаточная ликвидность" if curr_ratio > 1.0
+            else "Риск — может не хватить на текущие платежи"
+        ),
+        "change_verdict": (
+            "Рабочий капитал растёт" if wc_change > 0
+            else "Рабочий капитал снижается" if wc_change < 0
+            else "Без изменений"
+        ),
+    }
+
+    # ── HORIZONTAL ANALYSIS (Горизонтальный анализ) ──────
+    # Сравнение показателей текущего года с предыдущим (YoY изменения)
+    horizontal = {}
+
+    def yoy_change(current, previous):
+        if current and previous and previous != 0:
+            change = current - previous
+            pct = (change / abs(previous)) * 100
+            return {"current": round(current, 0), "previous": round(previous, 0),
+                    "change": round(change, 0), "pct": round(pct, 1)}
+        return None
+
+    # Ключевые статьи для горизонтального анализа
+    h_items = [
+        ("revenue", "Выручка"),
+        ("gross_profit", "Валовая прибыль"),
+        ("net_income", "Чистая прибыль"),
+        ("total_assets", "Всего активов"),
+        ("equity", "Собственный капитал"),
+        ("current_assets", "Оборотные активы"),
+        ("current_liabilities", "Краткосрочные обязательства"),
+        ("long_term_debt", "Долгосрочный долг"),
+        ("cash", "Денежные средства"),
+        ("inventory", "Запасы"),
+    ]
+
+    for key, label in h_items:
+        curr_val = get(latest, key, 0)
+        prev_val = get(prev, key, 0)
+        change = yoy_change(curr_val, prev_val)
+        if change:
+            horizontal[key] = {"label": label, **change}
+
+    if horizontal:
+        # Определяем общий тренд горизонтального анализа
+        growing = sum(1 for v in horizontal.values() if v.get("pct", 0) > 5)
+        declining = sum(1 for v in horizontal.values() if v.get("pct", 0) < -5)
+
+        metrics["horizontal_analysis"] = {
+            "items": horizontal,
+            "summary": {
+                "growing_count": growing,
+                "declining_count": declining,
+                "stable_count": len(horizontal) - growing - declining,
+            },
+            "verdict": (
+                "Позитивная динамика — большинство показателей растут" if growing > declining + 2
+                else "Негативная динамика — большинство показателей падают" if declining > growing + 2
+                else "Смешанная динамика — нет явного тренда"
+            ),
+        }
+
+    # ── VERTICAL ANALYSIS (Вертикальный анализ) ───────────
+    # Структура баланса: каждая статья как % от общих активов
+    # Структура доходов: каждая статья как % от выручки
+    vertical = {}
+
+    # Баланс: % от total_assets
+    if total_assets > 0:
+        balance_structure = {}
+        balance_items = [
+            ("cash", "Денежные средства"),
+            ("accounts_receivable", "Дебиторская задолженность"),
+            ("inventory", "Запасы"),
+            ("current_assets", "Оборотные активы"),
+            ("long_term_debt", "Долгосрочный долг"),
+            ("equity", "Собственный капитал"),
+        ]
+        for key, label in balance_items:
+            val = get(latest, key, 0) or 0
+            if val:
+                balance_structure[key] = {
+                    "label": label,
+                    "value": round(val, 0),
+                    "pct_of_assets": round((val / total_assets) * 100, 1),
+                }
+
+        # Добавляем обязательства (total_assets - equity)
+        total_liab = total_assets - equity
+        if total_liab > 0:
+            balance_structure["total_liabilities"] = {
+                "label": "Всего обязательств",
+                "value": round(total_liab, 0),
+                "pct_of_assets": round((total_liab / total_assets) * 100, 1),
+            }
+
+        vertical["balance_sheet"] = {
+            "base": "total_assets",
+            "base_value": round(total_assets, 0),
+            "items": balance_structure,
+            "equity_ratio": round((equity / total_assets) * 100, 1) if equity else 0,
+            "debt_ratio": round((total_liab / total_assets) * 100, 1) if total_liab else 0,
+        }
+
+    # Отчет о прибылях: % от выручки
+    if revenue > 0:
+        income_structure = {}
+        income_items = [
+            ("gross_profit", "Валовая прибыль"),
+            ("ebit", "Операционная прибыль (EBIT)"),
+            ("net_income", "Чистая прибыль"),
+            ("interest_expense", "Процентные расходы"),
+        ]
+        for key, label in income_items:
+            val = get(latest, key, 0) or 0
+            if val:
+                income_structure[key] = {
+                    "label": label,
+                    "value": round(val, 0),
+                    "pct_of_revenue": round((val / revenue) * 100, 1),
+                }
+
+        # Расчет COGS если есть валовая прибыль
+        if gross_profit:
+            cogs_calc = revenue - gross_profit
+            income_structure["cogs"] = {
+                "label": "Себестоимость",
+                "value": round(cogs_calc, 0),
+                "pct_of_revenue": round((cogs_calc / revenue) * 100, 1),
+            }
+
+        vertical["income_statement"] = {
+            "base": "revenue",
+            "base_value": round(revenue, 0),
+            "items": income_structure,
+            "gross_margin_pct": round((gross_profit / revenue) * 100, 1) if gross_profit else 0,
+            "operating_margin_pct": round((ebit / revenue) * 100, 1) if ebit else 0,
+            "net_margin_pct": round((net_income / revenue) * 100, 1),
+        }
+
+    if vertical:
+        metrics["vertical_analysis"] = vertical
+
+    # ── PROFITABILITY RATIOS (Коэффициенты рентабельности) ─
+    profitability = {}
+
+    if revenue > 0:
+        profitability["gross_margin"] = {
+            "value": round((gross_profit / revenue) * 100, 2) if gross_profit else 0,
+            "benchmark": "15-40%",
+            "verdict": (
+                "Отлично" if gross_profit and (gross_profit / revenue) > 0.35
+                else "Хорошо" if gross_profit and (gross_profit / revenue) > 0.20
+                else "Низкая маржа"
+            ),
+        }
+        profitability["operating_margin"] = {
+            "value": round((ebit / revenue) * 100, 2) if ebit else 0,
+            "benchmark": "10-25%",
+            "verdict": (
+                "Отлично" if ebit and (ebit / revenue) > 0.20
+                else "Хорошо" if ebit and (ebit / revenue) > 0.10
+                else "Низкая операционная маржа"
+            ),
+        }
+        profitability["net_margin"] = {
+            "value": round((net_income / revenue) * 100, 2),
+            "benchmark": "5-15%",
+            "verdict": (
+                "Отлично" if (net_income / revenue) > 0.15
+                else "Хорошо" if (net_income / revenue) > 0.08
+                else "Нормально" if (net_income / revenue) > 0.03
+                else "Низкая чистая маржа"
+            ),
+        }
+
+    if total_assets > 0:
+        profitability["roa"] = {
+            "value": round((net_income / total_assets) * 100, 2),
+            "benchmark": "5-10%",
+            "verdict": (
+                "Отлично" if (net_income / total_assets) > 0.10
+                else "Хорошо" if (net_income / total_assets) > 0.05
+                else "Низкая доходность активов"
+            ),
+        }
+
+    if equity > 0:
+        profitability["roe"] = {
+            "value": round((net_income / equity) * 100, 2),
+            "benchmark": "15-25%",
+            "verdict": (
+                "Отлично" if (net_income / equity) > 0.20
+                else "Хорошо" if (net_income / equity) > 0.12
+                else "Низкая доходность капитала"
+            ),
+        }
+
+    if profitability:
+        metrics["profitability_ratios"] = profitability
+
+    # ── SOLVENCY RATIOS (Коэффициенты платежеспособности) ─
+    solvency = {}
+    total_liab = total_assets - equity if total_assets and equity else 0
+
+    if total_assets > 0:
+        solvency["debt_ratio"] = {
+            "value": round((total_liab / total_assets) * 100, 1),
+            "benchmark": "<50%",
+            "verdict": (
+                "Отлично — низкий долг" if (total_liab / total_assets) < 0.40
+                else "Нормально" if (total_liab / total_assets) < 0.60
+                else "Высокий долг — риск"
+            ),
+        }
+
+    if equity > 0 and total_liab > 0:
+        dte = total_liab / equity
+        solvency["debt_to_equity"] = {
+            "value": round(dte, 2),
+            "benchmark": "<1.0",
+            "verdict": (
+                "Отлично — капитал превышает долг" if dte < 0.5
+                else "Нормально" if dte < 1.5
+                else "Высокий финансовый рычаг"
+            ),
+        }
+
+    if equity > 0:
+        solvency["equity_ratio"] = {
+            "value": round((equity / total_assets) * 100, 1) if total_assets else 0,
+            "benchmark": ">40%",
+            "verdict": (
+                "Отлично — сильный капитал" if total_assets and (equity / total_assets) > 0.50
+                else "Нормально" if total_assets and (equity / total_assets) > 0.30
+                else "Слабая капитализация"
+            ),
+        }
+
+    if solvency:
+        metrics["solvency_ratios"] = solvency
+
+    # ── CASH FLOW ANALYSIS (Анализ денежных потоков) ──────
+    # Используем доступные данные для оценки денежных потоков
+    cash_flow = {}
+
+    # Операционный денежный поток (прокси через EBIT + амортизация)
+    # Упрощение: OCF ≈ EBIT × (1 - tax) + depreciation (если нет прямых данных)
+    op_cash_flow = get(latest, "operating_cash_flow", 0)
+    if not op_cash_flow and ebit > 0:
+        # Грубая оценка: EBIT после налога как прокси OCF
+        op_cash_flow = ebit * 0.85  # ~15% налог
+
+    if op_cash_flow and revenue > 0:
+        ocf_to_sales = (op_cash_flow / revenue) * 100
+        cash_flow["ocf_to_sales"] = {
+            "value": round(ocf_to_sales, 1),
+            "interpretation": (
+                "Отлично — сильная генерация кеша" if ocf_to_sales > 15
+                else "Хорошо — здоровый денежный поток" if ocf_to_sales > 8
+                else "Нормально" if ocf_to_sales > 3
+                else "Слабый денежный поток"
+            ),
+        }
+
+    # Коэффициент денежного покрытия
+    if op_cash_flow and current_liab > 0:
+        cash_coverage = op_cash_flow / current_liab
+        cash_flow["cash_coverage_ratio"] = {
+            "value": round(cash_coverage, 2),
+            "interpretation": (
+                "Отлично — OCF покрывает обязательства" if cash_coverage > 1.5
+                else "Нормально" if cash_coverage > 0.8
+                else "Риск — недостаточный денежный поток"
+            ),
+        }
+
+    # Free Cash Flow (если есть CAPEX или оцениваем)
+    capex = get(latest, "capital_expenditures", 0) or get(latest, "capex", 0)
+    if op_cash_flow:
+        # Если нет CAPEX, оцениваем как % от выручки (средне 5-10%)
+        if not capex and revenue > 0:
+            capex = revenue * 0.06  # консервативная оценка
+
+        fcf = op_cash_flow - capex if capex else op_cash_flow
+        cash_flow["free_cash_flow"] = {
+            "value": round(fcf, 0),
+            "as_pct_of_revenue": round((fcf / revenue) * 100, 1) if revenue else 0,
+            "verdict": (
+                "Позитивный FCF — компания генерирует свободный кеш" if fcf > 0
+                else "Отрицательный FCF — компания потребляет кеш"
+            ),
+        }
+
+        if op_cash_flow > 0:
+            fcf_ratio = fcf / op_cash_flow
+            cash_flow["fcf_to_ocf_ratio"] = {
+                "value": round(fcf_ratio * 100, 1),
+                "interpretation": (
+                    f"{round(fcf_ratio * 100, 0)}% OCF остается после капзатрат"
+                ),
+            }
+
+    if cash_flow:
+        metrics["cash_flow_analysis"] = cash_flow
 
     # ── TREND ANALYSIS: SLOPE / ACCELERATION / CONSISTENCY ─
     # Все три метода считаются из временного ряда без внешних библиотек.
@@ -1201,6 +1806,324 @@ def compute_metrics(annual_data: list, quarterly_data: list = None) -> dict:
     return metrics
 
 
+def compute_technical_indicators(price_history: list) -> dict:
+    """
+    Вычисляет технические индикаторы из истории цен.
+    Использует реальные рыночные данные из OpenInfo.
+
+    Args:
+        price_history: список dict с ключами date, open, high, low, close, trading_volume
+
+    Returns:
+        dict с RSI, MACD, уровнями Фибоначчи, объёмным анализом
+    """
+    if not price_history or len(price_history) < 5:
+        return {"status": "insufficient_data", "message": "Нужно минимум 5 точек данных"}
+
+    def safe_float(v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            return val if not math.isnan(val) else None
+        except (TypeError, ValueError):
+            return None
+
+    # Очищаем данные
+    points = []
+    for p in price_history:
+        close = safe_float(p.get("close"))
+        if close is not None and close > 0:
+            points.append({
+                "date": p.get("date"),
+                "open": safe_float(p.get("open")),
+                "high": safe_float(p.get("high")),
+                "low": safe_float(p.get("low")),
+                "close": close,
+                "volume": safe_float(p.get("trading_volume")) or 0,
+            })
+
+    if len(points) < 5:
+        return {"status": "insufficient_data", "message": "Недостаточно валидных данных"}
+
+    # Сортируем по дате
+    points = sorted(points, key=lambda x: str(x.get("date") or ""))
+    closes = [p["close"] for p in points]
+    volumes = [p["volume"] for p in points]
+
+    indicators = {"status": "ok", "data_points": len(points)}
+
+    # ── RSI (Relative Strength Index) ────────────────────
+    # RSI = 100 - (100 / (1 + RS))
+    # RS = Average Gain / Average Loss за период (обычно 14 дней)
+    period = min(14, len(closes) - 1)
+    if period >= 5:
+        gains = []
+        losses = []
+        for i in range(1, len(closes)):
+            change = closes[i] - closes[i - 1]
+            if change > 0:
+                gains.append(change)
+                losses.append(0)
+            else:
+                gains.append(0)
+                losses.append(abs(change))
+
+        # Используем последние N периодов
+        recent_gains = gains[-period:]
+        recent_losses = losses[-period:]
+
+        avg_gain = sum(recent_gains) / len(recent_gains) if recent_gains else 0
+        avg_loss = sum(recent_losses) / len(recent_losses) if recent_losses else 0
+
+        if avg_loss == 0:
+            rsi = 100 if avg_gain > 0 else 50
+        else:
+            rs = avg_gain / avg_loss
+            rsi = 100 - (100 / (1 + rs))
+
+        if rsi >= 70:
+            rsi_signal = "ПЕРЕКУПЛЕННОСТЬ — возможна коррекция вниз"
+            rsi_css = "bearish"
+        elif rsi <= 30:
+            rsi_signal = "ПЕРЕПРОДАННОСТЬ — возможен отскок вверх"
+            rsi_css = "bullish"
+        elif rsi >= 60:
+            rsi_signal = "Бычий тренд, но приближается к перекупленности"
+            rsi_css = "neutral"
+        elif rsi <= 40:
+            rsi_signal = "Медвежий тренд, но приближается к перепроданности"
+            rsi_css = "neutral"
+        else:
+            rsi_signal = "Нейтральная зона"
+            rsi_css = "neutral"
+
+        indicators["rsi"] = {
+            "value": round(rsi, 1),
+            "period": period,
+            "signal": rsi_signal,
+            "css": rsi_css,
+        }
+
+    # ── PRICE FIBONACCI LEVELS (на основе реальных цен) ──
+    highs = [p["high"] for p in points if p["high"]]
+    lows = [p["low"] for p in points if p["low"]]
+
+    if highs and lows:
+        swing_high = max(highs)
+        swing_low = min(lows)
+        price_range = swing_high - swing_low
+
+        if price_range > 0:
+            current_price = closes[-1]
+
+            fib_levels = {
+                "0.0": round(swing_high, 2),
+                "23.6": round(swing_high - price_range * 0.236, 2),
+                "38.2": round(swing_high - price_range * 0.382, 2),
+                "50.0": round(swing_high - price_range * 0.5, 2),
+                "61.8": round(swing_high - price_range * 0.618, 2),
+                "78.6": round(swing_high - price_range * 0.786, 2),
+                "100.0": round(swing_low, 2),
+            }
+
+            # Определяем текущую зону
+            if current_price >= fib_levels["23.6"]:
+                zone = "выше 23.6% — сильный бычий тренд"
+                zone_css = "bullish"
+            elif current_price >= fib_levels["38.2"]:
+                zone = "23.6–38.2% — здоровая коррекция"
+                zone_css = "neutral"
+            elif current_price >= fib_levels["50.0"]:
+                zone = "38.2–50% — умеренная коррекция"
+                zone_css = "neutral"
+            elif current_price >= fib_levels["61.8"]:
+                zone = "50–61.8% — глубокая коррекция (золотое сечение)"
+                zone_css = "bearish"
+            else:
+                zone = "ниже 61.8% — сильный медвежий тренд"
+                zone_css = "bearish"
+
+            # Ближайшие уровни
+            support_levels = [
+                (level, price) for level, price in fib_levels.items()
+                if price < current_price
+            ]
+            resistance_levels = [
+                (level, price) for level, price in fib_levels.items()
+                if price > current_price
+            ]
+
+            nearest_support = max(support_levels, key=lambda x: x[1]) if support_levels else None
+            nearest_resistance = min(resistance_levels, key=lambda x: x[1]) if resistance_levels else None
+
+            indicators["fibonacci_price"] = {
+                "swing_high": round(swing_high, 2),
+                "swing_low": round(swing_low, 2),
+                "current_price": round(current_price, 2),
+                "levels": fib_levels,
+                "current_zone": zone,
+                "css": zone_css,
+                "nearest_support": {
+                    "level": nearest_support[0],
+                    "price": nearest_support[1],
+                } if nearest_support else None,
+                "nearest_resistance": {
+                    "level": nearest_resistance[0],
+                    "price": nearest_resistance[1],
+                } if nearest_resistance else None,
+            }
+
+    # ── PRICE MOMENTUM ───────────────────────────────────
+    # Изменение цены за разные периоды
+    if len(closes) >= 2:
+        price_changes = {}
+
+        # 1 день
+        price_changes["1d"] = round((closes[-1] / closes[-2] - 1) * 100, 2)
+
+        # 1 неделя (5 торговых дней)
+        if len(closes) >= 6:
+            price_changes["1w"] = round((closes[-1] / closes[-6] - 1) * 100, 2)
+
+        # 1 месяц (20 торговых дней)
+        if len(closes) >= 21:
+            price_changes["1m"] = round((closes[-1] / closes[-21] - 1) * 100, 2)
+
+        # За весь период
+        price_changes["total"] = round((closes[-1] / closes[0] - 1) * 100, 2)
+
+        # Определяем тренд
+        total_change = price_changes["total"]
+        if total_change > 15:
+            trend = "Сильный рост"
+            trend_css = "bullish"
+        elif total_change > 5:
+            trend = "Умеренный рост"
+            trend_css = "bullish"
+        elif total_change > -5:
+            trend = "Боковик"
+            trend_css = "neutral"
+        elif total_change > -15:
+            trend = "Умеренное падение"
+            trend_css = "bearish"
+        else:
+            trend = "Сильное падение"
+            trend_css = "bearish"
+
+        indicators["price_momentum"] = {
+            "changes": price_changes,
+            "trend": trend,
+            "css": trend_css,
+            "start_price": round(closes[0], 2),
+            "end_price": round(closes[-1], 2),
+        }
+
+    # ── VOLUME ANALYSIS ──────────────────────────────────
+    valid_volumes = [v for v in volumes if v and v > 0]
+    if len(valid_volumes) >= 5:
+        avg_volume = sum(valid_volumes) / len(valid_volumes)
+        recent_avg = sum(valid_volumes[-5:]) / min(5, len(valid_volumes))
+        latest_volume = valid_volumes[-1] if valid_volumes else 0
+
+        # Volume trend
+        if recent_avg > avg_volume * 1.5:
+            vol_signal = "Объёмы растут — повышенный интерес"
+            vol_css = "bullish"
+        elif recent_avg < avg_volume * 0.5:
+            vol_signal = "Объёмы падают — снижение интереса"
+            vol_css = "bearish"
+        else:
+            vol_signal = "Объёмы стабильны"
+            vol_css = "neutral"
+
+        # Volume-price divergence
+        price_up = closes[-1] > closes[0] if len(closes) >= 2 else False
+        vol_up = recent_avg > avg_volume
+
+        if price_up and not vol_up:
+            divergence = "Цена растёт на низких объёмах — слабый рост"
+        elif not price_up and vol_up:
+            divergence = "Цена падает на высоких объёмах — сильное давление продавцов"
+        elif price_up and vol_up:
+            divergence = "Цена и объёмы растут — здоровый бычий тренд"
+        else:
+            divergence = "Цена и объёмы падают — истощение продавцов"
+
+        indicators["volume_analysis"] = {
+            "avg_volume": round(avg_volume, 0),
+            "recent_avg": round(recent_avg, 0),
+            "latest": round(latest_volume, 0),
+            "signal": vol_signal,
+            "css": vol_css,
+            "divergence": divergence,
+        }
+
+    # ── VOLATILITY ───────────────────────────────────────
+    if len(closes) >= 10:
+        # Standard deviation of daily returns
+        returns = [(closes[i] / closes[i-1] - 1) for i in range(1, len(closes))]
+        mean_return = sum(returns) / len(returns)
+        variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
+        daily_volatility = variance ** 0.5
+        annual_volatility = daily_volatility * (252 ** 0.5)  # annualized
+
+        if annual_volatility > 0.5:
+            vol_level = "Очень высокая волатильность"
+            vol_css = "bearish"
+        elif annual_volatility > 0.3:
+            vol_level = "Высокая волатильность"
+            vol_css = "neutral"
+        elif annual_volatility > 0.15:
+            vol_level = "Умеренная волатильность"
+            vol_css = "neutral"
+        else:
+            vol_level = "Низкая волатильность"
+            vol_css = "bullish"
+
+        indicators["volatility"] = {
+            "daily_pct": round(daily_volatility * 100, 2),
+            "annual_pct": round(annual_volatility * 100, 1),
+            "level": vol_level,
+            "css": vol_css,
+        }
+
+    # ── SUMMARY SIGNAL ───────────────────────────────────
+    bullish_signals = 0
+    bearish_signals = 0
+    neutral_signals = 0
+
+    for key in ["rsi", "fibonacci_price", "price_momentum", "volume_analysis", "volatility"]:
+        if key in indicators:
+            css = indicators[key].get("css", "neutral")
+            if css == "bullish":
+                bullish_signals += 1
+            elif css == "bearish":
+                bearish_signals += 1
+            else:
+                neutral_signals += 1
+
+    if bullish_signals >= 3:
+        overall = "БЫЧИЙ — большинство индикаторов указывают на рост"
+        overall_css = "bullish"
+    elif bearish_signals >= 3:
+        overall = "МЕДВЕЖИЙ — большинство индикаторов указывают на падение"
+        overall_css = "bearish"
+    else:
+        overall = "НЕЙТРАЛЬНЫЙ — смешанные сигналы"
+        overall_css = "neutral"
+
+    indicators["summary"] = {
+        "bullish_count": bullish_signals,
+        "bearish_count": bearish_signals,
+        "neutral_count": neutral_signals,
+        "overall": overall,
+        "css": overall_css,
+    }
+
+    return indicators
+
+
 # ─────────────────────────────────────────────────────────
 # ШАГ A — Haiku + web_search (улучшенный промпт)
 # ─────────────────────────────────────────────────────────
@@ -1332,37 +2255,9 @@ def slim_metrics_for_prompt(metrics: dict) -> dict:
             "summary": score.get("summary"),
         }
 
-    piotroski = metrics.get("piotroski_f_score", {})
-    if piotroski:
-        keep["piotroski_f_score"] = {
-            "score": piotroski.get("score"),
-            "max": piotroski.get("max"),
-            "verdict": piotroski.get("verdict"),
-        }
-
-    altman = metrics.get("altman_z_score", {})
-    if altman:
-        keep["altman_z_score"] = {
-            "score": altman.get("score"),
-            "verdict": altman.get("verdict"),
-        }
-
-    buffett = metrics.get("buffett_criteria", {})
-    if buffett:
-        keep["buffett_criteria"] = {
-            "passed": buffett.get("passed"),
-            "total": buffett.get("total"),
-            "verdict": buffett.get("verdict"),
-        }
-
-    graham = metrics.get("graham_number", {})
-    if graham:
-        keep["graham_number"] = {
-            "value": graham.get("graham_number"),
-            "price": graham.get("current_price"),
-            "upside_pct": graham.get("upside_pct"),
-            "verdict": graham.get("verdict"),
-        }
+    # Piotroski / Altman / Buffett / Graham are NOT shown to the user any more
+    # (industrial-only models, misleading for banks). Don't pass them to the LLM
+    # either — otherwise it cites the numbers in the verdict text.
 
     dcf = metrics.get("dcf", {})
     if dcf:
@@ -1401,6 +2296,82 @@ def slim_metrics_for_prompt(metrics: dict) -> dict:
     if momentum:
         keep["momentum"] = momentum
 
+    # NEW: Efficiency metrics
+    efficiency = metrics.get("efficiency", {})
+    if efficiency:
+        keep["efficiency"] = {
+            "inventory_turnover": efficiency.get("inventory_turnover"),
+            "receivable_days": efficiency.get("receivable_days"),
+            "payable_days": efficiency.get("payable_days"),
+            "cash_conversion_cycle": efficiency.get("cash_conversion_cycle"),
+        }
+
+    # NEW: DuPont Analysis
+    dupont = metrics.get("dupont_analysis", {})
+    if dupont:
+        keep["dupont_analysis"] = {
+            "roe_pct": dupont.get("roe_pct"),
+            "components": dupont.get("components"),
+            "drivers": dupont.get("drivers"),
+            "interpretation": dupont.get("interpretation"),
+        }
+
+    # NEW: Working Capital
+    working_cap = metrics.get("working_capital", {})
+    if working_cap:
+        keep["working_capital"] = {
+            "amount": working_cap.get("amount"),
+            "change_yoy": working_cap.get("change_yoy"),
+            "current_ratio": working_cap.get("current_ratio"),
+            "quick_ratio": working_cap.get("quick_ratio"),
+            "cash_ratio": working_cap.get("cash_ratio"),
+            "verdict": working_cap.get("verdict"),
+        }
+
+    # NEW: Technical Indicators
+    technical = metrics.get("technical_indicators", {})
+    if technical and technical.get("status") == "ok":
+        keep["technical_indicators"] = {
+            "rsi": technical.get("rsi"),
+            "fibonacci_price": technical.get("fibonacci_price"),
+            "price_momentum": technical.get("price_momentum"),
+            "volume_analysis": technical.get("volume_analysis"),
+            "volatility": technical.get("volatility"),
+            "summary": technical.get("summary"),
+        }
+
+    # NEW: Horizontal Analysis (YoY changes)
+    horizontal = metrics.get("horizontal_analysis", {})
+    if horizontal:
+        keep["horizontal_analysis"] = {
+            "items": horizontal.get("items"),
+            "summary": horizontal.get("summary"),
+            "verdict": horizontal.get("verdict"),
+        }
+
+    # NEW: Vertical Analysis (structure %)
+    vertical = metrics.get("vertical_analysis", {})
+    if vertical:
+        keep["vertical_analysis"] = {
+            "balance_sheet": vertical.get("balance_sheet"),
+            "income_statement": vertical.get("income_statement"),
+        }
+
+    # NEW: Profitability Ratios
+    profitability = metrics.get("profitability_ratios", {})
+    if profitability:
+        keep["profitability_ratios"] = profitability
+
+    # NEW: Solvency Ratios
+    solvency = metrics.get("solvency_ratios", {})
+    if solvency:
+        keep["solvency_ratios"] = solvency
+
+    # NEW: Cash Flow Analysis
+    cash_flow = metrics.get("cash_flow_analysis", {})
+    if cash_flow:
+        keep["cash_flow_analysis"] = cash_flow
+
     return keep
 
 
@@ -1424,8 +2395,6 @@ ROA: <2% / 2–8% / >8%
 Долг/капитал: >2.0 / 0.5–2.0 / <0.5
 Ликвидность: <1.0 / 1.0–2.5 / >2.5
 Рост выручки: <5% / 5–25% / >25%
-Piotroski: 0–3 / 4–6 / 7–9
-Altman Z: <1.5 / 1.5–2.5 / >2.5
 
 КОНТЕКСТ РЫНКА:
 - Рынок акций Узбекистана — молодой (биржа с 1994, активен с 2020-х)
@@ -1436,153 +2405,407 @@ Altman Z: <1.5 / 1.5–2.5 / >2.5
 - Курс USD/UZS волатилен → экспортёры выигрывают при ослаблении сума
 
 КАЛИБРОВКА ВЕРДИКТА:
-Для ПОКУПАТЬ достаточно 3+ из 5: [маржа выше нормы UZ] [рост выручки > 10%] 
-[Piotroski ≥ 5] [долг в норме] [положительный тренд 2+ лет]
-Для ВОЗДЕРЖАТЬСЯ нужно 3+ красных флага с цифрами — НЕ просто «рынок нестабилен»
+Для позитивного вердикта достаточно 3+ из 5: [маржа выше нормы UZ] [рост выручки > 10%]
+[ROE в норме или выше] [долг в норме] [положительный тренд 2+ лет]
+Для негативного нужно 3+ красных флага с цифрами — НЕ просто «рынок нестабилен»
 
 ОТРАСЛЕВОЙ КОНТЕКСТ (авто-определён):
 {industry_context}
 """
 
-ANALYSIS_PROMPT = """Ты — инвестиционный аналитик специализирующийся на рынках СНГ и Центральной Азии.
-Анализируешь «{company}» для обычного человека — НЕ финансиста.
+ANALYSIS_PROMPT = """Ты — профессиональный финансовый аналитик, составляющий полноформатный аналитический отчёт в стиле финансовой журналистики.
+Объект анализа: «{company}»
 
 {uz_benchmarks}
 
-ПРАВИЛА ЯЗЫКА:
-— Пиши как умный друг, а не как учебник
-— Никаких сложных терминов без объяснения в скобках
-— Каждый вывод — конкретная цифра + что она значит на языке UZ-рынка
-— Хороший пример: «Компания зарабатывает 8 сум с каждых 100 сум выручки — для Узбекистана это нормально»
-— Плохой пример: «Чистая маржа 8% ниже глобального среднего» — НЕ ТАК, глобальный средний нерелевантен
+═══════════════════════════════════════════════════════════════════════════════
+СТИЛЬ ОТЧЁТА: ПРОФЕССИОНАЛЬНАЯ ФИНАНСОВАЯ ЖУРНАЛИСТИКА
+═══════════════════════════════════════════════════════════════════════════════
 
-ДАННЫЕ:
+ТОНАЛЬНОСТЬ:
+— Доступная аналитика для частного инвестора, а не отчёт для коллеги-CFA
+— Каждое утверждение подкреплено конкретной цифрой
+— Структурируй информацию: тезис → данные → интерпретация → вывод
+— ЯЗЫК ПРОСТЫМИ СЛОВАМИ: если используешь профессиональный термин или аббревиатуру
+  (ROE, ROA, EBIT, EBITDA, NIM, ЧПД, CIR, LTD, P/E, D/E, NPL, CAR, free cash flow),
+  СРАЗУ В СКОБКАХ давай короткое пояснение на 3–7 слов простым языком.
+  Пример: «ROE 27% (доходность на каждый сум собственного капитала)»,
+  «D/E 4.5 (на 1 сум капитала приходится 4.5 сума долга)».
+— НЕ упоминай Piotroski F-Score, Altman Z-Score, Buffett-критерии, число Грэма —
+  эти модели не показываются пользователю.
+— Не используй слова «инвестор», «акционер», «фондовый рынок» как если бы читатель
+  знал их назубок — допускай что человек впервые читает финансовый отчёт.
+
+МЕТОДОЛОГИЯ АНАЛИЗА:
+Настоящий анализ строится на трёх классических методах:
+1. ГОРИЗОНТАЛЬНЫЙ АНАЛИЗ — оценка динамики абсолютных и относительных изменений статей отчётности (YoY, период к периоду)
+2. ВЕРТИКАЛЬНЫЙ АНАЛИЗ — структурный анализ: определение удельного веса каждой статьи в итоговом показателе
+3. КОЭФФИЦИЕНТНЫЙ АНАЛИЗ — расчёт финансовых показателей по пяти группам: ликвидность, рентабельность, качество активов, достаточность капитала, операционная эффективность
+
+ВХОДНЫЕ ДАННЫЕ:
 Валюта: {currency}
 
-ПРОФИЛЬ:
+ПРОФИЛЬ ЭМИТЕНТА:
 {company_profile}
 
 ВЕБ-ИССЛЕДОВАНИЕ (новости и катализаторы):
 {web_brief}
 
-ЭКСПЕРТНЫЕ МЕТРИКИ (посчитаны автоматически по данным компании):
+РАССЧИТАННЫЕ МЕТРИКИ:
 {metrics_json}
 
-БИРЖЕВАЯ ЛИКВИДНОСТЬ АКЦИИ ЗА ПОСЛЕДНИЕ 30 ДНЕЙ:
+БИРЖЕВАЯ ЛИКВИДНОСТЬ (30 дней):
 {liquidity_json}
-Учитывай ликвидность в вердикте: даже хорошая компания может быть неудобной для входа и выхода, если сделок мало.
 
-ГОДОВЫЕ ДАННЫЕ ({annual_period}):
+ГОДОВАЯ ОТЧЁТНОСТЬ ({annual_period}):
 {annual_json}
 
-КВАРТАЛЫ ({quarterly_period}):
+КВАРТАЛЬНАЯ ОТЧЁТНОСТЬ ({quarterly_period}):
 {quarterly_json}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-КРИТИЧЕСКИ ВАЖНО — ФОРМАТ ОТВЕТА:
-1. Начни ответ СРАЗУ с [СКОРИНГ] — без вступлений и markdown
-2. Каждая секция ОБЯЗАТЕЛЬНО должна быть в ответе
-3. НЕ используй ## заголовки — только метки [СЕКЦИЯ]
-4. НЕ пропускай секции — лучше написать "Данных нет" чем пропустить
-5. Используй UZ-бенчмарки, не западные стандарты
+═══════════════════════════════════════════════════════════════════════════════
+ФОРМАТ ОТВЕТА — ЖЁСТКО СЛЕДУЙ СТРУКТУРЕ
+═══════════════════════════════════════════════════════════════════════════════
 
-ШАБЛОН (копируй метки ТОЧНО как написано):
+Отчёт состоит из СЕМИ ОСНОВНЫХ РАЗДЕЛОВ (в журнальном стиле, в указанном порядке),
+после которых идут вспомогательные секции для технических метрик и сводного HTML-отчёта.
+
+ВАЖНО:
+• Все 7 основных разделов ОБЯЗАТЕЛЬНЫ — даже если данных мало, заполняй с пометкой «нет данных»
+• В таблицах ИСПОЛЬЗУЙ ТОЛЬКО реальные цифры из отчётности; не выдумывай
+• Все числовые величины подавай в формате «X XXX XXX» (русский разделитель — пробел)
+• Если эмитент — банк, используй банковскую терминологию (Форма №1/№2 НСБУ, ЧПД, LTD, NIM, CIR, резервы, депозиты)
+• Если эмитент — нефинансовая компания, используй стандартный набор (выручка, себестоимость, оборотные активы, запасы, EBIT)
+• Каждый абзац: тезис → данные → интерпретация → вывод
+• КАЖДАЯ из 7 секций ОБЯЗАТЕЛЬНО начинается с одной короткой строки в формате:
+  «TL;DR: <1 предложение, главный вывод секции — 12-25 слов, конкретные цифры>».
+  Эта строка идёт сразу после тега секции, до основного текста. Без неё ответ невалидный.
+
+═══════════════════════════════════════════════════════════════════════════════
+ОСНОВНОЙ ОТЧЁТ — 7 РАЗДЕЛОВ В ЖУРНАЛЬНОМ СТИЛЕ
+═══════════════════════════════════════════════════════════════════════════════
+
+[ОБЩИЕ_СВЕДЕНИЯ]
+Раздел 1. Общие сведения об эмитенте и методология анализа.
+
+Дай развёрнутую справку об эмитенте в формате аналитической записки (3-5 абзацев). Включи:
+• Полное наименование, организационно-правовая форма, дата регистрации/номер государственной регистрации (если известно)
+• Основной вид деятельности, отраслевая принадлежность, позиционирование на рынке (лидер/средний игрок/нишевой)
+• Тикер на бирже, классы выпускаемых акций (обыкновенные/привилегированные), уставный капитал
+• Ключевые направления бизнеса и источники выручки/доходов
+• Структура собственности (если раскрыто)
+
+Затем в 1-2 абзаца изложи методологию настоящего анализа. Назови сравнительную базу (отчётный период и предыдущий период), укажи, что применяются горизонтальный, вертикальный и коэффициентный методы, что коэффициенты рентабельности при необходимости аннуализированы.
+
+[ГОРИЗОНТАЛЬНЫЙ_АНАЛИЗ]
+Раздел 2. Горизонтальный анализ бухгалтерского баланса.
+
+Открывающий абзац о цели горизонтального анализа в контексте данного эмитента.
+
+2.1. Анализ динамики активов
+
+| Статья актива | Текущий период | Предыдущий период | Изм., абс. | Изм., % |
+|---------------|----------------|-------------------|------------|---------|
+| (Для банка: Касса / К получению из ЦБРУ / К получению из других банков / Инвестиции / Кредиты и лизинг нетто / Основные средства / Нач. проценты к получению / Другие активы. Для нефин. компании: Денежные средства / Деб. задолженность / Запасы / Основные средства / НМА / Прочие активы.) | X XXX XXX | X XXX XXX | +/-X XXX | +/-X,X% |
+| ИТОГО АКТИВОВ | X XXX XXX | X XXX XXX | +/-X XXX | +/-X,X% |
+
+2-3 абзаца интерпретации: какие статьи изменились сильнее всего, почему это произошло, что это означает для эмитента. Выделяй ключевые сдвиги bold-цифрами (**X,X%**).
+
+2.2. Анализ динамики обязательств и собственного капитала
+
+| Статья пассива | Текущий период | Предыдущий период | Изм., абс. | Изм., % |
+|----------------|----------------|-------------------|------------|---------|
+| (Для банка: Депозиты до востребования / Срочные депозиты / РЕПО / Привлечённые кредиты и лизинг / Субординированный долг / Начисленные проценты / Прочие обязательства. Для нефин. компании: Краткоср./Долгосроч. обязательства, отдельные группы.) | X XXX XXX | X XXX XXX | +/-X XXX | +/-X,X% |
+| Итого обязательств | X XXX XXX | X XXX XXX | +/-X XXX | +/-X,X% |
+| Уставный капитал | X XXX XXX | X XXX XXX | ... | ... |
+| Резервный капитал | X XXX XXX | X XXX XXX | ... | ... |
+| Нераспределённая прибыль | X XXX XXX | X XXX XXX | ... | ... |
+| Итого собственного капитала | X XXX XXX | X XXX XXX | ... | ... |
+| ИТОГО ПАССИВОВ | X XXX XXX | X XXX XXX | ... | ... |
+
+2-3 абзаца интерпретации: что произошло с фондированием, как изменился собственный капитал, есть ли признаки крупных дивидендных выплат (сокращение нераспределённой прибыли при положительной чистой прибыли).
+
+[ВЕРТИКАЛЬНЫЙ_АНАЛИЗ]
+Раздел 3. Вертикальный анализ бухгалтерского баланса.
+
+Открывающий абзац о цели вертикального анализа и о том, какой структурный сдвиг особенно важен для данной компании.
+
+3.1. Структура активов (% от итога баланса)
+
+| Статья актива | Текущий период | % к итогу | Предыдущий период | % к итогу |
+|---------------|----------------|-----------|-------------------|-----------|
+| ... | ... | ... | ... | ... |
+| ИТОГО АКТИВОВ | X XXX XXX | 100,0% | X XXX XXX | 100,0% |
+
+2 абзаца интерпретации: какой актив доминирует, что это говорит о бизнес-модели, какие структурные сдвиги произошли (в процентных пунктах).
+
+3.2. Структура пассивов (% от итога баланса)
+
+| Статья пассива | Текущий период | % к итогу | Предыдущий период | % к итогу |
+|----------------|----------------|-----------|-------------------|-----------|
+| ... | ... | ... | ... | ... |
+| Итого обязательств | ... | ... | ... | ... |
+| Итого собственного капитала | ... | ... | ... | ... |
+| ИТОГО ПАССИВОВ | X XXX XXX | 100,0% | X XXX XXX | 100,0% |
+
+2 абзаца интерпретации: уровень финансовой автономии (доля собств. капитала), степень зависимости от заёмного фондирования, ключевые сдвиги в структуре пассивов.
+
+[АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ]
+Раздел 4. Анализ отчёта о финансовых результатах.
+
+Открывающий абзац: за какой период анализируем, какие данные доступны (только текущий период или и сравнение). Если данные доступны только за один период — указать это.
+
+4.1. Горизонтальный и вертикальный анализ доходов и расходов
+
+| Статья | Сумма | % от выручки / % от проц. доходов |
+|--------|-------|------------------------------------|
+| (Для банка: Процентные доходы с разбивкой → Процентные расходы с разбивкой → ЧПД до резервов → Резервы → ЧПД после резервов → Беспроцентные доходы → Беспроцентные расходы → Операционные расходы с разбивкой → Прибыль до налогов → Налог → Чистая прибыль. Для нефин. компании: Выручка (100%) → Себестоимость → Валовая прибыль → Коммерч./Управл. расходы → EBIT → Финансовые расходы → Прибыль до налогов → Налог → Чистая прибыль.) | X XXX XXX | X,X% |
+| ЧИСТАЯ ПРИБЫЛЬ | X XXX XXX | X,X% |
+
+3-4 абзаца интерпретации:
+• Структура доходов (диверсификация: доля процентных vs непроцентных для банка; концентрация выручки для нефин. компании)
+• Бремя расходов (соотношение процентных/операционных расходов к выручке)
+• Эффективная ставка налога (укажи цифру и сравни со стандартной ставкой UZ)
+• Качество прибыли: операционная vs разовые доходы, повторяемость
+
+[КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ]
+Раздел 5. Коэффициентный анализ.
+
+Открывающий абзац о значении коэффициентов для оценки финансового здоровья эмитента.
+
+5.1. Показатели ликвидности
+
+[Для банка]:
+• Кредиты к депозитам (LTD) = Кредиты нетто / (Депозиты до востр. + Срочные депозиты) = X,X% (норма: до 80–100%)
+• Доля ликвидных активов 1-й линии = (Касса + ЦБРУ) / Итого активов = X,X% (норма: >5%)
+
+[Для нефин. компании]:
+• Текущая ликвидность = Оборотные активы / Краткосрочные обязательства = X,XX (норма UZ: 1,5–2,5)
+• Быстрая ликвидность = (Оборотные − Запасы) / Краткосрочные обязательства = X,XX (норма: 0,8–1,5)
+• Абсолютная ликвидность = Денежные средства / Краткосрочные обязательства = X,XX
+
+Интерпретация (1 абзац): достаточная/недостаточная ликвидность, тренд за период.
+
+5.2. Показатели рентабельности
+
+• ROA = Чистая прибыль / Итого активов = X,XX% (квартал) → X,XX% аннуализ. (для квартала ×4)
+• ROE = Чистая прибыль / Собственный капитал = X,XX% (квартал) → X,XX% аннуализ.
+• [Банк] NIM = ЧПД до резервов / Итого активов = X,XX% (квартал) → X,XX% аннуализ.
+• [Нефин.] ROS = Чистая прибыль / Выручка = X,X%
+• Чистая маржа прибыли = Чистая прибыль / Совокупные доходы = X,X%
+
+Интерпретация (1-2 абзаца): уровень рентабельности vs отраслевые ориентиры UZ, что это значит для акционера.
+
+5.3. Качество активов
+
+[Для банка]:
+• Coverage ratio = Резерв на убытки / Брутто-кредиты = X,X% (норма: <2%)
+• Нагрузка резервирования = Резервы периода / Процентные доходы = X,X% (норма: <10%)
+
+[Для нефин. компании]:
+• Оборачиваемость дебиторки = Выручка / Средняя дебиторка = X,XX (дней: XXX)
+• Оборачиваемость запасов = Себестоимость / Средние запасы = X,XX (дней: XXX)
+• Доля проблемной/просроченной дебиторки (если известна) — обсудить
+
+Интерпретация (1 абзац): ухудшение/улучшение качества за период, основные сигналы.
+
+5.4. Достаточность капитала и долговая нагрузка
+
+• Капитал / Активы = X,X% (норма для банка: >8% по Базелю I; для нефин. компании: >40%)
+• Левередж = Итого активов / Собственный капитал = X,XX раз
+• Коэффициент задолженности = Итого обязательств / Итого активов = X,X% (для банков ~85% — норма)
+• D/E = Обязательства / Капитал = X,XX (норма: 4–8 для банков, <1,5 для нефин.)
+
+Интерпретация (1 абзац): достаточен ли капитальный буфер, тенденция к укреплению/ослаблению.
+
+5.5. Операционная эффективность
+
+• [Банк] Cost-to-Income Ratio (CIR) = Операц. расходы / (ЧПД до резервов + Беспроц. доходы) = X,X% (норма: 40–60%)
+• [Нефин.] OPEX / Выручка = X,X%
+• Покрытие процентных расходов = Проц. доходы / Проц. расходы (или EBIT / Проц. расходы) = X,XX раз (норма: >1,2x)
+• Доля непроцентных доходов в совокупных = X,X% (для банка норма: 20–40%)
+• [Банк] ФОТ / Операц. расходы = X,X%
+
+Интерпретация (1 абзац): насколько эффективно бизнес конвертирует доходы в прибыль.
+
+[СВОДНАЯ_ТАБЛИЦА]
+Раздел 6. Сводная таблица ключевых показателей.
+
+| Группа | Показатель | Значение | Ориентир / норма | Оценка |
+|--------|------------|----------|------------------|--------|
+| Ликвидность | LTD (для банка) или Current Ratio (для нефин.) | X,X% / X,XX | <100% / 1,5–2,5 | ✓ / ⚠ / 🔴 |
+| Ликвидность | Ликвид. активы / Активы | X,X% | >5% | ... |
+| Рентабельность | ROA (аннуализ.) | X,X% | 1–2% (норм.) | ... |
+| Рентабельность | ROE (аннуализ.) | X,X% | 10–20% | ... |
+| Рентабельность | NIM (банк) / ROS (нефин.) | X,X% | 3–5% / >7% | ... |
+| Качество активов | Резерв/Брутто-кредиты (банк) / Оборач. дебиторки (нефин.) | X,X% / X,XX | <2% / >6x | ... |
+| Капитал | Капитал / Активы | X,X% | >8% (банк) / >40% (нефин.) | ... |
+| Капитал | D/E | X,XX | 4–8 (банк) / <1,5 (нефин.) | ... |
+| Эффективность | CIR (банк) / OPEX/Выручка (нефин.) | X,X% | 40–60% / <30% | ... |
+| Эффективность | Доля непроц. доходов (банк) | X,X% | 20–40% | ... |
+
+Под таблицей — 1 абзац-резюме: сколько групп показателей в норме / вне нормы; какие группы — главные сильные стороны, какие — главные риски.
+
+[ЗАКЛЮЧЕНИЕ]
+Раздел 7. Итоговая оценка финансового состояния эмитента.
+
+Развёрнутый вводный абзац (3-5 предложений): общая характеристика финансового состояния по совокупности показателей. Какие факторы определяют профиль эмитента (сильная рентабельность, умеренные риски и т.п.).
+
+ИНВЕСТИЦИОННАЯ РЕКОМЕНДАЦИЯ:
+Выбери ОДИН вариант (с эмодзи в начале строки):
+🟢 ПОКУПАТЬ — фундаментальные показатели сильные, оценка привлекательная
+🟢 ДЕРЖАТЬ — текущим акционерам сохранять позицию
+🟡 НАБЛЮДАТЬ — требуется подтверждение тенденций
+🟠 ОСТОРОЖНО — существенные риски, ограниченная экспозиция
+🔴 ВОЗДЕРЖАТЬСЯ — критические проблемы
+
+СИЛЬНЫЕ СТОРОНЫ (минимум 3 пункта):
+• Сильная сторона №1 — [Что]: [Показатель] — [Значимость в 1-2 предложениях]
+• Сильная сторона №2 — [Что]: [Показатель] — [Значимость]
+• Сильная сторона №3 — [Что]: [Показатель] — [Значимость]
+
+РИСКИ И ОПАСЕНИЯ (минимум 3 пункта):
+• Риск №1 — [Что]: [Показатель] — [Последствия и условия материализации]
+• Риск №2 — [Что]: [Показатель] — [Последствия]
+• Риск №3 — [Что]: [Показатель] — [Последствия]
+
+ИТОГОВАЯ АРГУМЕНТАЦИЯ (1-2 абзаца): какие факторы определили вердикт, при каких условиях рекомендация может измениться, что мониторить в следующих периодах.
+
+═══════════════════════════════════════════════════════════════════════════════
+ВСПОМОГАТЕЛЬНЫЕ СЕКЦИИ (нужны для технических отчётов; следуют ПОСЛЕ основного)
+═══════════════════════════════════════════════════════════════════════════════
 
 [СКОРИНГ]
 Оценка: XX/100
-Класс: A/B/C/D
-Расшифровка: 2–3 предложения простыми словами — что этот балл означает для инвестора на рынке Узбекистана.
+Класс: A (80-100) / B (60-79) / C (40-59) / D (0-39)
+Расшифровка: Профессиональная интерпретация балла в контексте рынка Узбекистана (2-3 предложения).
 
 [ДОСЬЕ]
-3 предложения — суть бизнеса на языке простого человека.
-Пример: «Компания делает X и продаёт Y. Грубо говоря это как [аналогия]. Зарабатывают на Z.»
+Короткая справка об эмитенте (3-4 строки). Если ключевые тезисы уже изложены в [ОБЩИЕ_СВЕДЕНИЯ] — здесь только краткое повторение.
 
 [ЧТО_С_ДЕНЬГАМИ]
-Простое объяснение финансового состояния без терминов (5–7 предложений).
-Сравнивай с нормами Узбекистана, не глобальными. Используй аналогии с обычной жизнью.
-Объясни: зарабатывает ли компания, растёт ли, есть ли долги, хватает ли денег на работу.
+Краткая выжимка финансового состояния (3-4 предложения, без таблиц). Тезисы со ссылкой на конкретные цифры.
 
 [ТРЕНД]
-Анализ направления движения компании за последние 3–5 лет:
-Выручка: РАСТЁТ / ПАДАЕТ / СТАГНИРУЕТ — темп роста и ускоряется или замедляется
-Прибыль: РАСТЁТ / ПАДАЕТ / СТАГНИРУЕТ — стабильна ли или скачет
-Долги: СНИЖАЮТСЯ / РАСТУТ / СТАБИЛЬНО — куда движется долговая нагрузка
-Momentum (из квартальных данных): ... — рост за последние 3/6/12 месяцев с сигналом БЫЧИЙ/НЕЙТРАЛЬНЫЙ/МЕДВЕЖИЙ
-Ускорение роста: УСКОРЕНИЕ / СТАБИЛЬНО / ЗАМЕДЛЕНИЕ — объясни что это значит для инвестора
-Итог тренда: ПОЗИТИВНЫЙ / НЕЙТРАЛЬНЫЙ / НЕГАТИВНЫЙ — 1–2 предложения почему
+Анализ долгосрочных тенденций за 3-5 лет.
+
+ВЫРУЧКА: [РОСТ/ПАДЕНИЕ/СТАГНАЦИЯ]
+— Среднегодовой темп роста (CAGR): X,X%
+— Динамика последних периодов: ускорение / замедление / стабильно
+— Факторы: [причины тренда]
+
+ПРИБЫЛЬ: [РОСТ/ПАДЕНИЕ/ВОЛАТИЛЬНОСТЬ]
+— Динамика чистой прибыли: устойчивая / нестабильная
+— Качество прибыли: [операционная vs разовые доходы]
+
+АКТИВЫ И КАПИТАЛ:
+— Темп роста активов: X,X% годовых
+— Капитализация прибыли: [компания наращивает / размывает капитал]
+
+MOMENTUM (квартальные данные):
+— 3 месяца: +/-X,X%
+— 6 месяцев: +/-X,X%
+— 12 месяцев: +/-X,X%
+— Сигнал: БЫЧИЙ / НЕЙТРАЛЬНЫЙ / МЕДВЕЖИЙ
+
+[ОЦЕНКА_СТОИМОСТИ]
+Определение справедливой стоимости и инвестиционной привлекательности.
+
+DCF-ОЦЕНКА:
+Справедливая стоимость бизнеса: X,XX млрд UZS
+WACC (средневзвешенная стоимость капитала): X,X%
+Потенциал роста/падения относительно рыночной капитализации: +/-X%
+
+МЕТОД ГРЭМА (Graham Number):
+Справедливая цена акции = √(22,5 × EPS × BVPS) = X XXX UZS
+Текущая цена: X XXX UZS
+Оценка: НЕДООЦЕНЕНА / СПРАВЕДЛИВО ОЦЕНЕНА / ПЕРЕОЦЕНЕНА
+
+PIOTROSKI F-SCORE: X/9 баллов
+— Рентабельность: X/4
+— Леверидж и ликвидность: X/3
+— Операционная эффективность: X/2
+Интерпретация: [сильная/средняя/слабая финансовая позиция]
+
+ALTMAN Z-SCORE: X,XX
+— Зона: БЕЗОПАСНАЯ (>2,99) / СЕРАЯ (1,81-2,99) / РИСКОВАЯ (<1,81)
+— Вероятность банкротства: низкая / умеренная / высокая
+
+БАФФЕТТ-КРИТЕРИИ: X/5 выполнено
+— ROE > 15%: ✓/✗
+— Стабильный рост прибыли: ✓/✗
+— Низкий долг (D/E < 0,5): ✓/✗
+— Конкурентное преимущество: ✓/✗
+— Понятный бизнес: ✓/✗
 
 [ФИБОНАЧЧИ]
-Объясни уровни Фибоначчи простым языком:
-Текущая зона: ...
-Что это значит: ... (объясни как будто человек никогда не слышал об этом)
-Ключевые уровни поддержки: ...
-Ключевые уровни сопротивления: ...
-Вывод для инвестора: ...
+Технический анализ уровней поддержки и сопротивления.
 
-[ОЦЕНКА_ЦЕНЫ]
-Дорого или дёшево сейчас покупать? (относительно норм UZ-рынка)
-DCF-оценка: справедливая стоимость бизнеса = ... млрд UZS (объясни простыми словами что это значит для покупки акции)
-Метод Грэма: ... (справедливая стоимость по формуле — выше или ниже DCF?)
-Метод Баффетта: ... (X из 5 критериев выполнено — объясни какие именно)
-Altman Z-Score: ... баллов — компания далека от банкротства или есть риски?
-Piotroski F-Score: .../9 — компания сильная/средняя/слабая по меркам UZ
-Итоговый вывод по цене: ДЁШЕВО / СПРАВЕДЛИВО / ДОРОГО — 1–2 предложения почему
+Текущая ценовая зона: [уровень относительно Фибоначчи]
+Ключевые уровни поддержки: X XXX, X XXX, X XXX UZS
+Ключевые уровни сопротивления: X XXX, X XXX, X XXX UZS
+Техническая картина: [бычья/медвежья/нейтральная]
 
 [КАТАЛИЗАТОРЫ]
-События которые могут ПОДНЯТЬ цену акции:
-• Событие: ... | Когда: ... | Вероятный эффект: ...
-• Событие: ... | Когда: ... | Вероятный эффект: ...
+Факторы, способные повлиять на стоимость акций.
 
-События которые могут ОПУСТИТЬ цену акции:
-• Риск: ... | Вероятность: ВЫСОКАЯ/СРЕДНЯЯ/НИЗКАЯ | Возможный эффект: ...
-• Риск: ... | Вероятность: ВЫСОКАЯ/СРЕДНЯЯ/НИЗКАЯ | Возможный эффект: ...
+ПОЗИТИВНЫЕ ДРАЙВЕРЫ:
+1. [Событие/фактор] — ожидаемый срок: [когда] — потенциальный эффект: [описание]
+2. [Событие/фактор] — ожидаемый срок: [когда] — потенциальный эффект: [описание]
 
-Макро-факторы (Узбекистан + мир):
-• Фактор: ... | Как влияет на эту компанию: ...
-• Фактор: ... | Как влияет на эту компанию: ...
+НЕГАТИВНЫЕ РИСКИ:
+1. [Риск] — вероятность: ВЫСОКАЯ/СРЕДНЯЯ/НИЗКАЯ — возможный ущерб: [описание]
+2. [Риск] — вероятность: ВЫСОКАЯ/СРЕДНЯЯ/НИЗКАЯ — возможный ущерб: [описание]
+
+МАКРОЭКОНОМИЧЕСКИЕ ФАКТОРЫ:
+— [Фактор UZ/глобальный]: влияние на эмитента
+— [Фактор UZ/глобальный]: влияние на эмитента
 
 [СИЛЬНЫЕ_СТОРОНЫ]
-• Факт: ... | Цифра: ... | Значимость: ...
-• Факт: ... | Цифра: ... | Значимость: ...
-• Факт: ... | Цифра: ... | Значимость: ...
+Ключевые конкурентные преимущества и позитивные факторы:
+• [Факт] — Показатель: [цифра] — Значимость: [почему это важно]
+• [Факт] — Показатель: [цифра] — Значимость: [почему это важно]
+• [Факт] — Показатель: [цифра] — Значимость: [почему это важно]
 
 [СЛАБЫЕ_СТОРОНЫ]
-• Факт: ... | Цифра: ... | Значимость: ...
-• Факт: ... | Цифра: ... | Значимость: ...
-• Факт: ... | Цифра: ... | Значимость: ...
+Ключевые риски и проблемные зоны:
+• [Факт] — Показатель: [цифра] — Значимость: [почему это важно]
+• [Факт] — Показатель: [цифра] — Значимость: [почему это важно]
+• [Факт] — Показатель: [цифра] — Значимость: [почему это важно]
 
 [ПРОГНОЗ]
-ВАЖНО: каждая строка начинается ТОЧНО с этих слов, затем двоеточие, затем значение, затем длинное тире —, затем объяснение одним предложением.
-Рост прибыли: ВЫСОКАЯ — выручка растёт 3 года подряд, новые контракты подписаны
-Долговая нагрузка: УЛУЧШЕНИЕ — компания гасит долги быстрее чем берёт новые
-Ликвидность: СТАБИЛЬНО — достаточно денег чтобы платить по счетам без проблем
+Ожидания на ближайшие 12 месяцев:
+Рост выручки: [ВЫСОКИЙ/УМЕРЕННЫЙ/НИЗКИЙ/ОТРИЦАТЕЛЬНЫЙ] — обоснование
+Динамика прибыли: [РОСТ/СТАБИЛЬНО/СНИЖЕНИЕ] — обоснование
+Долговая нагрузка: [СНИЖЕНИЕ/СТАБИЛЬНО/РОСТ] — обоснование
+Ликвидность: [УЛУЧШЕНИЕ/СТАБИЛЬНО/УХУДШЕНИЕ] — обоснование
 
 [ВЕРДИКТ]
-ПРАВИЛО: используй 5-уровневую шкалу. ПОКУПАТЬ нужно смелее давать если показатели в норме для UZ-рынка.
-ЗАПРЕЩЕНО ставить ВОЗДЕРЖАТЬСЯ без минимум 3 конкретных красных флагов с цифрами.
+ИНВЕСТИЦИОННАЯ РЕКОМЕНДАЦИЯ:
 
-МЕТКА: выбери ОДИН из вариантов:
-🟢 ПОКУПАТЬ — показатели хорошие по меркам UZ, тренд позитивный, риски умеренные
-🟢 ДЕРЖАТЬ — если уже есть позиция, продолжать держать; новым — можно рассматривать
-🟡 НАБЛЮДАТЬ — интересная компания но нужно подождать квартал-два для подтверждения
-🟠 ОСТОРОЖНО — есть реальные риски, покупать только небольшую долю и с стоп-лоссом
-🔴 ВОЗДЕРЖАТЬСЯ — серьёзные проблемы: убытки ИЛИ падение выручки 2+ лет ИЛИ критический долг
+Выбери ОДИН вариант:
+🟢 ПОКУПАТЬ — фундаментальные показатели сильные, оценка привлекательная, риски умеренные
+🟢 ДЕРЖАТЬ — текущим акционерам рекомендуется сохранять позицию
+🟡 НАБЛЮДАТЬ — требуется подтверждение позитивных тенденций в следующих периодах
+🟠 ОСТОРОЖНО — присутствуют существенные риски, рекомендуется ограниченная экспозиция
+🔴 ВОЗДЕРЖАТЬСЯ — выявлены критические проблемы, инвестирование не рекомендуется
 
-Обоснование: 3–4 предложения простым языком без терминов. Объясни решение через аналогию.
+ОБОСНОВАНИЕ:
+Развёрнутая аргументация рекомендации (4-6 предложений). Какие факторы определили вердикт, какие риски учтены, при каких условиях рекомендация может измениться.
 
 [СОВЕТЫ]
-Доля портфеля: ...% (для 🟢 обычно 5–15%, для 🟡 3–8%, для 🟠 1–3%)
-Горизонт: краткосрочно (до 1 года) / среднесрочно (1–3 года) / долгосрочно (3+ лет)
-Точка входа: ... (при каком условии/цене покупать — если ПОКУПАТЬ/ДЕРЖАТЬ/НАБЛЮДАТЬ)
-Следить за:
-1. Показатель: ... | Почему важен для этой компании: ...
-2. Показатель: ... | Почему важен для этой компании: ...
-3. Показатель: ... | Почему важен для этой компании: ...
+Рекомендуемая доля в портфеле: X-X% (в зависимости от риск-профиля инвестора)
+Инвестиционный горизонт: краткосрочный (<1 года) / среднесрочный (1-3 года) / долгосрочный (3+ лет)
+Точка входа: [ценовой уровень или условие для покупки]
+Стоп-лосс: [уровень ограничения убытков, если применимо]
+
+Ключевые метрики для мониторинга:
+1. [Показатель] — пороговое значение — почему критичен
+2. [Показатель] — пороговое значение — почему критичен
+3. [Показатель] — пороговое значение — почему критичен
 
 [ИТОГ]
-Напиши 4–6 предложений простым языком для человека который никогда не инвестировал.
-Используй аналогию из обычной жизни (магазин, машина, квартира).
-Без цифр, без терминов — только суть: стоит ли вкладывать деньги и почему."""
+Резюме для инвестора: 4-6 предложений, суммирующих ключевые выводы анализа. Что представляет собой компания с инвестиционной точки зрения, каковы основные драйверы стоимости и риски, соответствует ли текущая оценка фундаментальным показателям."""
 
 
 def run_analysis(company_name: str, company_profile: str, web_research: str,
@@ -1652,14 +2875,21 @@ def run_analysis(company_name: str, company_profile: str, web_research: str,
     def _call():
         return client.messages.create(
             model=MODEL_MAIN,
-            max_tokens=8000,
+            max_tokens=12000,
             temperature=0.2,
             system=(
                 "Ты строго следуешь формату ответа. "
-                "КАЖДАЯ секция ОБЯЗАТЕЛЬНО начинается с метки в квадратных скобках: [СКОРИНГ], [ДОСЬЕ] и т.д. "
+                "КАЖДАЯ секция ОБЯЗАТЕЛЬНО начинается с метки в квадратных скобках: "
+                "[ОБЩИЕ_СВЕДЕНИЯ], [ГОРИЗОНТАЛЬНЫЙ_АНАЛИЗ], [ВЕРТИКАЛЬНЫЙ_АНАЛИЗ], "
+                "[АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ], [КОЭФФИЦИЕНТНЫЙ_АНАЛИЗ], [СВОДНАЯ_ТАБЛИЦА], [ЗАКЛЮЧЕНИЕ], "
+                "[СКОРИНГ], [ДОСЬЕ], [ЧТО_С_ДЕНЬГАМИ], [ТРЕНД], [ОЦЕНКА_СТОИМОСТИ], "
+                "[ФИБОНАЧЧИ], [КАТАЛИЗАТОРЫ], [СИЛЬНЫЕ_СТОРОНЫ], [СЛАБЫЕ_СТОРОНЫ], "
+                "[ПРОГНОЗ], [ВЕРДИКТ], [СОВЕТЫ], [ИТОГ]. "
+                "ПОРЯДОК СТРОГО ТАКОЙ, КАК В ШАБЛОНЕ — сначала 7 основных разделов, затем вспомогательные. "
                 "НЕ используй markdown заголовки (##). "
                 "НЕ пропускай ни одну секцию. "
-                "Если данных недостаточно — напиши 'Недостаточно данных' внутри секции, но секцию не пропускай."
+                "Если данных недостаточно — напиши 'Недостаточно данных' внутри секции, но секцию не пропускай. "
+                "Все числа давай в формате «X XXX XXX» с пробелами в качестве разделителей разрядов."
             ),
             messages=[{"role": "user", "content": prompt}],
         )
@@ -1669,7 +2899,15 @@ def run_analysis(company_name: str, company_profile: str, web_research: str,
     # Проверяем не обрезан ли ответ
     if msg.stop_reason == "max_tokens":
         print("   ⚠️  ВНИМАНИЕ: ответ обрезан по max_tokens! Некоторые секции могут быть пустыми.")
-        # Дописываем минимальный вердикт если его нет
+        # Дописываем минимальное заключение/вердикт если их нет
+        if "[ЗАКЛЮЧЕНИЕ]" not in raw:
+            raw += (
+                "\n\n[ЗАКЛЮЧЕНИЕ]\n"
+                "Итоговая оценка финансового состояния не может быть сформирована: "
+                "анализ был прерван из-за ограничения по токенам.\n\n"
+                "ИНВЕСТИЦИОННАЯ РЕКОМЕНДАЦИЯ:\n"
+                "🟡 НАБЛЮДАТЬ — данные неполные, требуется дополнительный анализ.\n"
+            )
         if "[ВЕРДИКТ]" not in raw:
             raw += (
                 "\n\n[ВЕРДИКТ]\n"
@@ -1703,11 +2941,18 @@ def parse_bullet(line: str) -> dict:
 
 # Карта нормализации меток — claude иногда пишет по-другому
 _SECTION_ALIASES = {
-    # Русские варианты
+    # 7 основных разделов ipoteka-стиля
+    "ОБЩИЕ_СВЕДЕНИЯ": ["ОБЩИЕ_СВЕДЕНИЯ", "ОБЩИЕ СВЕДЕНИЯ", "ОБЩАЯ_ИНФОРМАЦИЯ", "GENERAL_INFO", "ОБ_ЭМИТЕНТЕ", "СВЕДЕНИЯ_ОБ_ЭМИТЕНТЕ"],
+    "АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ": ["АНАЛИЗ_ФИНРЕЗУЛЬТАТОВ", "АНАЛИЗ ФИНРЕЗУЛЬТАТОВ", "АНАЛИЗ_ФИН_РЕЗУЛЬТАТОВ", "ОТЧЕТ_О_ФИНРЕЗУЛЬТАТАХ", "ОТЧЁТ_О_ФИНРЕЗУЛЬТАТАХ", "ОТЧЕТ_О_ПРИБЫЛЯХ_И_УБЫТКАХ", "ОТЧЁТ_О_ПРИБЫЛЯХ_И_УБЫТКАХ", "INCOME_STATEMENT", "ПРИБЫЛИ_И_УБЫТКИ"],
+    "СВОДНАЯ_ТАБЛИЦА": ["СВОДНАЯ_ТАБЛИЦА", "СВОДНАЯ ТАБЛИЦА", "СВОДКА", "SUMMARY_TABLE", "KEY_METRICS_SUMMARY", "ИТОГОВЫЕ_ПОКАЗАТЕЛИ"],
+    "ЗАКЛЮЧЕНИЕ": ["ЗАКЛЮЧЕНИЕ", "CONCLUSION", "ОБЩЕЕ_ЗАКЛЮЧЕНИЕ", "ИТОГОВАЯ_ОЦЕНКА"],
+    # Существующие
     "СКОРИНГ": ["СКОРИНГ", "SCORING", "ОЦЕНКА", "SCORE"],
     "ДОСЬЕ": ["ДОСЬЕ", "DOSSIER", "КРАТКОЕ_ДОСЬЕ", "КРАТКОЕ ДОСЬЕ"],
     "ЧТО_С_ДЕНЬГАМИ": ["ЧТО_С_ДЕНЬГАМИ", "ЧТО С ДЕНЬГАМИ", "ФИНАНСЫ", "ДЕНЬГИ", "ФИНАНСОВОЕ_СОСТОЯНИЕ"],
     "ТРЕНД": ["ТРЕНД", "TREND", "ТРЕНДЫ", "НАПРАВЛЕНИЕ"],
+    "ЭФФЕКТИВНОСТЬ": ["ЭФФЕКТИВНОСТЬ", "EFFICIENCY", "ОБОРАЧИВАЕМОСТЬ"],
+    "ТЕХНИЧЕСКИЙ_АНАЛИЗ": ["ТЕХНИЧЕСКИЙ_АНАЛИЗ", "ТЕХНИЧЕСКИЙ АНАЛИЗ", "TECHNICAL_ANALYSIS", "TECHNICAL ANALYSIS", "RSI", "ТЕХАНАЛИЗ"],
     "ФИБОНАЧЧИ": ["ФИБОНАЧЧИ", "FIBONACCI", "ФИБ", "FIB", "ФИБО"],
     "ОЦЕНКА_ЦЕНЫ": ["ОЦЕНКА_ЦЕНЫ", "ОЦЕНКА ЦЕНЫ", "ОЦЕНКА", "ЦЕНА", "СТОИМОСТЬ", "ДОРОГО_ИЛИ_ДЕШЕВО"],
     "КАТАЛИЗАТОРЫ": ["КАТАЛИЗАТОРЫ", "CATALYSTS", "ДВИЖУЩИЕ_СИЛЫ", "ФАКТОРЫ", "НОВОСТИ"],
@@ -1719,6 +2964,8 @@ _SECTION_ALIASES = {
     "ВЕРДИКТ": ["ВЕРДИКТ", "VERDICT", "РЕШЕНИЕ", "ИТОГОВЫЙ_ВЕРДИКТ"],
     "СОВЕТЫ": ["СОВЕТЫ", "РЕКОМЕНДАЦИИ", "ADVICE", "РЕКОМЕНДАЦИЯ"],
     "ИТОГ": ["ИТОГ", "ИТОГО", "CONCLUSION", "ВЫВОД", "ЗАКЛЮЧЕНИЕ"],
+    "РЫНОЧНЫЕ_ДАННЫЕ": ["РЫНОЧНЫЕ_ДАННЫЕ", "РЫНОЧНЫЕ ДАННЫЕ", "MARKET_DATA", "MARKET DATA"],
+    "ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА": ["ОГРАНИЧЕНИЯ_ПУБЛИЧНОГО_КОНТУРА", "ОГРАНИЧЕНИЯ ПУБЛИЧНОГО КОНТУРА", "ОГРАНИЧЕНИЯ", "LIMITATIONS"],
     "ЗЕЛЕНЫЕ_ФЛАГИ": ["ЗЕЛЕНЫЕ_ФЛАГИ", "ЗЕЛЁНЫЕ_ФЛАГИ", "GREEN_FLAGS"],
     "КРАСНЫЕ_ФЛАГИ": ["КРАСНЫЕ_ФЛАГИ", "RED_FLAGS"],
 }
@@ -1779,230 +3026,308 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Инвест-анализ · {company}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=IBM+Plex+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<title>Анализ финансовой отчётности — {company}</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#c8a96e;--accent2:#5b9cf6;--text:#dde2ec;--muted:#7a8099;--green:#4ade80;--red:#f87171;--yellow:#fbbf24;--purple:#a78bfa;}}
-  *{{box-sizing:border-box;margin:0;padding:0}}
-  body{{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-weight:300;line-height:1.7}}
-  header{{border-bottom:1px solid var(--border);padding:48px 0 40px;text-align:center;background:radial-gradient(ellipse 60% 80% at 50% -20%,#1e2235 0%,transparent 70%)}}
-  .header-label{{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}}
-  header h1{{font-family:'Playfair Display',serif;font-size:clamp(28px,5vw,52px);color:#fff;letter-spacing:-.02em}}
-  .meta-row{{margin-top:16px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}}
-  .meta-chip{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:4px 12px;border-radius:20px}}
-  .container{{max-width:960px;margin:0 auto;padding:48px 24px 80px}}
+  :root {{
+    --ink: #1a1612;
+    --ink-mid: #3d3530;
+    --ink-light: #6b5e55;
+    --rule: #c9b99a;
+    --rule-light: #e8ddd0;
+    --accent: #8b1a1a;
+    --accent-soft: #c0392b;
+    --gold: #9a7b3a;
+    --bg: #faf7f2;
+    --bg-warm: #f3ede3;
+    --bg-table: #fdf9f4;
+    --green: #1a5c2e;
+    --red: #8b1a1a;
+    --amber: #7a5200;
+  }}
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ background: var(--bg); color: var(--ink); font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; line-height: 1.8; }}
 
-  /* Скоринг */
-  .score-banner{{display:flex;align-items:center;gap:24px;padding:28px 32px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:32px}}
-  .score-circle{{width:88px;height:88px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;border:3px solid var(--accent)}}
-  .score-num{{font-family:'Playfair Display',serif;font-size:32px;color:var(--accent);line-height:1}}
-  .score-max{{font-size:11px;color:var(--muted)}}
-  .score-grade{{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--accent);margin-bottom:6px}}
-  .score-desc{{font-size:14px;color:var(--muted);line-height:1.6}}
+  .masthead {{ border-top: 3px solid var(--ink); border-bottom: 1px solid var(--rule); padding: 12px 0 8px; text-align: center; background: var(--bg); margin-bottom: 0; }}
+  .masthead-journal {{ font-family: 'Playfair Display', serif; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-light); }}
+  .masthead-title {{ font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; letter-spacing: 0.01em; color: var(--ink); margin: 6px 0 4px; }}
+  .masthead-sub {{ font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }}
+  .masthead-rule {{ display: flex; align-items: center; gap: 12px; margin: 10px auto 0; max-width: 400px; justify-content: center; }}
+  .masthead-rule span {{ height: 1px; flex: 1; background: var(--rule); }}
+  .masthead-rule em {{ font-size: 11px; color: var(--ink-light); letter-spacing: 0.2em; font-style: normal; }}
 
-  .verdict-banner{{display:flex;align-items:flex-start;gap:20px;padding:28px 32px;border-radius:12px;margin-bottom:32px;border:1px solid}}
-  .verdict-banner.green{{background:rgba(74,222,128,.06);border-color:rgba(74,222,128,.25)}}
-  .verdict-banner.yellow{{background:rgba(251,191,36,.06);border-color:rgba(251,191,36,.25)}}
-  .verdict-banner.red{{background:rgba(248,113,113,.06);border-color:rgba(248,113,113,.25)}}
-  .verdict-banner.orange{{background:rgba(251,146,60,.06);border-color:rgba(251,146,60,.25)}}
-  .verdict-emoji{{font-size:40px;flex-shrink:0;line-height:1}}
-  .verdict-body h2{{font-family:'Playfair Display',serif;font-size:22px;margin-bottom:8px}}
-  .verdict-body p{{color:var(--muted);font-size:15px}}
+  .page {{ max-width: 900px; margin: 0 auto; padding: 0 40px 80px; }}
+  .meta-bar {{ border-bottom: 2px solid var(--ink); padding: 14px 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-bottom: 40px; }}
+  .meta-item {{ padding: 0 16px; border-right: 1px solid var(--rule); }}
+  .meta-item:first-child {{ padding-left: 0; }}
+  .meta-item:last-child {{ border-right: none; }}
+  .meta-label {{ font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 2px; }}
+  .meta-value {{ font-family: 'Playfair Display', serif; font-size: 13px; color: var(--ink); }}
 
-  .section{{margin-bottom:40px}}
-  .section-title{{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid var(--border)}}
-  .prose{{font-size:15px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent2);padding:22px 26px;border-radius:0 10px 10px 0;line-height:1.85;white-space:pre-wrap}}
-  .prose-plain{{font-size:15px;color:var(--text);line-height:1.85;white-space:pre-wrap}}
+  .abstract {{ border-left: 3px solid var(--accent); padding: 20px 24px; background: var(--bg-warm); margin-bottom: 44px; position: relative; }}
+  .abstract::before {{ content: 'АННОТАЦИЯ'; font-size: 9px; letter-spacing: 0.35em; color: var(--accent); display: block; margin-bottom: 10px; }}
+  .abstract p {{ font-size: 15px; line-height: 1.75; color: var(--ink-mid); font-style: italic; }}
 
-  /* Метрики */
-  .metrics-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}}
-  .metric-card{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}}
-  .metric-label{{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);margin-bottom:8px}}
-  .metric-val{{font-family:'Playfair Display',serif;font-size:24px;margin-bottom:4px}}
-  .metric-sub{{font-size:12px;color:var(--muted);line-height:1.4}}
-  .val-green{{color:var(--green)}} .val-red{{color:var(--red)}} .val-yellow{{color:var(--yellow)}} .val-purple{{color:var(--purple)}}
+  .section {{ margin-bottom: 52px; }}
+  .section-number {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gold); letter-spacing: 0.1em; display: block; margin-bottom: 4px; }}
+  h2 {{ font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 22px; line-height: 1.3; }}
+  h3 {{ font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; font-style: italic; color: var(--accent); margin: 28px 0 12px; }}
+  p {{ margin-bottom: 16px; text-align: justify; hyphens: auto; }}
+  p:last-child {{ margin-bottom: 0; }}
+  .dropcap::first-letter {{ font-family: 'Playfair Display', serif; font-size: 68px; font-weight: 700; float: left; line-height: 0.8; margin: 6px 8px -4px 0; color: var(--accent); }}
+  .prose {{ font-size: 15px; line-height: 1.85; white-space: pre-wrap; }}
 
-  /* Фибоначчи */
-  .fib-levels{{display:flex;flex-direction:column;gap:6px;margin-top:12px}}
-  .fib-row{{display:flex;align-items:center;gap:10px;font-size:13px}}
-  .fib-label{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);width:50px}}
-  .fib-bar-wrap{{flex:1;height:6px;background:var(--border);border-radius:3px;position:relative}}
-  .fib-bar{{height:6px;border-radius:3px;background:var(--accent)}}
-  .fib-val{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);width:80px;text-align:right}}
+  .table-wrap {{ margin: 28px 0 32px; overflow-x: auto; }}
+  .table-caption {{ font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 8px; padding-left: 2px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 14px; background: var(--bg-table); }}
+  thead tr {{ background: var(--ink); color: #f5ede0; }}
+  thead th {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; padding: 10px 12px; text-align: right; font-weight: 500; }}
+  thead th:first-child {{ text-align: left; }}
+  tbody tr {{ border-bottom: 1px solid var(--rule-light); }}
+  tbody tr:hover {{ background: #f0e9de; }}
+  tbody tr.subtotal {{ background: #ede4d6; font-weight: 600; }}
+  tbody tr.total {{ background: var(--bg-warm); border-top: 2px solid var(--rule); border-bottom: 2px solid var(--rule); font-weight: 700; }}
+  tbody tr.section-head {{ background: #f7f1e8; }}
+  tbody td {{ padding: 8px 12px; color: var(--ink-mid); vertical-align: middle; }}
+  tbody td:first-child {{ color: var(--ink); }}
+  tbody td.num {{ text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 13px; }}
+  .pos {{ color: var(--green); font-weight: 600; }}
+  .neg {{ color: var(--red); font-weight: 600; }}
+  .warn {{ color: var(--amber); font-weight: 600; }}
+  .indent {{ padding-left: 28px !important; font-size: 13.5px; color: var(--ink-light); }}
 
-  /* Катализаторы */
-  .catalyst-grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
-  @media(max-width:600px){{.catalyst-grid{{grid-template-columns:1fr}}}}
-  .catalyst-card{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}}
-  .catalyst-card.up{{border-left:3px solid var(--green)}}
-  .catalyst-card.down{{border-left:3px solid var(--red)}}
-  .catalyst-card.macro{{border-left:3px solid var(--yellow)}}
-  .catalyst-label{{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}}
-  .catalyst-label.up{{color:var(--green)}} .catalyst-label.down{{color:var(--red)}} .catalyst-label.macro{{color:var(--yellow)}}
-  .catalyst-item{{font-size:13px;color:var(--text);margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)}}
-  .catalyst-item:last-child{{border-bottom:none;margin-bottom:0;padding-bottom:0}}
+  .callout-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0 32px; }}
+  .callout {{ border: 1px solid var(--rule); padding: 16px 20px; background: var(--bg-warm); }}
+  .callout.good {{ border-left: 4px solid var(--green); }}
+  .callout.bad {{ border-left: 4px solid var(--red); }}
+  .callout.neutral {{ border-left: 4px solid var(--gold); }}
+  .callout-label {{ font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 6px; }}
+  .callout-value {{ font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; color: var(--ink); }}
+  .callout-desc {{ font-size: 12.5px; color: var(--ink-light); margin-top: 4px; line-height: 1.5; }}
 
-  /* SWOT */
-  .swot-grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
-  @media(max-width:600px){{.swot-grid{{grid-template-columns:1fr}}}}
-  .swot-card{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px}}
-  .swot-card h3{{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.15em;margin-bottom:12px}}
-  .swot-card.strengths h3{{color:var(--green)}} .swot-card.weaknesses h3{{color:var(--red)}}
-  .swot-item{{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}}
-  .swot-item:last-child{{margin-bottom:0;padding-bottom:0;border-bottom:none}}
-  .swot-fact{{font-size:14px;font-weight:500}} .swot-num{{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent)}} .swot-sig{{font-size:12px;color:var(--muted);margin-top:2px}}
+  .kpi-row {{ display: flex; gap: 0; border: 1px solid var(--rule); margin: 24px 0 32px; }}
+  .kpi-item {{ flex: 1; padding: 16px 18px; border-right: 1px solid var(--rule); text-align: center; }}
+  .kpi-item:last-child {{ border-right: none; }}
+  .kpi-label {{ font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 6px; }}
+  .kpi-val {{ font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--accent); }}
+  .kpi-sub {{ font-size: 11px; color: var(--ink-light); margin-top: 2px; }}
 
-  /* Прогноз */
-  .forecast-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}}
-  @media(max-width:600px){{.forecast-grid{{grid-template-columns:1fr}}}}
-  .forecast-card{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;text-align:center}}
-  .forecast-label{{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);margin-bottom:8px}}
-  .forecast-val{{font-family:'Playfair Display',serif;font-size:18px;margin-bottom:6px}}
-  .forecast-note{{font-size:12px;color:var(--muted);line-height:1.4}}
-  .trend-up{{color:var(--green)}} .trend-down{{color:var(--red)}} .trend-flat{{color:var(--yellow)}}
+  .formula-box {{ border: 1px solid var(--rule); border-left: 3px solid var(--gold); background: #faf5ec; padding: 12px 18px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--ink-mid); margin: 12px 0 20px; }}
 
-  /* Советы */
-  .tips-card{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:22px}}
-  .tips-row{{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}}
-  .tips-badge{{background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.3);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:5px 12px;border-radius:20px}}
-  .watch-item{{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}}
-  .watch-item:last-child{{border-bottom:none}}
-  .watch-num{{width:22px;height:22px;background:var(--accent);color:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;margin-top:2px}}
-  .watch-name{{font-size:14px;font-weight:500}} .watch-why{{font-size:12px;color:var(--muted)}}
+  .metrics-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 20px 0; }}
+  .metric-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 16px; }}
+  .metric-label {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--ink-light); margin-bottom: 8px; }}
+  .metric-val {{ font-family: 'Playfair Display', serif; font-size: 24px; margin-bottom: 4px; }}
+  .metric-sub {{ font-size: 12px; color: var(--ink-light); line-height: 1.4; }}
+  .val-green {{ color: var(--green); }} .val-red {{ color: var(--red); }} .val-yellow {{ color: var(--amber); }}
 
-  .conclusion{{background:linear-gradient(135deg,rgba(200,169,110,.08) 0%,rgba(91,156,246,.05) 100%);border:1px solid rgba(200,169,110,.2);border-radius:12px;padding:28px 32px;font-size:16px;line-height:1.85}}
-  .web-toggle{{background:none;border:1px solid var(--border);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 14px;border-radius:20px;cursor:pointer;text-transform:uppercase;letter-spacing:.1em}}
-  .web-toggle:hover{{border-color:var(--accent);color:var(--accent)}}
-  .web-text{{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-left:3px solid #6366f1;padding:16px 20px;border-radius:0 8px 8px 0;line-height:1.75;white-space:pre-wrap;max-height:240px;overflow-y:auto;display:none;margin-top:10px}}
-  .trend-row{{display:flex;flex-direction:column;gap:8px}}
-  .trend-item{{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px}}
-  .trend-name{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);width:90px;flex-shrink:0}}
-  .trend-bar-wrap{{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}}
-  .trend-bar{{height:4px;border-radius:2px}}
-  .trend-bar.pos{{background:var(--green)}}.trend-bar.neg{{background:var(--red)}}.trend-bar.neu{{background:var(--yellow)}}
-  .trend-val{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);width:55px;text-align:right;flex-shrink:0}}
-  .trend-lbl{{font-size:12px;color:var(--muted);margin-left:4px;flex-shrink:0}}
-  footer{{text-align:center;padding:32px;border-top:1px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}}
+  .swot-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }}
+  @media (max-width: 600px) {{ .swot-grid {{ grid-template-columns: 1fr; }} }}
+  .swot-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 18px; }}
+  .swot-card h3 {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; border: none; padding: 0; }}
+  .swot-card.strengths h3 {{ color: var(--green); }} .swot-card.weaknesses h3 {{ color: var(--red); }}
+  .swot-item {{ margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rule-light); }}
+  .swot-item:last-child {{ margin-bottom: 0; padding-bottom: 0; border-bottom: none; }}
+  .swot-fact {{ font-size: 14px; font-weight: 500; }} .swot-num {{ font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); }} .swot-sig {{ font-size: 12px; color: var(--ink-light); margin-top: 2px; }}
+
+  .catalyst-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }}
+  @media (max-width: 600px) {{ .catalyst-grid {{ grid-template-columns: 1fr; }} }}
+  .catalyst-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 14px; }}
+  .catalyst-card.up {{ border-left: 4px solid var(--green); }}
+  .catalyst-card.down {{ border-left: 4px solid var(--red); }}
+  .catalyst-card.macro {{ border-left: 4px solid var(--amber); }}
+  .catalyst-label {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }}
+  .catalyst-label.up {{ color: var(--green); }} .catalyst-label.down {{ color: var(--red); }} .catalyst-label.macro {{ color: var(--amber); }}
+  .catalyst-item {{ font-size: 13px; color: var(--ink); margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--rule-light); }}
+  .catalyst-item:last-child {{ border-bottom: none; margin-bottom: 0; padding-bottom: 0; }}
+
+  .forecast-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }}
+  @media (max-width: 600px) {{ .forecast-grid {{ grid-template-columns: 1fr; }} }}
+  .forecast-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 18px; text-align: center; }}
+  .forecast-label {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--ink-light); margin-bottom: 8px; }}
+  .forecast-val {{ font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 6px; }}
+  .forecast-note {{ font-size: 12px; color: var(--ink-light); line-height: 1.4; }}
+  .trend-up {{ color: var(--green); }} .trend-down {{ color: var(--red); }} .trend-flat {{ color: var(--amber); }}
+
+  .tips-card {{ background: var(--bg-warm); border: 1px solid var(--rule); padding: 22px; margin: 20px 0; }}
+  .tips-row {{ display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }}
+  .tips-badge {{ background: rgba(154, 123, 58, 0.1); border: 1px solid rgba(154, 123, 58, 0.3); color: var(--gold); font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 5px 12px; }}
+  .watch-item {{ display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule-light); }}
+  .watch-item:last-child {{ border-bottom: none; }}
+  .watch-num {{ width: 22px; height: 22px; background: var(--gold); color: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; margin-top: 2px; }}
+  .watch-name {{ font-size: 14px; font-weight: 500; }} .watch-why {{ font-size: 12px; color: var(--ink-light); }}
+
+  .trend-row {{ display: flex; flex-direction: column; gap: 8px; margin: 20px 0; }}
+  .trend-item {{ display: flex; align-items: center; gap: 10px; background: var(--bg-warm); border: 1px solid var(--rule); padding: 10px 14px; }}
+  .trend-name {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-light); width: 90px; flex-shrink: 0; }}
+  .trend-bar-wrap {{ flex: 1; height: 4px; background: var(--rule-light); overflow: hidden; }}
+  .trend-bar {{ height: 4px; }}
+  .trend-bar.pos {{ background: var(--green); }} .trend-bar.neg {{ background: var(--red); }} .trend-bar.neu {{ background: var(--amber); }}
+  .trend-val {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gold); width: 55px; text-align: right; flex-shrink: 0; }}
+  .trend-lbl {{ font-size: 12px; color: var(--ink-light); margin-left: 4px; flex-shrink: 0; }}
+
+  .verdict {{ background: var(--ink); color: #f5ede0; padding: 32px 36px; margin: 40px 0 0; }}
+  .verdict-label {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.3em; color: var(--gold); margin-bottom: 14px; }}
+  .verdict h3 {{ color: #f5ede0; font-family: 'Playfair Display', serif; font-size: 20px; margin: 0 0 16px; font-style: normal; border: none; padding: 0; }}
+  .verdict p {{ color: #d4c5b0; font-size: 15px; margin-bottom: 12px; text-align: left; }}
+  .verdict ul {{ list-style: none; padding: 0; margin-top: 8px; }}
+  .verdict ul li {{ font-size: 14.5px; color: #d4c5b0; padding: 5px 0 5px 18px; position: relative; border-bottom: 1px solid #3d352a; }}
+  .verdict ul li::before {{ content: '›'; position: absolute; left: 0; color: var(--gold); font-size: 18px; line-height: 1.4; }}
+
+  .web-toggle {{ background: none; border: 1px solid var(--rule); color: var(--ink-light); font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 6px 14px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; margin: 10px 0; }}
+  .web-toggle:hover {{ border-color: var(--gold); color: var(--gold); }}
+  .web-text {{ font-size: 13px; color: var(--ink-light); background: var(--bg-warm); border: 1px solid var(--rule); border-left: 3px solid var(--gold); padding: 16px 20px; line-height: 1.75; white-space: pre-wrap; max-height: 240px; overflow-y: auto; display: none; margin-top: 10px; }}
+
+  .footer {{ border-top: 2px solid var(--ink); padding: 20px 0 0; margin-top: 60px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; font-size: 12px; color: var(--ink-light); }}
+  .footer strong {{ display: block; color: var(--ink); margin-bottom: 4px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }}
+
+  @media (max-width: 700px) {{
+    .page {{ padding: 0 20px 60px; }}
+    .meta-bar {{ grid-template-columns: 1fr 1fr; }}
+    .callout-grid {{ grid-template-columns: 1fr; }}
+    .kpi-row {{ flex-wrap: wrap; }}
+    .footer {{ grid-template-columns: 1fr; }}
+    .masthead-title {{ font-size: 20px; }}
+  }}
+
+  @media print {{
+    body {{ font-size: 12pt; }}
+    .page {{ max-width: 100%; padding: 0; }}
+    h2 {{ page-break-after: avoid; }}
+    .section {{ page-break-inside: avoid; }}
+    table {{ page-break-inside: avoid; }}
+  }}
 </style>
 </head>
 <body>
-<header>
-  <div class="header-label">Профессиональный инвест-анализ</div>
-  <h1>{company}</h1>
-  <div class="meta-row">
-    <span class="meta-chip">📅 {annual_period}</span>
-    <span class="meta-chip">📊 {quarterly_period}</span>
-    <span class="meta-chip">🔬 Fibonacci · Piotroski · Graham · Altman</span>
 
-    <span class="meta-chip">🕐 {analyzed_at}</span>
-  </div>
-</header>
+<div class="masthead">
+  <div class="masthead-journal">Финансовый анализ / Financial Analysis Report</div>
+  <div class="masthead-title">{company}</div>
+  <div class="masthead-sub">Анализ финансовой отчётности — {annual_period}</div>
+  <div class="masthead-rule"><span></span><em>{analyzed_at}</em><span></span></div>
+</div>
 
-<div class="container">
+<div class="page">
 
-  <!-- СКОРИНГ -->
-  <div class="score-banner">
-    <div class="score-circle">
-      <div class="score-num">{score}</div>
-      <div class="score-max">/100</div>
+  <div class="meta-bar">
+    <div class="meta-item">
+      <div class="meta-label">Эмитент</div>
+      <div class="meta-value">{company}</div>
     </div>
-    <div>
-      <div class="score-grade">{score_grade}</div>
-      <div class="score-desc">{score_desc}</div>
+    <div class="meta-item">
+      <div class="meta-label">Период</div>
+      <div class="meta-value">{annual_period}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Кварталы</div>
+      <div class="meta-value">{quarterly_period}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Скоринг</div>
+      <div class="meta-value">{score}/100 · {score_grade}</div>
     </div>
   </div>
 
-  <!-- ВЕРДИКТ -->
-  <div class="verdict-banner {verdict_class}">
-    <div class="verdict-emoji">{verdict_emoji}</div>
-    <div class="verdict-body"><h2>{verdict_label}</h2><p>{verdict_text}</p></div>
+  <div class="abstract">
+    <p>{company_profile}</p>
   </div>
 
-  <!-- ПРОФИЛЬ -->
+  <!-- РАЗДЕЛ 1: ПРОФИЛЬ И МЕТОДОЛОГИЯ -->
   <div class="section">
-    <div class="section-title">01 · Профиль компании</div>
-    <div class="prose">{company_profile}</div>
+    <span class="section-number">РАЗДЕЛ 1</span>
+    <h2>Профиль компании и методология анализа</h2>
+    <p class="dropcap">{score_desc}</p>
+    <p>Настоящий анализ строится на трёх классических методах финансового анализа: <strong>горизонтальный анализ</strong> (оценка динамики абсолютных и относительных изменений), <strong>вертикальный анализ</strong> (структурный анализ — удельный вес каждой статьи) и <strong>коэффициентный анализ</strong> (расчёт показателей по группам: ликвидность, рентабельность, качество активов, достаточность капитала, эффективность).</p>
   </div>
 
-  <!-- ЧТО С ДЕНЬГАМИ -->
+  <!-- РАЗДЕЛ 2: ФИНАНСОВЫЙ АНАЛИЗ -->
   <div class="section">
-    <div class="section-title">02 · Что происходит с деньгами</div>
+    <span class="section-number">РАЗДЕЛ 2</span>
+    <h2>Анализ финансовых показателей</h2>
     <div class="prose">{what_money}</div>
-  </div>
-
-  <!-- ТРЕНД -->
-  <div class="section">
-    <div class="section-title">03 · Куда движется компания</div>
     {trends_html}
-    <div class="prose" style="margin-top:12px">{trend_text}</div>
+    <div class="prose" style="margin-top:20px">{trend_text}</div>
   </div>
 
-  <!-- ЭКСПЕРТНЫЕ МЕТРИКИ -->
+  <!-- РАЗДЕЛ 3: ЭКСПЕРТНЫЕ МЕТРИКИ -->
   <div class="section">
-    <div class="section-title">04 · Экспертные метрики</div>
+    <span class="section-number">РАЗДЕЛ 3</span>
+    <h2>Экспертные метрики и индикаторы</h2>
+    <p>Ключевые метрики рассчитаны по методологиям Piotroski F-Score, Altman Z-Score, критериям Баффетта и другим признанным подходам.</p>
     <div class="metrics-grid">{metrics_html}</div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">04B · Ликвидность акции</div>
+    <h3>Ликвидность акции на рынке</h3>
     {liquidity_html}
   </div>
 
-  <!-- ФИБОНАЧЧИ -->
+  <!-- РАЗДЕЛ 4: ТЕХНИЧЕСКИЙ АНАЛИЗ -->
   <div class="section">
-    <div class="section-title">05 · Анализ Фибоначчи</div>
+    <span class="section-number">РАЗДЕЛ 4</span>
+    <h2>Технический анализ и уровни Фибоначчи</h2>
     <div class="prose">{fibonacci_text}</div>
-  </div>
-
-  <!-- ОЦЕНКА ЦЕНЫ -->
-  <div class="section">
-    <div class="section-title">06 · Дорого или дёшево?</div>
+    <h3>Оценка стоимости акции</h3>
     <div class="prose">{price_valuation}</div>
   </div>
 
-  <!-- КАТАЛИЗАТОРЫ -->
+  <!-- РАЗДЕЛ 5: КАТАЛИЗАТОРЫ -->
   <div class="section">
-    <div class="section-title">07 · Что может двигать цену</div>
+    <span class="section-number">РАЗДЕЛ 5</span>
+    <h2>Факторы, влияющие на стоимость</h2>
     {catalysts_html}
   </div>
 
-  <!-- SWOT -->
+  <!-- РАЗДЕЛ 6: СИЛЬНЫЕ И СЛАБЫЕ СТОРОНЫ -->
   <div class="section">
-    <div class="section-title">08 · Сильные и слабые стороны</div>
+    <span class="section-number">РАЗДЕЛ 6</span>
+    <h2>Сильные и слабые стороны компании</h2>
     <div class="swot-grid">
-      <div class="swot-card strengths"><h3>💪 Сильные стороны</h3>{strengths_html}</div>
-      <div class="swot-card weaknesses"><h3>⚠️ Слабые стороны</h3>{weaknesses_html}</div>
+      <div class="swot-card strengths"><h3>Сильные стороны</h3>{strengths_html}</div>
+      <div class="swot-card weaknesses"><h3>Риски и слабости</h3>{weaknesses_html}</div>
     </div>
   </div>
 
-  <!-- ПРОГНОЗ -->
+  <!-- РАЗДЕЛ 7: ВЕРДИКТ И РЕКОМЕНДАЦИИ -->
   <div class="section">
-    <div class="section-title">09 · Прогноз</div>
+    <span class="section-number">РАЗДЕЛ 7</span>
+    <h2>Инвестиционный вердикт</h2>
+
+    <h3>Прогноз</h3>
     <div class="forecast-grid">{forecast_html}</div>
+
+    <h3>Рекомендации</h3>
+    <div class="tips-card">
+      <div class="tips-row">{tips_badges_html}</div>
+      <div>{watch_html}</div>
+    </div>
+
+    <div class="verdict">
+      <div class="verdict-label">{verdict_emoji} ЗАКЛЮЧЕНИЕ</div>
+      <h3>{verdict_label}</h3>
+      <p>{verdict_text}</p>
+      <p>{itog}</p>
+    </div>
   </div>
 
-  <!-- СОВЕТЫ -->
+  <!-- ВЕБ-ИССЛЕДОВАНИЕ -->
   <div class="section">
-    <div class="section-title">10 · Советы</div>
-    <div class="tips-card"><div class="tips-row">{tips_badges_html}</div><div>{watch_html}</div></div>
-  </div>
-
-  <!-- ИТОГ -->
-  <div class="section">
-    <div class="section-title">11 · Итог простыми словами</div>
-    <div class="conclusion">{itog}</div>
-  </div>
-
-  <!-- ВЕБ -->
-  <div class="section">
-    <div class="section-title">12 · Веб-исследование</div>
-    <button class="web-toggle" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block'">📰 Показать источники</button>
+    <span class="section-number">ПРИЛОЖЕНИЕ</span>
+    <h2>Источники и веб-исследование</h2>
+    <button class="web-toggle" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block'">Показать источники</button>
     <div class="web-text">{web_research}</div>
   </div>
 
+  <div class="footer">
+    <div>
+      <strong>Методология</strong>
+      Fibonacci · Piotroski · Graham · Altman
+    </div>
+    <div>
+      <strong>Дисклеймер</strong>
+      Данный отчёт не является инвестиционной рекомендацией
+    </div>
+  </div>
+
 </div>
-<footer>Сгенерировано автоматически · Fibonacci · Piotroski · Graham · Altman · Не является инвестиционной рекомендацией</footer>
 </body>
 </html>
 """

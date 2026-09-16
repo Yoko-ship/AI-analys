@@ -1,0 +1,728 @@
+/* ============================================================================
+   admin.css — the administrative page.
+   ----------------------------------------------------------------------------
+   The panel is a PAGE of the site, not an application beside it: the site's
+   topbar, brand, language and theme controls stay above it, and everything here
+   is painted with the site's own tokens (--accent, --panel, --border, --radius…)
+   so it inherits both themes for free and cannot drift from the product.
+
+   Only what the site has no vocabulary for is defined below: stat tiles, the run
+   histogram, the findings table and the section tabs. Where the site already has
+   a component — .panel, .panel-label, .muted, .primary-btn — it is used as is.
+
+   Note for whoever edits the company page: .company-tab-btn reads --text-muted
+   and --text-primary, which are defined nowhere in this project, so those tabs
+   silently inherit their colour. The tabs here use the real tokens instead.
+   ========================================================================== */
+
+.admin-view {
+  width: 100%;
+  max-width: 1240px;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 4px 2px 28px;
+}
+
+/* ── page head ───────────────────────────────────────────────────────────── */
+.admin-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.admin-head-copy { min-width: 0; flex: 1; }
+.admin-head h1 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.admin-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 78ch;
+}
+.admin-head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-quality-picker { position: relative; width: min(340px, 100%); }
+.admin-quality-picker .admin-input { width: 100%; }
+.admin-quality-suggestions {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  max-height: 270px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--panel);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .24);
+}
+.admin-quality-suggestions button,
+.admin-quality-search-state {
+  display: flex;
+  width: 100%;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+}
+.admin-quality-suggestions button { cursor: pointer; }
+.admin-quality-suggestions button:hover { background: var(--surface-2); }
+.admin-quality-suggestions button b { min-width: 58px; color: var(--accent); }
+.admin-quality-suggestions button span,
+.admin-quality-search-state { color: var(--muted); }
+
+/* ── section tabs ────────────────────────────────────────────────────────── */
+.admin-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+  scrollbar-width: thin;
+}
+.admin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 11px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s var(--ease-out, ease), border-color 0.15s var(--ease-out, ease);
+}
+.admin-tab:hover:not(:disabled) { color: var(--text); }
+.admin-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.admin-tab:disabled { cursor: default; opacity: 0.45; }
+.admin-tab .adm-i { width: 15px; height: 15px; }
+.admin-tab .n {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.admin-tab.active .n { color: var(--accent); border-color: var(--accent); }
+.admin-tab .n.hot { color: #fff; background: var(--danger); border-color: var(--danger); font-weight: 600; }
+.admin-tab .n.soon { border: 0; padding: 0; text-transform: lowercase; font-size: 0.68rem; }
+/* A section that is not built yet does not earn an icon — nine tabs have to fit
+   on a laptop, and the label alone says everything a disabled tab can say. */
+.admin-tab:disabled .adm-i { display: none; }
+.admin-tabs::-webkit-scrollbar { height: 6px; }
+.admin-tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.admin-tabs::-webkit-scrollbar-track { background: transparent; }
+
+/* ── shared bits ─────────────────────────────────────────────────────────── */
+.admin-view .adm-i {
+  width: 16px; height: 16px; flex: none;
+  stroke: currentColor; fill: none; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.admin-view .num { font-variant-numeric: tabular-nums; }
+.admin-sp { flex: 1; }
+.admin-section { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+/* Wide tables scroll inside their card. Without this flex minimum override, a
+   table's 760px intrinsic width stretches every sibling card on mobile and the
+   app shell clips the right half of the funnel and action log. */
+.admin-section > .panel { min-width: 0; }
+
+/* Railway operations follow the existing panel and theme tokens. */
+.railway-toolbar, .railway-service-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.railway-panel h2, .railway-panel h3 { margin: 0; overflow-wrap: anywhere; }
+.railway-toolbar p { margin: 8px 0; }
+.railway-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 16px; }
+.railway-service { min-width: 0; }
+.railway-service dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: .85rem; }
+.railway-service dt { color: var(--muted); }
+.railway-service dd { margin: 0; overflow-wrap: anywhere; }
+.railway-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.railway-actions label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.railway-actions select { max-width: 100%; min-width: 0; padding: 8px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; }
+.railway-actions .admin-btn { white-space: normal; text-decoration: none; }
+.railway-confirm { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 8px; }
+.railway-confirm p, .railway-details p { line-height: 1.6; }
+.railway-details { scroll-margin-top: 100px; }
+.railway-excerpt { margin-top: 16px; padding: 12px; border-left: 3px solid var(--danger); background: var(--panel); }
+.railway-excerpt pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin-bottom: 0; }
+.railway-log { max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-size: .78rem; line-height: 1.6; }
+.railway-grid.is-stale { opacity: .65; }
+.railway-panel :is(button, select, a, pre):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.admin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--panel);
+  color: var(--text-secondary, var(--text));
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s var(--ease-out, ease);
+}
+.admin-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.admin-btn:disabled { opacity: 0.5; cursor: default; }
+.admin-btn.accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+.admin-btn.accent:hover:not(:disabled) { background: var(--accent-hover, var(--accent)); color: #fff; }
+.admin-btn.sm { padding: 5px 11px; font-size: 0.8rem; }
+
+/* ── stat tiles ──────────────────────────────────────────────────────────── */
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 1080px) { .admin-stats { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px)  { .admin-stats { grid-template-columns: 1fr; } }
+.admin-stat { padding: 16px 18px; }
+.admin-stat-top { display: flex; align-items: flex-start; gap: 10px; }
+.admin-stat-label { flex: 1; color: var(--muted); font-size: 0.84rem; }
+.admin-stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.admin-stat-badge .adm-i { width: 12px; height: 12px; }
+.admin-stat-value {
+  margin: 8px 0 8px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.admin-stat-value.warn { color: var(--danger); }
+.admin-stat-l1 { display: flex; align-items: center; gap: 6px; font-size: 0.84rem; font-weight: 600; }
+.admin-stat-l2 { margin-top: 3px; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+
+/* ── run histogram ───────────────────────────────────────────────────────── */
+.admin-chart-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.admin-chart-head h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+.admin-chart-head p { margin: 3px 0 0; color: var(--muted); font-size: 0.84rem; }
+.admin-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 120px;
+  margin: 18px 0 26px;
+}
+.admin-bars .bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px 4px 2px 2px;
+  background: var(--accent);
+  opacity: 0.5;
+  position: relative;
+  transition: opacity 0.15s var(--ease-out, ease);
+}
+.admin-bars .bar:hover { opacity: 0.85; }
+.admin-bars .bar.now { opacity: 1; }
+.admin-bars .bar.failed { background: var(--danger); opacity: 0.72; }
+.admin-bars .bar.failed.now { opacity: 1; }
+.admin-bars .bar span {
+  position: absolute;
+  left: -14px; right: -14px; bottom: -20px;
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.admin-chart-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 0.84rem;
+}
+.admin-chart-foot span { color: var(--muted); }
+.admin-chart-foot b { font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* ── tables ──────────────────────────────────────────────────────────────── */
+.admin-panel-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.admin-seg { display: flex; gap: 2px; background: var(--surface-2); padding: 3px; border-radius: var(--radius-sm, 10px); }
+.admin-seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: calc(var(--radius-sm, 10px) - 3px);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+.admin-seg button[aria-selected="true"] {
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.06));
+}
+.admin-seg .n { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.admin-scroll { overflow-x: auto; margin: 0 -22px -22px; padding: 0 22px 4px; }
+.admin-scroll table { min-width: 760px; }
+/* colour is declared, not inherited: Chrome leaves a table subtree stale when a
+   custom property flips and the value only reaches it through inheritance. */
+.admin-view table { width: 100%; border-collapse: collapse; color: var(--text); }
+.admin-view thead th {
+  text-align: left;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.admin-view thead th.r, .admin-view tbody td.r { text-align: right; }
+.admin-view tbody td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  font-size: 0.88rem;
+}
+.admin-view tbody tr:last-child td { border-bottom: 0; }
+.admin-view tbody tr:hover { background: var(--surface-2); }
+.admin-rule { display: flex; align-items: baseline; gap: 8px; font-weight: 600; }
+.admin-rule code {
+  flex: none;
+  white-space: nowrap;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--accent);
+}
+.admin-sub { margin-top: 3px; color: var(--muted); font-size: 0.82rem; line-height: 1.45; }
+.admin-num { font-variant-numeric: tabular-nums; font-size: 0.84rem; }
+
+.admin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.admin-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; background: var(--muted); }
+.admin-dot.err { background: var(--danger); }
+.admin-dot.warn { background: var(--warning); }
+.admin-dot.ok { background: var(--success); }
+
+.admin-check {
+  width: 17px; height: 17px;
+  border: 1px solid var(--border-hover, var(--border));
+  border-radius: 5px;
+  background: none;
+  padding: 0;
+  display: block;
+  position: relative;
+  cursor: pointer;
+}
+.admin-check[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.admin-check[aria-checked="true"]::after {
+  content: "";
+  position: absolute;
+  left: 5px; top: 2px;
+  width: 4px; height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.admin-row-act {
+  border: 0;
+  background: none;
+  padding: 5px;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.admin-view tbody tr:hover .admin-row-act,
+.admin-row-act:focus-visible { opacity: 1; }
+.admin-row-act:hover { background: var(--accent-light); color: var(--accent); }
+
+.admin-table-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+/* ── states ──────────────────────────────────────────────────────────────── */
+.admin-empty { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 0.88rem; }
+.admin-empty b { display: block; color: var(--text); font-size: 1rem; font-weight: 650; margin-bottom: 6px; }
+.admin-error {
+  border: 1px solid var(--danger);
+  background: var(--danger-light);
+  border-radius: var(--radius-sm, 10px);
+  padding: 12px 14px;
+  color: var(--danger);
+  font-size: 0.88rem;
+}
+.admin-skel {
+  border-radius: var(--radius-sm, 10px);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: adminShimmer 1.4s ease infinite;
+}
+@keyframes adminShimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .admin-skel { animation: none; } }
+
+@media (max-width: 760px) {
+  .admin-scroll { margin: 0 -18px -18px; padding: 0 18px 4px; }
+  .admin-head-actions { width: 100%; }
+}
+
+/* ── the calculation console: intake, ledger, rule book ───────────────────── */
+.admin-muted { color: var(--muted); }
+.admin-note { font-size: 0.8rem; line-height: 1.6; margin: 10px 0 0; }
+.admin-quality-fixed {
+  border: 1px solid color-mix(in srgb, var(--success, #22a06b) 52%, var(--border));
+  background: color-mix(in srgb, var(--success, #22a06b) 10%, var(--surface));
+  border-radius: var(--radius, 14px);
+  padding: 14px 16px;
+  color: var(--text);
+}
+.admin-quality-fixed-title { color: var(--success, #22a06b); font-weight: 750; margin-bottom: 8px; }
+.admin-quality-fixed-list { display: grid; gap: 9px; font-size: 0.84rem; line-height: 1.55; }
+.admin-quality-fixed-item + .admin-quality-fixed-item { border-top: 1px solid var(--border); padding-top: 9px; }
+.admin-flagbar { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 14px; }
+.admin-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.admin-input {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 7px 11px;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text);
+  min-width: 200px;
+}
+.admin-link {
+  font: inherit;
+  font-weight: 620;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+}
+.admin-link:hover { text-decoration: underline; }
+.admin-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.admin-panel-head h2 { margin: 0; font-size: 1.05rem; }
+
+/* The worksheet. One line per component of the twelve-month base, with the
+   sign it enters with — a component that exists but did not enter is struck
+   through rather than hidden, because "why is this the interim alone" is
+   exactly the question the screen answers. */
+.admin-ledger { border: 1px solid var(--border); border-radius: var(--radius-sm, 10px); overflow: hidden; }
+.admin-ledger-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.admin-ledger-row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+.admin-ledger-row:last-child { border-bottom: 0; }
+.admin-ledger-row.dropped { opacity: 0.5; }
+.admin-ledger-row.dropped .admin-ledger-val { text-decoration: line-through; }
+.admin-ledger-row.total { background: var(--surface-2); font-weight: 620; }
+.admin-ledger-sign { font-weight: 700; text-align: center; color: var(--muted); }
+.admin-ledger-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-ledger-label span { font-size: 0.76rem; }
+.admin-ledger-val { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+
+.admin-cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.admin-cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 980px) { .admin-cols3 { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .admin-cols2 { grid-template-columns: 1fr; } }
+
+.admin-kv { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.admin-kv td { padding: 7px 0; border-bottom: 1px solid var(--border); }
+.admin-kv tr:last-child td { border-bottom: 0; }
+.admin-kv td.n { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.admin-kv tr.total td { border-top: 1px solid var(--border); }
+
+.admin-checklist { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
+.admin-list { margin: 6px 0 0; padding-left: 18px; font-size: 0.85rem; line-height: 1.7; }
+.admin-view td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; }
+
+/* ── the product half: sub-tabs, ranked bars, the funnel ──────────────────── */
+
+/* Second navigation row shown only inside «Система» — the seven old console
+   screens as one segmented control rather than seven top-level tabs. */
+.admin-subtabs { margin: -8px 0 20px; overflow-x: auto; scrollbar-width: thin; }
+.admin-subtabs .admin-seg { width: max-content; }
+
+/* Ranked breakdowns (referrers, devices, top tickers…): the bar is proportion,
+   the number on the right is the fact. */
+.admin-hbars { display: flex; flex-direction: column; gap: 9px; }
+.admin-hbar {
+  display: grid;
+  grid-template-columns: minmax(110px, 38%) 1fr 64px;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.85rem;
+}
+.admin-hbar-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-hbar-detail { color: var(--muted); font-size: 0.76rem; white-space: nowrap; }
+.admin-hbar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.admin-hbar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0.65;
+}
+.admin-hbar:hover .admin-hbar-fill { opacity: 0.95; }
+.admin-hbar-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* The activation funnel: each step a full-width bar against the first step. */
+.admin-funnel { display: flex; flex-direction: column; gap: 10px; }
+.admin-funnel-step {
+  display: grid;
+  grid-template-columns: minmax(140px, 26%) 1fr 120px;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.87rem;
+}
+.admin-funnel-track { height: 20px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.admin-funnel-fill {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  background: var(--accent);
+  opacity: 0.6;
+}
+.admin-funnel-step:first-child .admin-funnel-fill { opacity: 0.85; }
+.admin-funnel-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.admin-funnel-val em {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.78rem;
+  margin-left: 6px;
+}
+
+/* A destructive action armed for its second, confirming click. */
+.admin-btn.danger { border-color: var(--danger); color: var(--danger); }
+.admin-btn.danger:hover:not(:disabled) { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
+
+@media (max-width: 620px) {
+  .admin-hbar { grid-template-columns: minmax(90px, 44%) 1fr 56px; }
+  .admin-funnel-step { grid-template-columns: minmax(110px, 38%) 1fr 96px; }
+  .admin-filters .admin-seg { width: 100%; max-width: 100%; overflow-x: auto; }
+}
+
+/* ── OpenInfo company import ────────────────────────────────────────────── */
+.admin-company-intake { display: grid; gap: 16px; }
+.admin-company-lookup {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.admin-company-lookup label { display: grid; gap: 6px; min-width: min(280px, 100%); }
+.admin-company-lookup label > span,
+.admin-company-form label > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+.admin-company-lookup .admin-input { width: 100%; min-width: 0; text-transform: uppercase; }
+.admin-company-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 8px 11px;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border));
+  border-radius: var(--radius-sm, 10px);
+  background: color-mix(in srgb, var(--success) 8%, var(--panel));
+  color: var(--text);
+  font-size: 0.84rem;
+}
+.admin-company-review { display: grid; gap: 16px; }
+.admin-company-warnings {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-company-warnings > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--border));
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.admin-company-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+.admin-company-form label { display: grid; align-content: start; gap: 7px; min-width: 0; }
+.admin-company-form label.wide { grid-column: 1 / -1; }
+.admin-company-form input,
+.admin-company-form select,
+.admin-company-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--surface-1);
+  color: var(--text);
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 0.86rem;
+  outline: none;
+}
+.admin-company-form textarea { resize: vertical; line-height: 1.5; }
+.admin-company-form input:focus,
+.admin-company-form select:focus,
+.admin-company-form textarea:focus { border-color: var(--accent); }
+.admin-company-logo-field {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.admin-company-logo-field img,
+.admin-company-logo-empty {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  object-fit: contain;
+  padding: 4px;
+}
+.admin-company-logo-empty {
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 700;
+  padding: 0;
+}
+.admin-company-actions,
+.admin-company-row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-company-row-actions { justify-content: flex-end; }
+.admin-company-table { min-width: 920px !important; }
+.admin-company-table .admin-rule { max-width: 360px; }
+.admin-catalog-toggle { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text-secondary, var(--text-muted)); }
+.admin-catalog-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.admin-catalog-toggle input:disabled { cursor: wait; opacity: .55; }
+
+@media (max-width: 700px) {
+  .admin-company-form { grid-template-columns: 1fr; }
+  .admin-company-form label.wide { grid-column: auto; }
+  .admin-company-lookup { align-items: stretch; }
+  .admin-company-lookup label,
+  .admin-company-lookup .admin-btn { width: 100%; }
+}

@@ -1,0 +1,1310 @@
+/* Market screener — B1 information-first direction.
+   Imported after the shared theme/mobile layers so this page can be dense and
+   rectangular without changing the softer component language elsewhere. */
+
+/* The screener keeps its dense geometry, but inherits the same shared palette
+   as the rest of the product. Colour is reserved for interaction and financial
+   meaning; opening this route no longer recolours the global shell. */
+
+.market-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.market-layout > .market-hero-panel { order: 1; }
+.market-layout > .market-top-movers { order: 2; }
+.market-layout > .fx-bar { order: 3; }
+.market-layout > .market-stats-scope { order: 4; }
+.market-layout > .market-stats-grid { order: 5; }
+.market-layout > .market-board { order: 6; }
+
+/* Quiet page masthead: the data starts immediately instead of sitting below a
+   decorative hero card. */
+.market-layout .market-hero-panel {
+  min-height: 0;
+  padding: 4px 2px 7px;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.market-layout .market-hero-copy {
+  gap: 4px;
+  max-width: 880px;
+}
+
+.market-layout .market-hero-copy .panel-label,
+.market-layout .market-board-head .panel-label {
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+}
+
+.market-layout .market-hero-copy h1 {
+  font-size: clamp(1.75rem, 2.2vw, 2.25rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.market-layout .market-hero-copy p {
+  max-width: 760px;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.market-layout .market-hero-actions .status-badge,
+.market-layout .market-hero-actions .ghost-btn {
+  min-height: 32px;
+}
+
+/* FX desk: a complete three-quote watchlist rather than a thin text ribbon.
+   The hierarchy follows real market products: source/date, instrument, price,
+   direction, then the next action. No fake chart is drawn from a single fix. */
+.market-layout > .fx-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: stretch;
+  min-height: 82px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: none;
+}
+
+.market-layout .fx-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 184px;
+  padding: 14px 17px;
+  border-right: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.market-layout .fx-bar-label-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 9px;
+  background: var(--accent-light);
+  color: var(--accent);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.market-layout .fx-bar-label-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.market-layout .fx-bar-label-copy strong {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.market-layout .fx-bar-label-copy > span {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.market-layout .fx-bar-quotes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.market-layout .fx-bar-quotes::-webkit-scrollbar { display: none; }
+
+.market-layout .fx-bar-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px 16px;
+  border-right: 1px solid var(--border);
+  white-space: normal;
+}
+
+.market-layout .fx-bar-flag {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+}
+
+.market-layout .fx-bar .topbar-fx-flag {
+  display: block;
+  width: 22px;
+  height: auto;
+  border-radius: 2px;
+}
+
+.market-layout .fx-bar .topbar-fx-code {
+  display: inline-flex;
+  width: auto;
+  font-size: 10px;
+}
+
+.market-layout .fx-bar-quote {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.market-layout .fx-bar-quote-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.market-layout .fx-bar-ccy {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.market-layout .fx-bar-rate {
+  overflow: hidden;
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 17px;
+  font-weight: 720;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-layout .fx-bar-rate small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+.market-layout .fx-bar-pct {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.market-layout .fx-bar-banks {
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 174px;
+  padding: 13px 15px;
+  border-left: 0;
+  background: color-mix(in srgb, var(--accent) 3%, var(--panel));
+  color: var(--text);
+}
+
+.market-layout .fx-bar-banks > span:first-child {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+
+.market-layout .fx-bar-banks small {
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.market-layout .fx-bar-banks strong {
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.market-layout .fx-bar-banks-arrow {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: 50%;
+  color: var(--accent);
+  transition: transform 150ms ease;
+}
+
+.market-layout .fx-bar-banks:hover {
+  background: var(--accent-light);
+  color: var(--text);
+}
+
+.market-layout .fx-bar-banks:hover .fx-bar-banks-arrow {
+  transform: translate(2px, -2px);
+}
+
+.market-layout .market-stats-scope {
+  margin: 0;
+  padding: 0 2px;
+}
+
+.market-layout .market-stats-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 1.4fr) repeat(2, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.market-layout .market-stat-card,
+.market-layout .market-breadth-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 126px;
+  padding: 16px 18px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel) !important;
+  box-shadow: var(--shadow-xs);
+}
+
+.market-layout .market-stat-card::before { display: none; }
+
+.market-layout .market-stat-card-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.market-layout .market-stat-icon {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.market-layout .market-stat-icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.market-layout .market-stat-label {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.market-layout .market-stat-card > strong {
+  margin-top: 12px;
+  overflow: hidden;
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: clamp(1.45rem, 1.85vw, 1.85rem);
+  font-weight: 750;
+  line-height: 1.1;
+  letter-spacing: -0.045em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-layout .market-stat-card em {
+  margin-top: auto;
+  padding-top: 8px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-style: normal;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-layout .market-stat-card.is-turnover .market-stat-icon {
+  border-color: color-mix(in srgb, var(--chart-tertiary) 30%, var(--border));
+  background: color-mix(in srgb, var(--chart-tertiary) 10%, transparent);
+  color: var(--chart-tertiary);
+}
+
+.market-layout .market-breadth-card {
+  padding-bottom: 12px;
+}
+
+.market-layout .market-stat-icon.is-breadth {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.market-layout .market-breadth-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-top: 10px;
+}
+
+.market-layout .market-breadth-metric {
+  min-width: 0;
+}
+
+.market-layout .market-breadth-metric + .market-breadth-metric {
+  padding-left: 18px;
+  border-left: 1px solid var(--border);
+}
+
+.market-layout .market-breadth-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.market-layout .market-breadth-value > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.market-layout .market-breadth-value i {
+  font-size: 13px;
+  font-style: normal;
+}
+
+.market-layout .market-breadth-value strong {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 1.55rem;
+  font-weight: 760;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.market-layout .market-breadth-metric.is-up strong,
+.market-layout .market-breadth-metric.is-up i { color: var(--success); }
+.market-layout .market-breadth-metric.is-down strong,
+.market-layout .market-breadth-metric.is-down i { color: var(--danger); }
+
+.market-layout .market-breadth-metric em {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-style: normal;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-layout .market-breadth-track {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  height: 4px;
+  margin-top: auto;
+  padding-top: 8px;
+  box-sizing: content-box;
+}
+
+.market-layout .market-breadth-track span {
+  min-width: 3px;
+  border-radius: 999px;
+}
+
+.market-layout .market-breadth-track .is-up { background: var(--success); }
+.market-layout .market-breadth-track .is-down { background: var(--danger); }
+
+.market-layout .market-breadth-legend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+}
+
+/* The screener is the primary object: one restrained frame, compact bands and
+   no gradients or floating-card effects in either theme. */
+.market-layout .market-board {
+  overflow: hidden;
+  overflow: clip;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel) !important;
+  box-shadow: var(--shadow-xs);
+  backdrop-filter: none;
+}
+
+.market-layout .market-board-head {
+  min-height: 61px;
+  padding: 12px 16px;
+  gap: 16px;
+}
+
+.market-layout .market-board-head > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.market-layout .market-board-head h2 {
+  font-size: 1.2rem;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.market-layout .market-board-head-right {
+  gap: 9px;
+}
+
+.market-session-date {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.market-layout .market-view-toggle {
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.market-layout .market-view-toggle button {
+  width: auto;
+  height: 30px;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.market-layout .market-view-toggle button svg { width: 13px; height: 13px; }
+.market-layout .market-view-toggle button span { display: inline; }
+
+.market-layout .market-view-toggle button.active {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
+
+html[data-theme="dark"] .market-layout .market-view-toggle button.active {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.market-layout .market-board-head .status-badge {
+  min-height: 30px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 11.5px;
+}
+
+/* Filter bar: clear rectangular selections instead of a pile of large pills. */
+.market-layout .market-controls {
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 9px 12px;
+  background: var(--surface-2);
+}
+
+.market-layout .market-type-levels {
+  flex: 1 1 620px;
+  gap: 6px;
+}
+
+.market-layout .market-controls .segmented-control,
+.market-layout .market-period-control {
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.market-layout .market-controls .segmented-control button,
+.market-layout .market-period-control button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 620;
+  box-shadow: none;
+}
+
+.market-layout .market-controls .segmented-control button:hover,
+.market-layout .market-period-control button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.market-layout .market-controls .segmented-control button.active,
+.market-layout .market-period-control button.active {
+  background: var(--accent-light);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.market-layout .market-type-control button.active {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .market-layout .market-type-control button.active {
+  color: var(--bg) !important;
+}
+
+.market-layout .market-sector-select select,
+.market-layout .market-fav-filter,
+.market-layout .market-cols-btn,
+.market-layout .market-search input {
+  height: 34px;
+  min-height: 34px;
+  border-radius: 7px;
+  background: var(--panel);
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.market-layout .market-sector-select select {
+  padding: 0 30px 0 11px;
+  line-height: 34px;
+}
+
+.market-layout .market-sector-select::after {
+  right: 11px;
+  width: 6px;
+  height: 6px;
+}
+
+html[data-theme="dark"] .market-layout .market-sector-select select {
+  background: var(--panel) !important;
+  background-color: var(--panel) !important;
+}
+
+.market-layout .market-fav-filter {
+  gap: 6px;
+  padding: 0 11px;
+  border-radius: 7px;
+}
+
+.market-layout .market-cols-btn {
+  min-width: 34px;
+  padding: 0 10px;
+  border-radius: 7px;
+}
+
+.market-layout .market-cols-count {
+  min-width: 18px;
+  padding: 1px 4px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
+.market-layout .market-search {
+  flex: 1 1 180px;
+  min-width: 160px;
+  max-width: 280px;
+}
+
+.market-layout .market-search input {
+  padding-inline: 11px;
+  background: var(--panel);
+}
+
+html[data-theme="dark"] .market-layout .market-search input {
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+html[data-theme="light"] .market-layout .market-controls,
+html[data-theme="dark"] .market-layout .market-controls {
+  background: var(--surface-2);
+}
+
+.market-layout .market-search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+.market-layout .market-fav-filter.active,
+.market-layout .market-cols-btn.active,
+.market-layout .market-sector-select select:not([data-all="1"]) {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.market-layout .market-colmenu-btn.is-active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.market-layout .market-period-row {
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--panel);
+}
+
+.market-layout .market-period-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+
+.market-layout .market-period-control {
+  border: 0;
+  background: var(--surface-2);
+}
+
+.market-layout .market-period-control button {
+  min-height: 28px;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.market-layout .market-sort-chain {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.market-layout .market-sort-chain-chip,
+.market-layout .market-sort-teach {
+  border-radius: 6px;
+}
+
+/* Readable quote rows: the previous 46px/13.5px compression became microtype
+   on wide screens. Keep the table dense, but give prices, companies and their
+   secondary lines enough optical size to be read without browser zoom. */
+.market-layout .market-table {
+  min-width: 1040px;
+  background: var(--panel);
+}
+
+.market-layout .market-table th,
+.market-layout .market-table td {
+  height: 56px;
+  padding: 10px 14px;
+  border-bottom-color: var(--border);
+}
+
+.market-layout .market-table th {
+  height: 40px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.075em;
+}
+
+/* The turnover header carries a drag grip, definition, sort caret and menu.
+   Below this width its geometric centre lands on the definition button, so a
+   normal click opens ℹ instead of sorting. Keep one compact but unambiguous
+   click lane for the header itself. */
+.market-layout .market-table th[data-sort-key="volume"] {
+  min-width: 140px;
+}
+
+html[data-theme="dark"] .market-layout .market-table th {
+  background: var(--surface-2);
+}
+
+.market-layout .market-table td {
+  font-size: 15.25px;
+  line-height: 1.25;
+}
+
+.market-layout .market-table tbody tr {
+  transition: background 0.12s ease;
+}
+
+.market-layout .market-table tbody tr:hover,
+.market-layout .market-table tbody tr:hover > td.market-col-pinned {
+  background: color-mix(in srgb, var(--accent) 5%, var(--panel));
+}
+
+.market-layout .market-table-wrap > .market-table td.market-col-pinned {
+  background: var(--panel);
+}
+
+.market-layout .market-table-wrap > .market-table th.market-col-pinned,
+.market-layout .market-sticky-head .market-sticky-head__table th.market-col-pinned {
+  background: var(--surface-2);
+}
+
+.market-layout .market-table td span {
+  margin-top: 3px;
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+
+.market-layout .market-ticker-cell {
+  gap: 6px;
+}
+
+.market-layout .market-ticker-cell .chip-logo,
+.market-layout .market-ticker-cell .chip-logo-fallback {
+  width: 52px;
+  height: 42px;
+  border-radius: 9px;
+  padding: 3px;
+  box-shadow: none;
+}
+
+.market-layout .market-ticker-cell .chip-logo-fallback {
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+/* Some issuers only publish a long horizontal wordmark. In a compact Market
+   badge, show its leading emblem at native scale instead of shrinking the
+   entire wordmark to an unreadable strip. Other pages keep the full logo. */
+.market-layout .market-ticker-cell .chip-logo--compact-mark,
+.market-layout .market-movers-tk .chip-logo--compact-mark {
+  object-fit: cover;
+  object-position: left center;
+}
+
+/* A transparent logo is not necessarily a light logo: several official marks
+   use navy, charcoal, or forest green and disappear directly on the dark row.
+   Give every real Market logo the same restrained cool-neutral backing in dark
+   mode. This keeps brand colours intact and avoids ticker-specific filters. */
+html[data-theme="dark"] .market-layout .market-ticker-cell .chip-logo,
+html[data-theme="dark"] .market-layout .market-movers-tk .chip-logo {
+  background: linear-gradient(145deg, #ffffff 0%, #eef2f7 100%);
+  border: 1px solid rgba(218, 225, 238, 0.24);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
+}
+
+html[data-theme="dark"] .market-layout .market-ticker-cell .chip-logo {
+  padding: 3px;
+}
+
+html[data-theme="dark"] .market-layout .market-movers-tk .chip-logo {
+  padding: 2px;
+}
+
+.market-layout .market-fav-btn {
+  padding: 1px;
+  font-size: 1rem;
+}
+
+.market-layout .market-ticker-btn {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 14.5px;
+  font-weight: 750;
+}
+
+.market-layout .market-ticker-btn:hover {
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.market-layout .market-info-btn {
+  margin-left: 2px;
+  font-size: 0.95rem;
+}
+
+.market-layout .market-table td .market-change-badge {
+  min-width: 102px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.market-layout .market-change-badge.tone-good {
+  border: 1px solid color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.market-layout .market-change-badge.tone-danger {
+  border: 1px solid color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.market-layout .market-dormant-note {
+  margin: 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--surface-2);
+  font-size: 12.5px;
+}
+
+/* A market-leaders rail at the top of the page. It deliberately has no card
+   shells: column rules and row rhythm provide the structure without making
+   three more panels compete with the screener. */
+.market-layout .market-top-movers {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  padding: 4px 2px 10px;
+}
+
+.market-layout .market-movers-col {
+  min-width: 0;
+  padding: 2px 24px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.market-layout .market-movers-col + .market-movers-col {
+  padding-left: 24px;
+  border-left: 1px solid var(--border);
+}
+
+.market-layout .market-movers-head {
+  gap: 9px;
+  margin-bottom: 5px;
+  padding: 0 1px 7px;
+}
+
+.market-layout .market-movers-head h3 {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.market-layout .market-movers-dot {
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+}
+
+.market-layout .market-movers-item {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 41px;
+  padding: 7px 1px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 0;
+  transition: color 150ms ease, transform 150ms ease;
+}
+
+.market-layout .market-movers-list li:last-child .market-movers-item {
+  border-bottom-color: transparent;
+}
+
+.market-layout .market-movers-item:hover {
+  background: transparent;
+  transform: translateX(3px);
+}
+
+.market-layout .market-movers-rank {
+  color: var(--muted-2, var(--muted));
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  opacity: 0.7;
+}
+
+.market-layout .market-movers-col.up .market-movers-item:hover .market-movers-name {
+  color: var(--success);
+}
+
+.market-layout .market-movers-col.down .market-movers-item:hover .market-movers-name {
+  color: var(--danger);
+}
+
+.market-layout .market-movers-col.vol .market-movers-item:hover .market-movers-name {
+  color: var(--accent);
+}
+
+.market-layout .market-movers-tk .chip-logo,
+.market-layout .market-movers-tk .chip-logo-fallback {
+  width: 36px;
+  height: 28px;
+}
+
+.market-layout .market-movers-name {
+  font-size: 0.9rem;
+  font-weight: 650;
+  transition: color 150ms ease;
+}
+
+.market-layout .market-movers-chg {
+  font-size: 0.9rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-layout .market-movers-col.vol .market-movers-chg {
+  color: var(--muted);
+}
+
+/* Market map: editorial controls around a denser, expressive treemap. */
+.market-layout .heatmap-wrap {
+  gap: 16px;
+  padding: 18px 20px 22px;
+}
+
+.market-layout .heatmap-tree {
+  border-radius: 13px;
+}
+
+html[data-theme="dark"] .market-layout .heatmap-tree {
+  background: var(--bg);
+}
+
+html[data-theme="light"] .market-layout .heatmap-tree {
+  background: var(--bg-2);
+}
+
+html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
+  background: linear-gradient(145deg, var(--panel-elevated), var(--surface-2));
+  color: var(--text-secondary);
+}
+
+@media (max-width: 1100px) {
+  .market-layout .market-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .market-layout .market-breadth-card { grid-column: 1 / -1; }
+
+  .market-layout .market-board-head {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .market-layout .market-type-levels {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 1000px) {
+  .market-layout .market-top-movers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .market-layout .market-movers-col.vol {
+    grid-column: 1 / -1;
+    margin-top: 7px;
+    padding: 17px 0 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .market-layout .market-movers-col.vol .market-movers-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+  }
+}
+
+@media (max-width: 760px) {
+  .market-layout { gap: 9px; }
+
+  .market-layout > .fx-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 0;
+  }
+
+  .market-layout .fx-bar-label {
+    grid-column: 1;
+    min-width: 0;
+    padding: 11px 13px;
+    border-right: 0;
+  }
+
+  .market-layout .fx-bar-label-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+
+  .market-layout .fx-bar-quotes {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(175px, 62vw);
+    border-top: 1px solid var(--border);
+    scroll-snap-type: x proximity;
+  }
+
+  .market-layout .fx-bar-item {
+    padding: 12px 13px;
+    scroll-snap-align: start;
+  }
+
+  .market-layout .fx-bar-banks {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border-left: 1px solid var(--border);
+  }
+
+  .market-layout .fx-bar-banks small { display: none; }
+
+  .market-layout .fx-bar-banks strong {
+    font-size: 11.5px;
+  }
+
+  .market-layout .fx-bar-banks-arrow {
+    width: 27px;
+    height: 27px;
+  }
+
+  .market-layout .market-hero-panel {
+    padding: 2px 0 5px;
+  }
+
+  .market-layout .market-hero-copy h1 { font-size: 1.55rem; }
+  .market-layout .market-hero-copy p { font-size: 0.9rem; }
+
+  .market-layout .market-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .market-layout .market-stat-card,
+  .market-layout .market-breadth-card {
+    min-height: 0;
+    border-radius: 9px;
+  }
+
+  .market-layout .market-breadth-card {
+    grid-column: 1 / -1;
+    padding: 13px 14px 10px;
+  }
+
+  .market-layout .market-stat-card { padding: 13px 14px; }
+  .market-layout .market-stat-card > strong { font-size: 1.25rem; }
+  .market-layout .market-stat-card em { font-size: 10.5px; }
+  .market-layout .market-breadth-metrics { gap: 12px; }
+  .market-layout .market-breadth-metric + .market-breadth-metric { padding-left: 12px; }
+
+  .market-layout .market-board { border-radius: 8px; }
+
+  .market-layout .market-board-head {
+    min-height: 0;
+    padding: 11px 12px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .market-layout .market-board-head-right {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .market-layout .market-session-date { order: 2; }
+  .market-layout .market-view-toggle { order: 1; }
+  .market-layout .market-board-head .status-badge { order: 3; }
+
+  .market-layout .market-controls {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .market-layout .market-controls .market-type-levels {
+    gap: 5px;
+  }
+
+  .market-layout .market-controls .segmented-control button {
+    min-height: 30px;
+    padding: 5px 9px;
+    font-size: 11.5px;
+  }
+
+  .market-layout .market-sector-select select,
+  .market-layout .market-fav-filter,
+  .market-layout .market-cols-btn,
+  .market-layout .market-search input {
+    height: 34px;
+  }
+
+  .market-layout .market-controls .market-fav-filter,
+  .market-layout .market-controls .market-cols-btn {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+  }
+
+  .market-layout .market-search {
+    flex: 1 1 120px;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .market-layout .market-period-row {
+    padding: 7px 8px;
+  }
+
+  .market-layout .market-table-wrap > .market-table th,
+  .market-layout .market-table-wrap > .market-table td,
+  .market-layout .market-sticky-head__table th {
+    height: 48px;
+    padding: 8px 9px;
+  }
+
+  .market-layout .market-table-wrap > .market-table th {
+    height: 36px;
+    font-size: 10.5px;
+  }
+
+  .market-layout .market-table-wrap > .market-table td { font-size: 14px; }
+
+  .market-layout .market-table-wrap > .market-table td span { font-size: 11.5px; }
+
+  .market-layout .market-table-wrap .market-ticker-info span { font-size: 10.5px; }
+
+  .market-layout .market-table-wrap .market-ticker-btn { font-size: 13.5px; }
+
+  /* The market stylesheet loads after mobile.css, so the phone-sized issuer
+     mark belongs here: keep the row logo visible without restoring the desktop
+     52×42 tile inside the pinned ticker column. */
+  .market-layout .market-table-wrap .market-ticker-cell .chip-logo,
+  .market-layout .market-table-wrap .market-ticker-cell .chip-logo-fallback {
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border-radius: 6px;
+    box-shadow: none;
+  }
+
+  .market-layout .market-table-wrap .market-ticker-cell .chip-logo {
+    display: block;
+    padding: 2px;
+  }
+
+  .market-layout .market-table-wrap .market-ticker-cell .chip-logo-fallback {
+    display: flex;
+    padding: 0;
+    font-size: 9px;
+  }
+
+  .market-layout .market-table-wrap > .market-table td .market-change-badge {
+    min-width: 0;
+    padding: 5px 7px;
+    font-size: 12.25px;
+  }
+
+  .market-layout .market-top-movers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 2px;
+  }
+
+  .market-layout .market-movers-col {
+    padding-right: 10px;
+  }
+
+  .market-layout .market-movers-col + .market-movers-col {
+    padding-left: 10px;
+  }
+
+  .market-layout .market-movers-col.vol {
+    padding: 13px 0 0;
+  }
+
+  .market-layout .market-movers-head {
+    gap: 6px;
+    padding-bottom: 5px;
+  }
+
+  .market-layout .market-movers-head h3 {
+    font-size: 0.78rem;
+    letter-spacing: 0.025em;
+  }
+
+  .market-layout .market-movers-item {
+    grid-template-columns: 17px minmax(0, 1fr) auto;
+    gap: 5px;
+    min-height: 34px;
+    padding: 5px 1px;
+  }
+
+  .market-layout .market-movers-rank {
+    font-size: 0.63rem;
+  }
+
+  .market-layout .market-movers-name,
+  .market-layout .market-movers-chg {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .market-layout .market-view-toggle button span { display: none; }
+  .market-layout .market-view-toggle button { width: 30px; padding: 0; }
+  .market-layout .market-session-date { font-size: 10.5px; }
+}

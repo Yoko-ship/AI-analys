@@ -1,0 +1,68 @@
+{
+  "_comment": "ТЗ v1.2 §11.4 — quality and range thresholds live here, not as literals in code. Changing one must not require a release. formulas.py deep-merges this file over its built-in defaults, so a partial file is fine.",
+
+  "quality": {
+    "flat_share_max": 0.5,
+    "coverage_min": 0.6,
+    "min_points": 2,
+    "illiquid_flat_share": 0.8,
+    "illiquid_coverage": 0.25,
+    "window_days": 365
+  },
+
+  "volatility": {
+    "window_days": 30,
+    "min_observations": 10,
+    "trading_days_per_year": 252
+  },
+
+  "returns": {
+    "base_staleness_max_days": 30
+  },
+
+  "moving_average": {
+    "ma20_calendar_days": 28,
+    "ma50_calendar_days": 70,
+    "min_observations": 3
+  },
+
+  "financials": {
+    "gross_profit_vs_revenue_max": 1.0,
+    "net_income_vs_revenue_max": 1.5,
+    "liabilities_vs_assets_max": 1.5,
+    "half_year_vs_annual_max": 5,
+    "period_vs_annual_max_year_gap": 1,
+    "period_vs_annual_min_margin": 0.05,
+    "roe_implied_vs_published_max": 8,
+    "report_max_age_days": 730,
+    "balance_identity_tolerance": 0.001
+  },
+
+  "multiples": {
+    "_comment": "ТЗ мультипликаторов V15: вне диапазона значение публикуется с пометкой «проверить», а не скрывается.",
+    "pe_range": [0.1, 300],
+    "pb_range": [0.05, 20],
+    "ps_range": [0.01, 50],
+    "roe_abs_max": 100,
+    "margin_abs_max": 100,
+    "cap_vs_price_shares_max": 1.5,
+    "identity_tolerance": 0.01,
+    "leverage_tolerance": 0.02
+  },
+
+  "market_map": {
+    "min_trades_confident": 5,
+    "min_quantity_confident": 10
+  },
+
+  "catalog": {
+    "inactive_after_days": 90,
+    "staleness_warn_hours": 24
+  },
+
+  "bonds": {
+    "_comment": "ACT/365 | ACT/360 | ACT/ACT. Stated in every bond response so two developers cannot assume different bases and both believe they are right.",
+    "day_count_basis": "ACT/365",
+    "price_pct_range": [20, 200]
+  }
+}

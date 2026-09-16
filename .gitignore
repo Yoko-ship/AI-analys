@@ -8,6 +8,7 @@ __pycache__/
 *.sqlite3
 *.log
 .env
+.env.local
 data/
 report.html
 analysis_cache.db
@@ -18,3 +19,9 @@ node_modules/
 frontend/node_modules/
 frontend/.vite/
 web/dist/
+.verify_shots
+test-results/
+playwright-report/
+audit/sector-v2.2/pytest-run-*/
+audit/admin-control-qa/
+frontend/__admin_qa.html

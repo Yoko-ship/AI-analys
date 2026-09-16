@@ -1,4 +1,29 @@
 services:
+  # The API owns the server's market databases.  Keep every service on the
+  # same bind mount: a fresh container must not create a second, empty SQLite
+  # tree in its writable layer.
+  api:
+    build: .
+    container_name: uz-stock-api
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Tashkent
+      APP_MODE: api
+      PORT: 8000
+      APP_DATA_DIR: /app/data
+      CACHE_DB_PATH: analysis_cache.db
+      USERS_DB_PATH: users.db
+      ORG_CACHE_PATH: org_cache.json
+      OUTPUT_PATH: report.html
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "${API_BIND_ADDRESS:-0.0.0.0}:8000:8000"
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+
   stock-bot:
     build: .
     container_name: uz-stock-bot
@@ -16,3 +41,29 @@ services:
     volumes:
       - ./data:/app/data
     command: ["python", "bot.py"]
+
+  # This service writes to the local API, never to Railway.  It performs one
+  # full sync at startup and repeats it daily by default.  Set
+  # COLLECTOR_INTERVAL_SECONDS in .env when a different cadence is needed.
+  collector:
+    build: .
+    container_name: uz-stock-collector
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Tashkent
+      APP_MODE: collector
+      APP_DATA_DIR: /app/data
+      CACHE_DB_PATH: analysis_cache.db
+      USERS_DB_PATH: users.db
+      ORG_CACHE_PATH: org_cache.json
+      OUTPUT_PATH: report.html
+      FINANCIALS_PUSH_URL: http://api:8000
+      COLLECTOR_INTERVAL_SECONDS: ${COLLECTOR_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - api
+    command: ["sh", "/app/scripts/server-collector-loop.sh"]
