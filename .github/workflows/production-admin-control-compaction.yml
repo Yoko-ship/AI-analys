@@ -64,7 +64,11 @@ jobs:
             echo 'Less than 2 GiB remains after safe Docker cleanup; refusing compaction.' >&2
             exit 1
           fi
-          docker exec -i uzstock-web python - <<'PY'
+          # The web process may already be down precisely because the volume is
+          # full or has root ownership. Read the database from an isolated
+          # helper instead of requiring `docker exec` against a running app.
+          docker run --rm --network none --entrypoint python \
+            -v uzstock_data:/app/data "$image" - <<'PY'
           import os, sqlite3
           path = os.environ.get("ADMIN_CONTROL_DB", "/app/data/admin_control.sqlite3")
           conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
@@ -86,6 +90,17 @@ jobs:
           docker run --rm --network none --entrypoint python \
             -v uzstock_data:/app/data "$image" \
             /app/scripts/compact_admin_control.py --database "$db_path" --keep 10 --days 90 --discard-stale-target --confirm
+
+          # The compactor deliberately runs as root to preserve and swap the
+          # SQLite file. Restore the application account and prove it can write
+          # before asking Docker to start the web process again.
+          docker run --rm --network none --user root --entrypoint sh \
+            -v uzstock_data:/app/data "$image" -c '
+              set -eu
+              mkdir -p /app/data
+              chown -R appuser:appuser /app/data
+              gosu appuser sh -c "probe=/app/data/.uzstock-write-test; : > \"$probe\"; rm -f \"$probe\""
+            '
 
           restore_web
           trap - EXIT

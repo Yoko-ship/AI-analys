@@ -541,6 +541,17 @@ jobs:
             systemctl stop "$service" >/dev/null 2>&1 || true
           done
           docker build -t uzstock-web:latest .
+          # A root-owned SQLite replacement or a volume restored by Docker can
+          # leave /app/data unwritable after the entrypoint drops to appuser.
+          # Repair and prove access *before* replacing the live container, so a
+          # bad volume never turns a routine release into a public 502.
+          docker run --rm --network none --user root --entrypoint sh \
+            -v uzstock_data:/app/data uzstock-web:latest -c '
+              set -eu
+              mkdir -p /app/data
+              chown -R appuser:appuser /app/data
+              gosu appuser sh -c "probe=/app/data/.uzstock-write-test; : > \"$probe\"; rm -f \"$probe\""
+            '
           docker rm -f uzstock-web >/dev/null 2>&1 || true
           docker run -d \
             --name uzstock-web \
