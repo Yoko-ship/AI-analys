@@ -876,6 +876,7 @@ app.include_router(admin_railway.router, dependencies=[Depends(_admin_panel_gate
 import sector_admin_api  # noqa: E402
 
 import admin_control.api as control_api  # noqa: E402
+import v3_api  # noqa: E402
 
 
 def _control_gate(request: Request, authorization: str | None = Header(default=None)):
@@ -892,6 +893,7 @@ def _control_gate(request: Request, authorization: str | None = Header(default=N
 
 
 app.include_router(control_api.router, dependencies=[Depends(_control_gate)])
+app.include_router(v3_api.router, dependencies=[Depends(_control_gate)])
 
 
 def _sector_analysis_gate(request: Request, authorization: str | None = Header(default=None)):
