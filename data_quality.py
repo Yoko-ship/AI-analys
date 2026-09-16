@@ -904,14 +904,19 @@ def apply_correction(payload: dict[str, Any], actor: str, issue_id: str | None =
 
 
 def auto_apply_issue(issue_id: str, actor: str) -> dict[str, Any]:
-    """Apply the deterministic proposal for an open finding with linked evidence."""
+    """Apply a verified correction, automatically refreshing official evidence first.
+
+    Missing evidence is an ingestion state, never a request for an operator to
+    invent a URL or a value.  The next collector pass will retry issues waiting
+    on an official filing.
+    """
     conn = _conn()
     try:
         _ensure_schema(conn)
         row = conn.execute("SELECT * FROM data_quality_issues WHERE id=?", (issue_id,)).fetchone()
         if not row:
             raise DataQualityError("Data-quality issue not found")
-        issue = dict(row)
+        issue = _public(dict(row))
         if issue["status"] != "open":
             raise DataQualityError("This finding is no longer open")
     finally:
@@ -920,10 +925,35 @@ def auto_apply_issue(issue_id: str, actor: str) -> dict[str, Any]:
     proposal = suggest_correction(issue_id)
     recommended = proposal.get("recommended")
     evidence = proposal.get("evidence") or {}
-    if not recommended:
-        raise DataQualityError("No reliable automatic value is available; use manual correction")
     if not evidence.get("available"):
-        raise DataQualityError("No linked official report is available; add evidence manually")
+        try:
+            refresh_company_reporting(issue["ticker"], actor)
+            proposal = suggest_correction(issue_id)
+            recommended = proposal.get("recommended")
+            evidence = proposal.get("evidence") or {}
+        except DataQualityError as exc:
+            refresh_error = str(exc)
+        else:
+            refresh_error = ""
+        if not evidence.get("available"):
+            conn = _conn()
+            try:
+                _ensure_schema(conn)
+                details = issue.get("details") if isinstance(issue.get("details"), dict) else {}
+                details["automation"] = {
+                    "state": "waiting_official_source",
+                    "last_attempt_at": _now(),
+                    "last_error": refresh_error or "Official report has not been published or linked yet.",
+                }
+                with conn:
+                    conn.execute("UPDATE data_quality_issues SET status='waiting_official_source', details=?, updated_at=? WHERE id=?",
+                                 (json.dumps(details, ensure_ascii=False), _now(), issue_id))
+            finally:
+                conn.close()
+            return {"ok": True, "status": "waiting_official_source", "issue_id": issue_id,
+                    "ticker": issue["ticker"], "applied": False}
+    if not recommended:
+        raise DataQualityError("No deterministic correction is available from the official filing")
     payload = {
         "ticker": issue["ticker"], "form": issue["form"], "year": issue["year"],
         "quarter": issue["quarter"], "field": recommended["field"],
