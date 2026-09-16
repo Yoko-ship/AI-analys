@@ -54,6 +54,31 @@ jobs:
 
           echo '== Before compaction =='
           df -h /
+          # A previous interrupted atomic replacement can leave one of these
+          # exact, non-live copies beside the source. The source must exist and
+          # open read-only first; only then may the user-approved stale copy be
+          # removed. This is the room the next replacement needs.
+          docker run --rm --network none --entrypoint python \
+            -v uzstock_data:/app/data "$image" - <<'PY'
+          from pathlib import Path
+          import sqlite3
+
+          source = Path('/app/data/admin_control.sqlite3')
+          if not source.is_file():
+              raise SystemExit('Live admin-control database is missing; refusing stale-copy cleanup.')
+          conn = sqlite3.connect(f'{source.as_uri()}?mode=ro', uri=True)
+          try:
+              assert conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='control_revisions'").fetchone()
+          finally:
+              conn.close()
+          for suffix in ('.compacting', '.precompact'):
+              stale = Path(f'{source}{suffix}')
+              if stale.exists():
+                  if not stale.is_file():
+                      raise SystemExit(f'Refusing non-file stale target: {stale}')
+                  print(f'removing_stale_copy={stale} bytes={stale.stat().st_size}')
+                  stale.unlink()
+          PY
           # The database replacement needs temporary room. These remove only
           # rebuildable build cache and unreferenced image layers; named volumes
           # (including PostgreSQL and application data) are never pruned.
