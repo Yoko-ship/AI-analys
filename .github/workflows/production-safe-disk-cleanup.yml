@@ -1,0 +1,58 @@
+name: Production safe disk cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Enter CLEANUP to remove only rebuildable Docker artifacts and failed SQLite compacting output"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    if: inputs.confirm == 'CLEANUP'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Reclaim only failed temporary output and Docker cache
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          docker inspect uzstock-web >/dev/null
+          image=$(docker inspect --format '{{.Config.Image}}' uzstock-web)
+          docker run --rm --network none --entrypoint python -v uzstock_data:/app/data "$image" - <<'PY'
+          from pathlib import Path
+          import sqlite3
+          source = Path('/app/data/admin_control.sqlite3')
+          target = Path('/app/data/admin_control.sqlite3.compacting')
+          if not source.is_file(): raise SystemExit('live database missing')
+          conn = sqlite3.connect(f'{source.as_uri()}?mode=ro', uri=True)
+          try: assert conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='control_revisions'").fetchone()
+          finally: conn.close()
+          if target.exists():
+              if not target.is_file(): raise SystemExit('refusing non-file target')
+              print(f'removing_failed_target_bytes={target.stat().st_size}')
+              target.unlink()
+          PY
+          docker builder prune --all --force
+          docker image prune --all --force
+          docker restart uzstock-web >/dev/null
+          df -h /
+          REMOTE
