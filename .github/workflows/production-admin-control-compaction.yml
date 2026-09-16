@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Enter COMPACT to retain the last 10 revisions per object from the last 90 days"
+        description: "Enter COMPACT to compact history, or CLEANUP to remove only failed temporary output"
         required: true
         type: string
 
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   compact:
-    if: inputs.confirm == 'COMPACT'
+    if: inputs.confirm == 'COMPACT' || inputs.confirm == 'CLEANUP'
     name: Compact the bounded admin-control revision history
     runs-on: ubuntu-latest
     # A 64-GB source can take longer than 35 minutes to stream on the VPS;
@@ -82,6 +82,13 @@ jobs:
                   print(f'removing_stale_copy={stale} bytes={stale.stat().st_size}')
                   stale.unlink()
           PY
+          if [ "${{ inputs.confirm }}" = 'CLEANUP' ]; then
+            docker builder prune --all --force
+            docker image prune --all --force
+            docker restart uzstock-web >/dev/null
+            df -h /
+            exit 0
+          fi
           # The database replacement needs temporary room. These remove only
           # rebuildable build cache and unreferenced image layers; named volumes
           # (including PostgreSQL and application data) are never pruned.
