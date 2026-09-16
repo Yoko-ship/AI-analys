@@ -81,6 +81,20 @@ def test_immutable_history_and_environment_isolation(monkeypatch):
         get("documents", "d")
 
 
+def test_sqlite_revision_retention_keeps_recent_history_but_not_public_deletes():
+    value = put("documents", {"id": "retained", "ticker": "T", "status": "V0"})
+    for version in range(1, 14):
+        value = put("documents", {**value, "status": f"V{version}"})
+    with s.connection() as c:
+        rows = c.execute(
+            "SELECT version FROM control_revisions WHERE id='retained' ORDER BY version"
+        ).fetchall()
+        assert [row["version"] for row in rows] == list(range(5, 15))
+    with pytest.raises(Exception, match="immutable"):
+        with s.connection(write=True) as c:
+            c.execute("DELETE FROM control_revisions WHERE id='retained'")
+
+
 def test_filter_full_dataset_cursor_ties_and_invalid_sort():
     for i in range(125):
         put("documents", {"id": f"doc{i:03}", "ticker": "UZNF" if i % 2 else "HMKB", "status": "FOUND", "period": "2026H1"})

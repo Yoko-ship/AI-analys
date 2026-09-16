@@ -8,7 +8,7 @@ from __future__ import annotations
 import base64
 import binascii
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -79,10 +79,26 @@ def schema(c):
     # No application API can delete history. Database triggers also protect it
     # from accidental UPDATE/DELETE through the application connection.
     if dbx.backend() == dbx.SQLITE:
-        for table in ("control_audit", "control_revisions"):
-            for op in ("UPDATE", "DELETE"):
-                c.execute(f"CREATE TRIGGER IF NOT EXISTS {table}_{op.lower()} BEFORE {op} ON {table} "
-                          "BEGIN SELECT RAISE(ABORT, 'immutable history'); END")
+        # Revision retention is a bounded, internal maintenance operation.  It
+        # must not turn the public/admin API into a delete-capable interface,
+        # nor does it apply to the append-only audit log.
+        if "revision_prune" not in dbx.columns(c, "control_lock"):
+            c.execute("ALTER TABLE control_lock ADD COLUMN revision_prune INTEGER NOT NULL DEFAULT 0")
+        c.execute("CREATE TRIGGER IF NOT EXISTS control_audit_update BEFORE UPDATE ON control_audit "
+                  "BEGIN SELECT RAISE(ABORT, 'immutable history'); END")
+        c.execute("CREATE TRIGGER IF NOT EXISTS control_audit_delete BEFORE DELETE ON control_audit "
+                  "BEGIN SELECT RAISE(ABORT, 'immutable history'); END")
+        c.execute("CREATE TRIGGER IF NOT EXISTS control_revisions_update BEFORE UPDATE ON control_revisions "
+                  "BEGIN SELECT RAISE(ABORT, 'immutable history'); END")
+        # Replace the v1 trigger once, so production SQLite gets the same
+        # revision bounds as PostgreSQL.  The guard is set only around the
+        # explicit maintenance query below.
+        c.execute("DROP TRIGGER IF EXISTS control_revisions_delete")
+        c.execute(
+            "CREATE TRIGGER control_revisions_delete BEFORE DELETE ON control_revisions "
+            "WHEN COALESCE((SELECT revision_prune FROM control_lock WHERE id=1), 0) <> 1 "
+            "BEGIN SELECT RAISE(ABORT, 'immutable history'); END"
+        )
     else:
         c.execute("CREATE OR REPLACE FUNCTION control_immutable() RETURNS trigger LANGUAGE plpgsql AS $$ "
                   "BEGIN IF TG_OP = 'DELETE' AND current_setting('app.revision_prune', true) = 'on' "
@@ -110,7 +126,7 @@ def connection(write=False):
         # still fail immediately.
         for attempt in range(3):
             try:
-                dbx.ensure_schema(c, "admin-control-v1", schema)
+                dbx.ensure_schema(c, "admin-control-v2", schema)
                 break
             except Exception as exc:
                 if getattr(exc, "sqlstate", None) != "40P01" or attempt == 2:
@@ -167,13 +183,33 @@ def put(c, collection, value, *, expected=None):
 
 
 def _prune_revisions(c, env, collection, entity_id, current_version):
-    """Bound PostgreSQL revision storage while preserving the current snapshot.
+    """Bound revision storage while preserving the current snapshot.
 
     The control API still cannot delete history: the immutable trigger permits
     this narrowly scoped maintenance delete only inside the current transaction.
-    SQLite remains fully immutable for local/offline audit fixtures.
     """
     if dbx.backend() == dbx.SQLITE:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=REVISION_KEEP_DAYS)).isoformat()
+        c.execute("UPDATE control_lock SET revision_prune=1 WHERE id=1")
+        try:
+            c.execute(
+                """
+                DELETE FROM control_revisions
+                WHERE environment=? AND collection=? AND id=? AND version<>?
+                  AND (
+                    version NOT IN (
+                      SELECT version FROM control_revisions
+                      WHERE environment=? AND collection=? AND id=?
+                      ORDER BY version DESC LIMIT ?
+                    )
+                    OR created_at < ?
+                  )
+                """,
+                (env, collection, entity_id, current_version,
+                 env, collection, entity_id, REVISION_KEEP_PER_OBJECT, cutoff),
+            )
+        finally:
+            c.execute("UPDATE control_lock SET revision_prune=0 WHERE id=1")
         return
     c.execute("SELECT set_config('app.revision_prune', 'on', true)")
     try:
