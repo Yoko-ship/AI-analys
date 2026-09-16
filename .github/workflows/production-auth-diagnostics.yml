@@ -50,7 +50,9 @@ jobs:
           echo '== Docker disk usage =='
           docker system df -v 2>&1 || true
           echo '== UZStock application-volume usage =='
-          du -xhd1 /var/lib/docker/volumes/uzstock_data/_data 2>/dev/null | sort -h | tail -n 80
+          app_volume_mount=$(docker volume inspect uzstock_data --format '{{.Mountpoint}}')
+          printf 'mount=%s\n' "$app_volume_mount"
+          du -xhd1 "$app_volume_mount" 2>/dev/null | sort -h | tail -n 80 || true
           echo '== Journal disk usage =='
           journalctl --disk-usage 2>&1 || true
 
