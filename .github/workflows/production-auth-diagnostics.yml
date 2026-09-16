@@ -40,6 +40,12 @@ jobs:
           docker inspect uzstock-web --format '{{range .Config.Env}}{{println .}}{{end}}' \
             | awk -F= '/^(DATABASE_URL|DATABASE_BACKEND)=/ {print $1 "=" ($2 == "" ? "missing" : "configured")}'
 
+          echo '== PostgreSQL container state and startup log =='
+          docker inspect uzstock-db --format 'status={{.State.Status}} restart_count={{.RestartCount}} error={{.State.Error}}'
+          docker logs --tail 250 uzstock-db 2>&1 || true
+          echo '== Disk capacity =='
+          df -h / /var/lib/docker 2>/dev/null || df -h /
+
           echo '== Authentication database probe =='
           docker exec -i uzstock-web python - <<'PY'
           import os
