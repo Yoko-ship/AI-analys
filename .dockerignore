@@ -31,6 +31,7 @@ __pycache__
 tests
 e2e
 scripts
+!scripts/compact_admin_control.py
 playwright.config.js
 eslint.config.js
 playwright-report
