@@ -16,7 +16,10 @@ jobs:
     if: inputs.confirm == 'COMPACT'
     name: Compact the bounded admin-control revision history
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # A 64-GB source can take longer than 35 minutes to stream on the VPS;
+    # replacement is atomic and writers are stopped, so allow the bounded copy
+    # to complete rather than cancelling it mid-scan.
+    timeout-minutes: 120
     steps:
       - name: Configure deployment SSH key
         env:
