@@ -1,0 +1,86 @@
+name: Production disk recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Enter RECOVER to prune rebuildable Docker artifacts and restart PostgreSQL"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    if: inputs.confirm == 'RECOVER'
+    name: Recover PostgreSQL after disk exhaustion
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Reclaim rebuildable Docker artifacts and verify authentication database
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+
+          echo '== Before cleanup =='
+          df -h /
+
+          # These commands do not remove named volumes, images used by a
+          # container, or running containers. They reclaim only build cache and
+          # unreferenced image layers, all of which are recreated by deployment.
+          docker builder prune --all --force
+          docker image prune --all --force
+
+          echo '== After cleanup =='
+          df -h /
+          free_kb=$(df -Pk / | awk 'NR == 2 {print $4}')
+          if [ "${free_kb:-0}" -lt 1048576 ]; then
+            echo 'Less than 1 GiB remains; refusing to restart PostgreSQL.' >&2
+            exit 1
+          fi
+
+          docker restart uzstock-db >/dev/null
+          for attempt in $(seq 1 20); do
+            if [ "$(docker inspect --format '{{.State.Status}}' uzstock-db)" = 'running' ]; then
+              break
+            fi
+            sleep 2
+          done
+          if [ "$(docker inspect --format '{{.State.Status}}' uzstock-db)" != 'running' ]; then
+            docker logs --tail 100 uzstock-db >&2 || true
+            exit 1
+          fi
+
+          docker exec -i uzstock-web python - <<'PY'
+          import os
+          import psycopg
+
+          with psycopg.connect(os.environ['DATABASE_URL'], connect_timeout=10) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SELECT COUNT(*) FROM web_users")
+                  users = cur.fetchone()[0]
+          print(f'AUTH_DB_STATUS=ok user_count={users}')
+          PY
+
+          echo '== Database volume is preserved =='
+          docker volume inspect uzstock_postgres_data --format 'name={{.Name}} mount={{.Mountpoint}}'
+          df -h /
+          REMOTE
