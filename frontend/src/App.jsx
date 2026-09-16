@@ -9904,21 +9904,17 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   // A week with no executions is a fact about the security, not a failure to
   // load anything — on this market most securities trade on a minority of days,
   // and «история недоступна» would be a lie about a page that has years of it.
-  if (range === "1d" && windowed.length < 2) return (
+  if (range === "1d" && windowed.length === 0) return (
     <div className="company-chart-wrap">
       <div className="company-chart-toolbar">{rangeBar}</div>
       <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>
-        {hourly.length === 0
-          ? t("В последних сессиях сделок не было — часовой график недоступен",
-              "So'nggi sessiyalarda bitim bo'lmagan — soatlik grafik mavjud emas",
-              "No trades in the recent sessions — no hourly view to draw")
-          : t("За последнюю сессию все сделки прошли в один час — часовой график не нарисовать",
-              "So'nggi sessiyada barcha bitimlar bir soat ichida o'tdi",
-              "The last session's trades all fell in one hour — nothing to draw hourly")}
+        {t("В последних сессиях сделок не было — часовой график недоступен",
+            "So'nggi sessiyalarda bitim bo'lmagan — soatlik grafik mavjud emas",
+            "No trades in the recent sessions — no hourly view to draw")}
       </div>
     </div>
   );
-  if (cutoff && windowed.length < 2 && daily.length >= 2) return (
+  if (cutoff && !chartRange(range).hourly && windowed.length < 2 && daily.length >= 2) return (
     <div className="company-chart-wrap">
       <div className="company-chart-toolbar">{rangeBar}</div>
       <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>
@@ -9931,7 +9927,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     </div>
   );
 
-  if (daily.length < 2) return (
+  if (daily.length < 2 && windowed.length === 0) return (
     <div>
       <div className="company-chart-toolbar">{rangeBar}</div>
       <div className="muted" style={{ padding: "32px 0", textAlign: "center" }}>
@@ -10062,7 +10058,15 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const cmpVals = cmpOn
     ? cmp.series.flatMap((s) => s.pct.filter((v) => v != null && Number.isFinite(v)))
     : [];
-  const minP = Math.min(...lows, ...cmpVals), maxP = Math.max(...highs, ...cmpVals);
+  const dataMinP = Math.min(...lows, ...cmpVals);
+  const dataMaxP = Math.max(...highs, ...cmpVals);
+  // A one-hour session is still market data. Give a flat series a small,
+  // value-relative plotting band so its one recorded price lands in the middle
+  // of the chart instead of on the bottom axis.
+  const flatSeries = dataMaxP === dataMinP;
+  const flatPadding = Math.max(Math.abs(dataMaxP) * 0.02, 1);
+  const minP = flatSeries ? dataMinP - flatPadding : dataMinP;
+  const maxP = flatSeries ? dataMaxP + flatPadding : dataMaxP;
   const rangeP = maxP - minP || 1;
   const maxVol = Math.max(...points.map((p) => p.turnover || 0), 1);
   // Per-point markers only where a marker can be READ. On a step series every
@@ -10073,7 +10077,12 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   const showPointMarks = stepLine && gapPx >= 8;
   const candleWidth = Math.max(1, Math.min(9, (innerW / Math.max(1, points.length - 1)) * 0.65));
 
-  const xs = (i) => PAD.left + (i / (points.length - 1)) * innerW;
+  // A single hourly bar has no second x-coordinate to form a line with, but
+  // it is valid information and must remain visible. Centre it in the plot;
+  // the dot rendered below provides the actual mark.
+  const xs = (i) => points.length === 1
+    ? PAD.left + innerW / 2
+    : PAD.left + (i / (points.length - 1)) * innerW;
   const ys = (p) => priceTop + (1 - (p - minP) / rangeP) * (priceBot - priceTop);
 
   const lineD = points.map((p, i) => {
@@ -10653,6 +10662,14 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           <path className="cpc-price-line" d={lineD} fill="none" strokeWidth="2"
             stroke={effectiveChartType === "baseline" ? "url(#cpcbaseline)" : color}
             strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        )}
+
+        {/* An SVG path containing only `M` is intentionally invisible. The
+            one-point intraday session therefore gets an explicit mark, while
+            retaining the regular axis, tooltip, and recorded OHLC values. */}
+        {points.length === 1 && ["line", "area", "baseline"].includes(effectiveChartType) && (
+          <circle className="cpc-single-point" cx={xs(0)} cy={ys(baseVals[0])} r="4.5"
+            fill={color} stroke="var(--panel)" strokeWidth="2" />
         )}
 
         {cmpOn && cmp.series.map((s) => (
