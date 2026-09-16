@@ -1,0 +1,71 @@
+name: Production auth diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Diagnose production authentication database
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect live auth database without exposing credentials
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+
+          echo '== Runtime =='
+          date -Is
+          docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
+          docker inspect uzstock-web --format '{{range .Config.Env}}{{println .}}{{end}}' \
+            | awk -F= '/^(DATABASE_URL|DATABASE_BACKEND)=/ {print $1 "=" ($2 == "" ? "missing" : "configured")}'
+
+          echo '== Authentication database probe =='
+          docker exec -i uzstock-web python - <<'PY'
+          import os
+          import re
+          import sys
+          import psycopg
+
+          database_url = os.environ.get('DATABASE_URL', '').strip()
+          if not database_url:
+              print('AUTH_DB_STATUS=missing_database_url')
+              sys.exit(2)
+
+          try:
+              with psycopg.connect(database_url, connect_timeout=10) as conn:
+                  with conn.cursor() as cur:
+                      cur.execute("SELECT to_regclass('public.web_users'), COUNT(*) FROM web_users")
+                      table, users = cur.fetchone()
+              print(f'AUTH_DB_STATUS=ok web_users_table={bool(table)} user_count={users}')
+          except Exception as exc:
+              message = re.sub(r'(?<=://)[^@/\\s]+@', '***@', str(exc))
+              print(f'AUTH_DB_STATUS=error type={type(exc).__name__} message={message[:500]}')
+              sys.exit(1)
+          PY
+
+          echo '== Recent web-container errors =='
+          docker logs --tail 120 uzstock-web 2>&1 \
+            | grep -Ei 'auth|postgres|psycopg|database|exception|traceback|error' \
+            | tail -n 80 || true
+          REMOTE
