@@ -50,6 +50,14 @@ jobs:
           trap restore_web EXIT
           echo '== Before compaction =='
           df -h /
+          # Reclaim only rebuildable Docker artifacts, never named data volumes.
+          docker builder prune --all --force
+          docker image prune --all --force
+          free_kb=$(df -Pk / | awk 'NR == 2 {print $4}')
+          if [ "${free_kb:-0}" -lt 2097152 ]; then
+            echo 'Less than 2 GiB remains after safe Docker cleanup; refusing compaction.' >&2
+            exit 1
+          fi
           docker exec -i uzstock-web python - <<'PY'
           import os, sqlite3
           path = os.environ.get("ADMIN_CONTROL_DB", "/app/data/admin_control.sqlite3")
@@ -62,7 +70,7 @@ jobs:
           PY
           if [ "$was_running" = true ]; then docker stop -t 30 uzstock-web >/dev/null; fi
           docker run --rm --network none --entrypoint python -v uzstock_data:/app/data "$image" \
-            /app/scripts/compact_admin_control.py --database "$db_path" --keep 10 --days 90 --confirm
+            /app/scripts/compact_admin_control.py --database "$db_path" --keep 10 --days 90 --discard-stale-target --confirm
           restore_web
           trap - EXIT
           for attempt in $(seq 1 30); do
