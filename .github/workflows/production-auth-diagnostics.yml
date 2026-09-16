@@ -53,6 +53,9 @@ jobs:
           app_volume_mount=$(docker volume inspect uzstock_data --format '{{.Mountpoint}}')
           printf 'mount=%s\n' "$app_volume_mount"
           du -xhd1 "$app_volume_mount" 2>/dev/null | sort -h | tail -n 80 || true
+          echo '== Largest files at the application-volume root =='
+          find "$app_volume_mount" -maxdepth 1 -type f -printf '%s\t%f\n' \
+            | sort -n | tail -n 60 | numfmt --field=1 --to=iec || true
           echo '== Journal disk usage =='
           journalctl --disk-usage 2>&1 || true
 
