@@ -56,6 +56,25 @@ jobs:
           echo '== Largest files at the application-volume root =='
           find "$app_volume_mount" -maxdepth 1 -type f -printf '%s\t%f\n' \
             | sort -n | tail -n 60 | numfmt --field=1 --to=iec || true
+          echo '== Admin-control SQLite allocation =='
+          docker exec -i uzstock-web python - <<'PY'
+          import os
+          import sqlite3
+
+          path = os.environ.get('ADMIN_CONTROL_DB', '/app/data/admin_control.sqlite3')
+          conn = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+          try:
+              page_count = conn.execute('PRAGMA page_count').fetchone()[0]
+              page_size = conn.execute('PRAGMA page_size').fetchone()[0]
+              freelist = conn.execute('PRAGMA freelist_count').fetchone()[0]
+              print(f'ADMIN_DB_BYTES={page_count * page_size} FREE_BYTES={freelist * page_size}')
+              for name, size in conn.execute(
+                  'SELECT name, SUM(pgsize) FROM dbstat GROUP BY name ORDER BY SUM(pgsize) DESC LIMIT 20'
+              ):
+                  print(f'ADMIN_DB_OBJECT={name} bytes={size}')
+          finally:
+              conn.close()
+          PY
           echo '== Journal disk usage =='
           journalctl --disk-usage 2>&1 || true
 
