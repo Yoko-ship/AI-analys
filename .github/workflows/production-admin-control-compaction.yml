@@ -85,8 +85,11 @@ jobs:
           docker builder prune --all --force
           docker image prune --all --force
           free_kb=$(df -Pk / | awk 'NR == 2 {print $4}')
-          if [ "${free_kb:-0}" -lt 2097152 ]; then
-            echo 'Less than 2 GiB remains after safe Docker cleanup; refusing compaction.' >&2
+          # The replacement contains only retained revisions, not a second
+          # 64-GB source. 512 MiB is enough for its bounded target while still
+          # leaving an explicit guard against a zero-free-space write.
+          if [ "${free_kb:-0}" -lt 524288 ]; then
+            echo 'Less than 512 MiB remains after safe Docker cleanup; refusing compaction.' >&2
             exit 1
           fi
           # The web process may already be down precisely because the volume is
