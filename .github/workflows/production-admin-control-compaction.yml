@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Enter COMPACT to compact history, or CLEANUP to remove only failed temporary output"
+        description: "Enter COMPACT, CLEANUP, or INSPECT (read-only disk report)"
         required: true
         type: string
 
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   compact:
-    if: inputs.confirm == 'COMPACT' || inputs.confirm == 'CLEANUP'
+    if: inputs.confirm == 'COMPACT' || inputs.confirm == 'CLEANUP' || inputs.confirm == 'INSPECT'
     name: Compact the bounded admin-control revision history
     runs-on: ubuntu-latest
     # A 64-GB source can take longer than 35 minutes to stream on the VPS;
@@ -57,6 +57,11 @@ jobs:
 
           echo '== Before compaction =='
           df -h /
+          if [ "${{ inputs.confirm }}" = 'INSPECT' ]; then
+            docker system df -v
+            docker run --rm --network none --entrypoint sh -v uzstock_data:/app/data "$image" -c 'du -sh /app/data/* 2>/dev/null | sort -h'
+            exit 0
+          fi
           # A previous interrupted atomic replacement can leave one of these
           # exact, non-live copies beside the source. The source must exist and
           # open read-only first; only then may the user-approved stale copy be
