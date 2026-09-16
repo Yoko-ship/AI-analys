@@ -1,0 +1,54 @@
+name: Emergency restore UZStock web
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stop only the stranded compactor and restore the web container
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ConnectTimeout=20 -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          for cid in $(docker ps -q); do
+            command=$(docker inspect --format '{{.Path}} {{join .Args " "}}' "$cid")
+            case "$command" in
+              *compact_admin_control.py*) docker stop -t 20 "$cid" >/dev/null || true ;;
+            esac
+          done
+          docker start uzstock-web >/dev/null || true
+          for attempt in $(seq 1 30); do
+            [ "$(docker inspect --format '{{.State.Running}}' uzstock-web)" = true ] && break
+            sleep 2
+          done
+          [ "$(docker inspect --format '{{.State.Running}}' uzstock-web)" = true
+          docker exec -i uzstock-web python - <<'PY'
+          import os
+          import psycopg
+          with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=10) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SELECT COUNT(*) FROM web_users")
+                  print(f"AUTH_DB_STATUS=ok user_count={cur.fetchone()[0]}")
+          PY
+          REMOTE
