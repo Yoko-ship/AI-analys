@@ -45,6 +45,12 @@ jobs:
           docker logs --tail 250 uzstock-db 2>&1 || true
           echo '== Disk capacity =='
           df -h / /var/lib/docker 2>/dev/null || df -h /
+          echo '== Largest top-level directories =='
+          du -xhd1 / 2>/dev/null | sort -h | tail -n 30
+          echo '== Docker disk usage =='
+          docker system df -v 2>&1 || true
+          echo '== Journal disk usage =='
+          journalctl --disk-usage 2>&1 || true
 
           echo '== Authentication database probe =='
           docker exec -i uzstock-web python - <<'PY'
