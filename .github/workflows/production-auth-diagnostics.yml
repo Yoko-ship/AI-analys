@@ -49,6 +49,8 @@ jobs:
           du -xhd1 / 2>/dev/null | sort -h | tail -n 30
           echo '== Docker disk usage =='
           docker system df -v 2>&1 || true
+          echo '== UZStock application-volume usage =='
+          du -xhd1 /var/lib/docker/volumes/uzstock_data/_data 2>/dev/null | sort -h | tail -n 80
           echo '== Journal disk usage =='
           journalctl --disk-usage 2>&1 || true
 
