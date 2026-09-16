@@ -1,0 +1,90 @@
+name: Production admin-control compaction
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Enter COMPACT to retain the last 10 revisions per object from the last 90 days"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  compact:
+    if: inputs.confirm == 'COMPACT'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Compact stale revisions and restore web service
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=40 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          db_path=/app/data/admin_control.sqlite3
+          docker inspect uzstock-web >/dev/null
+          docker volume inspect uzstock_data >/dev/null
+          image=$(docker inspect --format '{{.Config.Image}}' uzstock-web)
+          was_running=$(docker inspect --format '{{.State.Running}}' uzstock-web)
+          restore_web() {
+            if [ "$was_running" = true ] && [ "$(docker inspect --format '{{.State.Running}}' uzstock-web)" != true ]; then
+              docker start uzstock-web >/dev/null || true
+            fi
+          }
+          trap restore_web EXIT
+          echo '== Before compaction =='
+          df -h /
+          docker exec -i uzstock-web python - <<'PY'
+          import os, sqlite3
+          path = os.environ.get("ADMIN_CONTROL_DB", "/app/data/admin_control.sqlite3")
+          conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+          try:
+              pages, size = (conn.execute("PRAGMA page_count").fetchone()[0], conn.execute("PRAGMA page_size").fetchone()[0])
+              print(f"ADMIN_DB_BYTES={pages * size} revisions={conn.execute('SELECT COUNT(*) FROM control_revisions').fetchone()[0]}")
+          finally:
+              conn.close()
+          PY
+          if [ "$was_running" = true ]; then docker stop -t 30 uzstock-web >/dev/null; fi
+          docker run --rm --network none --entrypoint python -v uzstock_data:/app/data "$image" \
+            /app/scripts/compact_admin_control.py --database "$db_path" --keep 10 --days 90 --confirm
+          restore_web
+          trap - EXIT
+          for attempt in $(seq 1 30); do
+            [ "$(docker inspect --format '{{.State.Running}}' uzstock-web)" = true ] && break
+            sleep 2
+          done
+          [ "$(docker inspect --format '{{.State.Running}}' uzstock-web)" = true || { docker logs --tail 120 uzstock-web >&2 || true; exit 1; }
+          echo '== After compaction =='
+          docker exec -i uzstock-web python - <<'PY'
+          import os, sqlite3, psycopg
+          path = os.environ.get("ADMIN_CONTROL_DB", "/app/data/admin_control.sqlite3")
+          conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+          try:
+              assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+              pages, size = (conn.execute("PRAGMA page_count").fetchone()[0], conn.execute("PRAGMA page_size").fetchone()[0])
+              print(f"ADMIN_DB_BYTES={pages * size} revisions={conn.execute('SELECT COUNT(*) FROM control_revisions').fetchone()[0]}")
+          finally:
+              conn.close()
+          with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=10) as pg:
+              with pg.cursor() as cur:
+                  cur.execute("SELECT COUNT(*) FROM web_users")
+                  print(f"AUTH_DB_STATUS=ok user_count={cur.fetchone()[0]}")
+          PY
+          df -h /
+          REMOTE
