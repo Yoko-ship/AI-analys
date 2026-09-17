@@ -154,3 +154,16 @@ class TestTheRowReaderItself:
         # Filings that leave the whole period-end column empty: a subtotal of zero
         # beside a non-zero opening is an unfilled cell, not a company with no debt.
         assert rc._row_value([770.0, 1000.0, 0.0]) == 1000.0
+
+
+def test_english_legacy_bank_income_statement_maps_all_profit_tiers() -> None:
+    """Aloqabank 2015 and other early OpenInfo bank reports use English labels."""
+    income = _sheet([
+        _row("1", "Total Interest Income", 150_770_999.0),
+        _row("6", "Net Income Before Operating Expenses", 106_034_769.0),
+        _row("9", "Net Profit Before Taxes and Other Adjustments", 37_427_706.0),
+    ])
+    values = rc.compute_financial_ratios(income, None)["source_values"]
+    assert values["revenue"] == 150_770_999.0
+    assert values["gross_profit"] == 106_034_769.0
+    assert values["operating_income"] == 37_427_706.0

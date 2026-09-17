@@ -5568,7 +5568,8 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
     # процентных доходов» in the structured JSON. A second-tier key: consulted
     # only when "revenue" itself finds nothing, so no commercial form can reach it.
     "revenue_bank": ["всего процентные доходы", "всего процентных доходов",
-                     "итого процентных доходов", "итого процентные доходы"],
+                     "итого процентных доходов", "итого процентные доходы",
+                     "total interest income"],
     # The bank income statement has no «валовая прибыль» or «прибыль от основной
     # деятельности» either, but it files the same tiers under its own names:
     #   «6. ЧИСТЫЙ ДОХОД ДО ОПЕРАЦИОННЫХ РАСХОДОВ»   — income after funding
@@ -5581,9 +5582,12 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
     # Second-tier keys like revenue_bank: consulted only when the commercial
     # patterns found nothing, so no jsc/insurance form can reach them.
     "gross_profit_bank": ["чистый доход до операционных расходов",
-                          "чистые доходы до операционных расходов"],
+                          "чистые доходы до операционных расходов",
+                          "net income before operating expenses"],
     "operating_income_bank": ["чистая прибыль до уплаты налогов",
-                              "чистая прибыль (убытки) до уплаты налогов"],
+                              "чистая прибыль (убытки) до уплаты налогов",
+                              "net profit before taxes",
+                              "net profit before taxes and other adjustments"],
 }
 
 
