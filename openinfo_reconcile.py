@@ -407,7 +407,7 @@ def _by_title(rows, needles, exclude=None, last=False):
 
 
 def extract_metrics(detail):
-    """6 metrics in openinfo thousands (caller multiplies by 1000)."""
+    """Filed headline metrics in openinfo thousands (caller multiplies by 1000)."""
     org = detail.get("org_type")
     pl = _rows(detail, "quarter_financial_results_report", "financial_results_report")
     bal = _rows(detail, "quarter_balance_sheet_report", "balance_sheet_report")
@@ -417,6 +417,7 @@ def extract_metrics(detail):
         "tickets": detail.get("organization_ticket_name"),
         "gross_profit": None,
         "operating_income": None,
+        "operating_expenses": None,
         "noninterest_income": None,
         "prior": None,
         # Balance block (ТЗ мультипликаторов 2026-08-10, лист 09): equity and
@@ -443,6 +444,14 @@ def extract_metrics(detail):
         out["gross_profit"] = pl_value(_by_title(pl, ["чистый доход до операционных расходов"])
                                        or _by_title(pl, ["чистые доходы до операционных расходов"]))
         out["operating_income"] = pl_value(_by_title(pl, ["чистая прибыль до уплаты налогов"]))
+        # This is a filed line, not gross profit less pre-tax profit.  The
+        # latter is especially wrong for banks because provisions and other
+        # operating income sit between those two tiers.
+        out["operating_expenses"] = pl_value(
+            _by_title(pl, ["итого операционных расходов"])
+            or _by_title(pl, ["всего операционных расходов"])
+            or _by_title(pl, ["total operating expenses"])
+        )
         # «е. Итого беспроцентных доходов» — the second half of a bank's total
         # income. The net-margin denominator is interest + non-interest income
         # (ТЗ мультипликаторов, лист 05): dividing by interest income alone
@@ -468,10 +477,12 @@ def extract_metrics(detail):
         net_row = _by_title(pl, ["чистая прибыль", "отчетного периода"])
         gross_row = _by_title(pl, ["валовая прибыль"])
         oper_row = _by_title(pl, ["прибыль", "от основной деятельности"])
+        expenses_row = _by_tnum(pl, "040") or _by_title(pl, ["расходы периода", "всего"])
         out["revenue"] = pl_value(rev_row)
         out["net_income"] = pl_value(net_row)
         out["gross_profit"] = pl_value(gross_row)
         out["operating_income"] = pl_value(oper_row)
+        out["operating_expenses"] = pl_value(expenses_row)
         # ...and the comparative the same form prints beside each of them. Only
         # the P&L has one: the balance sheet's two columns are "на начало года"
         # and "на конец периода", which is a different statement, so cash and
@@ -784,7 +795,7 @@ def select_report(ticker, today=None, max_fetch=8):
 
 
 METRIC_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
-               "net_income", "operating_income", "noninterest_income")
+               "net_income", "operating_income", "operating_expenses", "noninterest_income")
 
 NSBU_THOUSANDS = 1000.0
 
@@ -903,7 +914,7 @@ def period_year_quarter(reporting_year, period_type, today=None, pub_date=None):
     return year, q
 
 
-PRIOR_KEYS = ("revenue", "gross_profit", "net_income", "operating_income")
+PRIOR_KEYS = ("revenue", "gross_profit", "net_income", "operating_income", "operating_expenses")
 
 
 def _figures(ticker, metrics, meta):

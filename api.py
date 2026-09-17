@@ -5713,6 +5713,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         # correction disappear behind the older indicator-feed value.
         FILED = {"revenue": "net_revenue", "net_income": "net_profit",
                  "gross_profit": "gross_profit", "operating_income": "operating_income",
+                 "operating_expenses": "operating_expenses",
                  "total_liabilities": "total_liabilities", "cash": "cash",
                  "total_assets": "total_assets", "total_equity": "total_equity",
                  "roe": "roe", "roa": "roa", "debt_ratio": "debt_ratio",
@@ -5806,15 +5807,19 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                 entry["values"].pop(ghost, None)
         series = {f: e for f, e in series.items() if e["values"]}
 
-        # Operating expenses are not filed as a line; they are the gap between
-        # what the goods cost and what the business cost — gross profit less
-        # operating income, which is how the reference page states it too.
+        # Prefer the direct expense line when a filing names it.  The
+        # gross-profit-minus-operating-income calculation is only a fallback:
+        # it is wrong for banks where provisions and other operating income sit
+        # between those tiers.
         gp = (series.get("gross_profit") or {}).get("values", {})
         oi = (series.get("operating_income") or {}).get("values", {})
-        opex = {p: gp[p] - oi[p] for p in gp if p in oi}
+        reported_opex = (series.get("operating_expenses") or {}).get("values", {})
+        fallback_opex = {p: gp[p] - oi[p] for p in gp if p in oi}
+        opex = {**fallback_opex, **reported_opex}
         if opex:
             series["operating_expenses"] = {"unit": "UZS", "money": True,
-                                            "derived": True, "values": opex}
+                                            "derived": bool(set(fallback_opex) - set(reported_opex)),
+                                            "filed": bool(reported_opex), "values": opex}
         # Net margin, computed rather than republished — see FACT_PERCENT_FIELDS
         # for why the fed one is not trusted. Only where both sides exist and
         # revenue is not zero: BRBN files no revenue line, and a margin on a

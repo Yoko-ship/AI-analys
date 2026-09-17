@@ -2324,16 +2324,18 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                     """
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
-                         total_liabilities, net_income, operating_income,
+                         total_liabilities, net_income, operating_income, operating_expenses,
                          total_assets, total_equity,
                          current_assets, current_liabilities, inventories,
                          noninterest_income, org_type, balance_period,
                          field_periods, prior_period, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                         net_income=excluded.net_income, operating_income=excluded.operating_income,
+                        operating_expenses=COALESCE(excluded.operating_expenses,
+                                                    catalog_financials.operating_expenses),
                         current_assets=COALESCE(excluded.current_assets,
                                                 catalog_financials.current_assets),
                         current_liabilities=COALESCE(excluded.current_liabilities,
@@ -2360,6 +2362,7 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
                      _num(r.get("operating_income")),
+                     _num(r.get("operating_expenses")),
                      _bal_total(r, "total_assets", "assets_end"),
                      _bal_total(r, "total_equity", "equity_end"),
                      _num(r.get("current_assets")), _num(r.get("current_liabilities")),
@@ -2459,17 +2462,23 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                     -- exists in no other dialect.
                     INSERT INTO catalog_financials
                         (ticker, form, year, quarter, revenue, gross_profit, cash,
-                         total_liabilities, net_income, operating_income,
+                         total_liabilities, net_income, operating_income, operating_expenses,
                          total_assets, total_equity,
                          current_assets, current_liabilities, inventories,
                          noninterest_income, org_type, balance_period,
                          field_periods, prior_period, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                         revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                         cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                         net_income=excluded.net_income,
                         operating_income=excluded.operating_income,
+                        -- A structured reconciliation may not carry an expense
+                        -- line although an Excel parser already read the filed
+                        -- one. Keep that filed value; an explicit zero still
+                        -- overwrites it because COALESCE treats zero as data.
+                        operating_expenses=COALESCE(excluded.operating_expenses,
+                                                    catalog_financials.operating_expenses),
                         total_assets=excluded.total_assets,
                         total_equity=excluded.total_equity,
                         current_assets=COALESCE(excluded.current_assets,
@@ -2489,6 +2498,7 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("revenue")), _num(r.get("gross_profit")), _num(r.get("cash")),
                      _num(r.get("total_liabilities")), _num(r.get("net_income")),
                      _num(r.get("operating_income")),
+                     _num(r.get("operating_expenses")),
                      _bal_total(r, "total_assets", "assets_end"),
                      _bal_total(r, "total_equity", "equity_end"),
                      _num(r.get("current_assets")), _num(r.get("current_liabilities")),

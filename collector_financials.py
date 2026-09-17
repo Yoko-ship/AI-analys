@@ -47,7 +47,7 @@ log = logging.getLogger("collector")
 
 DEFAULT_URL = "https://ai-analys-production.up.railway.app"
 KEYS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income",
-        "operating_income", "noninterest_income", "org_type", "balance")
+        "operating_income", "operating_expenses", "noninterest_income", "org_type", "balance")
 
 
 def refresh_local() -> None:

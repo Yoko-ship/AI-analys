@@ -117,6 +117,12 @@ class TestBankBalance:
         assert got["noninterest_income"] == 300.0
         assert got["revenue"] == 500.0
 
+    def test_bank_operating_expenses_are_read_from_the_filed_line(self):
+        detail = self._detail()
+        detail["quarter_financial_results_report"].append(
+            {"title": "Итого операционных расходов", "value": "929275668.00"})
+        assert orc.extract_metrics(detail)["operating_expenses"] == 929_275_668.0
+
     def test_an_annual_bank_form_has_an_end_but_no_start(self):
         """The annual bank form publishes ONE value column: the period end is
         real, the start is honestly unknown — never the end copied over."""

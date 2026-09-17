@@ -276,3 +276,18 @@ def test_the_filings_win_over_the_indicator_feed(monkeypatch):
     # gross profit less operating income, as the reference page states it
     assert s["operating_expenses"]["values"]["2024"] == pytest.approx(2_136_154_892_000.0)
     assert s["operating_expenses"]["derived"] is True
+
+
+def test_a_filed_operating_expense_line_wins_over_the_proxy(monkeypatch):
+    """Bank filings name expenses directly; do not replace them with a proxy."""
+    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
+    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [])
+    monkeypatch.setattr(api, "get_financials_series", lambda t, form="NSBU": {
+        "2024": {"revenue": 4_156_327_248.0, "gross_profit": 0.0,
+                 "operating_income": -2_231_102_237.0,
+                 "operating_expenses": 929_275_668.0},
+    })
+    s = TestClient(api.app).get("/api/company/BRBN/financials").json()["series"]
+    assert s["operating_expenses"]["values"]["2024"] == 929_275_668_000.0
+    assert s["operating_expenses"].get("filed") is True
+    assert s["operating_expenses"].get("derived") is False
