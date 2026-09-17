@@ -550,7 +550,8 @@ jobs:
               set -eu
               mkdir -p /app/data
               chown -R appuser:appuser /app/data
-              gosu appuser sh -c ' : > /app/data/.uzstock-write-test; rm -f /app/data/.uzstock-write-test '
+              gosu appuser touch /app/data/.uzstock-write-test
+              rm -f /app/data/.uzstock-write-test
             '
           docker rm -f uzstock-web >/dev/null 2>&1 || true
           docker run -d \
