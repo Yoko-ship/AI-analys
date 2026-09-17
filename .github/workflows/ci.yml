@@ -313,7 +313,7 @@ jobs:
               raise ValueError("collector credential must be a single non-empty line")
           values = {
               "ADMIN_API_SECRET": secret,
-              "FINANCIALS_PUSH_URL": "https://uzstock.uz",
+              "FINANCIALS_PUSH_URL": "http://uzstock-web:8000",
           }
           path = Path("/root/uzstock/app/.env")
           lines = path.read_text(encoding="utf-8").splitlines()
@@ -779,7 +779,7 @@ jobs:
           # A collector can parse a large exchange response immediately after a
           # deploy. Keep half a CPU free for the public web container so an
           # initial collection cannot stall /health, heatmap or finance routes.
-          ExecStart=/snap/bin/docker run --rm --cpus 0.50 --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=https://uzstock.uz{volume}{env} uzstock-web:latest {command}
+          ExecStart=/snap/bin/docker run --rm --cpus 0.50 --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
           """
 
           def timer(description: str, calendar: str) -> str:
@@ -1007,10 +1007,10 @@ jobs:
             "BACKFILL_TICKER=$target BACKFILL_QUARTER_HISTORY_TICKER=$BACKFILL_QUARTER_HISTORY_TICKER bash -s" <<'REMOTE'
           set -euo pipefail
           if [ -n "$BACKFILL_QUARTER_HISTORY_TICKER" ]; then
-            docker exec -i -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web \
+            docker exec -i -e FINANCIALS_PUSH_URL=http://uzstock-web:8000 uzstock-web \
               python collector_financials.py --backfill-company-quarter-history "$BACKFILL_TICKER"
           else
-            docker exec -i -e FINANCIALS_PUSH_URL=https://uzstock.uz uzstock-web \
+            docker exec -i -e FINANCIALS_PUSH_URL=http://uzstock-web:8000 uzstock-web \
               python collector_financials.py --backfill-company-financials "$BACKFILL_TICKER"
           fi
           docker exec -i uzstock-web python - "$BACKFILL_TICKER" <<'PY'

@@ -60,7 +60,10 @@ services:
       USERS_DB_PATH: users.db
       ORG_CACHE_PATH: org_cache.json
       OUTPUT_PATH: report.html
-      FINANCIALS_PUSH_URL: http://api:8000
+      # Production starts the API container directly as `uzstock-web`, rather
+      # than through Compose's `api` service alias.  This name is valid for
+      # both deployments on the internal Docker network.
+      FINANCIALS_PUSH_URL: http://uzstock-web:8000
       COLLECTOR_INTERVAL_SECONDS: ${COLLECTOR_INTERVAL_SECONDS:-86400}
     volumes:
       - ./data:/app/data

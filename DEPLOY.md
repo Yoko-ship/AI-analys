@@ -29,7 +29,7 @@ docker compose up -d --build
 ```
 
 This starts the API, Telegram bot, and the financial-data collector. The
-collector waits for the local API and posts to `http://api:8000`, so it cannot
+collector waits for the local API and posts to `http://uzstock-web:8000`, so it cannot
 silently refresh Railway while this server remains empty. It runs a full sync at
 startup and then repeats it every 24 hours (`COLLECTOR_INTERVAL_SECONDS`).
 

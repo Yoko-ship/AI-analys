@@ -9,8 +9,8 @@ if [ -z "${ADMIN_API_SECRET:-}" ]; then
     echo "ADMIN_API_SECRET is required for the local collector to write data." >&2
     exit 78
 fi
-if [ "${FINANCIALS_PUSH_URL:-}" != "http://api:8000" ]; then
-    echo "FINANCIALS_PUSH_URL must be http://api:8000 in the VPS collector." >&2
+if [ "${FINANCIALS_PUSH_URL:-}" != "http://uzstock-web:8000" ]; then
+    echo "FINANCIALS_PUSH_URL must be http://uzstock-web:8000 in the VPS collector." >&2
     exit 64
 fi
 case "$interval" in
@@ -24,7 +24,7 @@ if [ "$interval" -lt 1 ]; then
     exit 64
 fi
 
-until python -c "import requests; requests.get('http://api:8000/api/catalog/status', timeout=5).raise_for_status()"; do
+until python -c "import requests; requests.get('http://uzstock-web:8000/api/catalog/status', timeout=5).raise_for_status()"; do
     echo "Waiting for the local API before collecting data..." >&2
     sleep 5
 done
