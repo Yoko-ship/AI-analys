@@ -193,6 +193,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             total_liabilities REAL,
             net_income        REAL,
             operating_income  REAL,
+            operating_expenses REAL,
             updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
             PRIMARY KEY (ticker, form, year, quarter)
         );
@@ -584,6 +585,8 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN total_assets REAL")
     if "total_equity" not in have_fin:
         conn.execute("ALTER TABLE catalog_financials ADD COLUMN total_equity REAL")
+    if "operating_expenses" not in have_fin:
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN operating_expenses REAL")
     # The current section of the balance — «Итого по разделу II» of the asset
     # side, «Текущие обязательства, всего» and «Товарно-материальные запасы».
     # The indicator feed publishes liquidity, asset turnover and ROCE for barely
@@ -2157,7 +2160,7 @@ def upsert_ratio_cache(ticker: str, form: str, year: int, quarter: int, metrics:
 
 
 _FINANCIAL_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
-                   "net_income", "operating_income")
+                   "net_income", "operating_income", "operating_expenses")
 
 
 def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
@@ -2181,15 +2184,16 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
             """
             INSERT INTO catalog_financials
                 (ticker, form, year, quarter, revenue, gross_profit, cash,
-                 total_liabilities, net_income, operating_income,
+                 total_liabilities, net_income, operating_income, operating_expenses,
                  total_assets, total_equity,
                  current_assets, current_liabilities, inventories,
                  field_periods, report_id, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
             ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
                 revenue=excluded.revenue, gross_profit=excluded.gross_profit,
                 cash=excluded.cash, total_liabilities=excluded.total_liabilities,
                 net_income=excluded.net_income, operating_income=excluded.operating_income,
+                operating_expenses=excluded.operating_expenses,
                 total_assets=excluded.total_assets, total_equity=excluded.total_equity,
                 -- A form with no current section (the bank balance) states none
                 -- of these, and a re-parse of one must not blank what another
@@ -2208,7 +2212,7 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
             (ticker, form, year, quarter,
              values.get("revenue"), values.get("gross_profit"), values.get("cash"),
              values.get("total_liabilities"), values.get("net_income"),
-             values.get("operating_income"),
+             values.get("operating_income"), values.get("operating_expenses"),
              values.get("total_assets"),
              values.get("total_equity", values.get("equity")),
              values.get("current_assets"), values.get("current_liabilities"),
@@ -3339,7 +3343,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     rows = conn.execute(
         f"""
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
-               f.total_liabilities, f.net_income, f.operating_income,
+               f.total_liabilities, f.net_income, f.operating_income, f.operating_expenses,
                f.noninterest_income, f.org_type, f.balance_period,
                f.field_periods, f.prior_period, f.report_id, f.updated_at
         FROM catalog_financials f
@@ -3370,6 +3374,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "total_liabilities": r["total_liabilities"],
             "net_income": r["net_income"],
             "operating_income": r["operating_income"],
+            "operating_expenses": r["operating_expenses"],
             # Bank total income's second half; None on every other form.
             "noninterest_income": r["noninterest_income"],
             # The NSBU form the figures were read from (jsc/bank/insurance/
@@ -3447,7 +3452,7 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
     rows = conn.execute(
         f"""
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
-               f.total_liabilities, f.net_income, f.operating_income,
+               f.total_liabilities, f.net_income, f.operating_income, f.operating_expenses,
                f.noninterest_income, f.org_type, f.balance_period, f.field_periods
         FROM catalog_financials f
         JOIN (
@@ -3468,6 +3473,7 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
             "revenue": r["revenue"], "gross_profit": r["gross_profit"], "cash": r["cash"],
             "total_liabilities": r["total_liabilities"], "net_income": r["net_income"],
             "operating_income": r["operating_income"],
+            "operating_expenses": r["operating_expenses"],
             "noninterest_income": r["noninterest_income"],
             "org_type": r["org_type"],
             "balance": _decode_balance_period(r["balance_period"]),
@@ -3564,7 +3570,7 @@ def _prior_matches(prior: Any, year: int, quarter: int) -> bool:
 # (93-maxsus trest net income 952.2; DORI year-end cash 4,757.9).
 _MIN_PLAUSIBLE = 10_000
 _FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income",
-               "operating_income", "total_assets", "total_equity")
+               "operating_income", "operating_expenses", "total_assets", "total_equity")
 # The current section of the balance. Not part of _FIN_FIELDS — these are not
 # lines the Финансы tab shows; they exist so the liquidity, turnover and ROCE
 # coefficients can be computed for the 39 issuers whose indicator feed publishes
@@ -4883,6 +4889,7 @@ _FINANCIAL_PASSPORT_FIELDS = {
     "net_revenue": "revenue",
     "gross_profit": "gross_profit",
     "operating_income": "operating_income",
+    "operating_expenses": "operating_expenses",
     "net_profit": "net_income",
     "cash": "cash",
     "total_assets": "total_assets",
@@ -4898,10 +4905,6 @@ _FINANCIAL_PASSPORT_FIELDS = {
 # rather than attaching a nearby report and silently passing a calculation off
 # as an issuer-provided fact.
 _FINANCIAL_PASSPORT_DERIVED = {
-    "operating_expenses": {
-        "formula": "gross_profit - operating_income",
-        "inputs": ("gross_profit", "operating_income"),
-    },
     "net_margin": {
         "formula": "net_profit / net_revenue * 100",
         "inputs": ("net_profit", "net_revenue"),
@@ -5588,6 +5591,8 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
                               "чистая прибыль (убытки) до уплаты налогов",
                               "net profit before taxes",
                               "net profit before taxes and other adjustments"],
+    "operating_expenses_bank": ["итого операционных расходов",
+                                "total operating expenses"],
 }
 
 
@@ -5882,6 +5887,7 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     net_income = _extract_metric(income_rows or all_rows, "net_income")
     gross_profit = _extract_metric(income_rows or all_rows, "gross_profit")
     operating_income = _extract_metric(income_rows or all_rows, "operating_income")
+    operating_expenses = _extract_metric(income_rows or all_rows, "operating_expenses_bank")
     if gross_profit is None:
         gross_profit = _extract_metric(income_rows or all_rows, "gross_profit_bank")
     if operating_income is None:
@@ -5956,6 +5962,7 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         "net_income": net_income,
         "gross_profit": gross_profit,
         "operating_income": operating_income,
+        "operating_expenses": operating_expenses,
         "cash": cash,
         "total_assets": total_assets,
         "equity": equity,
