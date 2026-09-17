@@ -384,7 +384,8 @@ def backfill_financials(min_year: int = 2015, tickers: set[str] | None = None) -
     return status
 
 
-def backfill_quarterly_financials(min_year: int = 2023) -> int:
+def backfill_quarterly_financials(min_year: int = 2023,
+                                  tickers: set[str] | None = None) -> int:
     """Parse every issuer's QUARTERLY filing into the financials cache.
 
     The daily pipeline keeps only the newest cumulative quarter per ticker —
@@ -401,11 +402,14 @@ def backfill_quarterly_financials(min_year: int = 2023) -> int:
     """
     from securities_catalog import get_securities_map
 
-    tickers = {str(t).upper() for t in (get_securities_map() or {})}
+    requested_tickers = {str(t).strip().upper() for t in (tickers or set()) if str(t).strip()}
+    tickers = requested_tickers or {str(t).upper() for t in (get_securities_map() or {})}
     # The deployment's board is the universe the site serves — wider than this
     # machine's catalog. Same trap, same fix as the annual backfill above.
     base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
     for kind in ("stock", "bond"):
+        if requested_tickers:
+            break
         try:
             resp = requests.get(f"{base}/api/market/stocks?type={kind}", timeout=60)
             resp.raise_for_status()
@@ -1437,6 +1441,8 @@ def main() -> int:
     ap.add_argument("--backfill-quarters", type=int, nargs="?", const=2023, default=None,
                     metavar="FROM_YEAR",
                     help="one-off: parse every historical QUARTERLY filing into the financials cache")
+    ap.add_argument("--backfill-company-quarterly-financials", metavar="TICKER",
+                    help="one-off: re-parse one issuer's catalogued quarterly filings")
     ap.add_argument("--backfill-quarter-history", type=int, nargs="?", const=40, default=None,
                     metavar="PER_TICKER",
                     help="one-off: harvest the quarterly filings that fell out of openinfo's "
@@ -1488,6 +1494,16 @@ def main() -> int:
             return backfill_quarterly_financials(args.backfill_quarters)
         except Exception:
             log.exception("quarterly financials backfill failed")
+            return 1
+
+    if args.backfill_company_quarterly_financials:
+        try:
+            ticker = str(args.backfill_company_quarterly_financials).strip().upper()
+            if not ticker.isalnum():
+                raise ValueError("ticker must contain letters and numbers only")
+            return backfill_quarterly_financials(2015, tickers={ticker})
+        except Exception:
+            log.exception("company quarterly financials backfill failed")
             return 1
 
     if args.backfill_quarter_history is not None:
