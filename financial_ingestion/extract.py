@@ -43,6 +43,23 @@ def _usable(text):
     return bool(re.search(r"statement of (?:financial|profit|income)|отч[её]т о (?:финансов|прибыл)|total assets|итого актив|interest income|процентные доходы", text, re.I))
 
 
+def deskew_image(image):
+    """Estimate a small scan rotation from text-row alignment, without OCR values."""
+    import numpy as np
+    from PIL import ImageOps
+    image = ImageOps.autocontrast(image.convert('L'))
+    width, height = image.size
+    # Scanner bindings and page edges must not dominate the angle estimate.
+    sample = image.crop((int(width*.04), int(height*.03), int(width*.97), int(height*.96)))
+    sample.thumbnail((800,1100))
+    def score(angle):
+        pixels = np.asarray(sample.rotate(float(angle), fillcolor=255))
+        rows = (pixels < 140).sum(axis=1).astype(float)
+        return float((rows * rows).sum())
+    angle = float(max(np.arange(-2,2.01,.2), key=score))
+    return image.rotate(angle, fillcolor=255), round(angle,2)
+
+
 def page_texts(payload, *, ocr=False):
     with pdfplumber.open(io.BytesIO(payload)) as pdf:
         count = len(pdf.pages)
@@ -60,10 +77,17 @@ def page_texts(payload, *, ocr=False):
     # A cheap OCR survey finds them; only the strongest pages get high resolution.
     native = statements.proposals(pages, evidence)
     problem_pages = set()
+    parsed_pages = {number for proposal in native for number in proposal['statement_pages']}
+    # Recognizable labels do not make a broken text layer usable: missing
+    # year digits can prevent the page from producing any proposal at all.
+    for number, text in pages.items():
+        if number not in parsed_pages and sum(statements.row_label(line) is not None
+                for line in statements.statement_lines(text)) >= 2:
+            problem_pages.add(number)
     for proposal in native:
         for number in proposal["statement_pages"]:
             count_fields = sum(f["page"] == number for f in proposal["figures"].values())
-            if count_fields < 4:
+            if count_fields < 4 or not proposal['classification']['unit_scale']:
                 problem_pages.add(number)
         for issue in proposal["extraction"]["issues"]:
             if issue.startswith("AMBIGUOUS_CELLS:"):
@@ -71,9 +95,30 @@ def page_texts(payload, *, ocr=False):
     pdf = pypdfium2.PdfDocument(payload)
     deadline = time.monotonic() + 240
     evidence["ocr_survey_pages"] = []
+    def quality(number, text):
+        candidates = [p for p in statements.proposals({**pages,number:text}, evidence)
+                      if number in p['statement_pages']]
+        mismatches = sum('BALANCE_MISMATCH' in validation.validate(p, page_count=evidence['page_count'])['errors']
+                         for p in candidates)
+        return (sum(f['page']==number for p in candidates for f in p['figures'].values()) - 8*mismatches,
+                sum(bool(p['classification']['unit_scale']) for p in candidates))
+
+    def complete(number):
+        candidates = [p for p in statements.proposals(pages, evidence) if number in p['statement_pages']]
+        return bool(candidates) and all(
+            sum(f['page']==number for f in p['figures'].values()) >=
+                (4 if p['figures'].get('total_assets',{}).get('page')==number else 5)
+            and 'BALANCE_MISMATCH' not in validation.validate(p, page_count=evidence['page_count'])['errors']
+            for p in candidates)
+
+    def retain(number, text):
+        old = pages[number]
+        if (not old.strip() or quality(number,text) > quality(number,old)
+                or (statements.is_ifrs(text) and not statements.is_ifrs(old) and not _usable(old))):
+            pages[number] = text
     try:
         with tempfile.TemporaryDirectory(prefix="ifrs-ocr-") as scratch:
-            def recognize(number, scale, timeout):
+            def recognize(number, scale, timeout, *, psm=None, crop=False):
                 page = pdf[number - 1]
                 try:
                     width, height = page.get_size()
@@ -83,7 +128,14 @@ def page_texts(payload, *, ocr=False):
                     path = Path(scratch) / f"page-{number}.png"
                     bitmap = page.render(scale=scale)
                     try:
-                        bitmap.to_pil().save(path)
+                        rendered = bitmap.to_pil()
+                        if crop:
+                            w,h = rendered.size
+                            rendered = rendered.crop((int(w*.04),int(h*.03),int(w*.97),int(h*.96)))
+                        if scale >= 3:
+                            rendered, angle = deskew_image(rendered)
+                            evidence.setdefault('ocr_rotations', {})[str(number)] = angle
+                        rendered.save(path)
                     finally:
                         bitmap.close()
                 finally:
@@ -92,7 +144,9 @@ def page_texts(payload, *, ocr=False):
                 if remaining <= 0:
                     return None
                 try:
-                    output = subprocess.run(["tesseract", path.name, "stdout", "-l", "eng+rus", "--psm", "6", "tsv"],
+                    mode = psm or ('3' if scale >= 3 else '6')
+                    evidence.setdefault('ocr_attempts', []).append({'page':number,'scale':scale,'psm':mode,'crop_margins':crop})
+                    output = subprocess.run(["tesseract", path.name, "stdout", "-l", "eng+rus", "--psm", mode, "tsv"],
                                             capture_output=True, text=True, errors="replace", cwd=scratch,
                                             timeout=min(timeout, remaining), check=True,
                                             env={**os.environ, "OMP_THREAD_LIMIT": "1"})
@@ -112,11 +166,10 @@ def page_texts(payload, *, ocr=False):
                     continue
                 evidence["ocr_survey_pages"].append(number)
                 # Keep native evidence when the survey has found no statement.
-                if _usable(survey) or not pages[number].strip():
-                    pages[number] = survey
+                retain(number, survey)
                 labels = sum(statements.row_label(line) is not None for line in statements.statement_lines(survey))
                 heading = bool(re.search(r"statement of (?:financial|profit|income)|отч[её]т о (?:финансов|прибыл)", survey, re.I))
-                score = labels + 3 * heading
+                score = labels + 3 * heading + int(statements.is_ifrs(survey))
                 if score or number in problem_pages:
                     targets.append((score, number))
             for _, number in sorted(targets, key=lambda item: (-item[0], item[1]))[:MAX_OCR_PAGES]:
@@ -125,7 +178,16 @@ def page_texts(payload, *, ocr=False):
                 refined = recognize(number, 3, 30)
                 evidence["ocr_pages"].append(number)
                 if refined is not None:
-                    pages[number] = refined
+                    retain(number, refined)
+                # Binder marks and ruled tables can defeat one segmentation
+                # mode. Try bounded alternatives only while a statement is
+                # incomplete; retain the strongest whole-page extraction.
+                for mode,scale in (('3',3),('6',3),('3',4)):
+                    if complete(number) or time.monotonic() >= deadline:
+                        break
+                    alternative = recognize(number, scale, 30, psm=mode, crop=True)
+                    if alternative is not None:
+                        retain(number, alternative)
             if time.monotonic() >= deadline:
                 evidence["ocr_errors"].append("OCR_TIME_BUDGET_EXCEEDED")
     finally:

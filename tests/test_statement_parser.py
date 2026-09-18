@@ -151,3 +151,78 @@ def test_inaugural_period_and_standalone_quarter_are_not_relabelled_as_calendar_
     quarter={n:text.replace('31 December','30 June').replace('Year ended','Three months ended') for n,text in pages.items() if n!=8}
     quarter[8]='Consolidated statement of profit or loss\nin thousands of UZS\nThree months ended 30 June 2024  30 June 2023\nInterest income  500,000  400,000\nProfit for the period  100,000  90,000'
     assert parse(quarter)[0]['classification']['period_start']=='2024-04-01'
+
+
+def test_note_on_wrapped_label_does_not_hide_amount_continuation():
+    result = parse({1: 'МСФО\nОтчет о прибылях и убытках\nв тысячах УЗС\nза 2024 год    за 2023 год\n'
+        'Процентные доходы, рассчитанные по эффективной процентной  20\n'
+        '3  100 000  80 000\nставке\nПрочие процентные доходы  20  20 000  10 000'})
+    assert result[0]['figures']['interest_income']['raw_value'] == '120000'
+    assert result[1]['figures']['interest_income']['raw_value'] == '90000'
+
+
+def test_opening_balance_column_is_not_a_second_comparative_year(pages):
+    pages[7] = '''Consolidated statement of financial position
+in thousands of UZS
+31 December  31 December  1 January
+2024  2023  2023
+Total assets  5,000,000  4,000,000  3,000,000
+Total liabilities  3,000,000  2,500,000  2,000,000
+Total equity  2,000,000  1,500,000  1,000,000'''
+    result = {p['classification']['period_end']:p for p in parse(pages)}
+    assert result['2024-12-31']['figures']['total_assets']['raw_value'] == '5000000'
+    assert result['2023-12-31']['figures']['total_assets']['raw_value'] == '4000000'
+    assert result['2023-01-01']['figures']['total_assets']['raw_value'] == '3000000'
+    assert 'net_income' not in result['2023-01-01']['figures']
+
+
+def test_consistent_statement_unit_can_carry_but_conflicting_units_cannot(pages):
+    pages[8] = pages[8].replace('(in thousands of UZS)', '')
+    assert len(parse(pages)[0]['figures']) == 9
+    pages[9] = pages[7].replace('thousands', 'millions')
+    assert any(p['classification']['unit_scale'] is None for p in parse(pages))
+
+
+def test_ocr_comma_whitespace_preserves_thousands_and_note_lists():
+    assert statements.cells('21,33  1,002,690, 700  900,000',2) == ['1002690700','900000']
+
+
+def test_extra_financial_column_is_not_discarded_as_a_note():
+    assert statements.cells('1 200 000  900 000  800 000',2) is None
+    assert statements.cells('1 200 000  900 000',1) is None
+    assert statements.cells('(100 000  90 000',2) is None
+    assert statements.cells('((100 000)  (90 000)',2) == ['-100000','-90000']
+
+
+def test_parenthesized_loss_word_is_part_of_the_label():
+    assert statements.row_label('Чистая прибыль (убыток) за период  (50 000)  (20 000)')[0] == 'net_income'
+
+
+def test_ocr_boxes_with_different_glyph_heights_keep_the_same_row():
+    from financial_ingestion.layout import word_lines
+    words=[dict(text='Total',x0=10,x1=35,top=10,bottom=20),
+           dict(text='assets',x0=38,x1=68,top=16,bottom=22),
+           dict(text='100,000',x0=150,x1=185,top=9,bottom=22)]
+    assert word_lines(words) == 'Total assets  100,000'
+
+
+def test_annual_income_dates_can_reference_explicit_balance_columns(pages):
+    pages[8] = pages[8].replace('Year ended 31 December 2024       31 December 2023','2024       2023')
+    assert len(parse(pages)[0]['figures']) == 9
+    pages.pop(7)
+    assert parse(pages) == []
+
+
+def test_single_effective_interest_category_requires_net_reconciliation(pages):
+    pages[8] = pages[8].replace('Interest income', 'Interest income calculated using effective interest')
+    pages[8] = pages[8].replace('Interest expense', 'Interest expense calculated using effective interest')
+    assert 'interest_income' not in parse(pages)[0]['figures']
+    pages[8] += '\nNet interest income  400,000  310,000'
+    result = parse(pages)[0]
+    assert result['figures']['interest_income']['raw_value'] == '500000'
+    assert validation.validate(result,page_count=8)['valid']
+
+
+def test_displaced_bold_balance_total_retains_its_numeric_row(pages):
+    pages[7] = pages[7].replace('Total assets                     5,000,000    4,000,000','5,000,000    4,000,000\nTotal assets')
+    assert parse(pages)[0]['figures']['total_assets']['raw_value'] == '5000000'

@@ -101,3 +101,44 @@ build and lint (zero errors, 59 existing warnings). See the
 Source absence, unreadable scans and unresolved candidates still limit coverage.
 This release does not certify unattended extraction of every report, and source
 registration does not automatically discover every issuer-site document.
+
+## Historical gap recovery — statement parser v2
+
+The shared parser now handles opening balance columns, annual income dates
+confirmed by balance statements, consistent unit headers on adjacent statements,
+wrapped note references, profit/loss label variants and isolated OCR note marks.
+Extra financial columns cannot silently become note numbers. A single effective
+interest category can supply a gross total only when the income/expense pair
+reconciles with the printed net interest total.
+
+OCR corrects small page rotations, groups overlapping glyph boxes into rows and
+tries bounded alternative segmentation/resolution settings for incomplete pages.
+It keeps the strongest whole-page extraction, including a balance reconciliation
+check, within the existing 240-second report budget. Arithmetic checks remain
+insufficient for publication: every released figure was checked against the PDF.
+
+Official source pages may now link a PDF on a different public asset origin.
+Registration checks both hosts, requires an exact link on the bounded source
+page response, disallows redirects and records the page hash and linked origin.
+There are no issuer hostname exceptions. Same-origin registration is unchanged.
+
+The recovery review covers 16 additional annual periods and 144 figures; see
+[the source audit](bank-ifrs-gap-recovery-2026-09-18.json). No financial amounts
+were added to the historical review ledgers.
+
+| Issuer | Consolidated additions | Separate additions |
+| --- | --- | --- |
+| GRBK | 2017–2021 | 2022–2023 |
+| IPKY | 2016 | 2017, 2022–2023 |
+| MCBA | 2013–2014, 2017 | 2018–2019 |
+
+These additions give IPKY 2014–2025 and MCBA 2013–2025 annual coverage across
+explicitly separate scopes. GRBK has 2014–2015 and 2017–2025 across scopes.
+They do not establish uninterrupted consolidated histories: the other years
+are available in the separate view. GRBK's 2016 IFRS source remains unverified
+after checking the catalog, issuer archive and exchange/search results.
+
+The issuer site labels GRBK's 2023 download as consolidated, but the actual
+PDF statement headings describe bank-only accounts. Its 2022 comparative
+is therefore also published as separate. The short 2022 consolidated download
+has unresolved unit/standard evidence and is not used to relabel those figures.

@@ -452,12 +452,33 @@ def test_registered_issuer_original_needs_no_ledger_entry_and_is_refreshed(setup
     finally:c.close()
 
 
-def test_issuer_registration_rejects_private_and_cross_origin_sources(setup,monkeypatch):
+def test_issuer_registration_rejects_private_sources(setup,monkeypatch):
     import socket
     monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**kw:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('127.0.0.1',443))])
     args=dict(ticker='BRBN',url='https://issuer.example/report.pdf',source_page='https://issuer.example/investors',actor='reviewer',reason='Verify',processor=extract.processor_version())
     with pytest.raises(ValueError,match='public addresses'):documents.register_issuer_source(**args)
-    with pytest.raises(ValueError,match='share an origin'):documents.register_issuer_source(**{**args,'source_page':'https://another.example/investors'})
+    with pytest.raises(ValueError,match='public addresses'):documents.register_issuer_source(**{**args,'source_page':'https://another.example/investors'})
+
+
+def test_linked_asset_origin_requires_exact_public_source_link(setup,monkeypatch):
+    import socket
+    import requests
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**kw:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('93.184.216.34',443))])
+    url='https://assets.example/reports/statement.pdf'
+    args=dict(ticker='BRBN',url=url,source_page='https://issuer.example/investors',actor='reviewer',reason='Verified issuer link',processor=extract.processor_version())
+    html=f'<a href="{url}">Audited financial statements</a>'.encode()
+    monkeypatch.setattr(requests,'get',lambda *a,**kw:nullcontext(SimpleNamespace(status_code=200,iter_content=lambda _: [html])))
+    result=documents.register_issuer_source(**args)
+    c=store.connect()
+    try:
+        metadata=json.loads(c.execute('SELECT metadata_json FROM ingest_sources WHERE id=?',(result['source'],)).fetchone()[0])
+        assert metadata['linked_document_origin']=='https://assets.example'
+        assert metadata['source_page_sha256']
+    finally:c.close()
+    with pytest.raises(ValueError,match='linked by'):
+        documents.register_issuer_source(**{**args,'url':'https://unlinked.example/statement.pdf'})
 
 
 def test_unseen_report_extracts_both_columns_without_a_value_ledger(setup,monkeypatch):

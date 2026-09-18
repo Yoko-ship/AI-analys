@@ -7,11 +7,15 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v1'
+VERSION = 'statement-columns-v2'
 
 
 def compact(value):
-    return re.sub(r'\s+', '', value.lower().replace('ё', 'е')).strip(' .:;_|')
+    return re.sub(r'\({2,}', '(', re.sub(r'\s+', '', value.lower().replace('ё', 'е'))).strip(' .:;_|')
+
+
+def is_ifrs(text):
+    return bool(re.search(r'ifrs|мсфо|internationalfinancialreporting|международн\w*стандарт\w*финансовойотчетности', compact(text)))
 
 
 LABELS = {
@@ -22,10 +26,11 @@ LABELS = {
     'interest_income': r'(?:totalinterestincome|interestincome|итогопроцентныедоходы|процентныедоходы)',
     'interest_expense': r'(?:totalinterestexpenses?|interestexpenses?|итогопроцентныерасходы|процентныерасходы)',
     'operating_income': r'(?:totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы)',
-    'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|административныеипрочиеоперационныерасходы|операционныерасходы)',
-    'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая)?(?:прибыль|убыток|прибыль/\(убыток\)|\(убыток\)/прибыль)за(?:год|период)|чистаяприбыль)',
-    '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток)доналогообложения)',
+    'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
+    'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая)?(?:прибыль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:год|период)|чистаяприбыль)',
+    '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:доналогообложения|дорасходовпоналогунаприбыль))',
     '_staff': r'(?:personnelexpenses|staffcosts|расходынаперсонал)',
+    '_net_interest': r'(?:netinterestincome|чистыепроцентныедоходы|чистыйпроцентныйдоход)',
     '_associate': r'(?:shareof(?:profit|results?)(?:of|from)associates|доляв(?:прибыли|убытках|результатах)(?:ассоциированных|зависимых)(?:компаний|предприятий|предпиятий))',
 }
 BALANCE = {'cash', 'total_assets', 'total_liabilities', 'total_equity'}
@@ -37,7 +42,7 @@ START_MONTHS = {**MONTHS, 'january':1, 'января':1, 'february':2, 'февр
 # A grouped integer must use groups of three. A dash is an explicit printed
 # zero, but an absent cell never becomes one. Decimal comma is accepted only
 # with one/two fractional digits, avoiding confusion with thousands separators.
-NUMBER = re.compile(r'(?<!\d)(?:\(?[−-]?(?:\d{1,3}(?:,\d{3})+|\d{1,4}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[.,]\d{1,2})?\)?|[—–-])(?!\d)')
+NUMBER = re.compile(r'(?<!\d)(?:\(*[−-]?(?:\d{1,3}(?:,\d{3})+|\d{1,4}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[.,]\d{1,2})?\)*|[—–-])(?!\d)')
 
 
 def numeric(value):
@@ -45,6 +50,8 @@ def numeric(value):
     if value in {'—','–','-'}:
         return '0'
     negative = value.startswith('(') and value.endswith(')')
+    if value.startswith('(') != value.endswith(')'):
+        raise ArithmeticError('Unbalanced amount parentheses')
     value = value.strip('()').replace('\u00a0',' ').replace('\u202f',' ')
     if ',' in value and re.search(r',\d{1,2}$', value):
         value = value.replace(',', '.')
@@ -62,7 +69,10 @@ def cells(tail, count):
     grouped-number parsing is accepted only when it produces exactly the
     declared number of columns (or those columns and a short note number).
     """
-    tail = tail.strip()
+    tail = tail.replace('_', '').strip()
+    # OCR sometimes inserts a space after a printed thousands comma. Keep
+    # decimal commas and short note lists intact.
+    tail = re.sub(r'(?<=\d),[ \u00a0]+(?=\d{3}(?:\D|$))', ',', tail)
     note = re.match(r'\d{1,2}(?:,\s*\d{1,2})+\s{2,}', tail)
     if note:
         without_note = cells(tail[note.end():], count)
@@ -70,6 +80,8 @@ def cells(tail, count):
             return without_note
     pieces = re.split(r'\s{2,}', tail)
     if len(pieces) in {count, count + 1} and all(NUMBER.fullmatch(p.strip()) for p in pieces):
+        if len(pieces) == count + 1 and not re.fullmatch(r'\d{1,2}', pieces[0]):
+            return None
         if len(pieces) == count and re.fullmatch(r'\d{1,2}', pieces[0]) and any(re.search(r'\d \d', p) for p in pieces[1:]):
             # The first cell can be a note number while the remaining cell
             # contains two collapsed space-grouped amounts. Do not guess.
@@ -96,11 +108,18 @@ def row_label(line):
     # after whitespace and must contain exclusively amounts/note references.
     for match in re.finditer(r'\s+(?=[(−\-\d—–])', line):
         label, tail = line[:match.start()].strip(), line[match.end():]
+        if re.search(r'[a-zа-яё]', tail, re.I):
+            continue
         keys = [compact(label).strip('_/\\')]
         label_parts = re.split(r'\s{2,}', label)
+        if len(label_parts) > 1 and re.fullmatch(r'[a-zа-я]{1,3}', label_parts[-1], re.I):
+            # An OCR-damaged note reference occupies its own physical cell.
+            # Only discard it for matching an otherwise exact financial label.
+            keys.append(compact(' '.join(label_parts[:-1])))
         while len(label_parts) > 1 and len(label_parts[0].strip()) <= 5:
             label_parts.pop(0)
             keys.append(compact(' '.join(label_parts)).strip('_/\\'))
+        keys += [re.sub(r'^(?:assets|активы):?', '', key) for key in keys]
         for key in keys:
             field = next((f for f, pattern in LABELS.items() if re.fullmatch(pattern, key)), None)
             if field:
@@ -117,13 +136,29 @@ def statement_lines(text):
     lines = text.splitlines()
     result = []
     for index, line in enumerate(lines):
+        # Bold totals occasionally sit slightly below their amount baselines.
+        # An isolated preceding numeric row can belong to a complete total
+        # label; do not borrow from a labelled row or across intervening text.
+        label_only = row_label(line.rstrip() + '  0')
+        if (index and label_only and label_only[0] in BALANCE and not row_label(line)
+                and lines[index-1].strip() and not re.sub(NUMBER, '', lines[index-1]).strip()
+                and not (index+1 < len(lines) and lines[index+1].strip()
+                         and not re.sub(NUMBER, '', lines[index+1]).strip())):
+            result.append(line.rstrip() + '  ' + lines[index-1].strip())
+            continue
         # A wrapped row may place its amounts on the next baseline. Only
         # join a label to a numbers-only continuation, never to another row.
-        if index + 1 < len(lines) and line.strip() and not row_label(line):
+        row = row_label(line)
+        note_only = row and re.fullmatch(r'\d{1,2}(?:,\s*\d{1,2})*', row[2].strip())
+        if index + 1 < len(lines) and line.strip() and (not row or note_only):
             following = lines[index + 1]
             interest_label = re.match(r'(?:interestincome|interestexpense|процентныедоходы|процентныерасходы)', compact(line)) or re.search(r'(?:income|expense|доходы|расходы).*(?:effective|эффективн)', compact(line))
             if following.strip() and (not re.sub(NUMBER, '', following).strip() or interest_label):
-                combined = line.rstrip() + '  ' + following.strip()
+                # A note already on the label baseline must not become a
+                # second note when an isolated scan-margin mark precedes the
+                # amount continuation. cells() permits just one note cell.
+                prefix = row[1] if note_only else line.rstrip()
+                combined = prefix + '  ' + following.strip()
                 if row_label(combined):
                     result.append(combined)
                     continue
@@ -145,7 +180,7 @@ def section_kind(text):
         return None
     if re.search(r'(?:statementoffinancialposition|отчетофинансовомположении)',key):
         return 'balance'
-    if re.search(r'(?:statementof(?:profitorloss|income|comprehensiveincome)|отчето(?:прибыляхиубытках|совокупномдоходе))',key):
+    if re.search(r'(?:statementof(?:profitorloss|income|comprehensiveincome)|отчето(?:прибыляхиубытках|прибылиилиубытке|прибыляхилиубытках|совокупномдоходе))',key):
         return 'income'
     return None
 
@@ -171,12 +206,23 @@ def columns(header):
         column_line = re.sub(r'(?:\bfrom\b|\bс\b)\s*\d{1,2}\s*(?:' + '|'.join(START_MONTHS)
                              + r')\s*20\d{2}\s*(?:to|по)', '', line, flags=re.I)
         years = re.findall(r'20\d{2}', column_line)
-        if 1 <= len(years) <= 3 and len(set(years)) == len(years):
+        if 1 <= len(years) <= 3:
             options.append((len(years),i,[int(y) for y in years]))
     if not options:
         return []
     _,index,years = max(options)
     window = '\n'.join(lines[max(0,index-4):index+3])
+    # Restated balance sheets can add an opening 1 January column sharing
+    # the comparative year's number. Keep its distinct date and column slot.
+    if len(set(years)) != len(years):
+        dates_without_year = re.findall(r'(31\s*(?:december|декабря)|1\s*(?:january|января))', lines[index-1] if index else '', re.I)
+        if len(dates_without_year) != len(years):
+            return []
+        ends = [f'{y}-01-01' if re.match(r'1\s', d) else f'{y}-12-31'
+                for y, d in zip(years, dates_without_year)]
+        if len(set(ends)) != len(ends):
+            return []
+        return list(zip(years, ends))
     dates = list(DATE.finditer(window))
     by_year = {int(m['year']):f"{m['year']}-{MONTHS[m['month'].lower()]:02d}-{int(m['day']):02d}" for m in dates}
     months = re.findall(r'(?:31|30)\s*(december|декабря|march|марта|june|июня|september|сентября)',window,re.I)
@@ -187,7 +233,12 @@ def columns(header):
         if dates:
             months = [dates[-1]['month']]
     if not months:
-        return []
+        # Explicit full-year column labels are sufficient on income pages;
+        # a bare year or an audit signature is not.
+        if re.search(r'за\s*20\d{2}\s*год', window, re.I):
+            months = ['december']
+        else:
+            return []
     month_numbers = [MONTHS[m.lower()] for m in months]
     result=[]
     for index,year in enumerate(years):
@@ -212,7 +263,7 @@ def flow_start(text, year, end):
     months = next((n for pattern,n in [(r'threemonths|тр[её]хмесяч|тримесяца',3),
                                        (r'sixmonths|шестимесяч|шестьмесяцев|полугод',6),
                                        (r'ninemonths|девятимесяч|девятьмесяцев',9)] if re.search(pattern,key)), None)
-    if months is None and re.search(r'yearended|fortheyear|загод|год,закончивш',key):
+    if months is None and re.search(r'yearended|fortheyear|загод|за20\d{2}год|год,закончивш',key):
         months=12
     if months is None:
         return None
@@ -231,8 +282,22 @@ def _calculated(parts, label, field):
 def proposals(pages, evidence):
     """Extract all supported columns and keep incompatible scopes separate."""
     joined='\n'.join(pages.values())
-    standard='MSFO' if re.search(r'IFRS|МСФО|International Financial Reporting',joined,re.I) else None
+    standard='MSFO' if is_ifrs(joined) else None
     groups={}
+    # Some statement pages omit a unit already printed on an adjacent
+    # statement. Only a single consistent statement-header unit may carry.
+    header_units = set()
+    balance_dates = defaultdict(set)
+    for text in pages.values():
+        lines = statement_lines(text)
+        first = next((i for i, line in enumerate(lines) if row_label(line)), len(lines))
+        header = '\n'.join(lines[:first])
+        if section_kind(header) and units(header):
+            header_units.add(units(header))
+        if section_kind(header) == 'balance':
+            for year,end in columns(header):
+                if end.endswith('-12-31'):
+                    balance_dates[year].add(end)
     issues=[]
     for number,text in pages.items():
         lines=statement_lines(text)
@@ -259,15 +324,27 @@ def proposals(pages, evidence):
             else:
                 continue
         cols=columns(header)
+        if not cols and kind == 'income' and re.search(r'fortheyear|загод', compact(text)):
+            year_rows = [re.findall(r'20\d{2}', line) for line in header.splitlines()]
+            year_rows = [row for row in year_rows if 1 <= len(row) <= 3 and len(set(row)) == len(row)]
+            years = max(year_rows, key=len, default=[])
+            if years and all(len(balance_dates[int(y)]) == 1 for y in years):
+                cols = [(int(y),next(iter(balance_dates[int(y)]))) for y in years]
+                header += '\nAnnual year-end dates confirmed by the balance statement columns'
         if not cols:
             issues.append(f'COLUMN_DATES_UNRESOLVED:{number}')
             continue
         scale=units(header)
+        if scale is None and len(header_units) == 1:
+            scale = next(iter(header_units))
+            unit_header = header + '\nUnit carried from consistent adjacent statement header'
+        else:
+            unit_header = header
         # Unqualified financial statements describe the reporting entity;
         # consolidation must be stated in the heading, not a subsidiary note.
         scope='consolidated' if re.search(r'consolidated|консолидирован',header,re.I) else 'separate'
         document_year=max(year for year,end in cols)
-        restated=bool(re.search(r'restated|пересчитан|пересмотрен',header,re.I))
+        restated=bool(re.search(r'restated|пересчитан|пересмотрен|скорректирован',header,re.I))
         for year,end in cols:
             key=(scope,end,scale)
             if key not in groups:
@@ -281,7 +358,7 @@ def proposals(pages, evidence):
                 g['classification']['period_start'] = flow_start(text, year, end)
             g['classification']['document_year']=max(g['classification']['document_year'],document_year)
             g['classification']['period_evidence'].append(f'PDF page {number}: {header.strip()}')
-            g['classification']['unit_evidence'].append(f'PDF page {number}: {header.strip()}')
+            g['classification']['unit_evidence'].append(f'PDF page {number}: {unit_header.strip()}')
             g['statement_pages'].append(number)
         for line in lines[first:]:
             row=row_label(line)
@@ -308,13 +385,25 @@ def proposals(pages, evidence):
     result=[]
     for g in groups.values():
         figures=g['figures'];parts=g.pop('parts')
+        income_parts = parts.get('_interest_income_part', [])
+        expense_parts = parts.get('_interest_expense_part', [])
+        net_parts = parts.get('_net_interest', [])
+        # Some statements contain only the effective-interest category. Its
+        # income and expense must reconcile to the explicitly printed net
+        # interest total before either can stand in for the gross totals.
+        single_interest_pair = (len(income_parts) == len(expense_parts) == len(net_parts) == 1
+            and Decimal(income_parts[0]['raw_value']) + Decimal(expense_parts[0]['raw_value'])
+                == Decimal(net_parts[0]['raw_value']))
         for field in ['interest_income','interest_expense']:
             components=parts.get('_'+field+'_part',[])
-            if field not in figures and len(components)==2 and len({compact(p['raw_label']) for p in components})==2:
-                figures[field]=_calculated(components,'Sum of reported interest categories',field)
+            if field not in figures and ((len(components)==2 and len({compact(p['raw_label']) for p in components})==2)
+                                        or (single_interest_pair and len(components)==1)):
+                figures[field]=(_calculated(components,'Sum of reported interest categories',field) if len(components)>1
+                                else {**components[0], 'net_interest_reconciliation':net_parts[0]})
         # Derive the pre-expense operating result only where no separate staff
         # expense line would be silently omitted. Otherwise leave it for review.
-        if 'operating_income' not in figures and 'operating_expenses' in figures and len(parts.get('_pretax',[]))==1 and not parts.get('_staff'):
+        aggregate_opex = compact(figures.get('operating_expenses',{}).get('raw_label','')) == 'непроцентныерасходы'
+        if 'operating_income' not in figures and 'operating_expenses' in figures and len(parts.get('_pretax',[]))==1 and (not parts.get('_staff') or aggregate_opex):
             components=[{**parts['_pretax'][0],'coefficient':1},{**figures['operating_expenses'],'coefficient':-1}]
             if len(parts.get('_associate',[]))==1:
                 components.append({**parts['_associate'][0],'coefficient':-1})

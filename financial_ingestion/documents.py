@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 import time
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 from . import store
 
@@ -140,15 +140,36 @@ def register_issuer_source(*, ticker, url, source_page, actor, reason, processor
         if (target.scheme != "https" or not target.hostname or target.port not in {None,443}
                 or target.username or target.password or target.fragment):
             raise ValueError("Issuer sources require public HTTPS URLs without credentials")
+    for target in (parsed, origin):
+        addresses = socket.getaddrinfo(target.hostname, 443, type=socket.SOCK_STREAM)
+        if not addresses or any(not ipaddress.ip_address(record[4][0]).is_global for record in addresses):
+            raise ValueError("Issuer source must resolve to public addresses")
+    linked_origin = None
+    page_sha = None
     if parsed.hostname != origin.hostname:
-        raise ValueError("PDF and verified issuer source page must share an origin")
-    addresses = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
-    if not addresses or any(not ipaddress.ip_address(record[4][0]).is_global for record in addresses):
-        raise ValueError("Issuer source must resolve to public addresses")
+        # Issuers commonly host PDFs on a separate asset/API domain. Require
+        # an actual link on the attributed public source page, never a suffix
+        # match or a company-specific hostname exception.
+        import requests
+        from bs4 import BeautifulSoup
+        with requests.get(source_page, stream=True, timeout=(15,30), allow_redirects=False) as response:
+            if response.status_code != 200:
+                raise ValueError("Issuer source page must return HTTP 200 without redirects")
+            content = bytearray()
+            for chunk in response.iter_content(65536):
+                content.extend(chunk)
+                if len(content) > 4 * 1024 * 1024:
+                    raise ValueError("Issuer source page exceeds size limit")
+        links = {urljoin(source_page, a['href']) for a in BeautifulSoup(bytes(content), 'html.parser').select('a[href]')}
+        if url not in links:
+            raise ValueError("PDF must share an origin or be linked by the verified issuer source page")
+        linked_origin = f'https://{parsed.netloc}'
+        page_sha = hashlib.sha256(content).hexdigest()
     with store.transaction() as c:
         source = register(c, org_id=company['org_id'], ticker=ticker.upper(), url=url,
                           category="IssuerIFRS", processor=processor, metadata={
                               "report_form":"MSFO", "source_page_url":source_page,
+                              "linked_document_origin":linked_origin, "source_page_sha256":page_sha,
                               "title":company.get("company_name") or ticker.upper(),
                               "registered_by":actor, "registration_reason":reason})
         store.event(c, source, "source.registered", actor=actor, reason=reason, source_page=source_page)
@@ -164,7 +185,8 @@ def fetch_job(job, processor, fetch=None):
         c.close()
     metadata = json.loads(source["metadata_json"])
     payload = (fetch(source["url"]) if fetch else download_pdf(source["url"],
-               issuer_origin=metadata.get("source_page_url") if source["category"] == "IssuerIFRS" else None))
+               issuer_origin=(metadata.get("linked_document_origin") or metadata.get("source_page_url"))
+               if source["category"] == "IssuerIFRS" else None))
     if not payload.startswith(b"%PDF-"):
         raise ValueError("Source did not return a PDF")
     sha, path = archive(payload)

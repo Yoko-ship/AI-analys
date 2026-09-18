@@ -8,12 +8,17 @@ def word_lines(words):
     words=[w for w in words if str(w.get('text','')).strip() and w['x1']>w['x0'] and w['bottom']>w['top']]
     if not words:
         return ''
-    height=median(w['bottom']-w['top'] for w in words)
     glyph=median((w['x1']-w['x0'])/len(w['text']) for w in words)
     rows=[]
     for word in sorted(words,key=lambda w:((w['top']+w['bottom'])/2,w['x0'])):
-        center=(word['top']+word['bottom'])/2
-        if rows and abs(center-median((w['top']+w['bottom'])/2 for w in rows[-1]))<=height*.45:
+        # OCR boxes follow glyph shapes: descenders, capitals and bold totals
+        # on the same baseline can have different vertical centres. Their
+        # vertical overlap is a more reliable row signal than centre distance.
+        previous = rows[-1] if rows else []
+        top = median(w['top'] for w in previous) if previous else 0
+        bottom = median(w['bottom'] for w in previous) if previous else 0
+        overlap = min(word['bottom'], bottom) - max(word['top'], top)
+        if rows and overlap >= .35 * min(word['bottom']-word['top'], bottom-top):
             rows[-1].append(word)
         else:
             rows.append([word])

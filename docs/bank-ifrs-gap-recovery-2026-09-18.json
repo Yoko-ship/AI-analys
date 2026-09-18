@@ -1,0 +1,456 @@
+{
+  "parser": "bank-pdf-draft-v3-statement-columns-v2:32395db03d36865b",
+  "review_method": "visual-source-page-check",
+  "periods": 16,
+  "figures": 144,
+  "reports": [
+    {
+      "ticker": "GRBK",
+      "pdf_url": "https://garantbank.uz/uploads/files/financial-statements/%D0%9A%D0%BE%D0%BD%D1%81%D0%BE%D0%BB%D0%B8%D0%B4%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BD%D0%B0%D1%8F_%D1%84%D0%B8%D0%BD%D0%B0%D0%BD%D1%81%D0%BE%D0%B2%D0%B0%D1%8F_%D0%BE%D1%82%D1%87%D1%91%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C_%D0%B8_%D0%B7%D0%B0%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BD%D0%B5%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D1%8B%D1%85-03.pdf",
+      "sha256": "95350295d975e5e540ef6ff2b5eff0580cd50a5370b46459db7fa3f69285766e",
+      "scope": "consolidated",
+      "period_start": "2018-01-01",
+      "period_end": "2018-12-31",
+      "statement_pages": [
+        8,
+        9
+      ],
+      "page_count": 87,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "GRBK",
+      "pdf_url": "https://garantbank.uz/uploads/files/financial-statements/%D0%9A%D0%BE%D0%BD%D1%81%D0%BE%D0%BB%D0%B8%D0%B4%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BD%D0%B0%D1%8F_%D1%84%D0%B8%D0%BD%D0%B0%D0%BD%D1%81%D0%BE%D0%B2%D0%B0%D1%8F_%D0%BE%D1%82%D1%87%D1%91%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C_%D0%B8_%D0%B7%D0%B0%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BD%D0%B5%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D1%8B%D1%85-02.pdf",
+      "sha256": "bb502c1cff565acc1ad96a00488a7c769d492c772bf9baca9ccf883904a70a01",
+      "scope": "consolidated",
+      "period_start": "2017-01-01",
+      "period_end": "2017-12-31",
+      "statement_pages": [
+        9,
+        10
+      ],
+      "page_count": 75,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "GRBK",
+      "pdf_url": "https://garantbank.uz/uploads/files/financial-statements/%D0%9A%D0%BE%D0%BD%D1%81%D0%BE%D0%BB%D0%B8%D0%B4%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BD%D0%B0%D1%8F_%D1%84%D0%B8%D0%BD%D0%B0%D0%BD%D1%81%D0%BE%D0%B2%D0%B0%D1%8F_%D0%BE%D1%82%D1%87%D1%91%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C_%D0%B8_%D0%B7%D0%B0%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BD%D0%B5%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D1%8B%D1%85-03.pdf",
+      "sha256": "95350295d975e5e540ef6ff2b5eff0580cd50a5370b46459db7fa3f69285766e",
+      "scope": "consolidated",
+      "period_start": "2019-01-01",
+      "period_end": "2019-12-31",
+      "statement_pages": [
+        8,
+        9
+      ],
+      "page_count": 87,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "GRBK",
+      "pdf_url": "https://garantbank.uz/uploads/files/financial-statements/%D0%9A%D0%BE%D0%BD%D1%81%D0%BE%D0%BB%D0%B8%D0%B4%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BD%D0%B0%D1%8F_%D1%84%D0%B8%D0%BD%D0%B0%D0%BD%D1%81%D0%BE%D0%B2%D0%B0%D1%8F_%D0%BE%D1%82%D1%87%D1%91%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C_%D0%B8_%D0%B7%D0%B0%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BD%D0%B5%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D1%8B%D1%85-04.pdf",
+      "sha256": "e45e3de3f92044387dd73a74b8efb3eeadeafc67931a4cd98bf62222d02f2a49",
+      "scope": "consolidated",
+      "period_start": "2021-01-01",
+      "period_end": "2021-12-31",
+      "statement_pages": [
+        8,
+        9
+      ],
+      "page_count": 97,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "GRBK",
+      "pdf_url": "https://garantbank.uz/uploads/files/financial-statements/%D0%9A%D0%BE%D0%BD%D1%81%D0%BE%D0%BB%D0%B8%D0%B4%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BD%D0%B0%D1%8F_%D1%84%D0%B8%D0%BD%D0%B0%D0%BD%D1%81%D0%BE%D0%B2%D0%B0%D1%8F_%D0%BE%D1%82%D1%87%D1%91%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C_%D0%B8_%D0%B7%D0%B0%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BD%D0%B5%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D1%8B%D1%85-04.pdf",
+      "sha256": "e45e3de3f92044387dd73a74b8efb3eeadeafc67931a4cd98bf62222d02f2a49",
+      "scope": "consolidated",
+      "period_start": "2020-01-01",
+      "period_end": "2020-12-31",
+      "statement_pages": [
+        8,
+        9
+      ],
+      "page_count": 97,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "GRBK",
+      "pdf_url": "https://garantbank.uz/uploads/files/tarifs/tarifs6/%D0%9A%D0%BE%D0%BD%D1%81%D0%BE%D0%BB%D0%B8%D0%B4%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BD%D0%B0%D1%8F_%D1%84%D0%B8%D0%BD%D0%B0%D0%BD%D1%81%D0%BE%D0%B2%D0%B0%D1%8F_%D0%BE%D1%82%D1%87%D0%B5%CC%88%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C_%D0%B7%D0%B0_2023%D0%B3_.pdf",
+      "sha256": "dba49cfcb8ee09b44e24b556e7ce5a1746ea88033853e3416346ef4acd73c0e8",
+      "scope": "separate",
+      "period_start": "2023-01-01",
+      "period_end": "2023-12-31",
+      "statement_pages": [
+        8,
+        9
+      ],
+      "page_count": 72,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "GRBK",
+      "pdf_url": "https://garantbank.uz/uploads/files/tarifs/tarifs6/%D0%9A%D0%BE%D0%BD%D1%81%D0%BE%D0%BB%D0%B8%D0%B4%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BD%D0%B0%D1%8F_%D1%84%D0%B8%D0%BD%D0%B0%D0%BD%D1%81%D0%BE%D0%B2%D0%B0%D1%8F_%D0%BE%D1%82%D1%87%D0%B5%CC%88%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C_%D0%B7%D0%B0_2023%D0%B3_.pdf",
+      "sha256": "dba49cfcb8ee09b44e24b556e7ce5a1746ea88033853e3416346ef4acd73c0e8",
+      "scope": "separate",
+      "period_start": "2022-01-01",
+      "period_end": "2022-12-31",
+      "statement_pages": [
+        8,
+        9
+      ],
+      "page_count": 72,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "IPKY",
+      "pdf_url": "https://api.ipakyulibank.uz/uploads/block_item/7642c686f13bd716c1aa2daa63da9ada.pdf",
+      "sha256": "815c80b7cdf518675ed0899df63044ae4cd29b13235c209e92f20a86f5c816e7",
+      "scope": "consolidated",
+      "period_start": "2016-01-01",
+      "period_end": "2016-12-31",
+      "statement_pages": [
+        5,
+        6
+      ],
+      "page_count": 9,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "IPKY",
+      "pdf_url": "https://openinfo.uz/media/msfo/Аудиторское_заключение_2018_1.pdf",
+      "sha256": "f762336bc51b7a8649221ebf664d37f594ad8cced5a79eaa88859951d9e4efa7",
+      "scope": "separate",
+      "period_start": "2017-01-01",
+      "period_end": "2017-12-31",
+      "statement_pages": [
+        7,
+        8
+      ],
+      "page_count": 11,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "IPKY",
+      "pdf_url": "https://api.ipakyulibank.uz/uploads/block_item/3e0509ddd6148ec27f9747ffee54cfd0.pdf",
+      "sha256": "240286e90cf9bcc846b2966fcf9bba62ceda418c35de27814c09d94d3487db6f",
+      "scope": "separate",
+      "period_start": "2023-01-01",
+      "period_end": "2023-12-31",
+      "statement_pages": [
+        9,
+        10
+      ],
+      "page_count": 12,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "IPKY",
+      "pdf_url": "https://api.ipakyulibank.uz/uploads/block_item/3e0509ddd6148ec27f9747ffee54cfd0.pdf",
+      "sha256": "240286e90cf9bcc846b2966fcf9bba62ceda418c35de27814c09d94d3487db6f",
+      "scope": "separate",
+      "period_start": "2022-01-01",
+      "period_end": "2022-12-31",
+      "statement_pages": [
+        9,
+        10
+      ],
+      "page_count": 12,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "pdf_url": "https://openinfo.uz/media/msfo/AuditReport2019.pdf",
+      "sha256": "6bafe683a4dd9a8493fbe5f12b32afdfe3e8ca7234e08c13a17f62e880779fe3",
+      "scope": "separate",
+      "period_start": "2019-01-01",
+      "period_end": "2019-12-31",
+      "statement_pages": [
+        8,
+        9
+      ],
+      "page_count": 87,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "pdf_url": "https://openinfo.uz/media/msfo/AuditReport2019.pdf",
+      "sha256": "6bafe683a4dd9a8493fbe5f12b32afdfe3e8ca7234e08c13a17f62e880779fe3",
+      "scope": "separate",
+      "period_start": "2018-01-01",
+      "period_end": "2018-12-31",
+      "statement_pages": [
+        8,
+        9
+      ],
+      "page_count": 87,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "pdf_url": "https://mkbank.uz/upload/iblock/46d/AuditReport2017.pdf",
+      "sha256": "db7d26bf44843bb4c02bf702551ecfb080fcdcdaa33fe024bf564399f102c30f",
+      "scope": "consolidated",
+      "period_start": "2017-01-01",
+      "period_end": "2017-12-31",
+      "statement_pages": [
+        6,
+        7
+      ],
+      "page_count": 10,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "pdf_url": "https://mkbank.uz/upload/iblock/ff4/audit_report_ru2014.pdf",
+      "sha256": "dc0c126fe065323ae943b30f07aedbfbd8313d1870d36c9e637ead6145cc4766",
+      "scope": "consolidated",
+      "period_start": "2014-01-01",
+      "period_end": "2014-12-31",
+      "statement_pages": [
+        3,
+        4
+      ],
+      "page_count": 83,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "pdf_url": "https://mkbank.uz/upload/iblock/ff4/audit_report_ru2014.pdf",
+      "sha256": "dc0c126fe065323ae943b30f07aedbfbd8313d1870d36c9e637ead6145cc4766",
+      "scope": "consolidated",
+      "period_start": "2013-01-01",
+      "period_end": "2013-12-31",
+      "statement_pages": [
+        3,
+        4
+      ],
+      "page_count": 83,
+      "fields": [
+        "cash",
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income",
+        "total_assets",
+        "total_equity",
+        "total_liabilities"
+      ],
+      "validation": {
+        "valid": true,
+        "errors": []
+      }
+    }
+  ]
+}
