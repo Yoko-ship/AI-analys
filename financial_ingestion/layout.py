@@ -35,11 +35,19 @@ def word_lines(words):
     return '\n'.join(lines)
 
 
-def tsv_text(value):
+def tsv_words(value, *, top_offset=0, core=None):
+    """Restore page coordinates; an overlap belongs to exactly one tile core."""
     words=[]
     for row in csv.DictReader(io.StringIO(value),delimiter='\t',quoting=csv.QUOTE_NONE):
         if row.get('level')!='5' or not (row.get('text') or '').strip():
             continue
         x,y,width,height=(float(row[k]) for k in ('left','top','width','height'))
+        y += top_offset
+        if core is not None and not core[0] <= y + height / 2 < core[1]:
+            continue
         words.append({'text':row['text'],'x0':x,'x1':x+width,'top':y,'bottom':y+height})
-    return word_lines(words)
+    return words
+
+
+def tsv_text(value):
+    return word_lines(tsv_words(value))

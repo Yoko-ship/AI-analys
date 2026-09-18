@@ -17,6 +17,23 @@ from . import documents, layout, statements, store, validation
 PARSER_VERSION = "bank-pdf-draft-v3-" + statements.VERSION
 MAX_PAGES = 16
 MAX_OCR_PAGES = 8
+MAX_DISCOVERED_PAGES = 32
+
+
+def statement_page_numbers(texts):
+    """Find appendix statements in annual brochures without fixed pagination."""
+    selected = set(range(1, min(len(texts), MAX_PAGES) + 1))
+    additional = set()
+    for number, text in texts.items():
+        # A short standalone section divider differs from a contents page or
+        # an incidental IFRS reference in a management discussion.
+        divider = len(text) < 500 and bool(re.search(
+            r'\bifrs\s+report\b|отч[её]т\s+по\s+мсфо', text, re.I))
+        heading = statements.section_kind(text) is not None
+        if divider or heading:
+            additional.update(range(number, min(len(texts), number + (MAX_PAGES if divider else 2)) + 1))
+    selected.update(sorted(additional - selected)[:MAX_DISCOVERED_PAGES])
+    return sorted(selected)
 
 
 def review_entries():
@@ -65,7 +82,11 @@ def page_texts(payload, *, ocr=False):
         count = len(pdf.pages)
         if count > 500:
             raise ValueError("PDF page limit exceeded")
-        pages = {i + 1: layout.word_lines(page.extract_words()) for i, page in enumerate(pdf.pages[:MAX_PAGES])}
+        native = {}
+        for i, page in enumerate(pdf.pages):
+            native[i + 1] = layout.word_lines(page.extract_words())
+            page.close()  # Brochure discovery must not retain every page's objects.
+        pages = {number: native[number] for number in statement_page_numbers(native)}
     evidence = {"page_count": count, "ocr_pages": [], "ocr_errors": [], "text_pages": list(pages)}
     if not ocr:
         return pages, evidence
@@ -122,7 +143,7 @@ def page_texts(payload, *, ocr=False):
             pages[number] = text
     try:
         with tempfile.TemporaryDirectory(prefix="ifrs-ocr-") as scratch:
-            def recognize(number, scale, timeout, *, psm=None, crop=False):
+            def recognize(number, scale, timeout, *, psm=None, crop=False, tiles=False, threshold=None, language=None):
                 page = pdf[number - 1]
                 try:
                     width, height = page.get_size()
@@ -135,10 +156,12 @@ def page_texts(payload, *, ocr=False):
                         rendered = bitmap.to_pil()
                         if crop:
                             w,h = rendered.size
-                            rendered = rendered.crop((int(w*.04),int(h*.03),int(w*.97),int(h*.96)))
+                            rendered = rendered.crop((int(w*(.08 if threshold else .04)),int(h*.03),int(w*.97),int(h*.96)))
                         if scale >= 3:
                             rendered, angle = deskew_image(rendered)
                             evidence.setdefault('ocr_rotations', {})[str(number)] = angle
+                        if threshold is not None:
+                            rendered = rendered.point(lambda pixel: 255 if pixel > threshold else 0)
                         rendered.save(path)
                     finally:
                         bitmap.close()
@@ -149,8 +172,29 @@ def page_texts(payload, *, ocr=False):
                     return None
                 try:
                     mode = psm or ('3' if scale >= 3 else '6')
-                    evidence.setdefault('ocr_attempts', []).append({'page':number,'scale':scale,'psm':mode,'crop_margins':crop})
-                    output = subprocess.run(["tesseract", path.name, "stdout", "-l", "eng+rus", "--psm", mode, "tsv"],
+                    language = language or ('rus+eng' if tiles else 'eng+rus')
+                    evidence.setdefault('ocr_attempts', []).append({'page':number,'scale':scale,'psm':mode,'crop_margins':crop,'tiles':4 if tiles else 1,'language':language,'threshold':threshold})
+                    if tiles:
+                        # Smaller text regions help segmentation of dense scanned
+                        # tables. Preserve original coordinates and exclude overlap
+                        # duplicates before reconstructing financial columns.
+                        words = []
+                        width, height = rendered.size
+                        for index in range(4):
+                            remaining = deadline - time.monotonic()
+                            if remaining <= 0:
+                                return None  # Never retain a partial page.
+                            core = (height * index / 4, height * (index + 1) / 4)
+                            top = max(0, int(core[0]) - 60)
+                            bottom = min(height, int(core[1]) + 60)
+                            rendered.crop((0, top, width, bottom)).save(path)
+                            output = subprocess.run(["tesseract", path.name, "stdout", "-l", language, "--psm", mode, "tsv"],
+                                                    capture_output=True, text=True, errors="replace", cwd=scratch,
+                                                    timeout=min(timeout, remaining), check=True,
+                                                    env={**os.environ, "OMP_THREAD_LIMIT": "1"})
+                            words.extend(layout.tsv_words(output.stdout, top_offset=top, core=core))
+                        return layout.word_lines(words)[:40000]
+                    output = subprocess.run(["tesseract", path.name, "stdout", "-l", language, "--psm", mode, "tsv"],
                                             capture_output=True, text=True, errors="replace", cwd=scratch,
                                             timeout=min(timeout, remaining), check=True,
                                             env={**os.environ, "OMP_THREAD_LIMIT": "1"})
@@ -186,10 +230,18 @@ def page_texts(payload, *, ocr=False):
                 # Binder marks and ruled tables can defeat one segmentation
                 # mode. Try bounded alternatives only while a statement is
                 # incomplete; retain the strongest whole-page extraction.
-                for mode,scale,crop in (('3',3,True),('6',3,True),('3',4,False),('3',4,True)):
+                for mode,scale,crop,tiles in (('3',3,True,False),('6',4,False,True),('6',3,True,False),('3',4,False,False),('3',4,True,False)):
                     if complete(number) or time.monotonic() >= deadline:
                         break
-                    alternative = recognize(number, scale, 30, psm=mode, crop=crop)
+                    alternative = recognize(number, scale, 30, psm=mode, crop=crop, tiles=tiles)
+                    if alternative is not None:
+                        retain(number, alternative)
+                if not complete(number) and time.monotonic() < deadline:
+                    # A single-language, high-contrast pass can retain faint
+                    # zero dashes that multilingual segmentation discards.
+                    text = pages[number]
+                    language = 'rus' if len(re.findall('[а-яё]', text, re.I)) > len(re.findall('[a-z]', text, re.I)) else 'eng'
+                    alternative = recognize(number, 4, 30, psm='6', crop=True, threshold=210, language=language)
                     if alternative is not None:
                         retain(number, alternative)
             if time.monotonic() >= deadline:

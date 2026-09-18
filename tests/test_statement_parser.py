@@ -284,3 +284,74 @@ def test_dot_thousands_do_not_change_decimal_precision():
     assert statements.cells('33.250.441  (7.191.023)',2)==['33250441','-7191023']
     assert statements.cells('(217.789,742)  123.45',2)==['-217789742','123.45']
     assert statements.cells('1.23.456  1,000',2) is None
+
+
+def test_wrapped_operating_expenses_and_own_funds_labels(pages):
+    pages[7] = pages[7].replace('Total equity', 'ИТОГО СОБСТВЕННЫХ СРЕДСТВ')
+    pages[8] = pages[8].replace('Operating expenses', 'Административные и прочие\nоперационные расходы')
+    primary, comparative = parse(pages)
+    assert primary['figures']['total_equity']['raw_value'] == '2000000'
+    assert primary['figures']['operating_expenses']['raw_value'] == '-200000'
+    assert comparative['figures']['operating_expenses']['raw_value'] == '-180000'
+    assert validation.validate(primary, page_count=8)['valid']
+
+
+def test_wrapped_label_does_not_borrow_an_unrelated_row():
+    lines = statements.statement_lines('Administrative and other\nInterest income    500,000    400,000')
+    assert statements.row_label(lines[0]) is None
+    assert statements.row_label(lines[1])[0] == 'interest_income'
+
+
+def test_tile_overlap_preserves_columns_without_duplicate_numbers():
+    from financial_ingestion.layout import tsv_words, word_lines
+    header = 'level\tleft\ttop\twidth\theight\ttext\n'
+    upper = header + '5\t10\t95\t30\t10\tTotal\n5\t120\t95\t40\t10\t1,234\n'
+    lower = header + '5\t10\t15\t30\t10\tTotal\n5\t120\t15\t40\t10\t1,234\n'
+    words = tsv_words(upper, core=(0,100)) + tsv_words(lower, top_offset=80, core=(100,200))
+    assert len(words) == 2
+    assert word_lines(words) == 'Total  1,234'
+    assert {w['top'] for w in words} == {95}
+
+
+def test_appendix_statements_are_discovered_from_section_headings():
+    from financial_ingestion.extract import statement_page_numbers
+    texts = {i: 'Management discussion' for i in range(1,121)}
+    texts[3] = 'Contents: ' + 'other sections ' * 50 + 'IFRS report'
+    texts[79] = '7\nОтчет по МСФО\nIFRS Report'
+    selected = statement_page_numbers(texts)
+    assert {79,80,83,84,91,92} <= set(selected)
+    assert 40 not in selected and 120 not in selected
+    assert len(selected) <= 48
+
+
+def test_stacked_interim_balance_columns_keep_december_comparative():
+    header = 'Consolidated statement of financial position\nAs at 30 June 2024\nNotes    30 June    31 December\n2024    2023'
+    assert statements.columns(header) == [(2024,'2024-06-30'),(2023,'2023-12-31')]
+
+
+def test_interim_title_cannot_supply_a_missing_comparative_balance_date():
+    header = 'Consolidated statement of financial position\nAs at 30 June 2024\n2024    2023'
+    assert statements.columns(header) == []
+
+
+def test_expense_can_be_derived_without_guessing_an_unreadable_zero(pages):
+    pages[8] = pages[8].replace('Interest expense                 (100,000)    (90,000)',
+        'Other interest expense    (100,000)    +\nNet interest income    400,000    310,000')
+    primary, comparative = parse(pages)
+    assert primary['figures']['interest_expense']['raw_value'] == '-100000'
+    assert comparative['figures']['interest_expense']['raw_value'] == '-90000'
+    assert comparative['figures']['interest_expense']['calculation'] == 'signed_sum'
+    assert len(comparative['figures']['interest_expense']['components']) == 2
+    assert validation.validate(comparative, page_count=8)['valid']
+
+
+def test_credit_loss_adjusted_interest_is_not_net_interest(pages):
+    pages[8] = pages[8].replace('Interest expense                 (100,000)    (90,000)',
+        'Net interest income after impairment    350,000    300,000')
+    assert 'interest_expense' not in parse(pages)[0]['figures']
+
+
+def test_unqualified_net_interest_after_credit_losses_cannot_derive_gross_expense(pages):
+    pages[8] = pages[8].replace('Interest expense                 (100,000)    (90,000)',
+        'Provision for credit losses    (50,000)    (10,000)\nNet interest income    350,000    300,000')
+    assert 'interest_expense' not in parse(pages)[0]['figures']

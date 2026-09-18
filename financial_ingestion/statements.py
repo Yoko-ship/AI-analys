@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v3'
+VERSION = 'statement-columns-v4'
 
 
 def compact(value):
@@ -21,15 +21,15 @@ def is_ifrs(text):
 LABELS = {
     'total_assets': r'(?:totalassets|итогоактив(?:ы|ов)|всегоактив(?:ы|ов))',
     'total_liabilities': r'(?:totalliabilities|итогообязательств(?:а)?|всегообязательств(?:а)?)',
-    'total_equity': r'(?:totalequity|totalcapital|итого(?:собственный)?капитал|всего(?:собственный)?капитал)',
+    'total_equity': r'(?:totalequity|totalcapital|итого(?:собственный)?капитал|итогособственныхсредств|всего(?:собственный)?капитал)',
     'cash': r'(?:cashandcashequivalents|денежныесредстваиихэквиваленты)',
     'interest_income': r'(?:totalinterestincome|interestincome|итогопроцентныедоходы|процентныедоходы)',
     'interest_expense': r'(?:totalinterestexpenses?|interestexpenses?|итогопроцентныерасходы|процентныерасходы)',
     'operating_income': r'(?:totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы)',
     'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|staffandotheroperatingexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|расходынаперсоналипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
-    'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая)?(?:прибыль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:год|период)|чистаяприбыль)',
+    'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая)?(?:прибыль|приыбль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:год|период)|чистаяприбыль)',
     '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообложения|дорасходовпоналогунаприбыль))',
-    '_discontinued': r'(?:(?:profit|loss|profit/\(loss\))forthe(?:year|period)fromdiscontinuedoperations(?:netoftax)?|(?:чистая)?(?:прибыль|убыток|прибыль/\(убыток\)|\(убыток\)/прибыль)за(?:год|период)отпрекращеннойдеятельности(?:,?завычетомналога)?)',
+    '_discontinued': r'(?:(?:profit|loss|profit/\(loss\))forthe(?:year|period)fromdiscontinuedoperations(?:netoftax)?|(?:чистая)?(?:прибыль|приыбль|убыток|прибыль/\(убыток\)|\(убыток\)/прибыль)за(?:год|период)отпрекращеннойдеятельности(?:,?завычетомналога)?)',
     '_tax': r'(?:incometax(?:expense|benefit)?|incometax\(expense\)/benefit|\(расход\)/экономияпоналогунаприбыль|расхо[дл]ыпоналогунаприбыль|налогнаприбыль|оценканалогана(?:прибыль|доход\(прибыль\)))',
     '_staff': r'(?:personnelexpenses|staffcosts|расходынаперсонал)',
     '_net_interest': r'(?:netinterestincome|чистыепроцентныедоходы|чистыйпроцентныйдоход)',
@@ -157,14 +157,15 @@ def statement_lines(text):
             result.append(line.rstrip() + '  ' + lines[index-1].strip())
             continue
         # A wrapped row may place its amounts on the next baseline. Only
-        # join a label to a numbers-only continuation, never to another row.
+        # Join a numeric or wrapped-label continuation only when the complete
+        # label matches; do not borrow amounts from a different financial row.
         row = row_label(line)
         note_only = row and re.fullmatch(r'\d{1,2}(?:,\s*\d{1,2})*', row[2].strip())
         if index + 1 < len(lines) and line.strip() and (not row or note_only):
             following = lines[index + 1]
             interest_label = re.match(r'(?:interestincome|interestexpense|процентныедоходы|процентныерасходы)', compact(line)) or re.search(r'(?:income|expense|доходы|расходы).*(?:effective|эффективн)', compact(line))
             discontinued_label = 'прекращеннойдеятельности' in compact(line) or 'discontinuedoperations' in compact(line)
-            if following.strip() and (not re.sub(NUMBER, '', following).strip() or interest_label or discontinued_label):
+            if following.strip() and (not row_label(following) or note_only or interest_label or discontinued_label):
                 # A note already on the label baseline must not become a
                 # second note when an isolated scan-margin mark precedes the
                 # amount continuation. cells() permits just one note cell.
@@ -223,6 +224,15 @@ def columns(header):
         return []
     _,index,years = max(options)
     window = '\n'.join(lines[max(0,index-4):index+3])
+    # Stacked date cells often put both day/month labels above a row of
+    # years. Match them by physical column order, including mixed interim
+    # and December comparatives; a title date cannot date every column.
+    date_row = lines[index-1] if index else ''
+    stacked = list(re.finditer(r'(31|30|1)\s*(' + '|'.join(START_MONTHS) + r')\b', date_row, re.I))
+    if len(stacked) == len(years) and not re.search(r'20\d{2}', date_row):
+        ends = [f'{year}-{START_MONTHS[m[2].lower()]:02d}-{int(m[1]):02d}'
+                for year,m in zip(years, stacked)]
+        return list(zip(years, ends)) if len(set(ends)) == len(ends) else []
     # Restated balance sheets can add an opening 1 January column sharing
     # the comparative year's number. Keep its distinct date and column slot.
     if len(set(years)) != len(years):
@@ -258,6 +268,8 @@ def columns(header):
             if len(set(month_numbers)) != 1:
                 return []
             month=month_numbers[0]
+            if month != 12 and section_kind(header) == 'balance' and len(month_numbers) < len(years):
+                return []  # The comparative balance date is not established.
             end=f'{year}-{month:02d}-{31 if month in {3,12} else 30}'
         result.append((year,end))
     return result
@@ -371,7 +383,10 @@ def proposals(pages, evidence):
             g['classification']['period_evidence'].append(f'PDF page {number}: {header.strip()}')
             g['classification']['unit_evidence'].append(f'PDF page {number}: {unit_header.strip()}')
             g['statement_pages'].append(number)
+        credit_loss_seen = False
         for line in lines[first:]:
+            if re.search(r'impairment|provision|обесцен|резерв|кредитн\w*\s+убыт', line, re.I):
+                credit_loss_seen = True
             row=row_label(line)
             if not row:
                 continue
@@ -388,6 +403,8 @@ def proposals(pages, evidence):
             for (year,end),value in zip(cols,values):
                 g=groups[(scope,end,scale)]
                 figure={'raw_value':value,'raw_label':label,'page':number,'column_year':year}
+                if field == '_net_interest':
+                    figure['before_credit_losses'] = not credit_loss_seen
                 if field.startswith('_'):
                     if not any(old['raw_value']==value and old['page']==number
                                and compact(old['raw_label'])==compact(label) for old in g['parts'][field]):
@@ -427,6 +444,19 @@ def proposals(pages, evidence):
                                         or (single_interest_pair and len(components)==1)):
                 figures[field]=(_calculated(components,'Sum of reported interest categories',field) if len(components)>1
                                 else {**components[0], 'net_interest_reconciliation':net_parts[0]})
+        # Net interest is explicitly defined before impairment in these rows.
+        # When a gross expense cell is unreadable, the printed net and gross
+        # income establish it without interpreting an OCR mark as zero.
+        if ('interest_expense' not in figures and 'interest_income' in figures
+                and len(net_parts) == 1 and net_parts[0].get('before_credit_losses')
+                and not {'interest_income','interest_expense'} & g['conflicts']):
+            income = figures['interest_income']
+            components = [{**net_parts[0], 'coefficient':1}]
+            components.extend({**part, 'coefficient':-part.get('coefficient',1)}
+                              for part in income.get('components', [income]))
+            calculated = _calculated(components, 'Net interest income less gross interest income', 'interest_expense')
+            if Decimal(calculated['raw_value']) <= 0:
+                figures['interest_expense'] = calculated
         # Derive the pre-expense operating result only where no separate staff
         # expense line would be silently omitted. Otherwise leave it for review.
         aggregate_opex = compact(figures.get('operating_expenses',{}).get('raw_label','')) == 'непроцентныерасходы'
