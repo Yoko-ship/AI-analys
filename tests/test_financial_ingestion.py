@@ -593,3 +593,13 @@ def test_adding_older_consolidated_history_preserves_newest_separate_default(set
     assert publication.snapshots('BRBN')[0]['scope']=='separate'
     assert set(publication.series('BRBN',scope='consolidated'))=={'2023'}
     assert publication.scopes('BRBN')==['consolidated','separate']
+
+
+def test_default_scope_api_labels_newest_separate_history(setup):
+    test_adding_older_consolidated_history_preserves_newest_separate_default(setup)
+    from fastapi.testclient import TestClient
+    from api import app
+    result=TestClient(app).get('/api/company/BRBN/financials?form=MSFO').json()
+    assert result['scope']=='separate'
+    assert result['periods']==['2024']
+    assert result['available_scopes']==['consolidated','separate']

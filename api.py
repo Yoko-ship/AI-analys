@@ -5579,9 +5579,10 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
     loop = asyncio.get_running_loop()
     scope_info = {}
     if standard == "MSFO":
-        from financial_ingestion.publication import scopes as published_scopes, series as snapshot_series
+        from financial_ingestion.publication import scopes as published_scopes, series as snapshot_series, snapshots as published_snapshots
         available_scopes = await loop.run_in_executor(None, partial(published_scopes, ticker))
-        scope_info = {"scope": scope or next(iter(available_scopes), None), "available_scopes": available_scopes}
+        default_snapshots = await loop.run_in_executor(None, partial(published_snapshots, ticker)) if scope is None else []
+        scope_info = {"scope": scope or (default_snapshots[0]["scope"] if default_snapshots else None), "available_scopes": available_scopes}
         if scope is not None:
             quarterly = str(freq or "").lower().startswith("q")
             values = await loop.run_in_executor(None, partial(snapshot_series, ticker, quarterly=quarterly, scope=scope)) or {}

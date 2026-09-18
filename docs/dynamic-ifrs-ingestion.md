@@ -233,7 +233,7 @@ The default financial perimeter follows the newest published period, preferring
 consolidated on a date tie. Both explicit views remain available, so publishing
 older consolidated history cannot hide newer separate statements.
 
-Validation: 213 focused ingestion, parser, discovery, API, evidence and financial
+Validation: 214 focused ingestion, parser, discovery, API, evidence and financial
 regression tests passed. A broader run also encountered three existing failures
 in the separate `v3_financial_pipeline` module: its `INSERT OR IGNORE` statements
 are rejected by `dbx`; those files were not changed by this update.
