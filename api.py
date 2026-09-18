@@ -5339,8 +5339,9 @@ def derive_quarterly_series(cumulative: dict[str, Any],
       Q1 = the Q1 filing;  Qn = filing(Qn) − filing(Qn−1);
       Q4 = the annual filing − the nine-month filing,
 
-    because no issuer on this market files a fourth quarterly — the annual IS
-    the Q4 disclosure. A quarter whose predecessor was never filed yields no
+    Usually the annual is the Q4 disclosure. An explicitly filed cumulative Q4
+    (some banks publish one) is also accepted; a separately filed annual wins.
+    A quarter whose predecessor was never filed yields no
     figure rather than a running total masquerading as three months: a six-month
     sum in a column of quarters is exactly the «full year beside a quarter»
     defect _period_months exists to stop.

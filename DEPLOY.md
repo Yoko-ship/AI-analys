@@ -75,6 +75,10 @@ discovered. The company financial API's `data_gaps` explains withheld figures.
 This repair collects NSBU statements. IFRS PDFs remain available in Reports but
 need a separate, validated IFRS extraction pipeline; NSBU corrections are never
 used to fill the IFRS selector.
+An explicitly catalogued cumulative NSBU Q4 can supply the full-year view when
+no annual financial row exists for that issuer/year. It remains linked to its
+actual quarterly document; it never overwrites or fills holes in a separate annual,
+and a publication hold on that Q4 also blocks the full-year fallback.
 
 ## 4. Check logs
 

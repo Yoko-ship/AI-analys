@@ -4899,8 +4899,12 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
         siblings = _org_siblings(conn, t) or [t]
         placeholders = ",".join("?" * len(siblings))
         fin = conn.execute(
-            f"SELECT ticker, year, balance_period, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
-            f"WHERE ticker IN ({placeholders}) AND form=? AND quarter=0 ORDER BY year",
+            f"SELECT ticker, year, quarter, balance_period, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
+            f"WHERE ticker IN ({placeholders}) AND form=? "
+            "AND (quarter=0 OR (quarter=4 AND form='NSBU' AND EXISTS ("
+            "SELECT 1 FROM catalog_reports r WHERE r.ticker=catalog_financials.ticker "
+            "AND r.report_form=catalog_financials.form AND r.year=catalog_financials.year "
+            "AND r.quarter=4))) ORDER BY year",
             (*siblings, form)).fetchall()
         rat = conn.execute(
             "SELECT ticker, year, roa, roe, debt_ratio, debt_to_equity FROM catalog_ratios "
@@ -4909,6 +4913,18 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
     finally:
         conn.close()
     out: dict[str, dict[str, Any]] = {}
+    # Some banks really DO file a cumulative Q4 (e.g. DRBK 2019), even when
+    # there is no separately labelled annual. It covers the same twelve months.
+    # Keep the original row and document identity; never invent an annual filing
+    # or merge an unaudited Q4 over a separately filed annual of that year.
+    annual_years = {r["year"] for r in fin if not r["quarter"]}
+    held_q4 = set()
+    if any(r["quarter"] == 4 for r in fin):
+        from data_quality import held_public_periods
+        for sibling in siblings:
+            held_q4.update(held_public_periods(sibling, form))
+    fin = [r for r in fin if not r["quarter"] or (
+        r["year"] not in annual_years and f"{r['year']}Q4" not in held_q4)]
     # Siblings first, the requested ticker last: where both classes carry the
     # same year (the same filing parsed twice) the requested one wins.
     for row in sorted(fin, key=lambda r: r["ticker"] == t):
@@ -5065,13 +5081,23 @@ def get_financial_value_passport(ticker: str, period: str, field: str,
         # The normal series reader lets the requested class replace a sibling
         # where both contain the issuer's filing.  This query applies exactly
         # the same preference, then takes the newest cache write as a tiebreak.
+        # Match the annual reader's explicitly filed cumulative-Q4 fallback.
+        # An annual row anywhere in the issuer takes precedence, including one
+        # with this particular field missing; do not blend filing perimeters.
+        fallback_q4 = form == "NSBU" and quarter == 0 and not conn.execute(
+            f"SELECT 1 FROM catalog_financials WHERE ticker IN ({placeholders}) "
+            "AND form=? AND year=? AND quarter=0 LIMIT 1", (*siblings, form, year)).fetchone()
+        source_quarter = 4 if fallback_q4 else quarter
         rows = conn.execute(
             f"SELECT ticker, {source_field} AS value, field_periods, report_id, updated_at "
             f"FROM catalog_financials WHERE ticker IN ({placeholders}) "
             "AND form=? AND year=? AND quarter=? "
             f"AND {source_field} IS NOT NULL "
+            + ("AND EXISTS (SELECT 1 FROM catalog_reports r WHERE r.ticker=catalog_financials.ticker "
+               "AND r.report_form=catalog_financials.form AND r.year=catalog_financials.year "
+               "AND r.quarter=4) " if fallback_q4 else "") +
             "ORDER BY CASE WHEN ticker=? THEN 1 ELSE 0 END DESC, updated_at DESC",
-            (*siblings, form, year, quarter, ticker),
+            (*siblings, form, year, source_quarter, ticker),
         ).fetchall()
     finally:
         conn.close()
@@ -5087,7 +5113,7 @@ def get_financial_value_passport(ticker: str, period: str, field: str,
 
     row = rows[0]
     filed_periods = _decode_field_periods(row["field_periods"]) or {}
-    stated_period = str(filed_periods.get(source_field) or period)
+    stated_period = str(filed_periods.get(source_field) or (f"{year}Q4" if fallback_q4 else period))
     report_id = row["report_id"]
     if not report_id:
         return {

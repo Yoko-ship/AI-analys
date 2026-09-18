@@ -211,3 +211,55 @@ def test_vps_history_worker_persists_catalog_and_does_not_duplicate_stateless_ru
     assert "BANK_HISTORY_BATCH=0" in units["/etc/systemd/system/uzstock-collector.service"]
     assert "OnCalendar=*-*-* 02:00:00" in units["/etc/systemd/system/uzstock-bank-history.timer"]
     assert workflow.count("uzstock-bank-history.timer uzstock-news-collector.timer") == 2
+
+
+def test_explicit_cumulative_fourth_quarter_can_supply_a_missing_full_year(catalog):
+    filing(catalog, "BANK", "12", 2019, 4)
+    rc.upsert_financials_cache("BANK", "NSBU", 2019, 4, {"revenue": 200, "net_income": 30})
+    assert rc.get_financials_series("BANK")["2019"]["revenue"] == 200
+    assert rc.get_financials_series_quarterly("BANK")["2019Q4"]["revenue"] == 200
+    conn = catalog()
+    assert conn.execute("SELECT COUNT(*) FROM catalog_financials WHERE quarter=0").fetchone()[0] == 0
+    conn.close()
+
+
+def test_q4_does_not_fill_holes_in_a_separately_filed_annual(catalog):
+    filing(catalog, "BANK", "12", 2019, 4)
+    filing(catalog, "BANKP", "12", 2019)
+    rc.upsert_financials_cache("BANK", "NSBU", 2019, 4, {"revenue": 200, "net_income": 30})
+    rc.upsert_financials_cache("BANKP", "NSBU", 2019, 0, {"net_income": 40})
+    annual = rc.get_financials_series("BANK")["2019"]
+    assert "revenue" not in annual
+    assert annual["net_income"] == 40
+    assert rc.get_financial_value_passport("BANK", "2019", "net_revenue")["status"] == "NO_DATA"
+
+
+def test_q4_fallback_requires_a_document_and_does_not_apply_to_ifrs(catalog):
+    filing(catalog, "BANK", "12", 2020, 4, form="MSFO")
+    rc.upsert_financials_cache("BANK", "NSBU", 2019, 4, {"revenue": 200})
+    rc.upsert_financials_cache("BANK", "MSFO", 2020, 4, {"revenue": 300})
+    assert rc.get_financials_series("BANK") == {}
+    assert rc.get_financials_series("BANK", "MSFO") == {}
+
+
+def test_q4_under_review_is_not_published_as_an_annual(catalog):
+    import data_quality
+    filing(catalog, "BANK", "12", 2019, 4)
+    rc.upsert_financials_cache("BANK", "NSBU", 2019, 4, {"revenue": 200})
+    data_quality.set_publication_hold("BANK", "NSBU", 2019, 4, True, "unit review", "test")
+    assert rc.get_financials_series("BANK") == {}
+
+
+def test_full_year_fallback_keeps_the_actual_q4_source_passport(catalog):
+    import provenance
+    filing(catalog, "BANK", "12", 2019, 4)
+    report_id = provenance.upsert_report("12", "NSBU", "quarter", 2019, 4,
+                                         excel_url="https://example.org/2019q4.xlsx")
+    provenance.record_figures(report_id, [{"field": "revenue", "value": 200, "unit_scale": 1000}])
+    provenance.set_state(report_id, "validated")
+    rc.upsert_financials_cache("BANK", "NSBU", 2019, 4, {"revenue": 200}, report_id)
+    passport = rc.get_financial_value_passport("BANK", "2019", "net_revenue")
+    assert passport["status"] == "SOURCED"
+    assert passport["source"]["stated_period"] == "2019Q4"
+    assert passport["source"]["period_quarter"] == 4
+    assert passport["source"]["excel_url"] == "https://example.org/2019q4.xlsx"
