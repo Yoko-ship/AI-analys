@@ -12132,6 +12132,8 @@ const finPeriodLabel = (p, compact) => {
 };
 
 const FIN_FIELD_LABELS = {
+  interest_income: ["Процентные доходы", "Foizli daromadlar", "Interest Income"],
+  interest_expense: ["Процентные расходы", "Foizli xarajatlar", "Interest Expense"],
   net_revenue: ["Выручка", "Tushum", "Revenue"],
   net_profit: ["Чистая прибыль", "Sof foyda", "Net Profit"],
   gross_profit: ["Валовая прибыль", "Yalpi foyda", "Gross Profit"],
@@ -12711,7 +12713,12 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
   // The server sends newest-first; the table reads oldest → newest, left → right.
   const cols = [...(periods || [])].reverse();
   const has = (f) => series?.[f] && cols.some((p) => Number.isFinite(series[f].values[p]));
-  const available = (quarterly ? FIN_SECTIONS_QUARTER : FIN_SECTIONS)
+  const sections = standard === "MSFO" && has("interest_income")
+    ? FIN_SECTIONS.map((sec) => sec.key === "income" ? { ...sec,
+      rows: ["interest_income", "interest_expense", "operating_income", "operating_expenses", "net_profit"],
+      margins: [], chart: ["interest_income", "operating_income", "net_profit"],
+    } : sec) : (quarterly ? FIN_SECTIONS_QUARTER : FIN_SECTIONS);
+  const available = sections
     .map((sec) => ({ ...sec, rows: (sec.rows || []).filter(has), margins: (sec.margins || []).filter(has) }))
     .filter((sec) => sec.rows.length + sec.margins.length > 0);
 

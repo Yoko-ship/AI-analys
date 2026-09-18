@@ -723,6 +723,15 @@ def backfill_bank_financials(limit: int = 2, *, force: bool = False,
             result = backfill_company_quarter_history(ticker, limit=200) or result
             result = backfill_financials(2015, tickers={ticker}) or result
             result = backfill_quarterly_financials(2015, tickers={ticker}) or result
+            # IFRS is a separate, byte-verified PDF review path. Never reuse
+            # NSBU totals under MSFO. This job mounts the API's persistent DB.
+            from ifrs_financials import import_reviewed
+            ifrs = import_reviewed(ticker, apply=True)
+            if ifrs["errors"]:
+                log.error("bank IFRS %s: %s", ticker, ifrs["errors"])
+                result = 1
+            if ifrs["published"]:
+                log.info("bank IFRS %s: published reviewed years %s", ticker, ifrs["published"])
         except Exception:
             log.exception("bank history repair failed for %s", ticker)
             result = 1

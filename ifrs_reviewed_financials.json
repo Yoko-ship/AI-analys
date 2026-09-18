@@ -1,0 +1,511 @@
+{
+  "schema_version": 1,
+  "notes": "Reviewed PDF figures, not an automated OCR result. PDF page numbers are one-based file pages. Preserve signed expenses and losses. Gross profit and ordinary revenue are not bank IFRS lines and are intentionally absent.",
+  "reports": [
+    {
+      "ticker": "BRBN",
+      "org_id": "23",
+      "issuer_name": "Business Development Bank",
+      "year": 2024,
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/511b0950-b70c-4e94-b63b-13ca4bcdda0e.pdf",
+      "sha256": "b9cd62318741c392beff34e8bdbe1296fe525fe4f901775250e25355776229be",
+      "page_count": 13,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF page 9: 31 December 2024 balance column; page 10: 2024 income column. Current-year column only; no comparative/restatement substitution.",
+      "unit_evidence": "in millions of Uzbekistan Soums",
+      "figures": {
+        "cash": {
+          "raw_value": "2341951",
+          "page": 9,
+          "column_year": 2024,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "total_assets": {
+          "raw_value": "31596795",
+          "page": 9,
+          "column_year": 2024,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "28854120",
+          "page": 9,
+          "column_year": 2024,
+          "raw_label": "Total liabilities"
+        },
+        "total_equity": {
+          "raw_value": "2742675",
+          "page": 9,
+          "column_year": 2024,
+          "raw_label": "Total equity"
+        },
+        "interest_income": {
+          "raw_value": "4473647",
+          "page": 10,
+          "column_year": 2024,
+          "raw_label": "Interest income"
+        },
+        "interest_expense": {
+          "raw_value": "-2417950",
+          "page": 10,
+          "column_year": 2024,
+          "raw_label": "Interest expense"
+        },
+        "operating_income": {
+          "raw_value": "-38070",
+          "page": 10,
+          "column_year": 2024,
+          "raw_label": "OPERATING (LOSS)/INCOME"
+        },
+        "operating_expenses": {
+          "raw_value": "-1110514",
+          "page": 10,
+          "column_year": 2024,
+          "raw_label": "Operating expenses"
+        },
+        "net_income": {
+          "raw_value": "-1367921",
+          "page": 10,
+          "column_year": 2024,
+          "raw_label": "LOSS FOR THE YEAR"
+        }
+      }
+    },
+    {
+      "ticker": "BRBN",
+      "org_id": "23",
+      "issuer_name": "Business Development Bank",
+      "year": 2023,
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Report_2023_short.pdf",
+      "sha256": "3c96a0a550b6ca12814c086267ae5541a6fa5fc5f0adfa56a2a24be4a8e046ef",
+      "page_count": 14,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF page 10: 31 December 2023 balance column; page 11: 2023 income column. Current-year column only; no comparative/restatement substitution.",
+      "unit_evidence": "in millions of Uzbekistan Soums",
+      "figures": {
+        "cash": {
+          "raw_value": "1964087",
+          "page": 10,
+          "column_year": 2023,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "total_assets": {
+          "raw_value": "26679865",
+          "page": 10,
+          "column_year": 2023,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "25211060",
+          "page": 10,
+          "column_year": 2023,
+          "raw_label": "Total liabilities"
+        },
+        "total_equity": {
+          "raw_value": "1468805",
+          "page": 10,
+          "column_year": 2023,
+          "raw_label": "Total equity"
+        },
+        "interest_income": {
+          "raw_value": "3362389",
+          "page": 11,
+          "column_year": 2023,
+          "raw_label": "Interest income"
+        },
+        "interest_expense": {
+          "raw_value": "-1973008",
+          "page": 11,
+          "column_year": 2023,
+          "raw_label": "Interest expense"
+        },
+        "operating_income": {
+          "raw_value": "203386",
+          "page": 11,
+          "column_year": 2023,
+          "raw_label": "OPERATING INCOME"
+        },
+        "operating_expenses": {
+          "raw_value": "-808135",
+          "page": 11,
+          "column_year": 2023,
+          "raw_label": "Operating expenses"
+        },
+        "net_income": {
+          "raw_value": "-470390",
+          "page": 11,
+          "column_year": 2023,
+          "raw_label": "LOSS FOR THE YEAR"
+        }
+      }
+    },
+    {
+      "ticker": "BRBN",
+      "org_id": "23",
+      "issuer_name": "Qishloq Qurilish Bank",
+      "year": 2022,
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/QQB_audit_xulosa.pdf",
+      "sha256": "2c96a382029bacb5b1afdfd4d826b24e62280b57a2356888ade90f0745ff549e",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF page 9: 31 December 2022 balance column; page 10: 2022 income column. Current-year column only; no comparative/restatement substitution.",
+      "unit_evidence": "in millions of Uzbekistan Soums",
+      "figures": {
+        "cash": {
+          "raw_value": "2046066",
+          "page": 9,
+          "column_year": 2022,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "total_assets": {
+          "raw_value": "23956442",
+          "page": 9,
+          "column_year": 2022,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "22052397",
+          "page": 9,
+          "column_year": 2022,
+          "raw_label": "Total liabilities"
+        },
+        "total_equity": {
+          "raw_value": "1904045",
+          "page": 9,
+          "column_year": 2022,
+          "raw_label": "Total equity"
+        },
+        "interest_income": {
+          "raw_value": "2613455",
+          "page": 10,
+          "column_year": 2022,
+          "raw_label": "Interest income"
+        },
+        "interest_expense": {
+          "raw_value": "-1540908",
+          "page": 10,
+          "column_year": 2022,
+          "raw_label": "Interest expense"
+        },
+        "operating_income": {
+          "raw_value": "528872",
+          "page": 10,
+          "column_year": 2022,
+          "raw_label": "OPERATING INCOME"
+        },
+        "operating_expenses": {
+          "raw_value": "-786747",
+          "page": 10,
+          "column_year": 2022,
+          "raw_label": "Operating expenses"
+        },
+        "net_income": {
+          "raw_value": "-205260",
+          "page": 10,
+          "column_year": 2022,
+          "raw_label": "(LOSS)/PROFIT FOR THE YEAR"
+        }
+      }
+    },
+    {
+      "ticker": "BRBN",
+      "org_id": "23",
+      "issuer_name": "Qishloq Qurilish Bank",
+      "year": 2021,
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/FS_2021.pdf",
+      "sha256": "c88ba4f094d4198fc456b92a495b0797e32d85d699cf6ab170c0d6cfcc2ad52c",
+      "page_count": 11,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF page 8: 31 December 2021 balance column; page 9: 2021 income column. Current-year column only; no comparative/restatement substitution.",
+      "unit_evidence": "in millions of Uzbekistan Soums",
+      "figures": {
+        "cash": {
+          "raw_value": "1311121",
+          "page": 8,
+          "column_year": 2021,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "total_assets": {
+          "raw_value": "19944889",
+          "page": 8,
+          "column_year": 2021,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "17838626",
+          "page": 8,
+          "column_year": 2021,
+          "raw_label": "Total liabilities"
+        },
+        "total_equity": {
+          "raw_value": "2106263",
+          "page": 8,
+          "column_year": 2021,
+          "raw_label": "Total equity"
+        },
+        "interest_income": {
+          "raw_value": "1901717",
+          "page": 9,
+          "column_year": 2021,
+          "raw_label": "Interest income"
+        },
+        "interest_expense": {
+          "raw_value": "-1055887",
+          "page": 9,
+          "column_year": 2021,
+          "raw_label": "Interest expense"
+        },
+        "operating_income": {
+          "raw_value": "516531",
+          "page": 9,
+          "column_year": 2021,
+          "raw_label": "OPERATING INCOME"
+        },
+        "operating_expenses": {
+          "raw_value": "-501715",
+          "page": 9,
+          "column_year": 2021,
+          "raw_label": "Operating expenses"
+        },
+        "net_income": {
+          "raw_value": "13372",
+          "page": 9,
+          "column_year": 2021,
+          "raw_label": "PROFIT FOR THE YEAR"
+        }
+      }
+    },
+    {
+      "ticker": "BRBN",
+      "org_id": "23",
+      "issuer_name": "Qishloq Qurilish Bank",
+      "year": 2019,
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Заключение_аудита_по_итогам_2019_года_МСФО.pdf",
+      "sha256": "6d608a7fe159a0e594fc47d2e4ef55eb0946d020d426f3e401a6516a85d4d343",
+      "page_count": 88,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF page 8: 31 December 2019 balance column; page 9: 2019 income column. Current-year column only; no comparative/restatement substitution.",
+      "unit_evidence": "в миллионах узбекских сумов",
+      "catalog_year_note": "OpenInfo listing says 2020; the financial position and income statement explicitly state 2019.",
+      "figures": {
+        "cash": {
+          "raw_value": "445601",
+          "page": 8,
+          "column_year": 2019,
+          "raw_label": "Денежные средства и их эквиваленты"
+        },
+        "total_assets": {
+          "raw_value": "12368608",
+          "page": 8,
+          "column_year": 2019,
+          "raw_label": "ИТОГО АКТИВЫ"
+        },
+        "total_liabilities": {
+          "raw_value": "11137920",
+          "page": 8,
+          "column_year": 2019,
+          "raw_label": "Итого обязательства"
+        },
+        "total_equity": {
+          "raw_value": "1230688",
+          "page": 8,
+          "column_year": 2019,
+          "raw_label": "Итого капитал"
+        },
+        "interest_income": {
+          "raw_value": "1125191",
+          "page": 9,
+          "column_year": 2019,
+          "raw_label": "Процентные доходы"
+        },
+        "interest_expense": {
+          "raw_value": "-593403",
+          "page": 9,
+          "column_year": 2019,
+          "raw_label": "Процентные расходы"
+        },
+        "operating_income": {
+          "raw_value": "515145",
+          "page": 9,
+          "column_year": 2019,
+          "raw_label": "ОПЕРАЦИОННЫЕ ДОХОДЫ"
+        },
+        "operating_expenses": {
+          "raw_value": "-337890",
+          "page": 9,
+          "column_year": 2019,
+          "raw_label": "Операционные расходы"
+        },
+        "net_income": {
+          "raw_value": "141746",
+          "page": 9,
+          "column_year": 2019,
+          "raw_label": "ПРИБЫЛЬ ЗА ГОД"
+        }
+      }
+    },
+    {
+      "ticker": "BRBN",
+      "org_id": "23",
+      "issuer_name": "Qishloq Qurilish Bank",
+      "year": 2018,
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Rus_2018_short.pdf",
+      "sha256": "6634814a7aecb293e74aa45def4dd26097aa04bd8a3e95b414058957364f0f17",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF page 9: 31 December 2018 balance column; page 10: 2018 income column. Current-year column only; no comparative/restatement substitution.",
+      "unit_evidence": "в тысячах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "481980307",
+          "page": 9,
+          "column_year": 2018,
+          "raw_label": "Денежные средства и их эквиваленты"
+        },
+        "total_assets": {
+          "raw_value": "9272561258",
+          "page": 9,
+          "column_year": 2018,
+          "raw_label": "ИТОГО АКТИВЫ"
+        },
+        "total_liabilities": {
+          "raw_value": "8156340819",
+          "page": 9,
+          "column_year": 2018,
+          "raw_label": "Итого обязательства"
+        },
+        "total_equity": {
+          "raw_value": "1116220439",
+          "page": 9,
+          "column_year": 2018,
+          "raw_label": "Итого капитал"
+        },
+        "interest_income": {
+          "raw_value": "689754471",
+          "page": 10,
+          "column_year": 2018,
+          "raw_label": "Процентные доходы"
+        },
+        "interest_expense": {
+          "raw_value": "-333510608",
+          "page": 10,
+          "column_year": 2018,
+          "raw_label": "Процентные расходы"
+        },
+        "operating_income": {
+          "raw_value": "390013571",
+          "page": 10,
+          "column_year": 2018,
+          "raw_label": "ОПЕРАЦИОННЫЕ ДОХОДЫ"
+        },
+        "operating_expenses": {
+          "raw_value": "-270895923",
+          "page": 10,
+          "column_year": 2018,
+          "raw_label": "Операционные расходы"
+        },
+        "net_income": {
+          "raw_value": "85441301",
+          "page": 10,
+          "column_year": 2018,
+          "raw_label": "ПРИБЫЛЬ ЗА ГОД"
+        }
+      }
+    },
+    {
+      "ticker": "BRBN",
+      "org_id": "23",
+      "issuer_name": "Qishloq Qurilish Bank",
+      "year": 2016,
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Tashqi_audit_Hulosa.PDF",
+      "sha256": "6100747ede52806950ab1379cd74801c17abc9b9bec1d237052ff820a0664359",
+      "page_count": 10,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF page 7: 31 December 2016 balance column; page 8: 2016 income column. Current-year column only; no comparative/restatement substitution.",
+      "unit_evidence": "в тысячах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "371658561",
+          "page": 7,
+          "column_year": 2016,
+          "raw_label": "Денежные средства и их эквиваленты"
+        },
+        "total_assets": {
+          "raw_value": "5295179545",
+          "page": 7,
+          "column_year": 2016,
+          "raw_label": "ИТОГО АКТИВЫ"
+        },
+        "total_liabilities": {
+          "raw_value": "4861582425",
+          "page": 7,
+          "column_year": 2016,
+          "raw_label": "Итого обязательства"
+        },
+        "total_equity": {
+          "raw_value": "433597120",
+          "page": 7,
+          "column_year": 2016,
+          "raw_label": "Итого капитал"
+        },
+        "interest_income": {
+          "raw_value": "363251805",
+          "page": 8,
+          "column_year": 2016,
+          "raw_label": "Процентные доходы"
+        },
+        "interest_expense": {
+          "raw_value": "-169085527",
+          "page": 8,
+          "column_year": 2016,
+          "raw_label": "Процентные расходы"
+        },
+        "operating_income": {
+          "raw_value": "215376565",
+          "page": 8,
+          "column_year": 2016,
+          "raw_label": "ОПЕРАЦИОННЫЕ ДОХОДЫ"
+        },
+        "operating_expenses": {
+          "raw_value": "-181437929",
+          "page": 8,
+          "column_year": 2016,
+          "raw_label": "Операционные расходы"
+        },
+        "net_income": {
+          "raw_value": "24507401",
+          "page": 8,
+          "column_year": 2016,
+          "raw_label": "ПРИБЫЛЬ ЗА ГОД"
+        }
+      }
+    }
+  ]
+}

@@ -5741,6 +5741,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         # balance lines, so ignoring them at this merge would make a verified
         # correction disappear behind the older indicator-feed value.
         FILED = {"revenue": "net_revenue", "net_income": "net_profit",
+                 "interest_income": "interest_income", "interest_expense": "interest_expense",
                  "gross_profit": "gross_profit", "operating_income": "operating_income",
                  "operating_expenses": "operating_expenses",
                  "total_liabilities": "total_liabilities", "cash": "cash",
@@ -5868,7 +5869,11 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
             if int(p) <= last_fy and not any(gap["period"] == p for gap in data_gaps):
                 data_gaps.append({"period": p, "code": "REPORT_NOT_PARSED"})
         for p in sorted(periods, reverse=True):
-            missing = [field for field in ("net_revenue", "net_profit", "total_assets", "total_equity", "total_liabilities")
+            # Bank IFRS statements disclose interest income, not industrial
+            # revenue/gross profit. Do not invent a revenue line or mark its
+            # legitimate absence as a failed extraction.
+            top_line = "interest_income" if standard == "MSFO" and "interest_income" in series else "net_revenue"
+            missing = [field for field in (top_line, "net_profit", "total_assets", "total_equity", "total_liabilities")
                        if (series.get(field) or {}).get("values", {}).get(p) is None]
             if missing:
                 data_gaps.append({"period": p, "code": "MISSING_FINANCIAL_FIELDS", "fields": missing})

@@ -596,6 +596,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     for column in ("current_assets", "current_liabilities", "inventories"):
         if column not in have_fin:
             conn.execute(f"ALTER TABLE catalog_financials ADD COLUMN {column} REAL")
+    for column in ("interest_income", "interest_expense"):
+        if column not in have_fin:
+            conn.execute(f"ALTER TABLE catalog_financials ADD COLUMN {column} REAL")
     # «Номинальная стоимость» of the security, as the exchange's own card states
     # it (`parval`). Every listed line has one and no page showed it.
     if "nominal" not in set(dbx.columns(conn, "catalog_listings")):
@@ -1398,6 +1401,9 @@ def sync_company(
                 continue
             pt = str(doc.get("period_type") or "annual").lower()
             yr = _extract_year(rec)
+            if form == "MSFO" and pt == "annual":
+                from ifrs_financials import reviewed_catalog_year
+                yr = reviewed_catalog_year(conn, org_id, doc.get("pdf_url"), yr)
             q = 0
             if pt == "quarter":
                 props = rec.get("properties") or {}
@@ -3587,6 +3593,7 @@ def _prior_matches(prior: Any, year: int, quarter: int) -> bool:
 _MIN_PLAUSIBLE = 10_000
 _FIN_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income",
                "operating_income", "operating_expenses", "total_assets", "total_equity")
+_IFRS_BANK_FIELDS = ("interest_income", "interest_expense")
 # The current section of the balance. Not part of _FIN_FIELDS — these are not
 # lines the Финансы tab shows; they exist so the liquidity, turnover and ROCE
 # coefficients can be computed for the 39 issuers whose indicator feed publishes
@@ -3603,7 +3610,7 @@ _RATIO_FIELDS = ("roe", "roa", "net_profit_margin", "debt_to_equity", "current_r
 # factor at the response boundary so the client never mixes units — dividing a
 # full-UZS market cap by thousands-UZS earnings understated P/E and P/B ~1000×.
 NSBU_THOUSANDS_UZS = 1000.0
-FIN_MONEY_FIELDS = _FIN_FIELDS + ("noninterest_income",) + _FIN_CURRENT_FIELDS
+FIN_MONEY_FIELDS = _FIN_FIELDS + ("noninterest_income",) + _FIN_CURRENT_FIELDS + _IFRS_BANK_FIELDS
 RATIO_MONEY_FIELDS = ("total_equity", "total_assets")
 # The filed-balance block travels as a nested dict; its members are the same
 # thousands-of-UZS sums and are scaled at the same response boundary.
@@ -4288,7 +4295,7 @@ def get_financial_history_coverage(form: str = "NSBU") -> dict[str, dict[str, An
             "SELECT ticker, year, quarter, excel_url FROM catalog_reports "
             "WHERE report_form=? AND year IS NOT NULL", (form,)).fetchall())
         financials = list(conn.execute(
-            f"SELECT ticker, year, quarter, balance_period, {', '.join(_FIN_FIELDS)} "
+            f"SELECT ticker, year, quarter, balance_period, {', '.join(_FIN_FIELDS + _IFRS_BANK_FIELDS)} "
             "FROM catalog_financials WHERE form=?", (form,)).fetchall())
     finally:
         conn.close()
@@ -4329,6 +4336,9 @@ def get_financial_history_coverage(form: str = "NSBU") -> dict[str, dict[str, An
             required += ("cash", "gross_profit", "operating_income", "operating_expenses")
         periods = expected.get(org, set())
         collected = values.get(org, {})
+        if form == "MSFO" and any(v.get("interest_income") is not None for v in collected.values()):
+            required = ("interest_income", "interest_expense", "net_income", "total_assets",
+                        "total_equity", "total_liabilities", "cash", "operating_income", "operating_expenses")
         missing = {p: [field for field in required if collected.get(p, {}).get(field) is None]
                    for p in sorted(periods, reverse=True)}
         missing = {p: fields for p, fields in missing.items() if fields}
@@ -4878,7 +4888,7 @@ def _fin_row_fields(row: Any) -> dict[str, Any]:
     quarters show a balance before any backfill re-parses the history.
     """
     available = set(row.keys())
-    fields = {k: row[k] for k in _FIN_FIELDS if k in available and row[k] is not None}
+    fields = {k: row[k] for k in _FIN_FIELDS + _IFRS_BANK_FIELDS if k in available and row[k] is not None}
     if fields.get("total_assets") is None or fields.get("total_equity") is None:
         balance = _decode_balance_period(row["balance_period"]) or {}
         for field, key in (("total_assets", "assets_end"), ("total_equity", "equity_end")):
@@ -4911,7 +4921,7 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
         siblings = _org_siblings(conn, t) or [t]
         placeholders = ",".join("?" * len(siblings))
         fin = conn.execute(
-            f"SELECT ticker, year, quarter, balance_period, {', '.join(_FIN_FIELDS)} FROM catalog_financials "
+            f"SELECT ticker, year, quarter, balance_period, {', '.join(_FIN_FIELDS + _IFRS_BANK_FIELDS)} FROM catalog_financials "
             f"WHERE ticker IN ({placeholders}) AND form=? "
             "AND (quarter=0 OR (quarter=4 AND form='NSBU' AND EXISTS ("
             "SELECT 1 FROM catalog_reports r WHERE r.ticker=catalog_financials.ticker "
@@ -5002,6 +5012,8 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
 # names of the lines it parsed.  Keep that translation here, beside the cache,
 # so an HTTP handler never has to guess which source line produced a value.
 _FINANCIAL_PASSPORT_FIELDS = {
+    "interest_income": "interest_income",
+    "interest_expense": "interest_expense",
     "net_revenue": "revenue",
     "gross_profit": "gross_profit",
     "operating_income": "operating_income",
