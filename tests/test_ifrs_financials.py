@@ -13,6 +13,50 @@ import provenance
 import reports_catalog as rc
 
 
+@pytest.mark.parametrize("url", [
+    "https://mkbank.uz/upload/unreviewed.pdf",
+    "https://openinfo.uz:8443/media/test.pdf",
+    "https://user@openinfo.uz/media/test.pdf",
+    "http://openinfo.uz/media/test.pdf",
+    "https://openinfo.uz.evil.example/media/test.pdf",
+])
+def test_download_rejects_unapproved_source_before_network(monkeypatch, url):
+    monkeypatch.setattr(ifrs.requests, "get", lambda *a, **kw: pytest.fail("Unexpected network request"))
+    with pytest.raises(ValueError, match="IFRS source must"):
+        ifrs.download_pdf(url)
+
+
+def test_download_reviewed_issuer_source_and_limits(monkeypatch):
+    from financial_ingestion import extract
+    url = "https://mkbank.uz/upload/reviewed.pdf"
+    monkeypatch.setattr(extract, "review_entries", lambda: [{"pdf_url": url}])
+    monkeypatch.setattr(ifrs, "MAX_BYTES", 4)
+
+    class Response:
+        status_code = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def raise_for_status(self):
+            pass
+        def iter_content(self, size):
+            yield b"%PDF-1.7"
+
+    response = Response()
+    def get(source, **kwargs):
+        assert kwargs["allow_redirects"] is False
+        assert kwargs["stream"] is True
+        return response
+    monkeypatch.setattr(ifrs.requests, "get", get)
+    assert ifrs.download_pdf(url) == b"%PDF-1.7"
+    with pytest.raises(ValueError, match="download limit"):
+        ifrs.download_pdf("https://openinfo.uz/media/unreviewed.pdf")
+    response.status_code = 302
+    with pytest.raises(ValueError, match="redirect/status"):
+        ifrs.download_pdf(url)
+
+
 @pytest.fixture
 def review(tmp_path, monkeypatch):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "ifrs.db"))

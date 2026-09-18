@@ -2729,68 +2729,6 @@
       }
     },
     {
-      "ticker": "MCBA",
-      "org_id": "20",
-      "issuer_name": "Mikrokreditbank",
-      "year": 2024,
-      "document_year": 2025,
-      "role": "COMPARATIVE",
-      "scope": "consolidated",
-      "currency": "UZS",
-      "unit_scale": 1000000,
-      "pdf_url": "https://openinfo.uz/media/msfo/c33be67d-d1e0-49a2-9e69-3ee34e05c7ea.pdf",
-      "sha256": "e8b58050494dfb030ea700f70d2b168c23f0761a5d6c9190029989819a44027b",
-      "page_count": 12,
-      "review_method": "visual-source-page-check",
-      "reviewed_at": "2026-09-18",
-      "period_evidence": "PDF pages 9 and 10: 2024 columns of the 2025 consolidated IFRS statements, year ended 31 December. Comparative column, not a separate annual filing. 2024 income statement has inconsistent printed subtotals: interest margin and profit after tax do not reconcile. Operating income and net income withheld pending corrected filing.",
-      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
-      "figures": {
-        "cash": {
-          "raw_value": "2811872",
-          "raw_label": "Денежные средства и их эквиваленты",
-          "page": 9,
-          "column_year": 2024
-        },
-        "total_assets": {
-          "raw_value": "23851358",
-          "raw_label": "Итого активы",
-          "page": 9,
-          "column_year": 2024
-        },
-        "total_liabilities": {
-          "raw_value": "19750029",
-          "raw_label": "Всего обязательств",
-          "page": 9,
-          "column_year": 2024
-        },
-        "total_equity": {
-          "raw_value": "4101329",
-          "raw_label": "Итого собственный капитал",
-          "page": 9,
-          "column_year": 2024
-        },
-        "interest_income": {
-          "raw_value": "2985555",
-          "raw_label": "Процентные доходы",
-          "page": 10,
-          "column_year": 2024
-        },
-        "interest_expense": {
-          "raw_value": "-2221645",
-          "raw_label": "Процентные расходы",
-          "page": 10,
-          "column_year": 2024
-        },
-        "operating_expenses": {
-          "raw_value": "-1023157",
-          "raw_label": "Расходы на персонал и прочие операционные расходы",
-          "page": 10,
-          "column_year": 2024
-        }
-      }
-    },
-    {
       "ticker": "UNVB",
       "org_id": "9",
       "issuer_name": "Universal Bank",
@@ -3383,6 +3321,2368 @@
           "raw_label": "Прибыль / (убыток) за год",
           "page": 11,
           "column_year": 2024
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2023,
+      "document_year": 2023,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Agrobank_Ташки_аудит_хулоса_2023_open_info.pdf",
+      "sha256": "c577617152844795438ea75f56d91ee85aeb95724e5478bbd77020d8d333a412",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2023 column of 2023 annual consolidated IFRS statements. Current annual period. ",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "4910499",
+          "raw_label": "Cash and cash equivalents",
+          "page": 9,
+          "column_year": 2023
+        },
+        "total_assets": {
+          "raw_value": "66674018",
+          "raw_label": "Total assets",
+          "page": 9,
+          "column_year": 2023
+        },
+        "total_liabilities": {
+          "raw_value": "55182827",
+          "raw_label": "Total liabilities",
+          "page": 9,
+          "column_year": 2023
+        },
+        "total_equity": {
+          "raw_value": "11491191",
+          "raw_label": "Total equity",
+          "page": 9,
+          "column_year": 2023
+        },
+        "interest_expense": {
+          "raw_value": "-5007245",
+          "raw_label": "Interest expense",
+          "page": 10,
+          "column_year": 2023
+        },
+        "operating_expenses": {
+          "raw_value": "-2595397",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 10,
+          "column_year": 2023
+        },
+        "net_income": {
+          "raw_value": "233566",
+          "raw_label": "Profit for the year",
+          "page": 10,
+          "column_year": 2023
+        },
+        "interest_income": {
+          "raw_value": "8714381",
+          "raw_label": "Calculated sum of interest income components",
+          "page": 10,
+          "column_year": 2023,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "8534494",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "179887",
+              "raw_label": "Other similar income",
+              "page": 10,
+              "column_year": 2023
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "2978075",
+          "raw_label": "Calculated sum of operating income components",
+          "page": 10,
+          "column_year": 2023,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1623033",
+              "raw_label": "Net margin on interest and similar income after credit loss allowance",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "752938",
+              "raw_label": "Fee and commission income",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "-389917",
+              "raw_label": "Fee and commission expense",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "-19173",
+              "raw_label": "Loss on initial recognition on interest bearing assets",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "815238",
+              "raw_label": "Net gains from foreign currencies - dealing transactions",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "48578",
+              "raw_label": "Net gains from foreign currencies - translation differences",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "2418",
+              "raw_label": "Dividend income",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "142672",
+              "raw_label": "Other operating income",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "-10390",
+              "raw_label": "Provision for impairment on other non-financial assets",
+              "page": 10,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "12678",
+              "raw_label": "(Provision)/Recovery for expected credit losses on other financial assets and credit related commitments",
+              "page": 10,
+              "column_year": 2023
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2022,
+      "document_year": 2023,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Agrobank_Ташки_аудит_хулоса_2023_open_info.pdf",
+      "sha256": "c577617152844795438ea75f56d91ee85aeb95724e5478bbd77020d8d333a412",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2022 column of 2023 annual consolidated IFRS statements. Comparative column, not a separate annual filing. ",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "4416753",
+          "raw_label": "Cash and cash equivalents",
+          "page": 9,
+          "column_year": 2022
+        },
+        "total_assets": {
+          "raw_value": "52947668",
+          "raw_label": "Total assets",
+          "page": 9,
+          "column_year": 2022
+        },
+        "total_liabilities": {
+          "raw_value": "43927174",
+          "raw_label": "Total liabilities",
+          "page": 9,
+          "column_year": 2022
+        },
+        "total_equity": {
+          "raw_value": "9020494",
+          "raw_label": "Total equity",
+          "page": 9,
+          "column_year": 2022
+        },
+        "interest_expense": {
+          "raw_value": "-3055490",
+          "raw_label": "Interest expense",
+          "page": 10,
+          "column_year": 2022
+        },
+        "operating_expenses": {
+          "raw_value": "-1912798",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 10,
+          "column_year": 2022
+        },
+        "net_income": {
+          "raw_value": "193458",
+          "raw_label": "Profit for the year",
+          "page": 10,
+          "column_year": 2022
+        },
+        "interest_income": {
+          "raw_value": "5312885",
+          "raw_label": "Calculated sum of interest income components",
+          "page": 10,
+          "column_year": 2022,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "5291620",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "21265",
+              "raw_label": "Other similar income",
+              "page": 10,
+              "column_year": 2022
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "2212704",
+          "raw_label": "Calculated sum of operating income components",
+          "page": 10,
+          "column_year": 2022,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1015861",
+              "raw_label": "Net margin on interest and similar income after credit loss allowance",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "853474",
+              "raw_label": "Fee and commission income",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "-478267",
+              "raw_label": "Fee and commission expense",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "0",
+              "raw_label": "Loss on initial recognition on interest bearing assets",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "776299",
+              "raw_label": "Net gains from foreign currencies - dealing transactions",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "13073",
+              "raw_label": "Net gains from foreign currencies - translation differences",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "6366",
+              "raw_label": "Dividend income",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "40128",
+              "raw_label": "Other operating income",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "-6927",
+              "raw_label": "Provision for impairment on other non-financial assets",
+              "page": 10,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "-7303",
+              "raw_label": "(Provision)/Recovery for expected credit losses on other financial assets and credit related commitments",
+              "page": 10,
+              "column_year": 2022
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2021,
+      "document_year": 2021,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Ташки_аудит_хулоса_2021.pdf",
+      "sha256": "679ed1dc49c112deced4cb9892d84fd03e300998bc13836fc3ce621f0e343c37",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 7 and 8: 2021 column of 2021 annual consolidated IFRS statements. Current annual period. ",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "3411673",
+          "raw_label": "Cash and cash equivalents",
+          "page": 7,
+          "column_year": 2021
+        },
+        "total_assets": {
+          "raw_value": "39547688",
+          "raw_label": "Total assets",
+          "page": 7,
+          "column_year": 2021
+        },
+        "total_liabilities": {
+          "raw_value": "30752213",
+          "raw_label": "Total liabilities",
+          "page": 7,
+          "column_year": 2021
+        },
+        "total_equity": {
+          "raw_value": "8795475",
+          "raw_label": "Total equity",
+          "page": 7,
+          "column_year": 2021
+        },
+        "interest_income": {
+          "raw_value": "4207966",
+          "raw_label": "Interest income",
+          "page": 8,
+          "column_year": 2021
+        },
+        "interest_expense": {
+          "raw_value": "-2522723",
+          "raw_label": "Interest expense",
+          "page": 8,
+          "column_year": 2021
+        },
+        "operating_expenses": {
+          "raw_value": "-1359423",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 8,
+          "column_year": 2021
+        },
+        "net_income": {
+          "raw_value": "70610",
+          "raw_label": "Profit for the year",
+          "page": 8,
+          "column_year": 2021
+        },
+        "operating_income": {
+          "raw_value": "1419205",
+          "raw_label": "Calculated sum of operating income components",
+          "page": 8,
+          "column_year": 2021,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "925128",
+              "raw_label": "Net interest income after provision charge for expected credit losses",
+              "page": 8,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "509711",
+              "raw_label": "Fee and commission income",
+              "page": 8,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "-189907",
+              "raw_label": "Fee and commission expense",
+              "page": 8,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "135722",
+              "raw_label": "Net gain / (loss) from transactions with foreign currencies",
+              "page": 8,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "3295",
+              "raw_label": "Dividend income",
+              "page": 8,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "33607",
+              "raw_label": "Other operating income",
+              "page": 8,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "0",
+              "raw_label": "Provision for impairment of investment in associates",
+              "page": 8,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "7847",
+              "raw_label": "Recovery / (provision) for impairment on other non-financial assets",
+              "page": 8,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "-6198",
+              "raw_label": "Provision for expected credit losses on other financial assets and credit related commitments",
+              "page": 8,
+              "column_year": 2021
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2020,
+      "document_year": 2020,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Агробанк_АТБ_Ташки_аудит_хулоса_2020.pdf",
+      "sha256": "b154d3c120b6692eb0221611f899e39b8fe1893d03fe31c376f9044a0f77baec",
+      "page_count": 72,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 8 and 9: 2020 column of 2020 annual consolidated IFRS statements. Current annual period. 2020 profit verified in the original 2020 filing; the later 2021 comparative contains conflicting profit subtotals.",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "2989229",
+          "raw_label": "Cash and cash equivalents",
+          "page": 8,
+          "column_year": 2020
+        },
+        "total_assets": {
+          "raw_value": "31002934",
+          "raw_label": "Total assets",
+          "page": 8,
+          "column_year": 2020
+        },
+        "total_liabilities": {
+          "raw_value": "25924099",
+          "raw_label": "Total liabilities",
+          "page": 8,
+          "column_year": 2020
+        },
+        "total_equity": {
+          "raw_value": "5078835",
+          "raw_label": "Total equity",
+          "page": 8,
+          "column_year": 2020
+        },
+        "interest_income": {
+          "raw_value": "2912074",
+          "raw_label": "Interest income",
+          "page": 9,
+          "column_year": 2020
+        },
+        "interest_expense": {
+          "raw_value": "-1642213",
+          "raw_label": "Interest expense",
+          "page": 9,
+          "column_year": 2020
+        },
+        "operating_expenses": {
+          "raw_value": "-993990",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 9,
+          "column_year": 2020
+        },
+        "net_income": {
+          "raw_value": "52168",
+          "raw_label": "Profit for the year",
+          "page": 9,
+          "column_year": 2020
+        },
+        "operating_income": {
+          "raw_value": "1067469",
+          "raw_label": "Calculated sum of operating income components",
+          "page": 9,
+          "column_year": 2020,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "928724",
+              "raw_label": "Net interest income after provision charge for expected credit losses",
+              "page": 9,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "0",
+              "raw_label": "Net sales revenue",
+              "page": 9,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "327023",
+              "raw_label": "Fee and commission income",
+              "page": 9,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "-130486",
+              "raw_label": "Fee and commission expense",
+              "page": 9,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "-15717",
+              "raw_label": "Net loss from transactions with foreign currencies",
+              "page": 9,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "4502",
+              "raw_label": "Dividend income",
+              "page": 9,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "27393",
+              "raw_label": "Other operating income",
+              "page": 9,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "-49484",
+              "raw_label": "Provision for impairment of investment in associates",
+              "page": 9,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "-10169",
+              "raw_label": "Provision for impairment on other non-financial assets",
+              "page": 9,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "-14317",
+              "raw_label": "(Provision for) / recovery of expected credit losses on other financial assets and credit related commitments",
+              "page": 9,
+              "column_year": 2020
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2019,
+      "document_year": 2020,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Агробанк_АТБ_Ташки_аудит_хулоса_2020.pdf",
+      "sha256": "b154d3c120b6692eb0221611f899e39b8fe1893d03fe31c376f9044a0f77baec",
+      "page_count": 72,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 8 and 9: 2019 column of 2020 annual consolidated IFRS statements. Comparative column, not a separate annual filing. 2020 profit verified in the original 2020 filing; the later 2021 comparative contains conflicting profit subtotals.",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "1352296",
+          "raw_label": "Cash and cash equivalents",
+          "page": 8,
+          "column_year": 2019
+        },
+        "total_assets": {
+          "raw_value": "18540716",
+          "raw_label": "Total assets",
+          "page": 8,
+          "column_year": 2019
+        },
+        "total_liabilities": {
+          "raw_value": "14022065",
+          "raw_label": "Total liabilities",
+          "page": 8,
+          "column_year": 2019
+        },
+        "total_equity": {
+          "raw_value": "4518651",
+          "raw_label": "Total equity",
+          "page": 8,
+          "column_year": 2019
+        },
+        "interest_income": {
+          "raw_value": "1685175",
+          "raw_label": "Interest income",
+          "page": 9,
+          "column_year": 2019
+        },
+        "interest_expense": {
+          "raw_value": "-841828",
+          "raw_label": "Interest expense",
+          "page": 9,
+          "column_year": 2019
+        },
+        "operating_expenses": {
+          "raw_value": "-736829",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 9,
+          "column_year": 2019
+        },
+        "net_income": {
+          "raw_value": "72809",
+          "raw_label": "Profit for the year",
+          "page": 9,
+          "column_year": 2019
+        },
+        "operating_income": {
+          "raw_value": "865797",
+          "raw_label": "Calculated sum of operating income components",
+          "page": 9,
+          "column_year": 2019,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "717672",
+              "raw_label": "Net interest income after provision charge for expected credit losses",
+              "page": 9,
+              "column_year": 2019
+            },
+            {
+              "raw_value": "4957",
+              "raw_label": "Net sales revenue",
+              "page": 9,
+              "column_year": 2019
+            },
+            {
+              "raw_value": "275628",
+              "raw_label": "Fee and commission income",
+              "page": 9,
+              "column_year": 2019
+            },
+            {
+              "raw_value": "-110255",
+              "raw_label": "Fee and commission expense",
+              "page": 9,
+              "column_year": 2019
+            },
+            {
+              "raw_value": "-17508",
+              "raw_label": "Net loss from transactions with foreign currencies",
+              "page": 9,
+              "column_year": 2019
+            },
+            {
+              "raw_value": "4490",
+              "raw_label": "Dividend income",
+              "page": 9,
+              "column_year": 2019
+            },
+            {
+              "raw_value": "12686",
+              "raw_label": "Other operating income",
+              "page": 9,
+              "column_year": 2019
+            },
+            {
+              "raw_value": "-16003",
+              "raw_label": "Provision for impairment of investment in associates",
+              "page": 9,
+              "column_year": 2019
+            },
+            {
+              "raw_value": "-10725",
+              "raw_label": "Provision for impairment on other non-financial assets",
+              "page": 9,
+              "column_year": 2019
+            },
+            {
+              "raw_value": "4855",
+              "raw_label": "(Provision for) / recovery of expected credit losses on other financial assets and credit related commitments",
+              "page": 9,
+              "column_year": 2019
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2018,
+      "document_year": 2019,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Аудиторская_заключение.pdf",
+      "sha256": "c165818353285e2b70baff98d7cdac70a1eb191bb2042eaf540a3a8d3c56a5c4",
+      "page_count": 76,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 8 and 9: 2018 column of 2019 annual consolidated IFRS statements. Comparative column, not a separate annual filing. ",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "1119834",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 8,
+          "column_year": 2018
+        },
+        "total_assets": {
+          "raw_value": "10378725",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 8,
+          "column_year": 2018
+        },
+        "total_liabilities": {
+          "raw_value": "8163775",
+          "raw_label": "ИТОГО ОБЯЗАТЕЛЬСТВА",
+          "page": 8,
+          "column_year": 2018
+        },
+        "total_equity": {
+          "raw_value": "2214950",
+          "raw_label": "ИТОГО КАПИТАЛ",
+          "page": 8,
+          "column_year": 2018
+        },
+        "interest_income": {
+          "raw_value": "879135",
+          "raw_label": "Процентные доходы",
+          "page": 9,
+          "column_year": 2018
+        },
+        "interest_expense": {
+          "raw_value": "-268653",
+          "raw_label": "Процентные расходы",
+          "page": 9,
+          "column_year": 2018
+        },
+        "operating_expenses": {
+          "raw_value": "-542865",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 9,
+          "column_year": 2018
+        },
+        "net_income": {
+          "raw_value": "72989",
+          "raw_label": "ЧИСТАЯ ПРИБЫЛЬ ЗА ГОД",
+          "page": 9,
+          "column_year": 2018
+        },
+        "operating_income": {
+          "raw_value": "645975",
+          "raw_label": "Calculated sum of operating income components",
+          "page": 9,
+          "column_year": 2018,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "527630",
+              "raw_label": "Чистые процентные доходы после создания резерва по ожидаемым кредитным убыткам",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "21806",
+              "raw_label": "Чистый доход от продаж",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "212447",
+              "raw_label": "Комиссионные доходы",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "-92552",
+              "raw_label": "Комиссионные расходы",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "-20676",
+              "raw_label": "Убыток по операциям с иностранной валютой",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "2118",
+              "raw_label": "Доходы в виде дивидендов",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "5012",
+              "raw_label": "Прочие операционные доходы",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "77",
+              "raw_label": "Доходы за вычетом расходов при первоначальном признании активов по ставкам ниже рыночных",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "0",
+              "raw_label": "Резерв под обесценение инвестиций в ассоциированные организации",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "0",
+              "raw_label": "Резерв под обесценение прочих нефинансовых активов",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "-507",
+              "raw_label": "Восстановление / (Формирование) резерва по прочим финансовым активам и условным обязательствам",
+              "page": 9,
+              "column_year": 2018
+            },
+            {
+              "raw_value": "-9380",
+              "raw_label": "Убыток от инвестиционных ценных бумаг",
+              "page": 9,
+              "column_year": 2018
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2017,
+      "document_year": 2018,
+      "role": "RESTATEMENT",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/2018_Аудиторлская_заключения_Агробанка_KPMG_1-14.pdf",
+      "sha256": "d98b1ab8298816f9a154f370a7e42769fc4b7770f7ec219b60ee9e6e7a72d5f1",
+      "page_count": 16,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 11: 2017 column of 2018 annual consolidated IFRS statements. Comparative column, not a separate annual filing. 2017 comparative explicitly restated; presentation changes described in Note 4. Operating income covers continuing operations; net income includes discontinued operations.",
+      "unit_evidence": "Statement headers: thousands of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "1095912580",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 9,
+          "column_year": 2017
+        },
+        "total_assets": {
+          "raw_value": "4951213577",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 9,
+          "column_year": 2017
+        },
+        "total_liabilities": {
+          "raw_value": "3590446214",
+          "raw_label": "ИТОГО ОБЯЗАТЕЛЬСТВА",
+          "page": 9,
+          "column_year": 2017
+        },
+        "total_equity": {
+          "raw_value": "1360767363",
+          "raw_label": "ИТОГО КАПИТАЛ",
+          "page": 10,
+          "column_year": 2017
+        },
+        "interest_expense": {
+          "raw_value": "-249750641",
+          "raw_label": "Процентные расходы",
+          "page": 11,
+          "column_year": 2017
+        },
+        "operating_expenses": {
+          "raw_value": "-410104732",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 11,
+          "column_year": 2017
+        },
+        "net_income": {
+          "raw_value": "121963616",
+          "raw_label": "ЧИСТАЯ ПРИБЫЛЬ ЗА ГОД",
+          "page": 11,
+          "column_year": 2017
+        },
+        "interest_income": {
+          "raw_value": "518284994",
+          "raw_label": "Calculated sum of interest income components",
+          "page": 11,
+          "column_year": 2017,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "511433888",
+              "raw_label": "Процентные доходы, рассчитанные с использованием метода эффективной процентной ставки",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "6851106",
+              "raw_label": "Прочие процентные доходы",
+              "page": 11,
+              "column_year": 2017
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "478299704",
+          "raw_label": "Calculated sum of operating income components",
+          "page": 11,
+          "column_year": 2017,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "254513897",
+              "raw_label": "Чистые процентные доходы после создания резерва под обесценение кредитного портфеля",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "9112684",
+              "raw_label": "Чистая выручка от продаж",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "278283709",
+              "raw_label": "Комиссионные доходы",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "-72713883",
+              "raw_label": "Комиссионные расходы",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "-18801813",
+              "raw_label": "Чистый убыток операций, связанных с иностранной валютой",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "3727475",
+              "raw_label": "Доходы в виде дивидендов",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "33502700",
+              "raw_label": "Прочие операционные доходы",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "54232",
+              "raw_label": "Доходы за вычетом расходов при первоначальном признании активов по ставкам ниже рыночных",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "-9379297",
+              "raw_label": "Создание резерва под обесценение прочих финансовых активов и условных обязательств кредитного характера",
+              "page": 11,
+              "column_year": 2017
+            },
+            {
+              "raw_value": "0",
+              "raw_label": "Убыток от вложений в инвестиционные ценные бумаги",
+              "page": 11,
+              "column_year": 2017
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "org_id": "20",
+      "issuer_name": "Mikrokreditbank",
+      "year": 2024,
+      "document_year": 2024,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://mkbank.uz/upload/iblock/e66/o02roresctt2a9ypkhb6qpxt10go6bzr/Tashqi-audit-rus.pdf",
+      "sha256": "7d8d6ce6e5288bdc14406ffc6f21bebd9ecd8b97cdb5956067ed2334ac277bc3",
+      "page_count": 90,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 11 and 12: 2024 column of 2024 annual consolidated IFRS statements. Current annual period. Original 2024 audited issuer report resolves the misprinted interest expense and tax credit in the 2025 comparative. The 2023 printed pretax subtotal transposes digits; operating components and tax reconcile to the reported net loss.",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "2811872",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 11,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "23851358",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 11,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "19750029",
+          "raw_label": "Всего обязательств",
+          "page": 11,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "4101329",
+          "raw_label": "Итого собственный капитал",
+          "page": 11,
+          "column_year": 2024
+        },
+        "operating_expenses": {
+          "raw_value": "-1023157",
+          "raw_label": "Расходы на персонал и прочие операционные расходы",
+          "page": 12,
+          "column_year": 2024
+        },
+        "net_income": {
+          "raw_value": "-961328",
+          "raw_label": "Убыток за год",
+          "page": 12,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "2985555",
+          "raw_label": "Calculated sum of interest income components",
+          "page": 12,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "2754475",
+              "raw_label": "Процентные доходы, рассчитанные по эффективной процентной ставке",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "231080",
+              "raw_label": "Прочие процентные доходы",
+              "page": 12,
+              "column_year": 2024
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-2201645",
+          "raw_label": "Calculated sum of interest expense components",
+          "page": 12,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "-2001478",
+              "raw_label": "Процентные расходы, рассчитанные по эффективной процентной ставке",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-200167",
+              "raw_label": "Прочие процентные расходы",
+              "page": 12,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "-25175",
+          "raw_label": "Calculated sum of operating income components",
+          "page": 12,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "-83396",
+              "raw_label": "Чистые процентные доходы / (расходы) после изменения резерва под кредитные убытки",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "261880",
+              "raw_label": "Комиссионные доходы",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-125919",
+              "raw_label": "Комиссионные расходы",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "25649",
+              "raw_label": "Чистая прибыль от валютных операций",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-30118",
+              "raw_label": "Восстановление / (создание) резерва под кредитные убытки по обязательствам кредитного характера",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-112182",
+              "raw_label": "Восстановление / (создание) резерва по прочим активам",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "38911",
+              "raw_label": "Прочие операционные доходы",
+              "page": 12,
+              "column_year": 2024
+            }
+          ]
+        }
+      },
+      "source_kind": "issuer_website",
+      "source_page_url": "https://mkbank.uz/ru/shareholders/financial-indicators/audit-report/4984/",
+      "supersedes": {
+        "source_sha256": "e8b58050494dfb030ea700f70d2b168c23f0761a5d6c9190029989819a44027b",
+        "reason": "The original audited 2024 report shows two expense rows totaling 2,201,645 million UZS; the 2025 comparative incorrectly prints 2,221,645. Its tax credit also misprints 37,004 instead of 87,004.",
+        "normalized_uzs": {
+          "interest_expense": {
+            "before": "-2221645000000",
+            "after": "-2201645000000"
+          }
+        }
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "org_id": "20",
+      "issuer_name": "Mikrokreditbank",
+      "year": 2023,
+      "document_year": 2024,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://mkbank.uz/upload/iblock/e66/o02roresctt2a9ypkhb6qpxt10go6bzr/Tashqi-audit-rus.pdf",
+      "sha256": "7d8d6ce6e5288bdc14406ffc6f21bebd9ecd8b97cdb5956067ed2334ac277bc3",
+      "page_count": 90,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 11 and 12: 2023 column of 2024 annual consolidated IFRS statements. Comparative column, not a separate annual filing. Original 2024 audited issuer report resolves the misprinted interest expense and tax credit in the 2025 comparative. The 2023 printed pretax subtotal transposes digits; operating components and tax reconcile to the reported net loss.",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "1546025",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 11,
+          "column_year": 2023
+        },
+        "total_assets": {
+          "raw_value": "18244100",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 11,
+          "column_year": 2023
+        },
+        "total_liabilities": {
+          "raw_value": "14666003",
+          "raw_label": "Всего обязательств",
+          "page": 11,
+          "column_year": 2023
+        },
+        "total_equity": {
+          "raw_value": "3578097",
+          "raw_label": "Итого собственный капитал",
+          "page": 11,
+          "column_year": 2023
+        },
+        "operating_expenses": {
+          "raw_value": "-863846",
+          "raw_label": "Расходы на персонал и прочие операционные расходы",
+          "page": 12,
+          "column_year": 2023
+        },
+        "net_income": {
+          "raw_value": "-471222",
+          "raw_label": "Убыток за год",
+          "page": 12,
+          "column_year": 2023
+        },
+        "interest_income": {
+          "raw_value": "2386556",
+          "raw_label": "Calculated sum of interest income components",
+          "page": 12,
+          "column_year": 2023,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "2218203",
+              "raw_label": "Процентные доходы, рассчитанные по эффективной процентной ставке",
+              "page": 12,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "168353",
+              "raw_label": "Прочие процентные доходы",
+              "page": 12,
+              "column_year": 2023
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-1851268",
+          "raw_label": "Calculated sum of interest expense components",
+          "page": 12,
+          "column_year": 2023,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "-1486799",
+              "raw_label": "Процентные расходы, рассчитанные по эффективной процентной ставке",
+              "page": 12,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "-364469",
+              "raw_label": "Прочие процентные расходы",
+              "page": 12,
+              "column_year": 2023
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "292477",
+          "raw_label": "Calculated sum of operating income components",
+          "page": 12,
+          "column_year": 2023,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "122106",
+              "raw_label": "Чистые процентные доходы / (расходы) после изменения резерва под кредитные убытки",
+              "page": 12,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "181788",
+              "raw_label": "Комиссионные доходы",
+              "page": 12,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "-80012",
+              "raw_label": "Комиссионные расходы",
+              "page": 12,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "30900",
+              "raw_label": "Чистая прибыль от валютных операций",
+              "page": 12,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "-10196",
+              "raw_label": "Восстановление / (создание) резерва под кредитные убытки по обязательствам кредитного характера",
+              "page": 12,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "-24827",
+              "raw_label": "Восстановление / (создание) резерва по прочим активам",
+              "page": 12,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "72718",
+              "raw_label": "Прочие операционные доходы",
+              "page": 12,
+              "column_year": 2023
+            }
+          ]
+        }
+      },
+      "source_kind": "issuer_website",
+      "source_page_url": "https://mkbank.uz/ru/shareholders/financial-indicators/audit-report/4984/"
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2016,
+      "document_year": 2017,
+      "role": "RESTATEMENT",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Annual_Report_2017_Rus..PDF",
+      "sha256": "17fe68186fdc4e00c9af1a3fd03c042f930f5cc955c4c127b5b7c8f81d331022",
+      "page_count": 85,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 10 and 11: 2016 column of 2017 annual consolidated IFRS statements. Comparative column, not a separate annual filing. 2016 comparative explicitly corrected in the 2017 statements. This snapshot keeps the complete 2017 restatement together; later opening-balance presentation changes are not mixed into its income statement.",
+      "unit_evidence": "Statement headers: thousands of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "190000157",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 10,
+          "column_year": 2016
+        },
+        "total_assets": {
+          "raw_value": "3624574016",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 10,
+          "column_year": 2016
+        },
+        "total_liabilities": {
+          "raw_value": "3422200227",
+          "raw_label": "ИТОГО ОБЯЗАТЕЛЬСТВА",
+          "page": 10,
+          "column_year": 2016
+        },
+        "total_equity": {
+          "raw_value": "202373789",
+          "raw_label": "ИТОГО КАПИТАЛ",
+          "page": 10,
+          "column_year": 2016
+        },
+        "interest_income": {
+          "raw_value": "410420546",
+          "raw_label": "Процентные доходы",
+          "page": 11,
+          "column_year": 2016
+        },
+        "interest_expense": {
+          "raw_value": "-218145549",
+          "raw_label": "Процентные расходы",
+          "page": 11,
+          "column_year": 2016
+        },
+        "operating_expenses": {
+          "raw_value": "-309174896",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 11,
+          "column_year": 2016
+        },
+        "net_income": {
+          "raw_value": "4147420",
+          "raw_label": "ЧИСТАЯ ПРИБЫЛЬ ЗА ГОД",
+          "page": 11,
+          "column_year": 2016
+        },
+        "operating_income": {
+          "raw_value": "314653311",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 11,
+          "column_year": 2016,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "11667812",
+              "raw_label": "Прибыль до налогообложения",
+              "page": 11,
+              "column_year": 2016,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-309174896",
+              "raw_label": "Административные и прочие операционные расходы",
+              "page": 11,
+              "column_year": 2016,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "6189397",
+              "raw_label": "Доля финансового результата ассоциированных организаций",
+              "page": 11,
+              "column_year": 2016,
+              "coefficient": -1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2015,
+      "document_year": 2016,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Внеш_аудит_хулоса_2016.pdf",
+      "sha256": "656ef6a6cff315a97f8e272fdb97259943fdbdd29e5df7847ddb56bc75040769",
+      "page_count": 91,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2015 column of 2016 annual consolidated IFRS statements. Comparative column, not a separate annual filing. Complete 2015 comparative as reported in the 2016 annual statements; later opening-balance adjustments are not combined with this income statement.",
+      "unit_evidence": "Statement headers: thousands of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "328890058",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 9,
+          "column_year": 2015
+        },
+        "total_assets": {
+          "raw_value": "3128269464",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 9,
+          "column_year": 2015
+        },
+        "total_liabilities": {
+          "raw_value": "2717513402",
+          "raw_label": "ИТОГО ОБЯЗАТЕЛЬСТВА",
+          "page": 9,
+          "column_year": 2015
+        },
+        "total_equity": {
+          "raw_value": "410756062",
+          "raw_label": "ИТОГО КАПИТАЛ",
+          "page": 9,
+          "column_year": 2015
+        },
+        "interest_income": {
+          "raw_value": "362665072",
+          "raw_label": "Процентные доходы",
+          "page": 10,
+          "column_year": 2015
+        },
+        "interest_expense": {
+          "raw_value": "-193797906",
+          "raw_label": "Процентные расходы",
+          "page": 10,
+          "column_year": 2015
+        },
+        "operating_expenses": {
+          "raw_value": "-253404485",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 10,
+          "column_year": 2015
+        },
+        "net_income": {
+          "raw_value": "5871009",
+          "raw_label": "Чистая прибыль за год",
+          "page": 10,
+          "column_year": 2015
+        },
+        "operating_income": {
+          "raw_value": "271638646",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 10,
+          "column_year": 2015,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "22340830",
+              "raw_label": "Прибыль до налогообложения",
+              "page": 10,
+              "column_year": 2015,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-253404485",
+              "raw_label": "Административные и прочие операционные расходы",
+              "page": 10,
+              "column_year": 2015,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "4106669",
+              "raw_label": "Доля в прибыли зависимых предприятий",
+              "page": 10,
+              "column_year": 2015,
+              "coefficient": -1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2014,
+      "document_year": 2015,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Внеш_аудит_хулоса_2015.pdf",
+      "sha256": "7cc2b63c8b85fc7c4634bb1fdac4d83d7053375a44f7c30c47df9515aa11b9fe",
+      "page_count": 84,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 6 and 7: 2014 column of 2015 annual consolidated IFRS statements. Comparative column, not a separate annual filing. ",
+      "unit_evidence": "Statement headers: thousands of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "415600407",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 6,
+          "column_year": 2014
+        },
+        "total_assets": {
+          "raw_value": "2844738461",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 6,
+          "column_year": 2014
+        },
+        "total_liabilities": {
+          "raw_value": "2494539284",
+          "raw_label": "ИТОГО ОБЯЗАТЕЛЬСТВА",
+          "page": 6,
+          "column_year": 2014
+        },
+        "total_equity": {
+          "raw_value": "350199177",
+          "raw_label": "ИТОГО СОБСТВЕННЫЙ КАПИТАЛ",
+          "page": 6,
+          "column_year": 2014
+        },
+        "interest_income": {
+          "raw_value": "315587882",
+          "raw_label": "Процентные доходы",
+          "page": 7,
+          "column_year": 2014
+        },
+        "interest_expense": {
+          "raw_value": "-177321864",
+          "raw_label": "Процентные расходы",
+          "page": 7,
+          "column_year": 2014
+        },
+        "operating_expenses": {
+          "raw_value": "-219768214",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 7,
+          "column_year": 2014
+        },
+        "net_income": {
+          "raw_value": "5595834",
+          "raw_label": "Чистая прибыль за год",
+          "page": 7,
+          "column_year": 2014
+        },
+        "operating_income": {
+          "raw_value": "223314369",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 7,
+          "column_year": 2014,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "8961282",
+              "raw_label": "Прибыль до налогообложения",
+              "page": 7,
+              "column_year": 2014,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-219768214",
+              "raw_label": "Административные и прочие операционные расходы",
+              "page": 7,
+              "column_year": 2014,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "5415127",
+              "raw_label": "Доля в прибыли зависимых предприятий",
+              "page": 7,
+              "column_year": 2014,
+              "coefficient": -1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "issuer_name": "Aloqabank",
+      "year": 2023,
+      "document_year": 2023,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Audit-2023-full_compressed.pdf",
+      "sha256": "95207ca08918549c0c39ddad40abcf2085fc1a52488cdd80eedadb58dfde140a",
+      "page_count": 82,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 11 and 12: 2023 column of 2023 annual consolidated IFRS statements. Current annual period. ",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "1474301",
+          "raw_label": "Cash and cash equivalents",
+          "page": 11,
+          "column_year": 2023
+        },
+        "total_assets": {
+          "raw_value": "15778166",
+          "raw_label": "Total assets",
+          "page": 11,
+          "column_year": 2023
+        },
+        "total_liabilities": {
+          "raw_value": "13380480",
+          "raw_label": "Total liabilities",
+          "page": 11,
+          "column_year": 2023
+        },
+        "total_equity": {
+          "raw_value": "2397686",
+          "raw_label": "Total equity",
+          "page": 11,
+          "column_year": 2023
+        },
+        "interest_expense": {
+          "raw_value": "-1290102",
+          "raw_label": "Interest expense",
+          "page": 12,
+          "column_year": 2023
+        },
+        "operating_expenses": {
+          "raw_value": "-650358",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 12,
+          "column_year": 2023
+        },
+        "net_income": {
+          "raw_value": "358508",
+          "raw_label": "Profit for the year",
+          "page": 12,
+          "column_year": 2023
+        },
+        "interest_income": {
+          "raw_value": "1942062",
+          "raw_label": "Calculated sum of interest income components",
+          "page": 12,
+          "column_year": 2023,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1939857",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 12,
+              "column_year": 2023
+            },
+            {
+              "raw_value": "2205",
+              "raw_label": "Other similar income",
+              "page": 12,
+              "column_year": 2023
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "1116215",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 12,
+          "column_year": 2023,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "465304",
+              "raw_label": "Profit before tax",
+              "page": 12,
+              "column_year": 2023,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-650358",
+              "raw_label": "Administrative and other operating expenses",
+              "page": 12,
+              "column_year": 2023,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "-553",
+              "raw_label": "Share of result from associates and JV",
+              "page": 12,
+              "column_year": 2023,
+              "coefficient": -1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "issuer_name": "Aloqabank",
+      "year": 2022,
+      "document_year": 2023,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Audit-2023-full_compressed.pdf",
+      "sha256": "95207ca08918549c0c39ddad40abcf2085fc1a52488cdd80eedadb58dfde140a",
+      "page_count": 82,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 11 and 12: 2022 column of 2023 annual consolidated IFRS statements. Comparative column, not a separate annual filing. ",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "3064125",
+          "raw_label": "Cash and cash equivalents",
+          "page": 11,
+          "column_year": 2022
+        },
+        "total_assets": {
+          "raw_value": "15866298",
+          "raw_label": "Total assets",
+          "page": 11,
+          "column_year": 2022
+        },
+        "total_liabilities": {
+          "raw_value": "14067309",
+          "raw_label": "Total liabilities",
+          "page": 11,
+          "column_year": 2022
+        },
+        "total_equity": {
+          "raw_value": "1798989",
+          "raw_label": "Total equity",
+          "page": 11,
+          "column_year": 2022
+        },
+        "interest_expense": {
+          "raw_value": "-957798",
+          "raw_label": "Interest expense",
+          "page": 12,
+          "column_year": 2022
+        },
+        "operating_expenses": {
+          "raw_value": "-491707",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 12,
+          "column_year": 2022
+        },
+        "net_income": {
+          "raw_value": "197206",
+          "raw_label": "Profit for the year",
+          "page": 12,
+          "column_year": 2022
+        },
+        "interest_income": {
+          "raw_value": "1510113",
+          "raw_label": "Calculated sum of interest income components",
+          "page": 12,
+          "column_year": 2022,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1508798",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 12,
+              "column_year": 2022
+            },
+            {
+              "raw_value": "1315",
+              "raw_label": "Other similar income",
+              "page": 12,
+              "column_year": 2022
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "756820",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 12,
+          "column_year": 2022,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "265388",
+              "raw_label": "Profit before tax",
+              "page": 12,
+              "column_year": 2022,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-491707",
+              "raw_label": "Administrative and other operating expenses",
+              "page": 12,
+              "column_year": 2022,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "275",
+              "raw_label": "Share of result from associates and JV",
+              "page": 12,
+              "column_year": 2022,
+              "coefficient": -1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "issuer_name": "Aloqabank",
+      "year": 2021,
+      "document_year": 2021,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/MSFO_2021_Ru.pdf",
+      "sha256": "23a94d3e83450a9038a42a136e940d81e2b78e6969054273ddbefb2e1fd7cca1",
+      "page_count": 13,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 10 and 11: 2021 column of 2021 annual consolidated IFRS statements. Current annual period. OpenInfo catalog label 2022 is not the statement year: cover and statement columns explicitly establish 2021 and 2020. Operating income covers continuing operations; net income includes discontinued operations.",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "1983755",
+          "raw_label": "Денежные средства и эквиваленты денежных средств",
+          "page": 10,
+          "column_year": 2021
+        },
+        "total_assets": {
+          "raw_value": "12531512",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 10,
+          "column_year": 2021
+        },
+        "total_liabilities": {
+          "raw_value": "10961657",
+          "raw_label": "ИТОГО ОБЯЗАТЕЛЬСТВА",
+          "page": 10,
+          "column_year": 2021
+        },
+        "total_equity": {
+          "raw_value": "1569855",
+          "raw_label": "ИТОГО КАПИТАЛ",
+          "page": 10,
+          "column_year": 2021
+        },
+        "interest_expense": {
+          "raw_value": "-602011",
+          "raw_label": "Процентные и аналогичные расходы",
+          "page": 11,
+          "column_year": 2021
+        },
+        "operating_expenses": {
+          "raw_value": "-378410",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 11,
+          "column_year": 2021
+        },
+        "net_income": {
+          "raw_value": "116615",
+          "raw_label": "ПРИБЫЛЬ ЗА ГОД",
+          "page": 11,
+          "column_year": 2021
+        },
+        "interest_income": {
+          "raw_value": "1115306",
+          "raw_label": "Calculated sum of interest income components",
+          "page": 11,
+          "column_year": 2021,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1111037",
+              "raw_label": "Процентные доходы с использованием эффективной процентной ставки",
+              "page": 11,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "4269",
+              "raw_label": "Прочие аналогичные доходы",
+              "page": 11,
+              "column_year": 2021
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "522275",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 11,
+          "column_year": 2021,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "144144",
+              "raw_label": "Прибыль до налогообложения",
+              "page": 11,
+              "column_year": 2021,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-378410",
+              "raw_label": "Административные и прочие операционные расходы",
+              "page": 11,
+              "column_year": 2021,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "279",
+              "raw_label": "Доля финансового результата ассоциированных организаций",
+              "page": 11,
+              "column_year": 2021,
+              "coefficient": -1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "issuer_name": "Aloqabank",
+      "year": 2020,
+      "document_year": 2021,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/MSFO_2021_Ru.pdf",
+      "sha256": "23a94d3e83450a9038a42a136e940d81e2b78e6969054273ddbefb2e1fd7cca1",
+      "page_count": 13,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 10 and 11: 2020 column of 2021 annual consolidated IFRS statements. Comparative column, not a separate annual filing. OpenInfo catalog label 2022 is not the statement year: cover and statement columns explicitly establish 2021 and 2020. Operating income covers continuing operations; net income includes discontinued operations.",
+      "unit_evidence": "Statement headers: millions of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "735883",
+          "raw_label": "Денежные средства и эквиваленты денежных средств",
+          "page": 10,
+          "column_year": 2020
+        },
+        "total_assets": {
+          "raw_value": "8184435",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 10,
+          "column_year": 2020
+        },
+        "total_liabilities": {
+          "raw_value": "6717529",
+          "raw_label": "ИТОГО ОБЯЗАТЕЛЬСТВА",
+          "page": 10,
+          "column_year": 2020
+        },
+        "total_equity": {
+          "raw_value": "1466906",
+          "raw_label": "ИТОГО КАПИТАЛ",
+          "page": 10,
+          "column_year": 2020
+        },
+        "interest_expense": {
+          "raw_value": "-501428",
+          "raw_label": "Процентные и аналогичные расходы",
+          "page": 11,
+          "column_year": 2020
+        },
+        "operating_expenses": {
+          "raw_value": "-287356",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 11,
+          "column_year": 2020
+        },
+        "net_income": {
+          "raw_value": "118317",
+          "raw_label": "ПРИБЫЛЬ ЗА ГОД",
+          "page": 11,
+          "column_year": 2020
+        },
+        "interest_income": {
+          "raw_value": "896098",
+          "raw_label": "Calculated sum of interest income components",
+          "page": 11,
+          "column_year": 2020,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "890863",
+              "raw_label": "Процентные доходы с использованием эффективной процентной ставки",
+              "page": 11,
+              "column_year": 2020
+            },
+            {
+              "raw_value": "5235",
+              "raw_label": "Прочие аналогичные доходы",
+              "page": 11,
+              "column_year": 2020
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "439545",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 11,
+          "column_year": 2020,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "152233",
+              "raw_label": "Прибыль до налогообложения",
+              "page": 11,
+              "column_year": 2020,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-287356",
+              "raw_label": "Административные и прочие операционные расходы",
+              "page": 11,
+              "column_year": 2020,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "44",
+              "raw_label": "Доля финансового результата ассоциированных организаций",
+              "page": 11,
+              "column_year": 2020,
+              "coefficient": -1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "issuer_name": "Aloqabank",
+      "year": 2019,
+      "document_year": 2020,
+      "role": "RESTATEMENT",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Отчет_MSFO_2020_Eng_NRnMqtm.pdf",
+      "sha256": "00792cad05158c84a58ccdd10813db82aa8f0f21310ddfdbb53b14e2c06f9b4d",
+      "page_count": 11,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 8 and 9: 2019 column of 2020 annual consolidated IFRS statements. Comparative column, not a separate annual filing. 2019 comparative explicitly restated. Operating income covers continuing operations; net income includes discontinued operations.",
+      "unit_evidence": "Statement headers: thousands of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "573389633",
+          "raw_label": "Cash and cash equivalents",
+          "page": 8,
+          "column_year": 2019
+        },
+        "total_assets": {
+          "raw_value": "7399873445",
+          "raw_label": "Total assets",
+          "page": 8,
+          "column_year": 2019
+        },
+        "total_liabilities": {
+          "raw_value": "6050931728",
+          "raw_label": "Total liabilities",
+          "page": 8,
+          "column_year": 2019
+        },
+        "total_equity": {
+          "raw_value": "1348941717",
+          "raw_label": "Total equity",
+          "page": 8,
+          "column_year": 2019
+        },
+        "interest_income": {
+          "raw_value": "879198345",
+          "raw_label": "Interest income",
+          "page": 9,
+          "column_year": 2019
+        },
+        "interest_expense": {
+          "raw_value": "-469074272",
+          "raw_label": "Interest expense",
+          "page": 9,
+          "column_year": 2019
+        },
+        "operating_expenses": {
+          "raw_value": "-256481718",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 9,
+          "column_year": 2019
+        },
+        "net_income": {
+          "raw_value": "181275454",
+          "raw_label": "Profit for the year",
+          "page": 9,
+          "column_year": 2019
+        },
+        "operating_income": {
+          "raw_value": "480977789",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 9,
+          "column_year": 2019,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "224744394",
+              "raw_label": "Profit before tax",
+              "page": 9,
+              "column_year": 2019,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-256481718",
+              "raw_label": "Administrative and other operating expenses",
+              "page": 9,
+              "column_year": 2019,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "248323",
+              "raw_label": "Share of result from associates",
+              "page": 9,
+              "column_year": 2019,
+              "coefficient": -1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "issuer_name": "Aloqabank",
+      "year": 2018,
+      "document_year": 2018,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Отчет_MSFO_2018.pdf",
+      "sha256": "0117336ce983bf329b8ad78b1d6ce06e68a54f2e8932d56449774ae8a57cf105",
+      "page_count": 10,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 7 and 8: 2018 column of 2018 annual consolidated IFRS statements. Current annual period. ",
+      "unit_evidence": "Statement headers: thousands of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "614960451",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 7,
+          "column_year": 2018
+        },
+        "total_assets": {
+          "raw_value": "5669677358",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 7,
+          "column_year": 2018
+        },
+        "total_liabilities": {
+          "raw_value": "4546319092",
+          "raw_label": "ИТОГО ОБЯЗАТЕЛЬСТВА",
+          "page": 7,
+          "column_year": 2018
+        },
+        "total_equity": {
+          "raw_value": "1123358266",
+          "raw_label": "ИТОГО КАПИТАЛ",
+          "page": 7,
+          "column_year": 2018
+        },
+        "interest_income": {
+          "raw_value": "491064932",
+          "raw_label": "Процентные доходы с использованием эффективной процентной ставки",
+          "page": 8,
+          "column_year": 2018
+        },
+        "interest_expense": {
+          "raw_value": "-204658528",
+          "raw_label": "Процентные и прочие расходы",
+          "page": 8,
+          "column_year": 2018
+        },
+        "operating_expenses": {
+          "raw_value": "-203121717",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 8,
+          "column_year": 2018
+        },
+        "net_income": {
+          "raw_value": "114819323",
+          "raw_label": "ПРИБЫЛЬ ЗА ПЕРИОД",
+          "page": 8,
+          "column_year": 2018
+        },
+        "operating_income": {
+          "raw_value": "348465790",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 8,
+          "column_year": 2018,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "145578384",
+              "raw_label": "Прибыль до налогообложения",
+              "page": 8,
+              "column_year": 2018,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-203121717",
+              "raw_label": "Административные и прочие операционные расходы",
+              "page": 8,
+              "column_year": 2018,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "234311",
+              "raw_label": "Доля финансового результата ассоциированных предприятий",
+              "page": 8,
+              "column_year": 2018,
+              "coefficient": -1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "issuer_name": "Aloqabank",
+      "year": 2017,
+      "document_year": 2018,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/Отчет_MSFO_2018.pdf",
+      "sha256": "0117336ce983bf329b8ad78b1d6ce06e68a54f2e8932d56449774ae8a57cf105",
+      "page_count": 10,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 7 and 8: 2017 column of 2018 annual consolidated IFRS statements. Comparative column, not a separate annual filing. ",
+      "unit_evidence": "Statement headers: thousands of Uzbek sums.",
+      "figures": {
+        "cash": {
+          "raw_value": "576682699",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 7,
+          "column_year": 2017
+        },
+        "total_assets": {
+          "raw_value": "2579912939",
+          "raw_label": "ИТОГО АКТИВЫ",
+          "page": 7,
+          "column_year": 2017
+        },
+        "total_liabilities": {
+          "raw_value": "2205676605",
+          "raw_label": "ИТОГО ОБЯЗАТЕЛЬСТВА",
+          "page": 7,
+          "column_year": 2017
+        },
+        "total_equity": {
+          "raw_value": "374236334",
+          "raw_label": "ИТОГО КАПИТАЛ",
+          "page": 7,
+          "column_year": 2017
+        },
+        "interest_income": {
+          "raw_value": "179100177",
+          "raw_label": "Процентные доходы с использованием эффективной процентной ставки",
+          "page": 8,
+          "column_year": 2017
+        },
+        "interest_expense": {
+          "raw_value": "-80793095",
+          "raw_label": "Процентные и прочие расходы",
+          "page": 8,
+          "column_year": 2017
+        },
+        "operating_expenses": {
+          "raw_value": "-122189704",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 8,
+          "column_year": 2017
+        },
+        "net_income": {
+          "raw_value": "65107047",
+          "raw_label": "ПРИБЫЛЬ ЗА ПЕРИОД",
+          "page": 8,
+          "column_year": 2017
+        },
+        "operating_income": {
+          "raw_value": "195323630",
+          "raw_label": "Calculated operating income from reported subtotals; see signed components",
+          "page": 8,
+          "column_year": 2017,
+          "calculation": "signed_sum",
+          "components": [
+            {
+              "raw_value": "74749162",
+              "raw_label": "Прибыль до налогообложения",
+              "page": 8,
+              "column_year": 2017,
+              "coefficient": 1
+            },
+            {
+              "raw_value": "-122189704",
+              "raw_label": "Административные и прочие операционные расходы",
+              "page": 8,
+              "column_year": 2017,
+              "coefficient": -1
+            },
+            {
+              "raw_value": "1615236",
+              "raw_label": "Доля финансового результата ассоциированных предприятий",
+              "page": 8,
+              "column_year": 2017,
+              "coefficient": -1
+            }
+          ]
         }
       }
     }

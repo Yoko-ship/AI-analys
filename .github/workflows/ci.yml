@@ -978,10 +978,11 @@ jobs:
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
           EXPECTED_SHA: ${{ github.sha }}
+          ALLOW_REVIEWED_CORRECTIONS: ${{ contains(github.event.head_commit.message, '[correct-bank-ifrs]') }}
         run: |
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
-            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- '$EXPECTED_SHA'" <<'REMOTE'
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- '$EXPECTED_SHA' '$ALLOW_REVIEWED_CORRECTIONS'" <<'REMOTE'
           set -euo pipefail
           cd /root/uzstock/app
           test "$(git rev-parse HEAD)" = "$1"
@@ -992,7 +993,9 @@ jobs:
           }
           trap restore_timer EXIT
           systemctl stop uzstock-financial-ingestion.timer uzstock-financial-ingestion.service
-          docker exec uzstock-web python -m scripts.publish_reviewed_bank_ifrs --apply
+          release_args=(--apply)
+          if [ "$2" = true ]; then release_args+=(--allow-reviewed-corrections); fi
+          docker exec uzstock-web python -m scripts.publish_reviewed_bank_ifrs "${release_args[@]}"
           docker exec uzstock-web python -m financial_ingestion.worker monitor
           REMOTE
 

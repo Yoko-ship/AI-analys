@@ -329,7 +329,7 @@ def test_corrupt_archive_blocks_publication_and_download(setup, monkeypatch):
 
 def test_all_checked_in_reviews_validate():
     entries = extract.review_entries()
-    assert len(entries) == 37
+    assert len(entries) == 55
     assert {e["year"] for e in entries if e["ticker"] == "BRBN"} == set(range(2016, 2026))
     assert {e["ticker"] for e in entries} == {
         "BRBN", "OCBK", "DRBK", "GRBK", "IPTB", "SQBN", "AGBA", "ALKB",
@@ -344,15 +344,17 @@ def test_all_checked_in_reviews_validate():
     assert len(octobank["figures"]["interest_income"]["components"]) == 2
 
 
-def test_reviewed_mcba_comparative_keeps_conflicting_income_unavailable():
+def test_reviewed_mcba_original_resolves_misprinted_comparative():
     entry = next(e for e in extract.review_entries()
                  if e["ticker"] == "MCBA" and e["year"] == 2024)
     check = validation.validate(validation.from_review(entry), page_count=entry["page_count"])
-    assert entry["role"] == "COMPARATIVE"
+    assert entry["role"] == "PRIMARY"
     assert check["valid"]
-    assert check["warnings"] == ["PARTIAL_INCOME"]
-    assert "operating_income" not in check["normalized_uzs"]
-    assert "net_income" not in check["normalized_uzs"]
+    assert check["warnings"] == []
+    assert entry["source_kind"] == "issuer_website"
+    assert check["normalized_uzs"]["interest_expense"] == "-2201645000000"
+    assert check["normalized_uzs"]["operating_income"] == "-25175000000"
+    assert check["normalized_uzs"]["net_income"] == "-961328000000"
     assert check["normalized_uzs"]["total_assets"] == "23851358000000"
 
 

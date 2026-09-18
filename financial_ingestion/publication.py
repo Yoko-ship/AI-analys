@@ -257,5 +257,9 @@ def passport(ticker, period, field):
                        "title": f"{meta.get('issuer_name', ticker)} — IFRS {meta['document_year']} ({meta['scope']})",
                        "page": figure["page"], "raw_label": figure["raw_label"], "raw_value": float(amount),
                        "unit_scale": int(meta["unit_scale"]), "normalized_value": float(payload["normalized_uzs"][key]),
-                       "normalization_formula": "sum(source components) × unit_scale" if figure.get("components") else "raw_value × unit_scale", "sign": "negative" if amount < 0 else "zero" if not amount else "positive",
+                       "normalization_formula": ("sum(coefficient × source component) × unit_scale"
+                                                 if figure.get("calculation") == "signed_sum" else
+                                                 "sum(source components) × unit_scale" if figure.get("components") else
+                                                 "raw_value × unit_scale"),
+                       "sign": "negative" if amount < 0 else "zero" if not amount else "positive",
                        "archived_url": f"/api/company/{ticker}/financials/documents/{source['file_hash']}"}}

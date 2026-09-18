@@ -102,8 +102,14 @@ def validate_review(entry: dict, payload: bytes) -> dict[str, float]:
 
 def download_pdf(url: str) -> bytes:
     parsed = urlparse(url)
-    if parsed.scheme != "https" or parsed.hostname != "openinfo.uz" or not parsed.path.startswith("/media/"):
-        raise ValueError("IFRS source must be an OpenInfo media document")
+    from financial_ingestion.extract import review_entries
+    reviewed = any(e["pdf_url"] == url for e in review_entries())
+    openinfo = parsed.hostname == "openinfo.uz" and parsed.path.startswith("/media/")
+    official = (reviewed and parsed.hostname in {"mkbank.uz", "sqb.uz", "ipotekabank.uz"}
+                and parsed.path.startswith("/upload/"))
+    if parsed.scheme != "https" or parsed.port not in {None, 443} or parsed.username or parsed.password or not (openinfo or official):
+        raise ValueError("IFRS source must be an OpenInfo media document or an explicitly reviewed issuer document")
+    max_bytes = 100 * 1024 * 1024 if reviewed else MAX_BYTES
     # No redirects to private/internal destinations, no unbounded downloads.
     with requests.get(url, stream=True, timeout=(15, 90), allow_redirects=False) as response:
         response.raise_for_status()
@@ -112,7 +118,7 @@ def download_pdf(url: str) -> bytes:
         chunks, size = [], 0
         for chunk in response.iter_content(65536):
             size += len(chunk)
-            if size > MAX_BYTES:
+            if size > max_bytes:
                 raise ValueError("IFRS PDF exceeds download limit")
             chunks.append(chunk)
         return b"".join(chunks)

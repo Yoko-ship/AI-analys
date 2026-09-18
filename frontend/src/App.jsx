@@ -12598,7 +12598,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
                 <div><dt>{t("Периметр", "Qamrov", "Perimeter")}</dt><dd>{source.perimeter || source.source_ticker || "—"}</dd></div>
                 <div><dt>{t("Статус проверки", "Tekshiruv holati", "Review status")}</dt><dd>{source.state || "—"}{source.state_reason ? ` — ${source.state_reason}` : ""}</dd></div>
                 <div><dt>{t("Строка источника", "Manba satri", "Source line")}</dt><dd>{source.raw_label || "—"}</dd></div>
-                {source.components?.length > 0 && <div><dt>{t("Расчёт из строк отчёта", "Hisobot satrlaridan hisob", "Calculated from report lines")}</dt><dd>{source.components.map((c) => `${c.raw_label}: ${c.raw_value} (p. ${c.page})`).join(" + ")}</dd></div>}
+                {source.components?.length > 0 && <div><dt>{t("Расчёт из строк отчёта", "Hisobot satrlaridan hisob", "Calculated from report lines")}</dt><dd>{source.components.map((c) => `${c.coefficient === -1 ? "−1 × " : ""}${c.raw_label}: (${c.raw_value}) (p. ${c.page})`).join(" + ")}</dd></div>}
                 <div><dt>{t("Исходная сумма", "Asl summa", "Raw value")}</dt><dd>{source.raw_value ?? "—"}</dd></div>
                 <div><dt>{t("Нормализованное значение", "Normallashtirilgan qiymat", "Normalized value")}</dt><dd>{source.normalized_value ?? "—"}{source.normalization_formula ? ` (${source.normalization_formula})` : ""}</dd></div>
                 <div><dt>{t("Знак", "Belgi", "Sign")}</dt><dd>{source.sign || "—"}</dd></div>

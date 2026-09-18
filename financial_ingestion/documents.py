@@ -94,6 +94,21 @@ def discover(*, ticker=None, processor):
         for row in rows:
             ids.add(register(c, org_id=row["org_id"], ticker=row["ticker"], url=row["pdf_url"],
                              category=row["report_form"], metadata=dict(row), processor=processor))
+        # Only explicitly reviewed issuer-site documents extend OpenInfo's
+        # catalog. This is not a crawler or an unrestricted URL import path.
+        from .extract import review_entries
+        for entry in review_entries():
+            if entry.get("source_kind") != "issuer_website" or (ticker and entry["ticker"] != ticker.upper()):
+                continue
+            company = c.execute("SELECT org_id FROM catalog_companies WHERE ticker=?", (entry["ticker"],)).fetchone()
+            if not company or str(company["org_id"]) != str(entry["org_id"]):
+                raise ValueError("Reviewed issuer-site source does not match the catalog issuer")
+            ids.add(register(c, org_id=entry["org_id"], ticker=entry["ticker"], url=entry["pdf_url"],
+                             category="IssuerIFRS", processor=processor, metadata={
+                                 "report_form": "MSFO", "source_page_url": entry["source_page_url"],
+                                 "title": entry["issuer_name"] + " reviewed IFRS statements",
+                                 "year": entry["document_year"], "quarter": 0,
+                             }))
     return {"sources": len(ids)}
 
 

@@ -93,6 +93,9 @@ existing period add `--replace`. Never approve based only on passing arithmetic;
 read the source pages. Calculated sums must include `calculation: "sum"` and
 each signed component's raw value, label, page and year. The validator requires
 an exact decimal sum; passports display the components and calculation formula.
+For subtraction from reported subtotals, use `calculation: "signed_sum"` with
+an explicit `coefficient` of `1` or `-1` for each component. Keep the literal
+signed source amount; the coefficient records the arithmetic operation.
 Never label an aggregate as a directly reported total.
 
 ```sh
@@ -149,23 +152,36 @@ original-document backup before deployment, and runs
 The release re-downloads every reviewed source, rejects changed hashes, verifies
 another backup, preserves every previously published annual/interim value, and
 checks every published figure's source passport. Routine deployments never run
-this publication step. Changes to existing values need a separate reviewed
-correction; this additive release command refuses them.
+this publication step. Changes to existing values require a ledger `supersedes`
+record containing the exact previous source hash, previous and replacement
+normalized UZS values, and a reason. The release refuses changes unless
+`--allow-reviewed-corrections` is explicitly supplied; CI supplies it only when
+the release commit also contains `[correct-bank-ifrs]`.
 
 ## Reviewed scope
 
-The review ledgers contain 37 periods across 15 banks: BRBN 2016–2025;
-OCBK, DRBK, GRBK, AGBA, ALKB, HMKB, IPKY, TNGB, TNBN, MCBA, UNVB and TRSB
-2024–2025; IPTB 2023–2024; and SQBN 2024H1. Each period has nine evidenced
-figures except MCBA 2024, which has seven. Its printed interest margin and
-profit-after-tax subtotals do not reconcile, so operating income and net income
-remain withheld pending a corrected source. This period retains partial income
-coverage; missing figures must not be filled with zero or inferred amounts.
+The review ledgers contain 55 periods across 15 banks: BRBN 2016–2025;
+AGBA 2014–2025; ALKB 2017–2025; MCBA 2023–2025;
+OCBK, DRBK, GRBK, HMKB, IPKY, TNGB, TNBN, UNVB and TRSB 2024–2025;
+IPTB 2023–2024; and SQBN 2024H1. Each period has nine evidenced figures.
+These counts describe checked-in reviews, not confirmed production publication.
+
+MCBA's original 2024 audit, downloaded from its official issuer website, resolves
+the inconsistent 2024 comparative in the 2025 filing. It supplies operating income
+and net income and corrects interest expense from -2,221,645 million UZS to
+-2,201,645 million UZS. The review records the superseded source and exact values.
+The original's 2023 comparative has a misprinted pretax subtotal; its operating
+income uses individually evidenced components instead. See the ledger's period
+evidence for this and historical restatements.
 BRBN 2017/2020 and prior-year comparisons retain their comparative roles;
 ALKB 2024 is explicitly restated. TNGB and UNVB use separate accounts, while
-the other seven newly reviewed banks use consolidated accounts. UNVB and TRSB
-report in thousands of UZS; the other seven report in millions of UZS.
+the other banks use consolidated accounts. UNVB, TRSB and several older
+AGBA/ALKB statements report in thousands of UZS; units are verified per source.
 Calculated interest and operating totals carry explicit component evidence. Primary
 published dates override catalog labels only while that source version is current.
+Issuer-site discovery accepts only ledger-listed sources tied to the catalog's
+issuer identity. Downloads allow reviewed `/upload/` documents on `mkbank.uz`,
+`sqb.uz` and `ipotekabank.uz`, with redirects disabled. Reviewed documents have
+a 100 MiB limit for large original scans; other OpenInfo downloads retain 25 MiB.
 Other bank PDFs and older history remain review work; adding this architecture
 does not claim every historical gap is filled or that unavailable filings exist.

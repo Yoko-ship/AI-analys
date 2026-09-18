@@ -4,7 +4,7 @@ import json
 import pytest
 
 import reports_catalog as rc
-from financial_ingestion import extract, maintenance, publication, store, validation
+from financial_ingestion import documents, extract, maintenance, publication, store, validation
 from test_financial_ingestion import setup, stage, candidates
 
 
@@ -38,6 +38,58 @@ def test_reviewed_release_refuses_changed_published_values(setup, monkeypatch, t
     with pytest.raises(ValueError, match="Existing published value changed"):
         release(fetch=lambda url: setup[1])
     assert publication.series("BRBN") == before
+
+
+def test_signed_component_subtraction_preserves_literal_source_expenses(setup):
+    payload = validation.from_review(setup[0])
+    payload["figures"]["operating_income"] = {
+        "raw_value": "140", "raw_label": "Calculated operating income", "page": 1,
+        "column_year": 2024, "calculation": "signed_sum", "components": [
+            {"raw_value": "100", "raw_label": "Profit before tax", "page": 1,
+             "column_year": 2024, "coefficient": 1},
+            {"raw_value": "-50", "raw_label": "Operating expenses", "page": 1,
+             "column_year": 2024, "coefficient": -1},
+            {"raw_value": "10", "raw_label": "Share of associates", "page": 1,
+             "column_year": 2024, "coefficient": -1},
+        ],
+    }
+    assert validation.validate(payload, page_count=1)["valid"]
+    payload["figures"]["operating_income"]["components"][1]["coefficient"] = 0
+    assert "COMPONENT_COEFFICIENT_INVALID:operating_income" in validation.validate(payload, page_count=1)["errors"]
+
+
+def test_reviewed_correction_requires_exact_previous_source_and_values(setup, monkeypatch, tmp_path):
+    from scripts.publish_reviewed_bank_ifrs import release
+    monkeypatch.setenv("FINANCIAL_BACKUP_DIR", str(tmp_path / "backups"))
+    stage(setup)
+    publication.publish("BRBN", actor="initial-review")
+    old = validation.validate(validation.from_review(setup[0]), page_count=1)["normalized_uzs"]["net_income"]
+    setup[0]["figures"]["net_income"]["raw_value"] = "1"
+    setup[0]["supersedes"] = {
+        "source_sha256": "0" * 64, "reason": "Explicit source correction",
+        "normalized_uzs": {"net_income": {"before": old, "after": str(setup[0]["unit_scale"])}}}
+    with pytest.raises(ValueError, match="Existing published value changed"):
+        release(fetch=lambda url: setup[1], allow_reviewed_corrections=True)
+    setup[0]["supersedes"]["source_sha256"] = setup[0]["sha256"]
+    result = release(fetch=lambda url: setup[1], allow_reviewed_corrections=True)
+    assert len(result["reviewed_corrections"]) == 1
+    assert not result["preserved_previous_values"]
+
+
+def test_reviewed_issuer_website_discovery_is_bound_to_catalog_issuer(setup):
+    setup[0].update(source_kind="issuer_website", source_page_url="https://mkbank.uz/reports/",
+                    pdf_url="https://mkbank.uz/upload/reviewed.pdf", document_year=2024)
+    documents.discover(ticker="BRBN", processor=extract.processor_version())
+    c = store.connect()
+    try:
+        row = c.execute("SELECT * FROM ingest_sources WHERE url=?", (setup[0]["pdf_url"],)).fetchone()
+        assert row["org_id"] == setup[0]["org_id"]
+        assert row["category"] == "IssuerIFRS"
+    finally:
+        c.close()
+    setup[0]["org_id"] = "99"
+    with pytest.raises(ValueError, match="does not match the catalog issuer"):
+        documents.discover(ticker="BRBN", processor=extract.processor_version())
 
 
 def test_component_arithmetic_and_evidence(setup):

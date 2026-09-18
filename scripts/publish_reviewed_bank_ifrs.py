@@ -30,12 +30,13 @@ def claim_selected(source_id, stage, processor_filter=None):
         store.event(c, job['id'], 'job.claimed', actor='reviewed-gap-release', attempt=job['attempts'])
         return job
 
-def release(*, fetch=None):
+def release(*, fetch=None, allow_reviewed_corrections=False):
     with tempfile.TemporaryDirectory(prefix="reviewed-bank-release-") as scratch:
-        return _release(fetch=fetch or download_pdf, scratch=Path(scratch))
+        return _release(fetch=fetch or download_pdf, scratch=Path(scratch),
+                        allow_reviewed_corrections=allow_reviewed_corrections)
 
 
-def _release(*, fetch, scratch):
+def _release(*, fetch, scratch, allow_reviewed_corrections):
     entries = extract.review_entries()
     processor = extract.processor_version()
     tickers = sorted({e['ticker'] for e in entries})
@@ -91,6 +92,7 @@ def _release(*, fetch, scratch):
         print(json.dumps({'staged': entry['ticker'], 'sha': entry['sha256']}), flush=True)
 
     selected = {}
+    corrections = []
     for ticker in tickers:
         c = store.connect()
         rows = c.execute("SELECT x.* FROM ingest_candidates x JOIN ingest_versions v ON v.id=x.version_id JOIN ingest_sources s ON s.latest_version=v.id "
@@ -109,7 +111,20 @@ def _release(*, fetch, scratch):
         for period, fields in (before[ticker] or {}).items():
             for field, value in fields.items():
                 if normalized.get(period, {}).get(field) != value:
-                    raise ValueError(f'Existing published value changed: {ticker} {period} {field}')
+                    entry = next((e for e in entries if e['ticker'] == ticker
+                                  and publication.period_key(validation.from_review(e)['classification']) == period), {})
+                    if not entry:
+                        raise ValueError(f'Existing published period missing from review: {ticker} {period}')
+                    correction = entry.get('supersedes') or {}
+                    expected = (correction.get('normalized_uzs') or {}).get(field) or {}
+                    old = publication.passport(ticker, period, field)
+                    new = validation.validate(validation.from_review(entry), page_count=entry['page_count'])
+                    if (not allow_reviewed_corrections or not correction.get('reason')
+                            or old.get('source', {}).get('file_hash') != correction.get('source_sha256')
+                            or Decimal(str(value)) * 1000 != Decimal(expected.get('before', 'NaN'))
+                            or new['normalized_uzs'].get(field) != expected.get('after')):
+                        raise ValueError(f'Existing published value changed: {ticker} {period} {field}')
+                    corrections.append({'ticker': ticker, 'period': period, 'field': field, **correction})
         selected[ticker] = [r['id'] for r in rows]
 
     for ticker, ids in selected.items():
@@ -129,12 +144,19 @@ def _release(*, fetch, scratch):
             verified += 1
     with store.transaction() as c:
         store.event(c, 'reviewed-gap-release', 'release.verified', actor='visual-source-reviewed-gap-release-2026-09-18', figures=verified, periods=len(entries))
-    return {'verified_figures': verified, 'periods': len(entries), 'preserved_previous_values': True}
+        for correction in corrections:
+            store.event(c, correction['ticker'], 'release.corrected', actor='reviewed-bank-release', **correction)
+    result = {'verified_figures': verified, 'periods': len(entries), 'preserved_previous_values': not corrections}
+    if corrections:
+        result['reviewed_corrections'] = corrections
+    return result
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true', required=True,
                         help='Explicitly stage and publish the checked-in reviewed ledger')
-    parser.parse_args()
-    print(json.dumps(release()), flush=True)
+    parser.add_argument('--allow-reviewed-corrections', action='store_true',
+                        help='Allow only exact old-source/old-value/new-value corrections recorded in the ledger')
+    args = parser.parse_args()
+    print(json.dumps(release(allow_reviewed_corrections=args.allow_reviewed_corrections)), flush=True)

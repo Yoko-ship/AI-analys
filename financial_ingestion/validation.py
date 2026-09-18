@@ -65,7 +65,8 @@ def validate(payload, *, page_count):
             raw = amount(figure.get("raw_value"))
             components = figure.get("components")
             if components is not None:
-                if figure.get("calculation") != "sum" or not isinstance(components, list) or len(components) < 2:
+                calculation = figure.get("calculation")
+                if calculation not in {"sum", "signed_sum"} or not isinstance(components, list) or len(components) < 2:
                     errors.append("COMPONENT_CALCULATION_INVALID:" + field)
                 else:
                     component_values = []
@@ -74,7 +75,12 @@ def validate(payload, *, page_count):
                                 or not 1 <= component["page"] <= page_count or not end
                                 or component.get("column_year") != end.year):
                             errors.append("COMPONENT_EVIDENCE_INVALID:" + field)
-                        component_values.append(amount(component.get("raw_value")))
+                        coefficient = component.get("coefficient", 1)
+                        if (type(coefficient) is not int or coefficient not in {-1, 1}
+                                or (calculation == "sum" and coefficient != 1)):
+                            errors.append("COMPONENT_COEFFICIENT_INVALID:" + field)
+                            coefficient = 1
+                        component_values.append(amount(component.get("raw_value")) * coefficient)
                     with localcontext() as ctx:
                         ctx.prec = 50
                         if sum(component_values) != raw:
