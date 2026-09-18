@@ -1,0 +1,125 @@
+{
+  "checked_at": "2026-09-18T15:34:41.626222+00:00",
+  "ticker": "GRBK",
+  "org_id": "11",
+  "inn": "201053901",
+  "finding": "Verified consolidated IFRS statements for 2016 in the audit attachment to an NSBU annual disclosure. The prior unresolved-source conclusion is superseded.",
+  "source_page": "https://openinfo.uz/ru/reports/bank/annual/55",
+  "source_api": "https://new-api.openinfo.uz/api/v2/reports/bank/annual/55/",
+  "pdf_url": "https://openinfo.uz/media/audit_conclusion/PFK_Русс.PDF",
+  "sha256": "46759a490369a1787d9a991bddcdb3398c278c738f804211804c8dc29633ff61",
+  "page_count": 61,
+  "auditor": "PKF MAK ALYANS",
+  "audit_opinion_date": "2017-01-31",
+  "reviewed_pages": {
+    "cover": 1,
+    "audit_opinion": [
+      4,
+      5
+    ],
+    "balance_sheet": 6,
+    "income_statement": 7
+  },
+  "standard": "MSFO",
+  "scope": "consolidated",
+  "period_start": "2016-01-01",
+  "period_end": "2016-12-31",
+  "currency": "UZS",
+  "printed_unit_scale": 1000,
+  "parser": "bank-pdf-draft-v3-statement-columns-v2:32395db03d36865b",
+  "parser_changes_required": false,
+  "financial_amounts_added_to_code_ledgers": false,
+  "fields": [
+    "cash",
+    "total_assets",
+    "total_liabilities",
+    "total_equity",
+    "interest_income",
+    "interest_expense",
+    "operating_expenses",
+    "net_income",
+    "operating_income"
+  ],
+  "checks": {
+    "valid": true,
+    "errors": [],
+    "warnings": [],
+    "all_nine_figures_visually_reviewed": true
+  },
+  "catalog_checks": {
+    "main_listing": {
+      "search": "Garant",
+      "returned_records": 44,
+      "issuer_records": 42,
+      "next": null,
+      "2016_disclosure_report_id": 3946,
+      "2016_disclosure_object_id": 55,
+      "2016_disclosure_category": "NSBU"
+    },
+    "msfo_catalog": {
+      "pages": 13,
+      "unique_records": 2456,
+      "issuer_record_ids": [
+        3243
+      ]
+    },
+    "audit_catalog": {
+      "pages": 13,
+      "unique_records": 2594,
+      "issuer_record_ids": [
+        3029,
+        127
+      ]
+    }
+  },
+  "discovery_limitation": "The PDF appears in an annual-disclosure attachment, not the dedicated IFRS or audit catalog. Its source was explicitly registered for normal refresh and reprocessing; annual-disclosure attachment crawling has not been added.",
+  "publication": {
+    "snapshot_id": "2d93c6dcd83935130a0a66d11c246ec7fa71049cb9cb3aa78c7fa9d86b71a09a",
+    "new_periods": 1,
+    "new_figures": 9,
+    "total_periods": 163,
+    "total_figures": 1467,
+    "existing_snapshot_heads_preserved": 162,
+    "backup": "/app/data/financial_backups/20260918T153418Z-749b86d9",
+    "backup_verified": true,
+    "monitor_ok": true
+  },
+  "live_verification": {
+    "verified_at": "2026-09-18T15:34:41.626222+00:00",
+    "coverage_across_scopes": {
+      "GRBK": {
+        "start": 2014,
+        "end": 2025,
+        "missing_years": []
+      },
+      "IPKY": {
+        "start": 2014,
+        "end": 2025,
+        "missing_years": []
+      },
+      "MCBA": {
+        "start": 2013,
+        "end": 2025,
+        "missing_years": []
+      }
+    },
+    "new_periods": 1,
+    "new_figures": 9,
+    "all_previous_three_issuer_series_values_preserved": true,
+    "all_new_passport_values_hashes_scopes_components_verified": true
+  },
+  "browser_checks": [
+    {
+      "ticker": "GRBK",
+      "scope": "consolidated",
+      "year": "2016",
+      "passport": true
+    },
+    {
+      "ticker": "GRBK",
+      "scope": "separate",
+      "year": "2023",
+      "passport": true
+    }
+  ]
+}

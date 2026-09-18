@@ -152,3 +152,25 @@ and their source passports for each of the three recovery issuers. The
 post-publication backup is verified, the ingestion timer is active, and
 monitoring reports no incidents or stale publications. See the
 [recovery production verification](bank-ifrs-gap-live-verification-2026-09-18.json).
+
+## OpenInfo annual attachment follow-up — 18 September 2026
+
+The GRBK 2016 source gap above is now resolved. OpenInfo annual disclosure
+3946 (bank annual object 55) links a 61-page PKF MAK ALYANS consolidated IFRS
+report for 2016 through its audit-opinion attachment. The dedicated IFRS and
+audit catalogs did not list this attachment. Its cover, opinion and statement
+pages were inspected directly. The existing shared OCR/parser extracted all
+nine figures without code changes or manually entered financial amounts.
+
+The reviewed 2016 period is published: 163 periods / 1,467 figures total,
+with all 162 previous snapshot heads preserved. Public API checks verified
+the new values and passport hashes, scopes and calculation components; browser
+checks confirmed the 2016 consolidated column and source passport. A verified
+post-publication backup is available and monitoring is healthy.
+
+There are no missing annual years across both views combined for GRBK
+2014–2025, IPKY 2014–2025 or MCBA 2013–2025. This is a bounded coverage result
+for those issuers and ranges; individual accounting scopes can still have gaps.
+The discovered attachment is registered for normal refresh/reprocessing. This
+follow-up does not add automatic annual-disclosure attachment crawling. See
+[the OpenInfo evidence and live verification](bank-ifrs-openinfo-2016-verification-2026-09-18.json).
