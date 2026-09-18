@@ -37,6 +37,41 @@ startup and then repeats it every 24 hours (`COLLECTOR_INTERVAL_SECONDS`).
 collector uses to write to the local API. Keep it different from credentials in
 another environment.
 
+### Bank financial history repair
+
+The daily collector also repairs a rotating batch of bank issuers. It discovers
+older quarterly filings from the unified OpenInfo feed, then re-parses all known
+annual and quarterly reports for those issuers. The default is two issuers per
+run (`BANK_HISTORY_BATCH=2`), with a seven-day interval before revisiting an issuer.
+Ordinary and preferred shares share one repair. Download or push failures are
+reported as partial; they do not prevent other issuers from being attempted.
+
+To repair all bank histories immediately, run the following **inside the active
+collector container**, with its existing data mount and credentials:
+
+```sh
+python collector_financials.py --bank-history-only --bank-history-ticker BRBN
+```
+
+Omit `--bank-history-ticker BRBN` to repair every bank. The progress checkpoints
+are stored on the API so rotation also works with ephemeral systemd/Docker jobs.
+Run inside the API container when the report catalog must also receive the
+discovered old filings; its `/app/data` volume owns that catalog.
+Use `--bank-history-limit 1` for a bounded initial run. Before deploying or running
+this command, inspect the active application directory and service manager on
+the production VPS (DEPLOY_SSH_* in the local .env), and take a backup of the active databases.
+Do not start an additional repair while the scheduled collector is running.
+The repair upserts financial periods; it does not delete history. Its default
+public destination is `https://uzstock.uz`; the VPS loop requires the internal
+`http://uzstock-web:8000` destination.
+
+Verify `/api/coverage`: `financial_history` reports missing periods and fields
+against **catalogued** filings, not a guarantee that every source report has been
+discovered. The company financial API's `data_gaps` explains withheld figures.
+This repair collects NSBU statements. IFRS PDFs remain available in Reports but
+need a separate, validated IFRS extraction pipeline; NSBU corrections are never
+used to fill the IFRS selector.
+
 ## 4. Check logs
 
 ```bash

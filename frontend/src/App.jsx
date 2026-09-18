@@ -12626,7 +12626,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
   ), document.body);
 }
 
-function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits }) {
+function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [] }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [section, setSection] = React.useState("income");
   // Which lines the chart draws, per section (annual and quarterly sections
@@ -12650,6 +12650,21 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
     try { localStorage.setItem(FIN_DASHBOARD_KEY, dashboard); } catch (e) { /* ignore */ }
   }, [dashboard]);
   const quarterly = freq === "quarterly";
+  const gapReason = (code) => {
+    if (code === "EMPTY_SOURCE_FILING") return t("В источнике опубликован пустой баланс.", "Manbada bo‘sh balans e'lon qilingan.", "The source filing contains an empty balance sheet.");
+    if (code === "INCONSISTENT_CUMULATIVE_INCOME") return t("Показатели дохода в отчётах противоречат друг другу.", "Hisobotlardagi daromad ko‘rsatkichlari bir-biriga zid.", "Income figures conflict between source filings.");
+    if (code === "MISSING_COMPARATIVE_INPUT") return t("Для расчёта квартала не хватает данных предыдущего периода.", "Chorakni hisoblash uchun oldingi davr ma'lumotlari yetishmaydi.", "A required prior-period figure is unavailable for this quarter.");
+    if (code === "UNDER_REVIEW") return t("Данные находятся на проверке.", "Ma'lumotlar tekshirilmoqda.", "These figures are under review.");
+    if (code === "UNSUPPORTED_DUPLICATE_PERIOD") return t("Дубликат периода не подтверждён отдельным отчётом.", "Takrorlangan davr alohida hisobot bilan tasdiqlanmagan.", "The duplicate period has no supporting filing.");
+    return t("Данные отчёта ещё не получены полностью.", "Hisobot ma'lumotlari hali to‘liq olinmagan.", "The filing's figures have not been fully collected.");
+  };
+  const gapRows = [...new Map(dataGaps.map((gap) => [`${gap.period}:${gap.code}`, gap])).values()];
+  const gapNotice = gapRows.length > 0 ? (
+    <details className="panel" style={{ padding: "12px 16px", marginBottom: 12 }}>
+      <summary>{t("Некоторые финансовые данные недоступны", "Ayrim moliyaviy ma'lumotlar mavjud emas", "Some financial figures are unavailable")}</summary>
+      <ul>{gapRows.map((gap) => <li key={`${gap.period}:${gap.code}`}>{gap.period}: {gapReason(gap.code)}</li>)}</ul>
+    </details>
+  ) : null;
 
   const openPassport = React.useCallback((field, period) => {
     if (!ticker) return;
@@ -12708,9 +12723,10 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
       <div className="company-financials">
         <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
-          <p className="muted">{t("Эмитент не публикует квартальную отчётность",
-                                  "Emitent choraklik hisobot e'lon qilmaydi",
-                                  "No quarterly filings published")}</p>
+          <p className="muted">{t("Квартальные финансовые данные пока недоступны. Опубликованные документы можно проверить во вкладке «Отчётность».",
+                                  "Choraklik moliyaviy ma'lumotlar hozircha mavjud emas. E'lon qilingan hujjatlarni Hisobotlar bo‘limida tekshiring.",
+                                  "Quarterly figures are not available yet. Check the Reports tab for published documents.")}</p>
+          {gapNotice}
         </div>
       </div>
     );
@@ -12725,9 +12741,10 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
       <div className="company-financials">
         <div className="fin-subtabs">{standardToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
-          <p className="muted">{t("Годовая отчётность по МСФО не опубликована",
-                                  "МСФО бўйича йиллик ҳисобот эълон қилинмаган",
-                                  "No annual IFRS financial statements published")}</p>
+          <p className="muted">{t("Финансовые показатели по МСФО пока не извлечены. Опубликованные документы можно открыть во вкладке «Отчётность».",
+                                  "MHXS ko‘rsatkichlari hali olinmagan. E'lon qilingan hujjatlarni Hisobotlar bo‘limida oching.",
+                                  "IFRS figures have not been extracted yet. Published documents can be opened in the Reports tab.")}</p>
+          {gapNotice}
         </div>
       </div>
     );
@@ -12741,9 +12758,9 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
       <div className="company-financials">
         <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
-          <p className="muted">{t("Финансовые показатели не опубликованы",
-                                  "Moliyaviy korsatkichlar elon qilinmagan",
-                                  "No financial indicators published")}</p>
+          <p className="muted">{t("Финансовые показатели пока недоступны",
+                                  "Moliyaviy ko‘rsatkichlar hozircha mavjud emas",
+                                  "Financial figures are not available yet")}</p>
         </div>
       </div>
     );
@@ -12887,7 +12904,10 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
         </th>
         {cols.map((p) => {
           const value = series[f].values[p];
-          if (!Number.isFinite(value)) return <td key={p} className="num">—</td>;
+          if (!Number.isFinite(value)) {
+            const gap = dataGaps.find((item) => item.period === p && (!item.field || item.field === f));
+            return <td key={p} className="num" title={gapReason(gap?.code)}>—</td>;
+          }
           return (
             <td key={p} className="num fin-passport-cell">
               <button type="button" onClick={() => openPassport(f, p)}
@@ -12979,6 +12999,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
         )}
       </div>
 
+      {section !== "splits" && gapNotice}
       {section === "splits" ? (
         <CompanySplitsTable items={splits === undefined ? null : splits} lang={lang} />
       ) : (
@@ -13061,9 +13082,9 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
               notice that 2019 is simply not there. Half the issuers on this
               market have at least one such hole. */}
           {!quarterly && missingYears.length > 0 && (
-            <> {t(`За ${missingYears.join(", ")} годовой отчётности нет — эти годы пропущены, и рост к ним не считается.`,
-                  `${missingYears.join(", ")} uchun yillik hisobot yo'q.`,
-                  `No annual filing for ${missingYears.join(", ")} — those years are absent, and no growth is formed against them.`)}</>
+            <> {t(`За ${missingYears.join(", ")} годовые данные недоступны — рост к этим годам не рассчитывается.`,
+                  `${missingYears.join(", ")} uchun yillik ma'lumotlar mavjud emas; bu yillarga nisbatan o‘sish hisoblanmaydi.`,
+                  `Annual figures are unavailable for ${missingYears.join(", ")} — growth against those years is not calculated.`)}</>
           )}
         </p>
       </div>
@@ -13882,6 +13903,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               standard={finStandard} onStandardChange={setFinStandard}
               series={(finFreq === "quarterly" ? finQSeries?.series : finSeries?.series) || {}}
               periods={(finFreq === "quarterly" ? finQSeries?.periods : finSeries?.periods) || []}
+              dataGaps={(finFreq === "quarterly" ? finQSeries?.data_gaps : finSeries?.data_gaps) || []}
               loading={finFreq === "quarterly"
                 ? (finQLoading && finQSeries === null)
                 : (finLoading && finSeries === null)}

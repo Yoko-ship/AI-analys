@@ -2237,7 +2237,7 @@ def _maybe_seed_financials(conn: sqlite3.Connection, form: str = "NSBU") -> None
     by a live sync. Guarded so it runs at most once per process.
     """
     global _seeded
-    if _seeded:
+    if form != "NSBU" or _seeded:
         return
     with _seed_lock:
         if _seeded:
@@ -3263,7 +3263,8 @@ def _correction_period(row: dict[str, Any]) -> str | None:
 
 
 def _apply_registered_financial_corrections(
-        ticker: str, period: str | None, row: dict[str, Any]) -> dict[str, Any]:
+        ticker: str, period: str | None, row: dict[str, Any], *,
+        form: str | None = None, quarter: int | None = None) -> dict[str, Any]:
     """Overlay reviewed OpenInfo values on one in-memory catalog row.
 
     The overlay deliberately runs on reads, after feed/fact enrichment.  A
@@ -3274,7 +3275,8 @@ def _apply_registered_financial_corrections(
     """
     if not period:
         return row
-    registered = corrections_for(ticker, period)
+    standard = str(form or row.get("form") or "NSBU").strip().upper()
+    registered = corrections_for(ticker, period) if standard == "NSBU" else {}
     for field, correction in registered.items():
         row[field] = correction.value_thousands_uzs
         balance_key = _CORRECTION_BALANCE_KEYS.get(field)
@@ -3292,9 +3294,11 @@ def _apply_registered_financial_corrections(
     try:
         import data_quality
         year, display_quarter = int(period[:4]), int(period[-1])
-        stored_quarter = 0 if display_quarter == 4 and int(row.get("quarter") or 0) == 0 else display_quarter
+        stored_quarter = (quarter if quarter is not None else
+                          0 if display_quarter == 4 and int(row.get("quarter") or 0) == 0
+                          else display_quarter)
         approved = data_quality.approved_corrections_for(
-            ticker, str(row.get("form") or "NSBU"), year, stored_quarter)
+            ticker, standard, year, stored_quarter)
     except Exception:  # a quality overlay must never make a financial read fail
         logger.exception("financial corrections: quality overlay lookup failed for %s %s", ticker, period)
         approved = {}
@@ -3410,18 +3414,18 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         }
     _attach_annual_companion(conn, out, form)
     _attach_prior_interim_companion(conn, out, form)
-    if _financials_enrich_enabled():
+    if form == "NSBU" and _financials_enrich_enabled():
         _inherit_financials_by_org(conn, out)
         _enrich_financials_from_facts(conn, out)
     # Reviewed, source-linked corrections are the final authority.  Apply them
     # after every automated enrichment so the next collector run cannot put a
     # known-bad parsed/feed value back on the site.
     for ticker, row in out.items():
-        _apply_registered_financial_corrections(ticker, _correction_period(row), row)
+        _apply_registered_financial_corrections(ticker, _correction_period(row), row, form=form)
         annual = row.get("annual")
         if isinstance(annual, dict):
             _apply_registered_financial_corrections(
-                ticker, _correction_period(annual), annual)
+                ticker, _correction_period(annual), annual, form=form)
     # Corrections are overlaid after the first companion attachment. Re-run it
     # so a corrected statement can replace a stale embedded comparative before
     # TTM, ROE and ROA are assembled.
@@ -3430,7 +3434,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         prior = row.get("prior")
         if isinstance(prior, dict):
             _apply_registered_financial_corrections(
-                ticker, _correction_period(prior), prior)
+                ticker, _correction_period(prior), prior, form=form)
         # Implementation details must never escape as public financial fields.
         row.pop("_reviewed_correction_fields", None)
         for nested in (row.get("annual"), prior):
@@ -3463,7 +3467,8 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
         f"""
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
                f.total_liabilities, f.net_income, f.operating_income, f.operating_expenses,
-               f.noninterest_income, f.org_type, f.balance_period, f.field_periods
+               f.noninterest_income, f.org_type, f.balance_period, f.field_periods,
+               f.total_assets, f.total_equity
         FROM catalog_financials f
         JOIN (
             SELECT f.ticker AS ticker, MAX{rank} AS rank
@@ -3488,6 +3493,7 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
             "org_type": r["org_type"],
             "balance": _decode_balance_period(r["balance_period"]),
             "field_periods": _decode_field_periods(r["field_periods"]),
+            "total_assets": r["total_assets"], "total_equity": r["total_equity"],
         }
         for r in rows
     }
@@ -4269,6 +4275,75 @@ def audit_financials_consistency(form: str = "NSBU", tol: float = 0.05) -> list[
     return flags
 
 
+def get_financial_history_coverage(form: str = "NSBU") -> dict[str, dict[str, Any]]:
+    """Field/period coverage against discovered filings, grouped by issuer.
+
+    This measures collection, before public consistency filters. It does not
+    claim that the source has been fully discovered or that a figure is valid.
+    """
+    conn = get_catalog_conn()
+    try:
+        companies = list(conn.execute("SELECT ticker, org_id FROM catalog_companies").fetchall())
+        reports = list(conn.execute(
+            "SELECT ticker, year, quarter, excel_url FROM catalog_reports "
+            "WHERE report_form=? AND year IS NOT NULL", (form,)).fetchall())
+        financials = list(conn.execute(
+            f"SELECT ticker, year, quarter, balance_period, {', '.join(_FIN_FIELDS)} "
+            "FROM catalog_financials WHERE form=?", (form,)).fetchall())
+    finally:
+        conn.close()
+    issuer = {r["ticker"]: str(r["org_id"] or r["ticker"]) for r in companies}
+    expected: dict[str, set[str]] = {}
+    values: dict[str, dict[str, dict[str, Any]]] = {}
+    banks: set[str] = set()
+    tickers = set(issuer)
+    for row in reports:
+        if _is_future_period(row["year"], row["quarter"] or 0):
+            continue
+        ticker = row["ticker"]
+        tickers.add(ticker)
+        org = issuer.get(ticker, ticker)
+        period = f"{row['year']}Q{row['quarter']}" if row["quarter"] else str(row["year"])
+        expected.setdefault(org, set()).add(period)
+        if "org_type=bank" in str(row["excel_url"] or ""):
+            banks.add(org)
+    for row in financials:
+        ticker = row["ticker"]
+        tickers.add(ticker)
+        org = issuer.get(ticker, ticker)
+        period = f"{row['year']}Q{row['quarter']}" if row["quarter"] else str(row["year"])
+        values.setdefault(org, {}).setdefault(period, {}).update(_fin_row_fields(row))
+    # A reviewed correction counts as available, but cannot invent IFRS data.
+    if form == "NSBU":
+        for ticker in tickers:
+            org = issuer.get(ticker, ticker)
+            for p, corrections in correction_periods_for(ticker).items():
+                period = p[:4] if p.endswith("Q4") else p
+                values.setdefault(org, {}).setdefault(period, {}).update(
+                    {key: correction.value_thousands_uzs for key, correction in corrections.items()})
+    out = {}
+    for ticker in tickers:
+        org = issuer.get(ticker, ticker)
+        required = ("revenue", "net_income", "total_assets", "total_equity", "total_liabilities")
+        if org in banks:
+            required += ("cash", "gross_profit", "operating_income", "operating_expenses")
+        periods = expected.get(org, set())
+        collected = values.get(org, {})
+        missing = {p: [field for field in required if collected.get(p, {}).get(field) is None]
+                   for p in sorted(periods, reverse=True)}
+        missing = {p: fields for p, fields in missing.items() if fields}
+        absent = [p for p in sorted(periods, reverse=True) if not collected.get(p)]
+        out[ticker] = {
+            "scope": "catalogued_filings", "standard": form,
+            "status": "NO_CATALOGUED_REPORTS" if not periods else "PARTIAL" if missing else "COLLECTED",
+            "expected_periods": len(periods),
+            "parsed_periods": sum(bool(collected.get(p)) for p in periods),
+            "complete_periods": len(periods) - len(missing),
+            "missing_periods": absent, "missing_fields": missing,
+        }
+    return out
+
+
 def get_catalog_coverage(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     """Per-ticker data coverage from the catalog DB (for /api/coverage).
 
@@ -4295,6 +4370,7 @@ def get_catalog_coverage(form: str = "NSBU") -> dict[str, dict[str, Any]]:
     }
     conn.close()
     fin = get_all_financials(form)
+    history = get_financial_history_coverage(form)
     out: dict[str, dict[str, Any]] = {}
     tickers = set(comp) | set(rep_counts) | set(fin)
     for tk in tickers:
@@ -4305,6 +4381,7 @@ def get_catalog_coverage(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "last_synced_at": info.get("last_synced_at"),
             "reports": rep_counts.get(tk, 0),
             "has_financials": tk in fin,
+            "financial_history": history.get(tk),
         }
     return out
 
@@ -4788,7 +4865,8 @@ def _fin_row_fields(row: Any) -> dict[str, Any]:
     (balance_period's assets_end/equity_end) — those fill the gap, so the latest
     quarters show a balance before any backfill re-parses the history.
     """
-    fields = {k: row[k] for k in _FIN_FIELDS if row[k] is not None}
+    available = set(row.keys())
+    fields = {k: row[k] for k in _FIN_FIELDS if k in available and row[k] is not None}
     if fields.get("total_assets") is None or fields.get("total_equity") is None:
         balance = _decode_balance_period(row["balance_period"]) or {}
         for field, key in (("total_assets", "assets_end"), ("total_equity", "equity_end")):
@@ -4842,11 +4920,11 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
     # A reviewed "Добавить" can be the only known value in a year.  Seed those
     # years from the register before applying it; otherwise an absent database
     # row would make the correction itself unreachable.
-    for period in correction_periods_for(t):
+    for period in (correction_periods_for(t) if form == "NSBU" else {}):
         if period.endswith("Q4"):
             out.setdefault(period[:4], {})
     for year, fields in out.items():
-        _apply_registered_financial_corrections(t, f"{year}Q4", fields)
+        _apply_registered_financial_corrections(t, f"{year}Q4", fields, form=form, quarter=0)
     return out
 
 
@@ -4884,11 +4962,11 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
     # As on the annual path, a correction-only quarter is still a real filed
     # quarter.  Q4 comes from the annual reader in derive_quarterly_series; add
     # Q1-Q3 here so a wholly absent cache row does not hide reviewed values.
-    for period in correction_periods_for(t):
+    for period in (correction_periods_for(t) if form == "NSBU" else {}):
         if not period.endswith("Q4"):
             out.setdefault(period, {})
     for period, fields in out.items():
-        _apply_registered_financial_corrections(t, period, fields)
+        _apply_registered_financial_corrections(t, period, fields, form=form, quarter=int(period[-1]))
     return out
 
 
@@ -5193,8 +5271,8 @@ def unified_quarterly_records(session: Any, org_id: Any) -> list[dict[str, Any]]
             payload = _json_get(session, "/reports/unified-financial-reports/",
                                 {"format": "json", "page": page, "page_size": 200,
                                  "organization": org_id})
-        except Exception:  # noqa: BLE001 — a short feed is still worth harvesting
-            break
+        except Exception as exc:
+            raise RuntimeError(f"Quarterly filing discovery failed for issuer {org_id}, page {page}") from exc
         results = list(payload.get("results") or []) if isinstance(payload, dict) else []
         for rec in results:
             props = rec.get("properties") or {}
@@ -5532,6 +5610,7 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int) -> 
 # ---------------------------------------------------------------------------
 
 _LABEL_PATTERNS: dict[str, list[str]] = {
+    "noninterest_income": ["итого беспроцентных доходов", "всего беспроцентных доходов"],
     "revenue": ["выруч", "реализац", "revenue", "sales", "daromad", "tushum"],
     "net_income": ["чистая прибыл", "чистый доход", "чистый убыт",
                    "net income", "net profit", "net loss", "sof foyda"],
@@ -5669,6 +5748,11 @@ def _row_value(nums: list, strict_period: bool = False) -> float | None:
         and (len(vals) >= 3 or abs(vals[1]) > abs(vals[0]) * 100)
     )
     rest = vals[1:] if first_is_code else vals
+    # Bank income statements have one signed amount. Zero is a published value,
+    # not a missing period: BRBN's 2024 gross profit and 2021/2023 pre-tax profit
+    # were all lost by the generic first-nonzero selection below.
+    if len(rest) == 1:
+        return rest[0]
 
     def _first_nonzero(seq: list[float]) -> float | None:
         for v in seq:
@@ -5969,6 +6053,7 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
 
     source_rows: dict[str, Any] = {
         "revenue": revenue,
+        "noninterest_income": _extract_metric(income_rows or all_rows, "noninterest_income"),
         "net_income": net_income,
         "gross_profit": gross_profit,
         "operating_income": operating_income,

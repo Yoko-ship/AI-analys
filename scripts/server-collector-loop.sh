@@ -1,6 +1,6 @@
 #!/bin/sh
 # Keep the VPS collector attached to its sibling API service.  The collector
-# normally targets Railway when FINANCIALS_PUSH_URL is absent, so this loop is
+# normally targets uzstock.uz when FINANCIALS_PUSH_URL is absent, so this loop is
 # intentionally only used by docker-compose.yml, which sets an internal URL.
 set -eu
 

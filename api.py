@@ -3646,7 +3646,7 @@ async def api_coverage() -> dict[str, Any]:
     coverage = await loop.run_in_executor(None, get_catalog_coverage)
 
     items: list[dict[str, Any]] = []
-    counts = {"price": 0, "volume": 0, "financials": 0, "reports": 0, "resolved": 0}
+    counts = {"price": 0, "volume": 0, "financials": 0, "financial_history": 0, "reports": 0, "resolved": 0}
     for stock in stocks:
         ticker = str(stock.get("ticker") or "").upper()
         cov = coverage.get(ticker, {})
@@ -3658,6 +3658,7 @@ async def api_coverage() -> dict[str, Any]:
         counts["price"] += has_price
         counts["volume"] += has_volume
         counts["financials"] += has_fin
+        counts["financial_history"] += (cov.get("financial_history") or {}).get("status") == "COLLECTED"
         counts["reports"] += has_reports
         counts["resolved"] += resolved
         items.append({
@@ -3669,6 +3670,7 @@ async def api_coverage() -> dict[str, Any]:
             "has_price": has_price,
             "has_volume": has_volume,
             "has_financials": has_fin,
+            "financial_history": cov.get("financial_history"),
             "reports": int(cov.get("reports") or 0),
             "sync_error": cov.get("sync_error"),
         })
@@ -5325,7 +5327,8 @@ QUARTER_STOCK_FIELDS = {"cash": "cash", "total_liabilities": "total_liabilities"
 
 
 def derive_quarterly_series(cumulative: dict[str, Any],
-                            annual: dict[str, Any]) -> tuple[list[str], dict[str, dict[str, Any]]]:
+                            annual: dict[str, Any], *,
+                            issues: list[dict[str, Any]] | None = None) -> tuple[list[str], dict[str, dict[str, Any]]]:
     """Discrete three-month columns out of NSBU's cumulative quarterly filings.
 
     This is the standard presentation for comparing quarters — every terminal
@@ -5352,6 +5355,13 @@ def derive_quarterly_series(cumulative: dict[str, Any],
     Returns (periods newest-first, {field: {period: value}}) in the store's own
     unit (thousands of UZS); the endpoint owns the scale contract, as everywhere.
     """
+    from decimal import Decimal
+
+    def difference(current: Any, previous: Any) -> float | None:
+        if current is None or previous is None:
+            return None
+        return float(Decimal(str(current)) - Decimal(str(previous)))
+
     cum: dict[tuple[int, int], dict[str, Any]] = {}
     for p, fields in (cumulative or {}).items():
         m = re.fullmatch(r"(\d{4})Q([1-4])", str(p))
@@ -5398,6 +5408,9 @@ def derive_quarterly_series(cumulative: dict[str, Any],
         if len(points) < 2:
             continue
         for q in {q for q, _ in points} - keep_consistent(points):
+            if issues is not None:
+                issues.append({"period": f"{year}Q{q}", "code": "INCONSISTENT_CUMULATIVE_INCOME",
+                               "fields": list(QUARTER_FLOW_FIELDS.values())})
             if q == 4:
                 annual_q4_ok[year] = False
             else:
@@ -5420,7 +5433,10 @@ def derive_quarterly_series(cumulative: dict[str, Any],
             if v is None:
                 continue
             prev = 0.0 if q == 1 else cum.get((year, q - 1), {}).get(src)
-            put(name, year, q, v - prev if prev is not None else None)
+            if prev is None and issues is not None:
+                issues.append({"period": f"{year}Q{q}", "code": "MISSING_COMPARATIVE_INPUT",
+                               "field": name, "required_period": f"{year}Q{q - 1}"})
+            put(name, year, q, difference(v, prev))
         for src, name in QUARTER_STOCK_FIELDS.items():
             put(name, year, q, fields.get(src))
 
@@ -5439,7 +5455,10 @@ def derive_quarterly_series(cumulative: dict[str, Any],
         q3 = cum.get((year, 3), {})
         for src, name in QUARTER_FLOW_FIELDS.items():
             v, nine = a.get(src), q3.get(src)
-            put(name, year, 4, v - nine if v is not None and nine is not None else None)
+            if v is not None and nine is None and issues is not None:
+                issues.append({"period": f"{year}Q4", "code": "MISSING_COMPARATIVE_INPUT",
+                               "field": name, "required_period": f"{year}Q3"})
+            put(name, year, 4, difference(v, nine))
         for src, name in QUARTER_STOCK_FIELDS.items():
             put(name, year, 4, a.get(src))
 
@@ -5565,11 +5584,13 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                     merged = dict(fields)
                     merged.update(annual.get(period) or {})
                     annual[period] = merged
-            q_periods, raw = derive_quarterly_series(cumulative, annual)
+            data_gaps: list[dict[str, Any]] = []
+            q_periods, raw = derive_quarterly_series(cumulative, annual, issues=data_gaps)
             import data_quality
             held_periods = await loop.run_in_executor(
                 None, partial(data_quality.held_public_periods, ticker, standard))
             if held_periods:
+                data_gaps.extend({"period": p, "code": "UNDER_REVIEW"} for p in sorted(held_periods))
                 q_periods = [period for period in q_periods if period not in held_periods]
                 raw = {name: {period: value for period, value in values.items()
                               if period not in held_periods}
@@ -5603,9 +5624,16 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                 series["net_margin"] = {"unit": "%", "money": False,
                                         "derived": True, "values": margin}
             _fill_equity_by_identity(series)
+            for p in q_periods:
+                missing = [field for field in ("net_revenue", "net_profit", "total_assets", "total_equity", "total_liabilities")
+                           if (series.get(field) or {}).get("values", {}).get(p) is None]
+                if missing:
+                    data_gaps.append({"period": p, "code": "MISSING_FINANCIAL_FIELDS", "fields": missing})
             return _etag_json(request, {
                 "ok": True, "ticker": ticker, "currency": "UZS", "standard": standard, "freq": "quarterly",
                 "periods": q_periods, "series": series,
+                "availability": "NO_PARSED_FINANCIALS" if not series else "PARTIAL" if data_gaps else "AVAILABLE",
+                "data_gaps": data_gaps,
             }, max_age=300)
         except Exception as exc:
             logger.exception("company quarterly financials failed for %s", ticker)
@@ -5763,7 +5791,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         reviewed_annuals = {
             period[:4]
             for correction_ticker in correction_tickers
-            for period in correction_periods_for(correction_ticker)
+            for period in (correction_periods_for(correction_ticker) if standard == "NSBU" else {})
             if period.endswith("Q4")
         }
         for period in (purged_empty - reviewed_annuals) & periods:
@@ -5799,7 +5827,10 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         annual_years = {str(r.get("year")) for r in (await loop.run_in_executor(
             None, partial(get_company_reports, ticker)) or [])
             if r.get("report_form") == standard and not r.get("quarter") and r.get("year")}
+        data_gaps = [{"period": p, "code": "EMPTY_SOURCE_FILING"}
+                     for p in sorted(purged_empty - reviewed_annuals, reverse=True)]
         for ghost in duplicate_filed_years(series, periods, annual_years):
+            data_gaps.append({"period": ghost, "code": "UNSUPPORTED_DUPLICATE_PERIOD"})
             logger.info("financials %s: dropping %s — identical to its neighbour on every "
                         "filed line and with no annual filing of its own", ticker, ghost)
             periods.discard(ghost)
@@ -5832,10 +5863,20 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
             series["net_margin"] = {"unit": "%", "money": False, "derived": True,
                                     "values": derived}
         _fill_equity_by_identity(series)
+        for p in sorted(annual_years - periods, reverse=True):
+            if int(p) <= last_fy and not any(gap["period"] == p for gap in data_gaps):
+                data_gaps.append({"period": p, "code": "REPORT_NOT_PARSED"})
+        for p in sorted(periods, reverse=True):
+            missing = [field for field in ("net_revenue", "net_profit", "total_assets", "total_equity", "total_liabilities")
+                       if (series.get(field) or {}).get("values", {}).get(p) is None]
+            if missing:
+                data_gaps.append({"period": p, "code": "MISSING_FINANCIAL_FIELDS", "fields": missing})
         return _etag_json(request, {
             "ok": True, "ticker": ticker, "org_id": org_id, "currency": "UZS", "standard": standard,
             "periods": sorted(periods, reverse=True),
             "series": series,
+            "availability": "NO_PARSED_FINANCIALS" if not series else "PARTIAL" if data_gaps else "AVAILABLE",
+            "reports_available": bool(annual_years), "data_gaps": data_gaps,
         }, max_age=300)
     except Exception as exc:
         logger.exception("company financials failed for %s", ticker)

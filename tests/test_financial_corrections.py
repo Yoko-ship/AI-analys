@@ -88,6 +88,47 @@ def test_every_registered_row_is_available_even_with_an_empty_cache(monkeypatch,
         )
 
 
+def test_nsbu_corrections_cannot_create_ifrs_years_or_overwrite_ifrs(monkeypatch, tmp_path):
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "standards.db"))
+    monkeypatch.setattr(rc, "_financials_enrich_enabled", lambda: True)
+    monkeypatch.setattr(rc, "_enrich_financials_from_facts", lambda *args: pytest.fail(
+        "Unspecified-standard indicators must not enrich IFRS"))
+    assert rc.get_financials_series("IPTB", "MSFO") == {}
+    assert rc.get_financials_series_quarterly("IPTB", "MSFO") == {}
+    rc.upsert_financials_cache("IPTB", "MSFO", 2022, 0, {
+        "total_assets": 100.0, "total_equity": 20.0,
+    })
+    rc.upsert_financials_cache("IPTB", "MSFO", 2023, 1, {
+        "total_assets": 110.0, "total_equity": 22.0,
+    })
+    annual = rc.get_financials_series("IPTB", "MSFO")
+    assert list(annual) == ["2022"]
+    assert annual["2022"]["total_assets"] == 100.0
+    assert annual["2022"]["total_equity"] == 20.0
+    quarterly = rc.get_financials_series_quarterly("IPTB", "MSFO")
+    assert list(quarterly) == ["2023Q1"]
+    latest = rc.get_all_financials("MSFO")["IPTB"]
+    assert latest["annual"]["total_assets"] == 100.0
+    assert latest["annual"]["total_equity"] == 20.0
+
+
+def test_approved_corrections_use_the_requested_standard_and_quarter(monkeypatch, tmp_path):
+    import data_quality
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "approved-standards.db"))
+    calls = []
+
+    def approved(ticker, form, year, quarter):
+        calls.append((ticker, form, year, quarter))
+        return {"total_assets": 123.0} if form == "MSFO" else {"total_assets": 999.0}
+
+    monkeypatch.setattr(data_quality, "approved_corrections_for", approved)
+    rc.upsert_financials_cache("BANK", "MSFO", 2024, 4, {"total_assets": 100.0})
+    rc.upsert_financials_cache("BANK", "MSFO", 2024, 0, {"total_assets": 100.0})
+    assert rc.get_financials_series("BANK", "MSFO")["2024"]["total_assets"] == 123.0
+    assert rc.get_financials_series_quarterly("BANK", "MSFO")["2024Q4"]["total_assets"] == 123.0
+    assert calls == [("BANK", "MSFO", 2024, 0), ("BANK", "MSFO", 2024, 4)]
+
+
 def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "api-corrections.db"))
     monkeypatch.setattr(api, "get_company_index", lambda ticker: {"org_id": ticker})
@@ -127,6 +168,7 @@ def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_pa
             prior = fc.corrections_for(
                 correction.ticker, f"{correction.period[:4]}Q{int(correction.period[-1]) - 1}")
             expected -= prior["operating_expenses"].value_thousands_uzs
-        assert body["series"][correction.field]["values"][period] == pytest.approx(
+        public_field = "net_revenue" if correction.field == "revenue" else correction.field
+        assert body["series"][public_field]["values"][period] == pytest.approx(
             expected * rc.NSBU_THOUSANDS_UZS
         ), (correction.ticker, correction.period, correction.field)

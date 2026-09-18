@@ -135,6 +135,7 @@ class TestItIsLabelledWithItsOwnPeriod:
                                     "revenue": pytest.approx(237_634_918),
                                     "gross_profit": pytest.approx(209_183_367),
                                     "operating_income": pytest.approx(135_029_437),
+                                    "operating_expenses": None,
                                     "net_income": pytest.approx(186_787_068)}
 
 

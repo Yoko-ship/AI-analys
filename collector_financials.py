@@ -45,7 +45,7 @@ from runtime_preflight import COLLECTOR_REQUIREMENTS, preflight  # noqa: E402
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("collector")
 
-DEFAULT_URL = "https://ai-analys-production.up.railway.app"
+DEFAULT_URL = "https://uzstock.uz"
 KEYS = ("revenue", "gross_profit", "cash", "total_liabilities", "net_income",
         "operating_income", "operating_expenses", "noninterest_income", "org_type", "balance")
 
@@ -339,10 +339,13 @@ def backfill_financials(min_year: int = 2015, tickers: set[str] | None = None) -
             try:
                 data = rc.fetch_report_excel_data(ticker, "NSBU", year, 0)
                 if not data.get("ok"):
+                    failed += 1
+                    log.warning("annual backfill: %s %s: %s", ticker, year, data.get("error"))
                     continue
                 ratios = rc.compute_financial_ratios(data.get("income"), data.get("balance")) or {}
                 vals = ratios.get("source_values") or {}
                 if not any(vals.get(k) is not None for k in rc.FIN_MONEY_FIELDS):
+                    failed += 1
                     continue
                 rows.append({"ticker": ticker, "year": year, "quarter": 0,
                              **{k: vals.get(k) for k in rc.FIN_MONEY_FIELDS}})
@@ -373,7 +376,7 @@ def backfill_financials(min_year: int = 2015, tickers: set[str] | None = None) -
              len(rows), scanned, failed, ratios_written)
     if not rows:
         return 1
-    status = 0
+    status = 1 if failed else 0
     # upsert, never replace: the newest period the board reads must survive a
     # backfill that is only adding history behind it.
     for start in range(0, len(rows), 500):
@@ -439,10 +442,13 @@ def backfill_quarterly_financials(min_year: int = 2023,
             try:
                 data = rc.fetch_report_excel_data(ticker, "NSBU", year, quarter)
                 if not data.get("ok"):
+                    failed += 1
+                    log.warning("quarterly backfill: %s %sQ%s: %s", ticker, year, quarter, data.get("error"))
                     continue
                 ratios = rc.compute_financial_ratios(data.get("income"), data.get("balance")) or {}
                 vals = ratios.get("source_values") or {}
                 if not any(vals.get(k) is not None for k in rc.FIN_MONEY_FIELDS):
+                    failed += 1
                     continue
                 rows.append({"ticker": ticker, "year": year, "quarter": quarter,
                              **{k: vals.get(k) for k in rc.FIN_MONEY_FIELDS}})
@@ -461,7 +467,7 @@ def backfill_quarterly_financials(min_year: int = 2023,
              len(rows), scanned, failed)
     if not rows:
         return 1
-    status = 0
+    status = 1 if failed else 0
     # upsert, never replace: the newest cumulative quarter the board reads must
     # survive a backfill that is only adding history behind it.
     for start in range(0, len(rows), 500):
@@ -634,14 +640,105 @@ def backfill_company_quarter_history(ticker: str, limit: int = 40) -> int:
         # Idempotency matters: a rerun after a successful repair should not be
         # reported as a failed production action merely because every filing is
         # already catalogued.
-        return 0
-    status = 0
+        return 1 if errors else 0
+    status = 1 if errors else 0
     for start in range(0, len(rows), 500):
         status = _post("/api/admin/financials", {
             "form": "NSBU",
             "mode": "upsert",
             "rows": rows[start:start + 500],
         }) or status
+    return status
+
+
+def _bank_history_remote_attempt(ticker: str) -> str:
+    """Rotation lives on the API; production collector containers are ephemeral."""
+    base = os.getenv("FINANCIALS_PUSH_URL", DEFAULT_URL).rstrip("/")
+    response = requests.get(f"{base}/api/facts/{ticker}", params={"dataset": "bank_history"}, timeout=20)
+    response.raise_for_status()
+    body = response.json()
+    if not body.get("ok"):
+        raise RuntimeError("Bank history checkpoint read failed")
+    rows = body.get("datasets", {}).get("bank_history", {}).get("last_attempt", [])
+    return max((str(row.get("value") or "") for row in rows if row.get("source") == "collector"), default="")
+
+
+def backfill_bank_financials(limit: int = 2, *, force: bool = False,
+                            ticker: str | None = None) -> int:
+    """Repair a rotating batch of bank issuers, including already catalogued gaps.
+
+    Discover old quarters first, then re-parse ALL catalogued annuals and quarters.
+    This also retries a previous failed push: catalogue presence is not proof that
+    the API received the figures. The attempted-at marker rotates failed issuers
+    too, so one malformed filing cannot starve every other bank.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    if limit <= 0:
+        return 0
+    conn = rc.get_catalog_conn()
+    try:
+        candidates = conn.execute("""
+            SELECT DISTINCT c.ticker, c.company_name, c.org_id
+            FROM catalog_companies c JOIN catalog_reports r ON r.ticker=c.ticker
+            WHERE c.org_id IS NOT NULL AND r.report_form='NSBU'
+              AND (r.excel_url LIKE '%org_type=bank%' OR r.excel_url_form1 LIKE '%org_type=bank%')
+            ORDER BY c.ticker
+        """).fetchall()
+    finally:
+        conn.close()
+    # Ordinary/preferred shares and bank bonds share one financial statement.
+    issuers = {}
+    for row in sorted(candidates, key=lambda r: (str(r["ticker"]).endswith("P"), len(r["ticker"]), r["ticker"])):
+        issuers.setdefault(str(row["org_id"]), dict(row))
+    if ticker:
+        requested = str(ticker).strip().upper()
+        selected_orgs = {str(row["org_id"]) for row in candidates if row["ticker"] == requested}
+        issuers = {org: row for org, row in issuers.items() if org in selected_orgs}
+    if force and not issuers:
+        log.error("No matching bank issuer is catalogued; sync the report catalog first")
+        return 1
+    attempts = {str(f["entity_id"]): str(f.get("value_text") or "")
+                for f in rc.get_facts(dataset="bank_history") if f["field"] == "last_attempt"}
+    if not force:
+        for org, company in issuers.items():
+            attempts[org] = max(attempts.get(org, ""), _bank_history_remote_attempt(company["ticker"]))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    due = sorted((row for org, row in issuers.items()
+                  if force or attempts.get(org, "") < cutoff),
+                 key=lambda row: (attempts.get(str(row["org_id"]), ""), row["ticker"]))
+    status = 0
+    for company in due[:limit]:
+        ticker, org_id = company["ticker"], str(company["org_id"])
+        result = 0
+        try:
+            sync = rc.sync_company(ticker, company["company_name"], force=True, org_id=org_id)
+            if sync.get("errors"):
+                raise RuntimeError("; ".join(sync["errors"]))
+            # Harvest alone skips known ids. The two parses below are required
+            # even on a rerun, including when its first upload failed.
+            result = backfill_company_quarter_history(ticker, limit=200) or result
+            result = backfill_financials(2015, tickers={ticker}) or result
+            result = backfill_quarterly_financials(2015, tickers={ticker}) or result
+        except Exception:
+            log.exception("bank history repair failed for %s", ticker)
+            result = 1
+        marker = [
+            {"entity_id": org_id, "dataset": "bank_history", "field": "last_attempt",
+             "value": datetime.now(timezone.utc).isoformat(), "source": "collector"},
+            {"entity_id": org_id, "dataset": "bank_history", "field": "status",
+             "value": "partial" if result else "ok", "source": "collector"},
+        ]
+        # Push failures are reported, and the local rotation survives both API
+        # outages and collector restarts on the server's shared data volume.
+        result = _post("/api/admin/facts", {"rows": marker}) or result
+        if result:
+            marker[1]["value"] = "partial"
+        rc.upsert_facts(marker)
+        status = result or status
+    log.info("bank history: %d issuers due, %d attempted, status=%d", len(due), min(limit, len(due)), status)
+    if due:
+        _stamp_step("bank_history", "partial" if status else "ok")
     return status
 
 
@@ -1409,6 +1506,11 @@ def main() -> int:
     ap.add_argument("--push-only", action="store_true", help="skip financials refresh, push current cache")
     ap.add_argument("--no-push", action="store_true", help="refresh locally, do not push")
     ap.add_argument("--no-financials", action="store_true", help="skip the financials step")
+    ap.add_argument("--bank-history-only", action="store_true",
+                    help="repair bank annual and quarterly history, including previously catalogued gaps")
+    ap.add_argument("--bank-history-limit", type=int, default=None,
+                    help="banks per history pass (default: 2 daily, all with --bank-history-only)")
+    ap.add_argument("--bank-history-ticker", help="limit --bank-history-only to one bank, e.g. BRBN")
     ap.add_argument("--no-trades", action="store_true", help="skip the trade-stats step")
     ap.add_argument("--trades-only", action="store_true", help="only fetch+push trade stats")
     ap.add_argument("--no-quotes", action="store_true",
@@ -1471,6 +1573,17 @@ def main() -> int:
     # the per-issuer `except Exception` guards below would otherwise turn a
     # missing dependency into a run that "succeeds" having collected nothing.
     preflight(COLLECTOR_REQUIREMENTS, label="collector")
+
+    if args.bank_history_only:
+        if args.no_push:
+            ap.error("--bank-history-only publishes repaired data; do not combine it with --no-push")
+        try:
+            return backfill_bank_financials(
+                args.bank_history_limit if args.bank_history_limit is not None else 1000,
+                force=True, ticker=args.bank_history_ticker)
+        except Exception:
+            log.exception("bank history repair failed")
+            return 1
 
     if args.backfill_financials is not None:
         try:
@@ -1643,6 +1756,16 @@ def main() -> int:
     # Authoritative structured-JSON reconciliation — runs last so it supersedes the
     # legacy Excel/PDF figures and the alias copies for every ticker openinfo can
     # source directly.
+    if not (args.no_financials or args.no_push or args.push_only or args.trades_only
+            or args.facts_only or args.listings_only):
+        try:
+            rc_status = backfill_bank_financials(
+                args.bank_history_limit if args.bank_history_limit is not None
+                else int(os.getenv("BANK_HISTORY_BATCH", "2"))) or rc_status
+        except Exception:
+            log.exception("bank history step failed")
+            rc_status = rc_status or 1
+
     if not (args.no_reconcile or args.no_push or args.trades_only or args.facts_only or args.listings_only):
         try:
             rc_status = reconcile_and_push() or rc_status
