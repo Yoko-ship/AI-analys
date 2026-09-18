@@ -5283,7 +5283,13 @@ EXCEL_HARVEST_MAX_BYTES = int(os.getenv("OPENINFO_EXCEL_MAX_BYTES", "3000000"))
 
 
 def unified_quarterly_records(session: Any, org_id: Any) -> list[dict[str, Any]]:
-    """Every NSBU quarterly filing the unified feed lists for one issuer.
+    """List NSBU quarters beyond the structured endpoint's ten-report window."""
+    return _unified_statement_records(session, org_id, period_type="quarter")
+
+
+def _unified_statement_records(session: Any, org_id: Any, *,
+                               period_type: str | None = None) -> list[dict[str, Any]]:
+    """NSBU filings of the requested kind from the issuer's unified feed.
 
     Returns records carrying the accounting id the Excel export takes
     (``report_link``'s tail), the ``to_pdf`` id, the publication date and the
@@ -5298,13 +5304,14 @@ def unified_quarterly_records(session: Any, org_id: Any) -> list[dict[str, Any]]
                                 {"format": "json", "page": page, "page_size": 200,
                                  "organization": org_id})
         except Exception as exc:
-            raise RuntimeError(f"Quarterly filing discovery failed for issuer {org_id}, page {page}") from exc
+            raise RuntimeError(f"Statement filing discovery failed for issuer {org_id}, page {page}") from exc
         results = list(payload.get("results") or []) if isinstance(payload, dict) else []
         for rec in results:
             props = rec.get("properties") or {}
             if str(rec.get("report_type") or "") != "NSBU":
                 continue
-            if str(props.get("report_type") or "").lower() != "quarter":
+            kind = str(props.get("report_type") or "").lower()
+            if kind not in {"annual", "quarter"} or (period_type and kind != period_type):
                 continue
             m = re.search(r"/reports/[a-z]+/[a-z]+/(\d+)/?$", str(rec.get("report_link") or ""))
             if not m or not rec.get("pub_date"):
@@ -5315,8 +5322,9 @@ def unified_quarterly_records(session: Any, org_id: Any) -> list[dict[str, Any]]
                 "pub_date": str(rec["pub_date"]),
                 "org_type": props.get("org_type"),
                 "title": props.get("report_title"),
+                "period_type": kind,
                 "excel_url": rec.get("excel_url") or _nsbu_export_urls(
-                    m.group(1), "quarter", props.get("org_type"))[1],
+                    m.group(1), kind, props.get("org_type"))[1],
             })
         if len(results) < 200 or not (isinstance(payload, dict) and payload.get("next")):
             break
@@ -5324,6 +5332,50 @@ def unified_quarterly_records(session: Any, org_id: Any) -> list[dict[str, Any]]
     # a reader is likelier to open.
     out.sort(key=lambda r: r["pub_date"], reverse=True)
     return out
+
+
+def repair_statement_links(ticker: str) -> dict[str, Any]:
+    """Recover missing annual/quarterly URLs by exact source id, not guessed year.
+
+    The structured feed's limited window can no longer supply an old URL, but
+    the unified feed retains it. Reuse the catalog's known period for that exact
+    document; an unknown annual without a stated fiscal year needs review.
+    """
+    ticker = ticker.strip().upper()
+    conn = get_catalog_conn()
+    try:
+        org = conn.execute("SELECT org_id FROM catalog_companies WHERE ticker=?", (ticker,)).fetchone()
+        missing = conn.execute("SELECT year, quarter, period_type, openinfo_report_id FROM catalog_reports "
+                               "WHERE ticker=? AND report_form='NSBU' "
+                               "AND COALESCE(excel_url, '')='' AND COALESCE(excel_url_form1, '')=''",
+                               (ticker,)).fetchall()
+    finally:
+        conn.close()
+    result: dict[str, Any] = {"repaired": [], "unresolved": []}
+    if not missing or not org or not org["org_id"]:
+        return result
+    source = {(r["period_type"], r["accounting_id"]): r
+              for r in _unified_statement_records(_make_session(), org["org_id"])}
+    conn = get_catalog_conn()
+    try:
+        with conn:
+            for row in missing:
+                key = (row["period_type"], str(row["openinfo_report_id"] or ""))
+                rec = source.get(key)
+                if not rec or not rec.get("excel_url") or row["year"] is None:
+                    result["unresolved"].append({"year": row["year"], "quarter": row["quarter"]})
+                    continue
+                _upsert_report(conn, ticker, report_form="NSBU", period_type=row["period_type"],
+                               year=row["year"], quarter=row["quarter"] or 0,
+                               title=rec.get("title"), published_at=rec["pub_date"],
+                               pdf_url=(f"{OPENINFO_WEB_BASE}/ru/reports/to_pdf{rec['pdf_id']}/"
+                                        if rec.get("pdf_id") else None),
+                               excel_url=rec["excel_url"], excel_url_form1=rec["excel_url"],
+                               openinfo_report_id=rec["accounting_id"], object_id=None)
+                result["repaired"].append({"year": row["year"], "quarter": row["quarter"] or 0})
+    finally:
+        conn.close()
+    return result
 
 
 def parse_catalogued_report(ticker: str, form: str, year: int, quarter: int,
@@ -5355,9 +5407,9 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
                                 pace: float = 0.2) -> dict[str, Any]:
     """Catalogue and parse the quarterly filings older than the source's window.
 
-    Only filings this catalog has never recorded are fetched — the accounting id
-    is the identity — so a second run over the same issuer costs one feed read
-    and no workbooks.
+    Fetch unknown filings and known records that have no workbook link. Merely
+    knowing an accounting id is not evidence that the document was collected.
+    A second run after a successful repair costs one feed read and no workbooks.
 
     Returns ``{"ticker", "rows", "added", "skipped", "errors"}``; ``rows`` are
     admin-push shaped, so a collector can hand them to /api/admin/financials the
@@ -5375,17 +5427,18 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
             return {"ticker": t, "rows": [], "added": 0, "skipped": 0,
                     "errors": ["issuer not catalogued — run the report sync first"]}
         stored = conn.execute(
-            "SELECT year, quarter, openinfo_report_id, published_at FROM catalog_reports "
+            "SELECT year, quarter, openinfo_report_id, published_at, excel_url, excel_url_form1 FROM catalog_reports "
             "WHERE ticker=? AND report_form='NSBU' AND period_type='quarter'", (t,)).fetchall()
     finally:
         conn.close()
-    seen = {str(r["openinfo_report_id"]) for r in stored if r["openinfo_report_id"]}
+    linked = [r for r in stored if r["excel_url"] or r["excel_url_form1"]]
+    seen = {str(r["openinfo_report_id"]) for r in linked if r["openinfo_report_id"]}
     # When was the filing we already hold for a period published? A record older
     # than that is a superseded revision of a period we have — openinfo lists
     # both (KSCM filed its 2023 half-year on 31 July and again on 8 August) and
     # re-parsing it every sweep buys an identical upsert for a download.
     held: dict[tuple[int, int], str] = {}
-    for row in stored:
+    for row in linked:
         if row["year"] and row["quarter"] and row["published_at"]:
             key = (int(row["year"]), int(row["quarter"]))
             held[key] = max(held.get(key, ""), str(row["published_at"]))

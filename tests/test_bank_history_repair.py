@@ -62,6 +62,7 @@ def test_bank_repair_rotates_issuers_and_reparses_known_history(catalog, monkeyp
     filing(catalog, "INSURER", "14", bank=False)
     calls = []
     monkeypatch.setattr(rc, "sync_company", lambda *args, **kw: {})
+    monkeypatch.setattr(rc, "repair_statement_links", lambda *args: {"repaired": [], "unresolved": []})
     monkeypatch.setattr(cf, "backfill_company_quarter_history", lambda ticker, **kw: calls.append(("discover", ticker)) or 0)
     monkeypatch.setattr(cf, "backfill_financials", lambda year, *, tickers: calls.append(("annual", next(iter(tickers)))) or 0)
     monkeypatch.setattr(cf, "backfill_quarterly_financials", lambda year, *, tickers: calls.append(("quarter", next(iter(tickers)))) or 0)
@@ -263,3 +264,47 @@ def test_full_year_fallback_keeps_the_actual_q4_source_passport(catalog):
     assert passport["source"]["stated_period"] == "2019Q4"
     assert passport["source"]["period_quarter"] == 4
     assert passport["source"]["excel_url"] == "https://example.org/2019q4.xlsx"
+
+
+def test_known_quarter_without_workbook_link_is_recovered_then_skipped(catalog, monkeypatch):
+    filing(catalog, "BANK", "12", 2023, 1)
+    conn = catalog()
+    with conn:
+        conn.execute("UPDATE catalog_reports SET excel_url=NULL, excel_url_form1=NULL, published_at='2023-04-26'")
+    conn.close()
+    url = "https://example.org/2023q1.xlsx"
+    monkeypatch.setattr(rc, "unified_quarterly_records", lambda *args: [{
+        "accounting_id": "20231", "pdf_id": "123", "pub_date": "2023-04-26",
+        "excel_url": url, "title": "Bank Q1",
+    }])
+    calls = []
+    monkeypatch.setattr(rc, "_parse_workbook_uncached", lambda *args: calls.append(args[-1]) or {"ok": True})
+    monkeypatch.setattr(rc, "compute_financial_ratios", lambda *args: {"source_values": {"revenue": 1000}})
+    monkeypatch.setattr(rc, "_register_parse", lambda *args: None)
+    first = rc.harvest_historical_quarters("BANK", session=object(), pace=0)
+    assert first["added"] == 1
+    assert rc.get_report_urls("BANK", "NSBU", 2023, 1)["excel_url"] == url
+    assert calls == [url]
+    again = rc.harvest_historical_quarters("BANK", session=object(), pace=0)
+    assert again["added"] == 0 and again["skipped"] == 1
+    assert calls == [url]
+
+
+def test_missing_annual_link_is_recovered_by_exact_id_without_guessing_a_year(catalog, monkeypatch):
+    filing(catalog, "BANK", "12", 2015)
+    conn = catalog()
+    with conn:
+        conn.execute("UPDATE catalog_reports SET excel_url=NULL, excel_url_form1=NULL")
+    conn.close()
+    monkeypatch.setattr(rc, "_unified_statement_records", lambda *args: [
+        {"period_type": "quarter", "accounting_id": "20150", "pub_date": "2016-07-01",
+         "excel_url": "https://example.org/wrong-quarter.xlsx", "pdf_id": "9"},
+        {"period_type": "annual", "accounting_id": "20150", "pub_date": "2016-07-01",
+         "excel_url": "https://example.org/right-annual.xlsx", "pdf_id": "10"},
+        {"period_type": "annual", "accounting_id": "unknown", "pub_date": "2014-07-01",
+         "excel_url": "https://example.org/unknown-year.xlsx", "pdf_id": "11"},
+    ])
+    result = rc.repair_statement_links("BANK")
+    assert result == {"repaired": [{"year": 2015, "quarter": 0}], "unresolved": []}
+    assert rc.get_report_urls("BANK", "NSBU", 2015, 0)["excel_url"] == "https://example.org/right-annual.xlsx"
+    assert len(rc.get_company_reports("BANK")) == 1

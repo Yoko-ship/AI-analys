@@ -50,6 +50,9 @@ Ordinary and preferred shares share one repair. Download or push failures are
 reported as partial; they do not prevent other issuers from being attempted.
 History reads bypass the small whole-file JSON snapshot cache: they fetch the
 current filing once, without repeatedly rewriting unrelated cached workbooks.
+Before parsing, missing annual and quarterly download links are repaired from
+the unified feed using exact document id and form. A catalog entry without a
+workbook link is retried; it is not considered a successfully collected document.
 
 To repair one bank immediately, run the following **inside the active API
 container**, with its existing data mount and credentials:

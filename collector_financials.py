@@ -715,6 +715,9 @@ def backfill_bank_financials(limit: int = 2, *, force: bool = False,
             sync = rc.sync_company(ticker, company["company_name"], force=True, org_id=org_id)
             if sync.get("errors"):
                 raise RuntimeError("; ".join(sync["errors"]))
+            links = rc.repair_statement_links(ticker)
+            log.info("bank history %s: recovered %d document links (%d unresolved)",
+                     ticker, len(links["repaired"]), len(links["unresolved"]))
             # Harvest alone skips known ids. The two parses below are required
             # even on a rerun, including when its first upload failed.
             result = backfill_company_quarter_history(ticker, limit=200) or result
