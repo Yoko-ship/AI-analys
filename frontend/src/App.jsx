@@ -13081,7 +13081,11 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
         )}
 
         <p className="fin-note muted">
-          {quarterly
+          {periodBasis === "cumulative_ytd"
+            ? t("Суммы в сумах по промежуточной отчётности МСФО. Доходы и расходы — с начала года; активы, обязательства и капитал — на отчётную дату. Рост г/г сравнивает одинаковую длительность периода.",
+                "Summalar so‘mda, MHXS oraliq hisobotlaridan. Daromad va xarajatlar yil boshidan jamlangan; aktivlar, majburiyatlar va kapital hisobot sanasiga. Yillik o‘sish bir xil davomiylikdagi davrlarni taqqoslaydi.",
+                "Sums in UZS from interim IFRS filings. Income and expenses are year-to-date; assets, liabilities and equity are at the reporting date. YoY growth compares periods of equal duration.")
+            : quarterly
             ? t("Суммы в сумах, за отдельный квартал (3 месяца) — рассчитаны из накопительных квартальных отчётов НСБУ; IV квартал — разница годового и девятимесячного отчётов. Рост г/г — к тому же кварталу прошлого года, кв/кв — к предыдущему кварталу. Активы, обязательства и капитал — на конец квартала.",
                 "Summalar somda, alohida chorak (3 oy) uchun — NSBU choraklik hisobotlaridan hisoblangan; IV chorak — yillik va 9 oylik hisobotlar farqi. Osish y/y — otgan yilning shu chorogiga, ch/ch — oldingi chorakka nisbatan. Aktivlar, majburiyatlar va kapital — chorak oxiriga.",
                 "Sums in UZS per discrete quarter (3 months), derived from the cumulative NSBU filings; Q4 is the annual less the nine-month filing. Growth YoY compares the same quarter a year earlier, QoQ the preceding quarter. Assets, liabilities and equity are quarter-end snapshots.")
