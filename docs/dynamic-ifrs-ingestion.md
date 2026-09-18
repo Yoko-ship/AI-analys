@@ -294,7 +294,10 @@ Validation: 211 focused tests passed, including nine new parser/layout cases.
 The deployment retained all 178 prior snapshot heads and published seven new
 heads containing 58 figures. Live API checks verified all 185 periods and
 1,660 published values, plus each value's source hash, scope and calculation
-components. The post-publication backup contains 242 verified originals;
+components. Browser checks passed for all seven added periods, including the
+missing-income display. All six public PDF downloads matched their stored
+SHA256 hashes when checked from the production host. The post-publication
+backup contains 242 verified originals;
 monitoring reports no incidents, stale publications or overdue sources, and
 the staging timer is active. Workers continue to require attributed review
 before publication; new report formats can still require parser maintenance.

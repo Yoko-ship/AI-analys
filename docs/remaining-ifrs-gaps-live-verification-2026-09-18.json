@@ -493,5 +493,50 @@
       "url": "https://sqb.uz/upload/files/UzPSB IFRS FS 06.2019.pdf",
       "source_page": "https://sqb.uz/en/for-investors/reports/ifrs-en/"
     }
-  ]
+  ],
+  "public_artifact_verification": [
+    {
+      "ticker": "IPTB",
+      "sha256": "ca0bc70eb3101c777ce395b445a4c99be4ce030e3137946b84d7d03b9872b324",
+      "bytes": 1641298,
+      "verified": true,
+      "check_origin": "production host through public HTTPS endpoint"
+    },
+    {
+      "ticker": "MCBA",
+      "sha256": "3d55a315e7332da329b34a6805a8703633cfa303d9548cfc69f5ee3085ea16c9",
+      "bytes": 1374123,
+      "verified": true,
+      "check_origin": "production host through public HTTPS endpoint"
+    },
+    {
+      "ticker": "ALKB",
+      "sha256": "ba8cf009932a0f35f12d88ad4698ddd007a8e3e2af40050da4db40caa7591c51",
+      "bytes": 17680614,
+      "verified": true,
+      "check_origin": "production host through public HTTPS endpoint"
+    },
+    {
+      "ticker": "SQBN",
+      "sha256": "2cc7f3ac97dd4c8975f030cd29942cdcdfba59ccdc598ebeab74fca62b184dbf",
+      "bytes": 2285284,
+      "verified": true,
+      "check_origin": "production host through public HTTPS endpoint"
+    },
+    {
+      "ticker": "SQBN",
+      "sha256": "475217e56fe3f67931ba15b63aec0aaa9933e8a975b8d0d04b739ce98ddda7af",
+      "bytes": 1761908,
+      "verified": true,
+      "check_origin": "production host through public HTTPS endpoint"
+    },
+    {
+      "ticker": "DRBK",
+      "sha256": "bbdab913686fea10ffa3d1661cd125caf1e0147838424483812ef1dbba10709f",
+      "bytes": 4622442,
+      "verified": true,
+      "check_origin": "production host through public HTTPS endpoint"
+    }
+  ],
+  "artifact_check_note": "A parallel download from the workstation timed out. All six downloads were then verified through the public HTTPS endpoint from the production host; a subsequent workstation download also succeeded."
 }
