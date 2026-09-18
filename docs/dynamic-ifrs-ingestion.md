@@ -237,3 +237,21 @@ Validation: 214 focused ingestion, parser, discovery, API, evidence and financia
 regression tests passed. A broader run also encountered three existing failures
 in the separate `v3_financial_pipeline` module: its `INSERT OR IGNORE` statements
 are rejected by `dbx`; those files were not changed by this update.
+
+The attachment batch is deployed in releases `22ad2f6` and `dd91c14`. All 200
+sources were fetched and staged. Explicit source-page review published 15 new
+periods (135 figures): DRBK consolidated 2016–2022 and separate 2015–2016; IPKY
+separate 2016 and 2024; SQBN consolidated 2014; ALKB separate 2014–2015; GRBK
+consolidated 2023. All 163 prior snapshot heads remain unchanged. Live API checks
+verified all 178 periods and 1,602 values, including every figure's source hash,
+accounting scope and calculation components. The post-publication backup has 240
+verified originals, and the ingestion timer is active.
+
+This is not a claim of zero gaps. IPTB separate 2015–2016, ALKB separate 2016,
+and MCBA separate 2017 still need OCR/layout work; their consolidated years are
+already published. The recovered DRBK 2014 comparative contains a balance sheet
+without a full income statement. SQBN 2019Q2/2020Q2 proposals remain incomplete.
+The wider pipeline retains queued work and review cases. The shared parser
+contains no future-year ceiling tied to this release, but changing source APIs
+or report layouts can require maintenance; failed checks cannot replace public
+snapshots automatically. See [the processing audit](annual-attachment-processing-live-verification-2026-09-18.json).

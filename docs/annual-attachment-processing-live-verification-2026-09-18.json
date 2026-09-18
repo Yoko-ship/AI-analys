@@ -1,0 +1,696 @@
+{
+  "verified_at": "2026-09-18T16:49:17.596674+00:00",
+  "code_commit": "dd91c14e154fa47eccf0f2f758f118642c24f5a6",
+  "focused_tests_passed": 214,
+  "sources_processed": 200,
+  "unique_pdfs": 160,
+  "downloads_failed": 0,
+  "native_extraction_pdfs": 160,
+  "new_ocr_pdfs": 117,
+  "new_financial_values_or_ticker_rules_in_code": false,
+  "publication": "explicit visual review; shared parser output; no replacement of existing snapshots",
+  "added_periods": [
+    {
+      "ticker": "DRBK",
+      "org_id": "26",
+      "sha": "62cc66320e08f305a0a0a1c6e541dd111ff8158a853438bbf36e0582790f8d91",
+      "scope": "consolidated",
+      "period": "2022-12-31",
+      "source_id": "4dccb83435a3df649bba2db6b1fae34ca4bb23526e9a954e7c83c250e51ff6c7",
+      "candidate_index": 0,
+      "payload_digest": "20b210a19c74861f37ccaef809db830173292ae9a9ad04521feb72ad46a794f1",
+      "reviewed_pages": [
+        2,
+        6,
+        7
+      ],
+      "candidate_id": "ed471f48068a8077b453daacc29679c58aec211c0ac827f8af3727d8108b69d1",
+      "review_id": "43cd4813e37536c6c2b5c22bbbc8f15e43b6c814db6bdb20a3fbb65a28ed1147"
+    },
+    {
+      "ticker": "DRBK",
+      "org_id": "26",
+      "sha": "62cc66320e08f305a0a0a1c6e541dd111ff8158a853438bbf36e0582790f8d91",
+      "scope": "consolidated",
+      "period": "2021-12-31",
+      "source_id": "4dccb83435a3df649bba2db6b1fae34ca4bb23526e9a954e7c83c250e51ff6c7",
+      "candidate_index": 1,
+      "payload_digest": "7e322b984b5d8704e4828725557bcdb82bd9643aac5318edfb45f81c4a9eac9a",
+      "reviewed_pages": [
+        2,
+        6,
+        7
+      ],
+      "candidate_id": "84e7f8495a559048b87dd10fc5b5360caf7481205d13899ac2c4a006ff001d17",
+      "review_id": "36d8b31f84632428bc407133b654e253e34d1276f0e4abedafe13ee99b30ddaa"
+    },
+    {
+      "ticker": "IPKY",
+      "org_id": "28",
+      "sha": "3524864289d1f424e764a963ab29d00d7dd1f48d26de5c5f8522c2e1de4ec6f2",
+      "scope": "separate",
+      "period": "2024-12-31",
+      "source_id": "eebbcc356b7734eb8e81bf774c7f134f627ae4a67c404a5b63403be30277c9a9",
+      "candidate_index": 0,
+      "payload_digest": "eb601127f03518cb9e4e9375fc56fdaf8910322177e43ddbabbed1facdfc4d1f",
+      "reviewed_pages": [
+        1,
+        8,
+        9
+      ],
+      "candidate_id": "3d3bab70000233e38bebc0f3f53a4092fb690946c3b0d6526c793a8234fd99ca",
+      "review_id": "5b49961bf2543e4f642a4917fed4621b5fa7e79766308bdac7ba82b6e5d67661"
+    },
+    {
+      "ticker": "DRBK",
+      "org_id": "26",
+      "sha": "bbdab913686fea10ffa3d1661cd125caf1e0147838424483812ef1dbba10709f",
+      "scope": "separate",
+      "period": "2016-12-31",
+      "source_id": "03bd07044c20afa873450e9851048ecff6c8dcdca30af12b18c4a0d322206830",
+      "candidate_index": 0,
+      "payload_digest": "e48a2f0ef6bedd74ecdb9481f3dfd3d763015f583d65271092d6fd2f9e7d0f2a",
+      "reviewed_pages": [
+        3,
+        6,
+        7
+      ],
+      "candidate_id": "145d7009b34bd54d2b76950af6c8ec789a20b6e0cad8aa4890b7a8177c655d15",
+      "review_id": "2b34b460d0bdfbdd020faf2b3361fbcf7a871b0993239b13fd29a7724a26d21d"
+    },
+    {
+      "ticker": "DRBK",
+      "org_id": "26",
+      "sha": "bbdab913686fea10ffa3d1661cd125caf1e0147838424483812ef1dbba10709f",
+      "scope": "separate",
+      "period": "2015-12-31",
+      "source_id": "03bd07044c20afa873450e9851048ecff6c8dcdca30af12b18c4a0d322206830",
+      "candidate_index": 1,
+      "payload_digest": "b9ca469fe827e73b153d23dbbc9b84a6dd1658f83517be4d1dade4c743302411",
+      "reviewed_pages": [
+        3,
+        6,
+        7
+      ],
+      "candidate_id": "6ea16fee1a7ca3f7745ce20929d0db2bf4ebe89c14e359208520671a51483440",
+      "review_id": "62452e9375a9331f884091b74984a609d1bccc840106061ebc3abc1097b53589"
+    },
+    {
+      "ticker": "SQBN",
+      "org_id": "30",
+      "sha": "f355b55ef39b951646610a43d7c7ddee64492d331e50872f2b16d279a4cf8933",
+      "scope": "consolidated",
+      "period": "2014-12-31",
+      "source_id": "752ac883337ac40bc6eaec9ebd3499b230b503cf0b493addaf9341fd537e2490",
+      "candidate_index": 1,
+      "payload_digest": "3f654af9792761dd53a510839b95ee34052f72dc9fab47f8fa17560228c5635e",
+      "reviewed_pages": [
+        3,
+        5,
+        6
+      ],
+      "candidate_id": "289f7c7d1bb9955a68e5c88edeb8c24cad03ef1b7a4316a9045d90f5d9918cfd",
+      "review_id": "badff01236884e33675657c96ad396acb3ca12914d5c86a1d1a468ef06010ced"
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "sha": "1467341ae75c0393d7f753dcec4f6d82115a6c2d3330b725540164dccd1bad99",
+      "scope": "separate",
+      "period": "2015-12-31",
+      "source_id": "8f23fbfe5a53c4646d6b182e18b57a48f01d894dc7d2f0b6cda0c25d9fc03f69",
+      "candidate_index": 0,
+      "payload_digest": "aea0e61aacdf5bf03c59497f78854f96b5ea829446ee48d94dd8fba4c7ecd843",
+      "reviewed_pages": [
+        1,
+        2,
+        5,
+        6
+      ],
+      "candidate_id": "475df434b4c4f8f46a43642bb75a515206c0fc42e3e22070ba7ac577f3b21227",
+      "review_id": "59da7a7087ad332752be8fa4832a9c104d6da92306e262c51f9da64d877a57b8"
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "sha": "1467341ae75c0393d7f753dcec4f6d82115a6c2d3330b725540164dccd1bad99",
+      "scope": "separate",
+      "period": "2014-12-31",
+      "source_id": "8f23fbfe5a53c4646d6b182e18b57a48f01d894dc7d2f0b6cda0c25d9fc03f69",
+      "candidate_index": 1,
+      "payload_digest": "5c7645c78a786f5c188a4d63a2ee8e587abe64ca6035be23300ba94a58ccdfc4",
+      "reviewed_pages": [
+        1,
+        2,
+        5,
+        6
+      ],
+      "candidate_id": "1dce1a4742c26acdc17538fe10bd3b836d3dda775ae0eb87cb8349067037f93a",
+      "review_id": "a17d37e32d5f419fcfc615c3577a8742056c567fbfb69ee54b603e01ded563ab"
+    },
+    {
+      "ticker": "GRBK",
+      "org_id": "11",
+      "sha": "25d74b170c75789b5348c5f2c6a44421349deadf913e8bc5f07f0e77b540f534",
+      "scope": "consolidated",
+      "period": "2023-12-31",
+      "source_id": "82ab47e20e523195f37d855069043957ed5fdeca6180e86ef9b8a6c78e67bce3",
+      "candidate_index": 1,
+      "payload_digest": "0058983750b2cff69b6da3c9af8b469ed63f9eee10a57a6234172b308ff1a6b0",
+      "reviewed_pages": [
+        1,
+        8,
+        9
+      ],
+      "candidate_id": "bf171d7c659935dcc819b7984545a49d1752693c9be62ee35ac0261b56a453c3",
+      "review_id": "3613147cf463a9dad861d4440354264ff2052876601408087cd7f6d2da9d1526"
+    },
+    {
+      "ticker": "DRBK",
+      "org_id": "26",
+      "sha": "82d9a79df7cc0c18bca0dfbf3729bba60b57eef050b295d6abb35e67cf920282",
+      "scope": "consolidated",
+      "period": "2020-12-31",
+      "source_id": "94df5acaf5051cd9e9b0243a962d2ee997863f578b52906fb5f1d5a3df897322",
+      "candidate_index": 0,
+      "payload_digest": "8cbf1211977dd55c6e6c86fe3e367b7d911504d3352a711d8c6ee17e17c93100",
+      "reviewed_pages": [
+        2,
+        7,
+        8
+      ],
+      "candidate_id": "162f02bd6dd7216e899fd50af8e45d1b42afdfed7df828480dfa8f173e13dcb9",
+      "review_id": "e442dfc6979341f9d100eccad5ffb4f5e4a048b38e6fad8f99d1d517b3b6613e"
+    },
+    {
+      "ticker": "DRBK",
+      "org_id": "26",
+      "sha": "82d9a79df7cc0c18bca0dfbf3729bba60b57eef050b295d6abb35e67cf920282",
+      "scope": "consolidated",
+      "period": "2019-12-31",
+      "source_id": "94df5acaf5051cd9e9b0243a962d2ee997863f578b52906fb5f1d5a3df897322",
+      "candidate_index": 1,
+      "payload_digest": "bbf8409acef787c4f542575002ec6b68c86dd6fe332596ec04bd0c99d5e793d1",
+      "reviewed_pages": [
+        2,
+        7,
+        8
+      ],
+      "candidate_id": "bf2f8c0b972ee3cabaf757f76d8f10d6f63d5dd93432d5d4b183806dfef8a797",
+      "review_id": "4fe1bfe176ea1d518ef8bb1fe034c2b91ec73a82e623ce78ef7c9fad26493466"
+    },
+    {
+      "ticker": "DRBK",
+      "org_id": "26",
+      "sha": "d1fc00f269a9903852f27c7c6f5338614f1fd0affb4f024455eba1435f0d2364",
+      "scope": "consolidated",
+      "period": "2018-12-31",
+      "source_id": "5f87cd3aa5cac85616d18146b93862a05bb18bddc6afe5fb5882ac7d2846ef23",
+      "candidate_index": 0,
+      "payload_digest": "86a823045762b5623e41566753d33899bd16bd7408b7dfd5035615e46c774ee9",
+      "reviewed_pages": [
+        2,
+        6,
+        7
+      ],
+      "candidate_id": "ddf91865a0b5a229f15260a466a8f8e8f06628ceee54ca674211af725f47d241",
+      "review_id": "8a5f2cce66bf5083f4e10dc2b218b2be04a65f1e0d426fd8fb32bedc7dac7bbf"
+    },
+    {
+      "ticker": "DRBK",
+      "org_id": "26",
+      "sha": "d1fc00f269a9903852f27c7c6f5338614f1fd0affb4f024455eba1435f0d2364",
+      "scope": "consolidated",
+      "period": "2017-12-31",
+      "source_id": "5f87cd3aa5cac85616d18146b93862a05bb18bddc6afe5fb5882ac7d2846ef23",
+      "candidate_index": 1,
+      "payload_digest": "71aa4fc837de7f9990b038610c4e4886bb5c0c33438d1895bb9995e12a9d08fd",
+      "reviewed_pages": [
+        2,
+        6,
+        7
+      ],
+      "candidate_id": "a67a6edc8ee22aef966b0bda240a9dfd9d1c77d16f11b023638341367701e8b5",
+      "review_id": "66aac7749a0c70cb85314de8be362df427c76f474c32270b42f37b7bf27d0314"
+    },
+    {
+      "ticker": "IPKY",
+      "org_id": "28",
+      "sha": "b71b2b7a6262251de3789337fdbcbf28b3e0d6b7dfadacc580b2ff4c37901695",
+      "scope": "separate",
+      "period": "2016-12-31",
+      "source_id": "6e1f20d9da62d78af59c68eacb11c3a3d07b4c1fb7d522fa9498bded93ca542d",
+      "candidate_index": 1,
+      "payload_digest": "b5802b6b0f8b6707900894cbc85a89467a0bfa7334f2ad609e7b02bbf4ea520f",
+      "reviewed_pages": [
+        3,
+        8,
+        9
+      ],
+      "candidate_id": "31f2c56afe360d6cc48557ef15f1377958185669cc1cc8eeb1f3df3fbe3eec81",
+      "review_id": "d40fd2bb41c87726401534a1c1fcd14581cd00d9053a813bdea087d9d721c302"
+    },
+    {
+      "ticker": "DRBK",
+      "org_id": "26",
+      "sha": "504a8ae6ac4dd6ef01d931bd98810dda886dd39d9e91c4cd700f3473932c626e",
+      "scope": "consolidated",
+      "period": "2016-12-31",
+      "source_id": "fb8964fb1a7d1d7b632cac05573253979ce5e08e51a574e7c5522f24cb253e92",
+      "candidate_index": 1,
+      "payload_digest": "9dc581cd7f5e59149e32e8029966fb9b04e67b8dd3bb4c606f6a88d473edf32d",
+      "reviewed_pages": [
+        3,
+        7,
+        8
+      ],
+      "candidate_id": "e9a8e35c6c41217846c2f858eacfba58a02bc1327b81e463c378c439f8cb0afe",
+      "review_id": "7e91b46b21902367a2fb58d53c2d002d2abefe75fbb17c73e644723c32bde1d8"
+    }
+  ],
+  "unchanged_previous_heads": 163,
+  "live_verification": {
+    "verified_at": "2026-09-18T16:46:31.794507+00:00",
+    "periods": 178,
+    "figures": 1602,
+    "scope_periods": {
+      "AGBA:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "ALKB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016"
+      ],
+      "ALKB:separate": [
+        "2015",
+        "2014"
+      ],
+      "BRBN:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015"
+      ],
+      "DRBK:consolidated": [
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016"
+      ],
+      "DRBK:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2016",
+        "2015"
+      ],
+      "GRBK:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "GRBK:separate": [
+        "2023",
+        "2022"
+      ],
+      "HMKB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "IPKY:consolidated": [
+        "2025",
+        "2024",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "IPKY:separate": [
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016"
+      ],
+      "IPTB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "MCBA:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2017",
+        "2016",
+        "2015",
+        "2014",
+        "2013"
+      ],
+      "MCBA:separate": [
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018"
+      ],
+      "OCBK:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "SQBN:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "SQBN:consolidated:quarterly": [
+        "2024Q2"
+      ],
+      "TNBN:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "TNGB:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020"
+      ],
+      "TRSB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "TRSB:consolidated:quarterly": [
+        "2019Q2",
+        "2018Q2"
+      ],
+      "UNVB:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017"
+      ]
+    },
+    "checks": [
+      "all previous and added public values",
+      "every figure source hash, value and scope",
+      "all calculated figure components",
+      "newest separate default retained"
+    ],
+    "davr_default_scope": "separate"
+  },
+  "backup": {
+    "path": "/app/data/financial_backups/20260918T164424Z-d6ca4fb2",
+    "verified": true,
+    "artifacts": 240,
+    "published_periods": 178
+  },
+  "monitor_status": {
+    "sources": 351,
+    "jobs": {
+      "SUCCEEDED": 493,
+      "SUPERSEDED": 34,
+      "QUEUED": 407,
+      "NEEDS_REVIEW": 200
+    },
+    "published_periods": 178,
+    "discovery_pending": 0,
+    "discovery_errors": [],
+    "unreviewed_sources": 189,
+    "pending_jobs": 407,
+    "stale_publications": 0,
+    "approved_unpublished": 0,
+    "overdue_sources": 0,
+    "last_checked_at": 1789749856.0889964,
+    "status": "PARTIAL",
+    "failures": []
+  },
+  "remaining_candidates": [
+    {
+      "ticker": "IPTB",
+      "sha": "ca0bc70eb3101c777ce395b445a4c99be4ce030e3137946b84d7d03b9872b324",
+      "scope": "separate",
+      "period": "2016-12-31",
+      "fields": 6,
+      "valid": false,
+      "errors": [
+        "INCOME_RECONCILIATION_INVALID"
+      ],
+      "pages": [
+        5,
+        6
+      ]
+    },
+    {
+      "ticker": "IPTB",
+      "sha": "ca0bc70eb3101c777ce395b445a4c99be4ce030e3137946b84d7d03b9872b324",
+      "scope": "separate",
+      "period": "2015-12-31",
+      "fields": 6,
+      "valid": false,
+      "errors": [
+        "INCOME_RECONCILIATION_INVALID"
+      ],
+      "pages": [
+        5,
+        6
+      ]
+    },
+    {
+      "ticker": "SQBN",
+      "sha": "475217e56fe3f67931ba15b63aec0aaa9933e8a975b8d0d04b739ce98ddda7af",
+      "scope": "consolidated",
+      "period": "2020-06-30",
+      "fields": 5,
+      "valid": false,
+      "errors": [
+        "INCOME_MISMATCH"
+      ],
+      "pages": [
+        5,
+        6
+      ]
+    },
+    {
+      "ticker": "SQBN",
+      "sha": "475217e56fe3f67931ba15b63aec0aaa9933e8a975b8d0d04b739ce98ddda7af",
+      "scope": "consolidated",
+      "period": "2019-06-30",
+      "fields": 5,
+      "valid": true,
+      "errors": [],
+      "pages": [
+        5,
+        6
+      ]
+    },
+    {
+      "ticker": "DRBK",
+      "sha": "bbdab913686fea10ffa3d1661cd125caf1e0147838424483812ef1dbba10709f",
+      "scope": "separate",
+      "period": "2014-12-31",
+      "fields": 4,
+      "valid": true,
+      "errors": [],
+      "pages": [
+        6
+      ]
+    },
+    {
+      "ticker": "ALKB",
+      "sha": "4c3578065ea39d6e9c0931d0b7992e384e7377bde477d2f229166e64549f6173",
+      "scope": "separate",
+      "period": "2016-12-31",
+      "fields": 0,
+      "valid": false,
+      "errors": [
+        "NO_FIGURES"
+      ],
+      "pages": [
+        1,
+        2
+      ]
+    },
+    {
+      "ticker": "MCBA",
+      "sha": "3d55a315e7332da329b34a6805a8703633cfa303d9548cfc69f5ee3085ea16c9",
+      "scope": "separate",
+      "period": "2017-12-31",
+      "fields": 7,
+      "valid": true,
+      "errors": [],
+      "pages": [
+        7,
+        8
+      ]
+    }
+  ],
+  "remaining_notes": [
+    "Four annual scope-specific periods require further OCR/layout work: IPTB separate 2015/2016, ALKB separate 2016, MCBA separate 2017. Those years have published consolidated accounts; missing separate values were not fabricated.",
+    "SQBN 2019Q2/2020Q2 attachment proposals remain incomplete.",
+    "DRBK 2014 has only a comparative balance column in the recovered 2016 report; no complete annual income statement was recovered for that period.",
+    "Invalid future OCR dates and opening balances were not published. Other reviewed/public histories remain unchanged.",
+    "The wider ingestion queue remains partial; all 200 annual attachment sources in this batch were fetched and staged.",
+    "Three unrelated existing v3_financial_pipeline tests reject INSERT OR IGNORE through dbx; that module was not changed."
+  ],
+  "browser_checks": {
+    "cases": [
+      {
+        "ticker": "DRBK",
+        "scope": "consolidated",
+        "year": "2016",
+        "passport": true
+      },
+      {
+        "ticker": "DRBK",
+        "scope": "separate",
+        "year": "2015",
+        "passport": true
+      },
+      {
+        "ticker": "IPKY",
+        "scope": "consolidated",
+        "year": "2016",
+        "passport": true
+      },
+      {
+        "ticker": "IPKY",
+        "scope": "separate",
+        "year": "2024",
+        "passport": true
+      },
+      {
+        "ticker": "ALKB",
+        "scope": "consolidated",
+        "year": "2016",
+        "passport": true
+      },
+      {
+        "ticker": "ALKB",
+        "scope": "separate",
+        "year": "2014",
+        "passport": true
+      },
+      {
+        "ticker": "GRBK",
+        "scope": "consolidated",
+        "year": "2023",
+        "passport": true
+      },
+      {
+        "ticker": "GRBK",
+        "scope": "separate",
+        "year": "2023",
+        "passport": true
+      }
+    ],
+    "external_font_requests_blocked": true,
+    "note": "External Google font requests delayed initial browser runs. Functional verification used local fallback fonts; production application requests and data were not intercepted."
+  }
+}
