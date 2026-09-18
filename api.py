@@ -5898,7 +5898,12 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
             # Bank IFRS statements disclose interest income, not industrial
             # revenue/gross profit. Do not invent a revenue line or mark its
             # legitimate absence as a failed extraction.
-            top_line = "interest_income" if standard == "MSFO" and "interest_income" in series else "net_revenue"
+            bank_reports = ((index or {}).get("availability") or {}).get("NSBU") or {}
+            bank_ifrs = standard == "MSFO" and ("interest_income" in series or any(
+                "org_type=bank" in str(report.get(link) or "")
+                for reports in bank_reports.values() for report in reports
+                for link in ("excel_url", "excel_url_form1")))
+            top_line = "interest_income" if bank_ifrs else "net_revenue"
             missing = [field for field in (top_line, "net_profit", "total_assets", "total_equity", "total_liabilities")
                        if (series.get(field) or {}).get("values", {}).get(p) is None]
             if missing:

@@ -273,6 +273,25 @@ def test_archive_api_and_pipeline_status(setup):
     assert result["series"]["interest_income"]["values"]["2024"] == 4_473_647_000_000
 
 
+def test_partial_bank_ifrs_gap_requires_interest_not_industrial_revenue(setup):
+    import api
+    from fastapi.testclient import TestClient
+    setup[0]["figures"].pop("interest_income")
+    setup[0]["figures"].pop("interest_expense")
+    c = rc.get_catalog_conn()
+    with c:
+        rc._upsert_report(c, "BRBN", report_form="NSBU", period_type="annual", year=2024,
+                          quarter=0, title="Bank", published_at=None, pdf_url=None,
+                          excel_url="https://new-api.openinfo.uz/export?org_type=bank", excel_url_form1=None,
+                          openinfo_report_id="bank", object_id=None)
+    c.close()
+    stage(setup)
+    publication.publish("BRBN", actor="publisher")
+    result = TestClient(api.app).get("/api/company/BRBN/financials?form=MSFO").json()
+    assert result["availability"] == "PARTIAL"
+    assert result["data_gaps"] == [{"period": "2024", "code": "MISSING_FINANCIAL_FIELDS", "fields": ["interest_income"]}]
+
+
 def test_pdf_publication_date_is_not_a_financial_year():
     for form in ("MSFO", "Audition"):
         assert rc._extract_year({"report_type": form, "pub_date": "2026-01-30", "properties": {"report_type": "annual"}}) is None
