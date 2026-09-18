@@ -329,9 +329,12 @@ def test_corrupt_archive_blocks_publication_and_download(setup, monkeypatch):
 
 def test_all_checked_in_reviews_validate():
     entries = extract.review_entries()
-    assert len(entries) == 19
+    assert len(entries) == 37
     assert {e["year"] for e in entries if e["ticker"] == "BRBN"} == set(range(2016, 2026))
-    assert {e["ticker"] for e in entries} == {"BRBN", "OCBK", "DRBK", "GRBK", "IPTB", "SQBN"}
+    assert {e["ticker"] for e in entries} == {
+        "BRBN", "OCBK", "DRBK", "GRBK", "IPTB", "SQBN", "AGBA", "ALKB",
+        "HMKB", "IPKY", "TNGB", "TNBN", "MCBA", "UNVB", "TRSB",
+    }
     for entry in entries:
         check = validation.validate(validation.from_review(entry), page_count=entry["page_count"])
         assert check["valid"], (entry["ticker"], entry["year"], check)
@@ -339,6 +342,18 @@ def test_all_checked_in_reviews_validate():
     assert len(octobank["figures"]) == 9
     assert octobank["figures"]["interest_income"]["calculation"] == "sum"
     assert len(octobank["figures"]["interest_income"]["components"]) == 2
+
+
+def test_reviewed_mcba_comparative_keeps_conflicting_income_unavailable():
+    entry = next(e for e in extract.review_entries()
+                 if e["ticker"] == "MCBA" and e["year"] == 2024)
+    check = validation.validate(validation.from_review(entry), page_count=entry["page_count"])
+    assert entry["role"] == "COMPARATIVE"
+    assert check["valid"]
+    assert check["warnings"] == ["PARTIAL_INCOME"]
+    assert "operating_income" not in check["normalized_uzs"]
+    assert "net_income" not in check["normalized_uzs"]
+    assert check["normalized_uzs"]["total_assets"] == "23851358000000"
 
 
 def test_unknown_dates_remain_distinct_in_public_library(setup):

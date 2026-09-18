@@ -8,6 +8,38 @@ from financial_ingestion import extract, maintenance, publication, store, valida
 from test_financial_ingestion import setup, stage, candidates
 
 
+def test_reviewed_release_verifies_and_preserves_existing_publication(setup, monkeypatch, tmp_path):
+    from scripts.publish_reviewed_bank_ifrs import release
+    monkeypatch.setenv("FINANCIAL_BACKUP_DIR", str(tmp_path / "backups"))
+    stage(setup)
+    publication.publish("BRBN", actor="initial-review")
+    before = publication.series("BRBN")
+    result = release(fetch=lambda url: setup[1])
+    assert result == {"verified_figures": 9, "periods": 1, "preserved_previous_values": True}
+    assert publication.series("BRBN") == before
+
+
+def test_reviewed_release_rejects_source_change_before_writes(setup, monkeypatch, tmp_path):
+    from scripts.publish_reviewed_bank_ifrs import release
+    monkeypatch.setenv("FINANCIAL_BACKUP_DIR", str(tmp_path / "backups"))
+    with pytest.raises(ValueError, match="Source changed since visual review"):
+        release(fetch=lambda url: setup[1] + b"changed")
+    assert not (tmp_path / "backups").exists()
+    assert publication.series("BRBN") is None
+
+
+def test_reviewed_release_refuses_changed_published_values(setup, monkeypatch, tmp_path):
+    from scripts.publish_reviewed_bank_ifrs import release
+    monkeypatch.setenv("FINANCIAL_BACKUP_DIR", str(tmp_path / "backups"))
+    stage(setup)
+    publication.publish("BRBN", actor="initial-review")
+    before = publication.series("BRBN")
+    setup[0]["figures"]["net_income"]["raw_value"] = "1"
+    with pytest.raises(ValueError, match="Existing published value changed"):
+        release(fetch=lambda url: setup[1])
+    assert publication.series("BRBN") == before
+
+
 def test_component_arithmetic_and_evidence(setup):
     payload = validation.from_review(setup[0])
     item = payload["figures"]["interest_income"]

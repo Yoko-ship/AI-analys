@@ -142,12 +142,30 @@ Required CI gate: `tests/test_financial_ingestion.py`, `tests/test_financial_ing
 `tests/test_ifrs_financials.py`, `tests/test_bank_history_repair.py`. The wider
 suite has pre-existing failures and is not a substitute for this required gate.
 
+A deliberately authorized release commit on `API` can include `[publish-bank-ifrs]`.
+CI then inspects the live application and systemd worker, verifies a database and
+original-document backup before deployment, and runs
+`python -m scripts.publish_reviewed_bank_ifrs --apply` after deployment succeeds.
+The release re-downloads every reviewed source, rejects changed hashes, verifies
+another backup, preserves every previously published annual/interim value, and
+checks every published figure's source passport. Routine deployments never run
+this publication step. Changes to existing values need a separate reviewed
+correction; this additive release command refuses them.
+
 ## Reviewed scope
 
-The review ledger covers BRBN 2016–2025; OCBK, DRBK and GRBK 2024–2025;
-IPTB 2023–2024; and SQBN 2024H1. Each period has nine evidenced figures.
-BRBN 2017/2020 and prior-year comparisons retain their comparative roles.
-OCBK interest and operating totals carry explicit component evidence. Primary
+The review ledgers contain 37 periods across 15 banks: BRBN 2016–2025;
+OCBK, DRBK, GRBK, AGBA, ALKB, HMKB, IPKY, TNGB, TNBN, MCBA, UNVB and TRSB
+2024–2025; IPTB 2023–2024; and SQBN 2024H1. Each period has nine evidenced
+figures except MCBA 2024, which has seven. Its printed interest margin and
+profit-after-tax subtotals do not reconcile, so operating income and net income
+remain withheld pending a corrected source. This period retains partial income
+coverage; missing figures must not be filled with zero or inferred amounts.
+BRBN 2017/2020 and prior-year comparisons retain their comparative roles;
+ALKB 2024 is explicitly restated. TNGB and UNVB use separate accounts, while
+the other seven newly reviewed banks use consolidated accounts. UNVB and TRSB
+report in thousands of UZS; the other seven report in millions of UZS.
+Calculated interest and operating totals carry explicit component evidence. Primary
 published dates override catalog labels only while that source version is current.
 Other bank PDFs and older history remain review work; adding this architecture
 does not claim every historical gap is filled or that unavailable filings exist.

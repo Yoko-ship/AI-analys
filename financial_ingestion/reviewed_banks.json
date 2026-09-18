@@ -1012,6 +1012,2379 @@
           ]
         }
       }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/203c8cbb-bd8c-40a1-b0fc-69d78024f00f.pdf",
+      "sha256": "ab8e0077157f1ae51fd20fb6692e30e99578f2c5e37c1180dc2222a6596f41ad",
+      "page_count": 11,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 8 and 9: 2025 columns of the 2025 consolidated IFRS statements, year ended 31 December. Current annual period.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "10810609",
+          "raw_label": "Cash and cash equivalents",
+          "page": 8,
+          "column_year": 2025
+        },
+        "total_assets": {
+          "raw_value": "103838033",
+          "raw_label": "Total assets",
+          "page": 8,
+          "column_year": 2025
+        },
+        "total_liabilities": {
+          "raw_value": "90462232",
+          "raw_label": "Total liabilities",
+          "page": 8,
+          "column_year": 2025
+        },
+        "total_equity": {
+          "raw_value": "13375801",
+          "raw_label": "Total equity",
+          "page": 8,
+          "column_year": 2025
+        },
+        "interest_income": {
+          "raw_value": "13435135",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 9,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "13123004",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "312131",
+              "raw_label": "Other similar income",
+              "page": 9,
+              "column_year": 2025
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-9026110",
+          "raw_label": "Interest expense",
+          "page": 9,
+          "column_year": 2025
+        },
+        "operating_income": {
+          "raw_value": "3418680",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 9,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "2454389",
+              "raw_label": "Net margin on interest and similar income after credit loss allowance",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "1081314",
+              "raw_label": "Fee and commission income",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-372827",
+              "raw_label": "Fee and commission expense",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-5012",
+              "raw_label": "Loss on initial recognition on interest bearing assets",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "190721",
+              "raw_label": "Net gains from foreign currencies - dealing transactions",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-27972",
+              "raw_label": "Net gains from foreign currencies - translation differences",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "9262",
+              "raw_label": "Dividend income",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "113015",
+              "raw_label": "Other operating income",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-10960",
+              "raw_label": "Provision for impairment on other non-financial assets",
+              "page": 9,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-13250",
+              "raw_label": "Provision for expected credit losses on other financial assets and credit related commitments",
+              "page": 9,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-3215426",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 9,
+          "column_year": 2025
+        },
+        "net_income": {
+          "raw_value": "92347",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 9,
+          "column_year": 2025
+        }
+      }
+    },
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "issuer_name": "Agrobank",
+      "year": 2024,
+      "document_year": 2025,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/203c8cbb-bd8c-40a1-b0fc-69d78024f00f.pdf",
+      "sha256": "ab8e0077157f1ae51fd20fb6692e30e99578f2c5e37c1180dc2222a6596f41ad",
+      "page_count": 11,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 8 and 9: 2024 columns of the 2025 consolidated IFRS statements, year ended 31 December. Comparative column, not a separate annual filing.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "8541373",
+          "raw_label": "Cash and cash equivalents",
+          "page": 8,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "80230310",
+          "raw_label": "Total assets",
+          "page": 8,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "68070093",
+          "raw_label": "Total liabilities",
+          "page": 8,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "12160217",
+          "raw_label": "Total equity",
+          "page": 8,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "10981140",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 9,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "10658987",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "322153",
+              "raw_label": "Other similar income",
+              "page": 9,
+              "column_year": 2024
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-6537108",
+          "raw_label": "Interest expense",
+          "page": 9,
+          "column_year": 2024
+        },
+        "operating_income": {
+          "raw_value": "3173467",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 9,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "2419313",
+              "raw_label": "Net margin on interest and similar income after credit loss allowance",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "892857",
+              "raw_label": "Fee and commission income",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-349508",
+              "raw_label": "Fee and commission expense",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-4931",
+              "raw_label": "Loss on initial recognition on interest bearing assets",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "52891",
+              "raw_label": "Net gains from foreign currencies - dealing transactions",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "3104",
+              "raw_label": "Net gains from foreign currencies - translation differences",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "4691",
+              "raw_label": "Dividend income",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "152628",
+              "raw_label": "Other operating income",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-4627",
+              "raw_label": "Provision for impairment on other non-financial assets",
+              "page": 9,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "7049",
+              "raw_label": "Provision for expected credit losses on other financial assets and credit related commitments",
+              "page": 9,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-3019358",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 9,
+          "column_year": 2024
+        },
+        "net_income": {
+          "raw_value": "67764",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 9,
+          "column_year": 2024
+        }
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "issuer_name": "Aloqabank",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/b11dc39a-8ced-4bf9-9c1a-f29f451ebc43.pdf",
+      "sha256": "3417f832053d420cbc78e68a0b597c03ffa987186baffa85bed3c00b4f589e1e",
+      "page_count": 78,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 11 and 12: 2025 columns of the 2025 consolidated IFRS statements, year ended 31 December. Current annual period.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "3169017",
+          "raw_label": "Cash and cash equivalents",
+          "page": 11,
+          "column_year": 2025
+        },
+        "total_assets": {
+          "raw_value": "31344212",
+          "raw_label": "Total assets",
+          "page": 11,
+          "column_year": 2025
+        },
+        "total_liabilities": {
+          "raw_value": "27853201",
+          "raw_label": "Total liabilities",
+          "page": 11,
+          "column_year": 2025
+        },
+        "total_equity": {
+          "raw_value": "3491011",
+          "raw_label": "Total equity",
+          "page": 11,
+          "column_year": 2025
+        },
+        "interest_income": {
+          "raw_value": "3414071",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 12,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "3408794",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "5277",
+              "raw_label": "Other similar income",
+              "page": 12,
+              "column_year": 2025
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-2777369",
+          "raw_label": "Interest and similar expense",
+          "page": 12,
+          "column_year": 2025
+        },
+        "operating_income": {
+          "raw_value": "603236",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 12,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "158316",
+              "raw_label": "Net margin on interest and similar income after credit loss allowance and initial recognition adjustment",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "1174901",
+              "raw_label": "Fee and commission income",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-915403",
+              "raw_label": "Fee and commission expense",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-1544",
+              "raw_label": "Losses from modification of financial assets measured at amortised cost, that did not lead to derecognition",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-19974",
+              "raw_label": "Foreign exchange translation (losses)/gains",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "131404",
+              "raw_label": "Net gain from trading in foreign currencies",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "9508",
+              "raw_label": "Other operating income",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "5256",
+              "raw_label": "Gain on disposal of property and equipment",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "58503",
+              "raw_label": "Gains less losses from securities at fair value through profit or loss",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "114088",
+              "raw_label": "Revenue from contracts with customers",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-80070",
+              "raw_label": "Cost of sales of constructed buildings sold to customers",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-30802",
+              "raw_label": "Other impairment and provisions",
+              "page": 12,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-947",
+              "raw_label": "Impairment of assets held for sale",
+              "page": 12,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-905717",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 12,
+          "column_year": 2025
+        },
+        "net_income": {
+          "raw_value": "-193887",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 12,
+          "column_year": 2025
+        }
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "org_id": "10",
+      "issuer_name": "Aloqabank",
+      "year": 2024,
+      "document_year": 2025,
+      "role": "RESTATEMENT",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/b11dc39a-8ced-4bf9-9c1a-f29f451ebc43.pdf",
+      "sha256": "3417f832053d420cbc78e68a0b597c03ffa987186baffa85bed3c00b4f589e1e",
+      "page_count": 78,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 11 and 12: 2024 columns of the 2025 consolidated IFRS statements, year ended 31 December. Comparative explicitly restated (Note 3).",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "2582246",
+          "raw_label": "Cash and cash equivalents",
+          "page": 11,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "22669156",
+          "raw_label": "Total assets",
+          "page": 11,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "19569460",
+          "raw_label": "Total liabilities",
+          "page": 11,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "3099696",
+          "raw_label": "Total equity",
+          "page": 11,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "2382524",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 12,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "2381452",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "1072",
+              "raw_label": "Other similar income",
+              "page": 12,
+              "column_year": 2024
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-1771250",
+          "raw_label": "Interest and similar expense",
+          "page": 12,
+          "column_year": 2024
+        },
+        "operating_income": {
+          "raw_value": "1153032",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 12,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "276055",
+              "raw_label": "Net margin on interest and similar income after credit loss allowance and initial recognition adjustment",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "853127",
+              "raw_label": "Fee and commission income",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-658909",
+              "raw_label": "Fee and commission expense",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "70583",
+              "raw_label": "Foreign exchange translation (losses)/gains",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "92817",
+              "raw_label": "Net gain from trading in foreign currencies",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "11748",
+              "raw_label": "Other operating income",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "509248",
+              "raw_label": "Gain on disposal of property and equipment",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "5625",
+              "raw_label": "Gains less losses from securities at fair value through profit or loss",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-4925",
+              "raw_label": "Other impairment and provisions",
+              "page": 12,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-2337",
+              "raw_label": "Impairment of assets held for sale",
+              "page": 12,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-858012",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 12,
+          "column_year": 2024
+        },
+        "net_income": {
+          "raw_value": "252915",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 12,
+          "column_year": 2024
+        }
+      }
+    },
+    {
+      "ticker": "HMKB",
+      "org_id": "8",
+      "issuer_name": "Hamkorbank",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+      "sha256": "cd6514cd6149ef83905be64a18cbed3425b390eb1362712cdb1279f521b7a241",
+      "page_count": 75,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2025 columns of the 2025 consolidated IFRS statements, year ended 31 December. Current annual period.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "4058206",
+          "raw_label": "Cash and cash equivalents",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_assets": {
+          "raw_value": "36022812",
+          "raw_label": "Total assets",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_liabilities": {
+          "raw_value": "28858396",
+          "raw_label": "Total liabilities",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_equity": {
+          "raw_value": "7164416",
+          "raw_label": "Total equity",
+          "page": 9,
+          "column_year": 2025
+        },
+        "interest_income": {
+          "raw_value": "5445430",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 10,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "5339549",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "105881",
+              "raw_label": "Other interest income",
+              "page": 10,
+              "column_year": 2025
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-2818444",
+          "raw_label": "Calculated sum of interest expense categories",
+          "page": 10,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "-2798585",
+              "raw_label": "Interest expense",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-19859",
+              "raw_label": "Other interest expense",
+              "page": 10,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "4100541",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 10,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "2501726",
+              "raw_label": "Net margin on interest and similar income after credit loss allowance",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "1108639",
+              "raw_label": "Fee and commission income",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-398304",
+              "raw_label": "Fee and commission expense",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "6239",
+              "raw_label": "Gains less losses from securities at fair value through profit or loss",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "767716",
+              "raw_label": "Gains less losses from trading in foreign currencies",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "1651",
+              "raw_label": "Gains less losses from financial derivative",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "48625",
+              "raw_label": "Gains less losses from foreign exchange translation",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "64249",
+              "raw_label": "Other operating income",
+              "page": 10,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-1927723",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 10,
+          "column_year": 2025
+        },
+        "net_income": {
+          "raw_value": "1786756",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 10,
+          "column_year": 2025
+        }
+      }
+    },
+    {
+      "ticker": "HMKB",
+      "org_id": "8",
+      "issuer_name": "Hamkorbank",
+      "year": 2024,
+      "document_year": 2025,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+      "sha256": "cd6514cd6149ef83905be64a18cbed3425b390eb1362712cdb1279f521b7a241",
+      "page_count": 75,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2024 columns of the 2025 consolidated IFRS statements, year ended 31 December. Comparative column, not a separate annual filing.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "5123671",
+          "raw_label": "Cash and cash equivalents",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "28940247",
+          "raw_label": "Total assets",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "23399695",
+          "raw_label": "Total liabilities",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "5540552",
+          "raw_label": "Total equity",
+          "page": 9,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "4516694",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 10,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "4431196",
+              "raw_label": "Interest income calculated using the effective interest method",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "85498",
+              "raw_label": "Other interest income",
+              "page": 10,
+              "column_year": 2024
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-2378656",
+          "raw_label": "Calculated sum of interest expense categories",
+          "page": 10,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "-2351279",
+              "raw_label": "Interest expense",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-27377",
+              "raw_label": "Other interest expense",
+              "page": 10,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "3285327",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 10,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "2033509",
+              "raw_label": "Net margin on interest and similar income after credit loss allowance",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "791169",
+              "raw_label": "Fee and commission income",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-277110",
+              "raw_label": "Fee and commission expense",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-1299",
+              "raw_label": "Gains less losses from securities at fair value through profit or loss",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "647673",
+              "raw_label": "Gains less losses from trading in foreign currencies",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "39954",
+              "raw_label": "Gains less losses from financial derivative",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-1300",
+              "raw_label": "Gains less losses from foreign exchange translation",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "52731",
+              "raw_label": "Other operating income",
+              "page": 10,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-1428722",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 10,
+          "column_year": 2024
+        },
+        "net_income": {
+          "raw_value": "1504834",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 10,
+          "column_year": 2024
+        }
+      }
+    },
+    {
+      "ticker": "IPKY",
+      "org_id": "28",
+      "issuer_name": "Ipak Yuli Bank",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/fe4cd9ed-d46a-46d4-b61f-e39ea6d7fa3a.pdf",
+      "sha256": "97b5fe2f334e9316ec8392e431d542aafec34a7a5c161133e17afaee4244052f",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2025 columns of the 2025 consolidated IFRS statements, year ended 31 December. Current annual period.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "7649524",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_assets": {
+          "raw_value": "28273195",
+          "raw_label": "Итого активы",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_liabilities": {
+          "raw_value": "23846341",
+          "raw_label": "Всего обязательств",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_equity": {
+          "raw_value": "4426854",
+          "raw_label": "Итого собственный капитал",
+          "page": 9,
+          "column_year": 2025
+        },
+        "interest_income": {
+          "raw_value": "3634224",
+          "raw_label": "Процентные доходы, рассчитанные по методу эффективной процентной ставки",
+          "page": 10,
+          "column_year": 2025
+        },
+        "interest_expense": {
+          "raw_value": "-1758542",
+          "raw_label": "Процентные расходы, рассчитанные по методу эффективной процентной ставки",
+          "page": 10,
+          "column_year": 2025
+        },
+        "operating_income": {
+          "raw_value": "2549869",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 10,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1890521",
+              "raw_label": "Чистые процентные доходы",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "887887",
+              "raw_label": "Комиссионные доходы",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-606623",
+              "raw_label": "Комиссионные расходы",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-97289",
+              "raw_label": "Чистая прибыль от пересчета сумм в иностранной валюте",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "440549",
+              "raw_label": "Доход от торговли иностранной валютой",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "17293",
+              "raw_label": "Восстановление / (Начисление) резерва под обесценение прочих активов",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "873",
+              "raw_label": "Резерв по обязательствам кредитного характера",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "13904",
+              "raw_label": "Прочие доходы",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "2754",
+              "raw_label": "Дивиденды полученные",
+              "page": 10,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-1576601",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 10,
+          "column_year": 2025
+        },
+        "net_income": {
+          "raw_value": "886309",
+          "raw_label": "Прибыль / (убыток) за год",
+          "page": 10,
+          "column_year": 2025
+        }
+      }
+    },
+    {
+      "ticker": "IPKY",
+      "org_id": "28",
+      "issuer_name": "Ipak Yuli Bank",
+      "year": 2024,
+      "document_year": 2025,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/fe4cd9ed-d46a-46d4-b61f-e39ea6d7fa3a.pdf",
+      "sha256": "97b5fe2f334e9316ec8392e431d542aafec34a7a5c161133e17afaee4244052f",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2024 columns of the 2025 consolidated IFRS statements, year ended 31 December. Comparative column, not a separate annual filing.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "4124461",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "23185870",
+          "raw_label": "Итого активы",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "19554060",
+          "raw_label": "Всего обязательств",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "3631810",
+          "raw_label": "Итого собственный капитал",
+          "page": 9,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "3068337",
+          "raw_label": "Процентные доходы, рассчитанные по методу эффективной процентной ставки",
+          "page": 10,
+          "column_year": 2024
+        },
+        "interest_expense": {
+          "raw_value": "-1413425",
+          "raw_label": "Процентные расходы, рассчитанные по методу эффективной процентной ставки",
+          "page": 10,
+          "column_year": 2024
+        },
+        "operating_income": {
+          "raw_value": "2235127",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 10,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1558256",
+              "raw_label": "Чистые процентные доходы",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "678318",
+              "raw_label": "Комиссионные доходы",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-354673",
+              "raw_label": "Комиссионные расходы",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-13187",
+              "raw_label": "Чистая прибыль от пересчета сумм в иностранной валюте",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "313067",
+              "raw_label": "Доход от торговли иностранной валютой",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "34977",
+              "raw_label": "Восстановление / (Начисление) резерва под обесценение прочих активов",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-1685",
+              "raw_label": "Резерв по обязательствам кредитного характера",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "18133",
+              "raw_label": "Прочие доходы",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "1921",
+              "raw_label": "Дивиденды полученные",
+              "page": 10,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-1188436",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 10,
+          "column_year": 2024
+        },
+        "net_income": {
+          "raw_value": "886916",
+          "raw_label": "Прибыль / (убыток) за год",
+          "page": 10,
+          "column_year": 2024
+        }
+      }
+    },
+    {
+      "ticker": "TNGB",
+      "org_id": "815",
+      "issuer_name": "Tenge Bank",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "separate",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/2e06ddb3-1b9b-4e6b-af48-29224f4cb3b8.pdf",
+      "sha256": "bc3591bdb3f8ae7024b4d8f30a5ff90e8001d844714631b11f919a3c72f3aeec",
+      "page_count": 56,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 7 and 8: 2025 columns of the 2025 separate IFRS statements, year ended 31 December. Current annual period.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "1423130",
+          "raw_label": "Cash and cash equivalents",
+          "page": 7,
+          "column_year": 2025
+        },
+        "total_assets": {
+          "raw_value": "7263964",
+          "raw_label": "Total assets",
+          "page": 7,
+          "column_year": 2025
+        },
+        "total_liabilities": {
+          "raw_value": "5672736",
+          "raw_label": "Total liabilities",
+          "page": 7,
+          "column_year": 2025
+        },
+        "total_equity": {
+          "raw_value": "1591228",
+          "raw_label": "Total equity",
+          "page": 7,
+          "column_year": 2025
+        },
+        "interest_income": {
+          "raw_value": "849267",
+          "raw_label": "Interest income",
+          "page": 8,
+          "column_year": 2025
+        },
+        "interest_expense": {
+          "raw_value": "-564383",
+          "raw_label": "Interest expense",
+          "page": 8,
+          "column_year": 2025
+        },
+        "operating_income": {
+          "raw_value": "416985",
+          "raw_label": "Operating income",
+          "page": 8,
+          "column_year": 2025
+        },
+        "operating_expenses": {
+          "raw_value": "-392822",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 8,
+          "column_year": 2025
+        },
+        "net_income": {
+          "raw_value": "3975",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 8,
+          "column_year": 2025
+        }
+      }
+    },
+    {
+      "ticker": "TNGB",
+      "org_id": "815",
+      "issuer_name": "Tenge Bank",
+      "year": 2024,
+      "document_year": 2025,
+      "role": "COMPARATIVE",
+      "scope": "separate",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/2e06ddb3-1b9b-4e6b-af48-29224f4cb3b8.pdf",
+      "sha256": "bc3591bdb3f8ae7024b4d8f30a5ff90e8001d844714631b11f919a3c72f3aeec",
+      "page_count": 56,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 7 and 8: 2024 columns of the 2025 separate IFRS statements, year ended 31 December. Comparative column, not a separate annual filing.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "2417919",
+          "raw_label": "Cash and cash equivalents",
+          "page": 7,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "8397333",
+          "raw_label": "Total assets",
+          "page": 7,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "6809886",
+          "raw_label": "Total liabilities",
+          "page": 7,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "1587447",
+          "raw_label": "Total equity",
+          "page": 7,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "864514",
+          "raw_label": "Interest income",
+          "page": 8,
+          "column_year": 2024
+        },
+        "interest_expense": {
+          "raw_value": "-521183",
+          "raw_label": "Interest expense",
+          "page": 8,
+          "column_year": 2024
+        },
+        "operating_income": {
+          "raw_value": "579434",
+          "raw_label": "Operating income",
+          "page": 8,
+          "column_year": 2024
+        },
+        "operating_expenses": {
+          "raw_value": "-357045",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 8,
+          "column_year": 2024
+        },
+        "net_income": {
+          "raw_value": "167347",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 8,
+          "column_year": 2024
+        }
+      }
+    },
+    {
+      "ticker": "TNBN",
+      "org_id": "22",
+      "issuer_name": "Turonbank",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/93a90ff4-a26f-4a61-b729-9dc699539692.pdf",
+      "sha256": "7a868240e53231377dc2966905ad19faafe1cf3c63d0f2f585393c9739dcc878",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2025 columns of the 2025 consolidated IFRS statements, year ended 31 December. Current annual period.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "2588263",
+          "raw_label": "Cash and cash equivalents",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_assets": {
+          "raw_value": "21418655",
+          "raw_label": "Total assets",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_liabilities": {
+          "raw_value": "19639184",
+          "raw_label": "Total liabilities",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_equity": {
+          "raw_value": "1779471",
+          "raw_label": "Total equity",
+          "page": 9,
+          "column_year": 2025
+        },
+        "interest_income": {
+          "raw_value": "1773092",
+          "raw_label": "Interest income calculated using effective interest method",
+          "page": 10,
+          "column_year": 2025
+        },
+        "interest_expense": {
+          "raw_value": "-1405787",
+          "raw_label": "Interest expense calculated using effective interest method",
+          "page": 10,
+          "column_year": 2025
+        },
+        "operating_income": {
+          "raw_value": "576210",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 10,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "403054",
+              "raw_label": "Net interest income after credit losses and other adjustments",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "155003",
+              "raw_label": "Fee and commission income",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-55227",
+              "raw_label": "Fee and commission expense",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "65443",
+              "raw_label": "Net gain from trading in foreign currencies",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-8750",
+              "raw_label": "Foreign exchange translation loss",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "5762",
+              "raw_label": "Dividend income",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "21182",
+              "raw_label": "Other operating income",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-10257",
+              "raw_label": "Other (impairment)/recovery",
+              "page": 10,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-555439",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 10,
+          "column_year": 2025
+        },
+        "net_income": {
+          "raw_value": "18248",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 10,
+          "column_year": 2025
+        }
+      }
+    },
+    {
+      "ticker": "TNBN",
+      "org_id": "22",
+      "issuer_name": "Turonbank",
+      "year": 2024,
+      "document_year": 2025,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/93a90ff4-a26f-4a61-b729-9dc699539692.pdf",
+      "sha256": "7a868240e53231377dc2966905ad19faafe1cf3c63d0f2f585393c9739dcc878",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2024 columns of the 2025 consolidated IFRS statements, year ended 31 December. Comparative column, not a separate annual filing.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "1800984",
+          "raw_label": "Cash and cash equivalents",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "17114616",
+          "raw_label": "Total assets",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "15523215",
+          "raw_label": "Total liabilities",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "1591401",
+          "raw_label": "Total equity",
+          "page": 9,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "1592872",
+          "raw_label": "Interest income calculated using effective interest method",
+          "page": 10,
+          "column_year": 2024
+        },
+        "interest_expense": {
+          "raw_value": "-1206109",
+          "raw_label": "Interest expense calculated using effective interest method",
+          "page": 10,
+          "column_year": 2024
+        },
+        "operating_income": {
+          "raw_value": "566083",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 10,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "417632",
+              "raw_label": "Net interest income after credit losses and other adjustments",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "133488",
+              "raw_label": "Fee and commission income",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-56974",
+              "raw_label": "Fee and commission expense",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "51149",
+              "raw_label": "Net gain from trading in foreign currencies",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-1536",
+              "raw_label": "Foreign exchange translation loss",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "2253",
+              "raw_label": "Dividend income",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "14765",
+              "raw_label": "Other operating income",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "5306",
+              "raw_label": "Other (impairment)/recovery",
+              "page": 10,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-504408",
+          "raw_label": "Administrative and other operating expenses",
+          "page": 10,
+          "column_year": 2024
+        },
+        "net_income": {
+          "raw_value": "47704",
+          "raw_label": "Profit / (loss) for the year",
+          "page": 10,
+          "column_year": 2024
+        }
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "org_id": "20",
+      "issuer_name": "Mikrokreditbank",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/c33be67d-d1e0-49a2-9e69-3ee34e05c7ea.pdf",
+      "sha256": "e8b58050494dfb030ea700f70d2b168c23f0761a5d6c9190029989819a44027b",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2025 columns of the 2025 consolidated IFRS statements, year ended 31 December. Current annual period.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "3981280",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_assets": {
+          "raw_value": "30969251",
+          "raw_label": "Итого активы",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_liabilities": {
+          "raw_value": "24698494",
+          "raw_label": "Всего обязательств",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_equity": {
+          "raw_value": "6270757",
+          "raw_label": "Итого собственный капитал",
+          "page": 9,
+          "column_year": 2025
+        },
+        "interest_income": {
+          "raw_value": "3758224",
+          "raw_label": "Процентные доходы",
+          "page": 10,
+          "column_year": 2025
+        },
+        "interest_expense": {
+          "raw_value": "-2798794",
+          "raw_label": "Процентные расходы",
+          "page": 10,
+          "column_year": 2025
+        },
+        "operating_income": {
+          "raw_value": "1261695",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 10,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1010282",
+              "raw_label": "Чистые процентные доходы / (расходы) после изменения резерва под кредитные убытки",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "317291",
+              "raw_label": "Комиссионные доходы",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-132608",
+              "raw_label": "Комиссионные расходы",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "26206",
+              "raw_label": "Чистая прибыль от валютных операций",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-64383",
+              "raw_label": "Чистые доходы / (расходы) от первоначального признания финансовых инструментов",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "7451",
+              "raw_label": "Восстановление / (создание) резерва по прочим активам",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "97456",
+              "raw_label": "Прочие операционные доходы",
+              "page": 10,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-1110172",
+          "raw_label": "Расходы на персонал и прочие операционные расходы",
+          "page": 10,
+          "column_year": 2025
+        },
+        "net_income": {
+          "raw_value": "42111",
+          "raw_label": "Прибыль / (убыток) за год",
+          "page": 10,
+          "column_year": 2025
+        }
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "org_id": "20",
+      "issuer_name": "Mikrokreditbank",
+      "year": 2024,
+      "document_year": 2025,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/msfo/c33be67d-d1e0-49a2-9e69-3ee34e05c7ea.pdf",
+      "sha256": "e8b58050494dfb030ea700f70d2b168c23f0761a5d6c9190029989819a44027b",
+      "page_count": 12,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2024 columns of the 2025 consolidated IFRS statements, year ended 31 December. Comparative column, not a separate annual filing. 2024 income statement has inconsistent printed subtotals: interest margin and profit after tax do not reconcile. Operating income and net income withheld pending corrected filing.",
+      "unit_evidence": "in millions of Uzbek sums / в миллионах узбекских сумов",
+      "figures": {
+        "cash": {
+          "raw_value": "2811872",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "23851358",
+          "raw_label": "Итого активы",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "19750029",
+          "raw_label": "Всего обязательств",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "4101329",
+          "raw_label": "Итого собственный капитал",
+          "page": 9,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "2985555",
+          "raw_label": "Процентные доходы",
+          "page": 10,
+          "column_year": 2024
+        },
+        "interest_expense": {
+          "raw_value": "-2221645",
+          "raw_label": "Процентные расходы",
+          "page": 10,
+          "column_year": 2024
+        },
+        "operating_expenses": {
+          "raw_value": "-1023157",
+          "raw_label": "Расходы на персонал и прочие операционные расходы",
+          "page": 10,
+          "column_year": 2024
+        }
+      }
+    },
+    {
+      "ticker": "UNVB",
+      "org_id": "9",
+      "issuer_name": "Universal Bank",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "separate",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/358564ec-ac5d-4322-bd2d-26c346f539f2.pdf",
+      "sha256": "87151d9fda000c939d1b601612203006622d7dfa4bec0205c3210331f1be08d3",
+      "page_count": 71,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2025 columns of the 2025 separate IFRS statements, year ended 31 December. Current annual period.",
+      "unit_evidence": "в тысячах узбекских сумов / в тысячах УЗС",
+      "figures": {
+        "cash": {
+          "raw_value": "1996222317",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_assets": {
+          "raw_value": "4778355070",
+          "raw_label": "Итого активы",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_liabilities": {
+          "raw_value": "3988009938",
+          "raw_label": "Всего обязательств",
+          "page": 9,
+          "column_year": 2025
+        },
+        "total_equity": {
+          "raw_value": "790345132",
+          "raw_label": "Итого собственный капитал",
+          "page": 9,
+          "column_year": 2025
+        },
+        "interest_income": {
+          "raw_value": "523352728",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 10,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "518469624",
+              "raw_label": "Процентные доходы, рассчитанные по эффективной процентной ставке",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "4883104",
+              "raw_label": "Прочие процентные доходы",
+              "page": 10,
+              "column_year": 2025
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-330817104",
+          "raw_label": "Calculated sum of interest expense categories",
+          "page": 10,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "-326836512",
+              "raw_label": "Процентные расходы, рассчитанные по эффективной процентной ставке",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-3980592",
+              "raw_label": "Прочие процентные расходы",
+              "page": 10,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "620415753",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 10,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "185262080",
+              "raw_label": "Чистые процентные доходы после создания резерва под кредитные убытки",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "878098091",
+              "raw_label": "Комиссионные доходы",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-496760452",
+              "raw_label": "Комиссионные расходы",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "47496119",
+              "raw_label": "Чистые доходы/(расходы) по операциям в иностранной валюте и от переоценки иностранной валюты",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "660947",
+              "raw_label": "Восстановление/(создание) резерва под кредитные убытки по обязательствам кредитного характера",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "1908087",
+              "raw_label": "Восстановление/(создание) резерва по прочим активам",
+              "page": 10,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "3750881",
+              "raw_label": "Прочие операционные доходы",
+              "page": 10,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-332383170",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 10,
+          "column_year": 2025
+        },
+        "net_income": {
+          "raw_value": "232084279",
+          "raw_label": "Прибыль / (убыток) за год",
+          "page": 10,
+          "column_year": 2025
+        }
+      }
+    },
+    {
+      "ticker": "UNVB",
+      "org_id": "9",
+      "issuer_name": "Universal Bank",
+      "year": 2024,
+      "document_year": 2025,
+      "role": "COMPARATIVE",
+      "scope": "separate",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/358564ec-ac5d-4322-bd2d-26c346f539f2.pdf",
+      "sha256": "87151d9fda000c939d1b601612203006622d7dfa4bec0205c3210331f1be08d3",
+      "page_count": 71,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 9 and 10: 2024 columns of the 2025 separate IFRS statements, year ended 31 December. Comparative column, not a separate annual filing.",
+      "unit_evidence": "в тысячах узбекских сумов / в тысячах УЗС",
+      "figures": {
+        "cash": {
+          "raw_value": "979453969",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "3331494191",
+          "raw_label": "Итого активы",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "2733233338",
+          "raw_label": "Всего обязательств",
+          "page": 9,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "598260853",
+          "raw_label": "Итого собственный капитал",
+          "page": 9,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "383218721",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 10,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "373965961",
+              "raw_label": "Процентные доходы, рассчитанные по эффективной процентной ставке",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "9252760",
+              "raw_label": "Прочие процентные доходы",
+              "page": 10,
+              "column_year": 2024
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-225657321",
+          "raw_label": "Calculated sum of interest expense categories",
+          "page": 10,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "-223340998",
+              "raw_label": "Процентные расходы, рассчитанные по эффективной процентной ставке",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-2316323",
+              "raw_label": "Прочие процентные расходы",
+              "page": 10,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "400193140",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 10,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "150371409",
+              "raw_label": "Чистые процентные доходы после создания резерва под кредитные убытки",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "455636363",
+              "raw_label": "Комиссионные доходы",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-220419446",
+              "raw_label": "Комиссионные расходы",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "19732644",
+              "raw_label": "Чистые доходы/(расходы) по операциям в иностранной валюте и от переоценки иностранной валюты",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-268467",
+              "raw_label": "Восстановление/(создание) резерва под кредитные убытки по обязательствам кредитного характера",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-7756023",
+              "raw_label": "Восстановление/(создание) резерва по прочим активам",
+              "page": 10,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "2896660",
+              "raw_label": "Прочие операционные доходы",
+              "page": 10,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-224760583",
+          "raw_label": "Административные и прочие операционные расходы",
+          "page": 10,
+          "column_year": 2024
+        },
+        "net_income": {
+          "raw_value": "138144276",
+          "raw_label": "Прибыль / (убыток) за год",
+          "page": 10,
+          "column_year": 2024
+        }
+      }
+    },
+    {
+      "ticker": "TRSB",
+      "org_id": "24",
+      "issuer_name": "Trastbank",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/e65e3138-844f-4693-a602-df39cf64be6d.pdf",
+      "sha256": "7c7baf1fbf5974b5ebb082bee49fc9b010d7dfeb936513bb1bef22f24d54eae6",
+      "page_count": 13,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 10 and 11: 2025 columns of the 2025 consolidated IFRS statements, year ended 31 December. Current annual period.",
+      "unit_evidence": "в тысячах узбекских сумов / в тысячах УЗС",
+      "figures": {
+        "cash": {
+          "raw_value": "3238009788",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 10,
+          "column_year": 2025
+        },
+        "total_assets": {
+          "raw_value": "14163512853",
+          "raw_label": "Итого активы",
+          "page": 10,
+          "column_year": 2025
+        },
+        "total_liabilities": {
+          "raw_value": "10763608465",
+          "raw_label": "Всего обязательств",
+          "page": 10,
+          "column_year": 2025
+        },
+        "total_equity": {
+          "raw_value": "3399904388",
+          "raw_label": "Итого собственный капитал",
+          "page": 10,
+          "column_year": 2025
+        },
+        "interest_income": {
+          "raw_value": "2022076718",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 11,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1660010020",
+              "raw_label": "Процентные доходы, рассчитанные по эффективной процентной ставке",
+              "page": 11,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "362066698",
+              "raw_label": "Прочие процентные доходы",
+              "page": 11,
+              "column_year": 2025
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-653596909",
+          "raw_label": "Calculated sum of interest expense categories",
+          "page": 11,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "-625191835",
+              "raw_label": "Процентные расходы, рассчитанные по эффективной процентной ставке",
+              "page": 11,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-28405074",
+              "raw_label": "Прочие процентные расходы",
+              "page": 11,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "1698966200",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 11,
+          "column_year": 2025,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1245952142",
+              "raw_label": "Чистые процентные доходы / (расходы) после изменения резерва под кредитные убытки",
+              "page": 11,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "440173441",
+              "raw_label": "Комиссионные доходы",
+              "page": 11,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-130538907",
+              "raw_label": "Комиссионные расходы",
+              "page": 11,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "154270218",
+              "raw_label": "Чистая прибыль от валютных операций",
+              "page": 11,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-5141650",
+              "raw_label": "Восстановление / (создание) резерва под кредитные убытки по обязательствам кредитного характера",
+              "page": 11,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "-21533877",
+              "raw_label": "Восстановление / (создание) резерва по прочим активам",
+              "page": 11,
+              "column_year": 2025
+            },
+            {
+              "raw_value": "15784833",
+              "raw_label": "Прочие операционные доходы",
+              "page": 11,
+              "column_year": 2025
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-796080896",
+          "raw_label": "Расходы на персонал и прочие операционные расходы",
+          "page": 11,
+          "column_year": 2025
+        },
+        "net_income": {
+          "raw_value": "852680471",
+          "raw_label": "Прибыль / (убыток) за год",
+          "page": 11,
+          "column_year": 2025
+        }
+      }
+    },
+    {
+      "ticker": "TRSB",
+      "org_id": "24",
+      "issuer_name": "Trastbank",
+      "year": 2024,
+      "document_year": 2025,
+      "role": "COMPARATIVE",
+      "scope": "consolidated",
+      "currency": "UZS",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/e65e3138-844f-4693-a602-df39cf64be6d.pdf",
+      "sha256": "7c7baf1fbf5974b5ebb082bee49fc9b010d7dfeb936513bb1bef22f24d54eae6",
+      "page_count": 13,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF pages 10 and 11: 2024 columns of the 2025 consolidated IFRS statements, year ended 31 December. Comparative column, not a separate annual filing.",
+      "unit_evidence": "в тысячах узбекских сумов / в тысячах УЗС",
+      "figures": {
+        "cash": {
+          "raw_value": "2390191423",
+          "raw_label": "Денежные средства и их эквиваленты",
+          "page": 10,
+          "column_year": 2024
+        },
+        "total_assets": {
+          "raw_value": "10724668474",
+          "raw_label": "Итого активы",
+          "page": 10,
+          "column_year": 2024
+        },
+        "total_liabilities": {
+          "raw_value": "8057383586",
+          "raw_label": "Всего обязательств",
+          "page": 10,
+          "column_year": 2024
+        },
+        "total_equity": {
+          "raw_value": "2667284888",
+          "raw_label": "Итого собственный капитал",
+          "page": 10,
+          "column_year": 2024
+        },
+        "interest_income": {
+          "raw_value": "1573390355",
+          "raw_label": "Calculated sum of interest income categories",
+          "page": 11,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1254171395",
+              "raw_label": "Процентные доходы, рассчитанные по эффективной процентной ставке",
+              "page": 11,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "319218960",
+              "raw_label": "Прочие процентные доходы",
+              "page": 11,
+              "column_year": 2024
+            }
+          ]
+        },
+        "interest_expense": {
+          "raw_value": "-409501406",
+          "raw_label": "Calculated sum of interest expense categories",
+          "page": 11,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "-398179860",
+              "raw_label": "Процентные расходы, рассчитанные по эффективной процентной ставке",
+              "page": 11,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-11321546",
+              "raw_label": "Прочие процентные расходы",
+              "page": 11,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_income": {
+          "raw_value": "1494910924",
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "page": 11,
+          "column_year": 2024,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "1087593032",
+              "raw_label": "Чистые процентные доходы / (расходы) после изменения резерва под кредитные убытки",
+              "page": 11,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "336541285",
+              "raw_label": "Комиссионные доходы",
+              "page": 11,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "-98928328",
+              "raw_label": "Комиссионные расходы",
+              "page": 11,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "148197549",
+              "raw_label": "Чистая прибыль от валютных операций",
+              "page": 11,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "3685280",
+              "raw_label": "Восстановление / (создание) резерва под кредитные убытки по обязательствам кредитного характера",
+              "page": 11,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "9699341",
+              "raw_label": "Восстановление / (создание) резерва по прочим активам",
+              "page": 11,
+              "column_year": 2024
+            },
+            {
+              "raw_value": "8122765",
+              "raw_label": "Прочие операционные доходы",
+              "page": 11,
+              "column_year": 2024
+            }
+          ]
+        },
+        "operating_expenses": {
+          "raw_value": "-658505195",
+          "raw_label": "Расходы на персонал и прочие операционные расходы",
+          "page": 11,
+          "column_year": 2024
+        },
+        "net_income": {
+          "raw_value": "755411697",
+          "raw_label": "Прибыль / (убыток) за год",
+          "page": 11,
+          "column_year": 2024
+        }
+      }
     }
   ]
 }
