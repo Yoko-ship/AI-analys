@@ -4674,6 +4674,18 @@ def _register_parse(ticker: str, form: str, year: int, quarter: int | None,
 
         period_type = "annual" if not quarter else "quarter"
         report_id = provenance.report_id_for(ticker, form, period_type, year, quarter)
+        # Historical discovery can add a catalog entry after the last registry
+        # sync. Register that actual document now; otherwise a successful parse
+        # is stored with no source passport until an unrelated maintenance run.
+        urls = get_report_urls(ticker, form, year, quarter or 0)
+        if urls and (urls.get("excel_url") or urls.get("excel_url_form1")):
+            issuer = get_company_index(ticker) or {}
+            report_id = provenance.upsert_report(
+                str(issuer.get("org_id") or f"ticker:{ticker}"), form, period_type,
+                year, quarter or None, title=urls.get("title"),
+                pdf_url=urls.get("pdf_url"),
+                excel_url=urls.get("excel_url") or urls.get("excel_url_form1"),
+                source_published_at=urls.get("published_at"))
         if report_id is None:
             return None
         if not (data or {}).get("ok"):

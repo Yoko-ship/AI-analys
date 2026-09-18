@@ -308,3 +308,15 @@ def test_missing_annual_link_is_recovered_by_exact_id_without_guessing_a_year(ca
     assert result == {"repaired": [{"year": 2015, "quarter": 0}], "unresolved": []}
     assert rc.get_report_urls("BANK", "NSBU", 2015, 0)["excel_url"] == "https://example.org/right-annual.xlsx"
     assert len(rc.get_company_reports("BANK")) == 1
+
+
+def test_newly_discovered_statement_gets_a_source_passport_on_its_first_parse(catalog):
+    filing(catalog, "BANK", "12", 2019, 4)
+    values = {"revenue": 200, "net_income": 30}
+    report_id = rc._register_parse("BANK", "NSBU", 2019, 4, {"ok": True}, values)
+    assert report_id is not None
+    rc.upsert_financials_cache("BANK", "NSBU", 2019, 4, values, report_id)
+    passport = rc.get_financial_value_passport("BANK", "2019", "net_revenue")
+    assert passport["status"] == "SOURCED"
+    assert passport["source"]["report_id"] == report_id
+    assert passport["source"]["stated_period"] == "2019Q4"
