@@ -247,11 +247,55 @@ verified all 178 periods and 1,602 values, including every figure's source hash,
 accounting scope and calculation components. The post-publication backup has 240
 verified originals, and the ingestion timer is active.
 
-This is not a claim of zero gaps. IPTB separate 2015–2016, ALKB separate 2016,
-and MCBA separate 2017 still need OCR/layout work; their consolidated years are
+At the close of that batch, IPTB separate 2015–2016, ALKB separate 2016,
+and MCBA separate 2017 still needed OCR/layout work; their consolidated years are
 already published. The recovered DRBK 2014 comparative contains a balance sheet
 without a full income statement. SQBN 2019Q2/2020Q2 proposals remain incomplete.
 The wider pipeline retains queued work and review cases. The shared parser
 contains no future-year ceiling tied to this release, but changing source APIs
 or report layouts can require maintenance; failed checks cannot replace public
 snapshots automatically. See [the processing audit](annual-attachment-processing-live-verification-2026-09-18.json).
+
+
+### Appendix discovery and remaining scan recovery (2026-09-18)
+
+Release `867e8e5` adds shared extraction improvements: native page discovery
+finds statement appendices from section headings, tiled OCR preserves page
+coordinates without duplicate overlap rows, and bounded language/contrast
+retries retain faint printed zero dashes. Stacked date headers preserve each
+column's actual date. An interim balance title cannot silently date an
+unresolved comparative column. The OCR budget remains 240 seconds and eight
+refined pages; at most 32 discovered appendix pages augment the initial 16.
+Native page objects are released during the bounded 500-page discovery pass.
+
+The parser recognizes wrapped expense labels and own-funds equity totals.
+Missing gross interest expense can be derived from explicitly printed gross
+income and net interest before credit-loss adjustments, retaining every source
+component and coefficient. A net subtotal after impairment cannot supply that
+calculation. No issuer IDs, company branches or financial amounts were added
+to runtime code or checked-in review ledgers. Registered issuer URLs and
+reviewed database snapshots remain data, independent of these parsing rules.
+
+Six complete periods are now published: IPTB separate 2015–2016, MCBA separate
+2017, ALKB separate 2016, and SQBN consolidated 2019Q2/2020Q2. The SQBN periods
+are cumulative half-years, with the 2019 balance sourced from its own interim
+report rather than the December comparative in the 2020 report. ALKB's issuer
+brochure was discovered at pages 79–95 and its statements read at pages
+83–84/91–92. Every added figure and calculation component was visually checked.
+
+DRBK separate 2014 now exposes four verified comparative balance figures. Its
+five income fields remain absent, with a missing-data notice and `NO_DATA`
+passports; no zero or estimate is substituted. The recovered 2016 attachment
+contains no 2014 income statement, and the current issuer audit archive lists
+2023–2025 only. A suitable historical income source has not been located.
+This is therefore not a claim that every possible bank period is complete.
+
+Validation: 211 focused tests passed, including nine new parser/layout cases.
+The deployment retained all 178 prior snapshot heads and published seven new
+heads containing 58 figures. Live API checks verified all 185 periods and
+1,660 published values, plus each value's source hash, scope and calculation
+components. The post-publication backup contains 242 verified originals;
+monitoring reports no incidents, stale publications or overdue sources, and
+the staging timer is active. Workers continue to require attributed review
+before publication; new report formats can still require parser maintenance.
+See [the gap-recovery audit](remaining-ifrs-gaps-live-verification-2026-09-18.json).

@@ -1,0 +1,497 @@
+{
+  "release": "867e8e5",
+  "parser": "statement-columns-v4",
+  "test_result": {
+    "passed": 211,
+    "warnings": 5
+  },
+  "selected": [
+    {
+      "source_id": "11cd1d6689871e498990aecb2eaf318049bae6068949f0517ada162b182251f4",
+      "ticker": "IPTB",
+      "sha": "ca0bc70eb3101c777ce395b445a4c99be4ce030e3137946b84d7d03b9872b324",
+      "period": "2016-12-31",
+      "scope": "separate",
+      "payload_digest": "a52be9e2f5fe95461099aba84ef36b46ac40d3f1f4bf7574657d338cd7984711",
+      "reviewed_pages": [
+        1,
+        3,
+        5,
+        6
+      ],
+      "field_count": 9,
+      "missing_fields": [],
+      "candidate_id": "8c183d80734a063cfba0f7cf7eb3fd7c7c385d15ca333202bd93a694c9b0eb15",
+      "review_id": "a7e9cefaabb3e454519b9b6e55bef2ca9dda84a02e7567faea17e4369065c104"
+    },
+    {
+      "source_id": "11cd1d6689871e498990aecb2eaf318049bae6068949f0517ada162b182251f4",
+      "ticker": "IPTB",
+      "sha": "ca0bc70eb3101c777ce395b445a4c99be4ce030e3137946b84d7d03b9872b324",
+      "period": "2015-12-31",
+      "scope": "separate",
+      "payload_digest": "917843f63c478e5b315e8fccc5a2495173e9596e1a180a2998fadc55a586d867",
+      "reviewed_pages": [
+        1,
+        3,
+        5,
+        6
+      ],
+      "field_count": 9,
+      "missing_fields": [],
+      "candidate_id": "bff8e59187703db3d203f784420e1550b5e0c8bf2a4c96f976657c36b0755dcc",
+      "review_id": "a83e29480dd620921b8e264629e651b5c44f0e76cacf1dff92af85eb621ccf77"
+    },
+    {
+      "source_id": "e30a0382091c2de8fc879de148915b4b5a7ac8061e4923cff4fd26acc27d1fec",
+      "ticker": "MCBA",
+      "sha": "3d55a315e7332da329b34a6805a8703633cfa303d9548cfc69f5ee3085ea16c9",
+      "period": "2017-12-31",
+      "scope": "separate",
+      "payload_digest": "35c090a17dbd1ebddf1dab4bb4a1a04d311c782858b13b04609b7e2474cf1fd8",
+      "reviewed_pages": [
+        2,
+        7,
+        8
+      ],
+      "field_count": 9,
+      "missing_fields": [],
+      "candidate_id": "2813cf417e5744626d86c0339064bfc8e7da6c0a1c1164f9a819e8695344d1c9",
+      "review_id": "860219d0a2f18b9d843ee5026f72647dc8f0ae792d5fca4a7d0bfca44fb0d7a9"
+    },
+    {
+      "source_id": "43578c00fdd097192f7eb4d8a921e787c5099681d3dd00ca18182afa9ca7eca9",
+      "ticker": "ALKB",
+      "sha": "ba8cf009932a0f35f12d88ad4698ddd007a8e3e2af40050da4db40caa7591c51",
+      "period": "2016-12-31",
+      "scope": "separate",
+      "payload_digest": "b5458b031387bb8678687cfe13adaefaec932d39782c401473acb09184541682",
+      "reviewed_pages": [
+        80,
+        83,
+        84,
+        91,
+        92
+      ],
+      "field_count": 9,
+      "missing_fields": [],
+      "candidate_id": "11e4dcd0b9cee674d90a8c881184d3904f21362d12f3e643e57e260ec8f6ef53",
+      "review_id": "de5bfdf4246f14e6714f4fce13d54053f01de17448cbfe74702113687401c8c2"
+    },
+    {
+      "source_id": "8d5d419c4d18ab9d87699765ee60781c7dcf8453dedc597d13d76b59d39d330b",
+      "ticker": "SQBN",
+      "sha": "2cc7f3ac97dd4c8975f030cd29942cdcdfba59ccdc598ebeab74fca62b184dbf",
+      "period": "2019-06-30",
+      "scope": "consolidated",
+      "payload_digest": "c2711b4fa64b8b300a9ad62a638779299f76de350e9028e71bdab5f7bf575eba",
+      "reviewed_pages": [
+        4,
+        5,
+        6
+      ],
+      "field_count": 9,
+      "missing_fields": [],
+      "candidate_id": "0c9a332140198fd478c7fb50e4e9d4289a37ee9b58b832a091750a3d2a2513cd",
+      "review_id": "5f3dd49cf5c87a49d328c0c21486eca0e81f5c34d6a578cf9565f60cc02a2112"
+    },
+    {
+      "source_id": "1d9c4558781288994aa868c3a4e3a11966533ed79a79663b0a5bd0e6cae8c283",
+      "ticker": "SQBN",
+      "sha": "475217e56fe3f67931ba15b63aec0aaa9933e8a975b8d0d04b739ce98ddda7af",
+      "period": "2020-06-30",
+      "scope": "consolidated",
+      "payload_digest": "6bc0e8e3b1f845dc97c1faa2bb7f64500c05b02d025f9edcd1149e424cfe50ee",
+      "reviewed_pages": [
+        4,
+        5,
+        6
+      ],
+      "field_count": 9,
+      "missing_fields": [],
+      "candidate_id": "5f4d7abe478d2c9f3fb3bbc0c539c034d10027095fa4a5d9360cf6bd6f0a1443",
+      "review_id": "915ad2ac8c0670cf6b93b3701208271f1bc5f46143a79fec2725baaf082cdd3d"
+    },
+    {
+      "source_id": "03bd07044c20afa873450e9851048ecff6c8dcdca30af12b18c4a0d322206830",
+      "ticker": "DRBK",
+      "sha": "bbdab913686fea10ffa3d1661cd125caf1e0147838424483812ef1dbba10709f",
+      "period": "2014-12-31",
+      "scope": "separate",
+      "payload_digest": "81a96952f1a1d1e56eb437a4f4f92cac2481aae1e162eece894db9a4ad77e288",
+      "reviewed_pages": [
+        3,
+        6
+      ],
+      "field_count": 4,
+      "missing_fields": [
+        "interest_expense",
+        "interest_income",
+        "net_income",
+        "operating_expenses",
+        "operating_income"
+      ],
+      "candidate_id": "d4fa830b079295382a45762a329a3b36b3f069d81872b0665cf0dbe5ff555cfe",
+      "review_id": "0867e716f2aeff1dfef921275f9b12323ba9084de59d53c5d752a37394867953"
+    }
+  ],
+  "old_heads_unchanged": 178,
+  "new_head_count": 185,
+  "added_figures": 58,
+  "complete_periods_added": 6,
+  "partial_periods_added": 1,
+  "post_publication_backup": {
+    "path": "/app/data/financial_backups/20260918T172321Z-f4718c09",
+    "verified": true,
+    "artifacts": 242,
+    "published_periods": 185
+  },
+  "live_api_verification": {
+    "verified_at": "2026-09-18T17:23:51.234931+00:00",
+    "periods": 185,
+    "figures": 1660,
+    "scope_periods": {
+      "AGBA:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "ALKB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016"
+      ],
+      "ALKB:separate": [
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "BRBN:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015"
+      ],
+      "DRBK:consolidated": [
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016"
+      ],
+      "DRBK:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "GRBK:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "GRBK:separate": [
+        "2023",
+        "2022"
+      ],
+      "HMKB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "IPKY:consolidated": [
+        "2025",
+        "2024",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "IPKY:separate": [
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016"
+      ],
+      "IPTB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "IPTB:separate": [
+        "2016",
+        "2015"
+      ],
+      "MCBA:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2017",
+        "2016",
+        "2015",
+        "2014",
+        "2013"
+      ],
+      "MCBA:separate": [
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017"
+      ],
+      "OCBK:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "SQBN:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "SQBN:consolidated:quarterly": [
+        "2024Q2",
+        "2020Q2",
+        "2019Q2"
+      ],
+      "TNBN:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "TNGB:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020"
+      ],
+      "TRSB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "TRSB:consolidated:quarterly": [
+        "2019Q2",
+        "2018Q2"
+      ],
+      "UNVB:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017"
+      ]
+    },
+    "checks": [
+      "all previous and added public values",
+      "every figure source hash, value and scope",
+      "all calculated figure components",
+      "newest separate default retained"
+    ],
+    "davr_default_scope": "separate"
+  },
+  "browser_verification": [
+    {
+      "ticker": "IPTB",
+      "scope": "separate",
+      "period": "2016",
+      "passport": true,
+      "missing_income_explicit": false
+    },
+    {
+      "ticker": "IPTB",
+      "scope": "separate",
+      "period": "2015",
+      "passport": true,
+      "missing_income_explicit": false
+    },
+    {
+      "ticker": "MCBA",
+      "scope": "separate",
+      "period": "2017",
+      "passport": true,
+      "missing_income_explicit": false
+    },
+    {
+      "ticker": "ALKB",
+      "scope": "separate",
+      "period": "2016",
+      "passport": true,
+      "missing_income_explicit": false
+    },
+    {
+      "ticker": "SQBN",
+      "scope": "consolidated",
+      "period": "Q2 2019",
+      "passport": true,
+      "missing_income_explicit": false
+    },
+    {
+      "ticker": "SQBN",
+      "scope": "consolidated",
+      "period": "Q2 2020",
+      "passport": true,
+      "missing_income_explicit": false
+    },
+    {
+      "ticker": "DRBK",
+      "scope": "separate",
+      "period": "2014",
+      "passport": true,
+      "missing_income_explicit": true
+    }
+  ],
+  "browser_note": "Google font endpoints blocked during functional checks; application and API requests used production responses.",
+  "remaining_source_gap": {
+    "ticker": "DRBK",
+    "period": "2014",
+    "scope": "separate",
+    "missing_fields": [
+      "interest_expense",
+      "interest_income",
+      "net_income",
+      "operating_expenses",
+      "operating_income"
+    ],
+    "reason": "The 2016 attachment contains a 2014 comparative balance but no 2014 income statement. Historical income original not located in inspected OpenInfo attachments or current issuer archive.",
+    "issuer_archive": "https://davrbank.uz/ru/about/shareholders-documents"
+  },
+  "monitor": {
+    "ok": true,
+    "incidents": {},
+    "coverage": {
+      "sources": 353,
+      "jobs": {
+        "SUCCEEDED": 499,
+        "SUPERSEDED": 46,
+        "QUEUED": 546,
+        "NEEDS_REVIEW": 206
+      },
+      "published_periods": 185,
+      "discovery_pending": 0,
+      "discovery_errors": [],
+      "unreviewed_sources": 186,
+      "pending_jobs": 546,
+      "stale_publications": 0,
+      "approved_unpublished": 0,
+      "overdue_sources": 0,
+      "last_checked_at": 1789752195.8904088,
+      "status": "PARTIAL",
+      "failures": []
+    }
+  },
+  "persistent_audit_directory": "/app/data/financial_ingestion_audits/20260918-final-gaps",
+  "registered_issuer_urls": [
+    {
+      "ticker": "ALKB",
+      "url": "https://aloqabank.uz/upload/iblock/c47/2dehwkf2dt2li7p7b0vr8fkyvcpob1b1/report_2016.pdf",
+      "source_page": "https://aloqabank.uz/upload/iblock/c47/2dehwkf2dt2li7p7b0vr8fkyvcpob1b1/report_2016.pdf"
+    },
+    {
+      "ticker": "SQBN",
+      "url": "https://sqb.uz/upload/files/UzPSB IFRS FS 06.2019.pdf",
+      "source_page": "https://sqb.uz/en/for-investors/reports/ifrs-en/"
+    }
+  ]
+}
