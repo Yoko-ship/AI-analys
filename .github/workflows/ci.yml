@@ -146,6 +146,7 @@ jobs:
         run: |
           docker run --rm --entrypoint python uz-stock-bot -c "
           import importlib, sys
+          import scripts.publish_reviewed_bank_ifrs
           from runtime_preflight import COLLECTOR_REQUIREMENTS, NEWS_REQUIREMENTS
           missing = [n for n in {**COLLECTOR_REQUIREMENTS, **NEWS_REQUIREMENTS}
                      if importlib.util.find_spec(n) is None]

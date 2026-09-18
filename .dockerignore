@@ -32,6 +32,7 @@ tests
 e2e
 scripts
 !scripts/compact_admin_control.py
+!scripts/publish_reviewed_bank_ifrs.py
 playwright.config.js
 eslint.config.js
 playwright-report
