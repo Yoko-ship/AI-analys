@@ -36,6 +36,12 @@ def test_interim_snapshot_never_becomes_an_annual_or_standalone_quarter(setup):
     passport = publication.passport("BRBN", "2024Q2", "net_profit")
     assert passport["source"]["period_basis"] == "cumulative_ytd"
     assert publication.catalog_labels("BRBN")[setup[0]["pdf_url"]]["quarter"] == 2
+    index = rc.get_company_index("BRBN")
+    assert index["availability"]["MSFO"]["annual"] == []
+    assert index["availability"]["MSFO"]["quarter"][0]["quarter"] == 2
+    coverage = rc.get_financial_history_coverage("MSFO")["BRBN"]
+    assert coverage["complete_periods"] == 1
+    assert coverage["missing_periods"] == []
     import api
     from fastapi.testclient import TestClient
     response = TestClient(api.app).get("/api/company/BRBN/financials?form=MSFO&freq=quarterly").json()

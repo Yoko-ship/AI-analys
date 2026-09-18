@@ -1982,8 +1982,11 @@ def get_company_index(ticker: str) -> dict[str, Any]:
 
     # The same filing can be stored under two of the issuer's tickers; keep the
     # copy that carries the most download links.
+    from financial_ingestion.publication import catalog_labels
+    labels = catalog_labels(ticker)
     best: dict[tuple, Any] = {}
     for r in rows:
+        r = {**dict(r), **labels.get(r["pdf_url"], {})}
         key = _report_key(r)
         current = best.get(key)
         links = sum(1 for c in ("pdf_url", "excel_url", "excel_url_form1") if r[c])
@@ -4338,7 +4341,7 @@ def get_financial_history_coverage(form: str = "NSBU") -> dict[str, dict[str, An
     try:
         companies = list(conn.execute("SELECT ticker, org_id FROM catalog_companies").fetchall())
         reports = list(conn.execute(
-            "SELECT ticker, year, quarter, excel_url FROM catalog_reports "
+            "SELECT ticker, year, quarter, excel_url, pdf_url, period_type FROM catalog_reports "
             "WHERE report_form=? AND year IS NOT NULL AND NOT (period_type='quarter' AND quarter=0)", (form,)).fetchall())
         financials = list(conn.execute(
             f"SELECT ticker, year, quarter, balance_period, {', '.join(_FIN_FIELDS + _IFRS_BANK_FIELDS)} "
@@ -4350,7 +4353,21 @@ def get_financial_history_coverage(form: str = "NSBU") -> dict[str, dict[str, An
     values: dict[str, dict[str, dict[str, Any]]] = {}
     banks: set[str] = set()
     tickers = set(issuer)
+    reviewed = {}
+    labels = {}
+    if form == "MSFO":
+        from financial_ingestion import publication
+        for ticker, org in issuer.items():
+            if org not in reviewed:
+                annual = publication.series(ticker)
+                if annual is not None:
+                    reviewed[org] = {**annual, **(publication.series(ticker, quarterly=True) or {})}
+                    labels[org] = publication.catalog_labels(ticker)
+                else:
+                    reviewed[org] = None
     for row in reports:
+        org = issuer.get(row["ticker"], row["ticker"])
+        row = {**dict(row), **labels.get(org, {}).get(row["pdf_url"], {})}
         if _is_future_period(row["year"], row["quarter"] or 0):
             continue
         ticker = row["ticker"]
@@ -4366,6 +4383,10 @@ def get_financial_history_coverage(form: str = "NSBU") -> dict[str, dict[str, An
         org = issuer.get(ticker, ticker)
         period = f"{row['year']}Q{row['quarter']}" if row["quarter"] else str(row["year"])
         values.setdefault(org, {}).setdefault(period, {}).update(_fin_row_fields(row))
+    for org, periods in reviewed.items():
+        if periods is not None:
+            values[org] = periods
+            expected.setdefault(org, set()).update(periods)
     # A reviewed correction counts as available, but cannot invent IFRS data.
     if form == "NSBU":
         for ticker in tickers:
