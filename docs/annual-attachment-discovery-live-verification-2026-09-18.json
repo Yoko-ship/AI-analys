@@ -1,0 +1,61 @@
+{
+  "verified_at": "2026-09-18T15:59:34.972021+00:00",
+  "code_commit": "56b4908e2c0b05de265d013057b94385a0050f38",
+  "focused_tests_passed": 207,
+  "live_discovery": {
+    "issuer_count": 15,
+    "listing_errors": [],
+    "disclosures": 157,
+    "checked": 157,
+    "attachment_sources": 200,
+    "discovery_errors": []
+  },
+  "unchanged_published_periods": 163,
+  "public_figures_verified": 1467,
+  "public_verification_groups": [
+    {
+      "periods": 139,
+      "figures": 1251
+    },
+    {
+      "periods": 23,
+      "figures": 207
+    },
+    {
+      "periods": 1,
+      "figures": 9
+    }
+  ],
+  "checked_public_values_source_hashes_scopes_components": true,
+  "post_discovery_backup": {
+    "path": "/app/data/financial_backups/20260918T155818Z-775365b4",
+    "verified": true,
+    "artifacts": 139,
+    "published_periods": 163
+  },
+  "monitor": {
+    "ok": true,
+    "incidents": {},
+    "coverage": {
+      "sources": 351,
+      "jobs": {
+        "SUCCEEDED": 293,
+        "SUPERSEDED": 21,
+        "QUEUED": 619
+      },
+      "published_periods": 163,
+      "discovery_pending": 0,
+      "discovery_errors": [],
+      "unreviewed_sources": 0,
+      "pending_jobs": 619,
+      "stale_publications": 0,
+      "approved_unpublished": 0,
+      "overdue_sources": 199,
+      "last_checked_at": 1789745653.8719592,
+      "status": "PARTIAL",
+      "failures": []
+    }
+  },
+  "new_documents_require_extraction_and_review": true,
+  "financial_values_or_issuer_rules_added": false
+}

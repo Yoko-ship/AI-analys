@@ -201,3 +201,12 @@ ten GRBK annual filings in two bounded passes and found fifteen PDF URLs,
 including the previously missed 2016 audit attachment. It created fetch jobs and
 zero publications. The check used the normal listing and attachment parser,
 without an issuer-specific PDF URL in its inputs.
+
+Release `56b4908e2c0b05de265d013057b94385a0050f38` is deployed to uzstock.uz.
+The production backfill refreshed the current listings for all fifteen banks
+and checked 157 annual disclosures, registering 200 attachment URLs with no
+listing or discovery errors. All 163 published snapshot heads remained exactly
+unchanged; public API checks verified all 1,467 existing figures and their source
+passports. New PDFs are queued for extraction and review, not automatically
+published. The post-discovery backup is verified and the ingestion timer remains
+active. See [production evidence](annual-attachment-discovery-live-verification-2026-09-18.json).
