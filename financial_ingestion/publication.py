@@ -101,9 +101,6 @@ def publish(ticker, *, actor, replace=False, candidate_ids=None):
     published = []
     with store.transaction() as c:
         existing = c.execute("SELECT scope,period_end FROM ingest_heads WHERE org_id=? AND standard='MSFO'", (org,)).fetchall()
-        if existing and all(r["scope"] == "separate" for r in existing) and any(k[2] == "consolidated" for k in ready):
-            if {r["period_end"] for r in existing} - {k[4] for k in ready if k[2] == "consolidated"}:
-                raise ValueError("Switching to consolidated perimeter must preserve the published history")
         # Once an issuer has snapshot heads the reader stops mixing legacy
         # figures into them. Refuse a partial first migration that hides years.
         if not existing:
@@ -155,7 +152,7 @@ def rollback(snapshot_id, *, actor, reason):
 
 
 def snapshots(ticker, *, scope=None):
-    """Read exactly one perimeter; the default prefers consolidated accounts."""
+    """Read one perimeter, defaulting to the newest with consolidated as tie-break."""
     if scope not in {None, "separate", "consolidated"}:
         raise ValueError("Unknown accounting scope")
     import reports_catalog as rc
@@ -168,7 +165,7 @@ def snapshots(ticker, *, scope=None):
         rows = c.execute("SELECT p.* FROM ingest_heads h JOIN ingest_snapshots p ON p.id=h.snapshot_id "
                          "WHERE h.org_id=(SELECT org_id FROM catalog_companies WHERE ticker=?) AND h.standard='MSFO'",
                          (ticker.upper(),)).fetchall()
-        selected_scope = scope or ("consolidated" if any(r["scope"] == "consolidated" for r in rows) else "separate")
+        selected_scope = scope or (max(rows, key=lambda r: (r["period_end"], r["scope"] == "consolidated"))["scope"] if rows else "separate")
         return [{**dict(r), "payload": json.loads(r["payload_json"])} for r in rows if r["scope"] == selected_scope]
     finally:
         c.close()

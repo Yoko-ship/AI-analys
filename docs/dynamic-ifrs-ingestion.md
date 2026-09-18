@@ -210,3 +210,30 @@ unchanged; public API checks verified all 1,467 existing figures and their sourc
 passports. New PDFs are queued for extraction and review, not automatically
 published. The post-discovery backup is verified and the ingestion timer remains
 active. See [production evidence](annual-attachment-discovery-live-verification-2026-09-18.json).
+
+### Annual attachment processing and shared validation (2026-09-18)
+
+The annual attachment backfill downloaded all 200 discovered URLs (160 unique
+PDF hashes). Native extraction ran for every unique PDF; 117 additionally used
+bounded local OCR. Exact copies of already reviewed originals retain their
+existing public snapshots. No new financial amounts were added to the Python
+code or checked-in review ledgers.
+
+`statement-columns-v3` handles printed dot-grouped amounts, OCR bracket shapes,
+additional aggregate expense/associate labels, and effective-interest income
+that reconciles against a direct expense total. Profit before tax, signed tax,
+and any explicitly reported discontinued result must reconcile to net profit;
+ambiguous tax cells block validation. OCR retries score these checks and retain
+whole-page evidence. These are shared parsing rules, not ticker branches.
+
+Identical PDF bytes for the same issuer and extraction version reuse staged
+results and attributed approvals. Changed bytes, a different issuer, or a parser
+upgrade require extraction again. Workers still cannot publish automatically.
+The default financial perimeter follows the newest published period, preferring
+consolidated on a date tie. Both explicit views remain available, so publishing
+older consolidated history cannot hide newer separate statements.
+
+Validation: 213 focused ingestion, parser, discovery, API, evidence and financial
+regression tests passed. A broader run also encountered three existing failures
+in the separate `v3_financial_pipeline` module: its `INSERT OR IGNORE` statements
+are rejected by `dbx`; those files were not changed by this update.

@@ -106,6 +106,22 @@ def validate(payload, *, page_count):
             errors.append("EMPTY_BALANCE")
     else:
         warnings.append("PARTIAL_BALANCE")
+    reconciliation = payload.get('income_reconciliation')
+    if reconciliation is not None:
+        try:
+            values = {}
+            for name in ('pretax', 'tax', 'net_income') + (('discontinued',) if 'discontinued' in reconciliation else ()):
+                item = reconciliation[name]
+                if (not item.get('raw_label') or type(item.get('page')) is not int
+                        or not 1 <= item['page'] <= page_count or not end or item.get('column_year') != end.year):
+                    raise ValueError('Invalid income reconciliation evidence')
+                values[name] = amount(item['raw_value'])
+            if values['net_income'] != amount(figures['net_income']['raw_value']):
+                raise ValueError('Income reconciliation does not match the reported net income')
+            if abs(values['pretax'] + values['tax'] + values.get('discontinued', 0) - values['net_income']) > 1:
+                errors.append('INCOME_MISMATCH')
+        except (KeyError, TypeError, ValueError):
+            errors.append('INCOME_RECONCILIATION_INVALID')
     if not {"net_income", "interest_income"} <= normalized.keys():
         warnings.append("PARTIAL_INCOME")
     return {"valid": not errors, "errors": errors, "warnings": warnings, "normalized_uzs": normalized}

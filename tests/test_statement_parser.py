@@ -226,3 +226,61 @@ def test_single_effective_interest_category_requires_net_reconciliation(pages):
 def test_displaced_bold_balance_total_retains_its_numeric_row(pages):
     pages[7] = pages[7].replace('Total assets                     5,000,000    4,000,000','5,000,000    4,000,000\nTotal assets')
     assert parse(pages)[0]['figures']['total_assets']['raw_value'] == '5000000'
+
+
+def test_income_reconciliation_catches_a_single_ocr_digit_error(pages):
+    pages[8]=pages[8].replace('Profit for the year', 'Income tax expense               (30,000)    (30,000)\nProfit for the year')
+    for proposal in parse(pages):
+        assert validation.validate(proposal,page_count=8)['valid']
+    pages[8]=pages[8].replace('220,000','220,009')
+    primary,comparative=parse(pages)
+    assert 'INCOME_MISMATCH' in validation.validate(primary,page_count=8)['errors']
+    assert validation.validate(comparative,page_count=8)['valid']
+
+
+def test_income_reconciliation_does_not_invent_an_absent_tax_line(pages):
+    primary,_=parse(pages)
+    assert 'income_reconciliation' not in primary
+    assert validation.validate(primary,page_count=8)['valid']
+
+
+def test_unreadable_tax_cells_cannot_disable_income_reconciliation(pages):
+    pages[8]=pages[8].replace('Profit for the year', 'Income tax expense               (30,00?)    (30,000)\nProfit for the year')
+    primary,_=parse(pages)
+    assert 'INCOME_RECONCILIATION_INVALID' in validation.validate(primary,page_count=8)['errors']
+
+
+def test_one_effective_interest_side_reconciles_with_a_direct_total(pages):
+    pages[8] = pages[8].replace('Interest income', 'Interest income calculated using effective interest')
+    pages[8] += '\nNet interest income  400,000  310,000'
+    assert parse(pages)[0]['figures']['interest_income']['raw_value'] == '500000'
+    pages[8] = pages[8].replace('400,000  310,000', '400,009  310,000')
+    assert 'interest_income' not in parse(pages)[0]['figures']
+
+
+def test_ocr_bracket_shapes_keep_negative_sign_and_require_closure():
+    assert statements.cells('{100 000)  (90 000}',2) == ['-100000','-90000']
+    assert statements.cells('{100 000  90 000',2) is None
+    assert statements.row_label('Расходы Ha персонал и прочие операционные расходы  {100 000)')[0] == 'operating_expenses'
+
+
+def test_associate_result_wording_is_subtracted_from_operating_income(pages):
+    pages[8] += '\nДоля финансового результата ассоциированных компаний  10,000  5,000'
+    assert parse(pages)[0]['figures']['operating_income']['raw_value'] == '410000'
+
+
+def test_discontinued_result_reconciles_total_profit_without_changing_operating_result(pages):
+    pages[8]=pages[8].replace('Profit for the year', 'Income tax expense  (40,000)  (35,000)\nProfit for the year')
+    pages[8] += '\nПрибыль / (убыток) за год от прекращенной деятельности, за\nвычетом налога  10,000  5,000'
+    primary,comparative=parse(pages)
+    assert validation.validate(primary,page_count=8)['valid']
+    assert validation.validate(comparative,page_count=8)['valid']
+    assert primary['figures']['operating_income']['raw_value']=='420000'
+    primary['income_reconciliation']['discontinued']['raw_value']='10009'
+    assert 'INCOME_MISMATCH' in validation.validate(primary,page_count=8)['errors']
+
+
+def test_dot_thousands_do_not_change_decimal_precision():
+    assert statements.cells('33.250.441  (7.191.023)',2)==['33250441','-7191023']
+    assert statements.cells('(217.789,742)  123.45',2)==['-217789742','123.45']
+    assert statements.cells('1.23.456  1,000',2) is None

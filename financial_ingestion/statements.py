@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v2'
+VERSION = 'statement-columns-v3'
 
 
 def compact(value):
@@ -26,12 +26,14 @@ LABELS = {
     'interest_income': r'(?:totalinterestincome|interestincome|итогопроцентныедоходы|процентныедоходы)',
     'interest_expense': r'(?:totalinterestexpenses?|interestexpenses?|итогопроцентныерасходы|процентныерасходы)',
     'operating_income': r'(?:totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы)',
-    'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
+    'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|staffandotheroperatingexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|расходынаперсоналипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
     'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая)?(?:прибыль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:год|период)|чистаяприбыль)',
-    '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:доналогообложения|дорасходовпоналогунаприбыль))',
+    '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообложения|дорасходовпоналогунаприбыль))',
+    '_discontinued': r'(?:(?:profit|loss|profit/\(loss\))forthe(?:year|period)fromdiscontinuedoperations(?:netoftax)?|(?:чистая)?(?:прибыль|убыток|прибыль/\(убыток\)|\(убыток\)/прибыль)за(?:год|период)отпрекращеннойдеятельности(?:,?завычетомналога)?)',
+    '_tax': r'(?:incometax(?:expense|benefit)?|incometax\(expense\)/benefit|\(расход\)/экономияпоналогунаприбыль|расхо[дл]ыпоналогунаприбыль|налогнаприбыль|оценканалогана(?:прибыль|доход\(прибыль\)))',
     '_staff': r'(?:personnelexpenses|staffcosts|расходынаперсонал)',
     '_net_interest': r'(?:netinterestincome|чистыепроцентныедоходы|чистыйпроцентныйдоход)',
-    '_associate': r'(?:shareof(?:profit|results?)(?:of|from)associates|доляв(?:прибыли|убытках|результатах)(?:ассоциированных|зависимых)(?:компаний|предприятий|предпиятий))',
+    '_associate': r'(?:shareof(?:profit|results?)(?:of|from)associates|доляфинансовогорезультатаассоциированных(?:компаний|предприятий)|доляв(?:прибыли|убытках|результатах)(?:ассоциированных|зависимых)(?:компаний|предприятий|предпиятий))',
 }
 BALANCE = {'cash', 'total_assets', 'total_liabilities', 'total_equity'}
 DATE = re.compile(r'(?P<day>31|30)\s*(?P<month>december|декабря|march|марта|june|июня|september|сентября)\s*(?P<year>20\d{2})', re.I)
@@ -42,7 +44,7 @@ START_MONTHS = {**MONTHS, 'january':1, 'января':1, 'february':2, 'февр
 # A grouped integer must use groups of three. A dash is an explicit printed
 # zero, but an absent cell never becomes one. Decimal comma is accepted only
 # with one/two fractional digits, avoiding confusion with thousands separators.
-NUMBER = re.compile(r'(?<!\d)(?:\(*[−-]?(?:\d{1,3}(?:,\d{3})+|\d{1,4}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[.,]\d{1,2})?\)*|[—–-])(?!\d)')
+NUMBER = re.compile(r'(?<!\d)(?:\(*[−-]?(?:\d{1,3}(?:[,.]\d{3})+|\d{1,4}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[.,]\d{1,2})?\)*|[—–-])(?!\d)')
 
 
 def numeric(value):
@@ -53,6 +55,8 @@ def numeric(value):
     if value.startswith('(') != value.endswith(')'):
         raise ArithmeticError('Unbalanced amount parentheses')
     value = value.strip('()').replace('\u00a0',' ').replace('\u202f',' ')
+    if re.fullmatch(r'-?\d{1,3}(?:[,.]\d{3})+', value):
+        value = value.replace(',', '').replace('.', '')
     if ',' in value and re.search(r',\d{1,2}$', value):
         value = value.replace(',', '.')
     else:
@@ -70,6 +74,9 @@ def cells(tail, count):
     declared number of columns (or those columns and a short note number).
     """
     tail = tail.replace('_', '').strip()
+    # Curly glyphs are a common OCR rendering of printed amount brackets.
+    # Normalize bracket shape only; numeric() still requires both ends.
+    tail = tail.translate(str.maketrans({'{':'(', '}':')'}))
     # OCR sometimes inserts a space after a printed thousands comma. Keep
     # decimal commas and short note lists intact.
     tail = re.sub(r'(?<=\d),[ \u00a0]+(?=\d{3}(?:\D|$))', ',', tail)
@@ -106,7 +113,7 @@ def cells(tail, count):
 def row_label(line):
     # Financial labels can contain digits (IFRS 9); a numeric tail begins only
     # after whitespace and must contain exclusively amounts/note references.
-    for match in re.finditer(r'\s+(?=[(−\-\d—–])', line):
+    for match in re.finditer(r'\s+(?=[({−\-\d—–])', line):
         label, tail = line[:match.start()].strip(), line[match.end():]
         if re.search(r'[a-zа-яё]', tail, re.I):
             continue
@@ -120,12 +127,15 @@ def row_label(line):
             label_parts.pop(0)
             keys.append(compact(' '.join(label_parts)).strip('_/\\'))
         keys += [re.sub(r'^(?:assets|активы):?', '', key) for key in keys]
+        # Match visually identical Latin glyphs in Russian OCR labels while
+        # preserving the original label and trying unmodified English first.
+        keys += [key.translate(str.maketrans('aceopxyhkm', 'асеорухнкм')) for key in keys if re.search('[а-я]',key)]
         for key in keys:
             field = next((f for f, pattern in LABELS.items() if re.fullmatch(pattern, key)), None)
             if field:
                 return field, label, tail
             # Split interest categories are components, never mistaken for a total.
-            if re.match(r'(?:otherinterestincome|прочиепроцентныедоходы|прочаяпроцентнаявыручка|.*income.*effectiveinterest|.*доходы.*эффективн)', key):
+            if re.match(r'(?:otherinterestincome|прочиепроцентныедоходы|прочаяпроцентнаявыручка|.*income.*effectiveinterest|.*(?:доходы|выручка).*эффективн)', key):
                 return '_interest_income_part', label, tail
             if re.match(r'(?:otherinterestexpenses?|прочиепроцентныерасходы|.*expenses?.*effectiveinterest|.*расходы.*эффективн)', key):
                 return '_interest_expense_part', label, tail
@@ -153,7 +163,8 @@ def statement_lines(text):
         if index + 1 < len(lines) and line.strip() and (not row or note_only):
             following = lines[index + 1]
             interest_label = re.match(r'(?:interestincome|interestexpense|процентныедоходы|процентныерасходы)', compact(line)) or re.search(r'(?:income|expense|доходы|расходы).*(?:effective|эффективн)', compact(line))
-            if following.strip() and (not re.sub(NUMBER, '', following).strip() or interest_label):
+            discontinued_label = 'прекращеннойдеятельности' in compact(line) or 'discontinuedoperations' in compact(line)
+            if following.strip() and (not re.sub(NUMBER, '', following).strip() or interest_label or discontinued_label):
                 # A note already on the label baseline must not become a
                 # second note when an isolated scan-margin mark precedes the
                 # amount continuation. cells() permits just one note cell.
@@ -367,6 +378,9 @@ def proposals(pages, evidence):
             field,label,tail=row
             if (kind=='balance') != (field in BALANCE):
                 continue
+            if field in {'_pretax', '_tax', '_discontinued'}:
+                for year,end in cols:
+                    groups[(scope,end,scale)].setdefault('income_rows_seen', set()).add(field)
             values=cells(tail,len(cols))
             if values is None:
                 issues.append(f'AMBIGUOUS_CELLS:{number}:{label}')
@@ -385,14 +399,27 @@ def proposals(pages, evidence):
     result=[]
     for g in groups.values():
         figures=g['figures'];parts=g.pop('parts')
+        income_seen = g.pop('income_rows_seen', set())
+        if {'_pretax', '_tax'} <= income_seen and 'net_income' in figures:
+            g['income_reconciliation'] = {}  # unresolved cells must not silently disable the check
+        if len(parts.get('_pretax', [])) == len(parts.get('_tax', [])) == 1 and 'net_income' in figures:
+            g['income_reconciliation'] = {'pretax':parts['_pretax'][0], 'tax':parts['_tax'][0],
+                                          'net_income':figures['net_income']}
+            if '_discontinued' in income_seen:
+                if len(parts.get('_discontinued', [])) == 1:
+                    g['income_reconciliation']['discontinued'] = parts['_discontinued'][0]
+                else:
+                    g['income_reconciliation'] = {}
         income_parts = parts.get('_interest_income_part', [])
         expense_parts = parts.get('_interest_expense_part', [])
         net_parts = parts.get('_net_interest', [])
         # Some statements contain only the effective-interest category. Its
         # income and expense must reconcile to the explicitly printed net
         # interest total before either can stand in for the gross totals.
-        single_interest_pair = (len(income_parts) == len(expense_parts) == len(net_parts) == 1
-            and Decimal(income_parts[0]['raw_value']) + Decimal(expense_parts[0]['raw_value'])
+        income_total = [figures['interest_income']] if 'interest_income' in figures else income_parts
+        expense_total = [figures['interest_expense']] if 'interest_expense' in figures else expense_parts
+        single_interest_pair = (len(income_total) == len(expense_total) == len(net_parts) == 1
+            and Decimal(income_total[0]['raw_value']) + Decimal(expense_total[0]['raw_value'])
                 == Decimal(net_parts[0]['raw_value']))
         for field in ['interest_income','interest_expense']:
             components=parts.get('_'+field+'_part',[])

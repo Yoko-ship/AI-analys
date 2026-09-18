@@ -510,3 +510,86 @@ def test_unseen_report_extracts_both_columns_without_a_value_ledger(setup,monkey
     for row in rows:publication.approve(row['id'],actor='reviewer',reason='Verified statement pages')
     publication.publish('BRBN',actor='reviewer',candidate_ids=[r['id'] for r in rows])
     assert set(publication.series('BRBN'))=={'2024','2023'}
+
+
+def _alternate_pdf_source(entry, content, *, org='23', processor=None):
+    processor = processor or extract.processor_version()
+    with store.transaction() as c:
+        source = documents.register(c, org_id=org, ticker='BRBN' if org == '23' else 'OCBK',
+                    url='https://openinfo.uz/media/audit_conclusion/alternate.pdf', category='Audition',
+                    metadata={}, processor=processor)
+    job = store.claim(stages=('FETCH',))
+    documents.fetch_job(job, processor, fetch=lambda _: content)
+    return store.claim(stages=('EXTRACT',))
+
+
+def test_identical_attachment_reuses_review_by_issuer_hash_and_processor(setup, monkeypatch):
+    stage(setup)
+    job = _alternate_pdf_source(*setup)
+    monkeypatch.setattr(extract, 'page_texts', lambda *a, **k: pytest.fail('identical reviewed bytes need no OCR'))
+    ids = extract.extract_job(job, ocr=True)
+    c = store.connect()
+    try:
+        assert c.execute('SELECT decision FROM ingest_reviews WHERE candidate_id=?', (ids[0],)).fetchone()[0] == 'APPROVED'
+        assert c.execute("SELECT COUNT(*) FROM ingest_events WHERE action='review.reused'").fetchone()[0] == 1
+        assert c.execute('SELECT state FROM ingest_jobs WHERE id=?', (job['id'],)).fetchone()[0] == 'SUCCEEDED'
+    finally:
+        c.close()
+    assert publication.snapshots('BRBN') == []
+
+
+def test_identical_attachment_does_not_borrow_another_issuers_review(setup, monkeypatch):
+    stage(setup)
+    job = _alternate_pdf_source(*setup, org='99')
+    calls=[]
+    monkeypatch.setattr(extract, 'page_texts', lambda *a, **k: (calls.append(True) or {1:'unresolved document'}, {'page_count':1}))
+    ids=extract.extract_job(job)
+    c=store.connect()
+    try:assert c.execute('SELECT COUNT(*) FROM ingest_reviews WHERE candidate_id=?',(ids[0],)).fetchone()[0]==0
+    finally:c.close()
+    assert calls
+
+
+def test_unreviewed_duplicate_is_still_unreviewed(setup, monkeypatch):
+    stage(setup)
+    with store.transaction() as c:c.execute('DELETE FROM ingest_reviews')
+    job=_alternate_pdf_source(*setup)
+    monkeypatch.setattr(extract,'page_texts',lambda *a,**k:pytest.fail('same processor can reuse extraction'))
+    ids=extract.extract_job(job)
+    c=store.connect()
+    try:
+        assert c.execute('SELECT COUNT(*) FROM ingest_reviews WHERE candidate_id=?',(ids[0],)).fetchone()[0]==0
+        assert c.execute('SELECT state FROM ingest_jobs WHERE id=?',(job['id'],)).fetchone()[0]=='NEEDS_REVIEW'
+    finally:c.close()
+
+
+@pytest.mark.parametrize('changed', ['parser', 'bytes'])
+def test_changed_parser_or_bytes_does_not_reuse_extraction(setup, monkeypatch, changed):
+    stage(setup)
+    original_processor=extract.processor_version()
+    monkeypatch.setattr(extract,'review_entries',lambda:[])
+    job=_alternate_pdf_source(setup[0], setup[1] + (b'\n% changed' if changed == 'bytes' else b''),
+                              processor='a-different-parser' if changed == 'parser' else original_processor)
+    calls=[]
+    monkeypatch.setattr(extract,'page_texts',lambda *a,**k:(calls.append(True) or {1:'unresolved'}, {'page_count':1}))
+    extract.extract_job(job)
+    assert calls
+
+
+def test_adding_older_consolidated_history_preserves_newest_separate_default(setup):
+    stage(setup)
+    original=candidates()[0]
+    payload=json.loads(original['payload_json'])
+    payload['classification']['scope']='separate'
+    separate=publication.propose(original['id'],payload,actor='reviewer',reason='Separate statement')
+    publication.approve(separate,actor='reviewer',reason='Verified source')
+    publication.publish('BRBN',actor='reviewer',candidate_ids={separate})
+    payload['classification'].update(scope='consolidated',period_start='2023-01-01',period_end='2023-12-31',document_year=2023)
+    for figure in payload['figures'].values():figure['column_year']=2023
+    older=publication.propose(original['id'],payload,actor='reviewer',reason='Older group statement')
+    publication.approve(older,actor='reviewer',reason='Verified source')
+    publication.publish('BRBN',actor='reviewer',candidate_ids={older})
+    assert set(publication.series('BRBN'))=={'2024'}
+    assert publication.snapshots('BRBN')[0]['scope']=='separate'
+    assert set(publication.series('BRBN',scope='consolidated'))=={'2023'}
+    assert publication.scopes('BRBN')==['consolidated','separate']

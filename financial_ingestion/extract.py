@@ -85,6 +85,9 @@ def page_texts(payload, *, ocr=False):
                 for line in statements.statement_lines(text)) >= 2:
             problem_pages.add(number)
     for proposal in native:
+        if {'BALANCE_MISMATCH', 'INCOME_MISMATCH', 'INCOME_RECONCILIATION_INVALID'} & set(
+                validation.validate(proposal, page_count=count)['errors']):
+            problem_pages.update(proposal['statement_pages'])
         for number in proposal["statement_pages"]:
             count_fields = sum(f["page"] == number for f in proposal["figures"].values())
             if count_fields < 4 or not proposal['classification']['unit_scale']:
@@ -98,9 +101,10 @@ def page_texts(payload, *, ocr=False):
     def quality(number, text):
         candidates = [p for p in statements.proposals({**pages,number:text}, evidence)
                       if number in p['statement_pages']]
-        mismatches = sum('BALANCE_MISMATCH' in validation.validate(p, page_count=evidence['page_count'])['errors']
+        mismatches = sum(bool({'BALANCE_MISMATCH', 'INCOME_MISMATCH', 'INCOME_RECONCILIATION_INVALID'} & set(validation.validate(p, page_count=evidence['page_count'])['errors']))
                          for p in candidates)
         return (sum(f['page']==number for p in candidates for f in p['figures'].values()) - 8*mismatches,
+                sum(bool(p.get('income_reconciliation')) for p in candidates),
                 sum(bool(p['classification']['unit_scale']) for p in candidates))
 
     def complete(number):
@@ -108,7 +112,7 @@ def page_texts(payload, *, ocr=False):
         return bool(candidates) and all(
             sum(f['page']==number for f in p['figures'].values()) >=
                 (4 if p['figures'].get('total_assets',{}).get('page')==number else 5)
-            and 'BALANCE_MISMATCH' not in validation.validate(p, page_count=evidence['page_count'])['errors']
+            and not {'BALANCE_MISMATCH', 'INCOME_MISMATCH', 'INCOME_RECONCILIATION_INVALID'} & set(validation.validate(p, page_count=evidence['page_count'])['errors'])
             for p in candidates)
 
     def retain(number, text):
@@ -182,10 +186,10 @@ def page_texts(payload, *, ocr=False):
                 # Binder marks and ruled tables can defeat one segmentation
                 # mode. Try bounded alternatives only while a statement is
                 # incomplete; retain the strongest whole-page extraction.
-                for mode,scale in (('3',3),('6',3),('3',4)):
+                for mode,scale,crop in (('3',3,True),('6',3,True),('3',4,False),('3',4,True)):
                     if complete(number) or time.monotonic() >= deadline:
                         break
-                    alternative = recognize(number, scale, 30, psm=mode, crop=True)
+                    alternative = recognize(number, scale, 30, psm=mode, crop=crop)
                     if alternative is not None:
                         retain(number, alternative)
             if time.monotonic() >= deadline:
@@ -250,13 +254,38 @@ def extract_job(job, *, ocr=False):
         row = c.execute("SELECT v.*,s.org_id,s.url FROM ingest_versions v JOIN ingest_sources s ON s.id=v.source_id WHERE v.id=?",
                         (job["version_id"],)).fetchone()
         row = dict(row)
+        # An annual attachment can be an exact copy of a catalog PDF. Reuse
+        # only the same issuer, bytes and processor; a parser upgrade must run
+        # again. Prefer an already reviewed extraction over an unreviewed one.
+        cached = c.execute(
+            "SELECT x.*,r.id AS approved_review FROM ingest_candidates x "
+            "JOIN ingest_versions v ON v.id=x.version_id JOIN ingest_sources s ON s.id=v.source_id "
+            "LEFT JOIN ingest_reviews r ON r.candidate_id=x.id AND r.decision='APPROVED' "
+            "WHERE s.org_id=? AND v.sha=? AND x.processor=? AND x.version_id<>? "
+            "ORDER BY CASE WHEN r.id IS NULL THEN 1 ELSE 0 END,x.created_at DESC,x.id",
+            (row['org_id'], row['sha'], job['processor'], job['version_id'])).fetchall()
     finally:
         c.close()
     content = documents.read_artifact(row["sha"])
     entries = [e for e in review_entries() if str(e["org_id"]) == row["org_id"]
-               and e["pdf_url"] == row["url"] and e["sha256"] == row["sha"]]
+               and e["sha256"] == row["sha"]]
     proposals = []
-    if entries:
+    reused_reviews = {}
+    if cached:
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            count = len(pdf.pages)
+        seen = set()
+        for candidate in cached:
+            if candidate['version_id'] != cached[0]['version_id'] or candidate['id'] in seen:
+                continue
+            seen.add(candidate['id'])
+            payload = json.loads(candidate['payload_json'])
+            if payload.get('page_count') != count:
+                raise ValueError('Cached extraction page count does not match original')
+            proposals.append((payload, count, None))
+            if candidate['approved_review']:
+                reused_reviews[store.digest(payload)] = candidate['approved_review']
+    elif entries:
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             count = len(pdf.pages)
         for entry in entries:
@@ -287,6 +316,16 @@ def extract_job(job, *, ocr=False):
                 c.execute("INSERT INTO ingest_reviews VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
                           (review, candidate, actor, "APPROVED", reason, store.now()))
                 store.event(c, candidate, "review.approved", actor=actor)
+            elif checks['valid'] and store.digest(payload) in reused_reviews:
+                original = reused_reviews[store.digest(payload)]
+                actor = 'verified-content-reuse:' + original
+                reason = 'Same issuer, immutable PDF hash and extraction version as approved review ' + original
+                review = store.digest([candidate, actor, reason])
+                c.execute('INSERT INTO ingest_reviews VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',
+                          (review, candidate, actor, 'APPROVED', reason, store.now()))
+                store.event(c, candidate, 'review.reused', actor=actor, original_review=original, sha=row['sha'])
             result.append(candidate)
-        store.finish(c, job, "SUCCEEDED" if entries and all(validation.validate(p, page_count=n)["valid"] for p, n, _ in proposals) else "NEEDS_REVIEW")
+        approved = all((entry or store.digest(payload) in reused_reviews) and validation.validate(payload, page_count=count)['valid']
+                       for payload, count, entry in proposals)
+        store.finish(c, job, "SUCCEEDED" if approved else "NEEDS_REVIEW")
     return result
