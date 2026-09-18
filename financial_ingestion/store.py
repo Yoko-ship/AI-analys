@@ -78,6 +78,12 @@ def _schema(c):
       id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, action TEXT NOT NULL,
       actor TEXT NOT NULL, detail_json TEXT NOT NULL, created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS ingest_disclosures (
+      id TEXT PRIMARY KEY, org_id TEXT NOT NULL, ticker TEXT NOT NULL,
+      api_path TEXT NOT NULL, checked_at REAL, retry_at REAL NOT NULL DEFAULT 0,
+      attachments_json TEXT NOT NULL DEFAULT '[]', error TEXT,
+      UNIQUE(org_id,api_path)
+    );
     """)
     c.commit()
 
@@ -85,7 +91,7 @@ def _schema(c):
 def connect():
     from reports_catalog import get_catalog_conn
     c = get_catalog_conn()
-    dbx.ensure_schema(c, "financial-ingestion-v1", _schema)
+    dbx.ensure_schema(c, "financial-ingestion-v2", _schema)
     return c
 
 
@@ -189,11 +195,17 @@ def status(org_id=None):
                                 + where + (" AND " if where else " WHERE ") + "s.latest_version=v.id "
                                 "AND NOT EXISTS (SELECT 1 FROM ingest_snapshots p WHERE p.candidate_id=x.id)", args).fetchone()[0]
         overdue = sum(not r["checked_at"] or r["checked_at"] < time.time() - 8 * 86400 for r in sources)
+        disclosures = c.execute("SELECT d.* FROM ingest_disclosures d WHERE EXISTS (SELECT 1 FROM catalog_companies c "
+                                "WHERE c.org_id=d.org_id AND c.ticker=d.ticker)" +
+                                (" AND d.org_id=?" if org_id is not None else " AND d.api_path LIKE '/reports/bank/annual/%'"), args).fetchall()
+        discovery_errors = [{"disclosure": r["id"], "reason": r["error"]} for r in disclosures if r["error"]]
+        discovery_pending = sum(r["retry_at"] <= time.time() for r in disclosures)
         return {"sources": len(sources), "jobs": counts, "published_periods": heads,
+                "discovery_pending": discovery_pending, "discovery_errors": discovery_errors,
                 "unreviewed_sources": len(reviews), "pending_jobs": pending, "stale_publications": stale,
                 "approved_unpublished": unpublished, "overdue_sources": overdue,
                 "last_checked_at": max((r["checked_at"] or 0 for r in sources), default=0),
-                "status": "NO_SOURCES" if not sources else "PARTIAL" if pending or reviews or stale or unpublished or overdue or counts.get("FAILED") else "PROCESSED",
+                "status": "NO_SOURCES" if not sources else "PARTIAL" if pending or reviews or stale or unpublished or overdue or discovery_pending or discovery_errors or counts.get("FAILED") else "PROCESSED",
                 "failures": [{"job_id": j["id"], "reason": j["error"]} for j in jobs if j["state"] == "FAILED"][:20]}
     finally:
         c.close()
@@ -213,4 +225,5 @@ def public_status(ticker):
         return {"status": "NO_SOURCES"}
     result = status(issuer["org_id"])
     result.pop("failures", None)
+    result.pop("discovery_errors", None)
     return result

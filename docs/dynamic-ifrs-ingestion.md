@@ -174,3 +174,30 @@ for those issuers and ranges; individual accounting scopes can still have gaps.
 The discovered attachment is registered for normal refresh/reprocessing. This
 follow-up does not add automatic annual-disclosure attachment crawling. See
 [the OpenInfo evidence and live verification](bank-ifrs-openinfo-2016-verification-2026-09-18.json).
+
+## Automatic annual attachment discovery
+
+The staging cycle now checks OpenInfo annual-disclosure details for `int_report`
+and `audition_result_report[].conclusion_file`. Catalog sync remembers all annual
+parents, including filings excluded from NSBU value ingestion; existing catalog
+export links bootstrap older records. The implementation contains no issuer,
+year or financial-value exceptions.
+
+Discovery verifies the returned issuer and filing IDs and accepts only HTTPS
+OpenInfo media PDFs. Each attachment records the parent page, detail API URL,
+attachment field and hash of the canonical detail response. It does not inherit
+the parent filing's accounting standard, scope or financial values: the PDF must
+pass extraction and review before publication.
+
+The regular bank staging cycle makes at most eight disclosure requests per pass,
+stops starting requests after sixty seconds and resumes from persistent state.
+Successful checks, including empty attachment sets, are cached for seven days;
+failures retry after an hour and appear in ingestion monitoring. A refresh failure
+retains the last verified links. Explicit ticker discovery also supports other
+issuer types. Existing publications are never changed by discovery.
+
+Validation: 207 focused tests pass. An isolated live OpenInfo check followed all
+ten GRBK annual filings in two bounded passes and found fifteen PDF URLs,
+including the previously missed 2016 audit attachment. It created fetch jobs and
+zero publications. The check used the normal listing and attachment parser,
+without an issuer-specific PDF URL in its inputs.

@@ -118,7 +118,9 @@ def discover(*, ticker=None, processor):
                 continue
             ids.add(register(c, org_id=source["org_id"], ticker=source["ticker"], url=source["url"],
                              category=source["category"], metadata=metadata, processor=processor))
-    return {"sources": len(ids)}
+    from . import disclosures
+    attachments = disclosures.discover(ticker=ticker, processor=processor)
+    return {"sources": len(ids), "annual_attachments": attachments}
 
 
 def register_issuer_source(*, ticker, url, source_page, actor, reason, processor):

@@ -82,8 +82,10 @@ def main():
         if not 1 <= args.max_jobs <= 1000:
             parser.error("--max-jobs must be 1..1000")
         if args.command == "cycle":
-            documents.discover(ticker=args.ticker, processor=extract.processor_version())
+            discovery = documents.discover(ticker=args.ticker, processor=extract.processor_version())
         result = run(max_jobs=args.max_jobs, ocr=args.ocr)
+        if args.command == "cycle":
+            result["discovery"] = discovery
     elif args.command == "status":
         org = None
         if args.ticker:

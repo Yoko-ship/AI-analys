@@ -1196,6 +1196,11 @@ def sync_company(
     except Exception as exc:
         main_results, org_type = [], None
         errors.append(f"reports/main: {exc}")
+    try:
+        from financial_ingestion.disclosures import remember_listing
+        remember_listing(ticker=ticker, org_id=org_id, records=main_results)
+    except Exception as exc:
+        errors.append(f"annual attachment discovery: {exc}")
 
     # ---- NSBU annual -------------------------------------------------------
     try:

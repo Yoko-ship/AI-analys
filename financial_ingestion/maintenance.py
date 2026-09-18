@@ -115,6 +115,8 @@ def monitor():
     problems = {}
     if status["failures"]:
         problems["FAILED_JOBS"] = f"{status['jobs'].get('FAILED', 0)} failed jobs require retry or investigation"
+    if status.get("discovery_errors"):
+        problems["DISCOVERY_FAILED"] = f"{len(status['discovery_errors'])} annual disclosures could not be checked"
     if status["stale_publications"]:
         problems["SOURCE_REPLACED"] = f"{status['stale_publications']} published source versions changed"
     with store.transaction() as c:
