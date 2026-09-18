@@ -1,0 +1,76 @@
+{
+  "verified_at": "2026-09-18T13:04:42.827562+00:00",
+  "new_separate_periods": {
+    "IPKY": [
+      "2021",
+      "2020",
+      "2019",
+      "2018"
+    ],
+    "MCBA": [
+      "2022",
+      "2021",
+      "2020"
+    ]
+  },
+  "new_period_count": 7,
+  "new_figures_verified": 63,
+  "checks": [
+    "every separate-scope series value",
+    "every separate-scope source passport value/hash/perimeter",
+    "scope availability"
+  ],
+  "deployed_commit": "5a5a366e0d41350fe945ca000e09aeafcc4b8771",
+  "docker_image": "sha256:f3a5e0231de8be26fd8d30a8aed60d3c087139e5e30197b720c2bcda9d5aba2d",
+  "health": {
+    "status": "ok"
+  },
+  "ingestion_timer": "active",
+  "monitor": {
+    "ok": true,
+    "incidents": {},
+    "coverage": {
+      "sources": 143,
+      "jobs": {
+        "SUCCEEDED": 257,
+        "QUEUED": 173
+      },
+      "published_periods": 146,
+      "unreviewed_sources": 0,
+      "pending_jobs": 173,
+      "stale_publications": 0,
+      "approved_unpublished": 0,
+      "overdue_sources": 27,
+      "last_checked_at": 1789735814.470319,
+      "status": "PARTIAL",
+      "failures": []
+    }
+  },
+  "existing_periods_verified": 139,
+  "existing_figures_verified": 1251,
+  "existing_verified_at": "2026-09-18T13:05:08.391369+00:00",
+  "total_published_periods": 146,
+  "total_verified_figures": 1314,
+  "browser_checks": [
+    {
+      "ticker": "MCBA",
+      "separatePeriod": "2022",
+      "separatePassport": true,
+      "returnToConsolidated": true
+    },
+    {
+      "ticker": "IPKY",
+      "separatePeriod": "2021",
+      "separatePassport": true,
+      "returnToConsolidated": true
+    }
+  ],
+  "verified_prepublication_backup": "/app/data/financial_backups/20260918T130314Z-3e561972",
+  "data_method": "Shared PDF/OCR parser output, source-page reviewed, stored as database candidates; no new financial values added to checked-in recovery ledger.",
+  "verified_postpublication_backup": {
+    "path": "/app/data/financial_backups/20260918T130643Z-88476069",
+    "verified": true,
+    "artifacts": 113,
+    "published_periods": 146
+  }
+}

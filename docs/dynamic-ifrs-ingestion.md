@@ -79,3 +79,25 @@ text layers contain incorrect digits; some OCR pages remain incomplete. These
 are review candidates, not a claim of complete unattended extraction. Missing
 source documents and ambiguous evidence remain gaps. The parser has no rule
 that invents figures to make a balance reconcile.
+
+## Production verification — 18 September 2026
+
+Release `5a5a366e0d41350fe945ca000e09aeafcc4b8771` is deployed to uzstock.uz.
+The shared parser supplied seven reviewed separate-account periods: MCBA
+2020–2022 and IPKY 2018–2021. Their 63 figures were checked against the original
+statement pages before publication. No financial amounts were added to the
+checked-in recovery ledger.
+
+The public API and passports verified all 63 new figures and all 1,251 existing
+figures. Browser checks confirmed separate/group switching and correctly scoped
+passports. There are 146 published periods across both accounting scopes.
+Existing default histories retain their previous values and source hashes.
+
+The release passed 156 focused backend tests, two browser tests, the frontend
+build and lint (zero errors, 59 existing warnings). See the
+[archive evaluation](dynamic-ifrs-evaluation-2026-09-18.json) and
+[production verification](dynamic-ifrs-live-verification-2026-09-18.json).
+
+Source absence, unreadable scans and unresolved candidates still limit coverage.
+This release does not certify unattended extraction of every report, and source
+registration does not automatically discover every issuer-site document.
