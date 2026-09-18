@@ -337,7 +337,7 @@ def backfill_financials(min_year: int = 2015, tickers: set[str] | None = None) -
         for year in years:
             scanned += 1
             try:
-                data = rc.fetch_report_excel_data(ticker, "NSBU", year, 0)
+                data = rc.fetch_report_excel_data(ticker, "NSBU", year, 0, use_snapshot_cache=False)
                 if not data.get("ok"):
                     failed += 1
                     log.warning("annual backfill: %s %s: %s", ticker, year, data.get("error"))
@@ -440,7 +440,7 @@ def backfill_quarterly_financials(min_year: int = 2023,
         for year, quarter in quarters:
             scanned += 1
             try:
-                data = rc.fetch_report_excel_data(ticker, "NSBU", year, quarter)
+                data = rc.fetch_report_excel_data(ticker, "NSBU", year, quarter, use_snapshot_cache=False)
                 if not data.get("ok"):
                     failed += 1
                     log.warning("quarterly backfill: %s %sQ%s: %s", ticker, year, quarter, data.get("error"))
@@ -1511,6 +1511,8 @@ def main() -> int:
     ap.add_argument("--bank-history-limit", type=int, default=None,
                     help="banks per history pass (default: 2 daily, all with --bank-history-only)")
     ap.add_argument("--bank-history-ticker", help="limit --bank-history-only to one bank, e.g. BRBN")
+    ap.add_argument("--bank-history-due-only", action="store_true",
+                    help="with --bank-history-only, respect the seven-day rotation checkpoint")
     ap.add_argument("--no-trades", action="store_true", help="skip the trade-stats step")
     ap.add_argument("--trades-only", action="store_true", help="only fetch+push trade stats")
     ap.add_argument("--no-quotes", action="store_true",
@@ -1580,7 +1582,7 @@ def main() -> int:
         try:
             return backfill_bank_financials(
                 args.bank_history_limit if args.bank_history_limit is not None else 1000,
-                force=True, ticker=args.bank_history_ticker)
+                force=not args.bank_history_due_only, ticker=args.bank_history_ticker)
         except Exception:
             log.exception("bank history repair failed")
             return 1

@@ -143,3 +143,71 @@ def test_ifrs_api_distinguishes_an_unparsed_report_from_no_publication(catalog, 
     assert body["availability"] == "NO_PARSED_FINANCIALS"
     assert body["reports_available"] is True
     assert {"period": "2022", "code": "REPORT_NOT_PARSED"} in body["data_gaps"]
+
+
+def test_history_fetch_bypasses_snapshot_cache_and_downloads_combined_book_once(monkeypatch):
+    url = "https://example.org/bank.xlsx"
+    monkeypatch.setattr(rc, "get_report_urls", lambda *args: {
+        "excel_url": url, "excel_url_form1": url,
+    })
+    monkeypatch.setattr(rc, "_make_session", object)
+    monkeypatch.setattr(rc, "parse_excel_report_document", lambda *args: pytest.fail("history must read the current source"))
+    calls = []
+    parsed = {"ok": True, "sheets": []}
+    monkeypatch.setattr(rc, "_parse_workbook_uncached", lambda session, url: calls.append(url) or parsed)
+    data = rc.fetch_report_excel_data("BRBN", "NSBU", 2024, 0, use_snapshot_cache=False)
+    assert calls == [url]
+    assert data["income"] is parsed and data["balance"] is parsed
+
+
+def test_history_fetch_preserves_separate_statement_links(monkeypatch):
+    monkeypatch.setattr(rc, "get_report_urls", lambda *args: {
+        "excel_url": "income.xlsx", "excel_url_form1": "balance.xlsx",
+    })
+    monkeypatch.setattr(rc, "_make_session", object)
+    monkeypatch.setattr(rc, "_parse_workbook_uncached", lambda session, url: {"ok": True, "url": url})
+    data = rc.fetch_report_excel_data("BANK", "NSBU", 2024, 0, use_snapshot_cache=False)
+    assert data["income"]["url"] == "income.xlsx"
+    assert data["balance"]["url"] == "balance.xlsx"
+
+
+def test_history_missing_excel_has_actionable_failure(monkeypatch):
+    monkeypatch.setattr(rc, "get_report_urls", lambda *args: {"pdf_url": "report.pdf"})
+    data = rc.fetch_report_excel_data("BANK", "NSBU", 2015, 0, use_snapshot_cache=False)
+    assert not data["ok"]
+    assert "No Excel document" in data["error"]
+
+
+@pytest.mark.parametrize("due_only", [False, True])
+def test_scheduled_bank_history_respects_rotation_but_manual_repair_can_force(monkeypatch, due_only):
+    import sys
+    args = ["collector_financials.py", "--bank-history-only", "--bank-history-limit", "3"]
+    if due_only:
+        args.append("--bank-history-due-only")
+    monkeypatch.setattr(sys, "argv", args)
+    monkeypatch.setattr(cf, "preflight", lambda *args, **kwargs: None)
+    calls = []
+    monkeypatch.setattr(cf, "backfill_bank_financials", lambda *args, **kwargs: calls.append((args, kwargs)) or 0)
+    assert cf.main() == 0
+    assert calls == [((3,), {"force": not due_only, "ticker": None})]
+
+
+def test_vps_history_worker_persists_catalog_and_does_not_duplicate_stateless_run():
+    import ast
+    import textwrap
+    from pathlib import Path
+    workflow = Path(".github/workflows/ci.yml").read_text()
+    start = workflow.index("          def worker(")
+    end = workflow.index("          for name, content in units.items():", start)
+    source = textwrap.dedent(workflow[start:end])
+    ast.parse(source)
+    namespace = {}
+    exec(compile(source, "VPS workers", "exec"), namespace)
+    units = namespace["units"]
+    history = units["/etc/systemd/system/uzstock-bank-history.service"]
+    assert "-v uzstock_data:/app/data" in history
+    assert "--bank-history-due-only --bank-history-limit 3" in history
+    assert "--cpus 0.50" in history
+    assert "BANK_HISTORY_BATCH=0" in units["/etc/systemd/system/uzstock-collector.service"]
+    assert "OnCalendar=*-*-* 02:00:00" in units["/etc/systemd/system/uzstock-bank-history.timer"]
+    assert workflow.count("uzstock-bank-history.timer uzstock-news-collector.timer") == 2

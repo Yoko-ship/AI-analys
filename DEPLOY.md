@@ -39,28 +39,32 @@ another environment.
 
 ### Bank financial history repair
 
-The daily collector also repairs a rotating batch of bank issuers. It discovers
+The VPS runs a dedicated `uzstock-bank-history.timer` daily at 02:00 UTC. It discovers
 older quarterly filings from the unified OpenInfo feed, then re-parses all known
-annual and quarterly reports for those issuers. The default is two issuers per
-run (`BANK_HISTORY_BATCH=2`), with a seven-day interval before revisiting an issuer.
+annual and quarterly reports for three issuers per run, with a seven-day interval
+before revisiting an issuer (`--bank-history-due-only`). Its worker mounts
+`uzstock_data:/app/data`: discovered documents, source links, and figures all persist.
+The stateless full-market worker sets `BANK_HISTORY_BATCH=0` to avoid a duplicate
+history pass. Other installations can use its default two-issuer daily batch.
 Ordinary and preferred shares share one repair. Download or push failures are
 reported as partial; they do not prevent other issuers from being attempted.
+History reads bypass the small whole-file JSON snapshot cache: they fetch the
+current filing once, without repeatedly rewriting unrelated cached workbooks.
 
-To repair all bank histories immediately, run the following **inside the active
-collector container**, with its existing data mount and credentials:
+To repair one bank immediately, run the following **inside the active API
+container**, with its existing data mount and credentials:
 
 ```sh
 python collector_financials.py --bank-history-only --bank-history-ticker BRBN
 ```
 
 Omit `--bank-history-ticker BRBN` to repair every bank. The progress checkpoints
-are stored on the API so rotation also works with ephemeral systemd/Docker jobs.
-Run inside the API container when the report catalog must also receive the
-discovered old filings; its `/app/data` volume owns that catalog.
+are stored on the API as well as the mounted catalog. A separate worker must
+mount the same data volume; pushing figures alone does not publish the documents.
 Use `--bank-history-limit 1` for a bounded initial run. Before deploying or running
 this command, inspect the active application directory and service manager on
 the production VPS (DEPLOY_SSH_* in the local .env), and take a backup of the active databases.
-Do not start an additional repair while the scheduled collector is running.
+Do not start an additional repair while `uzstock-bank-history.service` is running.
 The repair upserts financial periods; it does not delete history. Its default
 public destination is `https://uzstock.uz`; the VPS loop requires the internal
 `http://uzstock-web:8000` destination.

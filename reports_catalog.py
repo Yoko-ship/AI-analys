@@ -5552,7 +5552,8 @@ def get_new_reports_for_tickers(tickers: list[str], since_days: int = 7) -> list
 # Excel data access
 # ---------------------------------------------------------------------------
 
-def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int) -> dict[str, Any]:
+def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
+                            use_snapshot_cache: bool = True) -> dict[str, Any]:
     urls = get_report_urls(ticker, form, year, quarter)
     if not urls:
         return {"ok": False, "income": None, "balance": None, "error": "Report not found in catalog"}
@@ -5567,7 +5568,8 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int) -> 
                "published_at": urls.get("published_at"), "period_type": urls.get("period_type"),
                "report_form": form, "title": urls.get("title")}
         try:
-            parsed = parse_excel_report_document(session, doc)
+            parsed = (parse_excel_report_document(session, doc) if use_snapshot_cache
+                      else _parse_workbook_uncached(session, doc["excel_url"]))
             if parsed.get("ok"):
                 income = parsed
             else:
@@ -5587,7 +5589,8 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int) -> 
                     "published_at": urls.get("published_at"), "period_type": urls.get("period_type"),
                     "report_form": form, "title": urls.get("title")}
             try:
-                parsed1 = parse_excel_report_document(session, doc1)
+                parsed1 = (parse_excel_report_document(session, doc1) if use_snapshot_cache
+                           else _parse_workbook_uncached(session, doc1["excel_url"]))
                 if parsed1.get("ok"):
                     balance = parsed1
                 else:
@@ -5596,6 +5599,8 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int) -> 
                 errors.append(f"balance: {exc}")
 
     ok = income is not None or balance is not None
+    if not urls.get("excel_url") and not urls.get("excel_url_form1"):
+        errors.append("No Excel document is linked to this filing")
     return {
         "ok": ok,
         "income": income,

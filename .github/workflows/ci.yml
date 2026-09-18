@@ -530,14 +530,14 @@ jobs:
             uzstock-intraday.timer uzstock-collector.timer \
             uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \
-            uzstock-bank-fx.timer uzstock-news-collector.timer; do
+            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-news-collector.timer; do
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
             uzstock-intraday.service uzstock-collector.service \
             uzstock-quotes-1300.service uzstock-quotes-1610.service \
             uzstock-quotes-2130.service uzstock-reports-watch.service \
-            uzstock-bank-fx.service uzstock-news-collector.service; do
+            uzstock-bank-fx.service uzstock-bank-history.service uzstock-news-collector.service; do
             systemctl stop "$service" >/dev/null 2>&1 || true
           done
           docker build -t uzstock-web:latest .
@@ -817,9 +817,18 @@ jobs:
               # expressions.  The system clock on this VPS is UTC.
               "/etc/systemd/system/uzstock-collector.service": worker(
                   "uzstock-collector", "UZStock full financial data collector",
-                  "python collector_financials.py", timeout="90min"),
+                  "python collector_financials.py", timeout="90min",
+                  extra_env=("BANK_HISTORY_BATCH=0",)),
               "/etc/systemd/system/uzstock-collector.timer": timer(
                   "Run UZStock full data collector on weekdays", "Mon..Fri *-*-* 03:00:00"),
+              # Historical documents AND their provenance must survive the
+              # worker. The stateless market collector only pushes figures.
+              "/etc/systemd/system/uzstock-bank-history.service": worker(
+                  "uzstock-bank-history", "UZStock persistent bank history repair",
+                  "python collector_financials.py --bank-history-only --bank-history-due-only --bank-history-limit 3",
+                  timeout="90min", data_volume=True),
+              "/etc/systemd/system/uzstock-bank-history.timer": timer(
+                  "Repair bank financial history daily", "*-*-* 02:00:00"),
               "/etc/systemd/system/uzstock-quotes-1300.service": worker(
                   "uzstock-quotes-1300", "UZStock mid-session quotes collector",
                   "python collector_financials.py --trades-only"),
@@ -871,7 +880,7 @@ jobs:
             uzstock-intraday.timer uzstock-collector.timer \
             uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \
-            uzstock-bank-fx.timer uzstock-news-collector.timer; do
+            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-news-collector.timer; do
             systemctl enable --now "$timer"
             systemctl is-active --quiet "$timer"
           done
