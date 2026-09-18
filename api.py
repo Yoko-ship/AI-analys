@@ -5488,6 +5488,32 @@ def _fill_equity_by_identity(series: dict[str, dict[str, Any]]) -> None:
     entry["values"].update(gap)
 
 
+@app.get("/api/company/{ticker}/financials/documents/{sha}")
+async def api_financial_document(ticker: str, sha: str) -> Response:
+    from financial_ingestion.documents import issuer_artifact
+    if not re.fullmatch(r"[0-9a-f]{64}", sha):
+        raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        payload = await asyncio.get_running_loop().run_in_executor(None, partial(issuer_artifact, ticker, sha))
+    except (OSError, ValueError) as exc:
+        logger.error("Archived financial document unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail="Archived document integrity/unavailability error") from exc
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return Response(payload, media_type="application/pdf", headers={
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Disposition": f'inline; filename="{sha}.pdf"',
+        "X-Content-Type-Options": "nosniff",
+    })
+
+
+@app.get("/api/admin/financial-ingestion/status")
+async def api_financial_ingestion_status(_: None = Depends(_require_admin)) -> dict[str, Any]:
+    from financial_ingestion.store import status
+    result = await asyncio.get_running_loop().run_in_executor(None, status)
+    return {"ok": True, **result}
+
+
 @app.get("/api/company/{ticker}/financials/passport")
 async def api_company_financial_passport(
     ticker: str,
@@ -5828,7 +5854,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         # belongs to a collector prune, and this keeps it off the page today.
         annual_years = {str(r.get("year")) for r in (await loop.run_in_executor(
             None, partial(get_company_reports, ticker)) or [])
-            if r.get("report_form") == standard and not r.get("quarter") and r.get("year")}
+            if r.get("report_form") == standard and r.get("period_type") == "annual" and not r.get("quarter") and r.get("year")}
         data_gaps = [{"period": p, "code": "EMPTY_SOURCE_FILING"}
                      for p in sorted(purged_empty - reviewed_annuals, reverse=True)]
         for ghost in duplicate_filed_years(series, periods, annual_years):
@@ -5877,12 +5903,17 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
                        if (series.get(field) or {}).get("values", {}).get(p) is None]
             if missing:
                 data_gaps.append({"period": p, "code": "MISSING_FINANCIAL_FIELDS", "fields": missing})
+        ingestion = None
+        if standard == "MSFO":
+            from financial_ingestion.store import public_status
+            ingestion = await loop.run_in_executor(None, partial(public_status, ticker))
         return _etag_json(request, {
             "ok": True, "ticker": ticker, "org_id": org_id, "currency": "UZS", "standard": standard,
             "periods": sorted(periods, reverse=True),
             "series": series,
-            "availability": "NO_PARSED_FINANCIALS" if not series else "PARTIAL" if data_gaps else "AVAILABLE",
+            "availability": "NO_PARSED_FINANCIALS" if not series else "PARTIAL" if data_gaps or (ingestion or {}).get("status") == "PARTIAL" else "AVAILABLE",
             "reports_available": bool(annual_years), "data_gaps": data_gaps,
+            **({"ingestion": ingestion} if ingestion is not None else {}),
         }, max_age=300)
     except Exception as exc:
         logger.exception("company financials failed for %s", ticker)

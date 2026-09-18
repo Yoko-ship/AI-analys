@@ -723,15 +723,15 @@ def backfill_bank_financials(limit: int = 2, *, force: bool = False,
             result = backfill_company_quarter_history(ticker, limit=200) or result
             result = backfill_financials(2015, tickers={ticker}) or result
             result = backfill_quarterly_financials(2015, tickers={ticker}) or result
-            # IFRS is a separate, byte-verified PDF review path. Never reuse
-            # NSBU totals under MSFO. This job mounts the API's persistent DB.
-            from ifrs_financials import import_reviewed
-            ifrs = import_reviewed(ticker, apply=True)
-            if ifrs["errors"]:
-                log.error("bank IFRS %s: %s", ticker, ifrs["errors"])
-                result = 1
-            if ifrs["published"]:
-                log.info("bank IFRS %s: published reviewed years %s", ticker, ifrs["published"])
+            # Discovery is not publication. A separate restart-safe PDF worker
+            # stages candidates; only explicit approval/publication changes MSFO.
+            from financial_ingestion import documents, extract, store
+            discovered = documents.discover(ticker=ticker, processor=extract.processor_version())
+            ifrs = store.status(org_id)
+            log.info("bank IFRS %s: discovered=%d coverage=%s pending=%d unreviewed=%d",
+                     ticker, discovered["sources"], ifrs["status"], ifrs["pending_jobs"], ifrs["unreviewed_sources"])
+            rc.upsert_facts([{"entity_id": org_id, "dataset": "ifrs_history", "field": "status",
+                              "value": ifrs["status"], "source": "financial_ingestion"}])
         except Exception:
             log.exception("bank history repair failed for %s", ticker)
             result = 1

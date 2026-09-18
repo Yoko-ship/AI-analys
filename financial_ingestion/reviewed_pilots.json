@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "notes": "Additional byte-bound reviews for the durable pipeline. OCBK is deliberately partial: its two interest-income and two interest-expense lines need a separately evidenced aggregate, not a fabricated raw total.",
+  "reports": [
+    {
+      "ticker": "BRBN", "org_id": "23", "issuer_name": "Business Development Bank",
+      "year": 2025, "scope": "consolidated", "currency": "UZS", "unit_scale": 1000000,
+      "pdf_url": "https://openinfo.uz/media/audition/3b112dec-dd91-495b-b72d-989352544de9.pdf",
+      "sha256": "87635bcaf073eed43d46a78c0b373d78ed1933cb32c1000eb4dd85bdc1e7bcaf",
+      "page_count": 14, "review_method": "visual-source-page-check", "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF page 10: consolidated financial position at 31 December 2025; page 11: consolidated profit or loss for year ended 31 December 2025. Left 2025 column, not 2024 comparatives.",
+      "unit_evidence": "Pages 10 and 11: in millions of Uzbekistan Soums.",
+      "figures": {
+        "cash": {"raw_value": "3248220", "page": 10, "column_year": 2025, "raw_label": "Cash and cash equivalents"},
+        "total_assets": {"raw_value": "38232745", "page": 10, "column_year": 2025, "raw_label": "TOTAL ASSETS"},
+        "total_liabilities": {"raw_value": "34451654", "page": 10, "column_year": 2025, "raw_label": "Total liabilities"},
+        "total_equity": {"raw_value": "3781091", "page": 10, "column_year": 2025, "raw_label": "Total equity"},
+        "interest_income": {"raw_value": "4699519", "page": 11, "column_year": 2025, "raw_label": "Interest income"},
+        "interest_expense": {"raw_value": "-3275829", "page": 11, "column_year": 2025, "raw_label": "Interest expense"},
+        "operating_income": {"raw_value": "2061654", "page": 11, "column_year": 2025, "raw_label": "OPERATING INCOME/(LOSS)"},
+        "operating_expenses": {"raw_value": "-1490164", "page": 11, "column_year": 2025, "raw_label": "Operating expenses"},
+        "net_income": {"raw_value": "530818", "page": 11, "column_year": 2025, "raw_label": "PROFIT/(LOSS) FOR THE YEAR"}
+      }
+    },
+    {
+      "ticker": "OCBK", "org_id": "27", "issuer_name": "Octobank",
+      "year": 2025, "scope": "separate", "currency": "UZS", "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/audition/587feadd-ffba-48ef-b3c3-308cb7030a2c.pdf",
+      "sha256": "e68a3b08643485bc2c4ef22319dd8fd985f9b2a16df029a6e22398be908118a8",
+      "page_count": 10, "review_method": "visual-source-page-check", "reviewed_at": "2026-09-18",
+      "period_evidence": "PDF page 1: IFRS audit opinion for AO Octobank; page 7: bank statement of financial position at 31 December 2025; page 8: bank profit or loss for year ended 31 December 2025. Left 2025 column. Not described as consolidated accounts.",
+      "unit_evidence": "Pages 7 and 8: в тысячах УЗС.",
+      "figures": {
+        "cash": {"raw_value": "8743700882", "page": 7, "column_year": 2025, "raw_label": "Денежные средства и их эквиваленты"},
+        "total_assets": {"raw_value": "12195319951", "page": 7, "column_year": 2025, "raw_label": "Итого активов"},
+        "total_liabilities": {"raw_value": "11379942843", "page": 7, "column_year": 2025, "raw_label": "Итого обязательств"},
+        "total_equity": {"raw_value": "815377108", "page": 7, "column_year": 2025, "raw_label": "Итого собственный капитал"},
+        "net_income": {"raw_value": "156156635", "page": 8, "column_year": 2025, "raw_label": "Чистая прибыль за год"}
+      }
+    }
+  ]
+}

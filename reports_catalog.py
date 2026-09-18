@@ -631,6 +631,10 @@ def _extract_year(report: dict[str, Any]) -> int | None:
     m = re.search(r"\b(20[12]\d)\b", title)
     if m:
         return int(m.group(1))
+    # A publication date is not a PDF's accounting period. Late annuals and
+    # interim IFRS filings otherwise silently become the wrong financial year.
+    if report.get("report_type") in {"MSFO", "Audition"}:
+        return None
     pub = str(report.get("pub_date") or "")
     if len(pub) >= 4:
         try:
@@ -816,6 +820,19 @@ def _upsert_report(
     object_id: str | None,
 ) -> bool:
     """Insert or update a report row. Returns True if a new row was inserted."""
+    if report_form in {"MSFO", "Audition"} and pdf_url:
+        identity = conn.execute(
+            "SELECT id FROM catalog_reports WHERE ticker=? AND report_form=? "
+            "AND (pdf_url=? OR (openinfo_report_id=? AND openinfo_report_id<>'')) LIMIT 1",
+            (ticker, report_form, pdf_url, openinfo_report_id),
+        ).fetchone()
+        if identity:
+            conn.execute(
+                "UPDATE catalog_reports SET period_type=?,year=?,quarter=?,title=?,"
+                "published_at=COALESCE(?,published_at),pdf_url=?,synced_at=datetime('now') WHERE id=?",
+                (period_type, year, quarter, title, published_at, pdf_url, identity["id"]),
+            )
+            return False
     # Check existence first — SQLite upsert always returns rowcount=1 so we
     # can't distinguish insert vs update from the cursor alone.
     existing = conn.execute(
@@ -1400,6 +1417,8 @@ def sync_company(
             if form not in ("MSFO", "Audition"):
                 continue
             pt = str(doc.get("period_type") or "annual").lower()
+            if pt == "quarterly":
+                pt = "quarter"
             yr = _extract_year(rec)
             if form == "MSFO" and pt == "annual":
                 from ifrs_financials import reviewed_catalog_year
@@ -1491,11 +1510,6 @@ def _sync_auditions(conn: sqlite3.Connection, session: Any) -> int:
                 m = re.search(r"\b(20[12]\d)\b", title_raw)
                 if m:
                     yr = int(m.group(1))
-                elif rec.get("pub_date"):
-                    try:
-                        yr = int(str(rec["pub_date"])[:4]) - 1
-                    except (TypeError, ValueError):
-                        pass
                 new = _upsert_report(
                     conn, ticker,
                     report_form="Audition",
@@ -1919,6 +1933,9 @@ def _canonical_ticker(tickers: Iterable[str]) -> str:
 
 def _report_key(row: Any) -> tuple:
     """What makes two rows the same filing, whichever ticker they were synced under."""
+    if row["year"] is None or (row["period_type"] == "quarter" and not row["quarter"]):
+        # Unknown dates are not a shared period: retain each original PDF.
+        return (row["report_form"], row["period_type"], row["year"], row["quarter"], row["pdf_url"])
     return (row["report_form"], row["period_type"], row["year"], row["quarter"])
 
 
@@ -4293,7 +4310,7 @@ def get_financial_history_coverage(form: str = "NSBU") -> dict[str, dict[str, An
         companies = list(conn.execute("SELECT ticker, org_id FROM catalog_companies").fetchall())
         reports = list(conn.execute(
             "SELECT ticker, year, quarter, excel_url FROM catalog_reports "
-            "WHERE report_form=? AND year IS NOT NULL", (form,)).fetchall())
+            "WHERE report_form=? AND year IS NOT NULL AND NOT (period_type='quarter' AND quarter=0)", (form,)).fetchall())
         financials = list(conn.execute(
             f"SELECT ticker, year, quarter, balance_period, {', '.join(_FIN_FIELDS + _IFRS_BANK_FIELDS)} "
             "FROM catalog_financials WHERE form=?", (form,)).fetchall())
@@ -4912,6 +4929,11 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
     t = str(ticker or "").strip().upper()
     if not t:
         return {}
+    if form == "MSFO":
+        from financial_ingestion.publication import series
+        published = series(t)
+        if published is not None:
+            return published
     conn = get_catalog_conn()
     try:
         # By the ISSUER, not the ticker: a filing lands in the cache under
@@ -5095,6 +5117,12 @@ def get_financial_value_passport(ticker: str, period: str, field: str,
             "standard": form,
             "reason": "No filing-level passport is defined for this indicator.",
         }
+
+    if form == "MSFO":
+        from financial_ingestion.publication import passport
+        published = passport(ticker, period, field)
+        if published is not None:
+            return published
 
     year = int(period[:4])
     quarter = int(period[-1]) if len(period) == 6 else 0

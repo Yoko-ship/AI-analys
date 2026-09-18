@@ -79,6 +79,9 @@ jobs:
         continue-on-error: true
         run: python -m pytest tests -q
 
+      - name: Required bank ingestion safety tests
+        run: python -m pytest tests/test_financial_ingestion.py tests/test_ifrs_financials.py tests/test_bank_history_repair.py -q
+
   # ---------------------------------------------------------------------------
   # Frontend. Lint is load-bearing here, not cosmetic: react-hooks/rules-of-hooks
   # is the only mechanical guard against the CompareTable class of crash (a hook
@@ -530,14 +533,14 @@ jobs:
             uzstock-intraday.timer uzstock-collector.timer \
             uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \
-            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-news-collector.timer; do
+            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
             uzstock-intraday.service uzstock-collector.service \
             uzstock-quotes-1300.service uzstock-quotes-1610.service \
             uzstock-quotes-2130.service uzstock-reports-watch.service \
-            uzstock-bank-fx.service uzstock-bank-history.service uzstock-news-collector.service; do
+            uzstock-bank-fx.service uzstock-bank-history.service uzstock-financial-ingestion.service uzstock-news-collector.service; do
             systemctl stop "$service" >/dev/null 2>&1 || true
           done
           docker build -t uzstock-web:latest .
@@ -765,7 +768,7 @@ jobs:
           from pathlib import Path
 
           def worker(name: str, description: str, command: str, *, timeout: str = "30min",
-                     data_volume: bool = False, extra_env: tuple[str, ...] = ()) -> str:
+                     data_volume: bool = False, extra_env: tuple[str, ...] = (), resources: str = "") -> str:
               volume = " -v uzstock_data:/app/data" if data_volume else ""
               env = "".join(f" -e {value}" for value in extra_env)
               return f"""[Unit]
@@ -780,7 +783,7 @@ jobs:
           # A collector can parse a large exchange response immediately after a
           # deploy. Keep half a CPU free for the public web container so an
           # initial collection cannot stall /health, heatmap or finance routes.
-          ExecStart=/snap/bin/docker run --rm --cpus 0.50 --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
+          ExecStart=/snap/bin/docker run --rm --cpus 0.50 {resources} --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
           """
 
           def timer(description: str, calendar: str) -> str:
@@ -829,6 +832,14 @@ jobs:
                   timeout="90min", data_volume=True),
               "/etc/systemd/system/uzstock-bank-history.timer": timer(
                   "Repair bank financial history daily", "*-*-* 02:00:00"),
+              "/etc/systemd/system/uzstock-financial-ingestion.service": worker(
+                  "uzstock-financial-ingestion", "UZStock bank PDF staging (never automatic publication)",
+                  "python -m financial_ingestion.worker cycle --max-jobs 4 --ocr",
+                  data_volume=True, resources="--memory 768m --memory-swap 768m --pids-limit 128",
+                  extra_env=("APP_DATA_DIR=/app/data", "FINANCIAL_ARTIFACT_DIR=/app/data/financial_artifacts"))
+                  + "\nExecStopPost=-/snap/bin/docker stop -t 20 uzstock-financial-ingestion\n",
+              "/etc/systemd/system/uzstock-financial-ingestion.timer": timer(
+                  "Stage bank PDFs hourly", "*-*-* *:35:00"),
               "/etc/systemd/system/uzstock-quotes-1300.service": worker(
                   "uzstock-quotes-1300", "UZStock mid-session quotes collector",
                   "python collector_financials.py --trades-only"),
@@ -880,7 +891,7 @@ jobs:
             uzstock-intraday.timer uzstock-collector.timer \
             uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \
-            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-news-collector.timer; do
+            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
             systemctl enable --now "$timer"
             systemctl is-active --quiet "$timer"
           done

@@ -211,7 +211,7 @@ def test_vps_history_worker_persists_catalog_and_does_not_duplicate_stateless_ru
     assert "--cpus 0.50" in history
     assert "BANK_HISTORY_BATCH=0" in units["/etc/systemd/system/uzstock-collector.service"]
     assert "OnCalendar=*-*-* 02:00:00" in units["/etc/systemd/system/uzstock-bank-history.timer"]
-    assert workflow.count("uzstock-bank-history.timer uzstock-news-collector.timer") == 2
+    assert workflow.count("uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer") == 2
 
 
 def test_explicit_cumulative_fourth_quarter_can_supply_a_missing_full_year(catalog):

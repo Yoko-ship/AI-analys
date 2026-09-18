@@ -12593,6 +12593,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
               <dl className="financial-passport-grid">
                 <div><dt>{t("Отчёт", "Hisobot", "Report")}</dt><dd>{source.title || `${source.report_form || "—"} ${source.period_year || ""}`}</dd></div>
                 <div><dt>{t("Период отчёта", "Hisobot davri", "Report period")}</dt><dd>{source.period_quarter ? `${source.period_year} Q${source.period_quarter}` : source.period_year || "—"}</dd></div>
+                {source.role && <div><dt>{t("Колонка / роль", "Ustun / rol", "Column / role")}</dt><dd>{source.stated_period} · {source.role}</dd></div>}
                 <div><dt>{t("Стандарт", "Standart", "Standard")}</dt><dd>{source.standard || passport.standard || "—"}</dd></div>
                 <div><dt>{t("Периметр", "Qamrov", "Perimeter")}</dt><dd>{source.perimeter || source.source_ticker || "—"}</dd></div>
                 <div><dt>{t("Статус проверки", "Tekshiruv holati", "Review status")}</dt><dd>{source.state || "—"}{source.state_reason ? ` — ${source.state_reason}` : ""}</dd></div>
@@ -12620,7 +12621,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
             )}
             {passport?.reason && passport?.status === "SOURCED" && <p className="financial-passport-reason">{passport.reason}</p>}
             {source?.excel_url && <a className="company-insight-action" href={source.excel_url} target="_blank" rel="noreferrer">{t("Открыть Excel-отчёт ↗", "Excel hisobotni ochish ↗", "Open Excel report ↗")}</a>}
-            {!source?.excel_url && source?.pdf_url && <a className="company-insight-action" href={source.pdf_url} target="_blank" rel="noreferrer">{t("Открыть PDF-отчёт ↗", "PDF hisobotni ochish ↗", "Open PDF report ↗")}</a>}
+            {!source?.excel_url && (source?.archived_url || source?.pdf_url) && <a className="company-insight-action" href={source.archived_url || source.pdf_url} target="_blank" rel="noreferrer">{t("Открыть PDF-отчёт ↗", "PDF hisobotni ochish ↗", "Open PDF report ↗")}</a>}
           </div>
         )}
       </article>

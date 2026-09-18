@@ -6,8 +6,9 @@ publisher. Each entry is bound to the exact PDF bytes, issuer and source URL;
 an upstream replacement requires a new review, not a speculative re-parse.
 
 Run ``python ifrs_financials.py --ticker BRBN`` to verify without publishing;
-add ``--apply`` to populate the persistent catalog. The bank-history collector
-also reapplies matching reviews, so a repair survives subsequent syncs.
+add ``--apply`` to populate the legacy catalog. New production publication uses
+``python -m financial_ingestion.worker``; the bank-history collector only queues
+PDF work. This legacy importer is retained for compatibility and migration.
 """
 from __future__ import annotations
 
