@@ -12598,6 +12598,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
                 <div><dt>{t("Периметр", "Qamrov", "Perimeter")}</dt><dd>{source.perimeter || source.source_ticker || "—"}</dd></div>
                 <div><dt>{t("Статус проверки", "Tekshiruv holati", "Review status")}</dt><dd>{source.state || "—"}{source.state_reason ? ` — ${source.state_reason}` : ""}</dd></div>
                 <div><dt>{t("Строка источника", "Manba satri", "Source line")}</dt><dd>{source.raw_label || "—"}</dd></div>
+                {source.components?.length > 0 && <div><dt>{t("Расчёт из строк отчёта", "Hisobot satrlaridan hisob", "Calculated from report lines")}</dt><dd>{source.components.map((c) => `${c.raw_label}: ${c.raw_value} (p. ${c.page})`).join(" + ")}</dd></div>}
                 <div><dt>{t("Исходная сумма", "Asl summa", "Raw value")}</dt><dd>{source.raw_value ?? "—"}</dd></div>
                 <div><dt>{t("Нормализованное значение", "Normallashtirilgan qiymat", "Normalized value")}</dt><dd>{source.normalized_value ?? "—"}{source.normalization_formula ? ` (${source.normalization_formula})` : ""}</dd></div>
                 <div><dt>{t("Знак", "Belgi", "Sign")}</dt><dd>{source.sign || "—"}</dd></div>
@@ -12629,7 +12630,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
   ), document.body);
 }
 
-function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [] }) {
+function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [section, setSection] = React.useState("income");
   // Which lines the chart draws, per section (annual and quarterly sections
@@ -12693,7 +12694,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
 
   // Годовые | Квартальные. The switch stays on screen in every state —
   // including "this issuer files no quarterlies" — or there is no way back.
-  const freqToggle = onFreqChange && standard === "NSBU" ? (
+  const freqToggle = onFreqChange ? (
     <div className="fin-freq" role="group" aria-label={t("Период", "Davr", "Period")}>
       {[["annual", t("Годовые", "Yillik", "Annual")],
         ["quarterly", t("Квартальные", "Choraklik", "Quarterly")]].map(([k, label]) => (
@@ -12948,7 +12949,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
           })}
         </tr>
       )}
-      {withGrowth && quarterly && cols.length > 1 && (
+      {withGrowth && quarterly && periodBasis !== "cumulative_ytd" && cols.length > 1 && (
         <tr className="fin-growth">
           <th scope="row">{t("Рост кв/кв", "Osish ch/ch", "Growth QoQ")}</th>
           {cols.map((p, i) => {
@@ -12967,6 +12968,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
 
   return (
     <div className="company-financials">
+      {periodBasis === "cumulative_ytd" && <p className="muted">{t("МСФО: доходы и расходы — нарастающим итогом с января, не за отдельные три месяца.", "MHXS: daromad va xarajatlar yanvardan jamlangan, alohida uch oy uchun emas.", "IFRS: income and expenses are cumulative from January, not standalone three-month figures.")}</p>}
       <div className="fin-subtabs">
         {available.map((sec) => (
           <button key={sec.key} type="button"
@@ -13570,7 +13572,6 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     setFinSeries(null);
     setFinQSeries(null);
     setSplits(null);
-    if (finStandard !== "NSBU") setFinFreq("annual");
   }, [ticker, finStandard]);
   React.useEffect(() => {
     if (!ticker || tab !== "financials" || finSeries !== null) return undefined;
@@ -13912,6 +13913,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               series={(finFreq === "quarterly" ? finQSeries?.series : finSeries?.series) || {}}
               periods={(finFreq === "quarterly" ? finQSeries?.periods : finSeries?.periods) || []}
               dataGaps={(finFreq === "quarterly" ? finQSeries?.data_gaps : finSeries?.data_gaps) || []}
+              periodBasis={finFreq === "quarterly" ? finQSeries?.period_basis : finSeries?.period_basis}
               loading={finFreq === "quarterly"
                 ? (finQLoading && finQSeries === null)
                 : (finLoading && finSeries === null)}

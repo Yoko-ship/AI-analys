@@ -80,7 +80,7 @@ jobs:
         run: python -m pytest tests -q
 
       - name: Required bank ingestion safety tests
-        run: python -m pytest tests/test_financial_ingestion.py tests/test_ifrs_financials.py tests/test_bank_history_repair.py -q
+        run: python -m pytest tests/test_financial_ingestion.py tests/test_financial_ingestion_recovery.py tests/test_ifrs_financials.py tests/test_bank_history_repair.py -q
 
   # ---------------------------------------------------------------------------
   # Frontend. Lint is load-bearing here, not cosmetic: react-hooks/rules-of-hooks
@@ -530,6 +530,7 @@ jobs:
           # currently running one before replacing it; timers are re-enabled
           # below and do not double-run a Railway-era command.
           for timer in \
+            uzstock-financial-backup.timer uzstock-financial-monitor.timer \
             uzstock-intraday.timer uzstock-collector.timer \
             uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \
@@ -537,6 +538,7 @@ jobs:
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
+            uzstock-financial-backup.service uzstock-financial-monitor.service \
             uzstock-intraday.service uzstock-collector.service \
             uzstock-quotes-1300.service uzstock-quotes-1610.service \
             uzstock-quotes-2130.service uzstock-reports-watch.service \
@@ -839,7 +841,21 @@ jobs:
                   extra_env=("APP_DATA_DIR=/app/data", "FINANCIAL_ARTIFACT_DIR=/app/data/financial_artifacts"))
                   + "\nExecStopPost=-/snap/bin/docker stop -t 20 uzstock-financial-ingestion\n",
               "/etc/systemd/system/uzstock-financial-ingestion.timer": timer(
-                  "Stage bank PDFs hourly", "*-*-* *:35:00"),
+                  "Stage bank PDFs every fifteen minutes", "*-*-* *:05,20,35,50:00"),
+              "/etc/systemd/system/uzstock-financial-backup.service": worker(
+                  "uzstock-financial-backup", "Verified financial database and original-document backup",
+                  "python -m financial_ingestion.worker backup", data_volume=True,
+                  resources="--memory 768m --memory-swap 768m")
+                  + "\nExecStopPost=-/snap/bin/docker stop -t 20 uzstock-financial-backup\n",
+              "/etc/systemd/system/uzstock-financial-backup.timer": timer(
+                  "Back up financial evidence daily", "*-*-* 01:00:00"),
+              "/etc/systemd/system/uzstock-financial-monitor.service": worker(
+                  "uzstock-financial-monitor", "Financial pipeline incidents and freshness checks",
+                  "python -m financial_ingestion.worker monitor", data_volume=True,
+                  resources="--memory 256m --memory-swap 256m")
+                  + "\nExecStopPost=-/snap/bin/docker stop -t 20 uzstock-financial-monitor\n",
+              "/etc/systemd/system/uzstock-financial-monitor.timer": timer(
+                  "Monitor financial evidence every fifteen minutes", "*-*-* *:10,25,40,55:00"),
               "/etc/systemd/system/uzstock-quotes-1300.service": worker(
                   "uzstock-quotes-1300", "UZStock mid-session quotes collector",
                   "python collector_financials.py --trades-only"),
@@ -888,6 +904,7 @@ jobs:
           PY
           systemctl daemon-reload
           for timer in \
+            uzstock-financial-backup.timer uzstock-financial-monitor.timer \
             uzstock-intraday.timer uzstock-collector.timer \
             uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \

@@ -953,6 +953,22 @@ def _fetch_main_results(session: Any, company_name: str, org_id: Any) -> tuple[l
         except Exception:
             continue
         results = list(payload.get("results") or []) if isinstance(payload, dict) else []
+        # The unified feed is paginated. Finding one recent issuer record does
+        # not mean its older statements were included in the first 200 rows.
+        seen = {str(r.get("id")) for r in results}
+        for page in range(2, 21):
+            batch = payload.get("results") or []
+            if not batch or (not payload["next"] if "next" in payload else len(batch) < 200):
+                break
+            payload = _json_get(session, "/reports/main/", {"page": page, "page_size": 200, "search": query})
+            fresh = [r for r in payload.get("results", []) if str(r.get("id")) not in seen]
+            if payload.get("results") and not fresh:
+                raise RuntimeError("OpenInfo repeated a report-listing page; discovery is incomplete")
+            results.extend(fresh)
+            seen.update(str(r.get("id")) for r in fresh)
+        else:
+            if payload.get("next") or ("next" not in payload and len(payload.get("results") or []) >= 200):
+                raise RuntimeError("OpenInfo listing exceeded the bounded discovery window")
         filtered = [r for r in results if str(r.get("organization")) == str(org_id)]
         if filtered:
             org_type = next(
@@ -3464,6 +3480,19 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             if isinstance(nested, dict):
                 nested.pop("_reviewed_correction_fields", None)
     conn.close()
+    if form == "MSFO":
+        from financial_ingestion.publication import latest
+        company_conn = get_catalog_conn()
+        try:
+            company_tickers = ([r[0] for r in company_conn.execute(
+                "SELECT DISTINCT c.ticker FROM catalog_companies c JOIN ingest_heads h ON h.org_id=c.org_id WHERE h.standard='MSFO'"
+            ).fetchall()] if "ingest_heads" in dbx.tables(company_conn) else [])
+        finally:
+            company_conn.close()
+        for ticker in company_tickers:
+            published = latest(ticker)
+            if published is not None:
+                out[ticker] = published
     return out
 
 
@@ -5004,6 +5033,11 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
     t = str(ticker or "").strip().upper()
     if not t:
         return {}
+    if form == "MSFO":
+        from financial_ingestion.publication import series
+        published = series(t, quarterly=True)
+        if published is not None:
+            return published
     conn = get_catalog_conn()
     try:
         siblings = _org_siblings(conn, t) or [t]
@@ -6234,8 +6268,11 @@ def get_company_reports(ticker: str) -> list[dict[str, Any]]:
         ORDER BY year DESC, quarter DESC, synced_at DESC
     """, siblings).fetchall()
     conn.close()
+    from financial_ingestion.publication import catalog_labels
+    labels = catalog_labels(ticker)
     best: dict[tuple, tuple[int, dict[str, Any]]] = {}
     for r in rows:
+        r = {**dict(r), **labels.get(r["pdf_url"], {})}
         key = _report_key(r)
         links = sum(1 for c in ("pdf_url", "excel_url", "excel_url_form1") if r[c])
         if key not in best or links > best[key][0]:

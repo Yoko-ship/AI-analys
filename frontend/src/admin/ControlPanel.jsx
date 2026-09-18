@@ -31,7 +31,7 @@ const incidentPriority = (severity, t) => ({ P0: t("Приоритет 0", "0-da
 export function StatusBadge({ value, label }) {
   const state = String(value || "unavailable");
   const tone = /blocked|failed|P0|P1|suspicious|denied|conflict/i.test(state) ? "danger"
-    : /warning|stale|not_|P2|draft|insufficient/i.test(state) ? "warning"
+    : /warning|stale|partial|not_|P2|draft|insufficient/i.test(state) ? "warning"
       : /complete|verified|validated|published|active|passed|success|resolved/i.test(state) ? "success"
         : /running|queued|retry|processing|rolling/i.test(state) ? "processing" : "neutral";
   return <span className={`control-status ${tone}`} title={state}><span aria-hidden="true" />{label || state.replaceAll("_", " ")}</span>;
@@ -90,6 +90,7 @@ function JobProgress({ job, t }) {
 
 function Overview({ data, navigate, t }) {
   const k = data.kpis || {};
+  const ingestion = data.financial_ingestion;
   const percent = v => v == null ? "—" : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(v * 100)}%`;
   const cards = [
     [t("Автопубликация · 24 ч", "Avtonashr · 24 soat", "Auto-publication · 24h"), percent(k.auto_publication), "publications", t("Цель ≥ 95%", "Maqsad ≥ 95%", "Target ≥ 95%"), "success"],
@@ -102,6 +103,18 @@ function Overview({ data, navigate, t }) {
       <span>{label}<Icon name="external" /></span><strong>{value}</strong><small>{hint}</small>
     </button>)}</div>
     <div className="control-overview-grid">
+      <section className="control-card" aria-label={t("Данные банков", "Bank ma’lumotlari", "Bank data pipeline")}>
+        <div className="control-card-title"><h2>{t("Данные банков", "Bank ma’lumotlari", "Bank data pipeline")}</h2>
+          <StatusBadge value={!ingestion?.available || ingestion.monitor_stale ? "stale" : ingestion.incidents?.length ? "failed" : ingestion.status === "PARTIAL" ? "partial" : "active"} /></div>
+        {!ingestion?.available ? <p role="alert" className="control-muted control-pad">{t("Статус недоступен. Проверьте мониторинг.", "Holat mavjud emas. Monitoringni tekshiring.", "Status unavailable. Check the monitor.")}</p> : <>
+          {ingestion.monitor_stale && <p role="alert" className="control-muted control-pad">{t("Мониторинг давно не запускался — состояние не подтверждено.", "Monitoring eskirgan — holat tasdiqlanmagan.", "Monitor is overdue — pipeline health is unconfirmed.")}</p>}
+          <p className="control-muted control-pad">{t("Опубликовано периодов", "Nashr qilingan davrlar", "Published periods")}: {ingestion.published_periods ?? 0} · {t("Ожидают проверки источника", "Manba tekshiruvini kutmoqda", "Sources awaiting review")}: {ingestion.unreviewed_sources ?? 0} · {t("Одобрено, не опубликовано", "Tasdiqlangan, nashr qilinmagan", "Approved, unpublished")}: {ingestion.approved_unpublished ?? 0}</p>
+          {ingestion.incidents?.map(item => <div className="control-attention" key={item.code} role="alert">
+            <StatusBadge value="failed" /><div><strong>{incidentTitle(item.code, t)}</strong><span>{item.detail}</span><small>{item.first_seen}</small></div>
+          </div>)}
+          {!ingestion.incidents?.length && !ingestion.monitor_stale && <p className="control-muted control-pad">{t("Активных сбоев нет. Непроверенные данные не публикуются автоматически.", "Faol nosozliklar yo‘q. Tekshirilmagan ma’lumotlar avtomatik nashr qilinmaydi.", "No active failures. Unreviewed figures are not published automatically.")}</p>}
+        </>}
+      </section>
       <section className="control-card"><div className="control-card-title"><h2>{t("Требует внимания", "E’tibor talab qiladi", "Needs attention")}</h2><span className="control-count">{data.attention?.length || 0}</span></div>
         <p className="control-muted">{t("Исключения, сгруппированные по системной причине", "Tizimli sabablar bo‘yicha guruhlangan istisnolar", "Exceptions grouped by their underlying cause")}</p>
         {data.attention?.length ? data.attention.map(item => <button className="control-attention" key={item.id} onClick={() => navigate("incidents", { object: item.id })}>
@@ -175,6 +188,11 @@ export default function ControlPanel({ apiFetch: fetchProp, language = "ru", sec
     return () => window.removeEventListener("popstate", pop);
   }, []);
   useEffect(() => { setQuery(window.location.search); setHiddenColumns([]); }, [section]);
+  useEffect(() => {
+    if (section !== "overview") return undefined;
+    const timer = setInterval(() => { if (!document.hidden) setRefresh(v => v + 1); }, 60000);
+    return () => clearInterval(timer);
+  }, [section]);
   useEffect(() => {
     let live = true;
     read("/session").then(result => { if (live) setSession(result); }).catch(exc => { if (live) setError(exc.message); });

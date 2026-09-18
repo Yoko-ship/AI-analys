@@ -63,6 +63,24 @@ def validate(payload, *, page_count):
             errors.append("FIELD_EVIDENCE_INVALID:" + field)
         try:
             raw = amount(figure.get("raw_value"))
+            components = figure.get("components")
+            if components is not None:
+                if figure.get("calculation") != "sum" or not isinstance(components, list) or len(components) < 2:
+                    errors.append("COMPONENT_CALCULATION_INVALID:" + field)
+                else:
+                    component_values = []
+                    for component in components:
+                        if (not component.get("raw_label") or type(component.get("page")) is not int
+                                or not 1 <= component["page"] <= page_count or not end
+                                or component.get("column_year") != end.year):
+                            errors.append("COMPONENT_EVIDENCE_INVALID:" + field)
+                        component_values.append(amount(component.get("raw_value")))
+                    with localcontext() as ctx:
+                        ctx.prec = 50
+                        if sum(component_values) != raw:
+                            errors.append("COMPONENT_SUM_MISMATCH:" + field)
+            elif figure.get("calculation"):
+                errors.append("COMPONENTS_MISSING:" + field)
             scale = amount(str(meta.get("unit_scale")))
             with localcontext() as ctx:
                 ctx.prec = 50

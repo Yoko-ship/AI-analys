@@ -13,6 +13,7 @@ export function controlFixture(role = "analyst") {
     jobs: [], audit: [], rules: [], publications: [], analyses: [], sources: [], securities: [], access: [], parsers: [],
   };
   const calls = [];
+  const financialIngestion = { available: true, monitor_stale: false, status: "PARTIAL", published_periods: 19, unreviewed_sources: 12, approved_unpublished: 0, incidents: [] };
   const user = { id: 1, email: "qa@example.test", full_name: "QA operator", is_admin: true, admin_role: role };
   const respond = (url, method = "GET", body = {}) => {
     const u = new URL(url, "http://localhost"), path = u.pathname;
@@ -24,7 +25,7 @@ export function controlFixture(role = "analyst") {
     if (!path.startsWith("/api/admin/control")) return { ok: true, items: [] };
     const parts = path.replace("/api/admin/control", "").split("/").filter(Boolean);
     if (parts[0] === "session") return { actor: { ...user, role }, environment: "test", capabilities: role === "viewer" ? ["read", "export"] : ["read", "export", "retry", "comment", "draft", "test"], mfa_required_for_mutations: false };
-    if (parts[0] === "overview") return { kpis: { auto_publication: 0.96, active_blockers: 2, coverage_complete: 64, coverage_total: 67, queued: rows.jobs.length }, attention: [incident], publications: [], jobs: rows.jobs, counts: { documents: { VALIDATED: 67 }, parsers: { VALIDATED: 64 }, facts: { verified: 1240 }, calculations: { verified: 342 }, analyses: { PUBLISHED: 64 }, publications: { PUBLISHED: 64 } } };
+    if (parts[0] === "overview") return { financial_ingestion: financialIngestion, kpis: { auto_publication: 0.96, active_blockers: 2, coverage_complete: 64, coverage_total: 67, queued: rows.jobs.length }, attention: [incident], publications: [], jobs: rows.jobs, counts: { documents: { VALIDATED: 67 }, parsers: { VALIDATED: 64 }, facts: { verified: 1240 }, calculations: { verified: 342 }, analyses: { PUBLISHED: 64 }, publications: { PUBLISHED: 64 } } };
     if (parts[0] === "search") return { items: Object.entries(rows).flatMap(([collection, list]) => list.filter(r => JSON.stringify(r).toLowerCase().includes((u.searchParams.get("q") || "").toLowerCase())).map(r => ({ ...r, collection }))).slice(0, 15) };
     const collection = parts[0], id = decodeURIComponent(parts[1] || ""), action = parts[2];
     if (action === "preview") return { format: "XLSX", sheets: ["Balance", "Income"], sheet: u.searchParams.get("sheet") || "Balance", rows: [[{ address: "A1", value: "Net asset value" }, { address: "B1", value: "2026H1" }], [{ address: "A2", value: "Total NAV" }, { address: "B2", value: "123456" }]], next_row: null };
@@ -40,5 +41,5 @@ export function controlFixture(role = "analyst") {
     if (u.searchParams.get("q")) items = items.filter(r => JSON.stringify(r).toLowerCase().includes(u.searchParams.get("q").toLowerCase()));
     return { ok: true, items, total: items.length, next_cursor: null };
   };
-  return { respond, calls, rows, user };
+  return { respond, calls, rows, user, financialIngestion };
 }

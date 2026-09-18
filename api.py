@@ -5510,8 +5510,10 @@ async def api_financial_document(ticker: str, sha: str) -> Response:
 @app.get("/api/admin/financial-ingestion/status")
 async def api_financial_ingestion_status(_: None = Depends(_require_admin)) -> dict[str, Any]:
     from financial_ingestion.store import status
+    from financial_ingestion.maintenance import incidents
     result = await asyncio.get_running_loop().run_in_executor(None, status)
-    return {"ok": True, **result}
+    alerts = await asyncio.get_running_loop().run_in_executor(None, incidents)
+    return {"ok": True, **result, "incidents": alerts}
 
 
 @app.get("/api/company/{ticker}/financials/passport")
@@ -5569,16 +5571,29 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
         raise HTTPException(status_code=422, detail="form must be NSBU or MSFO")
     loop = asyncio.get_running_loop()
     if str(freq or "").lower().startswith("q"):
-        # The product never derives IFRS quarters from a different accounting
-        # standard.  Until issuers publish comparable interim IFRS statements,
-        # the honest answer is a stated unavailable state, not NSBU quarters
-        # under an IFRS label.
+        # IFRS interim flows retain their reported YTD basis, never NSBU or
+        # synthetic standalone quarters under an IFRS label.
         if standard != "NSBU":
+            from financial_ingestion.publication import series as snapshot_series
+            cumulative = await loop.run_in_executor(None, partial(snapshot_series, ticker, quarterly=True)) or {}
+            entries = {}
+            for period, fields in cumulative.items():
+                for field, value in fields.items():
+                    name = {"net_income": "net_profit", "revenue": "net_revenue"}.get(field, field)
+                    entries.setdefault(name, {"unit": "UZS", "money": True, "filed": True, "values": {}})["values"][period] = value * 1000
+            gaps = []
+            for period, fields in cumulative.items():
+                missing = [key for key in ("total_assets", "total_equity", "net_income", "interest_income") if fields.get(key) is None]
+                if missing:
+                    gaps.append({"period": period, "code": "MISSING_FINANCIAL_FIELDS", "fields": missing})
+            from financial_ingestion.store import public_status
+            ingestion = await loop.run_in_executor(None, public_status, ticker)
             return _etag_json(request, {
                 "ok": True, "ticker": ticker, "currency": "UZS",
-                "standard": standard, "freq": "quarterly", "periods": [],
-                "series": {}, "availability": "NO_QUARTERLY_IFRS",
-                "reason": "Comparable quarterly IFRS filings are not available.",
+                "standard": standard, "freq": "quarterly", "periods": sorted(cumulative, reverse=True),
+                "series": entries, "availability": "NO_QUARTERLY_IFRS" if not entries else "PARTIAL" if gaps or ingestion.get("status") == "PARTIAL" else "AVAILABLE",
+                "period_basis": "cumulative_ytd", "data_gaps": gaps, "ingestion": ingestion,
+                "reason": "Flows cover January through the stated period end; they are not standalone three-month figures." if entries else "No reviewed interim IFRS figures have been published.",
             }, max_age=300)
         # The quarterly view is its own, simpler read: the filings alone. The
         # openinfo indicator feed publishes no quarterly sums, so there is
@@ -8052,6 +8067,12 @@ async def api_notifications(current_user: WebUser = Depends(_require_user)) -> d
                               "detected_at": (listings.get(ticker) or {}).get("updated_at"),
                               "kind": "price_threshold", "price": price, "threshold": threshold})
         if is_human_admin:
+            from financial_ingestion.maintenance import incidents
+            ingestion_alerts = await loop.run_in_executor(None, incidents)
+            for incident in ingestion_alerts:
+                items.append({"ticker": "ADMIN", "report_form": "DATA_PIPELINE", "year": None, "quarter": 0,
+                              "title": f"Bank data: {incident['code']} — {incident['detail']}",
+                              "detected_at": incident["first_seen"], "kind": "data_pipeline", "href": "/admin"})
             feedback = await loop.run_in_executor(
                 None, partial(web_auth_store.list_support_requests, status="open", limit=100))
             for request in feedback.get("items", []):

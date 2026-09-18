@@ -13,18 +13,20 @@ import pypdfium2
 
 from . import documents, store, validation
 
-PARSER_VERSION = "bank-pdf-draft-v1"
+PARSER_VERSION = "bank-pdf-draft-v2"
 MAX_PAGES = 16
 MAX_OCR_PAGES = 8
 
 
 def review_entries():
     import ifrs_financials
-    additional = json.loads(Path(__file__).with_name("reviewed_pilots.json").read_text())
-    if additional.get("schema_version") != 1:
-        raise ValueError("Unknown pipeline review schema")
-    entries = ifrs_financials.reviews() + additional["reports"]
-    keys = [(str(e["org_id"]), e["year"], e["scope"], e.get("role", "PRIMARY")) for e in entries]
+    entries = list(ifrs_financials.reviews())
+    for name in ("reviewed_pilots.json", "reviewed_banks.json"):
+        additional = json.loads(Path(__file__).with_name(name).read_text())
+        if additional.get("schema_version") != 1:
+            raise ValueError("Unknown pipeline review schema")
+        entries.extend(additional["reports"])
+    keys = [(str(e["org_id"]), e.get("period_end", str(e["year"])), e["scope"], e.get("role", "PRIMARY")) for e in entries]
     if len(set(keys)) != len(keys):
         raise ValueError("Duplicate review issuer/period/perimeter/role")
     return entries
@@ -37,7 +39,7 @@ def processor_version():
 
 
 def _usable(text):
-    return bool(re.search(r"statement of financial|отчет о финансов|отчёт о финансов|total assets|итого актив", text, re.I))
+    return bool(re.search(r"statement of (?:financial|profit|income)|отч[её]т о (?:финансов|прибыл)|total assets|итого актив|interest income|процентные доходы", text, re.I))
 
 
 def page_texts(payload, *, ocr=False):

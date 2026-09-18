@@ -32,6 +32,23 @@ test("operations overview, navigation and desktop layout", async ({ page }, test
   expect(failures).toEqual([]);
 });
 
+test("bank pipeline alerts and monitor freshness appear in the dashboard", async ({ page }) => {
+  const fixture = await setup(page, "administrator");
+  fixture.financialIngestion.incidents = [{ code: "FAILED_JOBS", detail: "2 failed jobs require investigation", first_seen: "2026-09-18T10:00:00Z" }];
+  await page.goto("/admin");
+  const card = page.getByRole("region", { name: "Bank data pipeline" });
+  await expect(card.getByText("2 failed jobs require investigation")).toBeVisible();
+  await expect(card.getByText(/Published periods: 19/)).toBeVisible();
+  fixture.financialIngestion.incidents = [];
+  fixture.financialIngestion.monitor_stale = true;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(card.getByText(/Monitor is overdue/)).toBeVisible();
+  await expect(card.getByText(/No active failures/)).toHaveCount(0);
+  fixture.financialIngestion.monitor_stale = false;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(card.getByText(/No active failures/)).toBeVisible();
+});
+
 test("incidents explain the issue in the selected language while retaining its audit code", async ({ page }, testInfo) => {
   await setup(page);
   await page.goto("/admin/incidents");

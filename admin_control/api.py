@@ -67,7 +67,10 @@ def session(request: Request):
 @router.get("/overview")
 def overview(request: Request):
     with s.connection() as c:
-        return reply(request, service.overview(c))
+        result = service.overview(c)
+    from financial_ingestion.maintenance import dashboard
+    result["financial_ingestion"] = dashboard()
+    return reply(request, result)
 
 
 @router.get("/search")

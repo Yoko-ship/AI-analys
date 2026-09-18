@@ -5,6 +5,17 @@ import json
 from . import documents, store, validation
 
 
+def period_key(meta):
+    """Only calendar annuals and explicitly dated cumulative interim periods."""
+    start, end = meta.get("period_start") or "", meta.get("period_end") or ""
+    if start[5:] != "01-01" or start[:4] != end[:4]:
+        return None
+    if end[5:] == "12-31":
+        return end[:4]
+    quarter = {"03-31": 1, "06-30": 2, "09-30": 3}.get(end[5:])
+    return f"{end[:4]}Q{quarter}" if quarter else None
+
+
 def propose(candidate_id, payload, *, actor, reason):
     """A reviewed correction creates a new candidate; originals stay immutable."""
     if not actor.strip() or not reason.strip():
@@ -79,17 +90,14 @@ def publish(ticker, *, actor, replace=False, candidate_ids=None):
         if not checks["valid"]:
             raise ValueError("Approved candidate no longer validates")
         meta = payload["classification"]
-        # This rollout publishes annual IFRS only. Interim/NSBU candidates
-        # remain reviewable without silently taking over the workbook pipeline.
-        if (meta["standard"] != "MSFO" or meta["period_start"][5:] != "01-01" or meta["period_end"][5:] != "12-31"
-                or meta["period_start"][:4] != meta["period_end"][:4]):
+        if meta["standard"] != "MSFO" or not period_key(meta):
             continue
         key = (org, meta["standard"], meta["scope"], meta["period_start"], meta["period_end"])
         if key in ready and ready[key][0]["id"] != row["id"]:
             raise ValueError("Conflicting approved candidates: choose explicit candidate IDs")
         ready[key] = (row, payload, checks)
     if not ready:
-        raise ValueError("No current, approved annual candidates selected")
+        raise ValueError("No current, approved calendar-period candidates selected")
     published = []
     with store.transaction() as c:
         existing = c.execute("SELECT scope,period_end FROM ingest_heads WHERE org_id=? AND standard='MSFO'", (org,)).fetchall()
@@ -102,7 +110,7 @@ def publish(ticker, *, actor, replace=False, candidate_ids=None):
             legacy = c.execute("SELECT DISTINCT year FROM catalog_financials WHERE form='MSFO' AND quarter=0 "
                                "AND ticker IN (SELECT ticker FROM catalog_companies WHERE org_id=?)", (org,)).fetchall()
             scope = "consolidated" if any(k[2] == "consolidated" for k in ready) else "separate"
-            selected_years = {int(k[4][:4]) for k in ready if k[2] == scope}
+            selected_years = {int(k[4][:4]) for k in ready if k[2] == scope and k[4][5:] == "12-31"}
             if {r["year"] for r in legacy} - selected_years:
                 raise ValueError("First publication must include every legacy IFRS year in the selected perimeter")
         for key, (row, payload, checks) in ready.items():
@@ -164,12 +172,66 @@ def snapshots(ticker):
         c.close()
 
 
-def series(ticker):
+def series(ticker, *, quarterly=False):
     rows = snapshots(ticker)
     if not rows:
         return None
-    return {row["period_end"][:4]: {field: float(Decimal(value) / 1000)
-            for field, value in row["payload"]["normalized_uzs"].items()} for row in rows}
+    return {period_key(row["payload"]["classification"]): {field: float(Decimal(value) / 1000)
+            for field, value in row["payload"]["normalized_uzs"].items()} for row in rows
+            if ("Q" in (period_key(row["payload"]["classification"]) or "")) == quarterly}
+
+
+def latest(ticker):
+    """One snapshot-based read model for calculation consumers, in thousands UZS."""
+    rows = snapshots(ticker)
+    if not rows:
+        return None
+    def convert(row):
+        meta = row["payload"]["classification"]
+        period = period_key(meta)
+        quarter = int(period[-1]) if "Q" in period else 0
+        values = {f: float(Decimal(v) / 1000) for f, v in row["payload"]["normalized_uzs"].items()}
+        return {**values, "year": int(period[:4]), "quarter": quarter, "is_ytd": bool(quarter),
+                "period_months": quarter * 3 if quarter else 12, "org_type": "bank", "standard": "MSFO",
+                "balance": {"assets_end": values.get("total_assets"), "equity_end": values.get("total_equity")},
+                "field_periods": {}, "report_id": None, "snapshot_id": row["id"],
+                "scope": meta["scope"], "updated_at": row["created_at"]}
+    ordered = sorted(rows, key=lambda r: r["period_end"], reverse=True)
+    result = convert(ordered[0])
+    annual = next((r for r in ordered if r["period_end"][5:] == "12-31"), None)
+    if result["quarter"] and annual:
+        result["annual"] = convert(annual)
+    prior = next((r for r in ordered if int(r["period_end"][:4]) == result["year"] - 1
+                  and r["period_end"][5:] == ordered[0]["period_end"][5:]), None)
+    if prior:
+        result["prior"] = convert(prior)
+    return result
+
+
+def catalog_labels(ticker):
+    """Only PRIMARY published evidence can correct a catalog document's period."""
+    labels = {}
+    rows = snapshots(ticker)
+    if not rows:
+        return labels
+    c = store.connect()
+    try:
+        current = {r["id"] for r in c.execute(
+            "SELECT x.id FROM ingest_candidates x JOIN ingest_versions v ON v.id=x.version_id "
+            "JOIN ingest_sources s ON s.latest_version=v.id")}
+    finally:
+        c.close()
+    for row in rows:
+        meta = row["payload"]["classification"]
+        if meta["role"] != "PRIMARY" or row["candidate_id"] not in current:
+            continue
+        period = period_key(meta)
+        labels[row["payload"]["source"]["pdf_url"]] = {
+            "year": int(period[:4]), "quarter": int(period[-1]) if "Q" in period else 0,
+            "period_type": "quarter" if "Q" in period else "annual",
+            "scope": meta["scope"], "verified": True, "snapshot_id": row["id"],
+        }
+    return labels
 
 
 def passport(ticker, period, field):
@@ -177,7 +239,7 @@ def passport(ticker, period, field):
     if not rows:
         return None
     key = {"net_profit": "net_income", "net_revenue": "revenue"}.get(field, field)
-    row = next((r for r in rows if r["period_end"][:4] == period), None)
+    row = next((r for r in rows if period_key(r["payload"]["classification"]) == period), None)
     if not row or key not in row["payload"]["figures"]:
         return {"status": "NO_DATA", "standard": "MSFO", "period": period, "field": field,
                 "reason": "No approved snapshot figure exists for this period and perimeter"}
@@ -188,10 +250,12 @@ def passport(ticker, period, field):
     return {"status": "SOURCED", "period": period, "field": field, "standard": "MSFO", "source_field": key,
             "value": float(Decimal(payload["normalized_uzs"][key]) / 1000),
             "source": {**source, "snapshot_id": row["id"], "state": "published", "standard": "MSFO", "report_form": "MSFO",
-                       "perimeter": meta["scope"], "scope": meta["scope"], "period_type": "annual", "period_year": meta["document_year"],
+                       "perimeter": meta["scope"], "scope": meta["scope"], "period_type": "quarter" if "Q" in period else "annual", "period_year": meta["document_year"],
+                       "period_start": meta["period_start"], "period_end": meta["period_end"], "period_basis": "cumulative_ytd" if "Q" in period else "annual",
+                       "calculation": figure.get("calculation"), "components": figure.get("components"),
                        "stated_period": period, "role": meta["role"], "published_at": row["created_at"],
                        "title": f"{meta.get('issuer_name', ticker)} — IFRS {meta['document_year']} ({meta['scope']})",
                        "page": figure["page"], "raw_label": figure["raw_label"], "raw_value": float(amount),
                        "unit_scale": int(meta["unit_scale"]), "normalized_value": float(payload["normalized_uzs"][key]),
-                       "normalization_formula": "raw_value × unit_scale", "sign": "negative" if amount < 0 else "zero" if not amount else "positive",
+                       "normalization_formula": "sum(source components) × unit_scale" if figure.get("components") else "raw_value × unit_scale", "sign": "negative" if amount < 0 else "zero" if not amount else "positive",
                        "archived_url": f"/api/company/{ticker}/financials/documents/{source['file_hash']}"}}

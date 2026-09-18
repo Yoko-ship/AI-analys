@@ -329,13 +329,16 @@ def test_corrupt_archive_blocks_publication_and_download(setup, monkeypatch):
 
 def test_all_checked_in_reviews_validate():
     entries = extract.review_entries()
-    assert len(entries) == 9
+    assert len(entries) == 19
+    assert {e["year"] for e in entries if e["ticker"] == "BRBN"} == set(range(2016, 2026))
+    assert {e["ticker"] for e in entries} == {"BRBN", "OCBK", "DRBK", "GRBK", "IPTB", "SQBN"}
     for entry in entries:
         check = validation.validate(validation.from_review(entry), page_count=entry["page_count"])
         assert check["valid"], (entry["ticker"], entry["year"], check)
     octobank = next(e for e in entries if e["ticker"] == "OCBK")
-    assert len(octobank["figures"]) == 5
-    assert "interest_income" not in octobank["figures"]
+    assert len(octobank["figures"]) == 9
+    assert octobank["figures"]["interest_income"]["calculation"] == "sum"
+    assert len(octobank["figures"]["interest_income"]["components"]) == 2
 
 
 def test_unknown_dates_remain_distinct_in_public_library(setup):

@@ -37,12 +37,14 @@ def run(*, max_jobs=4, ocr=False, fetch=None):
             except ValueError:
                 log.warning("Job lease lost; replacement worker owns recovery")
             outcomes.append({"job": job["id"], "ok": False, "reason": str(exc)[:1000]})
+    with store.transaction() as c:
+        store.event(c, "financial-ingestion", "worker.completed", processed=len(outcomes), errors=sum(not o["ok"] for o in outcomes))
     return {"processed": len(outcomes), "outcomes": outcomes, "coverage": store.status()}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("cycle", "discover", "work", "status", "candidates", "propose", "publish", "approve", "retry", "rollback"))
+    parser.add_argument("command", choices=("backup", "verify-backup", "monitor", "cycle", "discover", "work", "status", "candidates", "propose", "publish", "approve", "retry", "rollback"))
     parser.add_argument("--ticker")
     parser.add_argument("--max-jobs", type=int, default=4)
     parser.add_argument("--ocr", action="store_true")
@@ -52,7 +54,13 @@ def main():
     parser.add_argument("--replace", action="store_true")
     parser.add_argument("--file", help="Reviewed candidate JSON for propose")
     args = parser.parse_args()
-    if args.command == "discover":
+    if args.command in {"backup", "verify-backup", "monitor"}:
+        from . import maintenance
+        if args.command == "verify-backup" and not args.file:
+            parser.error("verify-backup requires --file BACKUP_DIRECTORY")
+        result = (maintenance.backup() if args.command == "backup" else maintenance.verify_backup(args.file)
+                  if args.command == "verify-backup" else maintenance.monitor())
+    elif args.command == "discover":
         result = documents.discover(ticker=args.ticker, processor=extract.processor_version())
     elif args.command in {"work", "cycle"}:
         if not 1 <= args.max_jobs <= 1000:
