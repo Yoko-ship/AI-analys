@@ -160,10 +160,12 @@ the release commit also contains `[correct-bank-ifrs]`.
 
 ## Reviewed scope
 
-The review ledgers contain 55 periods across 15 banks: BRBN 2016–2025;
-AGBA 2014–2025; ALKB 2017–2025; MCBA 2023–2025;
-OCBK, DRBK, GRBK, HMKB, IPKY, TNGB, TNBN, UNVB and TRSB 2024–2025;
-IPTB 2023–2024; and SQBN 2024H1. Each period has nine evidenced figures.
+The review ledgers contain 139 periods across 15 banks: AGBA, HMKB, IPTB,
+OCBK, TNBN and TRSB 2014–2025; BRBN and SQBN 2015–2025;
+ALKB 2016–2025; UNVB 2017–2025; TNGB 2020–2025; DRBK 2022–2025;
+GRBK and IPKY 2014–2015 plus 2024–2025; MCBA 2015–2016 plus 2023–2025.
+Interim coverage includes SQBN 2024H1 and TRSB 2018H1/2019H1.
+Each period has nine evidenced figures (1,251 figures total).
 These counts describe checked-in reviews, not confirmed production publication.
 
 MCBA's original 2024 audit, downloaded from its official issuer website, resolves
@@ -174,14 +176,16 @@ The original's 2023 comparative has a misprinted pretax subtotal; its operating
 income uses individually evidenced components instead. See the ledger's period
 evidence for this and historical restatements.
 BRBN 2017/2020 and prior-year comparisons retain their comparative roles;
-ALKB 2024 is explicitly restated. TNGB and UNVB use separate accounts, while
+ALKB 2024 is explicitly restated. DRBK, OCBK, TNGB and UNVB use separate accounts, while
 the other banks use consolidated accounts. UNVB, TRSB and several older
 AGBA/ALKB statements report in thousands of UZS; units are verified per source.
 Calculated interest and operating totals carry explicit component evidence. Primary
 published dates override catalog labels only while that source version is current.
 Issuer-site discovery accepts only ledger-listed sources tied to the catalog's
 issuer identity. Downloads allow reviewed `/upload/` documents on `mkbank.uz`,
-`sqb.uz` and `ipotekabank.uz`, with redirects disabled. Reviewed documents have
+`sqb.uz` and `ipotekabank.uz`, and `/assets/docs/reports/` on `hamkorbank.uz`,
+with redirects disabled. Reviewed documents have
 a 100 MiB limit for large original scans; other OpenInfo downloads retain 25 MiB.
-Other bank PDFs and older history remain review work; adding this architecture
-does not claim every historical gap is filled or that unavailable filings exist.
+The [September 2026 review audit](bank-ifrs-review-2026-09-18.md) records coverage,
+excluded documents and remaining source gaps. This release covers the inspected
+2014–2025 history; it does not claim that every bank has every year's filing.

@@ -329,8 +329,8 @@ def test_corrupt_archive_blocks_publication_and_download(setup, monkeypatch):
 
 def test_all_checked_in_reviews_validate():
     entries = extract.review_entries()
-    assert len(entries) == 55
-    assert {e["year"] for e in entries if e["ticker"] == "BRBN"} == set(range(2016, 2026))
+    assert len(entries) == 139
+    assert {e["year"] for e in entries if e["ticker"] == "BRBN"} == set(range(2015, 2026))
     assert {e["ticker"] for e in entries} == {
         "BRBN", "OCBK", "DRBK", "GRBK", "IPTB", "SQBN", "AGBA", "ALKB",
         "HMKB", "IPKY", "TNGB", "TNBN", "MCBA", "UNVB", "TRSB",
@@ -338,6 +338,12 @@ def test_all_checked_in_reviews_validate():
     for entry in entries:
         check = validation.validate(validation.from_review(entry), page_count=entry["page_count"])
         assert check["valid"], (entry["ticker"], entry["year"], check)
+        assert len(entry["figures"]) == 9
+    periods = [(e["ticker"], publication.period_key(validation.from_review(e)["classification"]))
+               for e in entries]
+    assert len(set(periods)) == len(periods)
+    assert {p for ticker, p in periods if ticker == "TRSB" and "Q" in p} == {"2018Q2", "2019Q2"}
+    assert {e["year"] for e in entries if e["ticker"] == "IPTB"} == set(range(2014, 2026))
     octobank = next(e for e in entries if e["ticker"] == "OCBK")
     assert len(octobank["figures"]) == 9
     assert octobank["figures"]["interest_income"]["calculation"] == "sum"

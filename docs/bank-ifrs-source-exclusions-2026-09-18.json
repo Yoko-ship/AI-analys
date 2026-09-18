@@ -1,0 +1,180 @@
+{
+  "reviewed_at": "2026-09-18",
+  "documents": [
+    {
+      "ticker": "TNGB",
+      "catalog_year": 2020,
+      "pdf_url": "https://openinfo.uz/media/msfo/IMG_0002.pdf",
+      "sha256": "31b84508570bb63139194132ce9f1868e7cbd2d8dedb3b7692e01eb047ce40d2",
+      "disposition": "Only the 2020 annual column is imported. The comparative 2019 period begins on 18 May; it is not relabeled as a calendar annual period."
+    },
+    {
+      "ticker": "ALKB",
+      "catalog_year": 2016,
+      "pdf_url": "https://openinfo.uz/media/msfo/MSFO_RU.pdf",
+      "sha256": "4c3578065ea39d6e9c0931d0b7992e384e7377bde477d2f229166e64549f6173",
+      "disposition": "Bank-only financial statements; excluded from consolidated history."
+    },
+    {
+      "ticker": "ALKB",
+      "catalog_year": 2015,
+      "pdf_url": "https://openinfo.uz/media/msfo/МСФО_RU.pdf",
+      "sha256": "1467341ae75c0393d7f753dcec4f6d82115a6c2d3330b725540164dccd1bad99",
+      "disposition": "Catalog year 2015 contains bank-only 2014 statements; excluded from consolidated history."
+    },
+    {
+      "ticker": "MCBA",
+      "catalog_year": 2019,
+      "pdf_url": "https://openinfo.uz/media/msfo/AuditReport2019.pdf",
+      "sha256": "6bafe683a4dd9a8493fbe5f12b32afdfe3e8ca7234e08c13a17f62e880779fe3",
+      "disposition": "Bank-only financial statements; excluded from consolidated history."
+    },
+    {
+      "ticker": "MCBA",
+      "catalog_year": 2020,
+      "pdf_url": "https://openinfo.uz/media/msfo/SodaPDF-merged-Merging_Result.pdf",
+      "sha256": "3e512342ff6949c61ebb3552f5c4deef244ca47143d2a98b2b6eb72c4cb5d254",
+      "disposition": "Bank-only financial statements; excluded from consolidated history."
+    },
+    {
+      "ticker": "MCBA",
+      "catalog_year": 2021,
+      "pdf_url": "https://openinfo.uz/media/msfo/Аудит_хулоса_и_Отчет_по_МСФО.pdf",
+      "sha256": "75f95399110f79a3cc854f3935ce5dd420bb283b43fa78abee95c054acaa999f",
+      "disposition": "Bank-only financial statements; audit opinion page 1 explicitly identifies the Bank, not the Group."
+    },
+    {
+      "ticker": "MCBA",
+      "catalog_year": 2022,
+      "pdf_url": "https://openinfo.uz/media/msfo/Годовая_финосовая_отчетность_по_МСФО.pdf",
+      "sha256": "ae2e8f5e724f6c58ce8c51ce62ac53e1cec00caa782d0a2a16a1e835eb68d657",
+      "disposition": "Bank-only financial statements; excluded from consolidated history."
+    },
+    {
+      "ticker": "IPKY",
+      "catalog_year": 2024,
+      "pdf_url": "https://openinfo.uz/media/msfo/e94a213a-5881-4c0c-891a-e6db36be9f20.pdf",
+      "sha256": "3524864289d1f424e764a963ab29d00d7dd1f48d26de5c5f8522c2e1de4ec6f2",
+      "disposition": "Bank-only 2024/2023 accounts. Published 2024 uses consolidated comparative in the 2025 group report."
+    },
+    {
+      "ticker": "IPKY",
+      "catalog_year": 2023,
+      "pdf_url": "https://openinfo.uz/media/msfo/Financial_Statements_JSICB_Ipak_Yuli_2022_RUS.pdf",
+      "sha256": "ed4bf7efba0fcd6975eba40693b0eb2416ab012f7130df1bd4507956e5c899d9",
+      "disposition": "Catalog 2023 contains bank-only 2022/2021 accounts."
+    },
+    {
+      "ticker": "IPKY",
+      "catalog_year": 2021,
+      "pdf_url": "https://openinfo.uz/media/msfo/FS_Ipak_Yuli_Bank_2021_RUS.pdf",
+      "sha256": "09ec2ab3ca2ac5441cb733abbe465e9343582ad3e8d34ed691f0ae0d697dc833",
+      "disposition": "Bank-only 2021/2020 accounts."
+    },
+    {
+      "ticker": "IPKY",
+      "catalog_year": 2020,
+      "pdf_url": "https://openinfo.uz/media/msfo/Ipak_Yuli_bank_FS_for_the_year_2020.pdf",
+      "sha256": "5bc825e8ebd134e65f5b7c09025df93741697824ae7ae58ce16a8e61c6b9530e",
+      "disposition": "Bank-only 2020/2019 accounts."
+    },
+    {
+      "ticker": "IPKY",
+      "catalog_year": 2019,
+      "pdf_url": "https://openinfo.uz/media/msfo/Ipak_Yuli_RUS_report_сайт.pdf",
+      "sha256": "ef9c41c738be69b0c4daa306a911bc15ea353af4a48711e24d34f1d678a4d327",
+      "disposition": "Bank-only 2019/2018 accounts."
+    },
+    {
+      "ticker": "IPKY",
+      "catalog_year": 2018,
+      "pdf_url": "https://openinfo.uz/media/msfo/Аудиторское_заключение_2018_1.pdf",
+      "sha256": "f762336bc51b7a8649221ebf664d37f594ad8cced5a79eaa88859951d9e4efa7",
+      "disposition": "Bank-only 2018/2017 accounts."
+    },
+    {
+      "ticker": "IPKY",
+      "catalog_year": 2017,
+      "pdf_url": "https://openinfo.uz/media/audition/Аудитотчёт_2017.pdf",
+      "sha256": "b71b2b7a6262251de3789337fdbcbf28b3e0d6b7dfadacc580b2ff4c37901695",
+      "disposition": "Bank-only 2017/2016 accounts."
+    },
+    {
+      "ticker": "IPKY",
+      "catalog_year": 2016,
+      "pdf_url": "https://openinfo.uz/media/audition/Заключение_рус_2016.pdf",
+      "sha256": "a38ac8b924ae50e5395f1a347650dcc5f4708163babcf624b625457a174af6c4",
+      "disposition": "Four-page auditor opinion, no statement figures."
+    },
+    {
+      "ticker": "TNBN",
+      "catalog_year": 2020,
+      "pdf_url": "https://openinfo.uz/media/msfo/Deloitte.pdf",
+      "sha256": "452a7de45cb82fc7f5c5f7b89337a895c3879f2101609a5cf63d273236f3cfd0",
+      "disposition": "Auditor opinion only; 2020 recovered from complete 2021 report."
+    },
+    {
+      "ticker": "TNBN",
+      "catalog_year": 2016,
+      "pdf_url": "https://openinfo.uz/media/msfo/МСФО2016.pdf",
+      "sha256": "74901d85deb6434a9ecb10ed7deb9ae4ec3674aaa968c76c51d34e961a15d1fe",
+      "disposition": "Balance statement only; complete 2016 recovered from 2017 comparative."
+    },
+    {
+      "ticker": "HMKB",
+      "catalog_year": 2023,
+      "pdf_url": "https://openinfo.uz/media/msfo/audit_report_RUS-2023.pdf",
+      "sha256": "b0d1dadac24a01d013f872e13b1363bc60f06002160aed2429282f1041583821",
+      "disposition": "Auditor opinion only; 2023 recovered from 2024 comparative."
+    },
+    {
+      "ticker": "HMKB",
+      "catalog_year": 2023,
+      "pdf_url": "https://openinfo.uz/media/audition/audit_report_RUS-2023.pdf",
+      "sha256": "b0d1dadac24a01d013f872e13b1363bc60f06002160aed2429282f1041583821",
+      "disposition": "Auditor opinion only; duplicate of catalog MSFO source."
+    },
+    {
+      "ticker": "HMKB",
+      "catalog_year": 2018,
+      "pdf_url": "https://openinfo.uz/media/msfo/Заключена_аудитора_за_2018_год.pdf",
+      "sha256": "761ef984bc8ecb722d175b222e24b5d9e17072f14fc598d9782c1c93e54a2ce3",
+      "disposition": "One-page auditor opinion; complete 2018 recovered from 2019 comparative."
+    },
+    {
+      "ticker": "HMKB",
+      "catalog_year": 2018,
+      "pdf_url": "https://openinfo.uz/media/audition/Заключена_аудитора_за_2018_год.pdf",
+      "sha256": "761ef984bc8ecb722d175b222e24b5d9e17072f14fc598d9782c1c93e54a2ce3",
+      "disposition": "One-page auditor opinion; 2017 recovered from issuer original 2018 report."
+    },
+    {
+      "ticker": "HMKB",
+      "catalog_year": 2017,
+      "pdf_url": "https://openinfo.uz/media/audition/Заключена_аудитора_за_2017_год.pdf",
+      "sha256": "23f7bc113727996099ad9d2d45b18e3e1d21c97f61a98d565b4a71341b57c6d9",
+      "disposition": "Auditor opinion only; 2017 recovered from issuer original 2018 report."
+    },
+    {
+      "ticker": "HMKB",
+      "catalog_year": 2015,
+      "pdf_url": "https://openinfo.uz/media/audition/Аудит_заключение_за_2015_год.pdf",
+      "sha256": "97aca41445fc82ac674869330f964c4d96c3b1d66f156a626e82597ce29984d0",
+      "disposition": "Auditor opinion only; 2015 recovered from complete 2016 report."
+    },
+    {
+      "ticker": "IPTB",
+      "catalog_year": 2017,
+      "pdf_url": "https://openinfo.uz/media/msfo/Ipoteka_bank_2017_Report_and_Opinion_RUS_with_sign_pdf.pdf",
+      "sha256": "c7fcf2ee26741f14d0555bafc0b4078f239288e8f0e80bb556d1d45f77d2e065",
+      "disposition": "Catalog PDF omits income statement. Issuer original supplies complete 2016 comparative."
+    },
+    {
+      "ticker": "UNVB",
+      "catalog_year": 2016,
+      "pdf_url": "https://openinfo.uz/media/audition/Отчет_аудитора_2016.PDF",
+      "sha256": "1e598e716ffb73b609ed07c40e86463f73c51502fd270cfc8001822a96986388",
+      "disposition": "Two-page auditor opinion, no statement figures; no annual 2016 values imported."
+    }
+  ]
+}

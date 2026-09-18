@@ -15,6 +15,7 @@ import reports_catalog as rc
 
 @pytest.mark.parametrize("url", [
     "https://mkbank.uz/upload/unreviewed.pdf",
+    "https://hamkorbank.uz/assets/docs/reports/unreviewed.pdf",
     "https://openinfo.uz:8443/media/test.pdf",
     "https://user@openinfo.uz/media/test.pdf",
     "http://openinfo.uz/media/test.pdf",
@@ -26,9 +27,12 @@ def test_download_rejects_unapproved_source_before_network(monkeypatch, url):
         ifrs.download_pdf(url)
 
 
-def test_download_reviewed_issuer_source_and_limits(monkeypatch):
+@pytest.mark.parametrize("url", [
+    "https://mkbank.uz/upload/reviewed.pdf",
+    "https://hamkorbank.uz/assets/docs/reports/reviewed.pdf",
+])
+def test_download_reviewed_issuer_source_and_limits(monkeypatch, url):
     from financial_ingestion import extract
-    url = "https://mkbank.uz/upload/reviewed.pdf"
     monkeypatch.setattr(extract, "review_entries", lambda: [{"pdf_url": url}])
     monkeypatch.setattr(ifrs, "MAX_BYTES", 4)
 

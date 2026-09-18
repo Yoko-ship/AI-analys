@@ -105,8 +105,12 @@ def download_pdf(url: str) -> bytes:
     from financial_ingestion.extract import review_entries
     reviewed = any(e["pdf_url"] == url for e in review_entries())
     openinfo = parsed.hostname == "openinfo.uz" and parsed.path.startswith("/media/")
-    official = (reviewed and parsed.hostname in {"mkbank.uz", "sqb.uz", "ipotekabank.uz"}
-                and parsed.path.startswith("/upload/"))
+    issuer_paths = {
+        "mkbank.uz": "/upload/", "sqb.uz": "/upload/",
+        "ipotekabank.uz": "/upload/", "hamkorbank.uz": "/assets/docs/reports/",
+    }
+    official = (reviewed and parsed.hostname in issuer_paths
+                and parsed.path.startswith(issuer_paths[parsed.hostname]))
     if parsed.scheme != "https" or parsed.port not in {None, 443} or parsed.username or parsed.password or not (openinfo or official):
         raise ValueError("IFRS source must be an OpenInfo media document or an explicitly reviewed issuer document")
     max_bytes = 100 * 1024 * 1024 if reviewed else MAX_BYTES
