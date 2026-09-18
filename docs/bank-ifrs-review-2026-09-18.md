@@ -65,8 +65,22 @@ that no additional historical documents exist elsewhere.
 ## Release verification
 
 The 105 focused ingestion, recovery, IFRS and bank-history tests pass. All prior
-55 reviewed periods remain unchanged by this historical extension. Publication
-is rehearsed against archived, hash-verified originals in an isolated database,
-then run with a verified production backup. Public series and all source
-passports are checked after deployment. Production confirmation is recorded in
-the release verification artifact; these source-review counts alone do not prove deployment.
+55 reviewed periods remain unchanged by this historical extension. An isolated
+publication rehearsal verified all 139 periods and 1,251 figures.
+
+Production release `21c6a43cc75cc80bcccd4622721f1fb29eecea49` was deployed via SSH
+on 18 September 2026. An upstream non-200 response stopped the initial PDF
+prefetch before publication. The 84 already-reviewed originals were then
+transferred to production, checked against the ledger SHA-256 values, and
+published after a verified backup. Redirect restrictions remain in place.
+
+At 12:19 UTC, every public annual/interim value and all 1,251 source passports
+matched the ledger. Browser checks confirmed the IPTB 2025 and MCBA 2024 tables
+and source dialogs. The application health check and ingestion monitor passed;
+the scheduled ingestion timer is active. Unprocessed catalog sources remain
+staged and do not change the reviewed publication.
+
+[Production verification](bank-ifrs-live-verification-2026-09-18.json) records
+the deployed image, verified backup, coverage, public checks and browser checks.
+The prior full backend run had 15 unrelated failures reproduced on its baseline;
+those do not affect the 105 passing focused checks.

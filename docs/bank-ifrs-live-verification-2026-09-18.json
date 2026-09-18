@@ -1,0 +1,244 @@
+{
+  "verified_at": "2026-09-18T12:19:42.781430+00:00",
+  "base_url": "https://uzstock.uz",
+  "periods": 139,
+  "figures": 1251,
+  "banks": {
+    "AGBA": [
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "ALKB": [
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "BRBN": [
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "DRBK": [
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "GRBK": [
+      "2014",
+      "2015",
+      "2024",
+      "2025"
+    ],
+    "HMKB": [
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "IPKY": [
+      "2014",
+      "2015",
+      "2024",
+      "2025"
+    ],
+    "IPTB": [
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "MCBA": [
+      "2015",
+      "2016",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "OCBK": [
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "SQBN": [
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2024Q2",
+      "2025"
+    ],
+    "TNBN": [
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "TNGB": [
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "TRSB": [
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2018Q2",
+      "2019",
+      "2019Q2",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "UNVB": [
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ]
+  },
+  "checks": [
+    "public annual and interim series values",
+    "every public passport source hash and normalized value",
+    "signed calculation components"
+  ],
+  "deployed_commit": "21c6a43cc75cc80bcccd4622721f1fb29eecea49",
+  "docker_image": "sha256:12191b195d7b1c1fed43547e12b627620bce79cd98f408e685134bf691973f7a",
+  "deployment_method": "SSH; reviewed originals transferred and SHA-256 verified before publication",
+  "backup": {
+    "path": "/app/data/financial_backups/20260918T121830Z-76bb948c",
+    "verified": true,
+    "previous_published_periods": 55
+  },
+  "preserved_previous_values": true,
+  "health": {
+    "status": "ok"
+  },
+  "ingestion_timer": "active",
+  "monitor": {
+    "ok": true,
+    "incidents": {},
+    "coverage": {
+      "sources": 143,
+      "jobs": {
+        "SUCCEEDED": 245,
+        "QUEUED": 173
+      },
+      "published_periods": 139,
+      "unreviewed_sources": 0,
+      "pending_jobs": 173,
+      "stale_publications": 0,
+      "approved_unpublished": 0,
+      "overdue_sources": 39,
+      "last_checked_at": 1789733935.3733678,
+      "status": "PARTIAL",
+      "failures": []
+    }
+  },
+  "browser_checks": [
+    {
+      "ticker": "IPTB",
+      "year": "2025",
+      "table": true,
+      "passport": true,
+      "sourceConfirmed": true
+    },
+    {
+      "ticker": "MCBA",
+      "year": "2024",
+      "table": true,
+      "passport": true,
+      "sourceConfirmed": true
+    }
+  ],
+  "validation": {
+    "focused_backend": "105 passed",
+    "isolated_publication_rehearsal": {
+      "periods": 139,
+      "figures": 1251
+    },
+    "prior_full_backend_run": {
+      "passed": 1653,
+      "failed": 15,
+      "skipped": 1,
+      "note": "All 15 failures reproduced on baseline 3a1e4f; unrelated to bank IFRS changes."
+    }
+  }
+}
