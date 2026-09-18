@@ -100,20 +100,21 @@ def validate_review(entry: dict, payload: bytes) -> dict[str, float]:
     return {field: float(value * factor) for field, value in amounts.items()}
 
 
-def download_pdf(url: str) -> bytes:
+def download_pdf(url: str, *, issuer_origin: str | None = None) -> bytes:
     parsed = urlparse(url)
     from financial_ingestion.extract import review_entries
-    reviewed = any(e["pdf_url"] == url for e in review_entries())
+    entry = next((e for e in review_entries() if e["pdf_url"] == url), None)
+    reviewed = entry is not None
     openinfo = parsed.hostname == "openinfo.uz" and parsed.path.startswith("/media/")
-    issuer_paths = {
-        "mkbank.uz": "/upload/", "sqb.uz": "/upload/",
-        "ipotekabank.uz": "/upload/", "hamkorbank.uz": "/assets/docs/reports/",
-    }
-    official = (reviewed and parsed.hostname in issuer_paths
-                and parsed.path.startswith(issuer_paths[parsed.hostname]))
+    # Issuer authorization is source metadata, not a list of bank hostnames or
+    # path layouts in code. The worker supplies a previously registered origin;
+    # historical reviews carry the same provenance in their source-page URL.
+    origin = urlparse(issuer_origin or (entry or {}).get("source_page_url") or "")
+    official = bool(origin.scheme == "https" and origin.hostname == parsed.hostname
+                    and origin.port in {None, 443} and not origin.username and not origin.password)
     if parsed.scheme != "https" or parsed.port not in {None, 443} or parsed.username or parsed.password or not (openinfo or official):
         raise ValueError("IFRS source must be an OpenInfo media document or an explicitly reviewed issuer document")
-    max_bytes = 100 * 1024 * 1024 if reviewed else MAX_BYTES
+    max_bytes = 100 * 1024 * 1024 if reviewed or official else MAX_BYTES
     # No redirects to private/internal destinations, no unbounded downloads.
     with requests.get(url, stream=True, timeout=(15, 90), allow_redirects=False) as response:
         response.raise_for_status()

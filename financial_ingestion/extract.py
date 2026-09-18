@@ -1,6 +1,7 @@
 """Bounded text/OCR extraction into review candidates, never public figures."""
 import io
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -11,9 +12,9 @@ import time
 import pdfplumber
 import pypdfium2
 
-from . import documents, store, validation
+from . import documents, layout, statements, store, validation
 
-PARSER_VERSION = "bank-pdf-draft-v2"
+PARSER_VERSION = "bank-pdf-draft-v3-" + statements.VERSION
 MAX_PAGES = 16
 MAX_OCR_PAGES = 8
 
@@ -47,43 +48,86 @@ def page_texts(payload, *, ocr=False):
         count = len(pdf.pages)
         if count > 500:
             raise ValueError("PDF page limit exceeded")
-        pages = {i + 1: page.extract_text() or "" for i, page in enumerate(pdf.pages[:MAX_PAGES])}
+        pages = {i + 1: layout.word_lines(page.extract_words()) for i, page in enumerate(pdf.pages[:MAX_PAGES])}
     evidence = {"page_count": count, "ocr_pages": [], "ocr_errors": [], "text_pages": list(pages)}
     if not ocr:
         return pages, evidence
     if not shutil.which("tesseract"):
         evidence["ocr_errors"].append("OCR_UNAVAILABLE")
         return pages, evidence
-    # Statement pages are usually after the opinion. Corrupt OCR layers can
-    # be long but meaningless; character count alone is not a quality check.
-    order = [1, *range(7, 13), *range(2, 7), *range(13, MAX_PAGES + 1)]
+    # Locate statement pages from their content. Report pagination varies:
+    # statements can precede the opinion or start after a long audit report.
+    # A cheap OCR survey finds them; only the strongest pages get high resolution.
+    native = statements.proposals(pages, evidence)
+    problem_pages = set()
+    for proposal in native:
+        for number in proposal["statement_pages"]:
+            count_fields = sum(f["page"] == number for f in proposal["figures"].values())
+            if count_fields < 4:
+                problem_pages.add(number)
+        for issue in proposal["extraction"]["issues"]:
+            if issue.startswith("AMBIGUOUS_CELLS:"):
+                problem_pages.add(int(issue.split(":")[1]))
     pdf = pypdfium2.PdfDocument(payload)
     deadline = time.monotonic() + 240
+    evidence["ocr_survey_pages"] = []
     try:
         with tempfile.TemporaryDirectory(prefix="ifrs-ocr-") as scratch:
-            for number in order:
-                if number > count or number not in pages or _usable(pages[number]):
-                    continue
-                if len(evidence["ocr_pages"]) >= MAX_OCR_PAGES or time.monotonic() > deadline:
-                    break
+            def recognize(number, scale, timeout):
                 page = pdf[number - 1]
-                width, height = page.get_size()
-                if width * height > 2_000_000:
-                    evidence["ocr_errors"].append(f"PAGE_DIMENSION_LIMIT:{number}")
-                    page.close()
-                    continue
-                path = Path(scratch) / f"page-{number}.png"
-                bitmap = page.render(scale=2)
-                bitmap.to_pil().save(path)
-                bitmap.close()
-                page.close()
-                evidence["ocr_pages"].append(number)
                 try:
-                    output = subprocess.run(["tesseract", str(path), "stdout", "-l", "eng+rus", "--psm", "6"],
-                                            capture_output=True, text=True, timeout=30, check=True)
-                    pages[number] = output.stdout[:40000]
+                    width, height = page.get_size()
+                    if width * height > 2_000_000:
+                        evidence["ocr_errors"].append(f"PAGE_DIMENSION_LIMIT:{number}")
+                        return None
+                    path = Path(scratch) / f"page-{number}.png"
+                    bitmap = page.render(scale=scale)
+                    try:
+                        bitmap.to_pil().save(path)
+                    finally:
+                        bitmap.close()
+                finally:
+                    page.close()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None
+                try:
+                    output = subprocess.run(["tesseract", path.name, "stdout", "-l", "eng+rus", "--psm", "6", "tsv"],
+                                            capture_output=True, text=True, errors="replace", cwd=scratch,
+                                            timeout=min(timeout, remaining), check=True,
+                                            env={**os.environ, "OMP_THREAD_LIMIT": "1"})
+                    return layout.tsv_text(output.stdout)[:40000]
                 except (subprocess.SubprocessError, OSError) as exc:
                     evidence["ocr_errors"].append(f"OCR_FAILED:{number}:{type(exc).__name__}")
+                    return None
+
+            targets = []
+            for number in pages:
+                if time.monotonic() >= deadline:
+                    break
+                if _usable(pages[number]) and number not in problem_pages:
+                    continue
+                survey = recognize(number, 1.5, 12)
+                if survey is None:
+                    continue
+                evidence["ocr_survey_pages"].append(number)
+                # Keep native evidence when the survey has found no statement.
+                if _usable(survey) or not pages[number].strip():
+                    pages[number] = survey
+                labels = sum(statements.row_label(line) is not None for line in statements.statement_lines(survey))
+                heading = bool(re.search(r"statement of (?:financial|profit|income)|отч[её]т о (?:финансов|прибыл)", survey, re.I))
+                score = labels + 3 * heading
+                if score or number in problem_pages:
+                    targets.append((score, number))
+            for _, number in sorted(targets, key=lambda item: (-item[0], item[1]))[:MAX_OCR_PAGES]:
+                if time.monotonic() >= deadline:
+                    break
+                refined = recognize(number, 3, 30)
+                evidence["ocr_pages"].append(number)
+                if refined is not None:
+                    pages[number] = refined
+            if time.monotonic() >= deadline:
+                evidence["ocr_errors"].append("OCR_TIME_BUDGET_EXCEEDED")
     finally:
         pdf.close()
     return pages, evidence
@@ -159,7 +203,12 @@ def extract_job(job, *, ocr=False):
             proposals.append((validation.from_review(entry), count, entry))
     else:
         pages, evidence = page_texts(content, ocr=ocr)
-        proposals.append((draft(pages, evidence), evidence["page_count"], None))
+        # A new issuer/report does not need a checked-in review or ticker rule
+        # to extract every dated statement column. Historical ledger entries
+        # above remain immutable review evidence for the previous recovery.
+        parsed = statements.proposals(pages, evidence)
+        proposals.extend((payload, evidence["page_count"], None)
+                         for payload in parsed or [draft(pages, evidence)])
     result = []
     with store.transaction() as c:
         store.assert_lease(c, job)

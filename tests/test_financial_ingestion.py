@@ -383,3 +383,109 @@ def test_vps_pdf_worker_is_persistent_bounded_and_shadow_only():
         assert required in service
     assert "worker publish" not in service
     assert workflow.count("uzstock-financial-ingestion.timer uzstock-news-collector.timer") == 2
+
+
+def test_scope_selection_keeps_series_and_passports_in_same_perimeter(setup):
+    stage(setup)
+    primary = candidates()[0]
+    publication.publish('BRBN', actor='reviewer')
+    payload = json.loads(primary['payload_json'])
+    payload['classification']['scope'] = 'separate'
+    payload['figures']['cash']['raw_value'] = '100'
+    separate = publication.propose(primary['id'], payload, actor='reviewer', reason='Independent entity statements')
+    publication.approve(separate, actor='reviewer', reason='Checked separate scope')
+    publication.publish('BRBN', actor='reviewer', candidate_ids=[separate])
+    assert publication.scopes('BRBN') == ['consolidated', 'separate']
+    assert publication.series('BRBN', scope='separate')['2024']['cash'] == 100000
+    assert publication.series('BRBN')['2024']['cash'] != 100000
+    assert publication.passport('BRBN','2024','cash',scope='separate')['source']['perimeter'] == 'separate'
+    assert publication.passport('BRBN','2024','cash',scope='consolidated')['source']['normalized_value'] != 100000000
+
+
+def test_unavailable_scope_never_falls_back_to_another_or_legacy(setup):
+    stage(setup)
+    publication.publish('BRBN', actor='reviewer')
+    assert publication.series('BRBN',scope='separate') is None
+    assert publication.passport('BRBN','2024','cash',scope='separate')['status'] == 'NO_DATA'
+    with pytest.raises(ValueError, match='scope'):
+        publication.series('BRBN',scope='combined')
+
+
+def test_scope_api_scales_once_and_binds_passport_to_requested_view(setup):
+    from fastapi.testclient import TestClient
+    import api
+    stage(setup)
+    publication.publish('BRBN',actor='reviewer')
+    client=TestClient(api.app)
+    result=client.get('/api/company/BRBN/financials?form=MSFO&scope=consolidated').json()
+    assert result['scope']=='consolidated'
+    assert result['available_scopes']==['consolidated']
+    expected=publication.passport('BRBN','2024','net_profit',scope='consolidated')['source']['normalized_value']
+    assert result['series']['net_profit']['values']['2024']==expected
+    empty=client.get('/api/company/BRBN/financials?form=MSFO&scope=separate').json()
+    assert empty['periods']==[] and empty['series']=={}
+    assert client.get('/api/company/BRBN/financials/passport?form=MSFO&scope=separate&period=2024&field=net_profit').json()['status']=='NO_DATA'
+    assert client.get('/api/company/BRBN/financials?form=NSBU&scope=separate').status_code==422
+    assert client.get('/api/company/BRBN/financials?form=MSFO&scope=combined').status_code==422
+
+
+def test_registered_issuer_original_needs_no_ledger_entry_and_is_refreshed(setup,monkeypatch):
+    import socket
+    monkeypatch.setattr(extract,'review_entries',lambda:[])
+    monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**kw:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('93.184.216.34',443))])
+    url='https://new-issuer.example/arbitrary/yearly-statements.pdf'
+    result=documents.register_issuer_source(ticker='BRBN',url=url,source_page='https://new-issuer.example/investors',actor='reviewer',reason='Verified catalog issuer owns source',processor=extract.processor_version())
+    calls=[]
+    def download(source,*,issuer_origin=None):
+        calls.append((source,issuer_origin));return setup[1]
+    monkeypatch.setattr(ifrs_financials,'download_pdf',download)
+    worker.run(max_jobs=2)
+    assert calls==[(url,'https://new-issuer.example/investors')]
+    assert publication.snapshots('BRBN')==[]
+    with store.transaction() as c:
+        c.execute('UPDATE ingest_sources SET checked_at=1 WHERE id=?',(result['source'],))
+    documents.discover(ticker='BRBN',processor='a-new-parser')
+    c=store.connect()
+    try:
+        assert c.execute("SELECT COUNT(*) FROM ingest_jobs WHERE source_id=? AND stage='FETCH' AND state='QUEUED'",(result['source'],)).fetchone()[0]==1
+        assert c.execute("SELECT COUNT(*) FROM ingest_jobs WHERE source_id=? AND processor='a-new-parser'",(result['source'],)).fetchone()[0]==1
+    finally:c.close()
+
+
+def test_issuer_registration_rejects_private_and_cross_origin_sources(setup,monkeypatch):
+    import socket
+    monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**kw:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('127.0.0.1',443))])
+    args=dict(ticker='BRBN',url='https://issuer.example/report.pdf',source_page='https://issuer.example/investors',actor='reviewer',reason='Verify',processor=extract.processor_version())
+    with pytest.raises(ValueError,match='public addresses'):documents.register_issuer_source(**args)
+    with pytest.raises(ValueError,match='share an origin'):documents.register_issuer_source(**{**args,'source_page':'https://another.example/investors'})
+
+
+def test_unseen_report_extracts_both_columns_without_a_value_ledger(setup,monkeypatch):
+    monkeypatch.setattr(extract,'review_entries',lambda:[])
+    stream=io.BytesIO();doc=canvas.Canvas(stream)
+    lines=['Example bank IFRS financial statements','Consolidated statement of financial position',
+           'in thousands of UZS','31 December 2024                 31 December 2023',
+           'Cash and cash equivalents    4    100,000    90,000',
+           'Total assets    500,000    400,000','Total liabilities    300,000    250,000','Total equity    200,000    150,000']
+    for i,line in enumerate(lines):doc.drawString(30,800-i*22,line)
+    doc.showPage()
+    lines=['Example bank IFRS financial statements','Consolidated statement of profit or loss','in thousands of UZS',
+           'Year ended 31 December 2024                 31 December 2023',
+           'Interest income    500,000    400,000','Interest expense    (100,000)    (90,000)',
+           'Operating expenses    (200,000)    (180,000)','Profit before tax    220,000    150,000',
+           'Profit for the year    190,000    120,000']
+    for i,line in enumerate(lines):doc.drawString(30,800-i*22,line)
+    doc.save()
+    documents.discover(ticker='BRBN',processor=extract.processor_version())
+    result=worker.run(max_jobs=2,fetch=lambda _:stream.getvalue())
+    assert all(o['ok'] for o in result['outcomes'])
+    rows=candidates()
+    assert len(rows)==2
+    payloads=[json.loads(r['payload_json']) for r in rows]
+    assert {p['classification']['period_end'] for p in payloads}=={'2024-12-31','2023-12-31'}
+    assert all(len(p['figures'])==9 for p in payloads)
+    assert all(json.loads(r['checks_json'])['valid'] for r in rows)
+    assert publication.snapshots('BRBN')==[]
+    for row in rows:publication.approve(row['id'],actor='reviewer',reason='Verified statement pages')
+    publication.publish('BRBN',actor='reviewer',candidate_ids=[r['id'] for r in rows])
+    assert set(publication.series('BRBN'))=={'2024','2023'}

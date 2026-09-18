@@ -44,7 +44,7 @@ def run(*, max_jobs=4, ocr=False, fetch=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("backup", "verify-backup", "monitor", "cycle", "discover", "work", "status", "candidates", "propose", "publish", "approve", "retry", "rollback"))
+    parser.add_argument("command", choices=("register-source", "inspect", "backup", "verify-backup", "monitor", "cycle", "discover", "work", "status", "candidates", "propose", "publish", "approve", "retry", "rollback"))
     parser.add_argument("--ticker")
     parser.add_argument("--max-jobs", type=int, default=4)
     parser.add_argument("--ocr", action="store_true")
@@ -52,9 +52,25 @@ def main():
     parser.add_argument("--reason")
     parser.add_argument("--id", action="append", dest="ids")
     parser.add_argument("--replace", action="store_true")
-    parser.add_argument("--file", help="Reviewed candidate JSON for propose")
+    parser.add_argument("--file", help="PDF for inspect, reviewed JSON for propose, or backup directory")
+    parser.add_argument("--url", help="Issuer PDF URL for register-source")
+    parser.add_argument("--source-page", help="Verified issuer source page for register-source")
     args = parser.parse_args()
-    if args.command in {"backup", "verify-backup", "monitor"}:
+    if args.command == "register-source":
+        if not all((args.ticker, args.url, args.source_page, args.actor, args.reason)):
+            parser.error("register-source requires --ticker, --url, --source-page, --actor and --reason")
+        result = documents.register_issuer_source(ticker=args.ticker, url=args.url, source_page=args.source_page,
+                    actor=args.actor, reason=args.reason, processor=extract.processor_version())
+    elif args.command == "inspect":
+        if not args.file:
+            parser.error("inspect requires --file PDF_PATH")
+        from . import statements, validation
+        pages, evidence = extract.page_texts(Path(args.file).read_bytes(), ocr=args.ocr)
+        proposals = statements.proposals(pages, evidence)
+        result = {"parser": statements.VERSION, "evidence": evidence,
+                  "candidates": [{"payload": p, "checks": validation.validate(p, page_count=evidence["page_count"])}
+                                 for p in proposals], "requires_review": True}
+    elif args.command in {"backup", "verify-backup", "monitor"}:
         from . import maintenance
         if args.command == "verify-backup" and not args.file:
             parser.error("verify-backup requires --file BACKUP_DIRECTORY")

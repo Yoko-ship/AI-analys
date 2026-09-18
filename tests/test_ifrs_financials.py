@@ -30,10 +30,13 @@ def test_download_rejects_unapproved_source_before_network(monkeypatch, url):
 @pytest.mark.parametrize("url", [
     "https://mkbank.uz/upload/reviewed.pdf",
     "https://hamkorbank.uz/assets/docs/reports/reviewed.pdf",
+    "https://new-issuer.example/financial-history/annual.pdf",
 ])
 def test_download_reviewed_issuer_source_and_limits(monkeypatch, url):
     from financial_ingestion import extract
-    monkeypatch.setattr(extract, "review_entries", lambda: [{"pdf_url": url}])
+    from urllib.parse import urlsplit
+    monkeypatch.setattr(extract, "review_entries", lambda: [{"pdf_url": url,
+        "source_page_url": "https://" + urlsplit(url).hostname + "/investors"}])
     monkeypatch.setattr(ifrs, "MAX_BYTES", 4)
 
     class Response:

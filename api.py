@@ -5522,6 +5522,7 @@ async def api_company_financial_passport(
     period: str,
     field: str,
     form: str = "NSBU",
+    scope: str | None = None,
 ) -> dict[str, Any]:
     """Evidence passport for a value shown in the issuer financial table.
 
@@ -5532,11 +5533,15 @@ async def api_company_financial_passport(
     form = str(form or "NSBU").strip().upper()
     if form not in {"NSBU", "MSFO"}:
         raise HTTPException(status_code=422, detail="form must be NSBU or MSFO")
+    if scope not in {None, "consolidated", "separate"} or (scope is not None and form != "MSFO"):
+        raise HTTPException(status_code=422, detail="scope must be consolidated or separate and requires MSFO")
     loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(
-        None,
-        partial(get_financial_value_passport, ticker, period, field, form),
-    )
+    if scope is not None:
+        from financial_ingestion.publication import passport
+        result = await loop.run_in_executor(None, partial(passport, ticker, period, field, scope=scope))
+    else:
+        result = await loop.run_in_executor(
+            None, partial(get_financial_value_passport, ticker, period, field, form))
     return _json_safe({
         "ok": True,
         "ticker": ticker.strip().upper(),
@@ -5547,7 +5552,7 @@ async def api_company_financial_passport(
 
 @app.get("/api/company/{ticker}/financials")
 async def api_company_financials(request: Request, ticker: str, freq: str = "annual",
-                                 form: str = "NSBU") -> Response:
+                                 form: str = "NSBU", scope: str | None = None) -> Response:
     """The issuer's annual series — one row per indicator, one column per year.
 
     Reads the `financial_indicators` fact store, which is where openinfo's
@@ -5569,7 +5574,37 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
     standard = str(form or "NSBU").strip().upper()
     if standard not in {"NSBU", "MSFO"}:
         raise HTTPException(status_code=422, detail="form must be NSBU or MSFO")
+    if scope not in {None, "consolidated", "separate"} or (scope is not None and standard != "MSFO"):
+        raise HTTPException(status_code=422, detail="scope must be consolidated or separate and requires MSFO")
     loop = asyncio.get_running_loop()
+    scope_info = {}
+    if standard == "MSFO":
+        from financial_ingestion.publication import scopes as published_scopes, series as snapshot_series
+        available_scopes = await loop.run_in_executor(None, partial(published_scopes, ticker))
+        scope_info = {"scope": scope or next(iter(available_scopes), None), "available_scopes": available_scopes}
+        if scope is not None:
+            quarterly = str(freq or "").lower().startswith("q")
+            values = await loop.run_in_executor(None, partial(snapshot_series, ticker, quarterly=quarterly, scope=scope)) or {}
+            entries = {}
+            gaps = []
+            for period, fields in values.items():
+                for field, value in fields.items():
+                    name = {"net_income": "net_profit", "revenue": "net_revenue"}.get(field, field)
+                    entries.setdefault(name, {"unit": "UZS", "money": True, "filed": True, "values": {}})["values"][period] = value * 1000
+                missing = [f for f in ("total_assets", "total_equity", "total_liabilities", "net_income", "interest_income") if fields.get(f) is None]
+                if missing:
+                    gaps.append({"period": period, "code": "MISSING_FINANCIAL_FIELDS", "fields": missing})
+            from financial_ingestion.store import public_status
+            ingestion = await loop.run_in_executor(None, partial(public_status, ticker))
+            return _etag_json(request, {
+                "ok": True, "ticker": ticker, "currency": "UZS", "standard": standard,
+                "freq": "quarterly" if quarterly else "annual", **scope_info,
+                "period_basis": "cumulative_ytd" if quarterly else "annual",
+                "periods": sorted(values, reverse=True), "series": entries, "data_gaps": gaps,
+                "ingestion": ingestion,
+                "availability": "NO_PARSED_FINANCIALS" if not entries else "PARTIAL" if gaps or ingestion.get("status") == "PARTIAL" else "AVAILABLE",
+                "reason": None if entries else "No reviewed figures have been published for this accounting scope and frequency.",
+            }, max_age=300)
     if str(freq or "").lower().startswith("q"):
         # IFRS interim flows retain their reported YTD basis, never NSBU or
         # synthetic standalone quarters under an IFRS label.
@@ -5591,6 +5626,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
             return _etag_json(request, {
                 "ok": True, "ticker": ticker, "currency": "UZS",
                 "standard": standard, "freq": "quarterly", "periods": sorted(cumulative, reverse=True),
+                **scope_info,
                 "series": entries, "availability": "NO_QUARTERLY_IFRS" if not entries else "PARTIAL" if gaps or ingestion.get("status") == "PARTIAL" else "AVAILABLE",
                 "period_basis": "cumulative_ytd", "data_gaps": gaps, "ingestion": ingestion,
                 "reason": "Flows cover January through the stated period end; they are not standalone three-month figures." if entries else "No reviewed interim IFRS figures have been published.",
@@ -5929,6 +5965,7 @@ async def api_company_financials(request: Request, ticker: str, freq: str = "ann
             ingestion = await loop.run_in_executor(None, partial(public_status, ticker))
         return _etag_json(request, {
             "ok": True, "ticker": ticker, "org_id": org_id, "currency": "UZS", "standard": standard,
+            **scope_info,
             "periods": sorted(periods, reverse=True),
             "series": series,
             "availability": "NO_PARSED_FINANCIALS" if not series else "PARTIAL" if data_gaps or (ingestion or {}).get("status") == "PARTIAL" else "AVAILABLE",

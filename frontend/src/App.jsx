@@ -12630,7 +12630,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
   ), document.body);
 }
 
-function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis }) {
+function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [section, setSection] = React.useState("income");
   // Which lines the chart draws, per section (annual and quarterly sections
@@ -12676,18 +12676,29 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
     setPassport(null);
     setPassportLoading(true);
     const params = new URLSearchParams({ period, field, form: standard });
+    if (standard === "MSFO" && scope) params.set("scope", scope);
     fetch(`/api/company/${encodeURIComponent(ticker)}/financials/passport?${params.toString()}`)
       .then((response) => response.json())
       .then((body) => setPassport(body?.ok ? body : { status: "NO_SOURCE_PASSPORT" }))
       .catch(() => setPassport({ status: "NO_SOURCE_PASSPORT", reason: t("Не удалось загрузить паспорт источника.", "Manba pasportini yuklab bo‘lmadi.", "The source passport could not be loaded.") }))
       .finally(() => setPassportLoading(false));
-  }, [ticker, standard, t]);
+  }, [ticker, standard, scope, t]);
 
   const standardToggle = onStandardChange ? (
     <div className="fin-freq" role="group" aria-label={t("Стандарт", "Standart", "Standard")}>
       {[["NSBU", "НСБУ"], ["MSFO", "МСФО"]].map(([code, label]) => (
         <button key={code} type="button" className={`fin-freq-btn ${standard === code ? "active" : ""}`}
           aria-pressed={standard === code} onClick={() => onStandardChange(code)}>{label}</button>
+      ))}
+    </div>
+  ) : null;
+
+  const scopeToggle = standard === "MSFO" && onScopeChange ? (
+    <div className="fin-freq" role="group" aria-label={t("Периметр отчётности", "Hisobot qamrovi", "Accounting scope")}>
+      {[["consolidated", t("Группа", "Guruh", "Consolidated group")],
+        ["separate", t("Отдельная компания", "Alohida kompaniya", "Separate entity")]].map(([code, label]) => (
+        <button key={code} type="button" className={`fin-freq-btn ${scope === code ? "active" : ""}`}
+          aria-pressed={scope === code} onClick={() => onScopeChange(code)}>{label}</button>
       ))}
     </div>
   ) : null;
@@ -12707,7 +12718,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
 
   if (loading) return (
     <div className="company-financials">
-      <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
+      <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
       <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>
     </div>
   );
@@ -12730,7 +12741,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
   if (available.length === 0 && quarterly) {
     return (
       <div className="company-financials">
-        <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
+        <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
           <p className="muted">{t("Квартальные финансовые данные пока недоступны. Опубликованные документы можно проверить во вкладке «Отчётность».",
                                   "Choraklik moliyaviy ma'lumotlar hozircha mavjud emas. E'lon qilingan hujjatlarni Hisobotlar bo‘limida tekshiring.",
@@ -12748,11 +12759,11 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
   if (available.length === 0) {
     if (standard !== "NSBU") return (
       <div className="company-financials">
-        <div className="fin-subtabs">{standardToggle}</div>
+        <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
-          <p className="muted">{t("Финансовые показатели по МСФО пока не извлечены. Опубликованные документы можно открыть во вкладке «Отчётность».",
-                                  "MHXS ko‘rsatkichlari hali olinmagan. E'lon qilingan hujjatlarni Hisobotlar bo‘limida oching.",
-                                  "IFRS figures have not been extracted yet. Published documents can be opened in the Reports tab.")}</p>
+          <p className="muted">{t("Для выбранного периметра проверенные показатели по МСФО пока недоступны. Опубликованные документы можно открыть во вкладке «Отчётность».",
+                                  "Tanlangan qamrov uchun tekshirilgan MHXS ko‘rsatkichlari hali mavjud emas. E'lon qilingan hujjatlarni Hisobotlar bo‘limida oching.",
+                                  "Reviewed IFRS figures are not yet available for this accounting scope. Published documents can be opened in the Reports tab.")}</p>
           {gapNotice}
         </div>
       </div>
@@ -12765,7 +12776,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
       .filter(([k]) => m[k] != null);
     if (legacy.length === 0) return (
       <div className="company-financials">
-        <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
+        <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
           <p className="muted">{t("Финансовые показатели пока недоступны",
                                   "Moliyaviy ko‘rsatkichlar hozircha mavjud emas",
@@ -12775,7 +12786,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
     );
     return (
       <div className="company-financials">
-        <div className="fin-subtabs">{standardToggle}{freqToggle}</div>
+        <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: "16px 20px" }}>
           {ratios?.year && (
             <div className="muted" style={{ marginBottom: 12, fontSize: 13 }}>
@@ -12989,6 +13000,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
         {section !== "splits" && (
           <>
         {standardToggle}
+        {scopeToggle}
         {freqToggle}
             {/* Line | Bars | Table. Sits with the period switch because it answers
                 the same kind of question — how to READ this section, not which
@@ -13370,6 +13382,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   // invalidates the cached series; retaining NSBU rows while the header says
   // IFRS would be worse than a temporary loading state.
   const [finStandard, setFinStandard] = React.useState("NSBU");
+  const [finScope, setFinScope] = React.useState("");
   // The Финансы tab's period switch. The quarterly series is its own request
   // and its own cache: nobody pays for quarters they never open.
   const [finFreq, setFinFreq] = React.useState(companyQuery.get("freq") === "quarterly" ? "quarterly" : "annual");
@@ -13576,29 +13589,29 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     setFinSeries(null);
     setFinQSeries(null);
     setSplits(null);
-  }, [ticker, finStandard]);
+  }, [ticker, finStandard, finScope]);
   React.useEffect(() => {
     if (!ticker || tab !== "financials" || finSeries !== null) return undefined;
     let alive = true;
     setFinLoading(true);
-    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?form=${encodeURIComponent(finStandard)}`)
+    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?form=${encodeURIComponent(finStandard)}${finStandard === "MSFO" && finScope ? `&scope=${encodeURIComponent(finScope)}` : ""}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setFinSeries(d.ok ? d : { periods: [], series: {} }); })
       .catch(() => { if (alive) setFinSeries({ periods: [], series: {} }); })
       .finally(() => { if (alive) setFinLoading(false); });
     return () => { alive = false; };
-  }, [ticker, tab, finStandard, finSeries]);
+  }, [ticker, tab, finStandard, finScope, finSeries]);
   React.useEffect(() => {
     if (!ticker || tab !== "financials" || finFreq !== "quarterly" || finQSeries !== null) return undefined;
     let alive = true;
     setFinQLoading(true);
-    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?freq=quarterly&form=${encodeURIComponent(finStandard)}`)
+    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?freq=quarterly&form=${encodeURIComponent(finStandard)}${finStandard === "MSFO" && finScope ? `&scope=${encodeURIComponent(finScope)}` : ""}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setFinQSeries(d.ok ? d : { periods: [], series: {} }); })
       .catch(() => { if (alive) setFinQSeries({ periods: [], series: {} }); })
       .finally(() => { if (alive) setFinQLoading(false); });
     return () => { alive = false; };
-  }, [ticker, tab, finStandard, finFreq, finQSeries]);
+  }, [ticker, tab, finStandard, finScope, finFreq, finQSeries]);
   // The splits register, once per ticker and only when the Финансы tab is
   // open — the same laziness as the series above. An error resolves to [],
   // which the table renders as the honest «не зафиксировано».
@@ -13913,7 +13926,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               <span className="muted" style={{ marginLeft: 8 }}>{[qualityPeriod, qualityField].filter(Boolean).join(" · ")}</span>
             </div>}
             <CompanyFinancialsTab ticker={ticker} ratios={companyData?.ratios || {}} lang={lang}
+              key={`${ticker}:${finStandard}:${finScope}:${finFreq}`}
               standard={finStandard} onStandardChange={setFinStandard}
+              scope={finScope || (finFreq === "quarterly" ? finQSeries?.scope : finSeries?.scope)}
+              onScopeChange={(value) => { setFinScope(value); setFinSeries(null); setFinQSeries(null); }}
               series={(finFreq === "quarterly" ? finQSeries?.series : finSeries?.series) || {}}
               periods={(finFreq === "quarterly" ? finQSeries?.periods : finSeries?.periods) || []}
               dataGaps={(finFreq === "quarterly" ? finQSeries?.data_gaps : finSeries?.data_gaps) || []}

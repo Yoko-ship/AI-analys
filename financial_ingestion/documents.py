@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 import time
+from urllib.parse import urlparse
 
 from . import store
 
@@ -109,18 +110,61 @@ def discover(*, ticker=None, processor):
                                  "title": entry["issuer_name"] + " reviewed IFRS statements",
                                  "year": entry["document_year"], "quarter": 0,
                              }))
+        # Registered issuer originals participate in refresh/reprocessing just
+        # like catalog documents, without entries in a checked-in value ledger.
+        for source in c.execute("SELECT * FROM ingest_sources WHERE category='IssuerIFRS'").fetchall():
+            metadata = json.loads(source["metadata_json"])
+            if not metadata.get("registered_by") or (ticker and source["ticker"] != ticker.upper()):
+                continue
+            ids.add(register(c, org_id=source["org_id"], ticker=source["ticker"], url=source["url"],
+                             category=source["category"], metadata=metadata, processor=processor))
     return {"sources": len(ids)}
+
+
+def register_issuer_source(*, ticker, url, source_page, actor, reason, processor):
+    """Register an issuer original without adding Python rules or value JSON.
+
+    Operator attribution records who verified the issuer's source page. The
+    file still follows FETCH → EXTRACT → review and cannot publish itself.
+    """
+    import ipaddress
+    import socket
+    import reports_catalog as rc
+    if not actor.strip() or not reason.strip():
+        raise ValueError("Source registration requires actor and reason")
+    company = rc.get_company_index(ticker.upper()) or {}
+    if not company.get("org_id"):
+        raise ValueError("Known catalog issuer required")
+    parsed, origin = urlparse(url), urlparse(source_page)
+    for target in (parsed, origin):
+        if (target.scheme != "https" or not target.hostname or target.port not in {None,443}
+                or target.username or target.password or target.fragment):
+            raise ValueError("Issuer sources require public HTTPS URLs without credentials")
+    if parsed.hostname != origin.hostname:
+        raise ValueError("PDF and verified issuer source page must share an origin")
+    addresses = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
+    if not addresses or any(not ipaddress.ip_address(record[4][0]).is_global for record in addresses):
+        raise ValueError("Issuer source must resolve to public addresses")
+    with store.transaction() as c:
+        source = register(c, org_id=company['org_id'], ticker=ticker.upper(), url=url,
+                          category="IssuerIFRS", processor=processor, metadata={
+                              "report_form":"MSFO", "source_page_url":source_page,
+                              "title":company.get("company_name") or ticker.upper(),
+                              "registered_by":actor, "registration_reason":reason})
+        store.event(c, source, "source.registered", actor=actor, reason=reason, source_page=source_page)
+    return {"source":source}
 
 
 def fetch_job(job, processor, fetch=None):
     from ifrs_financials import download_pdf
-    fetch = fetch or download_pdf
     c = store.connect()
     try:
         source = dict(c.execute("SELECT * FROM ingest_sources WHERE id=?", (job["source_id"],)).fetchone())
     finally:
         c.close()
-    payload = fetch(source["url"])
+    metadata = json.loads(source["metadata_json"])
+    payload = (fetch(source["url"]) if fetch else download_pdf(source["url"],
+               issuer_origin=metadata.get("source_page_url") if source["category"] == "IssuerIFRS" else None))
     if not payload.startswith(b"%PDF-"):
         raise ValueError("Source did not return a PDF")
     sha, path = archive(payload)

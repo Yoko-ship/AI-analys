@@ -154,8 +154,10 @@ def rollback(snapshot_id, *, actor, reason):
         store.event(c, snapshot_id, "snapshot.rollback", actor=actor, previous=head["snapshot_id"], reason=reason)
 
 
-def snapshots(ticker):
-    """Choose one issuer-wide perimeter; never splice group and bank accounts."""
+def snapshots(ticker, *, scope=None):
+    """Read exactly one perimeter; the default prefers consolidated accounts."""
+    if scope not in {None, "separate", "consolidated"}:
+        raise ValueError("Unknown accounting scope")
     import reports_catalog as rc
     # No schema creation/read takeover until the worker has initialized it.
     import dbx
@@ -166,14 +168,19 @@ def snapshots(ticker):
         rows = c.execute("SELECT p.* FROM ingest_heads h JOIN ingest_snapshots p ON p.id=h.snapshot_id "
                          "WHERE h.org_id=(SELECT org_id FROM catalog_companies WHERE ticker=?) AND h.standard='MSFO'",
                          (ticker.upper(),)).fetchall()
-        selected_scope = "consolidated" if any(r["scope"] == "consolidated" for r in rows) else "separate"
+        selected_scope = scope or ("consolidated" if any(r["scope"] == "consolidated" for r in rows) else "separate")
         return [{**dict(r), "payload": json.loads(r["payload_json"])} for r in rows if r["scope"] == selected_scope]
     finally:
         c.close()
 
 
-def series(ticker, *, quarterly=False):
-    rows = snapshots(ticker)
+def scopes(ticker):
+    """Published accounting scopes, independent of period/frequency selection."""
+    return [scope for scope in ("consolidated", "separate") if snapshots(ticker, scope=scope)]
+
+
+def series(ticker, *, quarterly=False, scope=None):
+    rows = snapshots(ticker, scope=scope)
     if not rows:
         return None
     return {period_key(row["payload"]["classification"]): {field: float(Decimal(value) / 1000)
@@ -234,9 +241,12 @@ def catalog_labels(ticker):
     return labels
 
 
-def passport(ticker, period, field):
-    rows = snapshots(ticker)
+def passport(ticker, period, field, *, scope=None):
+    rows = snapshots(ticker, scope=scope)
     if not rows:
+        if scope is not None:
+            return {"status": "NO_DATA", "standard": "MSFO", "period": period, "field": field,
+                    "scope": scope, "reason": "No published figures in the requested accounting scope"}
         return None
     key = {"net_profit": "net_income", "net_revenue": "revenue"}.get(field, field)
     row = next((r for r in rows if period_key(r["payload"]["classification"]) == period), None)

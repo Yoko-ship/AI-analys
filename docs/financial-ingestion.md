@@ -42,7 +42,7 @@ market-wide calculation ledger or migrate NSBU storage.
   explicit; the existing reader's thousands-UZS compatibility conversion occurs
   only at the boundary. Missing is never zero.
 - Consolidated and separate accounts are separate publication keys. The public
-  reader selects one issuer-wide perimeter, never silently mixes years from both.
+  reader selects one perimeter, with explicit separate/consolidated views; it never silently mixes years from both.
 - Primary, comparative and restated columns carry distinct roles and document
   years. Calendar annuals and Jan-to-March/June/September IFRS periods are supported.
   Interim flows stay cumulative YTD, never inferred standalone quarters; the UI
@@ -55,7 +55,7 @@ market-wide calculation ledger or migrate NSBU storage.
   retried at most three times with backoff. Old lease holders cannot commit.
   Parser/review changes create new extraction jobs using archived originals.
 - The fifteen-minute worker is limited to four jobs, half a CPU, 768 MB, 128 processes,
-  and 30 minutes. OCR examines at most eight pages within its own time budget.
+  and 30 minutes. OCR surveys the first 16 pages and refines at most eight content-selected pages within its own time budget.
   A malformed/long document may need manual handling; limits are not a promise
   to extract every bank layout automatically.
 
@@ -181,11 +181,13 @@ the other banks use consolidated accounts. UNVB, TRSB and several older
 AGBA/ALKB statements report in thousands of UZS; units are verified per source.
 Calculated interest and operating totals carry explicit component evidence. Primary
 published dates override catalog labels only while that source version is current.
-Issuer-site discovery accepts only ledger-listed sources tied to the catalog's
-issuer identity. Downloads allow reviewed `/upload/` documents on `mkbank.uz`,
-`sqb.uz` and `ipotekabank.uz`, and `/assets/docs/reports/` on `hamkorbank.uz`,
-with redirects disabled. Reviewed documents have
-a 100 MiB limit for large original scans; other OpenInfo downloads retain 25 MiB.
+Issuer originals can be registered as source metadata using `register-source`;
+no issuer hostname/path list is required in Python. Historical reviews also
+supply their recorded source-page origin. HTTPS origin checks, disabled redirects
+and bounded downloads remain in place. New reports use the shared native/OCR
+statement parser and store candidates in the database, without adding financial
+values to the historical ledger. See [dynamic ingestion](dynamic-ifrs-ingestion.md)
+for registration, extraction, review, accounting-scope views and current limits.
 The [September 2026 review audit](bank-ifrs-review-2026-09-18.md) records coverage,
 excluded documents and remaining source gaps. This release covers the inspected
 2014–2025 history; it does not claim that every bank has every year's filing.

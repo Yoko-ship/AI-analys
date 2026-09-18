@@ -1,0 +1,106 @@
+{
+  "evaluated_at": "2026-09-18T13:01:16.107778+00:00",
+  "processor": "bank-pdf-draft-v3-statement-columns-v1:32395db03d36865b",
+  "native_archive_evaluation": {
+    "documents": 130,
+    "proposed_periods": 51,
+    "complete_nine_field_valid_candidates": 10,
+    "matched_reviewed_figures": 159,
+    "different_reviewed_figures": 1,
+    "note": "Native text only. This is candidate extraction, not unattended publication accuracy. Many documents are scans. The remaining mismatch is a corrupt native digit in TNGB 2023 liabilities; OCR leaves that field unresolved rather than publishing it."
+  },
+  "ocr_evaluation_documents": 7,
+  "release_candidates": [
+    {
+      "ticker": "MCBA",
+      "source_sha256": "ae2e8f5e724f6c58ce8c51ce62ac53e1cec00caa782d0a2a16a1e835eb68d657",
+      "source_url": "https://openinfo.uz/media/msfo/Годовая_финосовая_отчетность_по_МСФО.pdf",
+      "period": "2022-12-31",
+      "scope": "separate",
+      "fields": 9,
+      "statement_pages": [
+        2,
+        3
+      ]
+    },
+    {
+      "ticker": "MCBA",
+      "source_sha256": "ae2e8f5e724f6c58ce8c51ce62ac53e1cec00caa782d0a2a16a1e835eb68d657",
+      "source_url": "https://openinfo.uz/media/msfo/Годовая_финосовая_отчетность_по_МСФО.pdf",
+      "period": "2021-12-31",
+      "scope": "separate",
+      "fields": 9,
+      "statement_pages": [
+        2,
+        3
+      ]
+    },
+    {
+      "ticker": "MCBA",
+      "source_sha256": "75f95399110f79a3cc854f3935ce5dd420bb283b43fa78abee95c054acaa999f",
+      "source_url": "https://openinfo.uz/media/msfo/Аудит_хулоса_и_Отчет_по_МСФО.pdf",
+      "period": "2020-12-31",
+      "scope": "separate",
+      "fields": 9,
+      "statement_pages": [
+        6,
+        7
+      ]
+    },
+    {
+      "ticker": "IPKY",
+      "source_sha256": "ef9c41c738be69b0c4daa306a911bc15ea353af4a48711e24d34f1d678a4d327",
+      "source_url": "https://openinfo.uz/media/msfo/Ipak_Yuli_RUS_report_сайт.pdf",
+      "period": "2019-12-31",
+      "scope": "separate",
+      "fields": 9,
+      "statement_pages": [
+        5,
+        6
+      ]
+    },
+    {
+      "ticker": "IPKY",
+      "source_sha256": "ef9c41c738be69b0c4daa306a911bc15ea353af4a48711e24d34f1d678a4d327",
+      "source_url": "https://openinfo.uz/media/msfo/Ipak_Yuli_RUS_report_сайт.pdf",
+      "period": "2018-12-31",
+      "scope": "separate",
+      "fields": 9,
+      "statement_pages": [
+        5,
+        6
+      ]
+    },
+    {
+      "ticker": "IPKY",
+      "source_sha256": "09ec2ab3ca2ac5441cb733abbe465e9343582ad3e8d34ed691f0ae0d697dc833",
+      "source_url": "https://openinfo.uz/media/msfo/FS_Ipak_Yuli_Bank_2021_RUS.pdf",
+      "period": "2021-12-31",
+      "scope": "separate",
+      "fields": 9,
+      "statement_pages": [
+        5,
+        6
+      ]
+    },
+    {
+      "ticker": "IPKY",
+      "source_sha256": "09ec2ab3ca2ac5441cb733abbe465e9343582ad3e8d34ed691f0ae0d697dc833",
+      "source_url": "https://openinfo.uz/media/msfo/FS_Ipak_Yuli_Bank_2021_RUS.pdf",
+      "period": "2020-12-31",
+      "scope": "separate",
+      "fields": 9,
+      "statement_pages": [
+        5,
+        6
+      ]
+    }
+  ],
+  "validation": {
+    "focused_backend": "156 passed",
+    "browser": "2 passed",
+    "build": "passed",
+    "lint": "0 errors; 59 existing warnings"
+  },
+  "publication_status": "Prepared and source-page reviewed; see subsequent production verification."
+}
