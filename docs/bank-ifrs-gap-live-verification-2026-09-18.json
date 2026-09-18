@@ -1,0 +1,299 @@
+{
+  "verified_at": "2026-09-18T14:58:56.422383+00:00",
+  "scope_periods": {
+    "GRBK:consolidated": [
+      "2025",
+      "2024",
+      "2021",
+      "2020",
+      "2019",
+      "2018",
+      "2017",
+      "2015",
+      "2014"
+    ],
+    "GRBK:separate": [
+      "2023",
+      "2022"
+    ],
+    "IPKY:consolidated": [
+      "2025",
+      "2024",
+      "2016",
+      "2015",
+      "2014"
+    ],
+    "IPKY:separate": [
+      "2023",
+      "2022",
+      "2021",
+      "2020",
+      "2019",
+      "2018",
+      "2017"
+    ],
+    "MCBA:consolidated": [
+      "2025",
+      "2024",
+      "2023",
+      "2017",
+      "2016",
+      "2015",
+      "2014",
+      "2013"
+    ],
+    "MCBA:separate": [
+      "2022",
+      "2021",
+      "2020",
+      "2019",
+      "2018"
+    ]
+  },
+  "new_periods": 16,
+  "new_figures": 144,
+  "previous_dynamic_periods": 7,
+  "previous_dynamic_figures": 63,
+  "verified_figures": 207,
+  "checks": [
+    "public series values for each accounting scope",
+    "every figure passport hash/value/scope",
+    "literal signed calculation components"
+  ],
+  "existing_ledger_verification": {
+    "verified_at": "2026-09-18T14:59:11.444534+00:00",
+    "base_url": "https://uzstock.uz",
+    "periods": 139,
+    "figures": 1251,
+    "banks": {
+      "AGBA": [
+        "2014",
+        "2015",
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "ALKB": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "BRBN": [
+        "2015",
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "DRBK": [
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "GRBK": [
+        "2014",
+        "2015",
+        "2024",
+        "2025"
+      ],
+      "HMKB": [
+        "2014",
+        "2015",
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "IPKY": [
+        "2014",
+        "2015",
+        "2024",
+        "2025"
+      ],
+      "IPTB": [
+        "2014",
+        "2015",
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "MCBA": [
+        "2015",
+        "2016",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "OCBK": [
+        "2014",
+        "2015",
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "SQBN": [
+        "2015",
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2024Q2",
+        "2025"
+      ],
+      "TNBN": [
+        "2014",
+        "2015",
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "TNGB": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "TRSB": [
+        "2014",
+        "2015",
+        "2016",
+        "2017",
+        "2018",
+        "2018Q2",
+        "2019",
+        "2019Q2",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "UNVB": [
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ]
+    },
+    "checks": [
+      "public annual and interim series values",
+      "every public passport source hash and normalized value",
+      "signed calculation components"
+    ]
+  },
+  "commit": "500f3eb6afdbac2f2f0c16e9516e57617d8ef5da",
+  "published_periods": 162,
+  "published_figures": 1458,
+  "existing_snapshot_heads_preserved": 146,
+  "focused_backend_tests": 167,
+  "post_publication_backup": "/app/data/financial_backups/20260918T145931Z-40b45c4b",
+  "backup_verified": true,
+  "ingestion_timer": "active",
+  "monitor_ok": true,
+  "coverage_note": "Coverage is across explicitly separate accounting scopes; this does not fill consolidated rows with bank-only accounts.",
+  "recovery_issuer_year_gaps": {
+    "GRBK": [
+      "2016"
+    ]
+  },
+  "browser_checks": [
+    {
+      "ticker": "GRBK",
+      "scope": "consolidated",
+      "year": "2021",
+      "passport": true
+    },
+    {
+      "ticker": "GRBK",
+      "scope": "separate",
+      "year": "2023",
+      "passport": true
+    },
+    {
+      "ticker": "IPKY",
+      "scope": "consolidated",
+      "year": "2016",
+      "passport": true
+    },
+    {
+      "ticker": "IPKY",
+      "scope": "separate",
+      "year": "2023",
+      "passport": true
+    },
+    {
+      "ticker": "MCBA",
+      "scope": "consolidated",
+      "year": "2014",
+      "passport": true
+    },
+    {
+      "ticker": "MCBA",
+      "scope": "separate",
+      "year": "2019",
+      "passport": true
+    }
+  ],
+  "browser_check_note": "Production table view, accounting scope switching and source passports checked for each recovery issuer. Browser session marked the sponsor overlay as already dismissed."
+}

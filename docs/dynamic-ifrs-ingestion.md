@@ -142,3 +142,13 @@ The issuer site labels GRBK's 2023 download as consolidated, but the actual
 PDF statement headings describe bank-only accounts. Its 2022 comparative
 is therefore also published as separate. The short 2022 consolidated download
 has unresolved unit/standard evidence and is not used to relabel those figures.
+
+The recovery release `500f3eb6afdbac2f2f0c16e9516e57617d8ef5da` is deployed
+to uzstock.uz. Public API and passport checks verified all 1,458 figures across
+162 published periods, including every previous figure and all 144 additions.
+All 146 previous snapshot heads remain unchanged. The release passed 167
+focused backend tests; production browser checks verified both scope views
+and their source passports for each of the three recovery issuers. The
+post-publication backup is verified, the ingestion timer is active, and
+monitoring reports no incidents or stale publications. See the
+[recovery production verification](bank-ifrs-gap-live-verification-2026-09-18.json).
